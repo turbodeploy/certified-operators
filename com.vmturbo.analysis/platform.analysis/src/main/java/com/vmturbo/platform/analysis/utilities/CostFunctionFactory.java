@@ -474,6 +474,21 @@ public class CostFunctionFactory {
         if (buyer.getSupplier() == seller) {
             return new CommodityCloudQuote(seller, 0, null, null);
         }
+        final CostTuple costTuple = cbtpResourceBundle.getCostTuple();
+        final com.vmturbo.platform.analysis.economy.Context buyerContext = buyer.getBuyer()
+                .getSettings().getContext();
+
+        boolean inLocationScope = isBuyerInLocationScope(costTuple, buyerContext);
+        if (!inLocationScope) {
+            if (logger.isTraceEnabled() || seller.isDebugEnabled()
+                    || buyer.getBuyer().isDebugEnabled()) {
+                logger.info("VM {} with context {} is not in scope of discounted tier {} with " +
+                        "context {}", buyer.getDebugInfoNeverUseInCode(), buyerContext,
+                        seller.getDebugInfoNeverUseInCode(), costTuple);
+            }
+            return new CommodityCloudQuote(seller, Double.POSITIVE_INFINITY, null, null);
+        }
+
         // Match the vm with a template in order to:
         // 1) Estimate the number of coupons requested by the vm
         // 2) Determine the template cost the discount should apply to
@@ -549,7 +564,6 @@ public class CostFunctionFactory {
         double singleVmTemplateCost = templateCostForBuyer / (groupFactor > 0 ? groupFactor : 1);
 
         double discountedCost = 0;
-        final CostTuple costTuple = cbtpResourceBundle.getCostTuple();
         if (availableCoupons > 0) {
             if (couponCommSoldByTp.getCapacity() != 0) {
                 double templateCostPerCoupon = singleVmTemplateCost / couponCommSoldByTp.getCapacity();
@@ -573,6 +587,16 @@ public class CostFunctionFactory {
         }
         return new CommodityCloudQuote(seller, discountedCost, context.isPresent() ? context.get().getRegionId()
                 : null, context.isPresent() ? context.get().getBalanceAccount().getId() : null);
+    }
+
+    private static boolean isBuyerInLocationScope(final CostTuple costTuple,
+                                                  final com.vmturbo.platform.analysis.economy
+                                                          .Context buyerContext) {
+        if (buyerContext != null) {
+            return costTuple.hasZoneId() ? costTuple.getZoneId() == buyerContext.getZoneId()
+                    : costTuple.getRegionId() == buyerContext.getRegionId();
+        }
+        return false;
     }
 
     /**

@@ -36,6 +36,7 @@ import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
 public class CostFunctionTest {
 
     private static final long zoneId = 0L;
+    private static final long regionId = 10L;
     /**
      * Case: AWS IO1 storage tier as a seller. Storage amount unit price is 2, IOPS unit price is 10.
      * VM1 asks for 3GB, 90 IOPS, VM2 asks for 5GB, 500IOPS, VM3 asks for 10GB, 200IOPS
@@ -226,7 +227,7 @@ public class CostFunctionTest {
         // Create a VM buyer
         Trader vm = TestUtils.createVM(economy, "buyer");
         BalanceAccount ba = new BalanceAccount(0.0, 100000000d, 24, 0);
-        vm.getSettings().setContext(new Context(10L, zoneId, ba));
+        vm.getSettings().setContext(new Context(regionId, zoneId, ba));
 
         // Create CBTPs
         Trader cbtp1 = TestUtils.createTrader(economy, TestUtils.VM_TYPE, Arrays.asList(0l),
@@ -237,23 +238,22 @@ public class CostFunctionTest {
                 Arrays.asList(TestUtils.COUPON_COMMODITY, TestUtils.CPU),new double[] {25, 3000},
                 true, true, "cbtp2");
 
-        cbtp1.getSettings().setContext(new Context(10L, zoneId, ba));
-        cbtp1.getSettings().setQuoteFunction(QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
+        cbtp1.getSettings().setContext(new Context(regionId, zoneId, ba));
+        cbtp1.getSettings().setQuoteFunction(QuoteFunctionFactory
+                .budgetDepletionRiskBasedQuoteFunction());
 
-        cbtp2.getSettings().setContext(new Context(10L, zoneId, ba));
-        cbtp2.getSettings().setQuoteFunction(QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
+        cbtp2.getSettings().setContext(new Context(regionId, zoneId, ba));
+        cbtp2.getSettings().setQuoteFunction(QuoteFunctionFactory
+                .budgetDepletionRiskBasedQuoteFunction());
 
-        CbtpCostDTO.Builder cbtpBundleBuilder = TestUtils.createCbtpBundleBuilder(0,m5Large*riDeprecationFactor,
-                10 );
-        CostDTO costDTOcbtp = CostDTO.newBuilder().setCbtpResourceBundle(cbtpBundleBuilder.build()).build();
-        CbtpCostDTO cdDTo = costDTOcbtp.getCbtpResourceBundle();
-        cbtp1.getSettings().setCostFunction(CostFunctionFactory.createResourceBundleCostFunctionForCbtp(cdDTo));
-
-        CbtpCostDTO.Builder cbtpBundleBuilder2 = TestUtils.createCbtpBundleBuilder(0, r4Large*riDeprecationFactor,
-                50);
-        CostDTO costDTOcbtp2 = CostDTO.newBuilder().setCbtpResourceBundle(cbtpBundleBuilder2.build()).build();
-        CbtpCostDTO cdDTo2 = costDTOcbtp2.getCbtpResourceBundle();
-        cbtp2.getSettings().setCostFunction(CostFunctionFactory.createResourceBundleCostFunctionForCbtp(cdDTo2));
+        CbtpCostDTO.Builder cbtpBundleBuilder = TestUtils.createCbtpBundleBuilder(0,
+                m5Large * riDeprecationFactor, 10, true, regionId);
+        cbtp1.getSettings().setCostFunction(CostFunctionFactory
+                .createResourceBundleCostFunctionForCbtp(cbtpBundleBuilder.build()));
+        CbtpCostDTO.Builder cbtpBundleBuilder2 = TestUtils.createCbtpBundleBuilder(0,
+                r4Large * riDeprecationFactor, 50, true, regionId);
+        cbtp2.getSettings().setCostFunction(CostFunctionFactory
+                .createResourceBundleCostFunctionForCbtp(cbtpBundleBuilder2.build()));
 
         final InitialInfiniteQuote bestQuoteSoFar = new InitialInfiniteQuote();
 
@@ -309,14 +309,14 @@ public class CostFunctionTest {
 
         // Test to check if we scale the previous costs down by a factor of 10, we get the same quote
         CbtpCostDTO.Builder cbtpBundleBuilder3 = TestUtils.createCbtpBundleBuilder(0,m4Large*riDeprecationFactor,
-                10 );
+                10, true, regionId);
 
         CostDTO costDTOcbtp3 = CostDTO.newBuilder().setCbtpResourceBundle(cbtpBundleBuilder3.build()).build();
         CbtpCostDTO cdDTo3 = costDTOcbtp3.getCbtpResourceBundle();
         cbtp1.getSettings().setCostFunction(CostFunctionFactory.createResourceBundleCostFunctionForCbtp(cdDTo3));
 
         CbtpCostDTO.Builder cbtpBundleBuilder4 = TestUtils.createCbtpBundleBuilder(0, c4Large*riDeprecationFactor,
-                50);
+                50, true, regionId);
 
         CostDTO costDTOcbtp4 = CostDTO.newBuilder().setCbtpResourceBundle(cbtpBundleBuilder4.build()).build();
         CbtpCostDTO cdDTo4 = costDTOcbtp4.getCbtpResourceBundle();
@@ -333,7 +333,7 @@ public class CostFunctionTest {
 
         // Set the price for a t2.large cbtp
         CbtpCostDTO.Builder cbtpBundleBuilder5 = TestUtils.createCbtpBundleBuilder(0,t2Large*riDeprecationFactor,
-                10 );
+                10, true, regionId);
 
         CostDTO costDTOcbtp5 = CostDTO.newBuilder().setCbtpResourceBundle(cbtpBundleBuilder5.build()).build();
         CbtpCostDTO cdDTo5 = costDTOcbtp5.getCbtpResourceBundle();
@@ -341,7 +341,7 @@ public class CostFunctionTest {
 
         // Set the price for a t3.large cbtp
         CbtpCostDTO.Builder cbtpBundleBuilder6 = TestUtils.createCbtpBundleBuilder(0, t3Large*riDeprecationFactor,
-                50);
+                50, true, regionId);
 
         CostDTO costDTOcbtp6 = CostDTO.newBuilder().setCbtpResourceBundle(cbtpBundleBuilder6.build()).build();
         CbtpCostDTO cdDTo6 = costDTOcbtp6.getCbtpResourceBundle();
@@ -363,7 +363,7 @@ public class CostFunctionTest {
         double updatedriDprecationFactor = 0.00001;
         // Set the price for a t2.large cbtp with updated riDeprecationFactor
         CbtpCostDTO.Builder cbtpBundleBuilder7 = TestUtils.createCbtpBundleBuilder(0,t2Large*updatedriDprecationFactor,
-                10 );
+                10, true, regionId);
 
         CostDTO costDTOcbtp7 = CostDTO.newBuilder().setCbtpResourceBundle(cbtpBundleBuilder7.build()).build();
         CbtpCostDTO cdDTo7 = costDTOcbtp7.getCbtpResourceBundle();
@@ -371,7 +371,7 @@ public class CostFunctionTest {
 
         // Set the price for a t3.large cbtp with updated riDeprecationFactor
         CbtpCostDTO.Builder cbtpBundleBuilder8 = TestUtils.createCbtpBundleBuilder(0, t3Large*updatedriDprecationFactor,
-                50);
+                50, true, regionId);
 
         CostDTO costDTOcbtp8 = CostDTO.newBuilder().setCbtpResourceBundle(cbtpBundleBuilder8.build()).build();
         CbtpCostDTO cdDTo8 = costDTOcbtp8.getCbtpResourceBundle();
@@ -425,7 +425,8 @@ public class CostFunctionTest {
         vmSL.setGroupFactor(1L);
 
         // Create CBTP
-        Trader cbtp_m5Large = TestUtils.setAndGetCBTP(m5Large, "cbtp_m5Large", economy);
+        Trader cbtp_m5Large = TestUtils.setAndGetCBTP(m5Large, "cbtp_m5Large", economy, true,
+                regionId);
 
         // Create a new TP which sells to CBTP
         Trader m5LargeTP = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0l),
@@ -492,7 +493,8 @@ public class CostFunctionTest {
         vmSL.setGroupFactor(1L);
 
         // Create CBTP
-        Trader cbtp_m5Large = TestUtils.setAndGetCBTP(m5Large, "cbtp_m5Large", economy);
+        Trader cbtp_m5Large = TestUtils.setAndGetCBTP(m5Large, "cbtp_m5Large", economy, true,
+                regionId);
 
         // Create a new TP which sells to CBTP
         Trader m5LargeTP = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0l),
@@ -526,6 +528,79 @@ public class CostFunctionTest {
 
         // Infinite quote because no supplier
         assertTrue(Double.isInfinite(q1));
+    }
+
+    /**
+     * Test that if a VM belongs to a zone different from a discounted tier's zone scope then an
+     * infinite quote is returned and if a VM belongs to the same zone as a discounted tier's
+     * zone scope then a non-infinity quote is returned.
+     */
+    @Test
+    public void testZonalLocationDiscountedComputeCost() {
+        final long zone11 = 11L;
+        final long zone13 = 13L;
+        double m5Large = 0.19200;
+
+        // Create economy with discounted compute cost factor
+        Economy economy = new Economy();
+
+        // Create a VM buyer
+        Trader vm = TestUtils.createVM(economy, "vm-buyer");
+        BalanceAccount ba = new BalanceAccount(0.0, 100000000d, 24, 0);
+        vm.getSettings().setContext(new Context(10L, zone13, ba));
+
+        // VM with no supplier
+        ShoppingList vmSL = TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.CPU),
+                vm, new double[] {1000}, null);
+        vmSL.setGroupFactor(1L);
+
+        // Create a new TP which sells to CBTPs
+        Trader m5LargeTP = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0L),
+                Arrays.asList(TestUtils.COUPON_COMMODITY, TestUtils.CPU, TestUtils.SEGMENTATION_COMMODITY),
+                new double[] {8, 3000, 1}, true,
+                true, "m5Large");
+        // Set the cost dto on the TP
+        CostDTO m5LargeTP_CostDto = CostDTO.newBuilder().setComputeTierCost(
+                TestUtils.getComputeTierCostDTOBuilder().addCostTupleList(CostTuple.newBuilder()
+                        .setLicenseCommodityType(-1)
+                        .setPrice(m5Large)
+                        .setBusinessAccountId(24)
+                        .build()).build()).build();
+
+        // CBTP with zone scope 11
+        Trader m5LargeCbtpZone11 = TestUtils.setAndGetCBTP(m5Large, "cbtp_m5Large", economy,
+                false, zone11);
+        // CBTP with zone scope 13
+        Trader m5LargetCbtpZone13 = TestUtils.setAndGetCBTP(m5Large, "cbtp_m5Large", economy,
+                false, zone13);
+
+        m5LargeTP.getSettings().setQuoteFunction(QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
+        m5LargeTP.getSettings().setCostFunction(CostFunctionFactory.createCostFunction(m5LargeTP_CostDto));
+
+        // Place CBTPs on TP
+        TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.COUPON_COMMODITY, TestUtils.SEGMENTATION_COMMODITY),
+                m5LargeCbtpZone11, new double[] {2, 1}, m5LargeTP);
+        TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.COUPON_COMMODITY, TestUtils.SEGMENTATION_COMMODITY),
+                m5LargetCbtpZone13, new double[] {2, 1}, m5LargeTP);
+
+        economy.populateMarketsWithSellers();
+
+        final InitialInfiniteQuote bestQuoteSoFar = new InitialInfiniteQuote();
+        boolean forTraderIncomeStatement = true;
+
+        // Quote for VM from CBTP scoped to zone 11
+        double q1 = EdeCommon.quote(economy, vmSL, m5LargeCbtpZone11, bestQuoteSoFar.getQuoteValue(),
+                forTraderIncomeStatement).getQuoteValue();
+
+        // Infinite quote because the VM is on a different zone (zone 13)
+        assertTrue(Double.isInfinite(q1));
+
+        // Quote for VM from CBTP scoped to zone 13
+        double q2 = EdeCommon.quote(economy, vmSL, m5LargetCbtpZone13,
+                bestQuoteSoFar.getQuoteValue(), forTraderIncomeStatement).getQuoteValue();
+
+        // Non-infinite quote since the VM and CBTP are both on zone 13
+        Assert.assertFalse(Double.isInfinite(q2));
     }
 
     /**

@@ -618,15 +618,42 @@ public class TestUtils {
         Move.updateQuantities(e, sl, supplier, FunctionalOperatorUtil.ADD_COMM);
     }
 
-    public static Trader setAndGetCBTP(double cost, String name, Economy economy) {
+    /**
+     * Creates a Trader with the provided parameters.
+     *
+     * @param cost assocaited with the CBTP.
+     * @param name of the CBTP.
+     * @param economy to which the Trader should belong.
+     * @param regional true if the CBTP is regional, false otherwise.
+     * @param locationId region id or zone id of the CBTP.
+     * @return an instance of Trader.
+     */
+    public static Trader setAndGetCBTP(double cost, String name, Economy economy,
+                                       boolean regional, long locationId) {
         double riDeprecationFactor = 0.0000001;
         Trader cbtp = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0l),
-                        Arrays.asList(TestUtils.CPU, TestUtils.COUPON_COMMODITY),new double[] {3000, 2},true, true, name);
-        cbtp.getSettings().setContext(new Context(10L, 0L, new BalanceAccount(0.0, 100000000d, 24,
-                0)));
+                        Arrays.asList(TestUtils.CPU, TestUtils.COUPON_COMMODITY),
+                new double[] {3000, 2}, true, true, name);
+        final BalanceAccount account = new BalanceAccount(0.0, 100000000d, 24, 0);
+        final Context context;
+        if (regional) {
+            context = new Context(locationId, 0L, account);
+        } else {
+            context = new Context(0L, locationId, account);
+        }
+        cbtp.getSettings().setContext(context);
         cbtp.getSettings().setQuoteFunction(QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
-        CbtpCostDTO.Builder cbtpBundleBuilder = createCbtpBundleBuilder(TestUtils.COUPON_COMMODITY.getBaseType(), cost * riDeprecationFactor, 50);
-        CostDTO costDTOcbtp = CostDTO.newBuilder().setCbtpResourceBundle(cbtpBundleBuilder.build()).build();
+        CbtpCostDTO.Builder cbtpBundleBuilder = createCbtpBundleBuilder(
+                TestUtils.COUPON_COMMODITY.getBaseType(), cost * riDeprecationFactor, 50,
+               regional, locationId);
+        final CostTuple.Builder costTuple = CostTuple.newBuilder();
+        if (regional) {
+            costTuple.setRegionId(locationId);
+        } else {
+            costTuple.setZoneId(locationId);
+        }
+        CostDTO costDTOcbtp = CostDTO.newBuilder()
+                .setCbtpResourceBundle(cbtpBundleBuilder.setCostTuple(costTuple).build()).build();
         CbtpCostDTO cdDTo = costDTOcbtp.getCbtpResourceBundle();
         cbtp.getSettings().setCostFunction(CostFunctionFactory.createResourceBundleCostFunctionForCbtp(cdDTo));
         return cbtp;
@@ -652,12 +679,23 @@ public class TestUtils {
      * @param couponBaseType  Coupon value we want to set on the cbtp
      * @param price   The price of the RI we want to set on the cbtp
      * @param averageDiscount  the discount we want to set
+     * @param regional true if the CBTP is regional
+     * @param locationId region id or zone id of the CBTP
      * @return  the CBTPCostDTO.Builder
      */
-    public static CbtpCostDTO.Builder createCbtpBundleBuilder(int couponBaseType, double price, double averageDiscount) {
+    public static CbtpCostDTO.Builder createCbtpBundleBuilder(int couponBaseType, double price,
+                                                              double averageDiscount,
+                                                              boolean regional,
+                                                              long locationId) {
         CbtpCostDTO.Builder cbtpBundleBuilder = CbtpCostDTO.newBuilder();
         cbtpBundleBuilder.setCouponBaseType(couponBaseType);
-        cbtpBundleBuilder.setCostTuple(CostTuple.newBuilder().setPrice(price));
+        final CostTuple.Builder costTuple = CostTuple.newBuilder().setPrice(price);
+        if (regional) {
+            costTuple.setRegionId(locationId);
+        } else {
+            costTuple.setZoneId(locationId);
+        }
+        cbtpBundleBuilder.setCostTuple(costTuple);
         cbtpBundleBuilder.setDiscountPercentage(averageDiscount);
         return cbtpBundleBuilder;
     }

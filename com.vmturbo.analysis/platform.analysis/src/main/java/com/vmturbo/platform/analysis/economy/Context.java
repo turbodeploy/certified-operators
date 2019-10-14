@@ -110,4 +110,9 @@ public class Context {
 
         return this.getBalanceAccount() == otherContext.getBalanceAccount() && this.getRegionId() == otherContext.getRegionId();
     }
+
+    @Override
+    public String toString() {
+        return String.format("[region id: %s, zone id: %s]", regionId_, zoneId_);
+    }
 }
