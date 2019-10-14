@@ -26,17 +26,21 @@ public class OsCommandProcessRunner {
     // sleep time, in ms, in the stdOut monitoring loop, so as not to lock up the processor.
     private static final int MONITOR_SLEEP_TIME_MS = 50; // polling delay 50ms
 
+    // return code in case there is an IO error
+    private static final int ERROR_RC = 100;
+
     /**
      * Launch a Process to run the given O/S command and wait until the process completes. The stdOut and stdError
      * streams from the Process are combined, and the output stream is dumped via log4j.
-     *
-     * @param osCommandPath OS command path
+     *  @param osCommandPath OS command path
      * @param args arguments to the given OS command
+     * @return the response code from the command - usually '0' == success
      */
-    public void runOsCommandProcess(String osCommandPath, String... args) {
+    public int runOsCommandProcess(String osCommandPath, String... args) {
         Process scriptProcess = osProcessFactory.startOsCommand(osCommandPath, args);
+        int rc;
         try (BufferedReader stdOutStream =
-                     new BufferedReader(new InputStreamReader(scriptProcess.getInputStream()))) {
+                 new BufferedReader(new InputStreamReader(scriptProcess.getInputStream()))) {
             String tag = new File(osCommandPath).getName();
             new Thread(() -> {
                 try {
@@ -46,26 +50,22 @@ public class OsCommandProcessRunner {
                     }
                 } catch (IOException e) {
                     log.error("Error tracing output from " + osCommandPath, e);
-                    return;
                 } catch (InterruptedException e) {
                     log.error("stream monitor loop sleep interrupted");
                 }
             }).start();
             // wait for the process to complete and then flush the output stream to the log
-            try {
-                scriptProcess.waitFor();
-                while (stdOutStream.ready()) {
-                    log.info(tag + ":---" + stdOutStream.readLine());
-                }
-            } catch (InterruptedException e) {
-                // log the error and continue, instead of throwing exception
-                log.error("error running " + osCommandPath + " - Interrupted:   " + e.toString());
-            } catch (IOException e) {
-                // log the error and continue, instead of throwing exception
-                log.error("Error flushing output streams for " + osCommandPath, e);
+            rc = scriptProcess.waitFor();
+            while (stdOutStream.ready()) {
+                log.info(tag + ":---" + stdOutStream.readLine());
             }
+        } catch (InterruptedException e) {
+            // log the error and continue, instead of throwing exception
+            log.error("Error running " + osCommandPath + " - Interrupted:   " + e.toString());
+            rc = ERROR_RC;
         } catch (IOException e) {
-            throw new RuntimeException("Error creating output streams for " + osCommandPath, e);
+            throw new RuntimeException("Stream error for " + osCommandPath, e);
         }
+        return rc;
     }
 }

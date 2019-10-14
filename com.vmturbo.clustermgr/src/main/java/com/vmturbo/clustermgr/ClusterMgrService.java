@@ -15,6 +15,10 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -122,11 +126,18 @@ public class ClusterMgrService {
     private static final String GLOBAL_DEFAULT_COMPONENT_CONFIG_PROPERTIES_PATH =
         "config/global_defaults.properties";
 
-    @VisibleForTesting
-    private static final String HOME_TURBONOMIC_DATA_TURBO_FILE_PATH = "/home/turbonomic/data/";
+    /**
+     * The most recent diagnostics file uploaded will be stored in the /tmp folder.
+     * When a new diagnostic is about to be uploaded, any prior diagnostics files will
+     * be deleted.
+     */
+    private static final String DIAGNOTICS_OUTPUT_FILE_PATH = "/tmp/diagnostics/";
 
+    /**
+     * Used in formatting the diagnostic upload "curl" command".
+     */
     private static final String AT = "@";
-
+    private static final String COLON = ":";
 
     /**
      * The socket timeout in milliseconds, which is the timeout for
@@ -617,7 +628,7 @@ public class ClusterMgrService {
                         .append(componentId)
                         .append(NEXT_LINE);
                 } finally {
-                    log.info(" --- closing zip entry");
+                    log.debug(" --- closing zip entry");
                     try {
                         diagnosticZip.closeEntry();
                     } catch (EOFException e) {
@@ -680,6 +691,7 @@ public class ClusterMgrService {
         URI requestUri = getComponentInstanceUri(componentName, "/diagnostics");
         HttpGet request = new HttpGet(requestUri);
         request.addHeader("Accept", acceptResponseTypes);
+        log.info(" - fetching rsyslog diagnostics");
         try (CloseableHttpClient httpclient =  HttpClientBuilder.create()
             .setDefaultRequestConfig(requestConfig).build()) {
             // execute the request
@@ -733,6 +745,7 @@ public class ClusterMgrService {
     private void insertDiagEnvironmentSummaryFile(@Nonnull final ZipOutputStream diagnosticZip,
                                           @Nonnull final StringBuilder errorMessagesBuild) {
         final ZipEntry zipEntry = new ZipEntry(ENVIRONMENT_SUMMARY_TXT);
+        log.info(" - recording diagnostics environment summary");
         try {
             diagnosticZip.putNextEntry(zipEntry);
             final byte[] data = diagEnvironmentSummary.getDiagSummary(globalDefaultProperties).getBytes();
@@ -766,6 +779,7 @@ public class ClusterMgrService {
     @VisibleForTesting
     void insertDiagsSummaryFile(@Nonnull final ZipOutputStream diagnosticZip,
                                 @Nonnull final StringBuilder errorMessages) {
+        log.info(" - inserting diagnostics summary");
         final boolean isSuccessful = errorMessages.toString().isEmpty();
         final String summaryFileName = isSuccessful ? DIAGS_SUMMARY_SUCCESS_TXT : DIAGS_SUMMARY_FAIL_TXT;
         final ZipEntry zipEntry = new ZipEntry(summaryFileName);
@@ -1468,51 +1482,71 @@ public class ClusterMgrService {
     }
 
     /**
-     * Export diagnostics to upload.vmturbo.com using Curl. Because:
-     * 1. Both classic and metron are using curl to upload files.
-     * 2. The vmtupload.cgi in upload.vmturbo.com doesn't support stream upload!!!
+     * Export diagnostics to to {@link #DIAGNOTICS_OUTPUT_FILE_PATH} and then to upload.vmturbo.com
+     * using Curl. Write to a file because:
+     * <ul>
+     *     <li>Both classic and metron are using curl to upload files.
+     *     <li>The vmtupload.cgi in upload.vmturbo.com doesn't support stream upload!!!
+     * </ul>
      * TODO: integration test
      *
      * @param httpProxy value object with proxy settings
      * @return true if export is successful
      */
     public boolean exportDiagnostics(final HttpProxyConfig httpProxy) {
-        // export the diags file to /home/turbonomic/data/turbonomic-diags-_xxx.zip
-        // xxx is current system time epoch.
-        // TODO: clear prior temp files to avoid disk space full - OM-51158
-        final String fileName = HOME_TURBONOMIC_DATA_TURBO_FILE_PATH +
-            diagEnvironmentSummary.getDiagFileName(globalDefaultProperties);
+        try {
+            prepareDiagnosticFilesDirectory();
+        } catch (IOException e) {
+            log.error("Error preparing diagnostics directory.", e);
+            return false;
+        }
+        final String fileName = DIAGNOTICS_OUTPUT_FILE_PATH +            diagEnvironmentSummary.getDiagFileName(globalDefaultProperties);
         final File diagsFile = new File(fileName);
 
-        Instant start = Instant.now();
         // 1. write to file
+        final Instant start = Instant.now();
+        boolean success = false;
         if (writeDiagnosticsFileToDisk(diagsFile)) {
             try {
                 // 2. invoke curl command to upload, se.g.:
                 // curl -x 10.10.172.84:3128 -F ufile=@test.log \
                 //                            http://10.10.168.175/cgi-bin/vmturboupload.cgi
                 // this runner blocks until the process completes
-                osCommandProcessRunner.runOsCommandProcess(CURL_COMMAND,
+                log.info("Running CURL command to upload diagnostics.");
+                int rc = osCommandProcessRunner.runOsCommandProcess(CURL_COMMAND,
                     getCurlArgs(fileName, httpProxy));
-                try {
-                    // 3. delete the file
-                    if (diagsFile.delete()) {
-                        log.debug("Successfully deleted diagnostic file: " + diagsFile.getName());
-                    } else {
-                        log.error("failed to deleted diagnostic file:" + diagsFile.getName());
-                    }
-                } catch (SecurityException e) {
-                    log.error("Error deleting the diags file " + fileName, e);
-                }
+                success = rc == 0;
+                log.info("Curl command success == {}", success);
             } finally {
                 long timeElapsed = Duration.between(start, Instant.now()).toMillis();
                 log.info("Successfully upload diagnostics file: {}, time (secs): {}", fileName,
                     timeElapsed / 1000.0);
             }
-            return true;
+            return success;
         }
         log.error("Write to disk failed.");
         return false;
+    }
+
+    /**
+     * Prepare the directory for diagnostic files: DIAGNOTICS_OUTPUT_FILE_PATH.
+     * If the directory exists, then clear it. If the directory does not exist, create it.
+     *
+     * @throws IOException if there is an error in listing the files or deleting a prior
+     * diagnostics file
+     */
+    private void prepareDiagnosticFilesDirectory() throws IOException {
+        Path diagsPath = Paths.get(DIAGNOTICS_OUTPUT_FILE_PATH);
+        if (Files.exists(diagsPath)) {
+            try (DirectoryStream<Path> filesStream = Files.newDirectoryStream(diagsPath)) {
+                for (Path filePath: filesStream) {
+                    log.debug("Deleting prior diagnostic file: {}", filePath.toString());
+                    Files.delete(filePath);
+                }
+            }
+        } else {
+            Files.createDirectory(diagsPath);
+        }
     }
 
     /**
