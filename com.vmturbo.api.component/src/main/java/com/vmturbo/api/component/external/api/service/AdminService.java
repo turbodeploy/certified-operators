@@ -26,7 +26,6 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
-import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -61,10 +60,6 @@ import com.vmturbo.components.common.utils.Strings;
 import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.kvstore.KeyValueStore;
 
-/**
- * implement the services behind the "/admin" endpoint. This includes logging, proxy, diagnostics,
- * system status, version info, etc.
- */
 public class AdminService implements IAdminService {
 
     /**
@@ -79,33 +74,33 @@ public class AdminService implements IAdminService {
     // Following strings match user inputs.
     // Is proxy enabled?
     @VisibleForTesting
-    static final String PROXY_ENABLED = "proxyEnabled";
+    public static final String PROXY_ENABLED = "proxyEnabled";
 
     // Proxy server user name.
     @VisibleForTesting
-    static final String PROXY_USER_NAME = "proxyUserName";
+    public static final String PROXY_USER_NAME = "proxyUserName";
 
     // Proxy server password.
     @VisibleForTesting
-    static final String PROXY_USER_PASSWORD = "proxyUserPassword";
+    public static final String PROXY_USER_PASSWORD = "proxyUserPassword";
 
     // Proxy server host name.
     @VisibleForTesting
-    static final String PROXY_HOST = "proxyHost";
+    public static final String PROXY_HOST = "proxyHost";
 
     // Proxy server port number.
     @VisibleForTesting
-    static final String PROXY_PORT_NUMBER = "proxyPortNumber";
+    public static final String PROXY_PORT_NUMBER = "proxyPortNumber";
 
     @VisibleForTesting
-    static final ExportNotification EXPORTED_DIAGNOSTICS_SUCCEED = ExportNotification.newBuilder()
+    public static final ExportNotification EXPORTED_DIAGNOSTICS_SUCCEED = ExportNotification.newBuilder()
         .setStatusNotification(ExportStatusNotification.newBuilder()
             .setStatus(ExportStatus.SUCCEEDED)
             .setDescription("Exported diagnostics data").build())
         .build();
 
     @VisibleForTesting
-    static final ExportNotification FAILED_TO_EXPORT_DIAGNOSTICS_FAILED = ExportNotification.newBuilder()
+    public static final ExportNotification FAILED_TO_EXPORT_DIAGNOSTICS_FAILED = ExportNotification.newBuilder()
         .setStatusNotification(ExportStatusNotification.newBuilder()
             .setStatus(ExportStatus.FAILED)
             .setDescription("Failed to export diagnostics data").build())
@@ -169,7 +164,7 @@ public class AdminService implements IAdminService {
         for (String component : components) {
             if (component.equals(apiHost)) {
                 // no need for rest call for API component since we are in API component
-                final LoggerContext logContext = (LoggerContext)LogManager.getContext(false);
+                final LoggerContext logContext = (LoggerContext) LogManager.getContext(false);
                 componentLoggingLevels.put(apiHost, LoggingMapper.protoLogLevelToApiLogLevel(
                         LoggingUtils.log4jLevelToProtoLogLevel(
                                 logContext.getRootLogger().getLevel())));
@@ -262,8 +257,6 @@ public class AdminService implements IAdminService {
      * @param component name of the component
      * @param newloggingLevel new logging level to set
      * @return optional logging level in the form of {@link LoggingLevel}, or empty if any error
-     * @throws OperationFailedException if there's an error accessing the REST Response from the
-     * request to the given component to change the debug level
      */
     private Optional<LoggingLevel> setLoggingLevel(@Nonnull String component,
                                                    @Nonnull LoggingLevel newloggingLevel)
@@ -313,32 +306,19 @@ public class AdminService implements IAdminService {
                 boolean exportedSucceed;
                 try {
                     exportedSucceed = clusterMgrApi.exportComponentDiagnostics(
-                        convert(retrieveProxyInfoFrom()));
-                } catch (HttpClientErrorException e) {
-                    logger.error("Failed to export diagnostics files with exception: ", e);
-                    apiWebsocketHandler.broadcastDiagsExportNotification(
-                        ExportNotification.newBuilder()
-                            .setStatusNotification(ExportStatusNotification.newBuilder()
-                                .setStatus(ExportStatus.FAILED)
-                                .setDescription(e.getLocalizedMessage())
-                                .build())
-                            .build());
-                    return false;
+                            convert(retrieveProxyInfoFrom()));
                 } catch (RuntimeException e) {
                     logger.error("Failed to export diagnostics files with exception: ", e);
-                    apiWebsocketHandler.broadcastDiagsExportNotification(
-                        FAILED_TO_EXPORT_DIAGNOSTICS_FAILED);
+                    apiWebsocketHandler.broadcastDiagsExportNotification(FAILED_TO_EXPORT_DIAGNOSTICS_FAILED);
                     return false;
                 }
                 if (exportedSucceed) {
                     logger.debug("Successfully exported diagnostics files");
-                    apiWebsocketHandler.broadcastDiagsExportNotification(
-                        EXPORTED_DIAGNOSTICS_SUCCEED);
+                    apiWebsocketHandler.broadcastDiagsExportNotification(EXPORTED_DIAGNOSTICS_SUCCEED);
                     return true;
                 } else {
                     logger.error("Failed to export diagnostics files");
-                    apiWebsocketHandler.broadcastDiagsExportNotification(
-                        FAILED_TO_EXPORT_DIAGNOSTICS_FAILED);
+                    apiWebsocketHandler.broadcastDiagsExportNotification(FAILED_TO_EXPORT_DIAGNOSTICS_FAILED);
                     return false;
                 }
             }, 1, TimeUnit.MILLISECONDS);
@@ -379,8 +359,7 @@ public class AdminService implements IAdminService {
         // TODO enable secure at transition
         final String plainTextPassword = keyValueStore.get(PROXY_USER_PASSWORD)
             .map(CryptoFacility::decrypt).orElse("");
-        httpProxyDTO.setIsProxyEnabled(Boolean.parseBoolean(keyValueStore.get(PROXY_ENABLED)
-            .orElse("false")));
+        httpProxyDTO.setIsProxyEnabled(Boolean.valueOf(keyValueStore.get(PROXY_ENABLED).orElse("false")));
         httpProxyDTO.setUserName(keyValueStore.get(PROXY_USER_NAME).orElse(""));
         httpProxyDTO.setPassword(plainTextPassword);
         httpProxyDTO.setProxyHost(keyValueStore.get(PROXY_HOST).orElse(""));
@@ -425,7 +404,7 @@ public class AdminService implements IAdminService {
     }
 
     private void validateProxyInputs(@Nonnull final HttpProxyDTO httpProxyDTO,
-                                     final boolean isProxyEnabled,
+                                     @Nonnull final boolean isProxyEnabled,
                                      final boolean isSecureProxy) throws InvalidOperationException {
         final String plainTextPassword = httpProxyDTO.getPassword();
         // if user name is entered, the proxy is secured.
@@ -454,8 +433,10 @@ public class AdminService implements IAdminService {
         String header = MessageFormat.format(VERSION_INFO_HEADER, publicVersionString, buildNumber, buildTime);
         ClusterConfigurationDTO clusterConfig = clusterService.getClusterConfiguration();
         return header + clusterConfig.getDefaultProperties().entrySet().stream()
-            .map(componentDefaultsEntry -> String.format("%s: %s", componentDefaultsEntry.getKey(),
-                componentDefaultsEntry.getValue().get(COMPONENT_VERSION_KEY)))
+            .map(componentDefaultsEntry -> {
+                return String.format("%s: %s", componentDefaultsEntry.getKey(),
+                    componentDefaultsEntry.getValue().get(COMPONENT_VERSION_KEY));
+            })
             .sorted()
             .collect(Collectors.joining("\n"));
     }
@@ -463,8 +444,6 @@ public class AdminService implements IAdminService {
     /**
      * Create a {@link ProductVersionDTO} filled with the git commit properties.
      *
-     * @param buildProperties contains a breakdown of the different properties of the build job
-     *                        for this component
      * @return The {@link ProductVersionDTO}.
      */
     @Nonnull

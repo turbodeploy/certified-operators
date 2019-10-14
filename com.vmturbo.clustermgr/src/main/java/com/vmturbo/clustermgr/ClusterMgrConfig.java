@@ -1,7 +1,7 @@
 package com.vmturbo.clustermgr;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
+import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
@@ -140,18 +140,6 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
     }
 
     /**
-     * Declare the Spring GlobalExceptionHandler class to define special-case handling
-     * for how different Java exceptions within a Controller execution are mapped to HTTP
-     * responses.
-     *
-     * @return the GlobalExceptionHandler instance to configure controller error mapping
-     */
-    @Bean
-    public ClusterMgrRestExceptionHandler globalExceptionHandler() {
-        return new ClusterMgrRestExceptionHandler();
-    }
-
-    /**
      * The {@link DiagEnvironmentSummary} bean.
      *
      * @return The object.
@@ -169,8 +157,9 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
      */
     @Bean
     public ClusterMgrService clusterMgrService() {
-        return new ClusterMgrService(consulService(), osCommandProcessRunner(),
-            diagFileNameFormatter());
+        final ClusterMgrService clusterMgrService = new ClusterMgrService(consulService(),
+            osCommandProcessRunner(), diagFileNameFormatter());
+        return clusterMgrService;
     }
 
     /**
@@ -267,12 +256,13 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
      * @param str The string to be digested.
      * @return The massaged Base64-encoded SHA-1 digest of the str.
      * @throws NoSuchAlgorithmException     In case SHA-1 is unsupported.
+     * @throws UnsupportedEncodingException In case UTF-8 is unsupported.
      */
     private @Nonnull String digest(final @Nonnull String str)
-            throws NoSuchAlgorithmException {
+            throws NoSuchAlgorithmException, UnsupportedEncodingException {
         MessageDigest md = MessageDigest.getInstance("SHA-1");
-        byte[] digest = md.digest(str.getBytes(StandardCharsets.UTF_8));
-        return new String(Base64.getEncoder().encode(digest), StandardCharsets.UTF_8)
+        byte[] digest = md.digest(str.getBytes("UTF-8"));
+        return new String(Base64.getEncoder().encode(digest), "UTF-8")
                 .replace('/', '.')
                 .replace('+', '-')
                 .replace('=', '_');
@@ -321,8 +311,8 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
             if (!Strings.isNullOrEmpty(customerID) && !Strings.isNullOrEmpty(instanceID)) {
                 s3FilePrefix = digest(customerID) + "_" + digest(instanceID);
             }
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-1 is unsupported", e);
+        } catch (NoSuchAlgorithmException | UnsupportedEncodingException e) {
+            throw new IllegalStateException("The SHA-1 or UTF-8 are unsupported", e);
         }
         DataTransfer transfer = new DataTransfer(TimeUnit.SECONDS.toMillis(dataForwardInterval),
                                                  dataAggregator(),

@@ -1,6 +1,5 @@
 package com.vmturbo.clustermgr;
 
-import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -14,7 +13,6 @@ import com.orbitz.consul.model.health.HealthCheck;
 
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiResponse;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -26,7 +24,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.client.HttpServerErrorException;
 
 import com.vmturbo.clustermgr.api.ClusterConfiguration;
 import com.vmturbo.clustermgr.api.ComponentProperties;
@@ -67,10 +64,6 @@ import com.vmturbo.clustermgr.api.HttpProxyConfig;
         produces = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE})
 
 public class ClusterMgrController {
-
-    // see HttpResponse.TOO_MANY_REQUESTS
-    private static final int HTTP_RESPONSE_TOO_MANY_REQUESTS = 429;
-
     private final ClusterMgrService clusterMgrService;
 
     ClusterMgrController(@Nonnull final ClusterMgrService clusterMgrService) {
@@ -480,16 +473,10 @@ public class ClusterMgrController {
     @RequestMapping(path = "/diagnostics",
         method = RequestMethod.GET,
         produces = {"application/zip"})
-    @ApiResponse(code = HTTP_RESPONSE_TOO_MANY_REQUESTS,
-        message = "Diagnostics operation already in progress; only one allowed at a time.")
     @ResponseBody
     @SuppressWarnings("unused")
     public void getDiagnostics(OutputStream responseOutput) {
-        try {
-            clusterMgrService.collectComponentDiagnostics(responseOutput);
-        } catch (IOException e) {
-            throw new HttpServerErrorException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
-        }
+        clusterMgrService.collectComponentDiagnostics(responseOutput);
     }
 
     /**
@@ -522,8 +509,6 @@ public class ClusterMgrController {
         path = "/diagnostics",
         consumes = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE},
         method = RequestMethod.POST)
-    @ApiResponse(code = HTTP_RESPONSE_TOO_MANY_REQUESTS,
-        message = "Diagnostics operation already in progress; only one allowed at a time.")
     @ResponseBody
     @SuppressWarnings("unused")
     public Boolean exportDiagnotics(
