@@ -131,6 +131,7 @@ public class ReservedInstanceAnalyzerHistoricalData {
             if (!regionOpt.isPresent()) {
                 logger.debug("No region found to be associated with compute tier {} in availability zone id {}",
                     computeTier, availabilityZoneId);
+                continue;
             }
             TopologyEntityDTO region = regionOpt.get();
             // if regions is empty, check all regions.

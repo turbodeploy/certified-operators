@@ -609,6 +609,11 @@ public class ReservedInstanceAnalyzer {
         List<ReservedInstanceBoughtInfo> risBought =
             rateAndRIProvider.lookupReservedInstancesBoughtInfos(regionalContext);
 
+        if (risBought == null || risBought.isEmpty()) {
+            logger.debug("No bought RI present to be subtracted in cluster {}", regionalContext);
+            return normalizedDemand;
+        }
+
         int buyComputeTierCoupons = regionalContext.getComputeTier().getTypeSpecificInfo().getComputeTier().getNumCoupons();
         float normalizedCoupons = 0;
         for (ReservedInstanceBoughtInfo boughtInfo: risBought) {
