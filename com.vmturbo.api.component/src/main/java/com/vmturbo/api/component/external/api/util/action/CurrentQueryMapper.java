@@ -10,6 +10,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -123,11 +124,16 @@ class CurrentQueryMapper {
                 .map(Optional::get)
                 .forEach(agFilterBldr::addActionMode);
 
-            CollectionUtils.emptyIfNull(query.actionInput().getActionStateList()).stream()
-                .map(actionSpecMapper::mapApiStateToXl)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .forEach(agFilterBldr::addActionState);
+            if (query.actionInput().getActionStateList() == null) {
+                // if there is no filter from the UI query, filter out just ready, queued and in_progress actions
+                Stream.of(ActionSpecMapper.OPERATIONAL_ACTION_STATES).forEach(agFilterBldr::addActionState);
+            } else {
+                query.actionInput().getActionStateList().stream()
+                        .map(actionSpecMapper::mapApiStateToXl)
+                        .filter(Optional::isPresent)
+                        .map(Optional::get)
+                        .forEach(agFilterBldr::addActionState);
+            }
 
             CollectionUtils.emptyIfNull(query.actionInput().getRiskSubCategoryList()).stream()
                 .map(actionSpecMapper::mapApiActionCategoryToXl)
