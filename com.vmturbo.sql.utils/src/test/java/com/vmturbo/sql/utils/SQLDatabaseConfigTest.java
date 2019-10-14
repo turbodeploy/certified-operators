@@ -2,37 +2,58 @@ package com.vmturbo.sql.utils;
 
 import static org.junit.Assert.assertEquals;
 
+import java.util.Optional;
+
+import com.google.common.collect.ImmutableMap;
+
+import org.jooq.SQLDialect;
 import org.junit.Test;
 
 /**
- * unit test for {@link SQLDatabaseConfig}
+ * unit test for {@link SQLDatabaseConfig}.
  */
 public class SQLDatabaseConfigTest {
 
+    public static final String EXPECTED_DB_URL_BASE = "jdbc:mariadb://localhost:3306" +
+            "?useServerPrepStmts=true";
+    public static final String ENABLE_SECURE_DB_CONNECTION = "enableSecureDBConnection";
+
     @Test
     public void testSecureURL() {
-        System.setProperty("enableSecureDBConnection", "true");
-        TestSQLDataBseConfigImpl testSQLDataBseConfig = new TestSQLDataBseConfigImpl();
-        assertEquals("jdbc:mysql:?useSSL=true&trustServerCertificate=true", testSQLDataBseConfig.getURL());
+        System.setProperty(ENABLE_SECURE_DB_CONNECTION, "true");
+        TestSQLDataBaseConfigImpl testSQLDataBseConfig = new TestSQLDataBaseConfigImpl();
+        assertEquals(EXPECTED_DB_URL_BASE +
+                "&useSSL=true&trustServerCertificate=true", testSQLDataBseConfig.getURL());
     }
 
     @Test
     public void testInSecureURL() {
         System.setProperty("enableSecureDBConnection", "false");
-        TestSQLDataBseConfigImpl testSQLDataBseConfig = new TestSQLDataBseConfigImpl();
-        assertEquals("jdbc:mysql:", testSQLDataBseConfig.getURL());
+        TestSQLDataBaseConfigImpl testSQLDataBseConfig = new TestSQLDataBaseConfigImpl();
+        assertEquals(EXPECTED_DB_URL_BASE, testSQLDataBseConfig.getURL());
     }
 
     @Test
     public void tesDefalURL() {
         System.clearProperty("enableSecureDBConnection");
-        TestSQLDataBseConfigImpl testSQLDataBseConfig = new TestSQLDataBseConfigImpl();
-        assertEquals("jdbc:mysql:", testSQLDataBseConfig.getURL());
+        TestSQLDataBaseConfigImpl testSQLDataBseConfig = new TestSQLDataBaseConfigImpl();
+        assertEquals(EXPECTED_DB_URL_BASE, testSQLDataBseConfig.getURL());
     }
 
-    static class TestSQLDataBseConfigImpl extends SQLDatabaseConfig {
+    /**
+     * Connection config object for testing.
+     */
+    static class TestSQLDataBaseConfigImpl extends SQLDatabaseConfig {
         String getURL() {
             return super.getDbUrl();
+        }
+
+        @Override
+        public SQLConfigObject getSQLConfigObject() {
+            boolean secure = Boolean.valueOf(System.getProperty(ENABLE_SECURE_DB_CONNECTION));
+            return new SQLDatabaseConfig.SQLConfigObject(
+                    "localhost", 3306, Optional.empty(), SQLDialect.MARIADB.name(), secure,
+                    ImmutableMap.of(SQLDialect.MARIADB, "useServerPrepStmts=true"));
         }
     }
 }

@@ -2,6 +2,7 @@ package com.vmturbo.sql.utils;
 
 import java.sql.SQLException;
 import java.time.Duration;
+import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -9,6 +10,9 @@ import javax.annotation.concurrent.Immutable;
 import javax.sql.DataSource;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
+
+import org.apache.commons.lang.StringUtils;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -39,13 +43,14 @@ import com.vmturbo.components.common.utils.EnvironmentUtils;
 /**
  * Configuration for interaction with database.
  *
- * Components that want to connect to the database should import this configuration into their
+ * <p>Components that want to connect to the database should import this configuration into their
  * Spring context with an @Import annotation (please do not @ComponentScan the sql.utils package!).
+ * </p>
  */
 @Configuration
 @EnableTransactionManagement
 public class SQLDatabaseConfig {
-    private static final String ENABLE_SECURE_DB_CONNECTION = "enableSecureDBConnection" ;
+    private static final String ENABLE_SECURE_DB_CONNECTION = "enableSecureDBConnection";
 
     private final boolean isSecureDBConnectionRequested =
         EnvironmentUtils.parseBooleanFromEnv(ENABLE_SECURE_DB_CONNECTION);
@@ -76,6 +81,12 @@ public class SQLDatabaseConfig {
 
     @Value("${authRetryDelaySecs}")
     public int authRetryDelaySecs;
+
+    @Value("{mariadbDriverProperties}")
+    private String mariadbDriverProperties;
+
+    @Value("{mysqlDriverProperties}")
+    private String mysqlDriverProperties;
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -175,17 +186,7 @@ public class SQLDatabaseConfig {
     @Nonnull
     @VisibleForTesting
     String getDbUrl() {
-        final UriComponentsBuilder urlBuilder = UriComponentsBuilder.newInstance()
-            .scheme("jdbc:mysql")
-            .host(dbHost)
-            .port(dbPort);
-        if (isSecureDBConnectionRequested) {
-            logger.info("Enabling secure DB connection with host: {}, port: {}", dbHost, dbPort);
-        }
-        return isSecureDBConnectionRequested ? urlBuilder
-            .queryParam("useSSL", "true")
-            .queryParam("trustServerCertificate", "true")
-            .build().toUriString() : urlBuilder.build().toUriString();
+        return getSQLConfigObject().getDbUrl();
     }
 
     /**
@@ -197,7 +198,12 @@ public class SQLDatabaseConfig {
     public SQLConfigObject getSQLConfigObject() {
         final Optional<UsernamePasswordCredentials> credentials = (dbUsername != null && dbUserPassword != null) ?
             Optional.ofNullable(new UsernamePasswordCredentials(dbUsername, dbUserPassword)) : Optional.empty();
-        return new SQLConfigObject(dbHost, dbPort, credentials, sqlDialectName, getDbUrl(), isSecureDBConnectionRequested);
+        final Map<SQLDialect, String> driverPropertiesMap = ImmutableMap.of(
+                SQLDialect.MARIADB, mariadbDriverProperties,
+                SQLDialect.MYSQL, mysqlDriverProperties);
+        return new SQLConfigObject(
+                dbHost, dbPort, credentials, sqlDialectName,
+                isSecureDBConnectionRequested, driverPropertiesMap);
     }
 
     /**
@@ -208,31 +214,53 @@ public class SQLDatabaseConfig {
         private final String dbUrl;
         private final String dbHost;
         private final int dbPort;
-        private final String sqlDialect;
+        private final SQLDialect sqlDialect;
         private final boolean isSecureDBConnectionRequested;
+        private final Map<SQLDialect, String> driverPropertiesMap;
 
         private final Optional<UsernamePasswordCredentials> credentials;
 
 
+        /**
+         * Create a new instance.
+         *
+         * @param dbHost                        host name or IP address of DB server
+         * @param dbPort                        port to access DB server
+         * @param credentials                   authentication credentials for DB
+         * @param sqlDialectName                JOOQ dialect name for DB server
+         * @param isSecureDBConnectionRequested true if connection should be secure
+         * @param driverPropertiesMap           map of driver property strings keyed by dialect
+         */
         public SQLConfigObject(@Nonnull final String dbHost,
-                               @Nonnull final int dbPort,
-                               @Nonnull final Optional<UsernamePasswordCredentials> credentials,
-                               @Nonnull final String sqlDialect,
-                               @Nonnull final String dbUrl,
-                               final boolean isSecureDBConnectionRequested) {
+                @Nonnull final int dbPort,
+                @Nonnull final Optional<UsernamePasswordCredentials> credentials,
+                @Nonnull final String sqlDialectName,
+                final boolean isSecureDBConnectionRequested,
+                @Nonnull final Map<SQLDialect, String> driverPropertiesMap) {
             this.dbHost = dbHost;
             this.dbPort = dbPort;
             this.credentials = credentials;
-            this.sqlDialect = sqlDialect;
-            this.dbUrl = dbUrl;
+            this.sqlDialect = SQLDialect.valueOf(sqlDialectName);
             this.isSecureDBConnectionRequested = isSecureDBConnectionRequested;
+            this.driverPropertiesMap = driverPropertiesMap;
+            this.dbUrl = createDbUrl(isSecureDBConnectionRequested);
         }
 
+        /**
+         * Return the connection URL to access the database.
+         *
+         * @return DB connection URL
+         */
         @Nonnull
         public String getDbUrl() {
             return dbUrl;
         }
 
+        /**
+         * Return the DB server host.
+         *
+         * @return host name or IP address
+         */
         @Nonnull
         public String getDbHost() {
             return dbHost;
@@ -242,18 +270,70 @@ public class SQLDatabaseConfig {
             return dbPort;
         }
 
+        /**
+         * Get login credentials.
+         *
+         * @return login credentials, if available
+         */
         @Nonnull
         public Optional<UsernamePasswordCredentials> getCredentials() {
             return credentials;
         }
 
+        /**
+         * Get the JOOQ dialect for this DB connection.
+         *
+         * @return dialect enum value
+         */
         @Nonnull
-        public String getSqlDialect() {
+        public SQLDialect getSqlDialect() {
             return sqlDialect;
         }
 
+        /**
+         * Get secure connection requirement.
+         *
+         * @return true of a secure connection is required
+         */
         public boolean isSecureDBConnectionRequested() {
             return isSecureDBConnectionRequested;
+        }
+
+        /**
+         * Get the local DB driver properties that should be included in the DB connection URL.
+         *
+         * <p>The properties are returned in the form they will appear in the URL, i.e. query
+         * string format, with no initial "?" or "&" prefix.</p>
+         *
+         * @return driver properties query string
+         */
+        @Nonnull
+        public String getDriverProperties() {
+            final String driverProperties = driverPropertiesMap.get(sqlDialect);
+            if (driverProperties == null) {
+                throw new IllegalArgumentException(
+                        String.format("No DB driver properties configured for dialect %s",
+                                sqlDialect));
+            }
+            return driverProperties;
+        }
+
+        private String createDbUrl(boolean isSecureDBConnectionRequested) {
+            final UriComponentsBuilder urlBuilder = UriComponentsBuilder.newInstance()
+                    .scheme("jdbc:" + getSqlDialect().name().toLowerCase())
+                    .host(dbHost)
+                    .port(dbPort);
+            String driverProperties = getDriverProperties();
+            if (StringUtils.isNotEmpty(driverProperties)) {
+                urlBuilder.query(driverProperties);
+            }
+            if (isSecureDBConnectionRequested) {
+                logger.info("Enabling secure DB connection with host: {}, port: {}", dbHost, dbPort);
+            }
+            return isSecureDBConnectionRequested ? urlBuilder
+                    .queryParam("useSSL", "true")
+                    .queryParam("trustServerCertificate", "true")
+                    .build().toUriString() : urlBuilder.build().toUriString();
         }
     }
 }

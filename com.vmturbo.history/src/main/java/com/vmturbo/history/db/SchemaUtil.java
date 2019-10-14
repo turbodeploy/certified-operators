@@ -172,28 +172,6 @@ public class SchemaUtil {
             " DEFAULT CHARACTER SET = UTF8 DEFAULT COLLATE = utf8_unicode_ci;");
     }
 
-    /**
-     * Phrase an url for a DB using the given attributes.
-     *
-     * @param adapter The adapter for the DBV.
-     * @param hostName The DB host name.
-     * @param portNumber The port number.
-     * @param databaseName The DB name.
-     * @return
-     */
-    public static String phraseURL(String adapter, String hostName, String portNumber,
-                                   String databaseName) {
-        if (isMysqlAdapter(adapter)) {
-            return "jdbc:" + adapter + "://"+ hostName + ":" + portNumber
-                + "/" + databaseName +
-                "?useUnicode=true" +
-                "&characterEncoding=UTF-8" +
-                "&characterSetResults=UTF-8" +
-                "&connectionCollation=utf8_unicode_ci";
-        }
-        return null;
-    }
-
     /*
      * ------------------------------------------------------
      *   UTILITY FOR DEVELOPERS TO INITALIZE A DEV DATABASE

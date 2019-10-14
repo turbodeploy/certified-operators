@@ -54,6 +54,13 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Collections2;
+import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -71,13 +78,6 @@ import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 import org.springframework.beans.factory.annotation.Value;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Collections2;
-import com.google.common.collect.ImmutableBiMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.api.enums.DayOfWeek;
 import com.vmturbo.api.enums.Period;
@@ -126,7 +126,7 @@ public class  HistorydbIO extends BasedbIO {
     private static final double MAX_STATS_VALUE = 1e12D - 1;
     private static final double MIN_STATS_VALUE = -MAX_STATS_VALUE;
     private final SQLConfigObject sqlConfigObject;
-    private static final String SECURE_DB_URL = "?useSSL=true&trustServerCertificate=true";
+    private static final String SECURE_DB_QUERY_PARMS = "useSSL=true&trustServerCertificate=true";
 
     // MySQL Connection parameters
     @Value("${userName:vmtplatform}")
@@ -227,7 +227,7 @@ public class  HistorydbIO extends BasedbIO {
 
     @Override
     public String getAdapter() {
-        return sqlConfigObject.getSqlDialect().toLowerCase();
+        return sqlConfigObject.getSqlDialect().name().toLowerCase();
     }
 
     @Override
@@ -312,16 +312,22 @@ public class  HistorydbIO extends BasedbIO {
 
     @Override
     protected String getMySQLConnectionUrl() {
-        final String baseUrl = "jdbc:" + getAdapter()
+        String baseUrl = "jdbc:" + getAdapter()
             + "://"
             + getHostName()
             + ":"
             + getPortNumber()
             + "/"
             + getDbSchemaName();
+        final String settings = sqlConfigObject.getDriverProperties();
+        String sep = "?";
+        if (StringUtils.isNotEmpty(settings)) {
+            baseUrl += sep + settings;
+            sep = "&";
+        }
         if (sqlConfigObject.isSecureDBConnectionRequested()) {
             // E.g.: "jdbc:mysql://host:3306/vmtdt?useSSL=true&trustServerCertificate=true
-            return baseUrl + SECURE_DB_URL;
+            return baseUrl + sep + SECURE_DB_QUERY_PARMS;
         }
         // E.g.: "jdbc:mysql://host:3306/vmtdt
         return baseUrl;

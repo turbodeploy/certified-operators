@@ -13,7 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
-import org.jooq.SQLDialect;
 import org.jooq.conf.RenderNameStyle;
 import org.jooq.conf.Settings;
 import org.jooq.impl.DataSourceConnectionProvider;
@@ -32,9 +31,6 @@ import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.LazyConnectionDataSourceProxy;
 import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
-import org.springframework.web.util.UriComponentsBuilder;
-
-import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.auth.component.services.SecureStorageController;
@@ -315,7 +311,7 @@ public class AuthDBConfig {
         // We explicitly assume MySQL datasource here for a moment.
         MariaDbDataSource dataSource = (MariaDbDataSource)dataSource();
         try {
-            dataSource.setUrl(getMariaDBDbUrl());
+            dataSource.setUrl(databaseConfig.getSQLConfigObject().getDbUrl());
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
@@ -377,7 +373,7 @@ public class AuthDBConfig {
         jooqConfiguration.set(connectionProvider());
         jooqConfiguration.set(new DefaultExecuteListenerProvider(exceptionTranslator()));
         jooqConfiguration.set(new Settings().withRenderNameStyle(RenderNameStyle.LOWER));
-        jooqConfiguration.set(SQLDialect.valueOf(databaseConfig.getSQLConfigObject().getSqlDialect()));
+        jooqConfiguration.set(databaseConfig.getSQLConfigObject().getSqlDialect());
         return jooqConfiguration;
     }
 
@@ -408,30 +404,5 @@ public class AuthDBConfig {
      */
     private String getDbUrl() {
         return databaseConfig.getSQLConfigObject().getDbUrl();
-    }
-
-    /**
-     * Creates the MariaDB database URL.
-     * Note:
-     * Secure URL: jdbc:mysql://host:port?useSSL=true&trustServerCertificate=true, so will append "&" and
-     * parameters. It will be: jdbc:mysql://host:port?useSSL=true&trustServerCertificate=true&useUnicode=true...
-     * Insecure URL: jdbc:mysql://host:port, so will append "?" and parameters. It will be:
-     * jdbc:mysql://host:port?useUnicode=true...
-     * @TODO consider using {@link UriComponentsBuilder} to better build parameters.
-     *
-     * @return The MariaDB database URL.
-     */
-    @VisibleForTesting
-    String getMariaDBDbUrl() {
-
-        final String parameters = "useUnicode=true"
-            + "&tcpRcvBuf=8192"
-            + "&tcpSndBuf=8192"
-            + "&characterEncoding=UTF-8"
-            + "&characterSetResults=UTF-8"
-            + "&connectionCollation=utf8_unicode_ci";
-        return databaseConfig.getSQLConfigObject().isSecureDBConnectionRequested() ?
-            databaseConfig.getSQLConfigObject().getDbUrl() + "&" + parameters :
-            databaseConfig.getSQLConfigObject().getDbUrl() + "?" + parameters;
     }
 }

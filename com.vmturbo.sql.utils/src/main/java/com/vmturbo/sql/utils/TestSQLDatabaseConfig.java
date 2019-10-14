@@ -84,6 +84,9 @@ public class TestSQLDatabaseConfig {
     @Value("${originalSchemaName}")
     private String originalSchemaName;
 
+    @Value("mariadbDriverProperties")
+    private String mariadbDriverProperties;
+
     /**
      * Call this method in a @Before method to prepare the database.
      *
@@ -115,7 +118,7 @@ public class TestSQLDatabaseConfig {
             dataSource.setPassword("vmturbo");
             return dataSource;
         } catch (SQLException e) {
-            throw new BeanCreationException("Failed to initialize bean: " + e.getMessage()) ;
+            throw new BeanCreationException("Failed to initialize bean: " + e.getMessage());
         }
     }
 
@@ -187,10 +190,11 @@ public class TestSQLDatabaseConfig {
     @Nonnull
     protected String getDbUrl() {
         return UriComponentsBuilder.newInstance()
-            .scheme("jdbc:mysql")
-            .host("localhost")
-            .port(3306)
-            .build()
-            .toUriString();
+                .scheme("jdbc:mariadb")
+                .host("localhost")
+                .port(3306)
+                .query(mariadbDriverProperties)
+                .build()
+                .toUriString();
     }
 }
