@@ -910,12 +910,6 @@ public class MarketsService implements IMarketsService {
             return statsService.getStatsByUuidsQuery(statScopesApiInputDTO, paginationRequest);
         }
 
-        // Short-circuit if there are no input scopes.
-        // At the time of this writing we always expect SOME kind of restriction on the entities.
-        if (CollectionUtils.isEmpty(statScopesApiInputDTO.getScopes())) {
-            return paginationRequest.allResultsResponse(Collections.emptyList());
-        }
-
         final long planId = Long.parseLong(marketUuid);
 
         // fetch plan from plan orchestrator
