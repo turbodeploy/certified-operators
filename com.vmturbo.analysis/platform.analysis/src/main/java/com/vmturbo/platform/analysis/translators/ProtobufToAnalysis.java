@@ -557,9 +557,11 @@ public final class ProtobufToAnalysis {
             topology.getEconomy().getBalanceAccountMap().put(balanceAccount.getId(),
                                                              balanceAccount);
         }
+        // In the case where a region id is not present we want to set it to -1
+        final long regionId = source.getCurrentContext().hasRegionId() ? source.getCurrentContext()
+                .getRegionId() : -1L;
         final EconomyDTOs.Context sourceContext = source.getCurrentContext();
-        final Context context = new Context(sourceContext.getRegionId(),
-                sourceContext.getZoneId(), balanceAccount);
+        final Context context = new Context(regionId, sourceContext.getZoneId(), balanceAccount);
         destination.setContext(context);
     }
 

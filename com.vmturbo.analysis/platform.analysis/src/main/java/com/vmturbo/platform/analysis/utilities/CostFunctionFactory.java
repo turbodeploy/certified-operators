@@ -587,9 +587,16 @@ public class CostFunctionFactory {
     private static MutableQuote calculateComputeAndDatabaseCostQuote(Trader seller, ShoppingList sl,
                                                                      CostTable costTable, final int licenseBaseType) {
         final int licenseCommBoughtIndex = sl.getBasket().indexOfBaseType(licenseBaseType);
-        final long regionIdBought = sl.getBuyer().getSettings().getContext().getRegionId();
         final long groupFactor = sl.getGroupFactor();
-        final BalanceAccount balanceAccount = sl.getBuyer().getSettings().getContext().getBalanceAccount();
+        final com.vmturbo.platform.analysis.economy.Context context = sl.getBuyer().getSettings().getContext();
+        if (context == null) {
+            logger.error("No context found for buyer {}. This may happen if the trader-business account relation" +
+                    " has not been setup. Trader cannot be placed on this seller {}",
+                    sl.getBuyer().getDebugInfoNeverUseInCode(), seller.getDebugInfoNeverUseInCode());
+            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
+        }
+        final long regionIdBought = context.getRegionId();
+        final BalanceAccount balanceAccount = context.getBalanceAccount();
         if (balanceAccount == null) {
             logger.warn("Business account is not found on seller: {}, for shopping list: {}, return " +
                             "infinity compute quote", seller.getDebugInfoNeverUseInCode(),
@@ -870,13 +877,20 @@ public class CostFunctionFactory {
      *
      * @return the Quote given by {@link CostFunction}
      */
-    public static CommodityCloudQuote calculateStorageTierCost(@NonNull Map<CommoditySpecification, Map<Long, List<PriceData>>> priceDataMap,
+    public static CommodityQuote calculateStorageTierCost(@NonNull Map<CommoditySpecification, Map<Long, List<PriceData>>> priceDataMap,
                                                                Map<CommoditySpecification, CapacityLimitation> commCapacity,
                                                                @NonNull ShoppingList sl, Trader seller) {
         // TODO: refactor the PriceData to improve performance for region and business account lookup
         double cost = 0;
         Long businessAccountChosenId = null;
-        final long regionId = sl.getBuyer().getSettings().getContext().getRegionId();
+        com.vmturbo.platform.analysis.economy.Context context = sl.getBuyer().getSettings().getContext();
+        if (context == null) {
+            logger.error("No context found for buyer {}. This may happen if the trader-business account relation" +
+                    "has not been setup. Trader cannot be placed on this seller {}", sl.getBuyer().getDebugInfoNeverUseInCode(),
+                    seller.getDebugInfoNeverUseInCode());
+            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
+        }
+        final long regionId = context.getRegionId();
         for (Entry<CommoditySpecification, Map<Long, List<PriceData>>> commodityPrice : priceDataMap.entrySet()) {
             int i = sl.getBasket().indexOf(commodityPrice.getKey());
             if (i == -1) {
