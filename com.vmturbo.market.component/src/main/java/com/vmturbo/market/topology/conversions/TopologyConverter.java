@@ -177,7 +177,7 @@ public class TopologyConverter {
         this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, commodityConverter,
             getShoppingListOidToInfos());
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
-                pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, regionCommTypeToRegionObj, businessAccounts,
+                pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts,
                 marketPriceTable, cloudCostData, tierExcluder);
         this.commodityIndex = commodityIndexFactory.newIndex();
         this.actionInterpreter = new ActionInterpreter(commodityConverter,
@@ -233,9 +233,6 @@ public class TopologyConverter {
     private BiMap<String, Long> accessesByKey = HashBiMap.create();
 
     private final Map<TopologyEntityDTO, TopologyEntityDTO> azToRegionMap = new HashMap<>();
-
-    // Mapping of the region comm spec index to the topology entity dto region object
-    private final Map<CommodityType, TopologyEntityDTO> regionCommTypeToRegionObj = new HashMap<>();
 
     // This map will hold VM/DB -> BusinessAccount mapping.
     private final Map<TopologyEntityDTO, TopologyEntityDTO> cloudEntityToBusinessAccount = new HashMap<>();
@@ -308,8 +305,8 @@ public class TopologyConverter {
         this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, commodityConverter,
             getShoppingListOidToInfos());
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
-                pmBasedBicliquer, dsBasedBicliquer, this.commodityConverter, azToRegionMap, regionCommTypeToRegionObj,
-                businessAccounts, marketPriceTable, cloudCostData, tierExcluder);
+                pmBasedBicliquer, dsBasedBicliquer, this.commodityConverter, azToRegionMap, businessAccounts,
+                marketPriceTable, cloudCostData, tierExcluder);
         this.commodityIndex = commodityIndexFactory.newIndex();
         this.actionInterpreter = new ActionInterpreter(this.commodityConverter, shoppingListOidToInfos,
                 cloudTc,
@@ -362,7 +359,7 @@ public class TopologyConverter {
         this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, commodityConverter,
             getShoppingListOidToInfos());
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
-                pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, regionCommTypeToRegionObj,
+                pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap,
                 businessAccounts, marketPriceTable, null, tierExcluder);
         this.commodityIndex = commodityIndexFactory.newIndex();
         this.actionInterpreter = new ActionInterpreter(commodityConverter, shoppingListOidToInfos,
@@ -425,8 +422,6 @@ public class TopologyConverter {
                         List<TopologyEntityDTO> AZs = TopologyDTOUtil.getConnectedEntitiesOfType(
                             entity, EntityType.AVAILABILITY_ZONE_VALUE, topology);
                         AZs.forEach(az -> azToRegionMap.put(az, entity));
-                        CommodityType commType = entity.getCommoditySoldListList().get(0).getCommodityType();
-                        regionCommTypeToRegionObj.put(commType, entity);
                     } else if (entity.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE) {
                         List<TopologyEntityDTO> vms = TopologyDTOUtil.getConnectedEntitiesOfType(
                             entity, EntityType.VIRTUAL_MACHINE_VALUE, topology);

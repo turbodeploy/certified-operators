@@ -633,7 +633,6 @@ public class InterpretActionTest {
         CommodityConverter mockedCommodityConverter = mock(CommodityConverter.class);
         CommodityType mockedCommType = CommodityType.newBuilder().setType(10).build();
         when(mockedCommodityConverter.commodityIdToCommodityType(15)).thenReturn(mockedCommType);
-        when(mockCloudTc.getTopologyEntityDTOFromRegionCommSpec(mockedCommType)).thenReturn(region);
         ActionInterpreter interpreter = new ActionInterpreter(mockedCommodityConverter,
                 slInfoMap, mockCloudTc, originalTopology, ImmutableMap.of(),
                 new CloudEntityResizeTracker(), Maps.newHashMap(), mock(TierExcluder.class));

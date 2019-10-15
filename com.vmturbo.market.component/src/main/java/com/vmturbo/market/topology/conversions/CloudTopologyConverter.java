@@ -70,7 +70,6 @@ public class CloudTopologyConverter {
     private final Map<TopologyEntityDTO, TopologyEntityDTO> azToRegionMap;
     private final Set<TopologyEntityDTO> businessAccounts;
     private final CloudCostData cloudCostData;
-    private final Map<CommodityType, TopologyEntityDTO> regionCommTypeToRegionObj;
 
     /**
      * @param topology the topologyEntityDTOs which came into market-component
@@ -79,7 +78,6 @@ public class CloudTopologyConverter {
      * @param dsBasedBicliquer DS based bicliquer which stores connections between DS and PMs
      * @param commodityConverter commodity converter
      * @param azToRegionMap mapping of AZs to Regions
-     * @param regionCommTypeToRegionObj The region commType to Region Object map.
      * @param businessAccounts The set of business accounts
      * @param marketPriceTable The market price table
      * @param cloudCostData Cloud Cost data
@@ -92,7 +90,6 @@ public class CloudTopologyConverter {
              @Nonnull BiCliquer pmBasedBicliquer, @Nonnull BiCliquer dsBasedBicliquer,
              @Nonnull CommodityConverter commodityConverter,
              @Nonnull Map<TopologyEntityDTO, TopologyEntityDTO> azToRegionMap,
-             @Nonnull Map<CommodityType, TopologyEntityDTO> regionCommTypeToRegionObj,
              @Nonnull Set<TopologyEntityDTO> businessAccounts, @Nonnull MarketPriceTable marketPriceTable,
              @Nonnull CloudCostData cloudCostData,
              @Nonnull TierExcluder tierExcluder) {
@@ -102,7 +99,6 @@ public class CloudTopologyConverter {
          this.pmBasedBicliquer = pmBasedBicliquer;
          this.dsBasedBicliquer = dsBasedBicliquer;
          this.azToRegionMap = azToRegionMap;
-         this.regionCommTypeToRegionObj = regionCommTypeToRegionObj;
          CostDTOCreator costDTOCreator = new CostDTOCreator(commodityConverter, marketPriceTable);
          this.computeTierConverter = new ComputeTierConverter(topologyInfo, commodityConverter, costDTOCreator, tierExcluder);
          this.storageTierConverter = new StorageTierConverter(topologyInfo, commodityConverter, costDTOCreator);
@@ -408,15 +404,5 @@ public class CloudTopologyConverter {
      */
     public Optional<EntityReservedInstanceCoverage> getRiCoverageForEntity(long entityId) {
         return cloudCostData.getRiCoverageForEntity(entityId);
-    }
-
-    /**
-     * Given a region comm Type get the corresponding topology entity dto.
-     *
-     * @param regionCommType The region comm Type
-     * @return The topology entity dto
-     */
-    public TopologyEntityDTO getTopologyEntityDTOFromRegionCommSpec(CommodityType regionCommType) {
-        return regionCommTypeToRegionObj.get(regionCommType);
     }
 }
