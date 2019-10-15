@@ -3,8 +3,6 @@ package com.vmturbo.market.topology.conversions;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
@@ -13,14 +11,12 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
@@ -34,10 +30,7 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolic
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup.SettingPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
-import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
-import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -47,23 +40,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
-import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory.DefaultTierExcluderFactory;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActivateTO;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.Compliance;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.CompoundMoveTO;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.DeactivateTO;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveExplanation;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.Performance;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -79,8 +57,6 @@ public class TierExcluderTest {
 
     private static final long VM1 = 100L;
     private static final long VM2 = 101L;
-    private static final long VM1SlOid = 1000L;
-    private static final long VM2SlOid = 1010L;
     private static final List<Long> consumers = Arrays.asList(VM1, VM2);
 
     private Map<Long, TopologyEntityDTO> topology;
@@ -103,10 +79,6 @@ public class TierExcluderTest {
 
     private TierExcluderFactory tierExcluderFactory;
 
-    private CommodityConverter commodityConverter;
-
-    private CloudTopology<TopologyEntityDTO> cloudTopology;
-
     /**
      * Setup will run before every test.
      *
@@ -118,20 +90,8 @@ public class TierExcluderTest {
         settingsPolicyService = SettingPolicyServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
         tierExcluderFactory = new DefaultTierExcluderFactory(settingsPolicyService);
         topology = createTestTopology();
-        commodityConverter = mock(CommodityConverter.class);
-        when(commodityConverter.commodityIdToCommodityType(anyInt()))
-            .thenAnswer(invocation -> {
-                int commSpecType = invocation.getArgumentAt(0, Integer.class);
-                return CommodityType.newBuilder()
-                    .setKey(TierExcluder.TIER_EXCLUSION_KEY_PREFIX + commSpecType)
-                    .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
-                    .build();
-            });
-        ShoppingListInfo slInfo1 = new ShoppingListInfo(VM1SlOid, VM1, null, null, null, Lists.newArrayList());
-        ShoppingListInfo slInfo2 = new ShoppingListInfo(VM2SlOid, VM2, null, null, null, Lists.newArrayList());
-        tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, commodityConverter,
-            ImmutableMap.of(VM1SlOid, slInfo1, VM2SlOid, slInfo2));
-        cloudTopology = mock(CloudTopology.class);
+
+        tierExcluder = tierExcluderFactory.newExcluder(topologyInfo);
     }
 
     /**
@@ -350,206 +310,6 @@ public class TierExcluderTest {
         assertTrue(tierExcluder.getTierExclusionCommoditiesToBuy(2L).isEmpty());
     }
 
-    /**
-     * Setting policy 500 excludes Tiers 1 for VM1.
-     * Setting policy 501 excludes Tiers 2 for VM1.
-     * Setting policy 502 excludes Tiers 1, 4 for VM1.
-     * So VM1 cannot go onto 1, 2 and 4. The entity setting group coming into market component will
-     * represent this.
-     * VM1 is on tier 1. Market generates move for VM1 out of tier 1.
-     * Check that the responsible settings are 500 and 502, and not 501 even though all of them have VM1 in their scope.
-     */
-    @Test
-    public void testComputeReasonSettings1() {
-        EntitySettingGroup entitySettingGroup1 = createEntitySettingGroup(
-            Arrays.asList(1L, 2L, 4L), Arrays.asList(VM1), Arrays.asList(500L, 501L, 502L));
-        GetEntitySettingsResponse response = GetEntitySettingsResponse.newBuilder()
-            .addAllSettingGroup(Arrays.asList(entitySettingGroup1)).build();
-        when(settingPolicyServiceMole.getEntitySettings(any())).thenReturn(Arrays.asList(response));
-
-        tierExcluder.initialize(topology);
-
-        SettingPolicy sp1 = createSettingPolicy(Arrays.asList(1L), 500L);
-        SettingPolicy sp2 = createSettingPolicy(Arrays.asList(2L), 501L);
-        SettingPolicy sp3 = createSettingPolicy(Arrays.asList(1L, 4L), 502L);
-        when(settingPolicyServiceMole.listSettingPolicies(ListSettingPoliciesRequest.newBuilder()
-            .addAllIdFilter(Arrays.asList(500L, 501L, 502L)).build())).thenReturn(Arrays.asList(sp1, sp2, sp3));
-        when(cloudTopology.getPrimaryTier(VM1)).thenReturn(Optional.of(topology.get(1L)));
-        ActionTO moveActionTO = createMoveActionTO(VM1SlOid, Arrays.asList(0));
-
-        tierExcluder.computeReasonSettings(Arrays.asList(moveActionTO), cloudTopology);
-
-        assertEquals(ImmutableSet.of(500L, 502L), tierExcluder.getReasonSettings(moveActionTO).get());
-    }
-
-    /**
-     * Setting policy 500 excludes Tiers 1 for VM1.
-     * Setting policy 501 excludes Tiers 1 for VM2.
-     * So VM1 cannot go onto 1. The entity setting group coming into market component will
-     * represent this.
-     * VM1 is on tier 1. Market generates move for VM1 out of tier 1.
-     * Check that the responsible settings are 500, and not 501 even though both exclude tier 1.
-     */
-    @Test
-    public void testComputeReasonSettings2() {
-        EntitySettingGroup entitySettingGroup1 = createEntitySettingGroup(
-            Arrays.asList(1L), Arrays.asList(VM1), Arrays.asList(500L));
-        EntitySettingGroup entitySettingGroup2 = createEntitySettingGroup(
-            Arrays.asList(1L), Arrays.asList(VM2), Arrays.asList(501L));
-        GetEntitySettingsResponse response = GetEntitySettingsResponse.newBuilder()
-            .addAllSettingGroup(Arrays.asList(entitySettingGroup1, entitySettingGroup2)).build();
-        when(settingPolicyServiceMole.getEntitySettings(any())).thenReturn(Arrays.asList(response));
-
-        tierExcluder.initialize(topology);
-
-        SettingPolicy sp1 = createSettingPolicy(Arrays.asList(1L), 500L);
-        // SP2 will never be fetched. Only 500 policy will be fetched because that's the one for VM1
-        SettingPolicy sp2 = createSettingPolicy(Arrays.asList(1L), 501L);
-        when(settingPolicyServiceMole.listSettingPolicies(ListSettingPoliciesRequest.newBuilder()
-            .addAllIdFilter(Arrays.asList(500L)).build())).thenReturn(Arrays.asList(sp1));
-        when(cloudTopology.getPrimaryTier(VM1)).thenReturn(Optional.of(topology.get(1L)));
-        ActionTO moveActionTO = createMoveActionTO(VM1SlOid, Arrays.asList(0));
-
-        tierExcluder.computeReasonSettings(Arrays.asList(moveActionTO), cloudTopology);
-
-        assertEquals(ImmutableSet.of(500L), tierExcluder.getReasonSettings(moveActionTO).get());
-    }
-
-    /**
-     * Other action types  - resize, activate, deactivate, provBySupply, provByDemand don't
-     * generate reason settings.
-     */
-    @Test
-    public void testOtherActionTypesDoNotGenerateReasonSettings() {
-        ActionTO resize = ActionTO.newBuilder().setResize(ResizeTO.getDefaultInstance())
-            .setImportance(100).setIsNotExecutable(false).build();
-        ActionTO activate = ActionTO.newBuilder().setActivate(ActivateTO.newBuilder()
-            .setTraderToActivate(1L).setModelSeller(2L))
-            .setImportance(100).setIsNotExecutable(false).build();
-        ActionTO deativate = ActionTO.newBuilder().setDeactivate(DeactivateTO.newBuilder()
-            .setTraderToDeactivate(1L))
-            .setImportance(100).setIsNotExecutable(false).build();
-        ActionTO provisionBySupply = ActionTO.newBuilder().setProvisionBySupply(
-            ProvisionBySupplyTO.newBuilder().setModelSeller(1L))
-            .setImportance(100).setIsNotExecutable(false).build();
-        ActionTO provisionByDemand = ActionTO.newBuilder().setProvisionByDemand(
-            ProvisionByDemandTO.newBuilder().setModelSeller(1L).setModelBuyer(2L))
-            .setImportance(100).setIsNotExecutable(false).build();
-
-        tierExcluder.computeReasonSettings(Arrays.asList(resize, activate, deativate,
-            provisionBySupply, provisionByDemand), cloudTopology);
-
-        assertEquals(Optional.empty(), tierExcluder.getReasonSettings(resize));
-        assertEquals(Optional.empty(), tierExcluder.getReasonSettings(activate));
-        assertEquals(Optional.empty(), tierExcluder.getReasonSettings(deativate));
-        assertEquals(Optional.empty(), tierExcluder.getReasonSettings(provisionBySupply));
-        assertEquals(Optional.empty(), tierExcluder.getReasonSettings(provisionByDemand));
-    }
-
-    /**
-     * Setting policy 500 excludes all tiers for VM1.
-     * VM1 is on tier 1. Market generates reconfigure.
-     * Check that the responsible settings are 500.
-     */
-    @Test
-    public void testReconfigureGeneratesReasonSettings() {
-        EntitySettingGroup entitySettingGroup1 = createEntitySettingGroup(
-            Arrays.asList(1L, 2L, 3L, 4L, 5L), Arrays.asList(VM1), Arrays.asList(500L));
-        GetEntitySettingsResponse response = GetEntitySettingsResponse.newBuilder()
-            .addAllSettingGroup(Arrays.asList(entitySettingGroup1)).build();
-        when(settingPolicyServiceMole.getEntitySettings(any())).thenReturn(Arrays.asList(response));
-
-        tierExcluder.initialize(topology);
-
-        SettingPolicy sp1 = createSettingPolicy(Arrays.asList(1L, 2L, 3L, 4L, 5L), 500L);
-        when(settingPolicyServiceMole.listSettingPolicies(ListSettingPoliciesRequest.newBuilder()
-            .addAllIdFilter(Arrays.asList(500L)).build())).thenReturn(Arrays.asList(sp1));
-        when(cloudTopology.getPrimaryTier(VM1)).thenReturn(Optional.of(topology.get(1L)));
-        ActionTO reconfigureActionTO = createReconfigureActionTO(VM1SlOid, Arrays.asList(0));
-
-        tierExcluder.computeReasonSettings(Arrays.asList(reconfigureActionTO), cloudTopology);
-
-        assertEquals(ImmutableSet.of(500L), tierExcluder.getReasonSettings(reconfigureActionTO).get());
-    }
-
-    /**
-     * Setting policy 500 excludes tiers 1 and 2 for VM1.
-     * VM1 is on tier 1. Market generates compound move.
-     * Check that the responsible settings are 500.
-     */
-    @Test
-    public void testCompoundMoveGeneratesReasonSettings() {
-        EntitySettingGroup entitySettingGroup1 = createEntitySettingGroup(
-            Arrays.asList(1L, 2L), Arrays.asList(VM1), Arrays.asList(500L));
-        GetEntitySettingsResponse response = GetEntitySettingsResponse.newBuilder()
-            .addAllSettingGroup(Arrays.asList(entitySettingGroup1)).build();
-        when(settingPolicyServiceMole.getEntitySettings(any())).thenReturn(Arrays.asList(response));
-
-        tierExcluder.initialize(topology);
-
-        SettingPolicy sp1 = createSettingPolicy(Arrays.asList(1L, 2L), 500L);
-        when(settingPolicyServiceMole.listSettingPolicies(ListSettingPoliciesRequest.newBuilder()
-            .addAllIdFilter(Arrays.asList(500L)).build())).thenReturn(Arrays.asList(sp1));
-        when(cloudTopology.getPrimaryTier(VM1)).thenReturn(Optional.of(topology.get(1L)));
-        ActionTO compoundMoveActionTO = createCompoundMoveActionTO(VM1SlOid, Arrays.asList(0));
-
-        tierExcluder.computeReasonSettings(Arrays.asList(compoundMoveActionTO), cloudTopology);
-
-        assertEquals(ImmutableSet.of(500L), tierExcluder.getReasonSettings(compoundMoveActionTO).get());
-    }
-
-    private SettingPolicy createSettingPolicy(List<Long> excludedTemplates, long settingPolicyId) {
-        return SettingPolicy.newBuilder()
-            .setId(settingPolicyId)
-            .setInfo(SettingPolicyInfo.newBuilder()
-                .addSettings(Setting.newBuilder()
-                    .setSettingSpecName(EntitySettingSpecs.ExcludedTemplates.getSettingName())
-                    .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
-                        .addAllOids(excludedTemplates))))
-            .build();
-    }
-
-    private ActionTO createMoveActionTO(long slToMove, List<Integer> missingComms) {
-        return ActionTO.newBuilder().setMove(
-                createMoveTO(slToMove, missingComms))
-            .setImportance(100)
-            .setIsNotExecutable(false)
-            .build();
-    }
-
-    private MoveTO createMoveTO(long slToMove, List<Integer> missingComms) {
-        return MoveTO.newBuilder()
-            .setShoppingListToMove(slToMove)
-            .setMoveExplanation(MoveExplanation.newBuilder()
-                .setCompliance(Compliance.newBuilder()
-                    .addAllMissingCommodities(missingComms)))
-            .build();
-    }
-
-    private ActionTO createCompoundMoveActionTO(long slToMove, List<Integer> missingComms) {
-        MoveTO dummyPerformanceAction = MoveTO.newBuilder()
-            .setShoppingListToMove(1234L)
-            .setMoveExplanation(MoveExplanation.newBuilder()
-                .setPerformance(Performance.getDefaultInstance())).build();
-        return ActionTO.newBuilder().setCompoundMove(
-            CompoundMoveTO.newBuilder()
-                .addMoves(createMoveTO(slToMove, missingComms))
-                .addMoves(dummyPerformanceAction))
-            .setImportance(100)
-            .setIsNotExecutable(false)
-            .build();
-    }
-
-    private ActionTO createReconfigureActionTO(long slToReconfigure, List<Integer> missingComms) {
-        return ActionTO.newBuilder().setReconfigure(
-            ReconfigureTO.newBuilder()
-                .setShoppingListToReconfigure(slToReconfigure)
-                .addAllCommodityToReconfigure(missingComms))
-            .setImportance(100)
-            .setIsNotExecutable(false)
-            .build();
-    }
-
     private void assertCommodities(Map<Long, Set<Long>> expectedConsumerToPossibleProviders) {
         // Compute actual consumer to possible suppliers
         Map<Long, Set<Long>> actualConsumerToPossibleProviders = Maps.newHashMap();
@@ -576,12 +336,9 @@ public class TierExcluderTest {
         Setting exclusionSetting = Setting.newBuilder().setSortedSetOfOidSettingValue(
             SortedSetOfOidSettingValue.newBuilder()
                 .addAllOids(excludedTiers).build()).build();
-        List<SettingPolicyId> settingPolicyIds = Lists.newArrayList();
-        policyIds.forEach(policyId -> {
-            settingPolicyIds.add(SettingPolicyId.newBuilder().setPolicyId(policyId).build());
-        });
+        SettingPolicyId settingPolicyId = SettingPolicyId.newBuilder().setPolicyId(policyIds.get(0)).build();
         EntitySettingGroup entitySettingGroup = EntitySettingGroup.newBuilder()
-            .setSetting(exclusionSetting).addAllPolicyId(settingPolicyIds).addAllEntityOids(consumers).build();
+            .setSetting(exclusionSetting).addPolicyId(settingPolicyId).addAllEntityOids(consumers).build();
         return entitySettingGroup;
     }
 

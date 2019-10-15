@@ -52,10 +52,6 @@ message Explanation {
 
             // A list of commodities' base type which are missing in current supplier.
             repeated ReasonCommodity missing_commodities = 2;
-
-            // A list of setting policy oids which caused this compliance action.
-            // For ex. compliance actions that can be caused by template exclusion settings
-            repeated int64 reason_settings = 3;
         }
 
         // A move explanation suggesting commodity congestion.
@@ -143,10 +139,6 @@ message Explanation {
         repeated topology.CommodityType __deprecated_reconfigure_commodity = 1 [deprecated = true];
 
         repeated ReasonCommodity reconfigure_commodity = 2;
-
-        // A list of setting policy oids which caused this reconfigure action.
-        // For ex. reconfigure actions that can be caused by template exclusion settings.
-        repeated int64 reason_settings = 3;
     }
 
     message ProvisionExplanation {

@@ -15,7 +15,6 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,7 +30,6 @@ import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -121,9 +119,7 @@ public class InterpretActionTest {
                         .setBaseType(2)
                         .build();
         when(ccd.getExistingRiBought()).thenReturn(new ArrayList());
-        TierExcluder tierExcluder = mock(TierExcluder.class);
-        when(tierExcluder.getReasonSettings(any())).thenReturn(Optional.of(Collections.EMPTY_SET));
-        when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(tierExcluder);
+        when(tierExcluderFactory.newExcluder(any())).thenReturn(mock(TierExcluder.class));
     }
 
     @Test
@@ -636,7 +632,7 @@ public class InterpretActionTest {
         when(mockCloudTc.getTopologyEntityDTOFromRegionCommSpec(mockedCommType)).thenReturn(region);
         ActionInterpreter interpreter = new ActionInterpreter(mockedCommodityConverter,
                 slInfoMap, mockCloudTc, originalTopology, ImmutableMap.of(),
-                new CloudEntityResizeTracker(), Maps.newHashMap(), mock(TierExcluder.class));
+                new CloudEntityResizeTracker(), Maps.newHashMap());
         ActionTO actionTO = null;
         // Assuming that 1 is the oid of trader created for m1.large x region and 2 is the oid
         // created for m1.medium x region

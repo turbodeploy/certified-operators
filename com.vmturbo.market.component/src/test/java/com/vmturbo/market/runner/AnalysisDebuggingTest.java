@@ -138,7 +138,7 @@ public class AnalysisDebuggingTest {
 
     @Before
     public void setup() {
-        when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
+        when(tierExcluderFactory.newExcluder(any())).thenReturn(mock(TierExcluder.class));
         IdentityGenerator.initPrefix(0);
     }
 

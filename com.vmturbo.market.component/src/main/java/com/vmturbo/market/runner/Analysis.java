@@ -418,10 +418,13 @@ public class Analysis {
                                 .setMarket(MarketActionPlanInfo.newBuilder()
                                         .setSourceTopologyInfo(topologyInfo)))
                         .setAnalysisStartTimestamp(startTime.toEpochMilli());
-                converter.interpretAllActions(results.getActionsList(), projectedEntities,
-                    originalCloudTopology, projectedEntityCosts, topologyCostCalculator)
-                .forEach(actionPlanBuilder::addAction);
-
+                results.getActionsList().stream()
+                        .map(action -> converter.interpretAction(action, projectedEntities,
+                                this.originalCloudTopology, projectedEntityCosts,
+                                topologyCostCalculator))
+                        .filter(Optional::isPresent)
+                        .map(Optional::get)
+                        .forEach(actionPlanBuilder::addAction);
                 // TODO move wasted files action out of main analysis once we have a framework
                 // to support multiple analyses for the same topology ID
                 actionPlanBuilder.addAllAction(wastedFileActions);

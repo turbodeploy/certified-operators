@@ -554,9 +554,6 @@ message ListSettingPoliciesRequest {
     optional SettingPolicy.Type type_filter = 1;
     // The type of the topology. is plan or not.
     optional int64 context_Id = 2;
-    // The ids of the setting policies to fetch. If not set, all setting policies are fetched.
-    // It is used in conjunction with other filters here like the type filter.
-    repeated int64 id_filter = 3;
 }
 
 // Settings associated with an entity

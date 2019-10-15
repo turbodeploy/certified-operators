@@ -209,15 +209,6 @@ public class CoverageTopologyImpl implements CoverageTopology {
     /**
      * {@inheritDoc}
      */
-    @Override
-    @Nonnull
-    public Optional<TopologyEntityDTO> getPrimaryTier(final long entityId) {
-        return cloudTopology.getPrimaryTier(entityId);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
     @Nonnull
     @Override
     public Optional<TopologyEntityDTO> getReservedInstanceAvailabilityZone(final long riOid) {
