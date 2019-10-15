@@ -27,12 +27,13 @@ import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.abstraction.tables.records.EntitiesRecord;
+import com.vmturbo.history.stats.ICompleteTopologyStatsWriter;
 import com.vmturbo.history.stats.live.LiveStatsAggregator;
 
 /**
  * {@link LiveStatsWriter} writes live statistics into the database.
  */
-public class LiveStatsWriter extends AbstractStatsWriter {
+public class LiveStatsWriter extends AbstractStatsWriter implements ICompleteTopologyStatsWriter {
     private static final Logger LOGGER = LogManager.getLogger();
     private final HistorydbIO historydbIO;
     // the number of entities for which stats are persisted in a single DB Insert operations
