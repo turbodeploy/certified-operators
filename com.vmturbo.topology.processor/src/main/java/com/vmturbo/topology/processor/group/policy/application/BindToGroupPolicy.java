@@ -22,7 +22,7 @@ public class BindToGroupPolicy extends PlacementPolicy {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private final PolicyDTO.PolicyInfo.BindToGroupPolicy bindToGroup;
+    private final PolicyDTO.PolicyInfo policyInfo;
 
     private final PolicyEntities consumerPolicyEntities;
     private final PolicyEntities providerPolicyEntities;
@@ -40,17 +40,16 @@ public class BindToGroupPolicy extends PlacementPolicy {
                              @Nonnull final PolicyEntities providerPolicyEntities) {
         super(policyDefinition);
         Objects.requireNonNull(policyDefinition);
-        Preconditions.checkArgument(policyDefinition.getPolicyInfo().hasBindToGroup(), "Must be BindToGroupPolicy");
 
-        this.bindToGroup = policyDefinition.getPolicyInfo().getBindToGroup();
+        this.policyInfo = policyDefinition.getPolicyInfo();
         this.consumerPolicyEntities = Objects.requireNonNull(consumerPolicyEntities);
         this.providerPolicyEntities = Objects.requireNonNull(providerPolicyEntities);
         GroupProtoUtil.checkEntityType(providerPolicyEntities.getGroup());
     }
 
     @Nonnull
-    public PolicyInfo.BindToGroupPolicy getDetails() {
-        return bindToGroup;
+    public PolicyInfo getPolicyInfo() {
+        return policyInfo;
     }
 
     @Nonnull

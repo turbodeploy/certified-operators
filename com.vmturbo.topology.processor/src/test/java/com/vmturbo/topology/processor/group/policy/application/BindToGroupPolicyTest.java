@@ -69,12 +69,25 @@ public class BindToGroupPolicyTest {
         .setProviderGroupId(providerID)
         .build();
 
+    private final PolicyInfo.BindToGroupAndLicencePolicy bindToGroupAndLicense =
+            PolicyInfo.BindToGroupAndLicencePolicy.newBuilder()
+                .setConsumerGroupId(consumerID)
+                .setProviderGroupId(providerID)
+                .build();
+
     private static final long POLICY_ID = 9999L;
-    final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
+    final PolicyDTO.Policy btgPolicy = PolicyDTO.Policy.newBuilder()
         .setId(POLICY_ID)
         .setPolicyInfo(PolicyInfo.newBuilder()
             .setBindToGroup(bindToGroup))
         .build();
+
+    private static final long LICENSE_POLICY_ID = 9998L;
+    final PolicyDTO.Policy btglPolicy = PolicyDTO.Policy.newBuilder()
+            .setId(LICENSE_POLICY_ID)
+            .setPolicyInfo(PolicyInfo.newBuilder()
+                    .setBindToGroupAndLicense(bindToGroupAndLicense))
+            .build();
 
     private TopologyGraph<TopologyEntity> topologyGraph;
     private PolicyMatcher policyMatcher;
@@ -126,7 +139,7 @@ public class BindToGroupPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Collections.<Long>emptySet());
 
-        applyPolicy(new BindToGroupPolicy(policy,
+        applyPolicy(new BindToGroupPolicy(btgPolicy,
             new PolicyEntities(consumerGroup, Collections.emptySet()),
             new PolicyEntities(providerGroup)));
         assertThat(topologyGraph.getEntity(1L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
@@ -145,7 +158,7 @@ public class BindToGroupPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Collections.singleton(1L));
 
-        applyPolicy(new BindToGroupPolicy(policy,
+        applyPolicy(new BindToGroupPolicy(btgPolicy,
             new PolicyEntities(consumerGroup, Collections.emptySet()),
             new PolicyEntities(providerGroup)));
         assertThat(topologyGraph.getEntity(1L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
@@ -166,7 +179,7 @@ public class BindToGroupPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Collections.<Long>emptySet());
 
-        applyPolicy(new BindToGroupPolicy(policy,
+        applyPolicy(new BindToGroupPolicy(btgPolicy,
             new PolicyEntities(consumerGroup, Sets.newHashSet(6L)),
             new PolicyEntities(providerGroup)));
         assertThat(topologyGraph.getEntity(1L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
@@ -187,9 +200,15 @@ public class BindToGroupPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Sets.newHashSet(1L, 2L));
 
-        final PolicyApplicationResults results = applyPolicy(new BindToGroupPolicy(policy,
+        final PolicyApplicationResults results = applyPolicy(new BindToGroupPolicy(btgPolicy,
             new PolicyEntities(consumerGroup, Sets.newHashSet(6L)),
             new PolicyEntities(providerGroup)));
+
+        // verify BindToGroupAndLicensePolicy creation
+        final PolicyApplicationResults resultsForLicense = applyPolicy(new BindToGroupPolicy(btglPolicy,
+                new PolicyEntities(consumerGroup, Sets.newHashSet(6L)),
+                new PolicyEntities(providerGroup)));
+
         assertThat(topologyGraph.getEntity(1L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
         assertThat(topologyGraph.getEntity(2L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
         assertThat(topologyGraph.getEntity(12L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
@@ -201,6 +220,7 @@ public class BindToGroupPolicyTest {
         assertThat(topologyGraph.getEntity(6L).get(),
                 policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
         assertThat(results.addedCommodities().get(CommodityType.SEGMENTATION), is(6));
+        assertThat(resultsForLicense.addedCommodities().get(CommodityType.SEGMENTATION), is(6));
     }
 
     /**
@@ -246,7 +266,7 @@ public class BindToGroupPolicyTest {
         when(groupResolver.resolve(eq(storageTierGroup), eq(topologyGraph)))
             .thenReturn(Sets.newHashSet(7L));
 
-        applyPolicy(new BindToGroupPolicy(policy,
+        applyPolicy(new BindToGroupPolicy(btgPolicy,
             new PolicyEntities(virtualVolumeGroup, Collections.emptySet()),
             new PolicyEntities(storageTierGroup)));
 

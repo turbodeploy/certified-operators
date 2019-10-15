@@ -50,7 +50,8 @@ public class PolicyFactory {
             case MUST_NOT_RUN_TOGETHER:
                 return new MustNotRunTogetherPolicyApplication(groupResolver, topologyGraph);
             case BIND_TO_GROUP_AND_LICENSE:
-                throw new NotImplementedException(policyType + " not supported.");
+                // TODO: implement BindToGroupAndLicencePolicyApplication class
+                return new BindToGroupPolicyApplication(groupResolver, topologyGraph);
             case BIND_TO_GROUP_AND_GEO_REDUNDANCY:
                 throw new NotImplementedException(policyType + " not supported.");
             default:
@@ -109,7 +110,11 @@ public class PolicyFactory {
                 //TODO: support additionalConsumers and additionalProviders
                 return buildMergePolicy(policyDefinition, groups);
             case BIND_TO_GROUP_AND_LICENSE:
-                throw new NotImplementedException(policyInfo.getPolicyDetailCase() + " not supported.");
+                return new BindToGroupPolicy(policyDefinition,
+                        new PolicyEntities(groups.get(policyInfo.getBindToGroupAndLicense().getConsumerGroupId()),
+                                additionalConsumers),
+                        new PolicyEntities(groups.get(policyInfo.getBindToGroupAndLicense().getProviderGroupId()),
+                                additionalProviders));
             case BIND_TO_GROUP_AND_GEO_REDUNDANCY:
                 throw new NotImplementedException(policyInfo.getPolicyDetailCase() + " not supported.");
             default:
