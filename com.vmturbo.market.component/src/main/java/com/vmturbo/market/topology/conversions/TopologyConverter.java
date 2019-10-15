@@ -174,7 +174,7 @@ public class TopologyConverter {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
         this.commodityConverter = new CommodityConverter(commodityTypeAllocator, commoditySpecMap,
                 includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable, conversionErrorCounts);
-        this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, commodityConverter,
+        this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, this.commodityConverter,
             getShoppingListOidToInfos());
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
                 pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts,
@@ -299,10 +299,7 @@ public class TopologyConverter {
         this.commodityConverter = commodityConverter != null ?
                 commodityConverter : new CommodityConverter(commodityTypeAllocator, commoditySpecMap,
                 includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable, conversionErrorCounts);
-        // Uncomment this once integtation testing is done. Till then, use the dummy tier
-        // exclusion applicator
-        // this.tierExcluder = new TierExcluder(topologyInfo, settingPolicyServiceClient);
-        this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, commodityConverter,
+        this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, this.commodityConverter,
             getShoppingListOidToInfos());
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
                 pmBasedBicliquer, dsBasedBicliquer, this.commodityConverter, azToRegionMap, businessAccounts,
@@ -356,7 +353,7 @@ public class TopologyConverter {
         this.quoteFactor = quoteFactor;
         this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
         this.commodityConverter = commodityConverter;
-        this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, commodityConverter,
+        this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, this.commodityConverter,
             getShoppingListOidToInfos());
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
                 pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap,
