@@ -420,7 +420,9 @@ public class TierExcluder {
      * @return true if the comm spec was created for tier exclusion
      */
     public boolean isCommSpecTypeForTierExclusion(int commSpecType) {
-        return tierExclusionCommodityTypes.contains(commodityConverter.commodityIdToCommodityType(commSpecType));
+        return false;
+        // TODO: Uncomment after integration tests
+        // return tierExclusionCommodityTypes.contains(commodityConverter.commodityIdToCommodityType(commSpecType));
     }
 
     /**
