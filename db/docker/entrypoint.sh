@@ -3,6 +3,7 @@
 DEFAULT_MYSQL_CONF=/etc/mysql/my.cnf
 MYSQL_CONF=/var/lib/mysql/my.cnf
 USER=`/usr/bin/id -nu`
+RETRY_LIMIT=30
 
 # rsyslog and touch the log
 touch /var/log/mysql/mariadb-slow.log
@@ -14,6 +15,7 @@ fi
 
 copy_mysql_default_conf_file () {
     echo "Copying default DB config. file from $DEFAULT_MYSQL_CONF to $MYSQL_CONF" | logger --tag mariadb -u /tmp/log.sock
+    # backslash suppresses any potential alias
     \cp $DEFAULT_MYSQL_CONF $MYSQL_CONF 2>&1 | logger --tag mariadb -u /tmp/log.sock
 }
 
@@ -27,7 +29,7 @@ if [ ! -d "/var/lib/mysql/mysql" ]; then
 
     # Start mysqld in background
     /usr/sbin/mysqld --defaults-file=$MYSQL_CONF --user=mysql --datadir=/var/lib/mysql --lc-messages-dir=/usr/share/mysql --skip-networking 2>&1 | logger --tag mariadb -u /tmp/log.sock &
-    for i in `seq 1 30`
+    for i in `seq 1 $RETRY_LIMIT`
     do
         echo "GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFIED BY 'vmturbo' WITH GRANT OPTION; \
               GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' IDENTIFIED BY 'vmturbo' WITH GRANT OPTION; \
@@ -46,7 +48,7 @@ if [ ! -d "/var/lib/mysql/mysql" ]; then
         exit 1
     fi
     # Check the status
-    if [ "$i" -eq 30 ]; then
+    if [ "$i" -eq $RETRY_LIMIT ]; then
         echo '--- MariaDB init process failed. Exhausted number of attempts.' 2>&1 | logger --tag mariadb -u /tmp/log.sock
         exit 1
     fi
@@ -62,9 +64,21 @@ else
 
     # Start mysqld in background
     /usr/sbin/mysqld --defaults-file=$MYSQL_CONF --user=mysql --datadir=/var/lib/mysql --lc-messages-dir=/usr/share/mysql --skip-networking 2>&1 | logger --tag mariadb -u /tmp/log.sock &
-
     # Upgrade mysql database if the database server was updated
-    /usr/bin/mysql_upgrade -S /var/run/mysqld/mysqld.sock -u root -pvmturbo 2>&1 | logger --tag mariadb -u /tmp/log.sock
+    for i in `seq 1 $RETRY_LIMIT`
+    do
+        sleep 1
+        /usr/bin/mysql_upgrade -S /var/run/mysqld/mysqld.sock -u root -pvmturbo 2>&1 | logger --tag mariadb -u /tmp/log.sock
+        if [ "${PIPESTATUS[0]}" -eq 0 ]; then
+            echo '+++ MariaDB databases are up-to-date.' 2>&1 | logger --tag mariadb -u /tmp/log.sock
+            break
+        fi
+    done
+    # Check the status
+    if [ "$i" -eq $RETRY_LIMIT ]; then
+        echo '--- MariaDB upgrade process failed. Exhausted number of attempts.' 2>&1 | logger --tag mariadb -u /tmp/log.sock
+        exit 1
+    fi
 
     pid=$(ps -e -o pid,args | grep [m]ysqld | awk '{print $1}')
     # Terminate the initial mysqld
