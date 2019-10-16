@@ -30,6 +30,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceImplBase;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.repository.api.RepositoryClient;
 
 public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServiceImplBase {
 
@@ -39,14 +40,21 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
 
     private final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore;
 
+    private final RepositoryClient repositoryClient;
+
+    private final Long realtimeTopologyContextId;
 
     public ReservedInstanceBoughtRpcService(
             @Nonnull final ReservedInstanceBoughtStore reservedInstanceBoughtStore,
-            @Nonnull final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore) {
+            @Nonnull final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore,
+            @Nonnull final RepositoryClient repositoryClient,
+            final Long realtimeTopologyContextId) {
         this.reservedInstanceBoughtStore =
                 Objects.requireNonNull(reservedInstanceBoughtStore);
         this.entityReservedInstanceMappingStore =
                 Objects.requireNonNull(entityReservedInstanceMappingStore);
+        this.repositoryClient = Objects.requireNonNull(repositoryClient);
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
     @Override
@@ -56,12 +64,17 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
         try {
             final List<Long> scopeOids = request.getScopeSeedOidsList();
             final int scopeEntityType = request.getScopeEntityType();
+            List<Long> relatedBusinessAccountOrSubscriptionOids = repositoryClient
+                            .getRelatedBusinessAccountOrSubscriptionOids(scopeOids,
+                                                         realtimeTopologyContextId, false);
             final List<ReservedInstanceBought> reservedInstanceBoughts =
                            reservedInstanceBoughtStore
-                               .getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter.newBuilder()
-                                                                  .addAllScopeId(scopeOids)
-                                                                  .setScopeEntityType(scopeEntityType)
-                                                                  .build());
+                               .getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter
+                                                                  .newBuilder()
+                                  .addAllScopeId(scopeOids)
+                                  .setScopeEntityType(scopeEntityType)
+                                  .addAllBillingAccountId(relatedBusinessAccountOrSubscriptionOids)
+                                  .build());
             final GetReservedInstanceBoughtByFilterResponse.Builder responseBuilder =
                     GetReservedInstanceBoughtByFilterResponse.newBuilder();
             reservedInstanceBoughts.stream().forEach(responseBuilder::addReservedInstanceBoughts);
@@ -69,7 +82,7 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
             responseObserver.onCompleted();
         } catch (DataAccessException e) {
             responseObserver.onError(Status.INTERNAL
-                    .withDescription("Failed to get reserved instance by filter.")
+                    .withDescription("Failed to get reserved instance bought by filter.")
                     .asException());
         }
     }

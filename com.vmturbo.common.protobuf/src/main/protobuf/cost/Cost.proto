@@ -622,7 +622,7 @@ message GetReservedInstanceBoughtByFilterRequest {
     repeated int64 scope_seed_oids = 1;
 
     // Scope's Entity Type (can be one of the values in .common_dto.EntityDTO.EntityType)
-    optional int32 scopeEntityType = 2;
+    optional int32 scope_entity_type = 2;
 }
 
 // A response contains a list reserved instance bought.

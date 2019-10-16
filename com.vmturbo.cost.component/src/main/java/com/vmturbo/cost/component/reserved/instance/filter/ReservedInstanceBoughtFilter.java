@@ -27,16 +27,29 @@ public class ReservedInstanceBoughtFilter extends ReservedInstanceFilter {
     // Needs to set to true, if any filter needs to get from reserved instance spec table.
     private boolean joinWithSpecTable;
 
-    private ReservedInstanceBoughtFilter(@Nonnull final Set<Long> scopeIds,
-                                         @Nonnull final int scopeEntityType,
+    /**
+     * Constructor for ReservedInstanceBoughtFilter.
+     *
+     * @param scopeIds The scope(s) Ids.
+     * @param billingAccountIds The relevant business account OIDs, for the one or more billing families in scope.
+     * @param scopeEntityType The scope(s) entity type.
+     * @param joinWithSpecTable True if any filter needs to get from reserved instance spec table.
+     * TODO: OM-50904 GetReservedInstanceBoughtByFilter request will take in the existing TopoologyInfo instead of
+     * scope_seed_oids and scope_entity_type and call repositoryClient.getOcpScopesTuple() to figure out the
+     * Regions/AZ's/BA's in any scoped or unscoped topology, which will help with mixed Group scopes, and simplify
+     * filter logic further.
+     */
+    private ReservedInstanceBoughtFilter( final Set<Long> scopeIds,
+                                         @Nonnull final Set<Long> billingAccountIds,
+                                         final int scopeEntityType,
                                          final boolean joinWithSpecTable) {
-        super(scopeIds, scopeEntityType);
+        super(scopeIds, billingAccountIds, scopeEntityType);
         if (scopeEntityType == EntityType.REGION_VALUE) {
             this.joinWithSpecTable = true;
         } else {
             this.joinWithSpecTable = joinWithSpecTable;
         }
-        this.conditions = generateConditions(scopeIds, scopeEntityType);
+        this.conditions = generateConditions(scopeIds, billingAccountIds, scopeEntityType);
      }
 
     /**
@@ -52,9 +65,22 @@ public class ReservedInstanceBoughtFilter extends ReservedInstanceFilter {
         return this.joinWithSpecTable;
     }
 
+    /**
+     * Generate a list of {@link Condition} based on different fields.
+     *
+     * <p>Note that the where condition is only containing one filter clause at present.
+     * To have multiple filters, there would need to be AND's in the where clause.
+     *
+     * @param scopeIds scope ids scope OIDs to filter by.  REGION/BA/AZ or other in the fiture.
+     * @param billingAccountIds The relevant business account OIDs, for the one or
+     * more billing families in scope.
+     * @param scopeEntityType The scope(s) entity type.
+     * @return a list of {@link Condition}.
+     */
     @Override
     protected List<Condition> generateConditions(@Nonnull final Set<Long> scopeIds,
-                                                 @Nonnull final int scopeEntityType) {
+                                                 @Nonnull final Set<Long> billingAccountIds,
+                                                 int scopeEntityType) {
         final List<Condition> conditions = new ArrayList<>();
         if (scopeIds.isEmpty()) {
             return conditions;
@@ -67,8 +93,9 @@ public class ReservedInstanceBoughtFilter extends ReservedInstanceFilter {
                 conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.AVAILABILITY_ZONE_ID.in(scopeIds));
                 break;
             case EntityType.BUSINESS_ACCOUNT_VALUE:
-                conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.BUSINESS_ACCOUNT_ID.in(scopeIds));
+                conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.BUSINESS_ACCOUNT_ID.in(billingAccountIds));
                 break;
+            // TODO:  Mixed scope of optimizable entities.
             default:
                 break;
         }
@@ -89,23 +116,26 @@ public class ReservedInstanceBoughtFilter extends ReservedInstanceFilter {
         private Set<Long> scopeIds = new HashSet<>();
         // The scope's entity type.
         private int scopeEntityType = EntityType.UNKNOWN_VALUE;
+        // The relevant business account OIDs, for the one or more billing families in scope.
+        private Set<Long> billingAccountIds = new HashSet<>();
         // Needs to set to true, if any filter needs to get from reserved instance spec table.
         private boolean joinWithSpecTable;
 
         private Builder() {}
 
         public ReservedInstanceBoughtFilter build() {
-            return new ReservedInstanceBoughtFilter(scopeIds, scopeEntityType, joinWithSpecTable);
+            return new ReservedInstanceBoughtFilter(scopeIds, billingAccountIds,
+                                                    scopeEntityType, joinWithSpecTable);
         }
 
         /**
          * Add all scope ids that are part of the plan sope.
          *
-         * @param ids The scope oids that represent the filtering conditions.
+         * @param ids The relevant business account Ids, in one or more billing families in scope.
          * @return Builder for this class.
          */
         @Nonnull
-        public Builder addAllScopeId(final List<Long> ids) {
+        public Builder addAllScopeId(@Nonnull final List<Long> ids) {
             this.scopeIds.addAll(ids);
             return this;
         }
@@ -118,13 +148,29 @@ public class ReservedInstanceBoughtFilter extends ReservedInstanceFilter {
          * @return Builder for this class.
          */
         @Nonnull
-        public Builder setScopeEntityType(final int entityType) {
+        public Builder setScopeEntityType(@Nonnull final int entityType) {
             this.scopeEntityType = entityType;
             return this;
         }
 
+        /**
+         * Add all billing account OIDs that are relevant.
+         *
+         * <p>In OCP plans, this would be all accounts/subscriptions in the billing family.
+         * In real-time it could be all accounts/subscriptions in the billing family, for
+         * billing family scope and a single sub-account for account scope.
+         *
+         * @param ids The relevant business account OIDs, for the one or more billing families in scope.
+         * @return Builder for this class.
+         */
         @Nonnull
-        public Builder setJoinWithSpecTable(final boolean isJoinWithSpecTable) {
+        public Builder addAllBillingAccountId(@Nonnull final List<Long> ids) {
+            this.billingAccountIds.addAll(ids);
+            return this;
+        }
+
+        @Nonnull
+        public Builder setJoinWithSpecTable(@Nonnull final boolean isJoinWithSpecTable) {
             this.joinWithSpecTable = isJoinWithSpecTable;
             return this;
         }

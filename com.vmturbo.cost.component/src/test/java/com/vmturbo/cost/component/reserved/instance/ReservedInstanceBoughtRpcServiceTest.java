@@ -19,6 +19,7 @@ import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageRe
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.repository.api.RepositoryClient;
 
 public class ReservedInstanceBoughtRpcServiceTest {
 
@@ -28,9 +29,13 @@ public class ReservedInstanceBoughtRpcServiceTest {
     private EntityReservedInstanceMappingStore reservedInstanceMappingStore =
             mock(EntityReservedInstanceMappingStore.class);
 
+    private RepositoryClient repositoryClient = mock(RepositoryClient.class);
+
+    private final Long realtimeTopologyContextId = 777777L;
+
     private ReservedInstanceBoughtRpcService service = new ReservedInstanceBoughtRpcService(
             reservedInstanceBoughtStore,
-            reservedInstanceMappingStore);
+            reservedInstanceMappingStore, repositoryClient, realtimeTopologyContextId);
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(service);
 

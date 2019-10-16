@@ -118,7 +118,8 @@ public class ReservedInstanceConfig {
     @Bean
     public ReservedInstanceBoughtRpcService reservedInstanceBoughtRpcService() {
         return new ReservedInstanceBoughtRpcService(reservedInstanceBoughtStore(),
-                entityReservedInstanceMappingStore());
+                entityReservedInstanceMappingStore(), repositoryClientConfig.repositoryClient(),
+                realtimeTopologyContextId);
     }
 
     @Bean

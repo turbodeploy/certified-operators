@@ -166,6 +166,7 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
             final long startDateMillis,
             final long endDateMillis,
             final TimeFrame timeFrame) {
+        // Get all business accounts based on scope ID's and scope type.
         final ReservedInstanceUtilizationFilter.Builder filterBuilder = ReservedInstanceUtilizationFilter.newBuilder();
         if (regionFilter.isPresent()) {
             filterBuilder.addAllScopeId(regionFilter.get().getRegionIdList())

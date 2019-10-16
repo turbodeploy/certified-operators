@@ -38,21 +38,24 @@ public abstract class ReservedInstanceStatsFilter extends ReservedInstanceFilter
      * Constructor for ReservedInstanceStatsFilter.
      *
      * @param scopeIds The scope(s) Ids.
+     * @param billingAccountIds The relevant business account OIDs, for the one or
+     * more billing families in scope.
      * @param scopeEntityType The scope(s) entity type.
      * @param startDateMillis Start time in ms.
      * @param endDateMillis End time in ms.
      * @param timeFrame The timeframe for which to obtain stats.
      */
     public ReservedInstanceStatsFilter(@Nonnull final Set<Long> scopeIds,
+                                       @Nonnull final Set<Long> billingAccountIds,
                                        final int scopeEntityType,
                                        final long startDateMillis,
                                        final long endDateMillis,
                                        @Nullable final TimeFrame timeFrame) {
-        super(scopeIds, scopeEntityType);
+        super(scopeIds, billingAccountIds, scopeEntityType);
         this.startDateMillis = startDateMillis;
         this.endDateMillis = endDateMillis;
         this.timeFrame = timeFrame;
-        this.conditions = generateConditions(scopeIds, scopeEntityType);
+        this.conditions = generateConditions(scopeIds, billingAccountIds, scopeEntityType);
     }
 
     /**
@@ -62,11 +65,15 @@ public abstract class ReservedInstanceStatsFilter extends ReservedInstanceFilter
      * To have multiple filters, there would need to be AND's in the where clause.
      *
      * @param scopeIds scope ids need to filter by.
+     * @param billingAccountIds The relevant business account OIDs, for the one or
+     * more billing families in scope.
+     * @param scopeEntityType The scope(s) entity type.
      * @return a list of {@link Condition}.
      */
     @Override
     protected List<Condition> generateConditions(@Nonnull final Set<Long> scopeIds,
-                                                 @Nonnull final int scopeEntityType) {
+                                                 @Nonnull final Set<Long> billingAccountIds,
+                                                 final int scopeEntityType) {
         final List<Condition> conditions = new ArrayList<>();
         if (scopeIds.isEmpty()) {
             return conditions;
@@ -80,8 +87,9 @@ public abstract class ReservedInstanceStatsFilter extends ReservedInstanceFilter
                 conditions.add(table.field(AVAILABILITY_ZONE_ID).in(scopeIds));
                 break;
             case EntityType.BUSINESS_ACCOUNT_VALUE:
-                conditions.add(table.field(BUSINESS_ACCOUNT_ID).in(scopeIds));
+                conditions.add(table.field(BUSINESS_ACCOUNT_ID).in(billingAccountIds));
                 break;
+                // TODO:  Mixed scope of optimizable entities.
             default:
                 break;
         }

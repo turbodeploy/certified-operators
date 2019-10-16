@@ -1,9 +1,13 @@
 package com.vmturbo.repository.api;
 
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
@@ -27,6 +31,8 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositorySe
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Sends commands to the repository using gRPC.
@@ -100,5 +106,66 @@ public class RepositoryClient {
 
             return responseBuilder.build();
         }
+    }
+
+    /**
+     * Add the business family (master account oid to the cloud account oids for the scope of the plan).
+     *
+     * @param scopeIds The seed plan scopes OIDs.
+     * @param realtimeTopologyContextId The real-time topology context id used to get all accounts in the
+     * environment, and figure out relevant accounts for plans and real-time.
+     * @param onlyMasterAccounts if true return only master accounts, else sub-accounts as well.
+     * @return Oids of business families in scope - master and sub-accounts.
+     * TODO: This may need to be revisited.  Check with Vasile and team.
+     */
+    public List<Long> getRelatedBusinessAccountOrSubscriptionOids(final List<Long> scopeIds,
+                                                                  final Long realtimeTopologyContextId,
+                                                                  final boolean onlyMasterAccounts) {
+
+        // If business account scope, add all sibling accounts under the same business family
+        // This is only needed in cloud OCP plans.
+        Stream<TopologyEntityDTO> allBusinessAccounts =
+                          RepositoryDTOUtil.topologyEntityStream(
+                         repositoryService
+                         .retrieveTopologyEntities(RetrieveTopologyEntitiesRequest
+                                         .newBuilder()
+                                         .setTopologyContextId(realtimeTopologyContextId)
+                                         .setReturnType(Type.FULL)
+                                         .setTopologyType(TopologyType.SOURCE)
+                                         .addEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                                         .build()))
+                                          .map(PartialEntity::getFullEntity);
+        // real-time or plan global scope, return all Business Accounts/ Substriptions.
+        // TODO:  OM-50904 For real-time, no scopes need be returned and global RIs will be fetched.
+        if (scopeIds.isEmpty()) {
+            Stream<TopologyEntityDTO> allBaStream = StreamSupport.stream(allBusinessAccounts.spliterator(),
+                                                                false);
+            return allBaStream.map(TopologyEntityDTO::getOid).collect(Collectors.toList());
+        }
+
+        Set<Long> relatedBusinessAccountsOrSubscriptions = new HashSet<>();
+        // Get the business families in scope and the sub-accounts under them.
+        for (long scopeId : scopeIds) {
+            allBusinessAccounts.forEach(ba -> {
+                List<Long> subAccountOidsList =
+                      ba.getConnectedEntityListList()
+                          .stream()
+                          .filter(v -> v.getConnectedEntityType()
+                                  == EntityType.BUSINESS_ACCOUNT_VALUE)
+                          .map(ConnectedEntity::getConnectedEntityId)
+                          .collect(Collectors.toList());
+                // if scope is a sub-account
+                if (subAccountOidsList.contains(scopeId)
+                    // scope is a master account
+                    || (ba.getOid() == scopeId &&
+                        !subAccountOidsList.isEmpty())) {
+                    if (!onlyMasterAccounts) {
+                        relatedBusinessAccountsOrSubscriptions.addAll(subAccountOidsList);
+                    }
+                    relatedBusinessAccountsOrSubscriptions.add(ba.getOid());
+                }
+            });
+        }
+        return relatedBusinessAccountsOrSubscriptions.stream().collect(Collectors.toList());
     }
 }

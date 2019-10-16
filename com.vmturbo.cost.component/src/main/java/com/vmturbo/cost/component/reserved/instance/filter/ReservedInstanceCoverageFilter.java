@@ -22,12 +22,25 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public class ReservedInstanceCoverageFilter extends ReservedInstanceStatsFilter {
 
+    /**
+     * Constructor for ReservedInstanceCoverageFilter.
+     *
+     * @param scopeIds The scope(s) Ids.
+     * @param billingAccountIds The relevant business account OIDs, for the one or
+     * more billing families in scope.
+     * @param scopeEntityType The scope(s) entity type.
+     * @param startDateMillis Start time in ms.
+     * @param endDateMillis End time in ms.
+     * @param timeFrame The timeframe for which to obtain stats.
+     */
     private ReservedInstanceCoverageFilter(@Nonnull final Set<Long> scopeIds,
+                                           @Nonnull final Set<Long> billingAccountIds,
                                            final int scopeEntityType,
                                            final long startDateMillis,
                                            final long endDateMillis,
                                            @Nullable final TimeFrame timeFrame) {
-        super(scopeIds, scopeEntityType, startDateMillis, endDateMillis, timeFrame);
+        super(scopeIds, billingAccountIds, scopeEntityType, startDateMillis, endDateMillis,
+              timeFrame);
     }
 
     @Override
@@ -55,6 +68,9 @@ public class ReservedInstanceCoverageFilter extends ReservedInstanceStatsFilter 
     public static class Builder {
         // The set of scope oids.
         private Set<Long> scopeIds = new HashSet<>();
+        // The relevant business account OIDs, for the one or
+        // more billing families in scope.
+        private Set<Long> billingAccountIds = new HashSet<>();
         // The scope's entity type.
         private int scopeEntityType = EntityType.UNKNOWN_VALUE;
         private long startDateMillis = 0;
@@ -64,8 +80,9 @@ public class ReservedInstanceCoverageFilter extends ReservedInstanceStatsFilter 
         private Builder() {}
 
         public ReservedInstanceCoverageFilter build() {
-            return new ReservedInstanceCoverageFilter(scopeIds, scopeEntityType,
-                    startDateMillis, endDateMillis, timeFrame);
+            return new ReservedInstanceCoverageFilter(scopeIds, billingAccountIds,
+                                              scopeEntityType,
+                                              startDateMillis, endDateMillis, timeFrame);
         }
 
         /**
@@ -90,6 +107,23 @@ public class ReservedInstanceCoverageFilter extends ReservedInstanceStatsFilter 
         @Nonnull
         public Builder setScopeEntityType(final int entityType) {
             this.scopeEntityType = entityType;
+            return this;
+        }
+
+        /**
+         * Add all billing account OIDs that are relevant.
+         *
+         * <p>In OCP plans, this would be all accounts/subscriptions in the billing family.
+         * In real-time it could be all accounts/subscriptions in the billing family, for
+         * billing family scope and a single sub-account for account scope.
+         *
+         * @param ids The relevant business account OIDs, for the one or
+         * more billing families in scope.
+         * @return Builder for this class.
+         */
+        @Nonnull
+        public Builder addAllBillingAccountId(final List<Long> ids) {
+            this.billingAccountIds.addAll(ids);
             return this;
         }
 

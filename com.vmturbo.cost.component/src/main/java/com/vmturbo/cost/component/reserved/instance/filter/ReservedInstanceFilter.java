@@ -16,8 +16,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
  * A abstract class represents the filter object which will be used to query reserved instance tables.
  */
 public abstract class ReservedInstanceFilter {
-
     protected final Set<Long> scopeIds;
+    protected final Set<Long> billingAccountIds;
     protected final int scopeEntityType;
 
     protected static final Set<Integer> SUPPORTED_RI_FILTER_TYPES =
@@ -29,11 +29,17 @@ public abstract class ReservedInstanceFilter {
      * Constructor that takes scopeId(s) and scopeEntityType as arguments.
      *
      * @param scopeIds The scope(s) ids.  Region/BusinessAccount/AvalilabilityZone etc.
-     * @param scopeEntityType  The scopes' enity type.
+     * @param billingAccountIds The relevant business account OIDs, for the one or
+     * more billing families in scope.
+     * @param scopeEntityType  The scopes' enity type.  In general, this parameter is homegeneous and
+     * the scopeEntityType determines the type of entities contained in it.  Exceptions are mixed groups
+     * including ResourceGroups for which a new scope entity type would likely be needed.
      */
     public ReservedInstanceFilter(@Nonnull final Set<Long> scopeIds,
-                                  @Nonnull final int scopeEntityType) {
+                                  @Nonnull final Set<Long> billingAccountIds,
+                                  final int scopeEntityType) {
         this.scopeIds = Objects.requireNonNull(scopeIds);
+        this.billingAccountIds = Objects.requireNonNull(billingAccountIds);
         this.scopeEntityType = Objects.requireNonNull(scopeEntityType);
     }
 
@@ -41,9 +47,12 @@ public abstract class ReservedInstanceFilter {
      * Generate a list of {@link Condition} based on different fields.
      *
      * @param scopeIds scope ids need to filter by.
+     * @param billingAccountIds The relevant business account OIDs, for the one or
+     * more billing families in scope.
      * @param scopeEntityType scope(s) entity type.
      * @return a list of {@link Condition}.
      */
     abstract List<Condition> generateConditions(@Nonnull Set<Long> scopeIds,
+                                                @Nonnull Set<Long> billingAccountIds,
                                                 int scopeEntityType);
 }

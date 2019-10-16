@@ -636,22 +636,49 @@ public class Stages {
                     );
             }
 
-            // now add the new seed entities to the list
-            // We can only filter by one scope entity type (e.g. REGION/BUSINESS ACCOUNT/AVAILABILITYZONE)
+            // Set scope type.
+            // We have one scope entity type (e.g. REGION/BUSINESS ACCOUNT/AZ),
             // hence each of the planScopeEntries will have the same scope entity type.
-            int scopeEntityType = planScopeEntries.isEmpty()
-                ? EntityType.UNKNOWN_VALUE
-                : EntityType.valueOf(planScopeEntries.get(0).getClassName()
-                                     .toUpperCase()).getNumber();
+            // For a mixed group of entities from different Regions/AZ/BFs, the scope will a group
+            // of VMs/DB/DBS, for which resolution to relevant Regions/BA's/AZ will be made.
+            // ResorceGroups will be handled similarly.
+            // For Plan Account scope, the relevant BA's from same billing family will be used instead
+            // of the scope oids for RI retrieval from the DB.
+            // TODO:  Check with API if its possible to pass the scope type instead.
+            String scopeClassName = planScopeEntries.get(0).getClassName();
+            int scopeEntityType = (planScopeEntries.isEmpty() || scopeClassName == null)
+                ? EntityType.UNKNOWN_VALUE : getEntityTypeIfPresent(scopeClassName).getNumber();
+            // now add the new seed entities to the list, and the scope type for OCP plans.
             getContext().editTopologyInfo(topologyInfoBuilder -> {
                 topologyInfoBuilder.clearScopeSeedOids();
                 topologyInfoBuilder
-                                .addAllScopeSeedOids(seedEntities)
-                                .setScopeEntityType(scopeEntityType);
+                                .addAllScopeSeedOids(seedEntities);
+                topologyInfoBuilder.setScopeEntityType(scopeEntityType);
             });
 
             return Status.success("Added " + seedEntities.size() +
                     " seed entities to topology info.");
+        }
+
+        /**
+         * Get the value of an EntityType {@link com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType} if it exists,
+         * else return UNKNOWN_VALUE.
+         *
+         * @param className The className to look up.
+         * @return The EntityType that maps to the className.
+         * TODO: there's a task for Groups in general.  May need to get scope_entity_type from contained members.
+         * However ResourceGroup is heterogeneous, hence it requires something like MIXED_SCOPE, to handle a more
+         * complex query.
+         */
+        private EntityType getEntityTypeIfPresent(@Nonnull String className) {
+            // Map EntityType.BSINESS_ACCOUNT to "BusinessAccount" as an example.
+            String classNameInEnum = className.replaceAll("(.)([A-Z])", "$1_$2");
+            for (EntityType type : EntityType.values()) {
+                if (type.name().equalsIgnoreCase(classNameInEnum)) {
+                    return type;
+                }
+            }
+            return EntityType.UNKNOWN;
         }
     }
 

@@ -84,7 +84,8 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
             // Get the existing RI bought.
             final GetReservedInstanceBoughtByFilterResponse riBoughtResponse =
                 riBoughtServiceClient.getReservedInstanceBoughtByFilter(
-                    GetReservedInstanceBoughtByFilterRequest.newBuilder().addAllScopeSeedOids(topoInfo.getScopeSeedOidsList())
+                    GetReservedInstanceBoughtByFilterRequest.newBuilder()
+                    .addAllScopeSeedOids(topoInfo.getScopeSeedOidsList())
                     .setScopeEntityType(topoInfo.getScopeEntityType())
                     .build());
             final Map<Long, ReservedInstanceBought> riBoughtById =
