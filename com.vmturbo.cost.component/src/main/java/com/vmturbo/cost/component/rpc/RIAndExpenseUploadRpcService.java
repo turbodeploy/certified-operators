@@ -6,12 +6,12 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import io.grpc.stub.StreamObserver;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.impl.DSL;
-
-import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.cost.Cost.ChecksumResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetAccountExpensesChecksumRequest;
@@ -30,6 +30,9 @@ import com.vmturbo.cost.component.reserved.instance.ReservedInstanceCoverageUpda
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 
+/**
+ * This class is an uploader service for RIs and expenses.
+ */
 public class RIAndExpenseUploadRpcService extends RIAndExpenseUploadServiceImplBase {
     private final Logger logger = LogManager.getLogger();
 
@@ -51,6 +54,14 @@ public class RIAndExpenseUploadRpcService extends RIAndExpenseUploadServiceImplB
 
     private long lastProcessedAccountExpensesChecksum = 0;
 
+    /**
+     * Constructor.
+     * @param dsl database context
+     * @param accountExpensesStore  store for acount expenses
+     * @param reservedInstanceSpecStore store for reserved instance specs
+     * @param reservedInstanceBoughtStore store for reserved instance bought
+     * @param reservedInstanceCoverageUpdate reserved instance coverage update
+     */
     public RIAndExpenseUploadRpcService(@Nonnull final DSLContext dsl,
                                         @Nonnull AccountExpensesStore accountExpensesStore,
                                         @Nonnull ReservedInstanceSpecStore reservedInstanceSpecStore,
@@ -123,21 +134,23 @@ public class RIAndExpenseUploadRpcService extends RIAndExpenseUploadServiceImplB
         responseObserver.onNext(UploadRIDataResponse.getDefaultInstance());
         responseObserver.onCompleted();
     }
+
     /**
      * Store the received reserved instance bought and specs into database.
      * @param request a {@link UploadRIDataRequest} contains RI bought and spec data.
      */
     private void storeRIBoughtAndSpecIntoDB(@Nonnull final UploadRIDataRequest request) {
-        if (request.getReservedInstanceBoughtList().isEmpty() && request.getReservedInstanceSpecsList().isEmpty()) {
+        if (request.getReservedInstanceBoughtList().isEmpty()
+            && request.getReservedInstanceSpecsList().isEmpty()) {
             logger.info("There is no RI bought and spec in uploaded data!");
-        }
-        else if (request.getReservedInstanceSpecsCount() > 0 && request.getReservedInstanceBoughtCount() > 0) {
+        } else if (request.getReservedInstanceSpecsCount() > 0
+            && request.getReservedInstanceBoughtCount() > 0) {
             // if uploaded data has both RI bought and spec, then update them in one transaction.
             logger.debug("Updating {} ReservedInstance bought and spec...", request.getReservedInstanceSpecsCount());
             dsl.transaction(configuration -> {
                 final DSLContext transactionContext = DSL.using(configuration);
                 final Map<Long, Long> riSpecIdMap =
-                        reservedInstanceSpecStore.updateReservedInstanceBoughtSpec(transactionContext,
+                        reservedInstanceSpecStore.updateReservedInstanceSpec(transactionContext,
                                 request.getReservedInstanceSpecsList());
                 final List<ReservedInstanceBoughtInfo> riBoughtInfoWithNewSpecIds =
                         updateRIBoughtInfoWithNewSpecIds(request.getReservedInstanceBoughtList(), riSpecIdMap);
@@ -175,7 +188,7 @@ public class RIAndExpenseUploadRpcService extends RIAndExpenseUploadServiceImplB
     /**
      * Generates a list of {@link EntityRICoverageUpload}, in which the contained Coverage entries
      * from <code>entityRICoverageList</code> have been updated with a reserved instance ID matching
-     * the {@link ReservedInstanceBought} IDs contained/assigned within {@link ReservedInstanceBoughtStore}
+     * the {@link ReservedInstanceBought} IDs contained/assigned within {@link ReservedInstanceBoughtStore}.
      *
      * @param entityRICoverageList a list of {@link EntityRICoverageUpload}, in which the underlying
      *                             Coverage entries contain the ProbeReservedInstanceId attribute to map

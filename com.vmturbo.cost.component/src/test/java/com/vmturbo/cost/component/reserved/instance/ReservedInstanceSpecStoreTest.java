@@ -6,6 +6,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.collect.Sets;
+
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.junit.After;
@@ -16,8 +18,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
@@ -89,6 +89,10 @@ public class ReservedInstanceSpecStoreTest {
                             .setTermYears(1)))
             .build();
 
+    /**
+     * Setup each test.
+     * @throws Exception due to database operations.
+     */
     @Before
     public void setup() throws Exception {
         flyway = dbConfig.flyway();
@@ -99,16 +103,22 @@ public class ReservedInstanceSpecStoreTest {
                 new IdentityProvider(0));
     }
 
+    /**
+     * Tear down after each test.
+     */
     @After
     public void teardown() {
         flyway.clean();
     }
 
+    /**
+     * Test updateReservedInstanceSpec method.
+     */
     @Test
     public void testUpdateReservedInstanceBoughtSpecAddAll() {
         final List<ReservedInstanceSpec> reservedInstanceSpecs = Arrays.asList(specOne, specTwo);
         final Map<Long, Long> localIdToRealIdMap =
-                reservedInstanceSpecStore.updateReservedInstanceBoughtSpec(dsl, reservedInstanceSpecs);
+                reservedInstanceSpecStore.updateReservedInstanceSpec(dsl, reservedInstanceSpecs);
         final List<ReservedInstanceSpecRecord> records = dsl.selectFrom(Tables.RESERVED_INSTANCE_SPEC).fetch();
 
         assertEquals(2, records.size());
@@ -121,12 +131,15 @@ public class ReservedInstanceSpecStoreTest {
         assertEquals(2, localIdToRealIdMap.size());
     }
 
+    /**
+     * Test updateReservedInstanceSpec method with a subset of RI specs.
+     */
     @Test
     public void testUpdateReservedInstanceBoughtSpecAddSubset() {
         final List<ReservedInstanceSpec> reservedInstanceSpecs = Arrays.asList(specOne, specTwo);
-        reservedInstanceSpecStore.updateReservedInstanceBoughtSpec(dsl, reservedInstanceSpecs);
+        reservedInstanceSpecStore.updateReservedInstanceSpec(dsl, reservedInstanceSpecs);
         final Map<Long, Long> latestLocalIdToRealIdMap =
-                reservedInstanceSpecStore.updateReservedInstanceBoughtSpec(dsl,
+                reservedInstanceSpecStore.updateReservedInstanceSpec(dsl,
                         Arrays.asList(specTwo, specThree));
         final List<ReservedInstanceSpecRecord> records = dsl.selectFrom(Tables.RESERVED_INSTANCE_SPEC).fetch();
 
@@ -143,10 +156,13 @@ public class ReservedInstanceSpecStoreTest {
         assertEquals(2, latestLocalIdToRealIdMap.size());
     }
 
+    /**
+     * Test getAllReservedInstanceSpec method.
+     */
     @Test
     public void testGetAllReservedInstanceSpec() {
         final List<ReservedInstanceSpec> reservedInstanceSpecs = Arrays.asList(specOne, specTwo);
-        reservedInstanceSpecStore.updateReservedInstanceBoughtSpec(dsl, reservedInstanceSpecs);
+        reservedInstanceSpecStore.updateReservedInstanceSpec(dsl, reservedInstanceSpecs);
         final List<ReservedInstanceSpec> allReservedInstanceSpecs =
                 reservedInstanceSpecStore.getAllReservedInstanceSpec();
         assertEquals(2, allReservedInstanceSpecs.size());
@@ -158,10 +174,13 @@ public class ReservedInstanceSpecStoreTest {
                 .count());
     }
 
+    /**
+     * Test getReservedInstanceSpecByIds method.
+     */
     @Test
     public void testGetReservedInstanceSpecByIds() {
         final List<ReservedInstanceSpec> reservedInstanceSpecs = Arrays.asList(specOne, specTwo);
-        reservedInstanceSpecStore.updateReservedInstanceBoughtSpec(dsl, reservedInstanceSpecs);
+        reservedInstanceSpecStore.updateReservedInstanceSpec(dsl, reservedInstanceSpecs);
         final List<ReservedInstanceSpec> allReservedInstanceSpecs =
                 reservedInstanceSpecStore.getAllReservedInstanceSpec();
         final Long specId = allReservedInstanceSpecs.get(0).getId();

@@ -1,6 +1,5 @@
 package com.vmturbo.cost.component.rpc;
 
-
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Matchers.any;
@@ -12,6 +11,11 @@ import static org.mockito.Mockito.when;
 import java.util.List;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+
+import io.grpc.stub.StreamObserver;
 
 import org.jooq.DSLContext;
 import org.junit.Before;
@@ -25,11 +29,6 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-
-import io.grpc.stub.StreamObserver;
-
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
@@ -42,9 +41,11 @@ import com.vmturbo.cost.component.expenses.AccountExpensesStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceCoverageUpdate;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
-import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
+/**
+ * This class tests methods in the RIAndExpenseUploadRpcService class.
+ */
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(
         classes = {TestSQLDatabaseConfig.class}
@@ -83,6 +84,10 @@ public class RIAndExpenseUploadRpcServiceTest {
     private ArgumentCaptor<List<EntityRICoverageUpload>> entityRICoverageListCaptor;
 
 
+    /**
+     * Set up before a test.
+     * @throws CommunicationException a communication exception.
+     */
     @Before
     public void setup() throws CommunicationException {
 
@@ -96,6 +101,9 @@ public class RIAndExpenseUploadRpcServiceTest {
                 reservedInstanceBoughtStore, reservedInstanceCoverageUpdate);
     }
 
+    /**
+     * Test uploadRIData method.
+     */
     @Test
     public void testUploadRIData() {
 
@@ -130,14 +138,14 @@ public class RIAndExpenseUploadRpcServiceTest {
                 .build();
         when(reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(any()))
                 .thenReturn(ImmutableList.of(storedReservedInstanceBought));
-        when(reservedInstanceSpecStore.updateReservedInstanceBoughtSpec(any(), any()))
+        when(reservedInstanceSpecStore.updateReservedInstanceSpec(any(), any()))
                 .thenReturn(ImmutableMap.of(2L, 7L));
 
         // invoke SUT
         riAndExpenseUploadRpcService.uploadRIData(uploadRIDataRequest, mockResponseObserver);
 
         // setup captors
-        verify(reservedInstanceSpecStore).updateReservedInstanceBoughtSpec(
+        verify(reservedInstanceSpecStore).updateReservedInstanceSpec(
                 any(), reservedInstanceSpecListCaptor.capture());
         verify(reservedInstanceBoughtStore).updateReservedInstanceBought(
                 any(), reservedInstanceBoughtInfoListCaptor.capture());

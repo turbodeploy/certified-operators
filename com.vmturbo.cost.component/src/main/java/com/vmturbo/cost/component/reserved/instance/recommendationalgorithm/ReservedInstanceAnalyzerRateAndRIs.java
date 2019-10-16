@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component.reserved.instance.recommendationalgorithm;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -304,7 +305,7 @@ public class ReservedInstanceAnalyzerRateAndRIs {
         }
         validateRiPricesBySpecIdMap(riPriceTable.getRiPricesBySpecIdMap());
         reservedInstanceRateMap = riPriceTable.getRiPricesBySpecIdMap();
-        logger.info("populateReservedInstanceRateMap size={}", reservedInstanceRateMap.size());
+        logger.debug("populateReservedInstanceRateMap size={}", () -> reservedInstanceRateMap.size());
     }
 
     /**
@@ -336,12 +337,15 @@ public class ReservedInstanceAnalyzerRateAndRIs {
                 regionIds.put(regionId, count + 1);
             }
         }
-        StringBuffer buffer = new StringBuffer();
-        buffer.append("validateRiPricesBySpecIdMap() number of regions=").append(regionIds.size());
-        for (Long regionId: regionIds.keySet()) {
-            buffer.append("\n\tregionId=").append(regionId).append(" count=").append(regionIds.get(regionId));
+
+        if (logger.isDebugEnabled()) {
+            StringBuffer buffer = new StringBuffer();
+            buffer.append("validateRiPricesBySpecIdMap() number of regions=").append(regionIds.size());
+            for (Long regionId : regionIds.keySet()) {
+                buffer.append("\n\tregionId=").append(regionId).append(" count=").append(regionIds.get(regionId));
+            }
+            logger.debug(buffer.toString());
         }
-        logger.info(buffer.toString());
     }
 
     /**
@@ -404,7 +408,7 @@ public class ReservedInstanceAnalyzerRateAndRIs {
         if (risBought == null) {
             logger.debug("lookupReservedInstancesBoughtInfos: found no bought RIs for context={}",
                 regionalContext);
-            return null;
+            return Collections.emptyList();
         }
         long regionId = regionalContext.getRegionId();
         for (Entry<Long, List<ReservedInstanceBoughtInfo>> entry: risBought.entrySet()) {

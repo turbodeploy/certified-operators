@@ -11,13 +11,16 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.google.common.annotations.VisibleForTesting;
+
+import io.grpc.stub.StreamObserver;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import io.grpc.stub.StreamObserver;
-
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableChecksumRequest;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableChecksumResponse;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableChecksumResponse.Builder;
@@ -38,6 +41,9 @@ import com.vmturbo.cost.component.pricing.PriceTableStore.PriceTables;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
 import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
 
+/**
+ * This class provides RPC service for the PriceTableStore.
+ */
 @ThreadSafe
 public class PricingRpcService extends PricingServiceImplBase {
     private static final Logger logger = LogManager.getLogger();
@@ -46,6 +52,11 @@ public class PricingRpcService extends PricingServiceImplBase {
 
     private final ReservedInstanceSpecStore reservedInstanceSpecStore;
 
+    /**
+     * Constructor.
+     * @param priceTableStore price table store
+     * @param riSpecStore reserved instance spec store
+     */
     public PricingRpcService(@Nonnull final PriceTableStore priceTableStore,
                              @Nonnull final ReservedInstanceSpecStore riSpecStore) {
         this.priceTableStore = Objects.requireNonNull(priceTableStore);
@@ -153,15 +164,18 @@ public class PricingRpcService extends PricingServiceImplBase {
      * @param specPrices the list of RI Spec Prices to include in the table.
      * @return A ReservedInstancePriceTable based on the specs and prices.
      */
-    private ReservedInstancePriceTable updateRISpecsAndBuildRIPriceTable(List<ReservedInstanceSpecPrice> specPrices) {
+    @VisibleForTesting
+    ReservedInstancePriceTable updateRISpecsAndBuildRIPriceTable(List<ReservedInstanceSpecPrice> specPrices) {
         if (CollectionUtils.isEmpty(specPrices)) {
             return ReservedInstancePriceTable.getDefaultInstance();
         }
         // this will hold the set of RI specs to save, with id's set to index position.
         List<ReservedInstanceSpec> riSpecsToSave = new ArrayList<>();
-        // this oddish map of ri prices -> ri spec temp id is used to facilitate building of
-        // the ri price table
-        Map<ReservedInstancePrice, Long> riPricesToTempId = new HashMap<>();
+
+        // The ReservedInstanceSpecInfo is unique, whereas ReservedInstancePrice is not.
+        // Auxiliary maps to generate riSpecPrices map: ReservedInstanceMap.OID -> ReservedInstancePrice.
+        Map<ReservedInstanceSpecInfo, ReservedInstancePrice> infoToPrice = new HashMap<>();
+        Map<ReservedInstanceSpecInfo, Long> infoToTempId = new HashMap<>();
         for (int x = 0; x < specPrices.size(); x++) {
             ReservedInstanceSpecPrice riSpecPrice = specPrices.get(x);
             ReservedInstanceSpec riSpec = ReservedInstanceSpec.newBuilder()
@@ -169,31 +183,42 @@ public class PricingRpcService extends PricingServiceImplBase {
                     .setId(x)
                     .build();
             riSpecsToSave.add(riSpec);
-            riPricesToTempId.put(riSpecPrice.getPrice(), riSpec.getId());
+            infoToPrice.put(riSpecPrice.getRiSpecInfo(), riSpecPrice.getPrice());
+            infoToTempId.put(riSpecPrice.getRiSpecInfo(), riSpec.getId());
         }
         // update the persisted RI specs and keep the map of our temp id's -> real id's,
         // which we will reference in the RI Price Table.
-        Map<Long, Long> tempSpecIdToRealId = reservedInstanceSpecStore.updateReservedInstanceBoughtSpec(riSpecsToSave);
+        Map<Long, Long> tempSpecIdToRealId = reservedInstanceSpecStore.updateReservedInstanceSpec(riSpecsToSave);
 
         // create the map of real spec id -> RI Prices that we will use to create the RI
         // price table with.
         Map<Long, ReservedInstancePrice> riSpecPrices = new HashMap<>();
-        riPricesToTempId.forEach((price, tempId) -> {
+        infoToTempId.forEach((info, tempId) -> {
             // don't add null keys
             if (tempSpecIdToRealId.containsKey(tempId)) {
-                riSpecPrices.put(tempSpecIdToRealId.get(tempId), price);
+
+                ReservedInstancePrice price = infoToPrice.get(info);
+                riSpecPrices.put(tempSpecIdToRealId.get(tempId), price );
             } else {
                 logger.warn("Skipping RI spec price with temp id {} but no real id assigned.", tempId);
             }
         });
+        logger.debug("updateRISpecsAndBuildRIPriceTable: input:List<ReservedInstanceSpecPrice>.size={} infoToTempId.size={} output:ReservedInstancePriceTable.size={}",
+            specPrices.size(), infoToTempId.size(), riSpecPrices.size());
 
+        if (riSpecPrices.size() != specPrices.size()) {
+            logger.error("updateRISpecsAndBuildRIPriceTable: input:List<ReservedInstanceSpecPrice>.size={} != output:ReservedInstanceSpecPrice.size={}, some RIs dropped!",
+                specPrices.size(), riSpecPrices.size());
+        }
         // now create the RI Price Table
         ReservedInstancePriceTable.Builder riPriceTableBuilder = ReservedInstancePriceTable.newBuilder();
         riPriceTableBuilder.putAllRiPricesBySpecId(riSpecPrices);
         return riPriceTableBuilder.build();
     }
 
-    // helper object for holding a probe's price table and ri spect prices.
+    /**
+     * helper object for holding a probe's price table and ri spect prices.
+     */
     private static class ProbePriceData {
         public Long checksum;
         public PriceTable priceTable;

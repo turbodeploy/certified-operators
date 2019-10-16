@@ -44,24 +44,36 @@ public class ReservedInstanceSpecStore {
         this.identityProvider = null;
     }
 
+    /**
+     * Constructor.
+     * @param dsl database context.
+     * @param identityProvider identity provivder to generate OIDs.
+     */
     public ReservedInstanceSpecStore(@Nonnull final DSLContext dsl,
                                      @Nonnull final IdentityProvider identityProvider) {
         this.dsl = Objects.requireNonNull(dsl);
         this.identityProvider = Objects.requireNonNull(identityProvider);
     }
 
-    public Map<Long, Long> updateReservedInstanceBoughtSpec(
-            @Nonnull final List<ReservedInstanceSpec> newReservedInstanceBoughtSpec) {
-        return updateReservedInstanceBoughtSpec(dsl, newReservedInstanceBoughtSpec);
+    /**
+     * Given a new list of ReservedInstanceSpecs from the probe with temporary ID's, find
+     * the mapping from the tempID to an OID.
+     *
+     * @param newReservedInstanceSpecs a list of new reserved instances
+     * @return a mapping from tempID to ReservedInstanceSpec OID
+     */
+    public Map<Long, Long> updateReservedInstanceSpec(
+            @Nonnull final List<ReservedInstanceSpec> newReservedInstanceSpecs) {
+        return updateReservedInstanceSpec(dsl, newReservedInstanceSpecs);
     }
 
     /**
-     * For reserved instance bought spec data, when updating reserved_instance_spec table,
-     * it use {@link ReservedInstanceSpecInfo} to compare with current existing reserved instance
-     * specs records in table, if {@link ReservedInstanceSpecInfo} are same, we consider them as
-     * duplicate, will not insert duplicate spec data into data. For those new
-     * {@link ReservedInstanceSpecInfo}, it will insert them into reserved_instance_spec table as a
-     * new reserved instance spec record, and will assign a new Id for them.
+     * For reserved instance spec data from the mediation cost probes, when updating
+     * reserved_instance_spec table, it use {@link ReservedInstanceSpecInfo} to compare with current
+     * existing reserved instance specs records in table, if {@link ReservedInstanceSpecInfo} are
+     * same, we consider them as duplicate, will not insert duplicate spec data into data.
+     * For those new {@link ReservedInstanceSpecInfo}, it will insert them into reserved_instance_spec
+     * table as a new reserved instance spec record, and will assign a new Id for them.
      *
      * <p>And this method will return a Map which key is the local id of reserved instance spec and the
      * local id is set by Topology Processor in order to keep the relationship between reserved instance
@@ -74,12 +86,13 @@ public class ReservedInstanceSpecStore {
      * @return a Map which key is local Id of reserved instance spec, value is the real id of reserved
      *         instance spec.
      */
-    public Map<Long, Long> updateReservedInstanceBoughtSpec(
+    public Map<Long, Long> updateReservedInstanceSpec(
             @Nonnull final DSLContext context,
             @Nonnull final List<ReservedInstanceSpec> newReservedInstanceBoughtSpec) {
-        logger.info("Updating reserved instance bought spec...");
         final Map<ReservedInstanceSpecInfo, Long> existingRISpecInfoToId =
                 getExistingRISpecInfoToIdMap(context);
+        logger.debug("updateReservedInstanceSpec: existingRISpecInfoToId.size={}",
+            () -> existingRISpecInfoToId.size());
 
         final Map<Long, Long> specLocalIdToRealIdMap = new HashMap<>();
         final List<ReservedInstanceSpec> reservedInstanceSpecsToAdd = new ArrayList<>();
@@ -115,7 +128,8 @@ public class ReservedInstanceSpecStore {
         }
 
         context.batchInsert(reservedInstanceSpecRecordsToAdd).execute();
-        logger.info("Finished update reserved instance bought spec.");
+        logger.debug("Finished updateReservedInstanceSpec: specLocalIdToRealIdMap.size={}",
+            () -> specLocalIdToRealIdMap.size());
         return specLocalIdToRealIdMap;
     }
 
