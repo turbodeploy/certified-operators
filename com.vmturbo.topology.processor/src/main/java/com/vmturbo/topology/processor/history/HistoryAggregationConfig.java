@@ -20,6 +20,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.commons.Units;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.history.percentile.PercentileEditor;
 import com.vmturbo.topology.processor.history.percentile.PercentileHistoricalEditorConfig;
 import com.vmturbo.topology.processor.topology.HistoryAggregator;
@@ -28,7 +29,7 @@ import com.vmturbo.topology.processor.topology.HistoryAggregator;
  * Configuration for historical values aggregation sub-package.
  */
 @Configuration
-@Import({HistoryClientConfig.class})
+@Import({HistoryClientConfig.class, ClockConfig.class})
 public class HistoryAggregationConfig {
     @Value("${historyAggregationMaxPoolSize}")
     private int historyAggregationMaxPoolSize = Runtime.getRuntime().availableProcessors();
@@ -61,6 +62,9 @@ public class HistoryAggregationConfig {
     @Autowired
     private HistoryClientConfig historyClientConfig;
 
+    @Autowired
+    private ClockConfig clockConfig;
+
     /**
      * History component blocking client interface.
      *
@@ -79,7 +83,7 @@ public class HistoryAggregationConfig {
     @Bean
     public StatsHistoryServiceStub nonBlockingHistoryClient() {
         return StatsHistoryServiceGrpc.newStub(historyClientConfig
-                        .historyChannel((int)(grpcChannelMaxMessageSizeKb * Units.KBYTE)));
+                        .historyChannelWithMaxMessageSize((int)(grpcChannelMaxMessageSizeKb * Units.KBYTE)));
     }
 
     /**
@@ -130,7 +134,8 @@ public class HistoryAggregationConfig {
      */
     @Bean
     public IHistoricalEditor<?> percentileHistoryEditor() {
-        return new PercentileEditor(percentileEditorConfig(), nonBlockingHistoryClient());
+        return new PercentileEditor(percentileEditorConfig(), nonBlockingHistoryClient(),
+                clockConfig.clock());
     }
 
     /**

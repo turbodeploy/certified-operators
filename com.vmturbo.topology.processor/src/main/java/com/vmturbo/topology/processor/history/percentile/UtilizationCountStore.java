@@ -159,4 +159,14 @@ public class UtilizationCountStore {
     public void setPeriodDays(int periodDays) {
         this.periodDays = periodDays;
     }
+
+    /**
+     * Copy utilization counts from latest to full.
+     *
+     * @throws HistoryCalculationException if copying the counts array from full to latest is not
+     * successful
+     */
+    public void copyCountsFromLatestToFull() throws HistoryCalculationException {
+        full.copyCountsFrom(latest);
+    }
 }

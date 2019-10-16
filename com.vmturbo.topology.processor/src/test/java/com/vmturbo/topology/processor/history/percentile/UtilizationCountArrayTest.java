@@ -1,5 +1,8 @@
 package com.vmturbo.topology.processor.history.percentile;
 
+import java.util.Arrays;
+import java.util.List;
+
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -16,6 +19,10 @@ import com.vmturbo.topology.processor.history.percentile.PercentileDto.Percentil
  */
 public class UtilizationCountArrayTest {
     private static final double delta = 0.001;
+    private static final EntityCommodityFieldReference REF =
+            new EntityCommodityFieldReference(134L,
+                    CommodityType.newBuilder().setKey("efds").setType(12).build(), 4857L,
+                    CommodityField.USED);
 
     /**
      * Expected exception.
@@ -157,10 +164,7 @@ public class UtilizationCountArrayTest {
         UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets(null));
         float capacity = 72631;
         counts.addPoint(2, capacity, "", true);
-        EntityCommodityFieldReference ref = new EntityCommodityFieldReference(134L,
-                                              CommodityType.newBuilder().setKey("efds").setType(12).build(),
-                                              4857L, CommodityField.USED);
-        PercentileRecord.Builder builder = counts.serialize(ref);
+        PercentileRecord.Builder builder = counts.serialize(REF);
         Assert.assertNotNull(builder);
         PercentileRecord record = builder.setPeriod(30).build();
 
@@ -170,11 +174,11 @@ public class UtilizationCountArrayTest {
         Assert.assertTrue(record.hasKey());
         Assert.assertTrue(record.hasProviderOid());
 
-        Assert.assertEquals(ref.getEntityOid(), record.getEntityOid());
+        Assert.assertEquals(REF.getEntityOid(), record.getEntityOid());
         Assert.assertEquals(capacity, record.getCapacity(), delta);
-        Assert.assertEquals(ref.getCommodityType().getType(), record.getCommodityType());
-        Assert.assertEquals(ref.getCommodityType().getKey(), record.getKey());
-        Assert.assertEquals(ref.getProviderOid().longValue(), record.getProviderOid());
+        Assert.assertEquals(REF.getCommodityType().getType(), record.getCommodityType());
+        Assert.assertEquals(REF.getCommodityType().getKey(), record.getKey());
+        Assert.assertEquals(REF.getProviderOid().longValue(), record.getProviderOid());
     }
 
     /**
@@ -212,6 +216,51 @@ public class UtilizationCountArrayTest {
         PercentileRecord.Builder builder = PercentileRecord.newBuilder().setEntityOid(12)
                         .setCommodityType(32).setCapacity(100f).addUtilization(20).setPeriod(30);
         counts.deserialize(builder.build(), "");
+    }
+
+    /**
+     * Test for {@link UtilizationCountArray#copyCountsFrom(UtilizationCountArray)}
+     * When the lengths of the counts arrays do match.
+     *
+     * @throws HistoryCalculationException when the lengths of the counts arrays do not match
+     */
+    @Test
+    public void testCopyCountsFromArrayLengthsMath() throws HistoryCalculationException {
+        final PercentileBuckets buckets = new PercentileBuckets("0,1,5,99,100");
+
+        final UtilizationCountArray utilizationCountArray1 = new UtilizationCountArray(buckets);
+        final UtilizationCountArray utilizationCountArray2 = new UtilizationCountArray(buckets);
+        final List<Integer> utilization2 = Arrays.asList(1, 2, 3, 4, 5);
+        utilizationCountArray2.deserialize(PercentileRecord.newBuilder()
+                .setEntityOid(REF.getEntityOid())
+                .setCommodityType(REF.getCommodityType().getType())
+                .setKey(REF.getCommodityType().getKey())
+                .setCapacity(1000F)
+                .addAllUtilization(utilization2)
+                .setPeriod(30)
+                .build(), "");
+
+        utilizationCountArray1.copyCountsFrom(utilizationCountArray2);
+        Assert.assertEquals(utilization2,
+                utilizationCountArray1.serialize(REF).getUtilizationList());
+    }
+
+    /**
+     * Test for {@link UtilizationCountArray#copyCountsFrom(UtilizationCountArray)}
+     * When the lengths of the counts arrays do not match.
+     *
+     * @throws HistoryCalculationException when the lengths of the counts arrays do not match
+     */
+    @Test
+    public void testCopyCountsFromArrayLengthsNotMath() throws HistoryCalculationException {
+        final UtilizationCountArray utilizationCountArray1 =
+                new UtilizationCountArray(new PercentileBuckets("0,1,5,99,100"));
+        final UtilizationCountArray utilizationCountArray2 =
+                new UtilizationCountArray(new PercentileBuckets("0,1,5,95,99,100"));
+        expectedException.expect(HistoryCalculationException.class);
+        expectedException.expectMessage(
+                "The internal 5 and external 6 the lengths of the counts arrays do not match");
+        utilizationCountArray1.copyCountsFrom(utilizationCountArray2);
     }
 
     private static void addCount(UtilizationCountArray counts, int count, int quantity)

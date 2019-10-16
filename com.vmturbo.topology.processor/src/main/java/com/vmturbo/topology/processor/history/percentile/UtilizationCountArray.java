@@ -165,4 +165,18 @@ public class UtilizationCountArray {
         capacity = 0f;
     }
 
+    /**
+     * Copy counts array from the <code>other</code>.
+     *
+     * @param other the {@link UtilizationCountArray}
+     * @throws HistoryCalculationException when the lengths of the counts arrays do not match
+     */
+    public void copyCountsFrom(UtilizationCountArray other) throws HistoryCalculationException {
+        if (this.counts.length != other.counts.length) {
+            throw new HistoryCalculationException(String.format(
+                    "The internal %d and external %d the lengths of the counts arrays do not match",
+                    this.counts.length, other.counts.length));
+        }
+        System.arraycopy(other.counts, 0, this.counts, 0, other.counts.length);
+    }
 }

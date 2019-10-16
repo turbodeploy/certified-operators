@@ -1,7 +1,8 @@
 package com.vmturbo.topology.processor.history.percentile;
 
+import java.time.Clock;
 import java.util.Collections;
-import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -12,9 +13,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.MapDifference;
-import com.google.common.collect.MapDifference.ValueDifference;
-import com.google.common.collect.Maps;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -25,6 +23,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.Units;
+import com.vmturbo.commons.forecasting.TimeInMillisConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -75,6 +74,7 @@ public class PercentileEditor extends
                                          + "(this is also part of tp_historical_completion_time_percentile)")
                                .build();
 
+    private final Clock clock;
     private boolean historyInitialized;
     // moment of most recent checkpoint i.e. save of full window in the persistent store
     private long lastCheckpointMs;
@@ -87,10 +87,12 @@ public class PercentileEditor extends
      *
      * @param config configuration values
      * @param statsHistoryClient persistence component access handler
+     * @param clock the {@link Clock}
      */
     public PercentileEditor(PercentileHistoricalEditorConfig config,
-                            StatsHistoryServiceStub statsHistoryClient) {
+                            StatsHistoryServiceStub statsHistoryClient, Clock clock) {
         super(config, statsHistoryClient, PercentilePersistenceTask::new, PercentileCommodityData::new);
+        this.clock = clock;
     }
 
     @Override
@@ -216,7 +218,8 @@ public class PercentileEditor extends
         }
     }
 
-    private void checkObservationPeriodsChanged(@Nonnull GraphWithSettings graph) {
+    private void checkObservationPeriodsChanged(@Nonnull GraphWithSettings graph)
+            throws HistoryCalculationException, InterruptedException {
         /*
          * Maintain per-entity observation periods for all entities ever seen
          * since the component startup, to handle setting changes individually.
@@ -227,43 +230,86 @@ public class PercentileEditor extends
          * We should consider keeping per-entity-type period settings only.
          * Or preferably even just one global observation window setting.
          */
-        Map<Long, Integer> entity2period = graph.getTopologyGraph()
-                        .entities()
-                        .collect(Collectors.toMap(TopologyEntity::getOid,
-                                                  entity -> getConfig()
-                                                      .getObservationPeriod(entity.getOid())));
-        Map<Long, Integer> previousEntity2period = getCache().entrySet().stream()
-                        .collect(Collectors.toMap(field2data -> field2data.getKey().getEntityOid(),
-                                                  field2data -> field2data.getValue()
-                                                                  .getUtilizationCountStore()
-                                                                  .getPeriodDays(),
-                                                  (x, y) -> x));
-        // we are only interested in "changes" but not in handling the new entities
-        entity2period.keySet().retainAll(previousEntity2period.keySet());
-        MapDifference<Long, Integer> periodDifference = Maps.difference(previousEntity2period,
-                                                                        entity2period);
+        final Map<Long, Integer> entity2period = graph.getTopologyGraph()
+                .entities()
+                .collect(Collectors.toMap(TopologyEntity::getOid,
+                        entity -> getConfig().getObservationPeriod(entity.getOid())));
 
-        if (!periodDifference.areEqual()) {
-            try (DataMetricTimer timer = SETTINGS_CHANGE_SUMMARY_METRIC.startTimer()) {
-                Stopwatch sw = Stopwatch.createStarted();
-                // some observation window settings changed, some cache data becomes invalid
-                Map<Long, ValueDifference<Integer>> changedPeriods = periodDifference.entriesDiffering();
-                int maxOfChangedPeriods = changedPeriods.values().stream()
-                                .map(ValueDifference::rightValue).max(Comparator.comparingInt(i -> i)).orElse(0);
-                // TODO dmitry read as many page blobs from persistence as constitute the max of new periods
-                // and accumulate them into percentile cache, respect per-entity observation window settings
-                logger.info("Percentile observation windows changed for {} entities, recalculated from {} pages in {}",
-                            changedPeriods.size(), maxOfChangedPeriods, sw);
+        final Map<EntityCommodityFieldReference, PercentileCommodityData> changedPeriodEntries =
+                new HashMap<>();
+        int maxOfChangedPeriods = 0;
+        for (Map.Entry<EntityCommodityFieldReference, PercentileCommodityData> entry : getCache().entrySet()) {
+            final Integer observationPeriod = entity2period.get(entry.getKey().getEntityOid());
+            if (observationPeriod != null) {
+                final UtilizationCountStore store = entry.getValue().getUtilizationCountStore();
+                // We are only interested in "changes" but not in handling the new entities.
+                if (store.getPeriodDays() != observationPeriod) {
+                    changedPeriodEntries.put(entry.getKey(), entry.getValue());
+                    // Update percentile data with observation windows values.
+                    store.setPeriodDays(observationPeriod);
+                    // Latest counts is already in memory, copy to full to load 1 window less.
+                    store.copyCountsFromLatestToFull();
+                    // The needed pages count to load will be determined by the max observation period.
+                    maxOfChangedPeriods = Math.max(maxOfChangedPeriods, observationPeriod);
+                }
             }
         }
 
-        // Update percentile data with observation windows values
-        getCache().forEach((field, data) -> {
-            Integer period = entity2period.get(field.getEntityOid());
-            if (period != null) {
-                data.getUtilizationCountStore().setPeriodDays(period);
+        if (changedPeriodEntries.isEmpty()) {
+            logger.debug("Observation periods for cache entries have not changed.");
+            return;
+        }
+
+        try (DataMetricTimer timer = SETTINGS_CHANGE_SUMMARY_METRIC.startTimer()) {
+            final Stopwatch sw = Stopwatch.createStarted();
+            // Read as many page blobs from persistence as constitute the max of new periods
+            // and accumulate them into percentile cache, respect per-entity observation window settings
+
+            // Calculate maintenance window in milliseconds.
+            final long windowMillis = getConfig().getMaintenanceWindowHours() *
+                    TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS;
+            final long checkpoint = getCheckpoint();
+            // Calculate timestamp for farthest snapshot.
+            // Latest counts is already in memory, need to load 1 observation window less.
+            long startTimestamp = checkpoint -
+                    (maxOfChangedPeriods * TimeInMillisConstants.DAY_LENGTH_IN_MILLIS) +
+                    windowMillis;
+            // Load snapshots by selecting from history with shifting start timestamp by maintenance window.
+            while (startTimestamp < checkpoint) {
+                final Map<EntityCommodityFieldReference, PercentileRecord> page =
+                        new PercentilePersistenceTask(getStatsHistoryClient(), startTimestamp).load(
+                                Collections.emptyList(), getConfig());
+                // For each entry in cache with a changed observation period,
+                // apply loaded percentile commodity entries.
+                for (Map.Entry<EntityCommodityFieldReference, PercentileCommodityData> entry : changedPeriodEntries
+                        .entrySet()) {
+                    final UtilizationCountStore store = entry.getValue().getUtilizationCountStore();
+                    // Calculate bound timestamp for specific entry.
+                    // This is necessary if the changed observation period
+                    // for a given entry is less than the maximum modified observation period.
+                    final long timestampBound = checkpoint -
+                            (store.getPeriodDays() * TimeInMillisConstants.DAY_LENGTH_IN_MILLIS) +
+                            windowMillis;
+                    if (timestampBound <= startTimestamp) {
+                        final PercentileRecord percentileRecord = page.get(entry.getKey());
+                        if (percentileRecord != null) {
+                            store.addFullCountsRecord(percentileRecord, false);
+                        }
+                    }
+                }
+                if (logger.isTraceEnabled()) {
+                    logger.trace(
+                            "Loaded {} percentile commodity entries for timestamp {} was applied to update the cache",
+                            page.size(), startTimestamp);
+                }
+                startTimestamp += windowMillis;
             }
-        });
+            // Reset last checkpoint for force starting the maintenance.
+            this.lastCheckpointMs = 0;
+            logger.info(
+                    "Percentile observation windows changed for {} entries, recalculated from {} pages in {}",
+                    changedPeriodEntries.size(), maxOfChangedPeriods, sw);
+        }
     }
 
     private void maintenance() throws HistoryCalculationException {
@@ -295,8 +341,9 @@ public class PercentileEditor extends
     }
 
     private long getCheckpoint() {
-        long checkpointMs = System.currentTimeMillis();
-        double window = getConfig().getMaintenanceWindowHours() * Units.HOUR_MS;
+        long checkpointMs = clock.millis();
+        double window = getConfig().getMaintenanceWindowHours() *
+                TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS;
         return (long)(Math.floor(checkpointMs / window) * window);
     }
 
