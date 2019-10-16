@@ -22,20 +22,17 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.CommodityResizeDependencyMap;
 import com.vmturbo.commons.analysis.RawMaterialsMap;
 import com.vmturbo.commons.analysis.UpdateFunction;
+import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.market.runner.Analysis;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
-import com.vmturbo.market.topology.conversions.CommodityConverter;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.ProvisionBase;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
-import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
-import com.vmturbo.platform.analysis.economy.Economy;
-import com.vmturbo.platform.analysis.economy.EconomySettings;
-import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.*;
 import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.platform.analysis.ledger.PriceStatement;
@@ -142,7 +139,7 @@ public class TopologyEntitiesHandler {
         populateCommodityResizeDependencyMap(topology);
         populateProducesDependencyMap(topology);
         populateRawMaterialsMap(topology);
-        parseAndResetCommToAllowOverheadInClone(topology, topologyInfo);
+        populateCommToAdjustOverheadInClone(topology, analysis);
 
         final Economy economy = (Economy)topology.getEconomy();
         analysis.setEconomy(economy);
@@ -361,13 +358,12 @@ public class TopologyEntitiesHandler {
         topology.getModifiableRawCommodityMap().putAll(RawMaterialsMap.rawMaterialsMap);
     }
 
-    private static void parseAndResetCommToAllowOverheadInClone(Topology topology, TopologyDTO.TopologyInfo topoInfo) {
-        CommodityConverter.commToConsiderForOverheadMap.computeIfPresent(topoInfo.getTopologyContextId(),
-                (context, commSpecList) -> {
-                    commSpecList.forEach(topology::addCommsToAdjustOverhead);
-                    return commSpecList;
-                });
-        CommodityConverter.commToConsiderForOverheadMap.remove(topoInfo.getTopologyContextId());
+    private static void populateCommToAdjustOverheadInClone(Topology topology, Analysis analysis) {
+        AnalysisUtil.COMM_TYPES_TO_ALLOW_OVERHEAD.stream()
+                .map(type -> TopologyDTO.CommodityType.newBuilder().setType(type).build())
+                .map(analysis::getCommSpecForCommodity)
+                .map(cs -> new CommoditySpecification(cs.getType(), cs.getBaseType(), 0, Integer.MAX_VALUE))
+                .forEach(topology::addCommsToAdjustOverhead);
     }
 
     private static void setEconomySettings(@Nonnull EconomySettings economySettings,

@@ -16,14 +16,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -31,6 +24,7 @@ import java.util.stream.IntStream;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
@@ -217,14 +211,15 @@ public class TopologyEntitiesHandlerTest {
                         .convertToTopologyEntityDTOs(map).stream()
                         .map(TopologyEntityDTO.Builder::build)
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
-        Set<TraderTO> economyDTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
+        TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
                         AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
-                        marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory)
-                                        .convertToMarket(topoDTOs);
+                        marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory);
+        Set<TraderTO> economyDTOs = converter.convertToMarket(topoDTOs);
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyContextId(7L)
                         .setTopologyType(TopologyType.REALTIME).setTopologyId(1L).build();
         ReplayActions replayActions = new ReplayActions();
         Analysis analysis = mock(Analysis.class);
+        mockCommsToAdjustForOverhead(analysis, converter);
         when(analysis.getReplayActions()).thenReturn(replayActions);
         final AnalysisConfig analysisConfig = AnalysisConfig
                         .newBuilder(AnalysisUtil.QUOTE_FACTOR,
@@ -264,6 +259,7 @@ public class TopologyEntitiesHandlerTest {
         Deactivate deactivateAction = mock(Deactivate.class);
         replayActions.getActions().add(deactivateAction);
         Analysis analysis = mock(Analysis.class);
+
         when(analysis.getReplayActions()).thenReturn(replayActions);
 
         generateEnd2EndActions(mock(Analysis.class));
@@ -564,6 +560,7 @@ public class TopologyEntitiesHandlerTest {
                         .filter(sl -> sl.getSupplier() == m1LargeOid).collect(Collectors.toList())
                         .get(0);
         Analysis analysis = mock(Analysis.class);
+        mockCommsToAdjustForOverhead(analysis, converter);
 
         final AnalysisConfig analysisConfig = AnalysisConfig
                         .newBuilder(AnalysisUtil.QUOTE_FACTOR,
@@ -667,6 +664,7 @@ public class TopologyEntitiesHandlerTest {
                             .filter(sl -> sl.getSupplier() == m3LargeOid)
                             .collect(Collectors.toList()).get(0);
             Analysis analysis = mock(Analysis.class);
+            mockCommsToAdjustForOverhead(analysis, converter);
 
             final AnalysisConfig analysisConfig = AnalysisConfig
                             .newBuilder(AnalysisUtil.QUOTE_FACTOR,
@@ -690,6 +688,16 @@ public class TopologyEntitiesHandlerTest {
             assertEquals(m3MediumTrader.getOid(), move.getDestination());
         } catch (Exception e) {
             Assert.fail(e.getMessage());
+        }
+    }
+
+    private void mockCommsToAdjustForOverhead(Analysis analysis, TopologyConverter converter) {
+        Iterator<Integer> iter = AnalysisUtil.COMM_TYPES_TO_ALLOW_OVERHEAD.iterator();
+        while (iter.hasNext()) {
+            int type = iter.next();
+            TopologyDTO.CommodityType commType = TopologyDTO.CommodityType.newBuilder().setType(type).build();
+            when(analysis.getCommSpecForCommodity(commType))
+                    .thenReturn(converter.getCommSpecForCommodity(commType));
         }
     }
 
@@ -767,11 +775,11 @@ public class TopologyEntitiesHandlerTest {
         // 2. change historical utilization in topo dtos
         editTopologyDTOMockPipleine(topoDTOs);
 
-        Set<TraderTO> economyDTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                        AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
-                        marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory)
-                                        .convertToMarket(topoDTOs);
-
+        TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
+                AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory);
+        Set<TraderTO> economyDTOs = converter.convertToMarket(topoDTOs);
+        mockCommsToAdjustForOverhead(analysis, converter);
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyContextId(7L)
                         .setTopologyType(TopologyType.PLAN).setTopologyId(1L).build();
 

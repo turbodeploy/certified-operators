@@ -69,6 +69,7 @@ import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
@@ -984,6 +985,16 @@ public class Analysis {
             }
         }
         return Collections.emptyList();
+    }
+
+    /**
+     * Return a CommSpecTO for the CommodityType passed.
+     * @param commType is the commType we need converted
+     * @return {@link com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO}
+     * equivalent of the commType.
+     */
+    public CommodityDTOs.CommoditySpecificationTO getCommSpecForCommodity(TopologyDTO.CommodityType commType) {
+        return converter.getCommSpecForCommodity(commType);
     }
 
     public SetOnce<Economy> getEconomy() {

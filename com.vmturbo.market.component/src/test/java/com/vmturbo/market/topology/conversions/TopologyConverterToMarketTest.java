@@ -1182,4 +1182,30 @@ public class TopologyConverterToMarketTest {
         return converter.getResizedCapacity(topologyEntityDTO, commodityBoughtDTO,
                 PROVIDER_ID);
     }
+
+    /*
+     * Test to check if given a CommodityType, we return the same CommSpec inside the Trader and in the economy.
+     */
+    @Test
+    public void testCommodityToAdjustForOverheadMatchTest() {
+        CommodityType mem = CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.MEM_VALUE).build();
+        TopologyEntityDTO entityDTO = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .setOid(100)
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(mem)
+                        .build())
+                .build();
+        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
+                AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory);
+        Map<Long, TopologyEntityDTO> entityMap = new HashMap<>();
+        entityMap.put(entityDTO.getOid(), entityDTO);
+        TraderTO entityTO = converter.convertToMarket(entityMap).iterator().next();
+
+        CommoditySpecificationTO csTO = converter.getCommSpecForCommodity(mem);
+        assertEquals(entityTO.getCommoditiesSold(0).getSpecification().getBaseType(), csTO.getBaseType());
+        assertEquals(entityTO.getCommoditiesSold(0).getSpecification().getType(), csTO.getType());
+    }
 }

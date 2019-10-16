@@ -476,8 +476,6 @@ public class TopologyConverter {
                 .filter(Objects::nonNull)
                 .forEach(returnBuilder::add);
 
-        // populate commToConsiderForOverheadMap
-        commodityConverter.populateCommToConsiderForOverheadMap(this.topologyInfo);
         logger.info("Converted topologyEntityDTOs to traderTOs");
         return returnBuilder.build();
     }
@@ -2484,4 +2482,13 @@ public class TopologyConverter {
         }
     }
 
+    /**
+     * Return a CommSpecTO for the CommodityType passed.
+     * @param commType is the commType we need converted
+     * @return {@link com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO}
+     * equivalent of the commType.
+     */
+    public CommodityDTOs.CommoditySpecificationTO getCommSpecForCommodity(CommodityType commType) {
+        return commodityConverter.commoditySpecification(commType);
+    }
 }

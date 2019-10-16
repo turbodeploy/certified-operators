@@ -90,16 +90,4 @@ public class CommodityConverterTest {
         assertThat(cpuCommodityTO.getHistoricalQuantity(), equalTo(PERCENTILE_USED));
     }
 
-    @Test
-    public void testPopulateCommToConsiderForOverheadMap() {
-        long context = 1;
-        // setting up for plan1
-        TopologyDTO.TopologyInfo topologyInfo = TopologyDTO.TopologyInfo.newBuilder()
-                .setTopologyContextId(context).build();
-        converterToTest.populateCommToConsiderForOverheadMap(topologyInfo);
-
-        // assert the presence of commsToSkip for the 2nd plan
-        assertThat(converterToTest.commToConsiderForOverheadMap.get(context).size(),
-                equalTo(AnalysisUtil.COMM_TYPES_TO_ALLOW_OVERHEAD.size()));
-    }
 }

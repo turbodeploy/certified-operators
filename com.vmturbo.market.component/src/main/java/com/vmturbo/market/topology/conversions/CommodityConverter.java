@@ -52,7 +52,6 @@ public class CommodityConverter {
     private final boolean includeGuaranteedBuyer;
     private final BiCliquer dsBasedBicliquer;
     private int bcBaseType = -1;
-    public static Map<Long, List<CommoditySpecification>> commToConsiderForOverheadMap = new HashMap<>();
     private final Table<Long, CommodityType, Integer> numConsumersOfSoldCommTable;
     private final ConversionErrorCounts conversionErrorCounts;
 
@@ -563,18 +562,4 @@ public class CommodityConverter {
         return usedExtractor.apply(commDto).floatValue();
     }
 
-    /**
-     * Populates commToConsiderForOverheadMap that is later used while creating the economy
-     *
-     * @param topoInfo is the {@link com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo} that contains the contextID
-     */
-    public void populateCommToConsiderForOverheadMap(TopologyDTO.TopologyInfo topoInfo) {
-        commToConsiderForOverheadMap.put(topoInfo.getTopologyContextId(),
-                AnalysisUtil.COMM_TYPES_TO_ALLOW_OVERHEAD.stream()
-                    .map(type -> TopologyDTO.CommodityType.newBuilder().setType(type).build())
-                    .map(ct -> new CommoditySpecification(toMarketCommodityId(ct),
-                            ct.getType(), 0, Integer.MAX_VALUE))
-                    .collect(Collectors.toList()));
-
-    }
 }
