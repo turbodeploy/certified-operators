@@ -2,7 +2,7 @@ package com.vmturbo.repository.dto;
 
 import java.util.Objects;
 
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.BusinessAccountData.PricingIdentifier.PricingIdentifierName;
+import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier.PricingIdentifierName;
 
 /**
  * Class for holding pricing identifier info for a business account.  Currently used by Azure to

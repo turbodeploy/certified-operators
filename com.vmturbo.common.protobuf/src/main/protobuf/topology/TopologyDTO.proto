@@ -101,7 +101,7 @@ message TypeSpecificInfo {
 
         // A list of provider specific account attributes that are used to identify the pricing
         // applied to an account.  For example, Azure uses offer ID and enrollment number.
-        repeated .common_dto.EntityDTO.BusinessAccountData.PricingIdentifier pricing_identifiers = 3;
+        repeated .common_dto.PricingIdentifier pricing_identifiers = 3;
 
         enum CloudServiceProvider {
             UNKNOWN_CSP = 0;
