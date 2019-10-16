@@ -1,8 +1,8 @@
 package com.vmturbo.cost.component.reserved.instance;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nonnull;
@@ -18,6 +18,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.market.component.api.ProjectedTopologyListener;
 
 /**
@@ -32,16 +34,18 @@ public class CostComponentProjectedEntityTopologyListener implements
 
     private final long realtimeTopologyContextId;
     private final ComputeTierDemandStatsWriter computeTierDemandStatsWriter;
+    private final TopologyEntityCloudTopologyFactory cloudTopologyFactory;
 
     private final Object topologyInfoLock = new Object();
     @GuardedBy("topologyInfoLock")
     private long latestKnownProjectedTopologyId = -1;
 
     CostComponentProjectedEntityTopologyListener(final long realtimeTopopologyContextId,
-                                                 @Nonnull final ComputeTierDemandStatsWriter
-                                                                computeTierDemandStatsWriter) {
+             @Nonnull final ComputeTierDemandStatsWriter computeTierDemandStatsWriter,
+             @Nonnull final TopologyEntityCloudTopologyFactory cloudTopologyFactory) {
         this.realtimeTopologyContextId = realtimeTopopologyContextId;
         this.computeTierDemandStatsWriter = Objects.requireNonNull(computeTierDemandStatsWriter);
+        this.cloudTopologyFactory = Objects.requireNonNull(cloudTopologyFactory);
     }
 
     @Override
@@ -121,23 +125,23 @@ public class CostComponentProjectedEntityTopologyListener implements
                 topologyContextId, projectedTopologyId, sourceTopologyInfo.getTopologyId());
 
         try {
-            Map<Long, TopologyEntityDTO> cloudEntities = new HashMap<>();
+            Set<TopologyEntityDTO> cloudEntities = new HashSet<>();
             while (dtosIterator.hasNext()) {
                 dtosIterator.nextChunk().stream()
                         .filter(this::isProjectedCloudEntity)
-                        .forEach(projEntity -> cloudEntities.put(projEntity.getEntity().getOid(),
-                                projEntity.getEntity()));
+                        .forEach(projectedEntity -> cloudEntities.add(projectedEntity.getEntity()));
             }
 
             // if no Cloud entity, skip further processing
             if (cloudEntities.size() > 0) {
+                final CloudTopology<TopologyEntityDTO> cloudTopology =
+                        cloudTopologyFactory.newCloudTopology(cloudEntities.stream());
                 // Store consumption demand in db
                 // Note that we are passing in sourceTopologyInfo.  This is used to retrieve
                 // previously written context for source topology (persisted with
                 // isSourceTopology = false via LiveTopologyEntitiesListener.
                 computeTierDemandStatsWriter.calculateAndStoreRIDemandStats(sourceTopologyInfo,
-                        cloudEntities,
-                        true);
+                        cloudTopology, true);
             } else {
                 logger.info("live projected topology with topologyId: {}  doesn't " +
                         "have Cloud entity, skip processing", sourceTopologyInfo.getTopologyId());

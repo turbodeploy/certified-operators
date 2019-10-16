@@ -23,12 +23,10 @@ import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.component.db.tables.records.ComputeTierTypeHourlyByWeekRecord;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -92,12 +90,12 @@ public class ComputeTierDemandStatsWriter {
      * by the VMs and persist these stats in the DB.
      *
      * @param topologyInfo Metadata of the topology.
-     * @param cloudEntities Map of ID->CloudEntityDTOs in the Topology.
+     * @param cloudTopology The cloud topology.
      * @param isProjectedTopology boolean indicating whether the topology is a
      *                            source or a projected topology.
      */
     synchronized public void calculateAndStoreRIDemandStats(TopologyInfo topologyInfo,
-                                 Map<Long, TopologyEntityDTO> cloudEntities,
+                                 CloudTopology cloudTopology,
                                  boolean isProjectedTopology) {
 
         String topologyType = isProjectedTopology ? "Projected" : "Live";
@@ -160,24 +158,9 @@ public class ComputeTierDemandStatsWriter {
                 topologyType, topologyForDay,
                 topologyForHour, statsLoadTime);
 
-        // Mapping from workload OID -> BusinessAccount OID
-        // This stores the mapping of the business account associated
-        // with the entities.
-        final Map<Long, Long> workloadIdToBusinessAccountIdMap = new HashMap<>();
-        for (TopologyEntityDTO entityDTO : cloudEntities.values()) {
-            // If the entity is a business account, get all the entities connected to it.
-            if (entityDTO.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE) {
-                getAllConnectedEntitiesForBusinessAccount(
-                        entityDTO)
-                        .forEach(entityId ->
-                                workloadIdToBusinessAccountIdMap.put(entityId,
-                                        entityDTO.getOid()));
-                continue;
-            }
-        }
-
         Map<ComputeTierDemandStatsRecord, Integer> statsRecordToCountMapping
-                        = getStatsRecordToCountMapping(cloudEntities, workloadIdToBusinessAccountIdMap);
+                        = getStatsRecordToCountMapping(cloudTopology,
+                                                        isProjectedTopology);
 
         Set<ComputeTierTypeHourlyByWeekRecord> statsRecordsToUpload
                         = getComputeTierTypeHourlyByWeekRecords(statsRecordToCountMapping,
@@ -214,58 +197,80 @@ public class ComputeTierDemandStatsWriter {
     /**
      * Returns a mapping from statsRecord to their count.
      *
-     * @param cloudEntities Mapping from entity Id to the entity.
+     * @param cloudTopology The Cloud Topology.
      * @return a mapping from statsRecord to their count.
      */
     protected Map<ComputeTierDemandStatsRecord, Integer> getStatsRecordToCountMapping(
-            Map<Long, TopologyEntityDTO> cloudEntities,
-            Map<Long, Long> workloadIdToBusinessAccountIdMap) {
+                                                CloudTopology cloudTopology,
+                                                boolean isProjectedTopology) {
         Map<ComputeTierDemandStatsRecord, Integer> statsRecordToCountMapping = new HashMap<>();
-        for (Long workLoadId : cloudEntities.keySet()) {
-            TopologyEntityDTO workLoadDto = cloudEntities.get(workLoadId);
+        List<TopologyEntityDTO> cloudVms = cloudTopology
+                .getAllEntitesOfType(EntityType.VIRTUAL_MACHINE_VALUE);
+
+        //A map of entity oid -> A map of <RI_ID, Coupons_Covered_By_RI>
+        final Map<Long, Map<Long, Double>> allProjectedEntitiesRICoverages =
+                projectedRICoverageAndUtilStore.getAllProjectedEntitiesRICoverages();
+
+        for (TopologyEntityDTO workLoadDto : cloudVms) {
+            final Long workLoadId = workLoadDto.getOid();
+            final String workLoadDisplayName = workLoadDto.getDisplayName();
 
             if (!workLoadDto.hasTypeSpecificInfo() &&
                     !workLoadDto.getTypeSpecificInfo().hasVirtualMachine()) {
-                logger.debug("Skipping. Missing TypeSpecificInfo for workload {}", workLoadDto.getDisplayName());
+                logger.debug("Skipping. Missing TypeSpecificInfo for workload {}", workLoadDisplayName);
                 continue;
             }
 
-            Long businessAccountId = workloadIdToBusinessAccountIdMap.get(workLoadId);
-            if (businessAccountId == null) {
-                logger.debug("Skipping. Missing Business Account Id for workload {}", workLoadDto.getDisplayName());
+            Optional<TopologyEntityDTO> businessAccount = cloudTopology.getOwner(workLoadId);
+            if (!businessAccount.isPresent()) {
+                logger.debug("Skipping. Missing Business Account Id for workload {}", workLoadDisplayName);
                 continue;
             }
+            final Long businessAccountId = businessAccount.get().getOid();
 
-            Optional<CommoditiesBoughtFromProvider> computeTierId = getComputeTierProvider(workLoadDto);
+            Optional<TopologyEntityDTO> computeTierId = cloudTopology.getComputeTier(workLoadId);
             if (!computeTierId.isPresent()) {
-                logger.debug("Skipping. Compute Tier missing for workload {}", workLoadDto.getDisplayName());
+                logger.debug("Skipping. Compute Tier missing for workload {}", workLoadDisplayName);
                 continue;
             }
 
-            Optional<Long> availabilityZone = getAvailabilityZoneorRegion(workLoadDto.getConnectedEntityListList());
-            if (!availabilityZone.isPresent()) {
-                logger.debug("Skipping. Availability zone missing for workload {}", workLoadDto.getDisplayName());
-                continue;
+            Optional<TopologyEntityDTO> connectedAZorRegion = cloudTopology.getConnectedAvailabilityZone(workLoadId);
+            if (!connectedAZorRegion.isPresent()) {
+                connectedAZorRegion = cloudTopology.getConnectedRegion(workLoadId);
+                if (!connectedAZorRegion.isPresent()) {
+                    logger.info("Skipping. Availability zone/ Region missing for workload {}",
+                            workLoadDisplayName);
+                    continue;
+                }
             }
 
             TopologyDTO.TypeSpecificInfo.VirtualMachineInfo vmInfo =
                     workLoadDto.getTypeSpecificInfo().getVirtualMachine();
-            if (vmInfo.getGuestOsInfo().getGuestOsType() == OSType.UNKNOWN_OS) {
-                logger.debug("Skipping. Unknown OS for workload {}", workLoadDto.getDisplayName());
+            final OSType guestOsType = vmInfo.getGuestOsInfo().getGuestOsType();
+            if (guestOsType == OSType.UNKNOWN_OS) {
+                logger.debug("Skipping. Unknown OS for workload {}", workLoadDisplayName);
                 continue;
             }
 
-            byte platform = (byte) vmInfo.getGuestOsInfo().getGuestOsType().getNumber();
+            // If its a projected topology we don't want to count a VM if its covered.
+            if (isProjectedTopology) {
+                final Map<Long, Double> riCoverages = allProjectedEntitiesRICoverages.get(workLoadId);
+                if (riCoverages != null && riCoverages.size() > 0) {
+                    logger.debug("Skipping. Workload {} is covered by an RI.", workLoadDisplayName);
+                    continue;
+                }
+            }
+
+            byte platform = (byte) guestOsType.getNumber();
             byte tenancy = (byte) vmInfo.getTenancy().getNumber();
 
             final ComputeTierDemandStatsRecord statsRecord = new ComputeTierDemandStatsRecord(
-                    businessAccountId, computeTierId.get().getProviderId(),
-                    availabilityZone.get(),
+                    businessAccountId, computeTierId.get().getOid(),
+                    connectedAZorRegion.get().getOid(),
                     platform, tenancy);
             statsRecordToCountMapping.putIfAbsent(statsRecord, 0);
             statsRecordToCountMapping.put(statsRecord, statsRecordToCountMapping.get(statsRecord) + 1);
         }
-
         return statsRecordToCountMapping;
     }
 
@@ -388,39 +393,6 @@ public class ComputeTierDemandStatsWriter {
             });
         }
         return riDemandStatsMap;
-    }
-
-    /**
-     *
-     * @param entityDTO Entity DTO.
-     * @return Optional if the entity buys from a Compute Tier
-     */
-    private Optional<CommoditiesBoughtFromProvider> getComputeTierProvider(
-            TopologyEntityDTO entityDTO) {
-
-        // Entities can buy from only one COMPUTE_TIER. If there are many, then ignore
-        // the remaining ones.
-        return entityDTO.getCommoditiesBoughtFromProvidersList()
-                .stream()
-                .filter(provider -> (provider.hasProviderEntityType()
-                       && provider.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE))
-                .findFirst();
-    }
-
-    /**
-      Return the Availability zone or the region for an entity given it's connected entity list.
-
-      @param connectedEntityList
-      @return Optional availability zone or the region id.
-     */
-    private Optional<Long> getAvailabilityZoneorRegion(
-            @Nonnull List<ConnectedEntity> connectedEntityList) {
-
-        return connectedEntityList.stream()
-                    .filter(ce -> (ce.getConnectedEntityType() == EntityType.AVAILABILITY_ZONE_VALUE)
-                                || ce.getConnectedEntityType() == EntityType.REGION_VALUE)
-                    .findFirst()
-                    .map(e -> e.getConnectedEntityId());
     }
 
     /**

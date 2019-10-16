@@ -18,6 +18,8 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.MarketListenerConfig;
 import com.vmturbo.cost.component.notification.CostNotificationConfig;
@@ -195,9 +197,15 @@ public class ReservedInstanceConfig {
     public CostComponentProjectedEntityTopologyListener projectedEntityTopologyListener() {
         final CostComponentProjectedEntityTopologyListener projectedEntityTopologyListener =
                 new CostComponentProjectedEntityTopologyListener(realtimeTopologyContextId,
-                        computeTierDemandStatsConfig.riDemandStatsWriter());
+                        computeTierDemandStatsConfig.riDemandStatsWriter(),
+                        cloudTopologyFactory());
         marketComponent.addProjectedTopologyListener(projectedEntityTopologyListener);
         return projectedEntityTopologyListener;
+    }
+
+    @Bean
+    public TopologyEntityCloudTopologyFactory cloudTopologyFactory() {
+        return new DefaultTopologyEntityCloudTopologyFactory();
     }
 
     @Bean
