@@ -151,6 +151,7 @@ public class ReservedInstanceAnalyzer {
      * @param buyRiStore Place to store all the buy RIs suggested by this algorithm
      * @param actionContextRIBuyStore the class to perform database operation on the cost.action_context_ri_buy
      * @param realtimeTopologyContextId realtime topology context id
+     * @param riMinimumDataPoints RI buy hour data points value range from 1 to 168 inclusive
      */
     public ReservedInstanceAnalyzer(@Nonnull SettingServiceBlockingStub settingsServiceClient,
                                     @Nonnull RepositoryServiceBlockingStub repositoryClient,
@@ -162,7 +163,8 @@ public class ReservedInstanceAnalyzer {
                                     @Nonnull ReservedInstanceActionsSender actionsSender,
                                     @Nonnull BuyReservedInstanceStore buyRiStore,
                                     @Nonnull ActionContextRIBuyStore actionContextRIBuyStore,
-                                    final long realtimeTopologyContextId) {
+                                    final long realtimeTopologyContextId,
+                                    final int riMinimumDataPoints) {
         this.settingsServiceClient = Objects.requireNonNull(settingsServiceClient);
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
         this.cloudTopologyFactory = Objects.requireNonNull(cloudTopologyFactory);
@@ -175,7 +177,8 @@ public class ReservedInstanceAnalyzer {
          * accessors to historical data and rates and RIs.
          */
         this.historicalData =
-            new ReservedInstanceAnalyzerHistoricalData(Objects.requireNonNull(computeTierDemandStatsStore));
+            new ReservedInstanceAnalyzerHistoricalData(
+                Objects.requireNonNull(computeTierDemandStatsStore), riMinimumDataPoints);
 
         this.rateAndRIProvider =
             new ReservedInstanceAnalyzerRateAndRIs(priceTableStore, riSpecStore, riBoughtStore);

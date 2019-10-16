@@ -34,7 +34,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
  * </p>
  */
 public class ReservedInstanceAnalyzerHistoricalDataTest {
-
+    private static int riMinimumDataPoints = 1;
     /**
      * Test computeContexts method for one record historical demand and explores different scopes
      * specifications that succeed.
@@ -58,7 +58,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
 
         Map<ReservedInstanceRegionalContext,
             List<ReservedInstanceZonalContext>> result =
-            new ReservedInstanceAnalyzerHistoricalData(store).computeAnalysisClusters(scope,
+            new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).computeAnalysisClusters(scope,
                 tierFamilies,
                 cloudTopology);
 
@@ -99,7 +99,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
             Arrays.asList(ReservedInstanceAnalyzerConstantsTest.BUSINESS_ACCOUNT_11_OID,
                 ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_1_OID), 0f, true, null);
         Mockito.doReturn(recordSet.stream()).when(store).getAllDemandStats();
-        result = new ReservedInstanceAnalyzerHistoricalData(store).computeAnalysisClusters(scope,
+        result = new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).computeAnalysisClusters(scope,
             tierFamilies,
             cloudTopology);
         Assert.assertTrue(result.size() == 1);
@@ -127,7 +127,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
                             ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_1_OID),
             0f, true, null);
         Mockito.doReturn(recordSet.stream()).when(store).getAllDemandStats();
-        result = new ReservedInstanceAnalyzerHistoricalData(store).computeAnalysisClusters(scope,
+        result = new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).computeAnalysisClusters(scope,
             tierFamilies,
             cloudTopology);
         Assert.assertTrue(result.keySet().contains(regionalContext));
@@ -164,7 +164,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
 
         Map<ReservedInstanceRegionalContext,
             List<ReservedInstanceZonalContext>> result =
-            new ReservedInstanceAnalyzerHistoricalData(store).computeAnalysisClusters(scope,
+            new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).computeAnalysisClusters(scope,
                 tierFamilies,
                 cloudTopology);
         Assert.assertTrue(result.size() == 0);
@@ -175,7 +175,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
             Arrays.asList(Tenancy.DEFAULT),
             Arrays.asList(ReservedInstanceAnalyzerConstantsTest.BUSINESS_ACCOUNT_11_OID), 0f, true, null);
         Mockito.doReturn(recordSet.stream()).when(store).getAllDemandStats();
-        result = new ReservedInstanceAnalyzerHistoricalData(store).computeAnalysisClusters(scope,
+        result = new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).computeAnalysisClusters(scope,
             tierFamilies,
             cloudTopology);
         Assert.assertTrue(result.size() == 0);
@@ -203,7 +203,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
 
         Map<ReservedInstanceRegionalContext,
             List<ReservedInstanceZonalContext>> result =
-            new ReservedInstanceAnalyzerHistoricalData(store).computeAnalysisClusters(scope,
+            new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).computeAnalysisClusters(scope,
                 tierFamilies,
                 cloudTopology);
         Assert.assertTrue(result.size() == 0);
@@ -230,7 +230,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
 
         Map<ReservedInstanceRegionalContext,
             List<ReservedInstanceZonalContext>> result =
-            new ReservedInstanceAnalyzerHistoricalData(store).computeAnalysisClusters(scope,
+            new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).computeAnalysisClusters(scope,
                 tierFamilies,
                 cloudTopology);
         Assert.assertTrue(result.size() == 0);
@@ -257,7 +257,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
 
         Map<ReservedInstanceRegionalContext,
             List<ReservedInstanceZonalContext>> result =
-            new ReservedInstanceAnalyzerHistoricalData(store).computeAnalysisClusters(scope,
+            new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).computeAnalysisClusters(scope,
                 tierFamilies,
                 cloudTopology);
         Assert.assertTrue(result.size() == 0);
@@ -271,7 +271,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
                 ReservedInstanceAnalyzerConstantsTest.BUSINESS_ACCOUNT_21_OID), 0f, true, null);
         Mockito.doReturn(recordSet.stream()).when(store).getAllDemandStats();
 
-        result = new ReservedInstanceAnalyzerHistoricalData(store).computeAnalysisClusters(scope,
+        result = new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).computeAnalysisClusters(scope,
             tierFamilies,
             cloudTopology);
         Assert.assertTrue(result.size() == 0);
@@ -319,7 +319,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
 
         Map<ReservedInstanceRegionalContext,
             List<ReservedInstanceZonalContext>> result =
-            new ReservedInstanceAnalyzerHistoricalData(store).computeAnalysisClusters(scope,
+            new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).computeAnalysisClusters(scope,
                 tierFamilies,
                 cloudTopology);
         Assert.assertTrue(result.size() == 2);
@@ -358,7 +358,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
             Arrays.asList(Tenancy.DEFAULT),
             Arrays.asList(ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_1_OID), 0f, true, null);
         Mockito.doReturn(recordSet.stream()).when(store).getAllDemandStats();
-        result = new ReservedInstanceAnalyzerHistoricalData(store).computeAnalysisClusters(scope,
+        result = new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).computeAnalysisClusters(scope,
             tierFamilies,
             cloudTopology);
         Assert.assertTrue(result.size() == 1);
@@ -379,7 +379,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
             Arrays.asList(ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_1_OID,
                 ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_2_OID), 0f, true, null);
         Mockito.doReturn(recordSet.stream()).when(store).getAllDemandStats();
-        result = new ReservedInstanceAnalyzerHistoricalData(store).computeAnalysisClusters(scope,
+        result = new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).computeAnalysisClusters(scope,
             tierFamilies,
             cloudTopology);
         Assert.assertTrue(result.keySet().size() == 2);
@@ -410,7 +410,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
 
         Map<ReservedInstanceRegionalContext,
             List<ReservedInstanceZonalContext>> result =
-            new ReservedInstanceAnalyzerHistoricalData(store).computeAnalysisClusters(scope,
+            new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).computeAnalysisClusters(scope,
                 tierFamilies,
                 cloudTopology);
         Assert.assertTrue(result.size() == 1);
@@ -520,7 +520,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         ComputeTierDemandStatsStore store = Mockito.spy(ComputeTierDemandStatsStore.class);
         // not ISF
         TopologyEntityDTO profile =
-            new ReservedInstanceAnalyzerHistoricalData(store).getComputeTierToBuyFor(ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_M5_LARGE,
+            new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).getComputeTierToBuyFor(ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_M5_LARGE,
                 OSType.WINDOWS,
                 Tenancy.DEFAULT,
                 computeTierFamilies
@@ -528,14 +528,14 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         Assert.assertTrue(profile.equals(ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_M5_LARGE));
         // not ISF
         profile =
-            new ReservedInstanceAnalyzerHistoricalData(store).getComputeTierToBuyFor(ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_T2_MICRO,
+            new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).getComputeTierToBuyFor(ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_T2_MICRO,
                 OSType.SUSE,
                 Tenancy.DEFAULT,
                 computeTierFamilies
             );
         // not ISF
         profile =
-            new ReservedInstanceAnalyzerHistoricalData(store).getComputeTierToBuyFor(ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_T2_MICRO,
+            new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).getComputeTierToBuyFor(ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_T2_MICRO,
                 OSType.RHEL,
                 Tenancy.DEFAULT,
                 computeTierFamilies
@@ -543,7 +543,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         Assert.assertTrue(profile.equals(ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_T2_MICRO));
         // not ISF
         profile =
-            new ReservedInstanceAnalyzerHistoricalData(store).getComputeTierToBuyFor(ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_T2_MICRO,
+            new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).getComputeTierToBuyFor(ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_T2_MICRO,
                 OSType.LINUX,
                 Tenancy.HOST,
                 computeTierFamilies
@@ -551,7 +551,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         Assert.assertTrue(profile.equals(ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_T2_MICRO));
         // ISF
         profile =
-            new ReservedInstanceAnalyzerHistoricalData(store).getComputeTierToBuyFor(ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_T2_MICRO,
+            new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).getComputeTierToBuyFor(ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_T2_MICRO,
                 OSType.LINUX,
                 Tenancy.DEFAULT,
                 computeTierFamilies
@@ -568,7 +568,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         ComputeTierDemandStatsStore store = Mockito.spy(ComputeTierDemandStatsStore.class);
         // ISF
         TopologyEntityDTO profile =
-            new ReservedInstanceAnalyzerHistoricalData(store).getComputeTierToBuyFor(
+            new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).getComputeTierToBuyFor(
                 ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_T2_MICRO,
                 OSType.LINUX,
                 Tenancy.DEDICATED,
@@ -585,7 +585,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         Set<ComputeTierTypeHourlyByWeekRecord> recordSet = createOneRecordSet();
         ComputeTierDemandStatsStore store = Mockito.spy(ComputeTierDemandStatsStore.class);
         float[] demand =
-            new ReservedInstanceAnalyzerHistoricalData(store).getDemandFromRecords(Lists.newArrayList(recordSet),
+            new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).getDemandFromRecords(Lists.newArrayList(recordSet),
                 ReservedInstanceHistoricalDemandDataType.ALLOCATION);
         Assert.assertTrue(demand.length == 168);
         Map<Float, Integer> map = computeMemberSize(demand);
@@ -595,7 +595,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
 
         recordSet = createMultiRecordSet();
         demand =
-            new ReservedInstanceAnalyzerHistoricalData(store).getDemandFromRecords(Lists.newArrayList(recordSet),
+            new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).getDemandFromRecords(Lists.newArrayList(recordSet),
                 ReservedInstanceHistoricalDemandDataType.ALLOCATION);
         Assert.assertTrue(demand.length == 168);
         map = computeMemberSize(demand);
@@ -614,7 +614,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         Set<ComputeTierTypeHourlyByWeekRecord> recordSet = createOneRecordSet();
         ComputeTierDemandStatsStore store = Mockito.spy(ComputeTierDemandStatsStore.class);
 
-        float[] demand = new ReservedInstanceAnalyzerHistoricalData(store).getDemandFromRecords(Lists.newArrayList(recordSet),
+        float[] demand = new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).getDemandFromRecords(Lists.newArrayList(recordSet),
                 ReservedInstanceHistoricalDemandDataType.CONSUMPTION);
         Assert.assertTrue(demand.length == 168);
         Map<Float, Integer> map = computeMemberSize(demand);
@@ -623,7 +623,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
 
         recordSet = createMultiRecordSet();
         demand =
-            new ReservedInstanceAnalyzerHistoricalData(store).getDemandFromRecords(Lists.newArrayList(recordSet),
+            new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).getDemandFromRecords(Lists.newArrayList(recordSet),
                 ReservedInstanceHistoricalDemandDataType.CONSUMPTION);
         Assert.assertTrue(demand.length == 168);
         map = computeMemberSize(demand);
