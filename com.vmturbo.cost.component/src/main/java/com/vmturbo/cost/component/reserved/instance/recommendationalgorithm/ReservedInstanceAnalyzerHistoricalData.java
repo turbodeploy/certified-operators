@@ -11,6 +11,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -43,6 +44,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
  * with the message "Failed to construct kafka consumer".
  * </p>
  */
+@ThreadSafe
 public class ReservedInstanceAnalyzerHistoricalData {
 
     private static final Logger logger = LogManager.getLogger();
@@ -177,7 +179,9 @@ public class ReservedInstanceAnalyzerHistoricalData {
             if (contexts == null) {
                 map.put(regionalContext, new ArrayList<>(Arrays.asList(zonalContext)));
             } else {
-                contexts.add(zonalContext);
+                if (!contexts.contains(zonalContext)) {
+                    contexts.add(zonalContext);
+                }
             }
         }
         return map;
