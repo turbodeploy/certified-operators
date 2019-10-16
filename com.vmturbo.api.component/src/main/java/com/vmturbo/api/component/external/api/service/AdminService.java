@@ -55,6 +55,7 @@ import com.vmturbo.common.protobuf.logging.Logging.LogLevel;
 import com.vmturbo.common.protobuf.logging.Logging.SetLogLevelsRequest;
 import com.vmturbo.common.protobuf.logging.LoggingREST.LogConfigurationServiceController.LogConfigurationServiceResponse;
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.common.logging.LogConfigurationService;
 import com.vmturbo.components.common.utils.BuildProperties;
 import com.vmturbo.components.common.utils.LoggingUtils;
 import com.vmturbo.components.common.utils.Strings;
@@ -171,8 +172,9 @@ public class AdminService implements IAdminService {
                 // no need for rest call for API component since we are in API component
                 final LoggerContext logContext = (LoggerContext)LogManager.getContext(false);
                 componentLoggingLevels.put(apiHost, LoggingMapper.protoLogLevelToApiLogLevel(
-                        LoggingUtils.log4jLevelToProtoLogLevel(
-                                logContext.getRootLogger().getLevel())));
+                    LoggingUtils.log4jLevelToProtoLogLevel(
+                            logContext.getLogger(LogConfigurationService.TURBO_PACKAGE_NAME)
+                            .getLevel())));
             } else {
                 getLoggingLevel(component).ifPresent(loggingLevel ->
                     componentLoggingLevels.put(component, loggingLevel));
@@ -196,10 +198,12 @@ public class AdminService implements IAdminService {
             final String component = entry.getKey();
             final LoggingLevel newLoggingLevel = entry.getValue();
             if (component.equals(apiHost)) {
-                logger.info("Setting root logging level to: {}", newLoggingLevel);
+                logger.info("Setting {} logging level to: {}",
+                        LogConfigurationService.TURBO_PACKAGE_NAME, newLoggingLevel);
                 // no need for rest call for API component since we are in API component
-                Configurator.setRootLevel(LoggingUtils.protoLogLevelToLog4jLevel(
-                    LoggingMapper.apiLogLevelToProtoLogLevel(newLoggingLevel)));
+                Configurator.setLevel(LogConfigurationService.TURBO_PACKAGE_NAME,
+                        LoggingUtils.protoLogLevelToLog4jLevel(
+                                LoggingMapper.apiLogLevelToProtoLogLevel(newLoggingLevel)));
                 newLoggingLevelsByComponent.put(component, newLoggingLevel);
             } else {
                 setLoggingLevel(component, newLoggingLevel).ifPresent(level ->
@@ -237,13 +241,15 @@ public class AdminService implements IAdminService {
 
             final GetLogLevelsResponse logLevelsResponse = GSON.fromJson(
                 GSON.toJson(logConfigResponse.response), GetLogLevelsResponse.class);
-            final LogLevel rootLogLevel = logLevelsResponse.getLogLevelsMap().get(
-                LogManager.ROOT_LOGGER_NAME);
-            if (rootLogLevel == null) {
-                logger.error("Root logging level is not defined for component {}", component);
+            final LogLevel turboLogLevel = logLevelsResponse.getLogLevelsMap().get(
+                LogConfigurationService.TURBO_PACKAGE_NAME);
+            if (turboLogLevel == null) {
+                logger.error(
+                        "Logging level for {} is not defined for component {}",
+                        LogConfigurationService.TURBO_PACKAGE_NAME, component);
                 return Optional.empty();
             }
-            return Optional.of(LoggingMapper.protoLogLevelToApiLogLevel(rootLogLevel));
+            return Optional.of(LoggingMapper.protoLogLevelToApiLogLevel(turboLogLevel));
         } catch (ResourceAccessException e) {
             // component may be down
             logger.warn("Unable to get logging levels for component {}", component, e);
@@ -262,8 +268,7 @@ public class AdminService implements IAdminService {
      * @param component name of the component
      * @param newloggingLevel new logging level to set
      * @return optional logging level in the form of {@link LoggingLevel}, or empty if any error
-     * @throws OperationFailedException if there's an error accessing the REST Response from the
-     * request to the given component to change the debug level
+     * @throws OperationFailedException if log levels could not be set
      */
     private Optional<LoggingLevel> setLoggingLevel(@Nonnull String component,
                                                    @Nonnull LoggingLevel newloggingLevel)
@@ -275,7 +280,7 @@ public class AdminService implements IAdminService {
             .path("/LogConfigurationService/setLogLevels");
         try {
             final SetLogLevelsRequest setLogLevelsRequest = SetLogLevelsRequest.newBuilder()
-                .putLogLevels(LogManager.ROOT_LOGGER_NAME,
+                .putLogLevels(LogConfigurationService.TURBO_PACKAGE_NAME,
                     LoggingMapper.apiLogLevelToProtoLogLevel(newloggingLevel))
                 .build();
             LogConfigurationServiceResponse logConfigResponse = restTemplate.postForObject(

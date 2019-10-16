@@ -28,7 +28,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -61,6 +60,7 @@ import com.vmturbo.common.protobuf.logging.Logging.LogLevel;
 import com.vmturbo.common.protobuf.logging.Logging.SetLogLevelsRequest;
 import com.vmturbo.common.protobuf.logging.Logging.SetLogLevelsResponse;
 import com.vmturbo.common.protobuf.logging.LoggingREST.LogConfigurationServiceController.LogConfigurationServiceResponse;
+import com.vmturbo.components.common.logging.LogConfigurationService;
 import com.vmturbo.components.common.utils.BuildProperties;
 import com.vmturbo.kvstore.KeyValueStore;
 
@@ -271,7 +271,7 @@ public class AdminServiceTest {
         Mockito.when(clusterService.getKnownComponents()).thenReturn(
             ImmutableSet.of(API_COMPONENT, AUTH_COMPONENT, MARKET_COMPONENT));
         // mock logging level for api and other components
-        Configurator.setRootLevel(Level.WARN);
+        Configurator.setLevel(LogConfigurationService.TURBO_PACKAGE_NAME, Level.WARN);
         mockGetLogLevelForComponent(AUTH_COMPONENT, LogLevel.DEBUG);
         mockGetLogLevelForComponent(MARKET_COMPONENT, LogLevel.TRACE);
 
@@ -284,7 +284,7 @@ public class AdminServiceTest {
         assertEquals(LoggingLevel.TRACE, loggingLevel.get(MARKET_COMPONENT));
 
         // set api logging level back to INFO
-        Configurator.setRootLevel(Level.INFO);
+        Configurator.setLevel(LogConfigurationService.TURBO_PACKAGE_NAME, Level.INFO);
     }
 
     /**
@@ -314,7 +314,7 @@ public class AdminServiceTest {
         assertEquals(LoggingLevel.TRACE, loggingLevel.get("market"));
 
         // set api logging level back to INFO
-        Configurator.setRootLevel(Level.INFO);
+        Configurator.setLevel(LogConfigurationService.TURBO_PACKAGE_NAME, Level.INFO);
     }
 
     /**
@@ -330,7 +330,7 @@ public class AdminServiceTest {
         constructor.setAccessible(true);
         LogConfigurationServiceResponse response = constructor.newInstance(
             GetLogLevelsResponse.newBuilder()
-                .putLogLevels(LogManager.ROOT_LOGGER_NAME, logLevel).build(), null);
+                .putLogLevels(LogConfigurationService.TURBO_PACKAGE_NAME, logLevel).build(), null);
 
         UriComponentsBuilder builder = UriComponentsBuilder.newInstance()
             .scheme("http")
@@ -365,7 +365,7 @@ public class AdminServiceTest {
 
         when(restTemplate.postForObject(builder.build().toString(),
             new HttpEntity<>(SetLogLevelsRequest.newBuilder()
-                .putLogLevels(LogManager.ROOT_LOGGER_NAME,
+                .putLogLevels(LogConfigurationService.TURBO_PACKAGE_NAME,
                     LoggingMapper.apiLogLevelToProtoLogLevel(logLevel)).build()),
             LogConfigurationServiceResponse.class)).thenReturn(response);
     }

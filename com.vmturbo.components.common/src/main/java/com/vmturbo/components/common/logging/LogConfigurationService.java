@@ -4,14 +4,14 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import io.grpc.stub.StreamObserver;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.core.config.LoggerConfig;
-
-import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.logging.LogConfigurationServiceGrpc.LogConfigurationServiceImplBase;
 import com.vmturbo.common.protobuf.logging.Logging.GetLogLevelsRequest;
@@ -22,10 +22,16 @@ import com.vmturbo.common.protobuf.logging.Logging.SetLogLevelsResponse;
 import com.vmturbo.components.common.utils.LoggingUtils;
 
 /**
- * Service that allows changing of log levels
+ * Service that allows changing of log levels.
  */
 public class LogConfigurationService extends LogConfigurationServiceImplBase {
     private static final Logger logger = LogManager.getLogger();
+
+    /**
+     * This is the package whose logging level is changed by the /admin/logginglevels API
+     * method.
+     */
+    public static final String TURBO_PACKAGE_NAME = "com.vmturbo";
 
     @Override
     public void setLogLevels(final SetLogLevelsRequest request, final StreamObserver<SetLogLevelsResponse> responseObserver) {
@@ -44,8 +50,9 @@ public class LogConfigurationService extends LogConfigurationServiceImplBase {
     }
 
     @Override
-    public void getLogLevels(final GetLogLevelsRequest request, final StreamObserver<GetLogLevelsResponse> responseObserver) {
-        LoggerContext logContext = (LoggerContext) LogManager.getContext(false);
+    public void getLogLevels(final GetLogLevelsRequest request,
+            final StreamObserver<GetLogLevelsResponse> responseObserver) {
+        LoggerContext logContext = (LoggerContext)LogManager.getContext(false);
         Map<String, LoggerConfig> map = logContext.getConfiguration().getLoggers();
         GetLogLevelsResponse.Builder responseBuilder = GetLogLevelsResponse.newBuilder();
         // build a response map
