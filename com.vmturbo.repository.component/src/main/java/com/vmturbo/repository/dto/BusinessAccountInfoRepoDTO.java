@@ -11,7 +11,7 @@ import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.BusinessAccountData.PricingIdentifier;
+import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
 
 /**
  * Class that encapsulates the business account data from TopologyEntityDTO.TypeSpecificInfo
