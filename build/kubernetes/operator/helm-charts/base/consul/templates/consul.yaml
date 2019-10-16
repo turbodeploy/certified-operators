@@ -1,5 +1,3 @@
-{{ if .Values.global }}
-  {{ if (not .Values.global.externalConsul) }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -89,8 +87,6 @@ spec:
     matchLabels:
       app.kubernetes.io/name: {{ .Chart.Name }}
       app.kubernetes.io/instance: {{ .Release.Name }}
-  {{ end }}
-{{ end }}
 ---
 apiVersion: v1
 kind: Service
@@ -102,12 +98,6 @@ metadata:
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
-{{- if .Values.global }}
-  {{- if .Values.global.externalConsul }}
-  type: ExternalName
-  externalName: {{ .Values.global.externalConsul }}
-  {{- end -}}
-{{- end }}
   ports:
   # the port that this service should serve on
   - name: http-consul

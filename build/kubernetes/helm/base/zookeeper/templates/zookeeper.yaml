@@ -1,5 +1,3 @@
-{{ if .Values.global }}
-  {{ if (not .Values.global.externalKafka) }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -98,5 +96,3 @@ spec:
   selector:
     app.kubernetes.io/name: {{ .Chart.Name }}
     app.kubernetes.io/instance: {{ .Release.Name }}
-  {{ end }}
-{{ end }}
