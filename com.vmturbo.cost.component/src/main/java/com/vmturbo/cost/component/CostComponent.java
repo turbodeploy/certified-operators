@@ -33,14 +33,15 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
  */
 @Configuration("theComponent")
 @Import({
-        BuyRIAnalysisConfig.class,
-        CostConfig.class,
-        CostServiceConfig.class,
-        PricingConfig.class,
-        ReservedInstanceConfig.class,
-        SQLDatabaseConfig.class,
-        SpringSecurityConfig.class,
-        TopologyListenerConfig.class})
+    CostComponentGlobalConfig.class,
+    BuyRIAnalysisConfig.class,
+    CostConfig.class,
+    CostServiceConfig.class,
+    PricingConfig.class,
+    ReservedInstanceConfig.class,
+    SQLDatabaseConfig.class,
+    SpringSecurityConfig.class,
+    TopologyListenerConfig.class})
 public class CostComponent extends BaseVmtComponent {
     /**
      * The logger.

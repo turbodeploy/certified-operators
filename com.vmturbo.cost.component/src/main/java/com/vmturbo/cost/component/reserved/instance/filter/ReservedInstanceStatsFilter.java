@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.reserved.instance.filter;
 
 import static com.vmturbo.cost.component.reserved.instance.ReservedInstanceUtil.AVAILABILITY_ZONE_ID;
 import static com.vmturbo.cost.component.reserved.instance.ReservedInstanceUtil.BUSINESS_ACCOUNT_ID;
+import static com.vmturbo.cost.component.reserved.instance.ReservedInstanceUtil.ENTITY_ID;
 import static com.vmturbo.cost.component.reserved.instance.ReservedInstanceUtil.REGION_ID;
 import static com.vmturbo.cost.component.reserved.instance.ReservedInstanceUtil.SNAPSHOT_TIME;
 
@@ -91,6 +92,10 @@ public abstract class ReservedInstanceStatsFilter extends ReservedInstanceFilter
                 break;
                 // TODO:  Mixed scope of optimizable entities.
             default:
+                // By default we go back to the regular entity id restriction.
+                if (table.field(ENTITY_ID) != null) {
+                    conditions.add(table.field(ENTITY_ID).in(scopeIds));
+                }
                 break;
         }
         if (startDateMillis > 0 && endDateMillis > 0) {

@@ -10,11 +10,11 @@ import java.util.List;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Lists;
+
 import org.jooq.Field;
 import org.jooq.Record;
 import org.jooq.Table;
-
-import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord.StatValue;
@@ -47,6 +47,11 @@ public class ReservedInstanceUtil {
     public static final String USED_COUPONS_MIN_VALUE = "used_coupons_min";
 
     public static final String REGION_ID = "region_id";
+
+    /**
+     * The name of the entity id column in the RI coverage database tables.
+     */
+    public static final String ENTITY_ID = "entity_id";
 
     public static final String AVAILABILITY_ZONE_ID = "availability_zone_id";
 

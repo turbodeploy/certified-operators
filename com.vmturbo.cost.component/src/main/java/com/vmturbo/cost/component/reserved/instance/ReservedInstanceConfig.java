@@ -1,6 +1,5 @@
 package com.vmturbo.cost.component.reserved.instance;
 
-import java.time.Clock;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +19,7 @@ import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
+import com.vmturbo.cost.component.CostComponentGlobalConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.MarketListenerConfig;
 import com.vmturbo.cost.component.notification.CostNotificationConfig;
@@ -31,13 +31,14 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
 @Import({IdentityProviderConfig.class,
-        GroupClientConfig.class,
-        MarketClientConfig.class,
-        MarketListenerConfig.class,
-        SQLDatabaseConfig.class,
-        RepositoryClientConfig.class,
-        ComputeTierDemandStatsConfig.class,
-        CostNotificationConfig.class})
+    GroupClientConfig.class,
+    MarketClientConfig.class,
+    MarketListenerConfig.class,
+    SQLDatabaseConfig.class,
+    RepositoryClientConfig.class,
+    ComputeTierDemandStatsConfig.class,
+    CostNotificationConfig.class,
+    CostComponentGlobalConfig.class})
 public class ReservedInstanceConfig {
 
     @Value("${retention.numRetainedMinutes}")
@@ -75,6 +76,9 @@ public class ReservedInstanceConfig {
 
     @Autowired
     private ComputeTierDemandStatsConfig computeTierDemandStatsConfig;
+
+    @Autowired
+    private CostComponentGlobalConfig costComponentGlobalConfig;
 
     @Autowired
     private CostNotificationConfig costNotificationConfig;
@@ -134,20 +138,21 @@ public class ReservedInstanceConfig {
 
     @Bean
     public RetentionPeriodFetcher retentionPeriodFetcher() {
-        return new RetentionPeriodFetcher(Clock.systemUTC(), updateRetentionIntervalSeconds,
+        return new RetentionPeriodFetcher(costComponentGlobalConfig.clock(), updateRetentionIntervalSeconds,
             TimeUnit.SECONDS, numRetainedMinutes,
             SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()));
     }
 
     @Bean
     public TimeFrameCalculator timeFrameCalculator() {
-        return new TimeFrameCalculator(Clock.systemUTC(), retentionPeriodFetcher());
+        return new TimeFrameCalculator(costComponentGlobalConfig.clock(), retentionPeriodFetcher());
     }
 
     @Bean
     public ReservedInstanceUtilizationCoverageRpcService reservedInstanceUtilizationCoverageRpcService() {
         return new ReservedInstanceUtilizationCoverageRpcService(reservedInstanceUtilizationStore(),
-                reservedInstanceCoverageStore(), projectedEntityRICoverageAndUtilStore(), timeFrameCalculator());
+            reservedInstanceCoverageStore(), projectedEntityRICoverageAndUtilStore(),
+            timeFrameCalculator(), costComponentGlobalConfig.clock());
     }
 
     @Bean
