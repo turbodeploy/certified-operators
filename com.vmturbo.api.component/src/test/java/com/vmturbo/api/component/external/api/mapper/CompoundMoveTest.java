@@ -13,6 +13,8 @@ import java.util.concurrent.Executors;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -148,8 +150,14 @@ public class CompoundMoveTest {
             null,
             null, serviceEntityMapper, supplyChainService);
 
+        CostServiceGrpc.CostServiceBlockingStub costServiceBlockingStub =
+                CostServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub reservedInstanceBoughtServiceBlockingStub =
+                ReservedInstanceBoughtServiceGrpc.newBlockingStub(grpcServer.getChannel());
+
         mapper = new ActionSpecMapper(actionSpecMappingContextFactory, serviceEntityMapper,
-            mock(ReservedInstanceMapper.class), riBuyContextFetchServiceStub, REAL_TIME_TOPOLOGY_CONTEXT_ID);
+            mock(ReservedInstanceMapper.class), riBuyContextFetchServiceStub, costServiceBlockingStub,
+                reservedInstanceBoughtServiceBlockingStub, repositoryApi, REAL_TIME_TOPOLOGY_CONTEXT_ID);
         IdentityGenerator.initPrefix(0);
 
         final MultiEntityRequest multiReq = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(

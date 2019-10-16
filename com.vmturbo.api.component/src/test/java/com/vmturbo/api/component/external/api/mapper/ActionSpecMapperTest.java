@@ -27,6 +27,8 @@ import java.util.concurrent.Executors;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import org.hamcrest.collection.IsArrayContainingInAnyOrder;
 import org.junit.Assert;
@@ -215,13 +217,18 @@ public class ActionSpecMapperTest {
             DATACENTER2_ID)))
             .thenReturn(datacenterReq);
 
+        CostServiceGrpc.CostServiceBlockingStub costServiceBlockingStub =
+                CostServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub reservedInstanceBoughtServiceBlockingStub =
+                ReservedInstanceBoughtServiceGrpc.newBlockingStub(grpcServer.getChannel());
         actionSpecMappingContextFactory = new ActionSpecMappingContextFactory(policyService,
             Executors.newCachedThreadPool(new ThreadFactoryBuilder().build()),
             repositoryApi, cloudAspectMapper, vmAspectMapper, volumeAspectMapper,
             REAL_TIME_TOPOLOGY_CONTEXT_ID, null,
             null, serviceEntityMapper, supplyChainService);
         mapper = new ActionSpecMapper(actionSpecMappingContextFactory,
-            serviceEntityMapper, reservedInstanceMapper, riBuyContextFetchServiceStub, REAL_TIME_TOPOLOGY_CONTEXT_ID);
+            serviceEntityMapper, reservedInstanceMapper, riBuyContextFetchServiceStub, costServiceBlockingStub,
+                reservedInstanceBoughtServiceBlockingStub, repositoryApi, REAL_TIME_TOPOLOGY_CONTEXT_ID);
     }
 
     @Test

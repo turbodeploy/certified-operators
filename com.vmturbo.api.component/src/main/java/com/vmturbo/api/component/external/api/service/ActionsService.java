@@ -386,10 +386,10 @@ public class ActionsService implements IActionsService {
     @Override
     public ActionDetailsApiDTO getActionsDetailsByUuid(String uuid) throws Exception {
         ActionOrchestratorAction action = actionOrchestratorRpc.getAction(actionRequest(uuid));
-        ActionDetailsApiDTO actionDetailsApiDTO = null;
+        ActionDetailsApiDTO actionDetailsApiDTO;
         if (action.hasActionSpec()) {
             // create action details dto based on action api dto which contains "explanation" with coverage information.
-            actionDetailsApiDTO = actionSpecMapper.createActionDetailsApiDTO(action.getActionSpec());
+            actionDetailsApiDTO = actionSpecMapper.createActionDetailsApiDTO(action);
             if (actionDetailsApiDTO == null) {
                 return new NoDetailsApiDTO();
             }

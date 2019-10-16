@@ -35,6 +35,7 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMappingContextFactory.ActionSpecMappingContext;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundCloudTypeException;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundMatchOfferingClassException;
@@ -44,6 +45,7 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
+import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.RIBuyActionDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
@@ -52,6 +54,7 @@ import com.vmturbo.api.dto.notification.LogEntryApiDTO;
 import com.vmturbo.api.dto.reservedinstance.ReservedInstanceApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.ActionMode;
 import com.vmturbo.api.enums.ActionState;
@@ -85,8 +88,16 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
+import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
+import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageResponse;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.stats.Stats;
@@ -169,6 +180,12 @@ public class ActionSpecMapper {
 
     private final RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub riStub;
 
+    private final CostServiceBlockingStub costServiceBlockingStub;
+
+    private final ReservedInstanceBoughtServiceBlockingStub reservedInstanceBoughtServiceBlockingStub;
+
+    private final RepositoryApi repositoryApi;
+
     /**
      * The set of action states for operational actions (ie actions that have not
      * completed execution).
@@ -183,12 +200,18 @@ public class ActionSpecMapper {
                             @Nonnull final ServiceEntityMapper serviceEntityMapper,
                             @Nonnull final ReservedInstanceMapper reservedInstanceMapper,
                             @Nullable final RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub riStub,
+                            @Nonnull final CostServiceBlockingStub costServiceBlockingStub,
+                            @Nonnull final ReservedInstanceBoughtServiceBlockingStub reservedInstanceBoughtServiceBlockingStub,
+                            @Nonnull final RepositoryApi repositoryApi,
                             final long realtimeTopologyContextId) {
         this.actionSpecMappingContextFactory = Objects.requireNonNull(actionSpecMappingContextFactory);
         this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.reservedInstanceMapper = Objects.requireNonNull(reservedInstanceMapper);
+        this.costServiceBlockingStub = Objects.requireNonNull(costServiceBlockingStub);
         this.riStub = riStub;
+        this.reservedInstanceBoughtServiceBlockingStub = reservedInstanceBoughtServiceBlockingStub;
+        this.repositoryApi = repositoryApi;
     }
 
     /**
@@ -1341,13 +1364,13 @@ public class ActionSpecMapper {
 
     /**
      * Given an actionSpec fetches the corresponding action details.
-     * @param actionSpec - ActionSpec for the user sent action
+     * @param action - ActionOrchestratorAction for the user sent action
      * @return actionDetailsApiDTO which contains extra information about a given action
      */
-    public ActionDetailsApiDTO createActionDetailsApiDTO(final ActionSpec actionSpec) {
+    public ActionDetailsApiDTO createActionDetailsApiDTO(final ActionDTO.ActionOrchestratorAction action) {
+        final ActionSpec actionSpec = action.getActionSpec();
         if (actionSpec != null && actionSpec.hasRecommendation()) {
             ActionDTO.ActionType actionType = ActionDTOUtil.getActionInfoActionType(actionSpec.getRecommendation());
-            ActionDetailsApiDTO detailsDTO = null;
             // Buy RI action - set est. on-demand cost and coverage values + historical demand data
             if (actionSpec.getRecommendation().hasExplanation() && actionType.equals(BUY_RI)) {
                 RIBuyActionDetailsApiDTO detailsDto = new RIBuyActionDetailsApiDTO();
@@ -1368,14 +1391,138 @@ public class ActionSpecMapper {
                 detailsDto.setHistoricalDemandData(demandList);
                 return detailsDto;
             }
-            // todo: action details for cloud resize actions (OM-49988)
             if (actionType.equals(RESIZE)) {
-                return null;
+                long entityUuid;
+                try {
+                    entityUuid = ActionDTOUtil.getPrimaryEntity(action.getActionSpec().getRecommendation()).getId();
+                } catch (UnsupportedActionException e) {
+                    logger.warn("Attempted to process unsupported action! Error: {}", e.getMessage());
+                    return null;
+                }
+                return createCloudResizeActionDetailsDTO(entityUuid);
             }
             return null;
         }
         return null;
     }
+
+    /**
+     * Create Cloud Resize Action Details DTO.
+     * @param entityUuid - uuid of the action target entity
+     * @return cloudResizeActionDetailsDTO - this contains additional details about the action
+     * like on-demand rates, costs and RI coverage before/after the resize
+     */
+    @Nonnull
+    public CloudResizeActionDetailsApiDTO createCloudResizeActionDetailsDTO(long entityUuid) {
+        CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO = new CloudResizeActionDetailsApiDTO();
+        // get on-demand costs
+        setOnDemandCosts(entityUuid, cloudResizeActionDetailsApiDTO);
+        // get on-demand rates
+        setOnDemandRates(entityUuid, cloudResizeActionDetailsApiDTO);
+        // get RI coverage before/after
+        setRiCoverage(entityUuid, cloudResizeActionDetailsApiDTO);
+        return cloudResizeActionDetailsApiDTO;
+    }
+
+    /**
+     * Set on-demand costs for target entity which factors in RI usage.
+     * @param entityUuid - uuid of target entity
+     * @param cloudResizeActionDetailsApiDTO - cloud resize action details DTO
+     */
+    private void setOnDemandCosts(long entityUuid, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
+        EntityFilter entityFilter = EntityFilter.newBuilder().addEntityId(entityUuid).build();
+        GetCloudCostStatsRequest cloudCostStatsRequest = GetCloudCostStatsRequest
+                .newBuilder()
+                .setStartDate(System.currentTimeMillis())
+                .setRequestProjected(true)
+                .setEntityFilter(entityFilter)
+                .setGroupBy(GetCloudCostStatsRequest.GroupByType.COSTCOMPONENT)
+                .build();
+        GetCloudCostStatsResponse response = costServiceBlockingStub.getCloudCostStats(cloudCostStatsRequest);
+        int statRecordListSize = response.getCloudStatRecordList().size();
+        if (statRecordListSize == 2) {
+            // get real-time
+            final List<Cost.CloudCostStatRecord.StatRecord> realTimeCostRecords = response.getCloudStatRecordList().get(statRecordListSize - 2).getStatRecordsList()
+                    .stream()
+                    .filter(s -> s.getCategory() == Cost.CostCategory.ON_DEMAND_COMPUTE || s.getCategory() == Cost.CostCategory.LICENSE)
+                    .collect(Collectors.toList());
+            // get projected
+            final List<Cost.CloudCostStatRecord.StatRecord> projectedTimeCostRecords = response.getCloudStatRecordList().get(statRecordListSize - 1).getStatRecordsList()
+                    .stream()
+                    .filter(s -> s.getCategory() == Cost.CostCategory.ON_DEMAND_COMPUTE || s.getCategory() == Cost.CostCategory.LICENSE)
+                    .collect(Collectors.toList());
+            Double onDemandCostBefore = realTimeCostRecords.stream().mapToDouble(s -> s.getValues().getAvg()).sum();
+            Double onDemandCostAfter = projectedTimeCostRecords.stream().mapToDouble(s -> s.getValues().getAvg()).sum();
+            // set on-demand costs
+            cloudResizeActionDetailsApiDTO.setOnDemandCostBefore(onDemandCostBefore.floatValue());
+            cloudResizeActionDetailsApiDTO.setOnDemandCostAfter(onDemandCostAfter.floatValue());
+        }
+    }
+
+    /**
+     * Set on-demand template rates for the target entity.
+     * @param entityUuid - uuid of target entity
+     * @param cloudResizeActionDetailsApiDTO - cloud resize action details DTO
+     */
+    private void setOnDemandRates(long entityUuid, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
+        // set on-demand rates
+        // todo: template rates will added here after OM-51505
+        cloudResizeActionDetailsApiDTO.setOnDemandRateBefore(0f);
+        cloudResizeActionDetailsApiDTO.setOnDemandRateAfter(0f);
+    }
+
+    /**
+     * Set RI Coverage before/after for the target entity.
+     * @param entityUuid - uuid of target entity
+     * @param cloudResizeActionDetailsApiDTO - cloud resize action details DTO
+     */
+    private void setRiCoverage(long entityUuid, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
+        // get RI coverage real-time (before action)
+        GetEntityReservedInstanceCoverageRequest entityCoverageRequest = GetEntityReservedInstanceCoverageRequest
+                .newBuilder().build();
+        GetEntityReservedInstanceCoverageResponse entityCoverageMap = reservedInstanceBoughtServiceBlockingStub
+                .getEntityReservedInstanceCoverage(entityCoverageRequest);
+        EntityReservedInstanceCoverage reservedInstanceCoverage = entityCoverageMap.getCoverageByEntityIdMap()
+                .get(entityUuid);
+        // collect all entity uuids
+        Set<Long> ids = new HashSet<>();
+        ids.add(entityUuid);
+        // get entity obj from repo API to get coupon capacity
+        final List<TopologyDTO.TopologyEntityDTO> entityObjList = repositoryApi.entitiesRequest(ids)
+                .contextId(realtimeTopologyContextId)
+                .getFullEntities()
+                .collect(Collectors.toList());
+        int couponCapacity = 0;
+        if (!entityObjList.isEmpty()) {
+            couponCapacity = entityObjList.get(0).getTypeSpecificInfo().getComputeTier().getNumCoupons();
+        }
+        StatApiDTO couponsStatApiDTO = new StatApiDTO();
+        StatValueApiDTO capacityStatValueDTO = new StatValueApiDTO();
+        // set RI coverage before (real-time) in details API Dto
+        if (reservedInstanceCoverage == null) {
+            capacityStatValueDTO.setAvg((float)couponCapacity);
+            couponsStatApiDTO.setCapacity(capacityStatValueDTO);
+            // no ri coverage; used coupons = 0
+            couponsStatApiDTO.setValue(0f);
+            cloudResizeActionDetailsApiDTO.setRiCoverageBefore(couponsStatApiDTO);
+        } else {
+            int coverageValue = reservedInstanceCoverage.getCouponsCoveredByRiCount();
+            couponsStatApiDTO.setValue((float)coverageValue);
+            capacityStatValueDTO.setAvg((float)couponCapacity);
+            couponsStatApiDTO.setCapacity(capacityStatValueDTO);
+            cloudResizeActionDetailsApiDTO.setRiCoverageBefore(couponsStatApiDTO);
+        }
+        // set RI coverage after (projection)
+        // todo: projection data will be available after OM-51301 & OM-51296
+        // return empty DTO
+        capacityStatValueDTO.setAvg(0f);
+        couponsStatApiDTO.setCapacity(capacityStatValueDTO);
+        // no ri coverage; used coupons = 0
+        couponsStatApiDTO.setValue(0f);
+        cloudResizeActionDetailsApiDTO.setRiCoverageAfter(couponsStatApiDTO);
+    }
+
+
 
     /**
      * Create RI historical Context Stat Snapshot DTOs

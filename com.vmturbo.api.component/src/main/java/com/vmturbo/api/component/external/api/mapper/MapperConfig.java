@@ -80,6 +80,9 @@ public class MapperConfig {
             communicationConfig.serviceEntityMapper(),
             mapperConfig.reservedInstanceMapper(),
             communicationConfig.riBuyContextFetchStub(),
+            communicationConfig.costServiceBlockingStub(),
+            communicationConfig.reservedInstanceBoughtServiceBlockingStub(),
+            communicationConfig.repositoryApi(),
             communicationConfig.getRealtimeTopologyContextId());
     }
 
