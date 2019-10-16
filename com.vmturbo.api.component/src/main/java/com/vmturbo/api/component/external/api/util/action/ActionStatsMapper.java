@@ -8,11 +8,11 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor.ActionStatsQuery;
@@ -289,7 +289,7 @@ class ActionStatsMapper {
 
         statApiDTO.setFilters(commonFilters.getFilters());
         statApiDTO.setValues(statValue);
-        statApiDTO.setValue(statValue.getTotal());
+        statApiDTO.setValue(statValue.getAvg());
         return statApiDTO;
     }
 

@@ -41,8 +41,12 @@ public class StatsActionViewFactory {
                     .actionMode(action.getMode())
                     .category(action.getActionCategory())
                     .build());
-        ActionDTOUtil.getInvolvedEntities(action.getRecommendation())
-            .forEach(snapshotBuilder::addInvolvedEntities);
+        // only include the target entity in the numEntities for action stats, because that is the
+        // entity impacted by this action, which also aligns with classic.
+        // for example: a move vm action may involve target entity (vm), current entity (current
+        // host), new entity (new host), we should only count the vm in "numEntities" stats.
+        snapshotBuilder.addInvolvedEntities(
+                ActionDTOUtil.getPrimaryEntity(action.getRecommendation()));
         return snapshotBuilder.build();
     }
 

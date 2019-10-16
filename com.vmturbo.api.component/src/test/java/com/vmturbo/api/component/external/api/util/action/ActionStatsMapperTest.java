@@ -242,7 +242,7 @@ public class ActionStatsMapperTest {
         final StatApiDTO numActions = statsByName.get(StringConstants.NUM_ACTIONS);
         assertNotNull(numActions);
         assertThat(numActions.getFilters(), is(apiFilters));
-        assertThat(numActions.getValue(), is(7.0f));
+        assertThat(numActions.getValue(), is(2.0f));
         assertThat(numActions.getValues().getMin(), is(1.0f));
         assertThat(numActions.getValues().getAvg(), is(2.0f));
         assertThat(numActions.getValues().getMax(), is(3.0f));
@@ -250,7 +250,7 @@ public class ActionStatsMapperTest {
         final StatApiDTO numEntities = statsByName.get(StringConstants.NUM_ENTITIES);
         assertNotNull(numEntities);
         assertThat(numEntities.getFilters(), is(apiFilters));
-        assertThat(numEntities.getValue(), is(8.0f));
+        assertThat(numEntities.getValue(), is(5.0f));
 
         assertThat(numEntities.getValues().getMin(), is(4.0f));
         assertThat(numEntities.getValues().getAvg(), is(5.0f));
@@ -297,7 +297,7 @@ public class ActionStatsMapperTest {
         final StatApiDTO savingsStat = snapshot.getStatistics().get(0);
         assertThat(savingsStat.getName(), is(StringConstants.COST_PRICE));
         assertThat(savingsStat.getFilters(), is(apiFilters));
-        assertThat(savingsStat.getValue(), is(4.0f));
+        assertThat(savingsStat.getValue(), is(2.0f));
         assertThat(savingsStat.getValues().getMin(), is(1.0f));
         assertThat(savingsStat.getValues().getAvg(), is(2.0f));
         assertThat(savingsStat.getValues().getMax(), is(3.0f));
@@ -344,7 +344,7 @@ public class ActionStatsMapperTest {
         final StatApiDTO savingsStat = snapshot.getStatistics().get(0);
         assertThat(savingsStat.getName(), is(StringConstants.COST_PRICE));
         assertThat(savingsStat.getFilters(), is(apiFilters));
-        assertThat(savingsStat.getValue(), is(4.0f));
+        assertThat(savingsStat.getValue(), is(2.0f));
         assertThat(savingsStat.getValues().getMin(), is(1.0f));
         assertThat(savingsStat.getValues().getAvg(), is(2.0f));
         assertThat(savingsStat.getValues().getMax(), is(3.0f));
