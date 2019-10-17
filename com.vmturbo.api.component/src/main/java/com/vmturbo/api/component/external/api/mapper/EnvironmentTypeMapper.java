@@ -37,6 +37,8 @@ public class EnvironmentTypeMapper {
                 return Optional.of(com.vmturbo.api.enums.EnvironmentType.CLOUD);
             case ON_PREM:
                 return Optional.of(com.vmturbo.api.enums.EnvironmentType.ONPREM);
+            case HYBRID:
+                return Optional.of(com.vmturbo.api.enums.EnvironmentType.HYBRID);
             default:
                 return Optional.empty();
         }

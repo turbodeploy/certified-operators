@@ -310,6 +310,7 @@ public class GroupsServiceTest {
             .members(Collections.singleton(1L))
             .entities(Collections.singleton(1L))
             .build();
+        when(groupMapper.getEnvironmentTypeForGroup(groupAndMembers)).thenReturn(EnvironmentType.ONPREM);
         when(groupMapper.toGroupApiDto(groupAndMembers, EnvironmentType.ONPREM)).thenReturn(apiGroup);
 
         when(groupExpander.getGroupWithMembers("1"))
@@ -347,6 +348,7 @@ public class GroupsServiceTest {
         GroupAndMembers clusterAndMembers = groupAndMembers(1L, Type.CLUSTER, Collections.singleton(7L));
         when(groupExpander.getGroupsWithMembers(any()))
             .thenReturn(Stream.of(clusterAndMembers));
+        when(groupMapper.getEnvironmentTypeForGroup(clusterAndMembers)).thenReturn(EnvironmentType.ONPREM);
         when(groupMapper.toGroupApiDto(clusterAndMembers, EnvironmentType.ONPREM)).thenReturn(clusterApiDto);
         when(severityPopulator.calculateSeverity(CONTEXT_ID, Collections.singleton(7L)))
             .thenReturn(Optional.of(Severity.NORMAL));
@@ -382,6 +384,7 @@ public class GroupsServiceTest {
         GroupAndMembers clusterAndMembers = groupAndMembers(1L, Type.CLUSTER, Collections.singleton(7L));
         when(groupExpander.getGroupsWithMembers(any()))
             .thenReturn(Stream.of(clusterAndMembers));
+        when(groupMapper.getEnvironmentTypeForGroup(clusterAndMembers)).thenReturn(EnvironmentType.ONPREM);
         when(groupMapper.toGroupApiDto(clusterAndMembers, EnvironmentType.ONPREM)).thenReturn(clusterApiDto);
         when(severityPopulator.calculateSeverity(CONTEXT_ID, Collections.singleton(7L)))
             .thenReturn(Optional.of(Severity.NORMAL));
@@ -636,6 +639,7 @@ public class GroupsServiceTest {
             .build();
 
         when(groupExpander.getMembersForGroup(cluster)).thenReturn(clusterAndMembers);
+        when(groupMapper.getEnvironmentTypeForGroup(clusterAndMembers)).thenReturn(EnvironmentType.ONPREM);
         when(groupMapper.toGroupApiDto(clusterAndMembers, EnvironmentType.ONPREM)).thenReturn(groupApiDtoMock);
         when(groupServiceSpy.getClusterForEntity(GetClusterForEntityRequest.newBuilder()
                 .setEntityId(1L)

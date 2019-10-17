@@ -7,10 +7,12 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anySet;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -36,6 +38,7 @@ import io.grpc.Status;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.ImmutableGroupAndMembers;
@@ -76,6 +79,7 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirect
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -294,6 +298,9 @@ public class GroupMapperTest {
             .entities(ImmutableSet.of(2L, 3L))
             .build());
 
+        MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList());
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
+
         final GroupApiDTO dto = groupMapper.toGroupApiDto(group);
 
         assertThat(dto.getUuid(), is(Long.toString(oid)));
@@ -338,6 +345,9 @@ public class GroupMapperTest {
                 .members(Collections.emptyList())
                 .entities(Collections.emptyList())
                 .build());
+
+        MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList());
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
 
         final GroupApiDTO dto = groupMapper.toGroupApiDto(group);
 
@@ -827,6 +837,9 @@ public class GroupMapperTest {
                 .entities(GroupProtoUtil.getClusterMembers(computeCluster))
                 .build());
 
+        MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList());
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
+
         final GroupApiDTO dto = groupMapper.toGroupApiDto(computeCluster);
         assertEquals("7", dto.getUuid());
         assertEquals(StringConstants.CLUSTER, dto.getClassName());
@@ -859,6 +872,9 @@ public class GroupMapperTest {
                         .entities(GroupProtoUtil.getClusterMembers(computeVirtualMachineCluster))
                         .build());
 
+        MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList());
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
+
         final GroupApiDTO dto = groupMapper.toGroupApiDto(computeVirtualMachineCluster);
         assertEquals("7", dto.getUuid());
         assertEquals(StringConstants.VIRTUAL_MACHINE_CLUSTER, dto.getClassName());
@@ -890,6 +906,9 @@ public class GroupMapperTest {
                 .members(GroupProtoUtil.getClusterMembers(storageCluster))
                 .entities(GroupProtoUtil.getClusterMembers(storageCluster))
                 .build());
+
+        MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList());
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
 
         final GroupApiDTO dto = groupMapper.toGroupApiDto(storageCluster);
         assertEquals("7", dto.getUuid());
@@ -1018,6 +1037,9 @@ public class GroupMapperTest {
             // entity count gets set from the right field in GroupAndMembers.
             .entities(ImmutableList.of(1L, 2L))
             .build());
+
+        MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList());
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
 
         final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(group);
 
@@ -1248,6 +1270,8 @@ public class GroupMapperTest {
                 .members(members)
                 .entities(members)
                 .build());
+        MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList());
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
 
         final GroupApiDTO dto = groupMapper.toGroupApiDto(group);
         assertEquals("7", dto.getUuid());
@@ -1276,6 +1300,9 @@ public class GroupMapperTest {
                 .members(members)
                 .entities(members)
                 .build());
+
+        MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList());
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
 
         final GroupApiDTO dto = groupMapper.toGroupApiDto(group);
         assertThat(dto.getEntitiesCount(), is(3));
@@ -1578,5 +1605,55 @@ public class GroupMapperTest {
                 .getStringPropertyRegex());
         assertTrue(groupInfo.getSearchParametersCollection().getSearchParameters(0)
                         .getSearchFilter(0).getPropertyFilter().getStringFilter().getPositiveMatch());
+    }
+
+    /**
+     * Test getEnvironmentTypeForGroup returns proper type for a group (ON_PREM, CLOUD, HYBRID).
+     */
+    @Test
+    public void testGetEnvironmentTypeForGroup() {
+        final String displayName = "group-foo";
+        final int groupType = EntityType.VIRTUAL_MACHINE.getNumber();
+        final long oid = 123L;
+        final long uuid1 = 2L;
+        final long uuid2 = 3L;
+
+        final Group group = Group.newBuilder()
+            .setId(oid)
+            .setType(Group.Type.GROUP)
+            .setGroup(GroupInfo.newBuilder()
+                .setName(displayName)
+                .setEntityType(groupType)
+                .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+                    .addSearchParameters(SEARCH_PARAMETERS.setSourceFilterSpecs(buildFilterSpecs(
+                        "pmsByName", "foo", "foo")))))
+            .build();
+
+        when(groupExpander.getMembersForGroup(group)).thenReturn(ImmutableGroupAndMembers.builder()
+            .group(group)
+            .members(ImmutableSet.of(uuid1, uuid2))
+            .entities(ImmutableSet.of(uuid1, uuid2))
+            .build());
+
+        MinimalEntity entVM1 =  MinimalEntity.newBuilder()
+                        .setOid(uuid1)
+                        .setDisplayName("foo")
+                        .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                        .setEnvironmentType(com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType.CLOUD)
+                        .build();
+        MinimalEntity entVM2 =  MinimalEntity.newBuilder()
+                        .setOid(uuid1)
+                        .setDisplayName("foo")
+                        .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                        .setEnvironmentType(com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType.ON_PREM)
+                        .build();
+        List<MinimalEntity> listVMs = new ArrayList<>();
+        listVMs.add(entVM1);
+        listVMs.add(entVM2);
+
+        MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(listVMs);
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
+
+        assertEquals(groupMapper.getEnvironmentTypeForGroup(groupExpander.getMembersForGroup(group)), EnvironmentType.HYBRID);
     }
 }

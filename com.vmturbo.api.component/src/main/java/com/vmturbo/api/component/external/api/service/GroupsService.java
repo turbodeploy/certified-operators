@@ -284,7 +284,7 @@ public class GroupsService implements IGroupsService {
 
         final Optional<GroupAndMembers> groupAndMembers = groupExpander.getGroupWithMembers(uuid);
         if (groupAndMembers.isPresent()) {
-            return groupMapper.toGroupApiDto(groupAndMembers.get(), EnvironmentType.ONPREM);
+            return groupMapper.toGroupApiDto(groupAndMembers.get(), groupMapper.getEnvironmentTypeForGroup(groupAndMembers.get()));
         } else {
             final String msg = "Group not found: " + uuid;
             logger.error(msg);
@@ -973,7 +973,7 @@ public class GroupsService implements IGroupsService {
         final List<GroupApiDTO> retList = groupsWithMembers
             .filter(groupAndMembers -> !isHiddenGroup(groupAndMembers.group()))
             .map(groupAndMembers -> {
-                final GroupApiDTO apiDTO = groupMapper.toGroupApiDto(groupAndMembers, EnvironmentType.ONPREM);
+                final GroupApiDTO apiDTO = groupMapper.toGroupApiDto(groupAndMembers, groupMapper.getEnvironmentTypeForGroup(groupAndMembers));
                 if (populateSeverity && groupAndMembers.entities().size() > 0) {
                     severityPopulator.calculateSeverity(realtimeTopologyContextId, groupAndMembers.entities())
                             .ifPresent(severity -> apiDTO.setSeverity(severity.name()));

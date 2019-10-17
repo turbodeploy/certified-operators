@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -30,6 +31,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
+
 import jdk.nashorn.internal.ir.annotations.Immutable;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -76,6 +78,7 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditi
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditionOrBuilder;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.communication.CommunicationException;
@@ -529,8 +532,7 @@ public class GroupMapper {
         } else {
             requestBuilder
                     .setSearchParametersCollection(SearchParametersCollection.newBuilder()
-                            .addAllSearchParameters(convertToSearchParameters(groupDto, groupDto.getGroupType(), null)))
-                    .build();
+                            .addAllSearchParameters(convertToSearchParameters(groupDto, groupDto.getGroupType(), null)));
         }
         return requestBuilder.build();
     }
@@ -656,7 +658,10 @@ public class GroupMapper {
      * @return  The {@link GroupApiDTO} object
      */
     public GroupApiDTO toGroupApiDto(@Nonnull final Group group) {
-        return toGroupApiDto(groupExpander.getMembersForGroup(group), EnvironmentType.ONPREM);
+        GroupAndMembers groupAndMembers = groupExpander.getMembersForGroup(group);
+        EnvironmentType envType = getEnvironmentTypeForGroup(groupAndMembers);
+
+        return toGroupApiDto(groupAndMembers, envType);
     }
 
     /**
@@ -743,6 +748,27 @@ public class GroupMapper {
         outputDTO.setActiveEntitiesCount(getActiveEntitiesCount(groupAndMembers));
 
         return outputDTO;
+    }
+
+    /**
+     * Return the environment type for a given group.
+     * @param groupAndMembers - the parsed groupAndMembers object for a given group.
+     * @return the EnvironmentType:
+     *  - CLOUD if all group members are CLOUD entities
+     *  - ON_PREM if all group members are ON_PREM entities
+     *  - HYBRID if the group contains members both CLOUD entities and ON_PREM entities.
+     */
+    public EnvironmentType getEnvironmentTypeForGroup(@Nonnull final GroupAndMembers groupAndMembers) {
+        // parse the entities members of groupDto
+        EnvironmentTypeEnum.EnvironmentType envType = null;
+        Set<Long> targetSet = new HashSet<>(groupAndMembers.members());
+        for (MinimalEntity entity : repositoryApi.entitiesRequest(targetSet).getMinimalEntities().collect(Collectors.toList())) {
+            if (envType != entity.getEnvironmentType()) {
+                    envType = (envType == null) ? entity.getEnvironmentType() : EnvironmentTypeEnum.EnvironmentType.HYBRID;
+            }
+        }
+
+        return EnvironmentTypeMapper.fromXLToApi(envType != null ? envType : EnvironmentTypeEnum.EnvironmentType.ON_PREM ).orElse(EnvironmentType.ONPREM);
     }
 
     /**
