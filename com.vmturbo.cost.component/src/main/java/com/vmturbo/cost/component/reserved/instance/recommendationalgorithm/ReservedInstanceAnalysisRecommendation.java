@@ -363,7 +363,7 @@ public class ReservedInstanceAnalysisRecommendation {
                 .setId(getComputeTier().getOid())
                 .setType(getComputeTier().getEntityType()))
             .setCount(getCount())
-            .setRegionId(ActionEntity.newBuilder().setId(getRegion())
+            .setRegion(ActionEntity.newBuilder().setId(getRegion())
                     .setType(EntityType.REGION_VALUE).build())
             .setMasterAccount(ActionEntity.newBuilder().setId(context.getMasterAccountId())
                     .setType(EntityType.BUSINESS_ACCOUNT_VALUE).build())

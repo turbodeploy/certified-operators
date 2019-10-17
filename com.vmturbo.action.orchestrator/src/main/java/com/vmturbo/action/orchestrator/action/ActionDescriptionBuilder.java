@@ -319,7 +319,7 @@ public class ActionDescriptionBuilder {
         ActionPartialEntity masterAccount = entitiesSnapshot.getEntityFromOid(masterAccountId).get();
         final String masterAccountName = (masterAccount != null) ? masterAccount.getDisplayName() : "";
 
-        long regionId = buyRI.getRegionId().getId();
+        long regionId = buyRI.getRegion().getId();
         if (!entitiesSnapshot.getEntityFromOid(regionId).isPresent()) {
             logger.debug(ENTITY_NOT_FOUND_WARN_MSG, regionId);
             return "";

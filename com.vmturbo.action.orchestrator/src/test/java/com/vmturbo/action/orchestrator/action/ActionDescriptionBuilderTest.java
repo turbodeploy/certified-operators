@@ -271,7 +271,7 @@ public class ActionDescriptionBuilderTest {
                 .setId(masterAccount)
                 .setType(EntityType.BUSINESS_ACCOUNT_VALUE)
                 .build())
-            .setRegionId(ActionEntity.newBuilder()
+            .setRegion(ActionEntity.newBuilder()
                 .setId(region)
                 .setType(EntityType.REGION_VALUE)
                 .build())

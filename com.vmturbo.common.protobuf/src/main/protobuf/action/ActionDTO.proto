@@ -367,7 +367,7 @@ message BuyRI {
     optional ActionEntity masterAccount = 4;
 
     // The region in which we are buying this RI.
-    optional ActionEntity regionId = 5;
+    optional ActionEntity region = 5;
 }
 
 // Contains the information describing the recommendation for what

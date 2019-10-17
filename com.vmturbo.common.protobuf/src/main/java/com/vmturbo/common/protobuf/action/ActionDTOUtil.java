@@ -175,6 +175,8 @@ public class ActionDTOUtil {
                 return actionInfo.getReconfigure().getTarget().getId();
             case DELETE:
                 return actionInfo.getDelete().getTarget().getId();
+            case BUYRI:
+                return actionInfo.getBuyRi().getRegion().getId();
             default:
                 throw new UnsupportedActionException(action.getId(), actionInfo);
         }
@@ -209,7 +211,7 @@ public class ActionDTOUtil {
             case DELETE:
                 return actionInfo.getDelete().getTarget();
             case BUYRI:
-                return actionInfo.getBuyRi().getComputeTier();
+                return actionInfo.getBuyRi().getRegion();
             default:
                 throw new UnsupportedActionException(action.getId(), actionInfo);
         }
@@ -348,7 +350,7 @@ public class ActionDTOUtil {
                 final BuyRI buyRi = action.getInfo().getBuyRi();
                 List<ActionEntity> actionEntities = new ArrayList<>();
                 actionEntities.add(buyRi.getComputeTier());
-                actionEntities.add(buyRi.getRegionId());
+                actionEntities.add(buyRi.getRegion());
                 actionEntities.add(buyRi.getMasterAccount());
                 actionEntities.add(buyRi.getComputeTier());
                 return actionEntities;
@@ -554,6 +556,8 @@ public class ActionDTOUtil {
             case DEACTIVATE:
                 return action.getInfo().getDeactivate().getTriggeringCommoditiesList()
                     .stream().map(ct -> createReasonCommodityFromCommodityType(ct));
+            // No reason commodities present for BUY RI.
+            case BUYRI:
             default:
                 return Stream.empty();
         }
