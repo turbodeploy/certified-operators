@@ -107,6 +107,7 @@ public class ActionDescriptionBuilder {
             .put(CommodityDTO.CommodityType.STORAGE_AMOUNT, Units.MBYTE)
             .put(CommodityDTO.CommodityType.HEAP, Units.KBYTE)
             .put(CommodityDTO.CommodityType.MEM, Units.KBYTE)
+            .put(CommodityDTO.CommodityType.DB_MEM, Units.KBYTE)
             .build();
 
     /**
@@ -487,7 +488,7 @@ public class ActionDescriptionBuilder {
     private static String formatResizeActionCommodityValue(@Nonnull final CommodityDTO.CommodityType commodityType,
                                                     final double capacity) {
         // Currently all items in this map are converted from default units to GB.
-        if (commodityTypeToDefaultUnits.keySet().contains(commodityType)) {
+        if (commodityTypeToDefaultUnits.containsKey(commodityType)) {
             return ActionMessageFormat.SIMPLE_GB.format(
                 capacity / (Units.GBYTE / commodityTypeToDefaultUnits.get(commodityType)));
         } else {

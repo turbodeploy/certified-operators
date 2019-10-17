@@ -153,32 +153,55 @@ public class ActionDescriptionBuilderTest {
             .setInfo(infoBuilder).setExplanation(explanation);
     }
 
+    /**
+     * Create a resize action info.
+     *
+     * @param targetId the target entity id
+     * @param commodityType type of the commodity to resize
+     * @param oldCapacity old capacity
+     * @param newCapacity new capacity
+     * @return {@link ActionInfo.Builder}
+     */
+    private ActionInfo.Builder makeResizeInfo(long targetId, int commodityType, float oldCapacity,
+            float newCapacity) {
+        return ActionInfo.newBuilder().setResize(Resize.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                        .setType(commodityType).build())
+                .setOldCapacity(oldCapacity)
+                .setNewCapacity(newCapacity)
+                .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId)));
+    }
+
+    /**
+     * Create a resize action for vcpu commodity.
+     *
+     * @param targetId the target entity id
+     * @return {@link ActionInfo.Builder}
+     */
     private ActionInfo.Builder makeResizeInfo(long targetId) {
-        return ActionInfo.newBuilder().setResize(Resize.newBuilder()
-                .setCommodityType(CommodityType.newBuilder()
-                        .setType(26).build())
-                .setNewCapacity(20)
-                .setOldCapacity(10)
-                .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId)));
+        return makeResizeInfo(targetId, 26, 10, 20);
     }
 
+    /**
+     * Create a resize action for mem commodity.
+     *
+     * @param targetId the target entity id
+     * @return {@link ActionInfo.Builder}
+     */
     private ActionInfo.Builder makeResizeMemInfo(long targetId) {
-        return ActionInfo.newBuilder().setResize(Resize.newBuilder()
-            .setCommodityType(CommodityType.newBuilder()
-                .setType(21).build())
-            .setNewCapacity(8 * Units.MBYTE)
-            .setOldCapacity(16 * Units.MBYTE)
-            .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId)));
+        return makeResizeInfo(targetId, 21, 16 * Units.MBYTE, 8 * Units.MBYTE);
     }
 
+    /**
+     * Create a resize action for mem commodity and on reserved attribute.
+     *
+     * @param targetId the target entity id
+     * @return {@link ActionInfo.Builder}
+     */
     private ActionInfo.Builder makeResizeReservationMemInfo(long targetId) {
-        return ActionInfo.newBuilder().setResize(Resize.newBuilder()
-                .setCommodityAttribute(CommodityAttribute.RESERVED)
-                .setCommodityType(CommodityType.newBuilder()
-                        .setType(21).build())
-                .setNewCapacity(8 * Units.MBYTE)
-                .setOldCapacity(16 * Units.MBYTE)
-                .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId)));
+        ActionInfo.Builder builder = makeResizeInfo(targetId, 21, 16 * Units.MBYTE, 8 * Units.MBYTE);
+        builder.getResizeBuilder().setCommodityAttribute(CommodityAttribute.RESERVED);
+        return builder;
     }
 
     private ActionInfo.Builder makeDeactivateInfo(long targetId) {
@@ -422,6 +445,24 @@ public class ActionDescriptionBuilderTest {
 
         Assert.assertEquals(description,
                 "Resize down Mem reservation for Virtual Machine vm1_test from 16 GB to 8 GB");
+    }
+
+    /**
+     * Test that the unit is converted to more readable format in the final description for
+     * resize DBMem action.
+     */
+    @Test
+    public void testBuildResizeDBMemActionDescription() {
+        final long dbsId = 19L;
+        when(entitySettingsCache.getEntityFromOid(eq(dbsId))).thenReturn(
+                createEntity(dbsId, EntityType.DATABASE_SERVER_VALUE, "sqlServer1"));
+        ActionDTO.Action resizeDBMem = makeRec(makeResizeInfo(dbsId,
+                CommodityDTO.CommodityType.DB_MEM_VALUE, 1622744.0f, 1445841.0f),
+                SupportLevel.SUPPORTED).build();
+        String description = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, resizeDBMem);
+        Assert.assertEquals(description,
+                "Resize down DB Mem for Database Server sqlServer1 from 1.548 GB to 1.379 GB");
     }
 
     @Test
