@@ -124,7 +124,7 @@ public class RepositoryClient {
 
         // If business account scope, add all sibling accounts under the same business family
         // This is only needed in cloud OCP plans.
-        Stream<TopologyEntityDTO> allBusinessAccounts =
+        List<TopologyEntityDTO> allBusinessAccounts =
                           RepositoryDTOUtil.topologyEntityStream(
                          repositoryService
                          .retrieveTopologyEntities(RetrieveTopologyEntitiesRequest
@@ -134,19 +134,13 @@ public class RepositoryClient {
                                          .setTopologyType(TopologyType.SOURCE)
                                          .addEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
                                          .build()))
-                                          .map(PartialEntity::getFullEntity);
-        // real-time or plan global scope, return all Business Accounts/ Substriptions.
-        // TODO:  OM-50904 For real-time, no scopes need be returned and global RIs will be fetched.
-        if (scopeIds.isEmpty()) {
-            Stream<TopologyEntityDTO> allBaStream = StreamSupport.stream(allBusinessAccounts.spliterator(),
-                                                                false);
-            return allBaStream.map(TopologyEntityDTO::getOid).collect(Collectors.toList());
-        }
+                                          .map(PartialEntity::getFullEntity)
+                                      .collect(Collectors.toList());
 
         Set<Long> relatedBusinessAccountsOrSubscriptions = new HashSet<>();
         // Get the business families in scope and the sub-accounts under them.
         for (long scopeId : scopeIds) {
-            allBusinessAccounts.forEach(ba -> {
+           for(TopologyEntityDTO ba : allBusinessAccounts) {
                 List<Long> subAccountOidsList =
                       ba.getConnectedEntityListList()
                           .stream()
@@ -164,7 +158,14 @@ public class RepositoryClient {
                     }
                     relatedBusinessAccountsOrSubscriptions.add(ba.getOid());
                 }
-            });
+            };
+        }
+        // real-time or plan global scope, return all Business Accounts/ Substriptions.
+        // TODO:  OM-50904 For real-time, no scopes need be returned and global RIs will be fetched.
+        if (scopeIds.isEmpty()) {
+            List<Long> allBaOids =  allBusinessAccounts.stream().map(TopologyEntityDTO::getOid)
+                            .collect(Collectors.toList());
+            return allBaOids;
         }
         return relatedBusinessAccountsOrSubscriptions.stream().collect(Collectors.toList());
     }
