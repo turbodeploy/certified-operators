@@ -914,6 +914,32 @@ public class TargetsServiceTest {
     }
 
     /**
+     * Tests that "allowedValues" field gets populated correctly into a TargetApiDTO's InputFields.
+     *
+     * @throws Exception on exceptions occur
+     */
+    @Test
+    public void testAllowedValues() throws Exception {
+        final String key = "allowedValues";
+        final List<String> allowedValuesList = Lists.newArrayList("A", "B", "C");
+        final AccountField allowedValuesField =
+                new AccountField(key, key + "-name", key + "-description", false, false,
+                        AccountFieldValueType.LIST, null, allowedValuesList);
+        final ProbeInfo probeInfo =
+                createMockProbeInfo(1, "type1", "category1", allowedValuesField);
+        final MvcResult result = mockMvc
+                .perform(MockMvcRequestBuilders.get("/targets/specs")
+                        .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        final List<TargetApiDTO> resp = Arrays.asList(GSON
+                .fromJson(result.getResponse().getContentAsString(), TargetApiDTO[].class));
+        Assert.assertEquals(1, resp.size());
+        final TargetApiDTO probe = resp.iterator().next();
+        final List<InputFieldApiDTO> fields = probe.getInputFields();
+        Assert.assertEquals(allowedValuesList, fields.get(0).getAllowedValues());
+    }
+
+    /**
      * Tests retrieval of all the known account value types.
      *
      * @throws Exception on exceptions occur
@@ -1146,7 +1172,7 @@ public class TargetsServiceTest {
 
     private static AccountDefEntry createAccountDef(String key, AccountFieldValueType valueType) {
         return new AccountField(key, key + "-name", key + "-description", true, false, valueType,
-                null);
+                null, Collections.emptyList());
     }
 
     /**

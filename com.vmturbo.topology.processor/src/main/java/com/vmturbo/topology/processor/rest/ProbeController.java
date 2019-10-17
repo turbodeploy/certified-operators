@@ -77,9 +77,10 @@ public final class ProbeController {
     protected static AccountField create(@Nonnull final Discovery.AccountDefEntry accountDefEntry) {
         Objects.requireNonNull(accountDefEntry);
         final AccountDefEntry wrapper = AccountValueAdaptor.wrap(accountDefEntry);
-        return new AccountField(wrapper.getName(), wrapper.getDisplayName(),
-                        wrapper.getDescription(), wrapper.isRequired(), wrapper.isSecret(),
-                        wrapper.getValueType(), wrapper.getDefaultValue());
+        return new AccountField(
+                    wrapper.getName(), wrapper.getDisplayName(),
+                    wrapper.getDescription(), wrapper.isRequired(), wrapper.isSecret(),
+                    wrapper.getValueType(), wrapper.getDefaultValue(), wrapper.getAllowedValues());
     }
 
     protected static ProbeDescription create(final long probeId, @Nonnull final ProbeInfo probeInfo) {

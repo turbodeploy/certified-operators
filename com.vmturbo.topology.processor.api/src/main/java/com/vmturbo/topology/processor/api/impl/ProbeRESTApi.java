@@ -53,6 +53,12 @@ public class ProbeRESTApi {
                 required = false)
         private final String defaultValue;
 
+        @ApiModelProperty(
+                value = "Determines potential values for this field. if nonempty, field must be one"
+                        + " of the included values. If empty, any value can be used.",
+                required = false)
+        private final List<String> allowedValues;
+
         /**
          * Protected constructor, suitable only for deserialization purposes.
          */
@@ -64,12 +70,13 @@ public class ProbeRESTApi {
             this.secret = null;
             this.valueType = null;
             this.defaultValue = null;
+            this.allowedValues = Collections.emptyList();
         }
 
         public AccountField(@Nonnull final String name, @Nonnull final String displayName,
                             @Nonnull final String description, final boolean required,
                             final boolean secret, AccountFieldValueType valueType,
-                            @Nullable String defaultValue) {
+                            @Nullable String defaultValue, @Nullable List<String> allowedValues ) {
             this.name = Objects.requireNonNull(name);
             this.displayName = Objects.requireNonNull(displayName);
             this.description = Objects.requireNonNull(description);
@@ -77,6 +84,7 @@ public class ProbeRESTApi {
             this.secret = secret;
             this.valueType = valueType;
             this.defaultValue = defaultValue;
+            this.allowedValues = allowedValues;
         }
 
         @Override
@@ -113,6 +121,12 @@ public class ProbeRESTApi {
         @Nullable
         public String getDefaultValue() {
             return defaultValue;
+        }
+
+        @Override
+        @Nullable
+        public List<String> getAllowedValues() {
+            return allowedValues;
         }
     }
 

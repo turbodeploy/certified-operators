@@ -1125,6 +1125,7 @@ public class TargetsService implements ITargetsService {
         inputFieldDTO.setValueType(convert(entry.getValueType()));
         inputFieldDTO.setDefaultValue(entry.getDefaultValue());
         inputFieldDTO.setDescription(entry.getDescription());
+        inputFieldDTO.setAllowedValues(entry.getAllowedValues());
         return inputFieldDTO;
     }
 

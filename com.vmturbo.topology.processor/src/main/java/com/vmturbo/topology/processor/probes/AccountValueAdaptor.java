@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.probes;
 
+import java.util.List;
 import java.util.Objects;
 
 import javax.annotation.Nullable;
@@ -57,6 +58,12 @@ public class AccountValueAdaptor {
         @Override
         public String getDefaultValue() {
             return entry.hasDefaultValue() ? entry.getDefaultValue() : null;
+        }
+
+        @Nullable
+        @Override
+        public List<String> getAllowedValues() {
+            return entry.getAllowedValuesList();
         }
     }
 

@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.api;
 
+import java.util.List;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -61,4 +63,13 @@ public interface AccountDefEntry {
      */
     @Nullable
     String getDefaultValue();
+
+    /**
+     * Determines potential values for this field. if nonempty, field must be one of the included
+     * values. If empty, any value can be used.
+     *
+     * @return List of strings, potentially empty, representing this field's allowed values.
+     */
+    @Nullable
+    List<String> getAllowedValues();
 }
