@@ -8,6 +8,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.logging.log4j.LogManager;
@@ -35,6 +36,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
+import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -160,13 +162,15 @@ public class EntitiesAndSettingsSnapshotFactory {
      * @param topologyContextId The topology context of the topology broadcast that
      *                          triggered the cache update.
      * @param topologyId The topology id of the topology, the broadcast of which triggered the
-     *                   cache update.
+     *                   cache update. The topology id can be null as well in case we are trying to
+     *                   get a new snapshot for RI Buy Actions. Because RI Buy Algorithm is not
+     *                   triggered on topology broadcast.
      * @return A {@link EntitiesAndSettingsSnapshot} containing the new action-related settings an entities.
      */
     @Nonnull
     public EntitiesAndSettingsSnapshot newSnapshot(@Nonnull final Set<Long> entities,
-                                                   final long topologyContextId,
-                                                   final long topologyId) {
+                                                   @Nonnull final Long topologyContextId,
+                                                   @Nullable final Long topologyId) {
         final Map<Long, Map<String, Setting>> newSettings = retrieveEntityToSettingListMap(entities,
             topologyContextId, topologyId);
         final Map<Long, ActionPartialEntity> entityMap = retrieveOidToEntityMap(entities,
@@ -194,13 +198,16 @@ public class EntitiesAndSettingsSnapshotFactory {
      * @return mapping with oid as key and {@link ActionPartialEntity} as value.
      */
     private Map<Long, ActionPartialEntity> retrieveOidToEntityMap(Set<Long> entities,
-                    long topologyContextId, long topologyId) {
+                    @Nonnull Long topologyContextId, @Nullable Long topologyId) {
         try {
             RetrieveTopologyEntitiesRequest.Builder getEntitiesRequestBuilder = RetrieveTopologyEntitiesRequest.newBuilder()
                 .setTopologyContextId(topologyContextId)
-                .setTopologyId(topologyId)
                 .addAllEntityOids(entities)
                 .setReturnType(PartialEntity.Type.ACTION);
+            if (topologyId != null) {
+                getEntitiesRequestBuilder.setTopologyId(topologyId);
+            }
+
             if (topologyContextId == realtimeTopologyContextId) {
                 getEntitiesRequestBuilder.setTopologyType(TopologyType.SOURCE);
             } else {
@@ -252,13 +259,16 @@ public class EntitiesAndSettingsSnapshotFactory {
 
     @Nonnull
     private Map<Long, Map<String, Setting>> retrieveEntityToSettingListMap(final Set<Long> entities,
-                                                                    final long topologyContextId,
-                                                                    final long topologyId) {
+                                                                    @Nonnull final Long topologyContextId,
+                                                                    @Nullable final Long topologyId) {
         try {
+            final Builder builder = TopologySelection.newBuilder()
+                    .setTopologyContextId(topologyContextId);
+            if (topologyId != null) {
+                builder.setTopologyId(topologyId);
+            }
             final GetEntitySettingsRequest request = GetEntitySettingsRequest.newBuilder()
-                    .setTopologySelection(TopologySelection.newBuilder()
-                            .setTopologyContextId(topologyContextId)
-                            .setTopologyId(topologyId))
+                    .setTopologySelection(builder)
                     .setSettingFilter(EntitySettingFilter.newBuilder()
                             .addAllEntities(entities))
                     .build();

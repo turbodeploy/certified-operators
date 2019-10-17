@@ -209,6 +209,26 @@ class LiveActions implements QueryableActionViews {
     }
 
     /**
+     * Update the RI Actions.
+     * @param newEntitiesSnapshot The new {@link EntitiesAndSettingsSnapshot} to put into the entities
+     *                            cache. This needs to be done atomically with the action addition,
+     *                            because the mode calculation of those actions will depend on
+     *                            the snapshot in the {@link EntitiesAndSettingsSnapshotFactory}.
+     */
+    void updateBuyRIActions(@Nonnull final EntitiesAndSettingsSnapshot newEntitiesSnapshot) {
+        actionsLock.writeLock().lock();
+        try {
+            riActions.values().forEach(action -> {
+                if (action.getState() == ActionState.READY) {
+                    action.refreshAction(newEntitiesSnapshot);
+                }
+            });
+        } finally {
+            actionsLock.writeLock().unlock();
+        }
+    }
+
+    /**
      * Update the market actions atomically.
      *
      * @param actionsToRemove The ids of actions to remove.

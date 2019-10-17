@@ -19,13 +19,13 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
-import com.google.common.collect.Collections2;
-import com.google.common.collect.Sets;
-
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
+
+import com.google.common.collect.Collections2;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
@@ -197,12 +197,15 @@ public class LiveActionStore implements ActionStore {
             }
 
             final TopologyInfo sourceTopologyInfo =
-                actionPlan.getInfo().getMarket().getSourceTopologyInfo();
-            // Get a new snapshot for the entity settings cache. We do this outside of lock scope
-            // so as to not block the readers on the RPC.
+                    actionPlan.getInfo().getMarket().getSourceTopologyInfo();
+
+            final Long topologyContextId = sourceTopologyInfo.getTopologyContextId();
+
+            final Long topologyId = sourceTopologyInfo.getTopologyId();
+
             final EntitiesAndSettingsSnapshot snapshot =
-                entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList()),
-                sourceTopologyInfo.getTopologyContextId(), sourceTopologyInfo.getTopologyId());
+                    entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList()),
+                            topologyContextId, topologyId);
 
             // This call requires some computation and an RPC call, so do it outside of the
             // action lock.
@@ -434,16 +437,17 @@ public class LiveActionStore implements ActionStore {
 
     private boolean populateBuyRIActions(@Nonnull ActionPlan actionPlan) {
         final long planId = actionPlan.getId();
-        final long topologyContextId =
-            actionPlan.getInfo().getBuyRi().getTopologyContextId();
-        // Get an empty snapshot. Empty snapshot is sufficient here because Buy RI actions do not
-        // go through any action translation.
-        final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.emptySnapshot(topologyContextId);
+        final Long topologyContextId = actionPlan.getInfo().getBuyRi().getTopologyContextId();
+        final EntitiesAndSettingsSnapshot snapshot =
+                entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList()),
+                        topologyContextId, null);
+
         // All RI translations should be passthrough, but we do it here anyway for consistency
         // with the "normal" action case.
         actions.replaceRiActions(actionTranslator.translate(
             actionPlan.getActionList().stream().map(
                 recommendedAction -> actionFactory.newAction(recommendedAction, planId)), snapshot));
+        actions.updateBuyRIActions(snapshot);
         logger.info("Number of buy RI actions={}", actionPlan.getActionCount());
         return true;
     }
