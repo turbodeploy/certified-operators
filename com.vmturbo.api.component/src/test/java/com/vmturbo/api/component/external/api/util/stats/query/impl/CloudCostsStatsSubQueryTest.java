@@ -186,8 +186,7 @@ public class CloudCostsStatsSubQueryTest {
         );
         List<StatSnapshotApiDTO> results = query
             .getGroupByVVAttachmentStat(Collections.singletonList(ccsr),
-                                       requestedStats,
-                                       context);
+                                       requestedStats);
 
         assertThat(results.size(), is(1));
         StatSnapshotApiDTO result = results.get(0);
@@ -271,8 +270,7 @@ public class CloudCostsStatsSubQueryTest {
         );
         List<StatSnapshotApiDTO> results = query
             .getGroupByStorageTierStat(Collections.singletonList(ccsr),
-                requestedStats,
-                context);
+                requestedStats);
 
         assertThat(results.size(), is(1));
         StatSnapshotApiDTO result = results.get(0);
@@ -296,6 +294,7 @@ public class CloudCostsStatsSubQueryTest {
         });
     }
 
+    @Nonnull
     private StatsQueryContext setupGlobalScope(@Nonnull UIEntityType entityType) {
         // Setup Context for Global Scope
         final GlobalScope globalScope = mock(GlobalScope.class);
@@ -325,6 +324,7 @@ public class CloudCostsStatsSubQueryTest {
      * @param storageTierOid Storage Tier Oid which the Virtual Volume connected to
      * @return {@link ApiPartialEntity}
      */
+    @Nonnull
     private ApiPartialEntity createApiPartialEntity(final long vvOid, final long storageTierOid) {
         return ApiPartialEntity.newBuilder()
             .setOid(vvOid)
@@ -337,6 +337,7 @@ public class CloudCostsStatsSubQueryTest {
             .build();
     }
 
+    @Nonnull
     private MinimalEntity createMinimalEntities(final long oid,
                                                 @Nonnull final String displayName,
                                                 @Nonnull final EntityType entityType) {
@@ -355,6 +356,7 @@ public class CloudCostsStatsSubQueryTest {
      * @param groupBy list of group by
      * @return {@link StatApiInputDTO}
      */
+    @Nonnull
     private StatApiInputDTO createStatApiInputDTO(@Nonnull final String name,
                                                   @Nonnull final UIEntityType relatedEntityType,
                                                   @Nonnull final List<String> groupBy) {

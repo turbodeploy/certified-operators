@@ -41,10 +41,12 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
+import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
@@ -271,9 +273,11 @@ public class StorageStatsSubQueryTest {
         assertThat(firstParam.getStartingFilter().getNumericFilter().getValue(), is(new Long(EntityType.VIRTUAL_VOLUME.getValue()).longValue()));
         assertThat(firstParam.getSearchFilterCount(), is(1));
         assertThat(firstParam.getSearchFilter(0).hasPropertyFilter(), is(true));
-        assertThat(firstParam.getSearchFilter(0).getPropertyFilter().getPropertyName(), is(StringConstants.ENVIRONMENT_TYPE));
         assertThat(firstParam.getSearchFilter(0).getPropertyFilter().hasStringFilter(), is(true));
-        assertThat(firstParam.getSearchFilter(0).getPropertyFilter().getStringFilter().getOptions(0), is(EnvironmentType.CLOUD.name()));
+        assertThat(firstParam.getSearchFilter(0).getPropertyFilter().getPropertyName(), is(SearchableProperties.ENVIRONMENT_TYPE));
+        assertThat(firstParam.getSearchFilter(0).getPropertyFilter().getStringFilter().getOptionsCount(), is(1));
+        assertThat(firstParam.getSearchFilter(0).getPropertyFilter().getStringFilter().getOptions(0), is(UIEnvironmentType.CLOUD.getApiEnumStringValue()));
+
 
         // second API should get STs from the VV connected to list
         Search.SearchParameters secondParam = searchParameters.get(1);
@@ -316,8 +320,11 @@ public class StorageStatsSubQueryTest {
         });
     }
 
-
-
+    /***
+     * Test non global scope with group by storage tier.
+     *
+     * @throws OperationFailedException operation failed
+     */
     @Test
     public void testGetAggregateStatsWhenContextIsNotGlobalScopeAndGroupByStorageTier() throws OperationFailedException {
         final long stOid1 = 1000L;
@@ -326,14 +333,118 @@ public class StorageStatsSubQueryTest {
         final String stDisplayName2 = "storage tier 2";
         final long stOid3 = 3000L;
         final String stDisplayName3 = "storage tier 3";
-        final List<Long> vvOids = Arrays.asList(111L, 222L, 223L, 333L, 334L, 335L);
+        final List<ApiPartialEntity> vvPartialEntities = Arrays.asList(
+            createVVApiPartialEntity(111L, stOid1),
+            createVVApiPartialEntity(222L, stOid2),
+            createVVApiPartialEntity(223L, stOid2),
+            createVVApiPartialEntity(333L, stOid3),
+            createVVApiPartialEntity(334L, stOid3),
+            createVVApiPartialEntity(335L, stOid3)
+        );
+        final List<MinimalEntity> stMinimalEntities = Arrays.asList(
+            createMinimalEntities(stOid1, stDisplayName1, EntityType.STORAGE_TIER),
+            createMinimalEntities(stOid2, stDisplayName2, EntityType.STORAGE_TIER),
+            createMinimalEntities(stOid3, stDisplayName3, EntityType.STORAGE_TIER)
+        );
+
+        // Setup Context for Global Scope
+        StatsQueryScope statsQueryScope = mock(StatsQueryScope.class);
+        when(statsQueryScope.getEntities())
+            .thenReturn(vvPartialEntities.stream().mapToLong(pe -> pe.getOid()).boxed().collect(Collectors.toSet()));
+        final StatsQueryContext context = mock(StatsQueryContext.class);
+        when(context.isGlobalScope()).thenReturn(false);
+        when(context.getQueryScope()).thenReturn(statsQueryScope);
+
+        SearchRequest searchRequest = mock(SearchRequest.class);
+
+        ArgumentCaptor<Search.SearchParameters> searchParametersArgumentCaptor = new ArgumentCaptor<>();
+        when(repositoryApi.newSearchRequest(searchParametersArgumentCaptor.capture()))
+            .thenReturn(searchRequest);
+        when(searchRequest.getEntities()).thenReturn(vvPartialEntities.stream());
+        when(searchRequest.getMinimalEntities()).thenReturn(stMinimalEntities.stream());
+
+        Set<StatApiInputDTO> requestedStats =
+            Sets.newHashSet(createStatApiInputDTO(NUM_VOLUMES, UIEntityType.VIRTUAL_VOLUME, Collections.singletonList(UIEntityType.STORAGE_TIER.apiStr())));
+
+        Map<Long, List<StatApiDTO>> results = query.getAggregateStats(requestedStats, context);
+
+        List<Search.SearchParameters> searchParameters = searchParametersArgumentCaptor.getAllValues();
+        assertThat(searchParameters.size(), is(2));
+        // first API call should do VV search
+        Search.SearchParameters firstParam = searchParameters.get(0);
+        assertThat(firstParam.getStartingFilter().hasStringFilter(), is(true));
+        assertThat(firstParam.getStartingFilter().getPropertyName(), is("oid"));
+        assertThat(firstParam.getStartingFilter().getStringFilter().getOptionsList(),
+            containsInAnyOrder("111", "222", "223", "333", "334", "335"));
+        assertThat(firstParam.getSearchFilterCount(), is(1));
+        assertThat(firstParam.getSearchFilter(0).hasPropertyFilter(), is(true));
+        assertThat(firstParam.getSearchFilter(0).getPropertyFilter().hasStringFilter(), is(true));
+        assertThat(firstParam.getSearchFilter(0).getPropertyFilter().getPropertyName(), is(SearchableProperties.ENVIRONMENT_TYPE));
+        assertThat(firstParam.getSearchFilter(0).getPropertyFilter().getStringFilter().getOptionsCount(), is(1));
+        assertThat(firstParam.getSearchFilter(0).getPropertyFilter().getStringFilter().getOptions(0), is(UIEnvironmentType.CLOUD.getApiEnumStringValue()));
+
+        // second API should get STs from the VV connected to list
+        Search.SearchParameters secondParam = searchParameters.get(1);
+        assertThat(secondParam.getStartingFilter().hasStringFilter(), is(true));
+        assertThat(secondParam.getStartingFilter().getPropertyName(), is("oid"));
+        assertThat(secondParam.getStartingFilter().getStringFilter().getOptionsList(),
+            containsInAnyOrder("1000", "2000", "3000"));
+
+        assertThat(results.size(), is(1));
+        assertThat(results.values().stream().findAny().get().size(), is(3));
+
+        List<StatApiDTO> dtos = results.values().stream().findAny().get();
+        dtos.forEach(dto -> {
+            assertThat(dto.getName(), is(NUM_VOLUMES));
+            assertThat(dto.getRelatedEntityType(), is(UIEntityType.VIRTUAL_VOLUME.apiStr()));
+
+            List<StatFilterApiDTO> statFilterApiDTOS = dto.getFilters();
+            assertThat(statFilterApiDTOS.size(), is(1));
+            StatFilterApiDTO statFilterApiDTO = statFilterApiDTOS.get(0);
+            assertThat(statFilterApiDTO.getType(), is(UIEntityType.STORAGE_TIER.apiStr()));
+
+            assertThat(statFilterApiDTO.getValue(), isOneOf(stDisplayName1, stDisplayName2, stDisplayName3));
+
+            final Function<String, Float> getExpectedCount = displayName -> {
+                switch (displayName) {
+                    case stDisplayName1:
+                        return 1f;
+                    case stDisplayName2:
+                        return 2f;
+                    case stDisplayName3:
+                        return 3f;
+                    default:
+                        return 0f;
+                }
+            };
+
+            float expectedCount = getExpectedCount.apply(statFilterApiDTO.getValue());
+            assertThat(dto.getValue(), is(expectedCount));
+
+        });
+    }
+
+    /**
+     * Test GetAggregateStats() method for context is not Global with a VV without ST.
+     *
+     * @throws OperationFailedException unable to operate
+     */
+    @Test
+    public void testGetAggregateStatsWhenContextIsNotGlobalScopeAndGroupByStorageTierWithVVHasNoST() throws OperationFailedException {
+        final long stOid1 = 1000L;
+        final String stDisplayName1 = "storage tier 1";
+        final long stOid2 = 2000L;
+        final String stDisplayName2 = "storage tier 2";
+        final long stOid3 = 3000L;
+        final String stDisplayName3 = "storage tier 3";
+        final List<Long> vvOids = Arrays.asList(111L, 222L, 223L, 333L, 334L, 535L);
         final List<ApiPartialEntity> vvPartialEntities = Arrays.asList(
             createVVApiPartialEntity(vvOids.get(0), stOid1),
             createVVApiPartialEntity(vvOids.get(1), stOid2),
             createVVApiPartialEntity(vvOids.get(2), stOid2),
             createVVApiPartialEntity(vvOids.get(3), stOid3),
             createVVApiPartialEntity(vvOids.get(4), stOid3),
-            createVVApiPartialEntity(vvOids.get(5), stOid3)
+            createVVApiPartialEntityWithOutST(vvOids.get(5)) // VV without ST related.
         );
         final List<MinimalEntity> stMinimalEntities = Arrays.asList(
             createMinimalEntities(stOid1, stDisplayName1, EntityType.STORAGE_TIER),
@@ -371,12 +482,13 @@ public class StorageStatsSubQueryTest {
         assertThat(firstParam.getStartingFilter().hasStringFilter(), is(true));
         assertThat(firstParam.getStartingFilter().getPropertyName(), is("oid"));
         assertThat(firstParam.getStartingFilter().getStringFilter().getOptionsList(),
-            containsInAnyOrder("111", "222", "223", "333", "334", "335"));
+            containsInAnyOrder("111", "222", "223", "333", "334", "535"));
         assertThat(firstParam.getSearchFilterCount(), is(1));
         assertThat(firstParam.getSearchFilter(0).hasPropertyFilter(), is(true));
-        assertThat(firstParam.getSearchFilter(0).getPropertyFilter().getPropertyName(), is(StringConstants.ENVIRONMENT_TYPE));
         assertThat(firstParam.getSearchFilter(0).getPropertyFilter().hasStringFilter(), is(true));
-        assertThat(firstParam.getSearchFilter(0).getPropertyFilter().getStringFilter().getOptions(0), is(EnvironmentType.CLOUD.name()));
+        assertThat(firstParam.getSearchFilter(0).getPropertyFilter().getPropertyName(), is(SearchableProperties.ENVIRONMENT_TYPE));
+        assertThat(firstParam.getSearchFilter(0).getPropertyFilter().getStringFilter().getOptionsCount(), is(1));
+        assertThat(firstParam.getSearchFilter(0).getPropertyFilter().getStringFilter().getOptions(0), is(UIEnvironmentType.CLOUD.getApiEnumStringValue()));
 
         // second API should get STs from the VV connected to list
         Search.SearchParameters secondParam = searchParameters.get(1);
@@ -384,8 +496,6 @@ public class StorageStatsSubQueryTest {
         assertThat(secondParam.getStartingFilter().getPropertyName(), is("oid"));
         assertThat(secondParam.getStartingFilter().getStringFilter().getOptionsList(),
             containsInAnyOrder("1000", "2000", "3000"));
-
-
 
         assertThat(results.size(), is(1));
         assertThat(results.values().stream().findAny().get().size(), is(3));
@@ -406,9 +516,8 @@ public class StorageStatsSubQueryTest {
                     case stDisplayName1:
                         return 1f;
                     case stDisplayName2:
-                        return 2f;
                     case stDisplayName3:
-                        return 3f;
+                        return 2f;
                     default:
                         return 0f;
                 }
@@ -427,16 +536,40 @@ public class StorageStatsSubQueryTest {
      * @param storageTierOid Storage Tier Oid which the Virtual Volume connected to
      * @return {@link ApiPartialEntity}
      */
+    @Nonnull
     private ApiPartialEntity createVVApiPartialEntity(final long vvOid, final long storageTierOid) {
+        return createBaseVVApiPartialEntity(vvOid, EnvironmentType.CLOUD)
+            .addConnectedTo(RelatedEntity.newBuilder()
+                    .setEntityType(EntityType.STORAGE_TIER.getValue())
+                    .setOid(storageTierOid)
+                    .build())
+            .build();
+    }
+
+    /**
+     * Create ApiPartialEntity Helper.
+     *
+     * @param vvOid Virtual Volume Oid
+     * @return {@link ApiPartialEntity}
+     */
+    @Nonnull
+    private ApiPartialEntity createVVApiPartialEntityWithOutST(final long vvOid) {
+        return createBaseVVApiPartialEntity(vvOid, EnvironmentType.CLOUD).build();
+    }
+
+    /**
+     * Create {@link ApiPartialEntity.Builder} object for Virtual Volume.
+     *
+     * @param vvOid Virtual Volume Oid
+     * @param environmentType {@link EnvironmentType} environment type for VV
+     * @return {@link ApiPartialEntity.Builder}
+     */
+    @Nonnull
+    private ApiPartialEntity.Builder createBaseVVApiPartialEntity(final long vvOid, @Nonnull final EnvironmentType environmentType) {
         return ApiPartialEntity.newBuilder()
             .setOid(vvOid)
-            .setEnvironmentType(EnvironmentType.CLOUD)
-            .setEntityType(EntityType.VIRTUAL_VOLUME.getValue())
-            .addConnectedTo(RelatedEntity.newBuilder()
-                .setEntityType(EntityType.STORAGE_TIER.getValue())
-                .setOid(storageTierOid)
-                .build())
-            .build();
+            .setEnvironmentType(environmentType)
+            .setEntityType(EntityType.VIRTUAL_VOLUME.getValue());
     }
 
     /**

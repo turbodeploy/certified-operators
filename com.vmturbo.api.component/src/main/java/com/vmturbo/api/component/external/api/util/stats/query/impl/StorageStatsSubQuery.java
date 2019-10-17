@@ -13,8 +13,12 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
@@ -24,8 +28,9 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
-import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
@@ -56,6 +61,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public class StorageStatsSubQuery implements StatsSubQuery {
 
+    private static final Logger logger = LogManager.getLogger();
+
     /**
      * Supported stat.
      */
@@ -64,8 +71,8 @@ public class StorageStatsSubQuery implements StatsSubQuery {
     /**
      * Allowed filters for environment type for global scope.
      */
-    private static final Set<String> environmentTypeFilterAllowed =
-        Sets.newHashSet(EnvironmentType.CLOUD.name(), EnvironmentType.ONPREM.name());
+    private static final Set<EnvironmentTypeEnum.EnvironmentType> environmentTypeFilterAllowed =
+        Sets.newHashSet(EnvironmentType.CLOUD, EnvironmentType.ON_PREM);
 
     private final RepositoryApi repositoryApi;
 
@@ -75,12 +82,10 @@ public class StorageStatsSubQuery implements StatsSubQuery {
 
     @Override
     public boolean applicableInContext(@Nonnull final StatsQueryContext context) {
-        if (context.getInputScope().isPlan()) {
-            return false;
-        }
-        return true;
+        return !context.getInputScope().isPlan();
     }
 
+    @Nonnull
     @Override
     public SubQuerySupportedStats getHandledStats(@Nonnull final StatsQueryContext context) {
         // Add any supported stats type here.
@@ -93,6 +98,8 @@ public class StorageStatsSubQuery implements StatsSubQuery {
         Set<StatApiInputDTO> supportedStats = supportedStatsType.stream()
             .filter(supportedGroupBy)
             .collect(Collectors.toSet());
+
+        logger.debug("Number of supportedStats from request={}", supportedStats.size());
 
         return SubQuerySupportedStats.some(supportedStats);
     }
@@ -113,19 +120,19 @@ public class StorageStatsSubQuery implements StatsSubQuery {
             // search for attachment string
             if (requestedStat.getGroupBy() == null || requestedStat.getGroupBy().isEmpty()) {
                 // only support group by attachment and storage tier for now
+                logger.warn("requestedStat has no groupBy which StorageStatsSubQuery does not supported. This should not happen as getHandledStats() already handled the case.");
                 break;
             }
 
             // When requested for groupBy Virtual Volume attachment status
             if (requestedStat.getGroupBy().contains(StringConstants.ATTACHMENT) &&
                 requestedStat.getRelatedEntityType().equals(UIEntityType.VIRTUAL_VOLUME.apiStr())) {
+
                 final SearchFilter.Builder connectedToVVSearchFilter =
-                    createSearchTraversalFilter(TraversalDirection.CONNECTED_TO,
-                                                UIEntityType.VIRTUAL_VOLUME);
+                    createSearchTraversalFilter(TraversalDirection.CONNECTED_TO, UIEntityType.VIRTUAL_VOLUME);
 
                 final SearchFilter.Builder connectedFromVMSearchFilter =
-                    createSearchTraversalFilter(TraversalDirection.CONNECTED_FROM,
-                                                UIEntityType.VIRTUAL_MACHINE);
+                    createSearchTraversalFilter(TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_MACHINE);
 
                 // VV which are attached to VM within the scope
                 final SearchParameters searchNumOfVvAttachedToVMInScope = getSearchScopeBuilder(context, requestedStat)
@@ -138,17 +145,16 @@ public class StorageStatsSubQuery implements StatsSubQuery {
                     .addSearchFilter(connectedToVVSearchFilter)
                     .build();
 
-
                 if (requestedStat.getName().equals(NUM_VOL)) {
                     Long numOfVvs = repositoryApi.newSearchRequest(searchNumOfVv).count();
                     Long numOfVvAttachedToVM = repositoryApi.newSearchRequest(searchNumOfVvAttachedToVMInScope).count();
 
-                    Map<String, Long> tempMap = ImmutableMap.<String, Long>builder()
+                    Map<String, Long> vvAttachmentCountMap = ImmutableMap.<String, Long>builder()
                         .put(StringConstants.ATTACHED, numOfVvAttachedToVM)
                         .put(StringConstants.UNATTACHED, numOfVvs - numOfVvAttachedToVM)
                         .build();
 
-                    List<StatApiDTO> stats = toCountStatApiDtos(requestedStat, StringConstants.ATTACHMENT, tempMap);
+                    List<StatApiDTO> stats = toCountStatApiDtos(requestedStat, StringConstants.ATTACHMENT, vvAttachmentCountMap);
 
                     results.addAll(stats);
                 }
@@ -160,45 +166,61 @@ public class StorageStatsSubQuery implements StatsSubQuery {
 
                 final SearchParameters vvInScopeSearchParams = getSearchScopeBuilder(context, requestedStat)
                     .addSearchFilter(SearchFilter.newBuilder()
-                        .setPropertyFilter(SearchProtoUtil.stringPropertyFilterExact(SearchableProperties.ENVIRONMENT_TYPE,
-                            Collections.singletonList(EnvironmentType.CLOUD.name()))))
+                        .setPropertyFilter(
+                            SearchProtoUtil.stringPropertyFilterExact(
+                                SearchableProperties.ENVIRONMENT_TYPE,
+                                Collections.singletonList(UIEnvironmentType.CLOUD.name()))
+                        )
+                        .build())
                     .build();
 
                 List<ApiPartialEntity> vvInScope = repositoryApi.newSearchRequest(vvInScopeSearchParams)
                     .getEntities()
                     .collect(Collectors.toList());
 
-
                 // get list of storageOid in order to get the display name for each storage tier
-                final Set<Long> storageOids = vvInScope.stream().map(vvEntity -> vvEntity.getConnectedToList().stream()
-                    .filter(relatedEntity -> relatedEntity.getEntityType() == EntityType.STORAGE_TIER.getNumber())
-                    .findFirst()
-                    .map(RelatedEntity::getOid)
-                    .get()
-                ).collect(Collectors.toSet());
+                final HashMap<Long, List<PartialEntity.ApiPartialEntity>> vvPartialEntityGroupedByStorageTierOid = new HashMap<>();
+                vvInScope.stream().forEach(vv -> {
+                    Optional<RelatedEntity> relatedEntityOpt = vv.getConnectedToList().stream()
+                        .filter(relatedEntity -> relatedEntity.getEntityType() == EntityType.STORAGE_TIER.getNumber())
+                        .findFirst();
 
-                final Map<Long, String> storageTierOidToDisplayNameMap = repositoryApi
+                    if (relatedEntityOpt.isPresent()) {
+                        vvPartialEntityGroupedByStorageTierOid
+                            .computeIfAbsent(relatedEntityOpt.get().getOid(), k -> new ArrayList<>())
+                            .add(vv);
+                    } else {
+                        logger.error("Virtual Volume {} with uuid {} has NO storage tier connected to", vv.getDisplayName(), vv.getOid());
+                    }
+                });
+
+                final Function<MinimalEntity, String> getStorageTierDisplayName = storageTierEntity -> {
+                    if (Strings.isNullOrEmpty(storageTierEntity.getDisplayName())) {
+                        logger.warn("No displayName for storage tier entity {}.  Use oid as displayName instead.", storageTierEntity.getOid());
+                        return storageTierEntity.getOid() + "";
+                    } else {
+                        return storageTierEntity.getDisplayName();
+                    }
+                };
+
+                final Map<String, List<PartialEntity.ApiPartialEntity>> storageTierDisplayNameToDisplayNameMap = repositoryApi
                     .newSearchRequest(
                         SearchProtoUtil
-                            .makeSearchParameters(SearchProtoUtil.idFilter(storageOids))
+                            .makeSearchParameters(SearchProtoUtil.idFilter(vvPartialEntityGroupedByStorageTierOid.keySet()))
                             .build()
                     )
                     .getMinimalEntities()
-                    .collect(Collectors.toMap(MinimalEntity::getOid, MinimalEntity::getDisplayName));
-
-
-                final Function<PartialEntity.ApiPartialEntity, String> getStorageTierDisplayNameFromVV = (vvPartialEntity) ->
-                    vvPartialEntity.getConnectedToList().stream().filter(relatedEntity -> relatedEntity.getEntityType() == EntityType.STORAGE_TIER.getNumber())
-                        .findFirst()
-                        .map(RelatedEntity::getOid)
-                        .map(oid -> storageTierOidToDisplayNameMap.getOrDefault(oid, oid.toString()))
-                        .get();
+                    .collect(Collectors.toMap(getStorageTierDisplayName,
+                                              storageEntity -> vvPartialEntityGroupedByStorageTierOid.get(storageEntity.getOid())));
 
                 if (requestedStat.getName().equals(NUM_VOL)) {
-                    Map<String, Long> tempMap = vvInScope.stream()
-                        .collect(Collectors.groupingBy(getStorageTierDisplayNameFromVV, Collectors.counting()));
+                    Map<String, Long> storageTierCountMap = storageTierDisplayNameToDisplayNameMap.entrySet().stream()
+                        .collect(Collectors.toMap(
+                            e -> e.getKey(),
+                            e -> new Long(e.getValue().size())
+                        ));
 
-                    List<StatApiDTO> stats = toCountStatApiDtos(requestedStat, UIEntityType.STORAGE_TIER.apiStr(), tempMap);
+                    List<StatApiDTO> stats = toCountStatApiDtos(requestedStat, UIEntityType.STORAGE_TIER.apiStr(), storageTierCountMap);
 
                     results.addAll(stats);
                 }
@@ -218,8 +240,9 @@ public class StorageStatsSubQuery implements StatsSubQuery {
      * @param requestStat {@link StatApiInputDTO}
      * @return {@link SearchParameters.Builder}
      */
-    private SearchParameters.Builder getSearchScopeBuilder(@Nonnull final StatsQueryContext context,
-                                                           @Nonnull final StatApiInputDTO requestStat) {
+    @Nonnull
+    private static SearchParameters.Builder getSearchScopeBuilder(@Nonnull final StatsQueryContext context,
+                                                                  @Nonnull final StatApiInputDTO requestStat) {
         if (context.isGlobalScope()) {
             SearchParameters.Builder builder = SearchProtoUtil.makeSearchParameters(SearchProtoUtil.entityTypeFilter(
                 context.getQueryScope().getGlobalScope().get().entityTypes().stream()
@@ -227,17 +250,23 @@ public class StorageStatsSubQuery implements StatsSubQuery {
                     .collect(Collectors.toList())));
 
             // Apply environment type filter explicitly if exists
-
             Optional<StatFilterApiDTO> environmentTypeFilterDto = requestStat.getFilters() == null || requestStat.getFilters().isEmpty() ? Optional.empty() :
                 requestStat.getFilters().stream().filter(filter -> filter.getType().equals(StringConstants.ENVIRONMENT_TYPE)).findFirst();
 
-            // add search filter for CLOUD and ONPERM only
+            // explicitly add search filter for CLOUD and ONPREM only
             environmentTypeFilterDto.flatMap(envFilter -> UIEnvironmentType.fromString(envFilter.getValue()).toEnvType())
-                .ifPresent(targetEnvType -> builder.addSearchFilter(
-                    SearchFilter.newBuilder()
-                        .setPropertyFilter(SearchProtoUtil.stringPropertyFilterExact(SearchableProperties.ENVIRONMENT_TYPE,
-                            Collections.singleton(targetEnvType.name()))
-                )));
+                .ifPresent(targetEnvType -> {
+                    if (environmentTypeFilterAllowed.contains(targetEnvType)) {
+                        builder.addSearchFilter(
+                            SearchFilter.newBuilder()
+                                .setPropertyFilter(
+                                    SearchProtoUtil.stringPropertyFilterExact(SearchableProperties.ENVIRONMENT_TYPE,
+                                        Collections.singletonList(environmentTypeFilterDto.get().getValue()))
+                                )
+                                .build()
+                        );
+                    }
+                });
 
             return builder;
         } else {
@@ -247,17 +276,17 @@ public class StorageStatsSubQuery implements StatsSubQuery {
     }
 
     /**
-     * Helper method to create SearchTraversalFilter.
+     * Helper method to create SearchFilter with a SearchTraversalFilter.
      *
      * @param direction {@link TraversalDirection}
      * @param uiEntityType {@link UIEntityType}
      * @return {@link SearchFilter.Builder}
      */
-    private SearchFilter.Builder createSearchTraversalFilter(@Nonnull final TraversalDirection direction,
-                                                             @Nonnull final UIEntityType uiEntityType) {
+    @Nonnull
+    private static SearchFilter.Builder createSearchTraversalFilter(@Nonnull final TraversalDirection direction,
+                                                                    @Nonnull final UIEntityType uiEntityType) {
         return SearchFilter.newBuilder()
-            .setTraversalFilter(
-                SearchProtoUtil.traverseToType(direction, uiEntityType.apiStr()));
+            .setTraversalFilter(SearchProtoUtil.traverseToType(direction, uiEntityType.apiStr()));
     }
 
     /**
@@ -268,9 +297,10 @@ public class StorageStatsSubQuery implements StatsSubQuery {
      * @param countsByGroup {@link Map} Map for Group to Count
      * @return list of StatApiDTO with the grouping and stat information
      */
-    private List<StatApiDTO> toCountStatApiDtos(@Nonnull StatApiInputDTO statApiInputDTO,
-                                                @Nonnull String groupBy,
-                                                Map<String, Long> countsByGroup) {
+    @Nonnull
+    private static List<StatApiDTO> toCountStatApiDtos(@Nonnull StatApiInputDTO statApiInputDTO,
+                                                       @Nonnull String groupBy,
+                                                       @Nonnull Map<String, Long> countsByGroup) {
 
          return countsByGroup.entrySet().stream().map(entry -> {
             final StatApiDTO statApiDTO = new StatApiDTO();
