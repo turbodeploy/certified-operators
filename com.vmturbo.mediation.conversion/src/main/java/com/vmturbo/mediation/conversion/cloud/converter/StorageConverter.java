@@ -16,7 +16,9 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.RatioDependency;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 /**
@@ -80,6 +82,11 @@ public class StorageConverter implements IEntityConverter {
                         if (!volume.getLayeredOverList().contains(storageTierId)) {
                             volume.addLayeredOver(storageTierId);
                         }
+
+                        final VirtualVolumeData volumeDataAfterPropertyUpdates =
+                            updateVirtualVolumeData(volume.getVirtualVolumeData(),
+                                file.getVolumePropertiesList());
+                        volume.setVirtualVolumeData(volumeDataAfterPropertyUpdates);
 
                         // volume owned by business account
                         converter.ownedByBusinessAccount(volumeId);
@@ -179,5 +186,10 @@ public class StorageConverter implements IEntityConverter {
         return toCommoditiesMap.values().stream()
                 .map(CommodityDTO.Builder::build)
                 .collect(Collectors.toList());
+    }
+
+    protected VirtualVolumeData updateVirtualVolumeData(@Nonnull final VirtualVolumeData preexistingVolumeData,
+                                                        @Nonnull final List<EntityProperty> volumeFieldUpdateProperties) {
+        return preexistingVolumeData;
     }
 }

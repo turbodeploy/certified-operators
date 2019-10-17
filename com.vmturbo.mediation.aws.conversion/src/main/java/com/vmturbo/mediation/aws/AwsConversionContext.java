@@ -51,7 +51,7 @@ public class AwsConversionContext implements CloudProviderConversionContext {
         converters.put(EntityType.DATABASE, new DatabaseConverter(SDKProbeType.AWS));
         converters.put(EntityType.BUSINESS_ACCOUNT, new BusinessAccountConverter(SDKProbeType.AWS));
         converters.put(EntityType.REGION, new RegionConverter());
-        converters.put(EntityType.STORAGE, new StorageConverter(SDKProbeType.AWS));
+        converters.put(EntityType.STORAGE, new AwsStorageConverter());
         converters.put(EntityType.DATABASE_SERVER_TIER, new DatabaseServerTierConverter());
         converters.put(EntityType.DATABASE_SERVER, new DatabaseServerConverter(SDKProbeType.AWS));
         converters.put(EntityType.LOAD_BALANCER, new LoadBalancerConverter());
