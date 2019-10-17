@@ -18,12 +18,15 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.MockitoAnnotations;
+
+import com.google.common.collect.Sets;
 
 import io.grpc.Status;
 
@@ -37,12 +40,19 @@ import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision.ClearingDecision;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.topology.EntityInfo.GetHostInfoRequest;
 import com.vmturbo.common.protobuf.topology.EntityInfo.GetHostInfoResponse;
 import com.vmturbo.common.protobuf.topology.EntityInfo.HostInfo;
@@ -71,16 +81,17 @@ public class ActionTranslatorTest {
     final int OLD_VCPU_MHZ = 2000;
     final int NEW_VPCU_MHZ = 4000;
 
-    private RepositoryServiceMole repositoryServiceSpy = spy(new RepositoryServiceMole());
+    private final RepositoryServiceMole repositoryServiceSpy = spy(new RepositoryServiceMole());
+    private final SettingPolicyServiceMole settingPolicyServiceSpy = spy(new SettingPolicyServiceMole());
     EntitiesAndSettingsSnapshot mockSnapshot = mock(EntitiesAndSettingsSnapshot.class);
 
     @Rule
-    public GrpcTestServer server = GrpcTestServer.newServer(repositoryServiceSpy);
+    public GrpcTestServer server = GrpcTestServer.newServer(repositoryServiceSpy, settingPolicyServiceSpy);
 
     @Before
     public void setup() throws IOException {
         MockitoAnnotations.initMocks(this);
-        translator = new ActionTranslator(server.getChannel());
+        translator = new ActionTranslator(server.getChannel(), server.getChannel());
         actionModeCalculator = new ActionModeCalculator();
     }
 
@@ -241,6 +252,52 @@ public class ActionTranslatorTest {
 
         assertNotEquals(action.getRecommendation(), spec.getRecommendation());
         assertEquals(translatedRecommendation, spec.getRecommendation());
+    }
+
+    /**
+     * Test {@link ActionTranslator#getAllReasonSettings}.
+     */
+    @Test
+    public void testGetAllReasonSettings() {
+        long reasonSetting1 = 1L;
+        long reasonSetting2 = 2L;
+        long reasonSetting3 = 3L;
+
+        // Move action with a compliance explanation which is primary.
+        Action moveAction1 = new Action(ActionDTO.Action.newBuilder()
+            .setId(0).setInfo(ActionInfo.newBuilder())
+            .setDeprecatedImportance(0)
+            .setExplanation(Explanation.newBuilder()
+                .setMove(MoveExplanation.newBuilder()
+                    .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                        .setIsPrimaryChangeProviderExplanation(true)
+                        .setCompliance(Compliance.newBuilder()
+                        .addReasonSettings(reasonSetting1))))).build(),
+            actionPlanId, actionModeCalculator);
+
+        // Move action with a compliance explanation which is not primary.
+        Action moveAction2 = new Action(ActionDTO.Action.newBuilder()
+            .setId(0).setInfo(ActionInfo.newBuilder())
+            .setDeprecatedImportance(0)
+            .setExplanation(Explanation.newBuilder()
+                .setMove(MoveExplanation.newBuilder()
+                    .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                        .setIsPrimaryChangeProviderExplanation(false)
+                        .setCompliance(Compliance.newBuilder()
+                            .addReasonSettings(reasonSetting2))))).build(),
+            actionPlanId, actionModeCalculator);
+
+        Action reconfigureAction = new Action(ActionDTO.Action.newBuilder()
+            .setId(0).setInfo(ActionInfo.newBuilder())
+            .setDeprecatedImportance(0)
+            .setExplanation(Explanation.newBuilder()
+                .setReconfigure(ReconfigureExplanation.newBuilder()
+                    .addReasonSettings(reasonSetting3))).build(),
+            actionPlanId, actionModeCalculator);
+
+        final Set<Long> reasonSettings =
+            translator.getAllReasonSettings(Arrays.asList(moveAction1, moveAction2, reconfigureAction));
+        assertEquals(Sets.newHashSet(reasonSetting1, reasonSetting3), reasonSettings);
     }
 
     private Action setupDefaultResizeAction() {

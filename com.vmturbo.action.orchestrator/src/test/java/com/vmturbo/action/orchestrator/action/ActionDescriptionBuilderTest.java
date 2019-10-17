@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.action;
 
+import static com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils.createReasonCommodity;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -29,6 +30,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityNewCapacityEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
@@ -55,7 +57,9 @@ public class ActionDescriptionBuilderTest {
     private ActionDTO.Action resizeMemReservationRecommendation;
     private ActionDTO.Action deactivateRecommendation;
     private ActionDTO.Action activateRecommendation;
-    private ActionDTO.Action reconfigureRecommendation;
+    private ActionDTO.Action reconfigureReasonCommoditiesRecommendation;
+    private ActionDTO.Action reconfigureReasonSettingsRecommendation;
+    private ActionDTO.Action reconfigureWithoutSourceRecommendation;
     private ActionDTO.Action provisionBySupplyRecommendation;
     private ActionDTO.Action provisionByDemandRecommendation;
     private ActionDTO.Action deleteRecommendation;
@@ -63,6 +67,10 @@ public class ActionDescriptionBuilderTest {
     private ActionDTO.Action deleteCloudStorageRecommendationWithNoSourceEntity;
     private ActionDTO.Action buyRIRecommendation;
 
+    private static final ReasonCommodity BALLOONING =
+        createReasonCommodity(CommodityDTO.CommodityType.BALLOONING_VALUE, null);
+    private static final ReasonCommodity CPU_ALLOCATION =
+        createReasonCommodity(CommodityDTO.CommodityType.CPU_ALLOCATION_VALUE, null);
     private final Long VM1_ID = 11L;
     private final String VM1_DISPLAY_NAME = "vm1_test";
     private final Long PM_SOURCE_ID = 22L;
@@ -91,6 +99,7 @@ public class ActionDescriptionBuilderTest {
                 makeRec(makeMoveInfo(VM1_ID, PM_SOURCE_ID, EntityType.PHYSICAL_MACHINE.getNumber(),
                     PM_DESTINATION_ID, EntityType.PHYSICAL_MACHINE.getNumber()),
                             SupportLevel.SUPPORTED).build();
+
         scaleRecommendation =
                 makeRec(makeMoveInfo(VM1_ID, ST_SOURCE_ID, EntityType.STORAGE_TIER.getNumber(),
                         ST_DESTINATION_ID, EntityType.STORAGE_TIER.getNumber()),
@@ -99,25 +108,38 @@ public class ActionDescriptionBuilderTest {
         resizeMemRecommendation = makeRec(makeResizeMemInfo(VM1_ID), SupportLevel.SUPPORTED).build();
         resizeMemReservationRecommendation =
                 makeRec(makeResizeReservationMemInfo(VM1_ID), SupportLevel.SUPPORTED).build();
+
         deactivateRecommendation =
                 makeRec(makeDeactivateInfo(VM1_ID), SupportLevel.SUPPORTED).build();
         activateRecommendation = makeRec(makeActivateInfo(VM1_ID), SupportLevel.SUPPORTED).build();
-        reconfigureRecommendation = makeRec(makeReconfigureInfo(VM1_ID, PM_SOURCE_ID),
+
+        Explanation reconfigureExplanation1 = Explanation.newBuilder()
+            .setReconfigure(makeReconfigureReasonCommoditiesExplanation()).build();
+        reconfigureReasonCommoditiesRecommendation = makeRec(makeReconfigureInfo(VM1_ID, PM_SOURCE_ID),
+            SupportLevel.SUPPORTED, reconfigureExplanation1).build();
+        Explanation reconfigureExplanation2 = Explanation.newBuilder()
+            .setReconfigure(makeReconfigureReasonSettingsExplanation()).build();
+        reconfigureReasonSettingsRecommendation = makeRec(makeReconfigureInfo(VM1_ID, PM_SOURCE_ID),
+            SupportLevel.SUPPORTED, reconfigureExplanation2).build();
+        reconfigureWithoutSourceRecommendation = makeRec(makeReconfigureInfo(VM1_ID),
             SupportLevel.SUPPORTED).build();
-        Explanation explanation1 = Explanation.newBuilder()
+
+        Explanation provisionExplanation1 = Explanation.newBuilder()
             .setProvision(makeProvisionBySupplyExplanation()).build();
         provisionBySupplyRecommendation = makeRec(makeProvisionInfo(ST_SOURCE_ID),
-            SupportLevel.SUPPORTED, explanation1).build();
-        Explanation explanation2 = Explanation.newBuilder()
+            SupportLevel.SUPPORTED, provisionExplanation1).build();
+        Explanation provisionExplanation2 = Explanation.newBuilder()
             .setProvision(makeProvisionByDemandExplanation()).build();
         provisionByDemandRecommendation = makeRec(makeProvisionInfo(PM_SOURCE_ID),
-            SupportLevel.SUPPORTED, explanation2).build();
+            SupportLevel.SUPPORTED, provisionExplanation2).build();
+
         deleteRecommendation = makeRec(makeDeleteInfo(ST_SOURCE_ID),
             SupportLevel.SUPPORTED).build();
         deleteCloudStorageRecommendation = makeRec(makeDeleteCloudStorageInfo(VV_ID, Optional.of(ST_SOURCE_ID)),
             SupportLevel.SUPPORTED).build();
         deleteCloudStorageRecommendationWithNoSourceEntity = makeRec(makeDeleteCloudStorageInfo(VV_ID, Optional.empty()),
             SupportLevel.SUPPORTED).build();
+
         buyRIRecommendation = makeRec(makeBuyRIInfo(COMPUTE_TIER_ID,MASTER_ACCOUNT_ID,REGION_ID),
             SupportLevel.SUPPORTED).build();
     }
@@ -214,6 +236,12 @@ public class ActionDescriptionBuilderTest {
         return ActionInfo.newBuilder().setActivate(Activate.newBuilder()
                 .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId))
                 .addTriggeringCommodities(CommodityType.newBuilder().setType(26).build()));
+    }
+
+    private ActionInfo.Builder makeReconfigureInfo(long targetId) {
+        return ActionInfo.newBuilder().setReconfigure(Reconfigure.newBuilder()
+            .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId))
+            .build());
     }
 
     private ActionInfo.Builder makeReconfigureInfo(long targetId, long sourceId) {
@@ -333,6 +361,29 @@ public class ActionDescriptionBuilderTest {
             .build();
     }
 
+    /**
+     * Create a {@link ReconfigureExplanation} with reason commodities.
+     *
+     * @return {@link ReconfigureExplanation}
+     */
+    private ReconfigureExplanation makeReconfigureReasonCommoditiesExplanation() {
+        return ReconfigureExplanation.newBuilder()
+            .addReconfigureCommodity(BALLOONING)
+            .addReconfigureCommodity(CPU_ALLOCATION)
+            .build();
+    }
+
+    /**
+     * Create a {@link ReconfigureExplanation} with reason settings.
+     *
+     * @return {@link ReconfigureExplanation}
+     */
+    private ReconfigureExplanation makeReconfigureReasonSettingsExplanation() {
+        return ReconfigureExplanation.newBuilder()
+            .addReasonSettings(1L)
+            .build();
+    }
+
     public static Optional<ActionPartialEntity> createEntity(Long Oid, int entityType,
                                                              String displayName) {
         return Optional.of(ActionPartialEntity.newBuilder()
@@ -387,8 +438,11 @@ public class ActionDescriptionBuilderTest {
             "Scale Virtual Machine vm1_test from storage_source_test to storage_destination_test");
     }
 
+    /**
+     * Test the description of reconfigure action with reason commodities.
+     */
     @Test
-    public void testBuildReconfigureActionDescription() {
+    public void testBuildReconfigureActionReasonCommoditiesDescription() {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
             .thenReturn((createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
@@ -400,8 +454,45 @@ public class ActionDescriptionBuilderTest {
                 PM_SOURCE_DISPLAY_NAME)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
-            entitySettingsCache, reconfigureRecommendation);
-        Assert.assertTrue(description.contains("Reconfigure Virtual Machine vm1_test"));
+            entitySettingsCache, reconfigureReasonCommoditiesRecommendation);
+        Assert.assertEquals(description, "Reconfigure Virtual Machine vm1_test which requires " +
+            "Ballooning, CPU Allocation but is hosted by Physical Machine pm_source_test which " +
+            "does not provide Ballooning, CPU Allocation");
+    }
+
+    /**
+     * Test the description of reconfigure action with reason settings.
+     */
+    @Test
+    public void testBuildReconfigureActionReasonSettingsDescription() {
+        when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
+            .thenReturn((createEntity(VM1_ID,
+                EntityType.VIRTUAL_MACHINE.getNumber(),
+                VM1_DISPLAY_NAME)));
+
+        when(entitySettingsCache.getEntityFromOid(eq(PM_SOURCE_ID)))
+            .thenReturn((createEntity(PM_SOURCE_ID,
+                EntityType.PHYSICAL_MACHINE.getNumber(),
+                PM_SOURCE_DISPLAY_NAME)));
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+            entitySettingsCache, reconfigureReasonSettingsRecommendation);
+        Assert.assertEquals(description, "Reconfigure Virtual Machine vm1_test");
+    }
+
+    /**
+     * Test the description of reconfigure action without source.
+     */
+    @Test
+    public void testBuildReconfigureActionWithoutSourceDescription() {
+        when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
+            .thenReturn((createEntity(VM1_ID,
+                EntityType.VIRTUAL_MACHINE.getNumber(),
+                VM1_DISPLAY_NAME)));
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+            entitySettingsCache, reconfigureWithoutSourceRecommendation);
+        Assert.assertEquals(description, "Reconfigure Virtual Machine vm1_test as it is unplaced");
     }
 
     @Test

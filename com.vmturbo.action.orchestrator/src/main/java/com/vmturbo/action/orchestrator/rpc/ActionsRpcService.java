@@ -292,7 +292,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                     paginatedViews.getNextCursor().ifPresent(nextCursor ->
                             responseBuilder.getPaginationResponseBuilder().setNextCursor(nextCursor));
 
-                    actionTranslator.translateToSpecs(paginatedViews.getResults().stream())
+                    actionTranslator.translateToSpecs(paginatedViews.getResults())
                             .map(ActionsRpcService::aoAction)
                             .forEach(responseBuilder::addActions);
 
@@ -343,7 +343,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         actionIds.removeAll(actionViews.keySet()); // Missing (Difference)
 
         final Map<Long, ActionSpec> translatedActions = actionTranslator.translateToSpecs(contained.stream()
-                .map(actionViews::get))
+                .map(actionViews::get).collect(Collectors.toList()))
                 .collect(Collectors.toMap(actionSpec -> actionSpec.getRecommendation().getId(), Function.identity()));
 
         // Get actionIds
@@ -550,26 +550,24 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         }
 
         // group by {ActionCategory, numAction|numEntities, costPrice(savings|investment)}
-        actionTranslator.translateToSpecs(actionStore.get()
-                    .getActionViews()
-                    .getAll())
-                .forEach(actionSpec -> {
-                    ActionCategory category = actionSpec.getCategory();
-                    switch (category) {
-                        case PERFORMANCE_ASSURANCE:
-                            actionCategoryStatsMap.get(category).addAction(actionSpec.getRecommendation());
-                            break;
-                        case PREVENTION:
-                            actionCategoryStatsMap.get(category).addAction(actionSpec.getRecommendation());
-                            break;
-                        case COMPLIANCE:
-                            actionCategoryStatsMap.get(category).addAction(actionSpec.getRecommendation());
-                            break;
-                        case UNKNOWN:
-                            logger.error("Unknown action category for {}", actionSpec);
-                            break;
-                    }
-                });
+        actionTranslator.translateToSpecs(actionStore.get().getActionViews().getAll().collect(Collectors.toList()))
+            .forEach(actionSpec -> {
+                ActionCategory category = actionSpec.getCategory();
+                switch (category) {
+                    case PERFORMANCE_ASSURANCE:
+                        actionCategoryStatsMap.get(category).addAction(actionSpec.getRecommendation());
+                        break;
+                    case PREVENTION:
+                        actionCategoryStatsMap.get(category).addAction(actionSpec.getRecommendation());
+                        break;
+                    case COMPLIANCE:
+                        actionCategoryStatsMap.get(category).addAction(actionSpec.getRecommendation());
+                        break;
+                    case UNKNOWN:
+                        logger.error("Unknown action category for {}", actionSpec);
+                        break;
+                }
+            });
 
         GetActionCategoryStatsResponse.Builder actionCategoryStatsResponse =
                 GetActionCategoryStatsResponse.newBuilder();

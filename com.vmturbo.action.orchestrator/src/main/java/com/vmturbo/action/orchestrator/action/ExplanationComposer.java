@@ -5,7 +5,9 @@ import static com.vmturbo.common.protobuf.action.ActionDTOUtil.getCommodityDispl
 
 import java.text.MessageFormat;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.StringJoiner;
 import java.util.stream.Collectors;
@@ -14,6 +16,8 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -36,8 +40,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.CommodityMetadata;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 
 /**
  * A utility with static methods that assist in composing explanations for actions.
@@ -45,34 +47,35 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 public class ExplanationComposer {
     private static final Logger logger = LogManager.getLogger();
 
-    public static final String MOVE_COMPLIANCE_EXPLANATION_FORMAT =
-            "{0} can not satisfy the request for resource(s) ";
-    public static final String MOVE_EVACUATION_SUSPENSION_EXPLANATION_FORMAT =
-            "{0} can be suspended to improve efficiency";
-    public static final String MOVE_EVACUATION_AVAILABILITY_EXPLANATION_FORMAT =
-            "{0} is not available";
-    public static final String MOVE_INITIAL_PLACEMENT_EXPLANATION =
+    private static final String MOVE_COMPLIANCE_EXPLANATION_FORMAT =
+        "{0} can not satisfy the request for resource(s) ";
+    private static final String MOVE_EVACUATION_SUSPENSION_EXPLANATION_FORMAT =
+        "{0} can be suspended to improve efficiency";
+    private static final String MOVE_EVACUATION_AVAILABILITY_EXPLANATION_FORMAT =
+        "{0} is not available";
+    private static final String MOVE_INITIAL_PLACEMENT_EXPLANATION =
         "Place an unplaced entity on a supplier";
-    public static final String MOVE_PERFORMANCE_EXPLANATION =
+    private static final String MOVE_PERFORMANCE_EXPLANATION =
         "Improve overall performance";
-    public static final String ACTIVATE_EXPLANATION_WITH_REASON_COMM = "Address high utilization of ";
-    public static final String ACTIVATE_EXPLANATION_WITHOUT_REASON_COMM = "Add more resource to satisfy the increased demand";
-    public static final String DEACTIVATE_EXPLANATION = "Improve infrastructure efficiency";
-    public static final String RECONFIGURE_EXPLANATION =
+    private static final String ACTIVATE_EXPLANATION_WITH_REASON_COMM = "Address high utilization of ";
+    private static final String ACTIVATE_EXPLANATION_WITHOUT_REASON_COMM = "Add more resource to satisfy the increased demand";
+    private static final String DEACTIVATE_EXPLANATION = "Improve infrastructure efficiency";
+    private static final String RECONFIGURE_REASON_COMMODITY_EXPLANATION =
         "Enable supplier to offer requested resource(s) ";
-    public static final String ACTION_TYPE_ERROR =
+    private static final String REASON_SETTINGS_EXPLANATION =
+        "{0} doesn''t comply to {1}";
+    private static final String ACTION_TYPE_ERROR =
         "Can not give a proper explanation as action type is not defined";
-    public static final String INCREASE_RI_UTILIZATION =
-            "Increase RI Utilization.";
-    public static final String WASTED_COST = "Wasted Cost";
+    private static final String INCREASE_RI_UTILIZATION =
+        "Increase RI Utilization.";
+    private static final String WASTED_COST = "Wasted Cost";
     private static final String DELETE_WASTED_FILES_EXPLANATION = "Idle or non-productive";
     private static final String DELETE_WASTED_VOLUMES_EXPLANATION = "Increase savings";
 
     /**
      * Private to prevent instantiation.
      */
-    private ExplanationComposer() {
-    }
+    private ExplanationComposer() {}
 
     /**
      * Compose a short explanation for an action. The short explanation does not contain commodity
@@ -80,89 +83,68 @@ public class ExplanationComposer {
      * used where we don't want entity-specific information in the explanation (e.g. as a group
      * criteria for action stats), or in other places where full details are not necessary.
      *
-     * @param action The action.
-     * @return The short explanation.
+     * @param action the action to explain
+     * @return the short explanation sentence
      */
     @Nonnull
+    @VisibleForTesting
     public static String shortExplanation(@Nonnull ActionDTO.Action action) {
-        return internalComposeExplanation(action, true);
+        return internalComposeExplanation(action, true, Collections.emptyMap());
+    }
+
+    /**
+     * This method should be used only for tests.
+     *
+     * @param action the action to explain
+     * @return the explanation sentence
+     */
+    @Nonnull
+    @VisibleForTesting
+    static String composeExplanation(@Nonnull final ActionDTO.Action action) {
+        return internalComposeExplanation(action, false, Collections.emptyMap());
+    }
+
+    /**
+     * Compose a full explanation for an action.
+     *
+     * @param action the action to explain
+     * @param settingPolicyIdToSettingPolicyName a map from settingPolicyId to settingPolicyName
+     * @return the explanation sentence
+     */
+    @Nonnull
+    public static String composeExplanation(
+            @Nonnull final ActionDTO.Action action,
+            @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName) {
+        return internalComposeExplanation(action, false, settingPolicyIdToSettingPolicyName);
     }
 
     /**
      * Compose explanation for various types of actions. Explanation appears below the action
-     * details. In Classic, this is called as risk.
+     * description. In Classic, this is called risk.
      *
-     * @param action the action to mansplain
+     * @param action the action to explain
+     * @param keepItShort generate short explanation or not
+     * @param settingPolicyIdToSettingPolicyName a map from settingPolicyId to settingPolicyName
      * @return the explanation sentence
      */
-    public static String composeExplanation(ActionDTO.Action action) {
-        return internalComposeExplanation(action, false);
-    }
-
-    private static String internalComposeExplanation(ActionDTO.Action action, boolean keepItShort) {
+    @Nonnull
+    private static String internalComposeExplanation(
+            @Nonnull final ActionDTO.Action action, final boolean keepItShort,
+            @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName) {
         Explanation explanation = action.getExplanation();
         switch (explanation.getActionExplanationTypeCase()) {
             case MOVE:
-                // if we only have one source entity, we'll use it in the explanation builder. if
-                // multiple, we won't bother because we don't have enough info to attribute
-                // commodities to specific sources
-                List<ActionEntity> source_entities = action.getInfo().getMove().getChangesList().stream()
-                        .map(ChangeProvider::getSource)
-                        .collect(Collectors.toList());
-                Optional<ActionEntity> optionalSourceEntity = source_entities.size() == 1
-                        ? Optional.of(source_entities.get(0))
-                        : Optional.empty();
-
-                MoveExplanation moveExp = explanation.getMove();
-                List<ChangeProviderExplanation> changeExplanations =
-                                moveExp.getChangeProviderExplanationList();
-                ChangeProviderExplanation firstChangeProviderExplanation =
-                                changeExplanations.get(0);
-                if (firstChangeProviderExplanation.hasInitialPlacement()) {
-                    return buildPerformanceExplanation();
-                }
-                StringJoiner sj = new StringJoiner(", ", keepItShort ? "" : ActionDTOUtil.TRANSLATION_PREFIX, "");
-                // Use primary change explanations if available
-                List<ChangeProviderExplanation> primaryChangeExplanation = changeExplanations.stream()
-                    .filter(ChangeProviderExplanation::getIsPrimaryChangeProviderExplanation)
-                    .collect(Collectors.toList());
-                if (!primaryChangeExplanation.isEmpty()) {
-                    changeExplanations = primaryChangeExplanation;
-                }
-                changeExplanations.stream()
-                    .map(provider -> changeExplanationBuilder(optionalSourceEntity, provider, keepItShort))
-                    .forEach(sj::add);
-                return sj.toString();
+                return buildMoveExplanation(action, keepItShort, settingPolicyIdToSettingPolicyName);
             case RESIZE:
                 return buildResizeExplanation(action, keepItShort);
             case ACTIVATE:
-                if (!explanation.getActivate().hasMostExpensiveCommodity()) {
-                    return ACTIVATE_EXPLANATION_WITHOUT_REASON_COMM;
-                } else {
-                    return buildActivateExplanation(explanation.getActivate()
-                                                    .getMostExpensiveCommodity());
-                }
+                return buildActivateExplanation(action);
             case DEACTIVATE:
                 return buildDeactivateExplanation();
             case RECONFIGURE:
-                return buildReconfigureExplanation(explanation
-                    .getReconfigure().getReconfigureCommodityList(), keepItShort);
+                return buildReconfigureExplanation(action, keepItShort, settingPolicyIdToSettingPolicyName);
             case PROVISION:
-                ProvisionExplanation provExp = explanation.getProvision();
-                switch (provExp.getProvisionExplanationTypeCase()) {
-                    case PROVISION_BY_DEMAND_EXPLANATION:
-                        return buildProvisionByDemandExplanation(
-                            provExp.getProvisionByDemandExplanation()
-                                .getCommodityMaxAmountAvailableList(),
-                            action.getInfo().getProvision().getEntityToClone(),
-                            keepItShort);
-                    case PROVISION_BY_SUPPLY_EXPLANATION:
-                        return buildProvisionBySupplyExplanation(provExp
-                            .getProvisionBySupplyExplanation()
-                            .getMostExpensiveCommodityInfo().getCommodityType());
-                    default:
-                        return ACTION_TYPE_ERROR;
-                }
+                return buildProvisionExplanation(action, keepItShort);
             case DELETE:
                 return buildDeleteExplanation(action);
             case BUYRI:
@@ -189,47 +171,114 @@ public class ExplanationComposer {
         return sb.toString();
     }
 
-    private static String changeExplanationBuilder(Optional<ActionEntity> sourceEntity,
-                                                   ChangeProviderExplanation changeExp,
-                                                   final boolean keepItShort) {
-        switch (changeExp.getChangeProviderExplanationTypeCase()) {
+    /**
+     * Build move explanation.
+     *
+     * @param action the action to explain
+     * @param keepItShort generate short explanation or not
+     * @param settingPolicyIdToSettingPolicyName a map from settingPolicyId to settingPolicyName
+     * @return the explanation sentence
+     */
+    private static String buildMoveExplanation(
+            @Nonnull final ActionDTO.Action action, final boolean keepItShort,
+            @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName) {
+        final Explanation explanation = action.getExplanation();
+        // if we only have one source entity, we'll use it in the explanation builder. if
+        // multiple, we won't bother because we don't have enough info to attribute
+        // commodities to specific sources
+        List<ActionEntity> source_entities = action.getInfo().getMove().getChangesList().stream()
+            .map(ChangeProvider::getSource)
+            .collect(Collectors.toList());
+        Optional<ActionEntity> optionalSourceEntity = source_entities.size() == 1
+            ? Optional.of(source_entities.get(0))
+            : Optional.empty();
+
+        MoveExplanation moveExp = explanation.getMove();
+        List<ChangeProviderExplanation> changeExplanations =
+            moveExp.getChangeProviderExplanationList();
+        ChangeProviderExplanation firstChangeProviderExplanation =
+            changeExplanations.get(0);
+        if (firstChangeProviderExplanation.hasInitialPlacement()) {
+            return buildPerformanceExplanation();
+        }
+        StringJoiner sj = new StringJoiner(", ", keepItShort ? "" : ActionDTOUtil.TRANSLATION_PREFIX, "");
+        // Use primary change explanations if available
+        List<ChangeProviderExplanation> primaryChangeExplanation = changeExplanations.stream()
+            .filter(ChangeProviderExplanation::getIsPrimaryChangeProviderExplanation)
+            .collect(Collectors.toList());
+        if (!primaryChangeExplanation.isEmpty()) {
+            changeExplanations = primaryChangeExplanation;
+        }
+        changeExplanations.stream()
+            .map(provider -> changeExplanationBuilder(optionalSourceEntity, action.getInfo()
+                .getMove().getTarget(), provider, keepItShort, settingPolicyIdToSettingPolicyName))
+            .forEach(sj::add);
+        return sj.toString();
+    }
+
+    /**
+     * Build move change provider explanation.
+     *
+     * @param optionalSourceEntity the source entity
+     * @param target the target entity
+     * @param changeProviderExplanation the reason that we change provider
+     * @param keepItShort generate short explanation or not
+     * @param settingPolicyIdToSettingPolicyName a map from settingPolicyId to settingPolicyName
+     * @return the explanation sentence
+     */
+    private static String changeExplanationBuilder(
+            Optional<ActionEntity> optionalSourceEntity,
+            @Nonnull final ActionEntity target,
+            ChangeProviderExplanation changeProviderExplanation,
+            final boolean keepItShort,
+            @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName) {
+        switch (changeProviderExplanation.getChangeProviderExplanationTypeCase()) {
             case COMPLIANCE:
-                return buildComplianceExplanation(sourceEntity,
-                    changeExp.getCompliance().getMissingCommoditiesList(), keepItShort);
+                if (!changeProviderExplanation.getCompliance().getReasonSettingsList().isEmpty()) {
+                    return buildReasonSettingsExplanation(target, changeProviderExplanation.getCompliance()
+                        .getReasonSettingsList(), keepItShort, settingPolicyIdToSettingPolicyName);
+                } else {
+                    return buildComplianceReasonCommodityExplanation(optionalSourceEntity,
+                        changeProviderExplanation.getCompliance().getMissingCommoditiesList(), keepItShort);
+                }
             case CONGESTION:
-                return buildCongestionExplanation(changeExp.getCongestion(), keepItShort);
+                return buildCongestionExplanation(changeProviderExplanation.getCongestion(), keepItShort);
             case EVACUATION:
-                return buildEvacuationExplanation(changeExp.getEvacuation(), keepItShort);
+                return buildEvacuationExplanation(changeProviderExplanation.getEvacuation(), keepItShort);
             case PERFORMANCE:
                 return buildPerformanceExplanation();
             case EFFICIENCY:
-                return buildEfficiencyExplanation(changeExp.getEfficiency(), keepItShort);
+                return buildEfficiencyExplanation(changeProviderExplanation.getEfficiency(), keepItShort);
             default:
                 return ACTION_TYPE_ERROR;
         }
     }
 
     /**
-     * Build move explanation for compliance. This should look something like:
+     * Build move explanation for compliance.
      *
-     *   "{entity name} can not satisfy the request for resource(s) {comma-separated commodities list}"
+     * e.g. full explanation (no prefix):
+     *      "{entity:1:displayName:Physical Machine} can not satisfy the request for resource(s) Mem, CPU"
+     * e.g. short explanation:
+     *      "Current supplier can not satisfy the request for resource(s) Mem, CPU"
      *
-     * @param commodityTypes a list of missing commodity types
-     * @return explanation
+     * @param optionalSourceEntity the source entity
+     * @param reasonCommodities a list of commodities that causes this action
+     * @param keepItShort generate short explanation or not
+     * @return the explanation sentence
      */
-    public static String buildComplianceExplanation(Optional<ActionEntity> optionalSourceEntity,
-                                                    List<ReasonCommodity> reasons,
-                                                    final boolean keepItShort) {
+    private static String buildComplianceReasonCommodityExplanation(
+            @Nonnull final Optional<ActionEntity> optionalSourceEntity,
+            @Nonnull final List<ReasonCommodity> reasonCommodities, final boolean keepItShort) {
         StringBuilder sb = new StringBuilder();
         sb.append(MessageFormat.format(MOVE_COMPLIANCE_EXPLANATION_FORMAT,
                 optionalSourceEntity.isPresent() && !keepItShort
                         ? buildEntityNameOrType(optionalSourceEntity.get())
                         : "Current supplier"));
-        sb.append(reasons.stream()
+        sb.append(reasonCommodities.stream()
             .map(ReasonCommodity::getCommodityType)
             .map(commType -> commodityDisplayName(commType, keepItShort))
-            .collect(Collectors.joining(" ")));
-
+            .collect(Collectors.joining(", ")));
         return sb.toString();
     }
 
@@ -455,14 +504,17 @@ public class ExplanationComposer {
     /**
      * Build activate explanation. e.g. "Address high utilization of {commodity type}"
      *
-     * @param commodityType the most expensive commodity type
-     * @return explanation
+     * @param action the action to explain
+     * @return the explanation sentence
      */
-    public static String buildActivateExplanation(final int commodityType) {
-        return new StringBuilder()
-            .append(ACTIVATE_EXPLANATION_WITH_REASON_COMM)
-            .append(UICommodityType.fromType(commodityType).apiStr())
-            .toString();
+    private static String buildActivateExplanation(@Nonnull final ActionDTO.Action action) {
+        final Explanation explanation = action.getExplanation();
+        if (!explanation.getActivate().hasMostExpensiveCommodity()) {
+            return ACTIVATE_EXPLANATION_WITHOUT_REASON_COMM;
+        } else {
+            return ACTIVATE_EXPLANATION_WITH_REASON_COMM +
+                UICommodityType.fromType(explanation.getActivate().getMostExpensiveCommodity()).apiStr();
+        }
     }
 
     /**
@@ -470,25 +522,103 @@ public class ExplanationComposer {
      *
      * @return explanation
      */
-    public static String buildDeactivateExplanation() {
+    private static String buildDeactivateExplanation() {
         return DEACTIVATE_EXPLANATION;
     }
 
     /**
-     * Build reconfigure explanation, i.e.
+     * Build reconfigure explanation.
      *
-     *     "Enable supplier to offer requested resource(s) {comma-delimited commodity names}"
+     * @param action the action to explain
+     * @param keepItShort generate short explanation or not
+     * @param settingPolicyIdToSettingPolicyName a map from settingPolicyId to settingPolicyName
+     * @return the explanation sentence
+     */
+    private static String buildReconfigureExplanation(
+            @Nonnull final ActionDTO.Action action, final boolean keepItShort,
+            @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName) {
+        final Explanation explanation = action.getExplanation();
+        if (!explanation.getReconfigure().getReasonSettingsList().isEmpty()) {
+            return (keepItShort ? "" : ActionDTOUtil.TRANSLATION_PREFIX) +
+                buildReasonSettingsExplanation(action.getInfo().getReconfigure().getTarget(),
+                    explanation.getReconfigure().getReasonSettingsList(), keepItShort,
+                    settingPolicyIdToSettingPolicyName);
+        } else {
+            return buildReconfigureReasonCommodityExplanation(explanation
+                .getReconfigure().getReconfigureCommodityList(), keepItShort);
+        }
+    }
+
+    /**
+     * Build reconfigure explanation due to reason commodities.
+     *
+     * e.g. full explanation:
+     *      "Enable supplier to offer requested resource(s) Ballooning, Network Commodity test_network"
+     * e.g. short explanation:
+     *      "Enable supplier to offer requested resource(s) Ballooning, Network Commodity"
      *
      * @param commodityTypes a list of missing reason commodities
-     * @return explanation
+     * @param keepItShort generate short explanation or not
+     * @return the explanation sentence
      */
-    public static String buildReconfigureExplanation(
+    private static String buildReconfigureReasonCommodityExplanation(
         @Nonnull final Collection<ReasonCommodity> commodityTypes, final boolean keepItShort) {
-        StringBuilder sb = new StringBuilder().append(RECONFIGURE_EXPLANATION);
-        sb.append(commodityTypes.stream().map(reason ->
+        return RECONFIGURE_REASON_COMMODITY_EXPLANATION +
+            commodityTypes.stream().map(reason ->
                 commodityDisplayName(reason.getCommodityType(), keepItShort))
-                .collect(Collectors.joining(", ")));
-        return sb.toString();
+                .collect(Collectors.joining(", "));
+    }
+
+    /**
+     * Build explanation due to reason settings.
+     *
+     * e.g. full explanation (no prefix):
+     *      "{entity:1:displayName:Virtual Machine} doesn't comply to settingName"
+     * e.g. short explanation:
+     *      "Current entity doesn't comply to setting"
+     *
+     * @param target the target entity
+     * @param reasonSettings a list of settingPolicyIds that causes this action
+     * @param keepItShort generate short explanation or not
+     * @param settingPolicyIdToSettingPolicyName a map from settingPolicyId to settingPolicyName
+     * @return the explanation sentence
+     */
+    private static String buildReasonSettingsExplanation(
+            @Nonnull final ActionEntity target,
+            @Nonnull final List<Long> reasonSettings,
+            final boolean keepItShort,
+            @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName) {
+        return MessageFormat.format(REASON_SETTINGS_EXPLANATION,
+            keepItShort ? "Current entity" : buildEntityNameOrType(target),
+            keepItShort ? "setting" : reasonSettings.stream()
+                .map(settingPolicyIdToSettingPolicyName::get).collect(Collectors.joining(", ")));
+    }
+
+    /**
+     * Build provision explanation.
+     *
+     * @param action the action to explain
+     * @param keepItShort compose a short explanation if true
+     * @return the explanation sentence
+     */
+    private static String buildProvisionExplanation(
+            @Nonnull final ActionDTO.Action action, final boolean keepItShort) {
+        final Explanation explanation = action.getExplanation();
+        ProvisionExplanation provExp = explanation.getProvision();
+        switch (provExp.getProvisionExplanationTypeCase()) {
+            case PROVISION_BY_DEMAND_EXPLANATION:
+                return buildProvisionByDemandExplanation(
+                    provExp.getProvisionByDemandExplanation()
+                        .getCommodityMaxAmountAvailableList(),
+                    action.getInfo().getProvision().getEntityToClone(),
+                    keepItShort);
+            case PROVISION_BY_SUPPLY_EXPLANATION:
+                return buildProvisionBySupplyExplanation(provExp
+                    .getProvisionBySupplyExplanation()
+                    .getMostExpensiveCommodityInfo().getCommodityType());
+            default:
+                return ACTION_TYPE_ERROR;
+        }
     }
 
     /**
@@ -503,8 +633,7 @@ public class ExplanationComposer {
      */
     private static String buildProvisionByDemandExplanation(
                 @Nonnull final List<CommodityMaxAmountAvailableEntry> entries,
-                @Nonnull final ActionEntity entity,
-                final boolean keepItShort) {
+                @Nonnull final ActionEntity entity, final boolean keepItShort) {
         return (keepItShort ? "" : ActionDTOUtil.TRANSLATION_PREFIX) +
             beautifyCommodityTypes(entries.stream().map(CommodityMaxAmountAvailableEntry::getCommodityBaseType)
                 .map(baseType -> CommodityType.newBuilder().setType(baseType).build())

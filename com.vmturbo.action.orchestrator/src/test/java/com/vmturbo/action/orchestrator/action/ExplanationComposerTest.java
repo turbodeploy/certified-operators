@@ -8,9 +8,12 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
+import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import org.junit.Test;
+
+import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -35,7 +38,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExpla
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -64,7 +66,7 @@ public class ExplanationComposerTest {
                                           NETWORK_KEY_PREFIX + "testNetwork2");
 
     @Test
-    public void testMoveComplianceExplanation() {
+    public void testMoveComplianceReasonCommodityExplanation() {
         ActionDTO.Action action = ActionDTO.Action.newBuilder()
                 .setId(0).setInfo(ActionInfo.newBuilder()
                         .setMove(Move.newBuilder()
@@ -82,12 +84,41 @@ public class ExplanationComposerTest {
                                 .addMissingCommodities(CPU)))))
                 .build();
 
-        assertEquals("(^_^)~{entity:1:displayName:Physical Machine} can not satisfy the request for resource(s) Mem CPU",
+        assertEquals("(^_^)~{entity:1:displayName:Physical Machine} can not satisfy the request for resource(s) Mem, CPU",
             ExplanationComposer.composeExplanation(action));
-        assertEquals("Current supplier can not satisfy the request for resource(s) Mem CPU",
+            assertEquals("Current supplier can not satisfy the request for resource(s) Mem, CPU",
             ExplanationComposer.shortExplanation(action));
     }
 
+    @Test
+    public void testtMoveComplianceReasonSettingsExplanation() {
+        long reasonSetting1 = 1L;
+        long reasonSetting2 = 2L;
+
+        ActionDTO.Action moveAction = ActionDTO.Action.newBuilder()
+            .setId(0).setInfo(ActionInfo.newBuilder().setMove(
+                Move.newBuilder().setTarget(ActionEntity.newBuilder()
+                    .setId(1).setType(EntityType.VIRTUAL_MACHINE_VALUE))))
+            .setDeprecatedImportance(0)
+            .setExplanation(Explanation.newBuilder()
+                .setMove(MoveExplanation.newBuilder()
+                    .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                        .setIsPrimaryChangeProviderExplanation(true)
+                        .setCompliance(Compliance.newBuilder()
+                            .addReasonSettings(reasonSetting1)
+                            .addReasonSettings(reasonSetting2)))))
+            .build();
+
+        assertEquals("(^_^)~{entity:1:displayName:Virtual Machine} doesn't comply to setting1, setting2",
+            ExplanationComposer.composeExplanation(moveAction,
+                ImmutableMap.of(reasonSetting1, "setting1", reasonSetting2, "setting2")));
+        assertEquals("Current entity doesn't comply to setting",
+            ExplanationComposer.shortExplanation(moveAction));
+    }
+
+    /**
+     * Test the explanation of move action due to evacuation.
+     */
     @Test
     public void testMoveEvacuationSuspensionExplanation() {
         ActionDTO.Action action = ActionDTO.Action.newBuilder()
@@ -177,9 +208,9 @@ public class ExplanationComposerTest {
                         .setPerformance(Performance.newBuilder()))))
             .build();
 
-        assertEquals("(^_^)~Current supplier can not satisfy the request for resource(s) Mem CPU",
+        assertEquals("(^_^)~Current supplier can not satisfy the request for resource(s) Mem, CPU",
             ExplanationComposer.composeExplanation(action));
-        assertEquals("Current supplier can not satisfy the request for resource(s) Mem CPU",
+        assertEquals("Current supplier can not satisfy the request for resource(s) Mem, CPU",
             ExplanationComposer.shortExplanation(action));
     }
 
@@ -218,8 +249,11 @@ public class ExplanationComposerTest {
             ExplanationComposer.shortExplanation(action));
     }
 
+    /**
+     * Test the explanation of reconfigure action with reason commodities.
+     */
     @Test
-    public void testReconfigureExplanation() {
+    public void testReconfigureReasonCommodityExplanation() {
         ActionDTO.Action reconfigure = ActionDTO.Action.newBuilder()
                 .setId(0).setInfo(ActionInfo.getDefaultInstance()).setDeprecatedImportance(0)
                 .setExplanation(Explanation.newBuilder()
@@ -248,6 +282,35 @@ public class ExplanationComposerTest {
             ExplanationComposer.shortExplanation(reconfigureWithPrefix));
     }
 
+    /**
+     * Test the explanation of reconfigure action with reason settings.
+     */
+    @Test
+    public void testReconfigureReasonSettingsExplanation() {
+        long reasonSetting1 = 1L;
+        long reasonSetting2 = 2L;
+
+        ActionDTO.Action reconfigureAction = ActionDTO.Action.newBuilder()
+            .setId(0).setInfo(ActionInfo.newBuilder().setReconfigure(
+                Reconfigure.newBuilder().setTarget(ActionEntity.newBuilder()
+                    .setId(1).setType(EntityType.VIRTUAL_MACHINE_VALUE))))
+            .setDeprecatedImportance(0)
+            .setExplanation(Explanation.newBuilder()
+                .setReconfigure(ReconfigureExplanation.newBuilder()
+                    .addReasonSettings(reasonSetting1)
+                    .addReasonSettings(reasonSetting2)))
+            .build();
+
+        assertEquals("(^_^)~{entity:1:displayName:Virtual Machine} doesn't comply to setting1, setting2",
+            ExplanationComposer.composeExplanation(reconfigureAction,
+                ImmutableMap.of(reasonSetting1, "setting1", reasonSetting2, "setting2")));
+        assertEquals("Current entity doesn't comply to setting",
+            ExplanationComposer.shortExplanation(reconfigureAction));
+    }
+
+    /**
+     * Test the explanation of provision by supply action.
+     */
     @Test
     public void testProvisionBySupplyExplanation() {
         ActionDTO.Action provision = ActionDTO.Action.newBuilder()
@@ -265,6 +328,9 @@ public class ExplanationComposerTest {
         assertEquals("Mem congestion", ExplanationComposer.shortExplanation(provision));
     }
 
+    /**
+     * Test the explanation of provision by demand action.
+     */
     @Test
     public void testProvisionByDemandExplanation() {
         ActionDTO.Action provision = ActionDTO.Action.newBuilder()

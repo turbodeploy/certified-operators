@@ -23,6 +23,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
@@ -80,8 +81,9 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_RESIZE_REMOVE_LIMIT("Remove {0} limit on entity {1}"),
         ACTION_DESCRIPTION_RESIZE("Resize {0} {1} for {2} from {3} to {4}"),
         ACTION_DESCRIPTION_RESIZE_RESERVATION("Resize {0} {1} reservation for {2} from {3} to {4}"),
-        ACTION_DESCRIPTION_RECONFIGURE_WITH_SOURCE("Reconfigure {0} which requires {1} but is hosted by {2} which does not provide {1}"),
-        ACTION_DESCRIPTION_RECONFIGURE("Reconfigure {0} as it is unplaced"),
+        ACTION_DESCRIPTION_RECONFIGURE_REASON_COMMODITIES("Reconfigure {0} which requires {1} but is hosted by {2} which does not provide {1}"),
+        ACTION_DESCRIPTION_RECONFIGURE_REASON_SETTINGS("Reconfigure {0}"),
+        ACTION_DESCRIPTION_RECONFIGURE_WITHOUT_SOURCE("Reconfigure {0} as it is unplaced"),
         ACTION_DESCRIPTION_MOVE_WITHOUT_SOURCE("Start {0} on {1}"),
         ACTION_DESCRIPTION_MOVE("{0} {1}{2} from {3} to {4}"),
         ACTION_DESCRIPTION_BUYRI("Buy {0} {1} RIs for {2} in {3}"),
@@ -202,8 +204,8 @@ public class ActionDescriptionBuilder {
                                                    @Nonnull final ActionDTO.Action recommendation) {
         final Reconfigure reconfigure = recommendation.getInfo().getReconfigure();
         final Long entityId = reconfigure.getTarget().getId();
-        Optional<ActionPartialEntity> sourceEntityDTO = entitiesSnapshot.getEntityFromOid(entityId);
-        if (!sourceEntityDTO.isPresent()) {
+        Optional<ActionPartialEntity> targetEntityDTO = entitiesSnapshot.getEntityFromOid(entityId);
+        if (!targetEntityDTO.isPresent()) {
             logger.debug(ENTITY_NOT_FOUND_WARN_MSG, entityId);
             return "";
         }
@@ -215,16 +217,22 @@ public class ActionDescriptionBuilder {
                 logger.debug(ENTITY_NOT_FOUND_WARN_MSG, sourceId);
                 return "";
             }
-            return ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_WITH_SOURCE.format(
-                beautifyEntityTypeAndName(sourceEntityDTO.get()),
-                beautifyCommodityTypes(recommendation.getExplanation().getReconfigure()
-                    .getReconfigureCommodityList().stream()
-                    .map(ReasonCommodity::getCommodityType)
-                    .collect(Collectors.toList())),
-                beautifyEntityTypeAndName(currentEntityDTO.get()));
+            Explanation explanation = recommendation.getExplanation();
+            if (!explanation.getReconfigure().getReasonSettingsList().isEmpty()) {
+                return ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_REASON_SETTINGS.format(
+                    beautifyEntityTypeAndName(targetEntityDTO.get()));
+            } else {
+                return ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_REASON_COMMODITIES.format(
+                    beautifyEntityTypeAndName(targetEntityDTO.get()),
+                    beautifyCommodityTypes(explanation.getReconfigure()
+                        .getReconfigureCommodityList().stream()
+                        .map(ReasonCommodity::getCommodityType)
+                        .collect(Collectors.toList())),
+                    beautifyEntityTypeAndName(currentEntityDTO.get()));
+            }
         } else {
-            return ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE.format(
-                beautifyEntityTypeAndName(sourceEntityDTO.get()));
+            return ActionMessageFormat.ACTION_DESCRIPTION_RECONFIGURE_WITHOUT_SOURCE.format(
+                beautifyEntityTypeAndName(targetEntityDTO.get()));
         }
     }
 

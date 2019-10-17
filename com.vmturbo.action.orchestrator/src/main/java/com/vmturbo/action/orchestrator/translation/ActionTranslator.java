@@ -1,7 +1,10 @@
 package com.vmturbo.action.orchestrator.translation;
 
 import java.time.ZoneOffset;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -31,11 +34,17 @@ import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
@@ -99,15 +108,20 @@ public class ActionTranslator {
 
     private final TranslationExecutor translationExecutor;
 
+    private final SettingPolicyServiceBlockingStub settingPolicyService;
+
     /**
      * Create a new {@link ActionTranslator} for translating actions from the market's domain-agnostic
      * action recommendations into actions that can be executed and understood in real-world domain-specific
      * terms.
      *
      * @param repoChannel The searchServiceRpc to the repository component.
+     * @param groupChannel Channel to use for creating a blocking stub to query the Group Service.
      */
-    public ActionTranslator(@Nonnull final Channel repoChannel) {
+    public ActionTranslator(@Nonnull final Channel repoChannel, @Nonnull final Channel groupChannel) {
         translationExecutor = new ActionTranslationExecutor(RepositoryServiceGrpc.newBlockingStub(repoChannel));
+        this.settingPolicyService =
+            SettingPolicyServiceGrpc.newBlockingStub(Objects.requireNonNull(groupChannel));
     }
 
     /**
@@ -125,6 +139,7 @@ public class ActionTranslator {
     @VisibleForTesting
     public ActionTranslator(@Nonnull final TranslationExecutor translationExecutor) {
         this.translationExecutor = Objects.requireNonNull(translationExecutor);
+        this.settingPolicyService = null;
     }
 
     /**
@@ -135,18 +150,63 @@ public class ActionTranslator {
      */
     @Nonnull
     public ActionSpec translateToSpec(@Nonnull final ActionView sourceAction) {
-        return toSpec(sourceAction);
+        return translateToSpecs(Collections.singletonList(sourceAction)).findFirst().get();
     }
 
     /**
      * Generate an {@link ActionSpec} describing each of the actions.
      *
-     * @param actionStream The actions to be translated and whose specs should be generated.
+     * @param actionViews the actions to be translated and whose specs should be generated
      * @return The {@link ActionSpec} descriptions of the input actions.
      */
     @Nonnull
-    public Stream<ActionSpec> translateToSpecs(@Nonnull final Stream<ActionView> actionStream) {
-        return actionStream.map(this::toSpec);
+    public Stream<ActionSpec> translateToSpecs(@Nonnull final List<ActionView> actionViews) {
+        // Get all reason setting ids.
+        final Set<Long> reasonSettings = getAllReasonSettings(actionViews);
+
+        // Make a RPC to get raw settingPolicies for all reason setting ids.
+        // We only need the displayName of the settingPolicy.
+        final Map<Long, String> settingPolicyIdToSettingPolicyName = new HashMap<>();
+        if (!reasonSettings.isEmpty()) {
+            settingPolicyService.listSettingPolicies(ListSettingPoliciesRequest.newBuilder()
+                .addAllIdFilter(reasonSettings).build())
+                .forEachRemaining(settingPolicy -> settingPolicyIdToSettingPolicyName.put(
+                    settingPolicy.getId(), settingPolicy.getInfo().getDisplayName()));
+        }
+
+        return actionViews.stream().map(actionView -> toSpec(actionView, settingPolicyIdToSettingPolicyName));
+    }
+
+    /**
+     * Get all reason settings from all actionViews.
+     *
+     * @param actionViews the actions from where we extract reason settings
+     * @return a set of reason settings
+     */
+    @Nonnull
+    @VisibleForTesting
+    public Set<Long> getAllReasonSettings(@Nonnull final List<ActionView> actionViews) {
+        final Set<Long> reasonSettings = new HashSet<>();
+        for (ActionView actionView : actionViews) {
+            Explanation explanation = actionView.getRecommendation().getExplanation();
+            switch (explanation.getActionExplanationTypeCase()) {
+                case MOVE:
+                    actionView.getRecommendation().getExplanation().getMove()
+                        .getChangeProviderExplanationList().stream()
+                        .filter(ChangeProviderExplanation::getIsPrimaryChangeProviderExplanation)
+                        .filter(ChangeProviderExplanation::hasCompliance)
+                        .map(ChangeProviderExplanation::getCompliance)
+                        .map(Compliance::getReasonSettingsList)
+                        .forEach(reasonSettings::addAll);
+                    break;
+                case RECONFIGURE:
+                    reasonSettings.addAll(explanation.getReconfigure().getReasonSettingsList());
+                    break;
+                default:
+                    break;
+            }
+        }
+        return reasonSettings;
     }
 
     /**
@@ -187,11 +247,13 @@ public class ActionTranslator {
      * In the event that an action cannot be translated, the included recommendation is the one originally provided
      * by the market which may not make sense for the user.
      *
-     * @return The {@link ActionSpec} representation of this action.
+     * @param actionView the actions to be translated and whose specs should be generated
+     * @param settingPolicyIdToSettingPolicyName a map from settingPolicyId to settingPolicyName
+     * @return the {@link ActionSpec} representation of this action
      */
     @Nonnull
-    @VisibleForTesting
-    ActionSpec toSpec(@Nonnull final ActionView actionView) {
+    private ActionSpec toSpec(@Nonnull final ActionView actionView,
+                              @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName) {
         final ActionDTO.Action recommendationForDisplay = actionView
             .getActionTranslation()
             .getTranslationResultOrOriginal();
@@ -204,7 +266,8 @@ public class ActionTranslator {
             .setActionMode(actionView.getMode())
             .setActionState(actionView.getState())
             .setIsExecutable(actionView.determineExecutability())
-            .setExplanation(ExplanationComposer.composeExplanation(recommendationForDisplay))
+            .setExplanation(ExplanationComposer.composeExplanation(
+                recommendationForDisplay, settingPolicyIdToSettingPolicyName))
             .setCategory(actionView.getActionCategory())
             .setDescription(actionView.getDescription());
 
