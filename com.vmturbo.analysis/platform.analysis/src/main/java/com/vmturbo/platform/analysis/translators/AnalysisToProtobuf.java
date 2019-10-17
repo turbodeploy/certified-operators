@@ -14,12 +14,13 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.BiMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
-import com.google.common.collect.BiMap;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.Activate;
@@ -231,7 +232,7 @@ public final class AnalysisToProtobuf {
             }
             builder.setSupplier(traderToOidMap.get(newSupplier));
         }
-        Basket basketBought = economy.getMarket(shoppingList).getBasket();
+        Basket basketBought = shoppingList.getBasket();
         for (int i = 0; i < basketBought.size() ; ++i) {
             builder.addCommoditiesBought(commodityBoughtTO(shoppingList.getQuantity(i),
                                                            shoppingList.getPeakQuantity(i), basketBought.get(i)));
