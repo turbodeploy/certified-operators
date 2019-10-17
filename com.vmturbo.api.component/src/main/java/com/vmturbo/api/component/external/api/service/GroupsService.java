@@ -393,6 +393,19 @@ public class GroupsService implements IGroupsService {
         final ApiId id = uuidMapper.fromUuid(uuid);
         final List<SettingsManagerApiDTO> mgrs =
             entitySettingQueryExecutor.getEntitySettings(id, includePolicies);
+
+        GroupID groupID = GroupID.newBuilder()
+                            .setId(Long.valueOf(uuid))
+                            .build();
+        GetGroupResponse response = groupServiceRpc.getGroup(groupID);
+
+        Group group = response.getGroup();
+        Template template = getHeadroomTemplate(group);
+
+        SettingsManagerApiDTO settingsManagerApiDto = settingsMapper.toSettingsManagerApiDTO(template);
+
+        mgrs.add(settingsManagerApiDto);
+
         return mgrs;
     }
 

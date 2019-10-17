@@ -732,4 +732,33 @@ public class GroupsServiceTest {
             Lists.newArrayList(UIEntityType.PHYSICAL_MACHINE.apiStr()), null);
         assertThat(expandedIds, containsInAnyOrder(pm1));
     }
+
+    /**
+     * Tests that when we call getSettingsByGroupUuid() with a group uuid as argument
+     * the rpc method getGroup() is called with the same group uuid as argument.
+     * @throws Exception when getSettingsByGroupUuid() throws an exception
+     */
+    @Test
+    public void testGetSettingsByGroupUuid() throws Exception {
+        String groupUuid = "1234";
+        String templateId = "3333";
+
+        Template template = Template.newBuilder()
+                .setId(Long.parseLong(templateId))
+                .setType(Template.Type.SYSTEM)
+                .setTemplateInfo(TemplateInfo.newBuilder()
+                        .setName("template name"))
+                .build();
+        when(templateServiceSpy.getTemplates(any(GetTemplatesRequest.class)))
+                .thenReturn(Arrays.asList(GetTemplatesResponse.newBuilder()
+                        .addTemplates(SingleTemplateResponse.newBuilder()
+                                .setTemplate(template))
+                       .build()));
+        groupsService.getSettingsByGroupUuid(groupUuid, false);
+        verify(groupServiceSpy).getGroup(GroupID.newBuilder()
+                .setId(Long.valueOf(groupUuid))
+                .build());
+        assertEquals(template, templateServiceSpy.getTemplates(any()).get(0).getTemplates(0).getTemplate());
+    }
+
 }

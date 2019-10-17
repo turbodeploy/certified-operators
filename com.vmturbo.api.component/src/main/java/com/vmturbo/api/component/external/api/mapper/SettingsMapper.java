@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.io.Serializable;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
@@ -61,6 +62,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
@@ -1414,6 +1416,32 @@ public class SettingsMapper {
             logger.error("Failed to get global settings from group component.");
         }
         return globalSettings;
+    }
+
+    /**
+     * Converts a template to a SettingsManagerApiDTO. In the SettingsManagerApiDTO we save
+     * the name of the template.
+     *
+     * @param template the template to be converted
+     * @return the SettingsManagerApiDTO with the name of the template
+     */
+    @Nonnull
+    public SettingsManagerApiDTO toSettingsManagerApiDTO(Template template) {
+        String templateName = template.getTemplateInfo().getName();
+
+        SettingsManagerApiDTO settingsManagerApiDto = new SettingsManagerApiDTO();
+        settingsManagerApiDto.setUuid("capacityplandatamanager");
+        settingsManagerApiDto.setDisplayName(templateName);
+
+        SettingApiDTO<Serializable> settingApiDTO = new SettingApiDTO();
+        settingApiDTO.setDisplayName("Template Name");
+        settingApiDTO.setValue(templateName);
+        settingApiDTO.setValueDisplayName(templateName);
+        List<SettingApiDTO<Serializable>> list = new ArrayList<>();
+        list.add(settingApiDTO);
+        settingsManagerApiDto.setSettings(list);
+
+        return settingsManagerApiDto;
     }
 }
 
