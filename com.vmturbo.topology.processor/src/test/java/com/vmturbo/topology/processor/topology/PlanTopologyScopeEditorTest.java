@@ -71,7 +71,7 @@ public class PlanTopologyScopeEditorTest {
     private static final TopologyEntity.Builder REGION_LONDON = createCloudConnectedTopologyEntity(2001L, "London", EntityType.REGION, AZ1_LONDON.getOid(), AZ2_LONDON.getOid());
     private static final TopologyEntity.Builder REGION_OHIO = createCloudConnectedTopologyEntity(2002L, "Ohio", EntityType.REGION, AZ_OHIO.getOid());
     private static final TopologyEntity.Builder REGION_HONG_KONG = createCloudConnectedTopologyEntity(2003L, "Hong Kong", EntityType.REGION, AZ1_HONG_KONG.getOid(), AZ2_HONG_KONG.getOid());
-    private static final TopologyEntity.Builder DB_LONDON = createCloudConnectedTopologyEntity(8001L, "DB in London", EntityType.DATABASE, REGION_LONDON.getOid());
+    private static final TopologyEntity.Builder DB_LONDON = createCloudConnectedTopologyEntity(8001L, "DB in London", EntityType.DATABASE, AZ2_LONDON.getOid());
     private static final TopologyEntity.Builder DBS_LONDON = createCloudConnectedTopologyEntity(9001L, "DBS in London", EntityType.DATABASE_SERVER, AZ1_LONDON.getOid());
     private static final TopologyEntity.Builder DBS_HONG_KONG = createCloudConnectedTopologyEntity(9002L, "DBS in Hong Kong", EntityType.DATABASE_SERVER, AZ2_HONG_KONG.getOid());
     private static final TopologyEntity.Builder COMPUTE_TIER = createCloudConnectedTopologyEntity(3001L, "Compute tier", EntityType.COMPUTE_TIER, REGION_LONDON.getOid(), REGION_OHIO.getOid());
@@ -164,10 +164,27 @@ public class PlanTopologyScopeEditorTest {
                                                           Collections::unmodifiableSet));
 
     private static final Set<TopologyEntity.Builder> EXPECTED_ENTITIES_FOR_BILLING_FAMILY = Stream
-                    .of(AZ1_LONDON, VM1_IN_LONDON, DBS_LONDON,
-                        DB_LONDON, COMPUTE_TIER, STORAGE_TIER, BUSINESS_ACC1, BUSINESS_ACC3,
-                        AZ1_HONG_KONG, VM_IN_HONG_KONG, REGION_LONDON, REGION_HONG_KONG,
-                        VIRTUAL_VOLUME_IN_HONG_KONG, VIRTUAL_VOLUME_IN_LONDON)
+                    .of(AZ1_LONDON, VM1_IN_LONDON, COMPUTE_TIER, STORAGE_TIER,
+                        BUSINESS_ACC1, BUSINESS_ACC3, AZ1_HONG_KONG, VM_IN_HONG_KONG,
+                        REGION_LONDON, REGION_HONG_KONG, VIRTUAL_VOLUME_IN_HONG_KONG,
+                        VIRTUAL_VOLUME_IN_LONDON)
+                    .collect(Collectors.collectingAndThen(Collectors.toSet(),
+                                                          Collections::unmodifiableSet));
+
+    private static final Set<TopologyEntity.Builder> EXPECTED_ENTITIES_FOR_AWS_VM = Stream
+                    .of(AZ1_LONDON, REGION_LONDON, VM1_IN_LONDON, BUSINESS_ACC1,
+                        COMPUTE_TIER, VIRTUAL_VOLUME_IN_LONDON, STORAGE_TIER)
+                    .collect(Collectors.collectingAndThen(Collectors.toSet(),
+                                                          Collections::unmodifiableSet));
+
+    private static final Set<TopologyEntity.Builder> EXPECTED_ENTITIES_FOR_AZURE_DB = Stream
+                    .of(DB_CENTRAL_US, REGION_CENTRAL_US, COMPUTE_TIER_2, STORAGE_TIER_2)
+                    .collect(Collectors.collectingAndThen(Collectors.toSet(),
+                                                          Collections::unmodifiableSet));
+
+    private static final Set<TopologyEntity.Builder> EXPECTED_ENTITIES_FOR_AWS_DBS_GROUP = Stream
+                    .of(AZ1_LONDON, REGION_LONDON, DBS_LONDON, COMPUTE_TIER, STORAGE_TIER,
+                        DBS_HONG_KONG, AZ2_HONG_KONG, REGION_HONG_KONG)
                     .collect(Collectors.collectingAndThen(Collectors.toSet(),
                                                           Collections::unmodifiableSet));
 
@@ -256,6 +273,42 @@ public class PlanTopologyScopeEditorTest {
         // Billing family
         final List<Long> oidsList = Arrays.asList(5001L);
         testScopeCloudTopology(oidsList, EXPECTED_ENTITIES_FOR_BILLING_FAMILY);
+    }
+
+    /**
+     * Tests scope cloud topology for the plan scope with 1 VM.
+     * Topology graph contains entities for 3 targets: hypervisor and 2 clouds.
+     * EXPECTED_ENTITIES_FOR_AWS_VM - set of cloud entities expected as result of applying plan scope to the topology.
+     */
+    @Test
+    public void testScopeCloudTopologyForVM() {
+        // VM1 in London
+        final List<Long> oidsList = Arrays.asList(4001L);
+        testScopeCloudTopology(oidsList, EXPECTED_ENTITIES_FOR_AWS_VM);
+    }
+
+    /**
+     * Tests scope cloud topology for the plan scope with 1 DB.
+     * Topology graph contains entities for 3 targets: hypervisor and 2 clouds.
+     * EXPECTED_ENTITIES_FOR_AWS_VM - set of cloud entities expected as result of applying plan scope to the topology.
+     */
+    @Test
+    public void testScopeCloudTopologyForDB() {
+        // DB in Central US
+        final List<Long> oidsList = Arrays.asList(8002L);
+        testScopeCloudTopology(oidsList, EXPECTED_ENTITIES_FOR_AZURE_DB);
+    }
+
+    /**
+     * Tests scope cloud topology for the plan scope with group of 2 DBS.
+     * Topology graph contains entities for 3 targets: hypervisor and 2 clouds.
+     * EXPECTED_ENTITIES_FOR_AWS_DBS_GROUP - set of cloud entities expected as result of applying plan scope to the topology.
+     */
+    @Test
+    public void testScopeCloudTopologyForDBSGroup() {
+        // DBS in London and DBS in Hong Kong
+        final List<Long> oidsList = Arrays.asList(9001L, 9002L);
+        testScopeCloudTopology(oidsList, EXPECTED_ENTITIES_FOR_AWS_DBS_GROUP);
     }
 
     private void testScopeCloudTopology(List<Long> oidsList, Set<TopologyEntity.Builder> expectedEntities) {
