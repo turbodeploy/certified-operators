@@ -61,7 +61,7 @@ public class UtilizationCountStore {
     /**
      * Add the discovered usage points.
      *
-     * @param samples utilizations (not usages) - as sent from mediation
+     * @param samples percents (not usages or utilizations) - as sent from mediation
      * @param capacity capacity
      * @param timestamp latest timestamp for the samples
      * @throws HistoryCalculationException when passed data are not correct (non-positive capacity)
@@ -74,11 +74,11 @@ public class UtilizationCountStore {
         }
         latestStoredTimestamp = timestamp;
         String key = fieldReference.toString();
-        for (Double util : samples) {
-            if (util == null) {
+        for (Double percent : samples) {
+            if (percent == null) {
                 logger.trace("Skipping the null percentile utilization for {}", fieldReference::toString);
             }
-            float usage = (float)(util * capacity);
+            float usage = (float)(percent * capacity / 100);
             // in both full observation window and latest between-checkpoints window
             full.addPoint(usage, (float)capacity, key, true);
             latest.addPoint(usage, (float)capacity, key, true);

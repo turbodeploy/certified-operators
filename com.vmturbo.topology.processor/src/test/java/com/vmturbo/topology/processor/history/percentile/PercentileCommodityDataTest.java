@@ -78,7 +78,7 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
         Mockito.doReturn((double)cap).when(accessor).getCapacity(field);
         Mockito.doReturn(realTime).when(accessor).getRealTimeValue(field);
         UtilizationData data = UtilizationData.newBuilder().setLastPointTimestampMs(1000)
-                        .setIntervalMs(10).addPoint(used2 / cap).addPoint(used3 / cap)
+                        .setIntervalMs(10).addPoint(used2 / cap * 100).addPoint(used3 / cap * 100)
                         .build();
         Mockito.doReturn(data).when(accessor).getUtilizationData(Mockito.any());
 

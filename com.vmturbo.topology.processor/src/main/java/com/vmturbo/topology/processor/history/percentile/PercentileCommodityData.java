@@ -64,7 +64,7 @@ public class PercentileCommodityData
                 // generate a single point from real-time usage
                 Double used = commodityFieldsAccessor.getRealTimeValue(field);
                 if (used != null) {
-                    utilizationCounts.addPoints(Collections.singletonList(used / capacity), capacity,
+                    utilizationCounts.addPoints(Collections.singletonList(used / capacity * 100), capacity,
                                                 System.currentTimeMillis());
                 }
             }

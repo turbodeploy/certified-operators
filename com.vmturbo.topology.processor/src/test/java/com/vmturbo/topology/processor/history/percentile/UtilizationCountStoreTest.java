@@ -43,12 +43,12 @@ public class UtilizationCountStoreTest {
      */
     @Test
     public void testAddPoints() throws HistoryCalculationException {
-        store.addPoints(ImmutableList.of(0.1d, 0.1d, 0.1d, 0.1d, 0.1d), 100d, 100);
+        store.addPoints(ImmutableList.of(10d, 10d, 10d, 10d, 10d), 100d, 100);
         Assert.assertEquals(10, store.getPercentile(90));
         // adding for the same time should have no effect
-        store.addPoints(ImmutableList.of(0.2d, 0.2d, 0.2d, 0.2d, 0.2d), 100d, 100);
+        store.addPoints(ImmutableList.of(20d, 20d, 20d, 20d, 20d), 100d, 100);
         Assert.assertEquals(10, store.getPercentile(90));
-        store.addPoints(ImmutableList.of(0.2d, 0.2d, 0.2d, 0.2d, 0.2d), 100d, 200);
+        store.addPoints(ImmutableList.of(20d, 20d, 20d, 20d, 20d), 100d, 200);
         Assert.assertEquals(20, store.getPercentile(80));
     }
 
@@ -86,7 +86,7 @@ public class UtilizationCountStoreTest {
         final float capacity = 100f;
         PercentileRecord.Builder oldest = PercentileRecord.newBuilder().setEntityOid(12)
                         .setCommodityType(32).setCapacity(100f).setPeriod(30);
-        store.addPoints(ImmutableList.of(0.1d, 0.2d, 0.3d, 0.3d), capacity, 100);
+        store.addPoints(ImmutableList.of(10d, 20d, 30d, 30d), capacity, 100);
         for (int i = 0; i <= 100; ++i) {
             oldest.addUtilization(i == 20 ? 1 : 0);
         }
