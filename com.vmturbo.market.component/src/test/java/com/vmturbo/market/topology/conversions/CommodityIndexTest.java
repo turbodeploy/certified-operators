@@ -1,8 +1,10 @@
 package com.vmturbo.market.topology.conversions;
 
+import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
 import java.util.Optional;
@@ -102,41 +104,65 @@ public class CommodityIndexTest {
             .build()).isPresent());
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    /**
+     * Test for addition of duplicate commodity bought.
+     */
+    @Test
     public void testPutIllegalCommBought() {
         final CommodityIndex index = CommodityIndex.newFactory().newIndex();
+        CommodityBoughtDTO cb1 = CommodityBoughtDTO.newBuilder()
+                .setCommodityType(COMM_TYPE)
+                .setScalingFactor(SCALING_FACTOR)
+                .setUsed(4)
+                .build();
+        CommodityBoughtDTO cb2 = CommodityBoughtDTO.newBuilder()
+                .setCommodityType(COMM_TYPE)
+                .setScalingFactor(SCALING_FACTOR)
+                .setUsed(5)
+                .build();
         index.addEntity(TopologyEntityDTO.newBuilder()
             .setOid(ENTITY)
             .setEntityType(ENTITY_TYPE)
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                 .setProviderId(PROVIDER)
-                .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                    .setCommodityType(COMM_TYPE)
-                    .setScalingFactor(SCALING_FACTOR)
-                    .build())
-                .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                    .setCommodityType(COMM_TYPE)
-                    .setScalingFactor(SCALING_FACTOR)
-                    .build()))
+                .addCommodityBought(cb1)
+                .addCommodityBought(cb2))
             .build());
+
+        // Verify that it contains the most recently entered value
+        Optional<CommodityBoughtDTO> commBought = index.getCommBought(ENTITY, PROVIDER, COMM_TYPE, 0);
+        assertTrue(commBought.isPresent());
+        assertEquals(cb2, commBought.get());
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    /**
+     * Test for addition of duplicate commodity sold.
+     */
+    @Test
     public void testPutIllegalCommSold() {
+        CommoditySoldDTO cs1 = CommoditySoldDTO.newBuilder()
+                .setCommodityType(COMM_TYPE)
+                .setScalingFactor(SCALING_FACTOR)
+                .setUsed(4)
+                .build();
+        CommoditySoldDTO cs2 = CommoditySoldDTO.newBuilder()
+                .setCommodityType(COMM_TYPE)
+                .setScalingFactor(SCALING_FACTOR)
+                .setUsed(5)
+                .build();
         final CommodityIndex index = CommodityIndex.newFactory().newIndex();
         index.addEntity(TopologyEntityDTO.newBuilder()
             .setOid(ENTITY)
             .setEntityType(ENTITY_TYPE)
             // Add the same commodity sold multiple times.
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                .setCommodityType(COMM_TYPE)
-                .setScalingFactor(SCALING_FACTOR)
-                .build())
-            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                .setCommodityType(COMM_TYPE)
-                .setScalingFactor(SCALING_FACTOR)
-                .build())
+            .addCommoditySoldList(cs1)
+            .addCommoditySoldList(cs2)
             .build());
+
+        // Verify that it contains the most recently entered value
+        Optional<CommoditySoldDTO> commSold = index.getCommSold(ENTITY, COMM_TYPE);
+        assertTrue(commSold.isPresent());
+        assertEquals(cs2, commSold.get());
     }
 
 }

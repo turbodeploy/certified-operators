@@ -6,6 +6,8 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -13,6 +15,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 
 /**
  * An index to keep track of commodities in the {@link TopologyEntityDTO}s received by the market.
@@ -44,6 +47,8 @@ public class CommodityIndex {
      * and disallow lookups by base type only.
      */
     private final Map<CommSoldKey, CommoditySoldDTO> commSoldIndex = new HashMap<>();
+
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * Use {@link CommodityIndex#newFactory()}.
@@ -121,11 +126,13 @@ public class CommodityIndex {
         final CommBoughtKey commBoughtKey = constructCommBoughtKey(entityId, providerId, commBought.getCommodityType(), volumeId);
         final CommodityBoughtDTO oldCommBought = commBoughtIndex.put(commBoughtKey, commBought);
         if (oldCommBought != null) {
+            final CommodityDTO.CommodityType sdkCommType = CommodityDTO.CommodityType
+                    .forNumber(commBought.getCommodityType().getType());
             // This means we have an entity buying multiple commodities of the same type
             // (type + key) from a single provider. As Dana White says, that's *** illegal!
-            throw new IllegalArgumentException("Entity " + entityId +
+            logger.error("Entity " + entityId +
                 " buying the same commodity from provider " + providerId + " more than once: " +
-                commBought.getCommodityType());
+                sdkCommType + ". Keeping most recent one.");
         }
     }
 
@@ -159,10 +166,13 @@ public class CommodityIndex {
             .build();
         final CommoditySoldDTO oldCommSold = commSoldIndex.put(commSoldKey, commSold);
         if (oldCommSold != null) {
+            final CommodityDTO.CommodityType sdkCommType = CommodityDTO.CommodityType
+                    .forNumber(commSold.getCommodityType().getType());
             // This means we have an entity selling multiple commodities of the same type
             // (type + key). As Dana White says, that's *** illegal!
-            throw new IllegalArgumentException("Entity " + entityId +
-                " selling same commodity more than once: " + commSold.getCommodityType());
+            logger.error("Entity " + entityId +
+                " selling same commodity more than once: " +
+                sdkCommType + ". Keeping most recent one.");
         }
     }
 
