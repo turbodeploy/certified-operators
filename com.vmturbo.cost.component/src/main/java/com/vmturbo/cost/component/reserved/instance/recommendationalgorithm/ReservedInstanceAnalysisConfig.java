@@ -36,9 +36,6 @@ public class ReservedInstanceAnalysisConfig {
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
-    @Value("{riMinimumDataPoints}")
-    private int riMinimumDataPoints;
-
     @Autowired
     private ComputeTierDemandStatsConfig computeTierDemandStatsConfig;
 
@@ -86,8 +83,7 @@ public class ReservedInstanceAnalysisConfig {
                 reservedInstanceActionsSenderConfig.actionSender(),
                 reservedInstanceConfig.buyReservedInstanceStore(),
                 reservedInstanceConfig.actionContextRIBuyStore(),
-                realtimeTopologyContextId,
-                riMinimumDataPoints);
+                realtimeTopologyContextId);
     }
 
     public ReservedInstanceBoughtStore reservedInstanceBoughtStore() {

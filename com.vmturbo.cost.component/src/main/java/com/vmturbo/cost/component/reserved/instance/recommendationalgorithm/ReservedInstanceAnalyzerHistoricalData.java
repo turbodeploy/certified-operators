@@ -53,11 +53,6 @@ public class ReservedInstanceAnalyzerHistoricalData {
     private final ComputeTierDemandStatsStore computeTierDemandStatsStore;
 
     /**
-     * RI buy hour data points value range from 1 to 168 inclusive
-     */
-    private final int riMinimumDataPoints;
-
-    /**
      * The size of the demand data for a {@link ReservedInstanceZonalContext} from the
      * instance_type_hourly_by_week table. The size is total number of hours per week: 168 = 24 * 7.
      */
@@ -70,11 +65,9 @@ public class ReservedInstanceAnalyzerHistoricalData {
      * Construct the historical demand data facade.
      *
      * @param computeTierDemandStatsStore historical demand data store.
-     * @param riMinimumDataPoints RI buy hour data points value range from 1 to 168 inclusive
      */
     public ReservedInstanceAnalyzerHistoricalData(
-        ComputeTierDemandStatsStore computeTierDemandStatsStore, int riMinimumDataPoints) {
-        this.riMinimumDataPoints = riMinimumDataPoints;
+        ComputeTierDemandStatsStore computeTierDemandStatsStore) {
         this.computeTierDemandStatsStore = Objects.requireNonNull(computeTierDemandStatsStore);
     }
 
@@ -278,7 +271,13 @@ public class ReservedInstanceAnalyzerHistoricalData {
      * @return if contains over a week worth of data or not.
      */
     boolean containsDataOverWeek() {
-        return computeTierDemandStatsStore.containsDataOverWeek(riMinimumDataPoints);
+        /**
+         * TODO : Remove the hardcoded return true and uncomment the next line of code once
+         * OM-50535 is implemented.
+         */
+
+        //return computeTierDemandStatsStore.containsDataOverWeek();
+        return true;
     }
 
 }
