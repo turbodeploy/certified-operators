@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.reserved.instance.recommendationalgorithm;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -9,7 +10,12 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
@@ -21,6 +27,9 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
  * purchasing Reserved Instances for VMs which meet the given criteria.
  */
 public class ReservedInstanceAnalysisScope {
+
+    private static final Logger logger = LogManager.getLogger();
+
     /**
      * Which platforms should be considered (eg LINUX, RHEL, WINDOWS).
      */
@@ -81,25 +90,47 @@ public class ReservedInstanceAnalysisScope {
      * @param profile     The type of RI to be bought which includes offering class,
      *                              payment option, term, purchase date.
      */
-    public ReservedInstanceAnalysisScope(@Nullable Collection<OSType> platforms,
-                         @Nullable Collection<Long> regions,
-                         @Nullable Collection<Tenancy> tenancies,
-                         @Nullable Collection<Long> accounts,
-                         float preferredCoverage,
-                         boolean overrideRICoverage,
-                         @Nullable RIPurchaseProfile profile) {
-            this.platforms = (platforms == null) ?
-                    ImmutableSet.copyOf(Arrays.stream(OSType.values()).filter(x -> x != OSType.UNKNOWN_OS).collect(Collectors.toSet())) :
-                    ImmutableSet.copyOf(platforms);
-            this.regions = (regions == null) ?
-                    ImmutableSet.copyOf(getAllSupportedRegions())
-                    : ImmutableSet.copyOf(regions);
-            this.tenancies = (tenancies == null) ?
-                    ImmutableSet.of(Tenancy.DEFAULT, Tenancy.DEDICATED)
-                    : ImmutableSet.copyOf(tenancies);
-            // Set accounts to null to include all accounts in scope.
-            this.accounts = (accounts == null) ? null
-                    : ImmutableSet.copyOf(accounts);
+    @VisibleForTesting
+    protected ReservedInstanceAnalysisScope(@Nullable Collection<OSType> platforms,
+                                            @Nullable Collection<Long> regions,
+                                            @Nullable Collection<Tenancy> tenancies,
+                                            @Nullable Collection<Long> accounts,
+                                            float preferredCoverage,
+                                            boolean overrideRICoverage,
+                                            @Nullable RIPurchaseProfile profile) {
+        if (CollectionUtils.isNotEmpty(platforms) && platforms.contains(OSType.UNKNOWN_OS)) {
+            logger.warn("ReservedInstanceAnalysisScope platform contains illegal UNKNOWN_OS, removing it");
+            // because platforms may be immutable, create a copy.
+            Collection<OSType> newPlatforms = new ArrayList();
+            for (OSType osType : platforms) {
+                if (osType != OSType.UNKNOWN_OS) {
+                    newPlatforms.add(osType);
+                }
+            }
+            platforms = newPlatforms;
+        }
+        this.platforms = (CollectionUtils.isEmpty(platforms)) ?
+            ImmutableSet.copyOf(Arrays.stream(OSType.values()).filter(x -> x != OSType.UNKNOWN_OS).collect(Collectors.toSet())) :
+            ImmutableSet.copyOf(platforms);
+        this.regions = (regions == null)
+            ? ImmutableSet.copyOf(getAllSupportedRegions())
+            : ImmutableSet.copyOf(regions);
+        if (CollectionUtils.isNotEmpty(tenancies) && tenancies.contains(Tenancy.HOST)) {
+            logger.warn("ReservedInstanceAnalysisScope tenancy contains illegal HOST, removing it");
+            // because tenancies may be immutable, create a copy.
+            Collection<Tenancy> newTenancies = new ArrayList();
+            for (Tenancy tenancy: tenancies) {
+                if (tenancy != Tenancy.HOST) {
+                    newTenancies.add(tenancy);
+                }
+            }
+            tenancies = newTenancies;
+        }
+        this.tenancies = CollectionUtils.isEmpty(tenancies)
+            ? ImmutableSet.of(Tenancy.DEFAULT, Tenancy.DEDICATED)
+            : ImmutableSet.copyOf(tenancies);
+        // Set accounts to null to include all accounts in scope.
+        this.accounts = (accounts == null) ? null : ImmutableSet.copyOf(accounts);
         this.preferredCoverage = preferredCoverage;
         this.overrideRICoverage = overrideRICoverage;
         this.riPurchaseProfile = profile;

@@ -1,9 +1,7 @@
-package com.vmturbo.cost.component.reserved.instance;
+package com.vmturbo.cost.component.reserved.instance.recommendationalgorithm;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -11,6 +9,8 @@ import java.util.List;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
+
+import org.junit.Test;
 
 import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
@@ -39,8 +39,8 @@ public class ReservedInstanceAnalysisScopeTest {
         /*
          * lists
          */
-        List<OSType> platforms = Arrays.asList(OSType.values());
-        List<Tenancy> tenancies = Arrays.asList(Tenancy.values());
+        List<OSType> platforms = new ArrayList(Arrays.asList(OSType.values()));
+        List<Tenancy> tenancies = new ArrayList(Arrays.asList(Tenancy.values()));
         List<Long> regions = new ArrayList(Arrays.asList(1L, 3L, 4L));
         List<Long> accounts = new ArrayList(Arrays.asList(5L, 6L, 7L, 8L));
 
@@ -75,9 +75,11 @@ public class ReservedInstanceAnalysisScopeTest {
         ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(request);
 
         assertTrue(longListEqual(regions, scope.getRegions()));
-        assertTrue(tenancyListEqual(tenancies, scope.getTenancies()));
+        assertFalse(tenancyListEqual(tenancies, scope.getTenancies()));
+        assertTrue(tenancyListAllButHost(scope.getTenancies()));
         assertTrue(longListEqual(accounts, scope.getAccounts()));
-        assertTrue(osTypeListEqual(platforms, scope.getPlatforms()));
+        assertFalse(osTypeListEqual(platforms, scope.getPlatforms()));
+        assertTrue(osTypeListAllButUnknown(scope.getPlatforms()));
         assertTrue(riPurchaseProfilesEqual(riPurchaseProfile, scope.getRiPurchaseProfile()));
     }
 
@@ -144,7 +146,6 @@ public class ReservedInstanceAnalysisScopeTest {
         StartBuyRIAnalysisRequest.Builder requestBuilder =
                 com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest.newBuilder();
 
-
         RIPurchaseProfile.Builder profileBuilder =
                 com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile.newBuilder();
 
@@ -157,9 +158,11 @@ public class ReservedInstanceAnalysisScopeTest {
 
         assertTrue("scope.getRegions()==" + scope.getRegions() + " != Empty",
                 scope.getRegions().isEmpty());
-        assertTrue(scope.getTenancies().isEmpty());
+
+        assertTrue(tenancyListAllButHost(scope.getTenancies()));
+        assertTrue(osTypeListAllButUnknown(scope.getPlatforms()));
         assertTrue(scope.getAccounts().isEmpty());
-        assertTrue(scope.getPlatforms().isEmpty());
+        assertTrue(scope.getRegions().isEmpty());
         assertTrue("scope.getRiPurchaseProfile()=" + scope.getRiPurchaseProfile() + " != null",
                 riPurchaseProfilesEqual(riPurchaseProfile, scope.getRiPurchaseProfile()));
     }
@@ -172,11 +175,7 @@ public class ReservedInstanceAnalysisScopeTest {
         ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(null, null,
             null, null, 1.0f, false, null);
         assertFalse(scope.getPlatforms().contains(OSType.UNKNOWN_OS));
-        for (OSType type: OSType.values()) {
-            if (type != OSType.UNKNOWN_OS) {
-                assertTrue(scope.getPlatforms().contains(type));
-            }
-        }
+        assertTrue(osTypeListAllButUnknown(scope.getPlatforms()));
     }
 
     /**
@@ -187,11 +186,30 @@ public class ReservedInstanceAnalysisScopeTest {
         ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(null, null,
             null, null, 1.0f, false, null);
         assertFalse(scope.getTenancies().contains(Tenancy.HOST));
-        for (Tenancy tenancy: Tenancy.values()) {
-            if (tenancy != Tenancy.HOST) {
-                assertTrue(scope.getTenancies().contains(tenancy));
-            }
-        }
+        assertTrue(tenancyListAllButHost(scope.getTenancies()));
+    }
+
+    /**
+     * Test illegal Tenancy is handled properly.  Tenancy.HOST is removed.
+     */
+    @Test
+    public void testConstructorWithIllegalTenancy() {
+        ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(null, null,
+            new ArrayList(Arrays.asList(Tenancy.values())), null, 1.0f, false, null);
+        assertFalse(scope.getTenancies().contains(Tenancy.HOST));
+        assertTrue(tenancyListAllButHost(scope.getTenancies()));
+    }
+
+    /**
+     * Test illegal Platform is handled properly.  OSType.UNKNOWN_OS is removed.
+     */
+    @Test
+    public void testConstructorWithIllegalOSType() {
+        ReservedInstanceAnalysisScope scope =
+            new ReservedInstanceAnalysisScope(new ArrayList(Arrays.asList(OSType.values())),
+            null, null, null, 1.0f, false, null);
+        assertFalse(scope.getPlatforms().contains(OSType.UNKNOWN_OS));
+        assertTrue(osTypeListAllButUnknown(scope.getPlatforms()));
     }
 
     private boolean longListEqual(List<Long> l1, ImmutableSet<Long> s2) {
@@ -228,6 +246,16 @@ public class ReservedInstanceAnalysisScopeTest {
         return true;
     }
 
+    private boolean tenancyListAllButHost(ImmutableSet<Tenancy> set) {
+        if (set.size() != (Tenancy.values().length -1)) {
+            return false;
+        }
+        if (set.contains(Tenancy.HOST)) {
+            return false;
+        }
+        return true;
+    }
+
     private boolean osTypeListEqual(List<OSType> l1, Set<OSType> s2) {
         if (l1 == null && s2 == null) {
             return true;
@@ -240,6 +268,16 @@ public class ReservedInstanceAnalysisScopeTest {
             return false;
         }
         if (!l2.containsAll(l1)) {
+            return false;
+        }
+        return true;
+    }
+
+    private boolean osTypeListAllButUnknown(Set<OSType> set) {
+        if (set.size() != (OSType.values().length -1)) {
+            return false;
+        }
+        if (set.contains(OSType.UNKNOWN_OS)) {
             return false;
         }
         return true;

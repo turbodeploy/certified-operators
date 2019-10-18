@@ -1,15 +1,12 @@
 package com.vmturbo.plan.orchestrator.plan;
 
 import java.util.Arrays;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
-
-import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
@@ -24,23 +21,15 @@ import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DemandType;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
+/**
+ * This class provides support for PlanRpcService.
+ */
 public class PlanRpcServiceUtil {
 
-    private static final ImmutableSet<OSType> platforms = ImmutableSet
-                    .of(OSType.UNKNOWN_OS, OSType.LINUX, OSType.SUSE, OSType.RHEL, OSType.WINDOWS,
-                        OSType.WINDOWS_WITH_SQL_STANDARD, OSType.WINDOWS_WITH_SQL_WEB,
-                        OSType.WINDOWS_WITH_SQL_ENTERPRISE, OSType.LINUX_WITH_SQL_STANDARD,
-                        OSType.LINUX_WITH_SQL_WEB, OSType.LINUX_WITH_SQL_ENTERPRISE);
-
-    private static final ImmutableSet<Tenancy> tenacies = ImmutableSet
-                    .of(Tenancy.DEFAULT, Tenancy.DEDICATED, Tenancy.HOST);
-
-    /**
-     * Create StartBuyRIAnalysisRequest
+  /**
+     * Create StartBuyRIAnalysisRequest.
      *
      * @param scenarioInfo the scenarioInfo of plan instance
      * @param riScenario the scenario change related with RI
@@ -66,6 +55,11 @@ public class PlanRpcServiceUtil {
         // yet in the commonDTO.EntityType, ba is BUSINESS_ACCOUNT
         Set<Long> baIds = scopeObjectByClass.get(StringConstants.BUSINESS_ACCOUNT);
         RISetting riSetting = riScenario.getRiSetting();
+        /*
+         * Because OCP currently does not allow User scoping by OSType or Tenancy, not setting
+         * platforms or tenancies here in the requests, results in null and the RI buy algorithm will
+         * fill in the appropriate OSTypes and Tenancies.
+         */
         final StartBuyRIAnalysisRequest.Builder buyRiRequest = StartBuyRIAnalysisRequest
                 .newBuilder().setTopologyInfo(TopologyInfo.newBuilder()
                         .setTopologyContextId(planId)
@@ -73,8 +67,6 @@ public class PlanRpcServiceUtil {
                         .setPlanInfo(PlanTopologyInfo.newBuilder()
                                 .setPlanType(scenarioInfo.getType()))
                                 .build())
-                .addAllPlatforms(platforms) // currently buy RI use all platforms
-                .addAllTenancies(tenacies) // currently buy RI use all tenancies
                 .setPurchaseProfile(RIPurchaseProfile.newBuilder()
                         .setRiType(ReservedInstanceType.newBuilder()
                                 .setOfferingClass(riSetting.hasPreferredOfferingClass() ?
@@ -84,7 +76,7 @@ public class PlanRpcServiceUtil {
                                 riSetting.getPreferredPaymentOption()
                                 : ReservedInstanceType.PaymentOption.ALL_UPFRONT)
                                 .setTermYears(riSetting.hasPreferredTerm() ? riSetting.getPreferredTerm() : 1)));
-        if (regionIds !=null && !regionIds.isEmpty()) {
+        if (regionIds != null && !regionIds.isEmpty()) {
             buyRiRequest.addAllRegions(regionIds);
         }
         if (baIds != null && !baIds.isEmpty()) {
