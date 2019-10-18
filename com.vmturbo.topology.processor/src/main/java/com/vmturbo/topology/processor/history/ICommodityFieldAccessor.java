@@ -47,6 +47,14 @@ public interface ICommodityFieldAccessor {
     UtilizationData getUtilizationData(@Nonnull EntityCommodityReference commRef);
 
     /**
+     * Remove the raw utilization data for the commodity reference.
+     *
+     * @param commRef commodity reference
+     */
+    @Nullable
+    void clearUtilizationData(@Nonnull EntityCommodityReference commRef);
+
+    /**
      * Change the historical commodity field.
      *
      * @param field field reference

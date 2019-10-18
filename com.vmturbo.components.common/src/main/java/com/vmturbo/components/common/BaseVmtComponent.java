@@ -54,6 +54,7 @@ import io.prometheus.client.hotspot.DefaultExports;
 import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.SystemUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.jetty.servlet.ServletContextHandler;
@@ -853,11 +854,14 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     }
 
     private static String path(URI uri) {
-        return "file".equals(uri.getScheme())
+        String path = "file".equals(uri.getScheme())
             // "file" scheme used in unit tests
             ? uri.getPath()
             // "jar" scheme expected at runtime
             : uri.toString().replaceFirst(".*!", "");
+        return StringUtils.isNotEmpty(path) && SystemUtils.IS_OS_WINDOWS && path.startsWith("/") && path.contains(":")
+                        ? path.substring(1)
+                        : path;
     }
 
     /**

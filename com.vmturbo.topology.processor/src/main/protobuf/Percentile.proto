@@ -23,5 +23,7 @@ message PercentileCounts {
         // Utilization counts per percent value - an array of the number of configured
         // percentile intervals for the metric (no more than 101).
         repeated int32 utilization = 6 [packed = true];
+        // Period setting in days for which these counts were calculated.
+        required int32 period = 7;
     }
 }

@@ -47,7 +47,7 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
                         .spy(new CommodityFieldAccessor(mockGraph(Collections.singleton(entity))));
         Mockito.doReturn((double)cap).when(accessor).getCapacity(field);
         PercentileRecord.Builder dbValue = PercentileRecord.newBuilder().setCapacity(cap)
-                        .setEntityOid(entity.getOid()).setCommodityType(commType.getType());
+                        .setEntityOid(entity.getOid()).setCommodityType(commType.getType()).setPeriod(30);
         for (int i = 0; i <= 100; ++i) {
             dbValue.addUtilization(i == used ? 1 : 0);
         }

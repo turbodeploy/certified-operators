@@ -33,10 +33,10 @@ public class PercentileCommodityData
             if (utilizationCounts == null) {
                 utilizationCounts = new UtilizationCountStore(config
                                 .getPercentileBuckets(field.getCommodityType().getType()), field);
+                utilizationCounts.setPeriodDays(config.getObservationPeriod(field.getEntityOid()));
             }
             if (dbValue != null) {
                 utilizationCounts.setLatestCountsRecord(dbValue);
-                utilizationCounts.addFullCountsRecord(dbValue, true);
             }
         } catch (HistoryCalculationException e) {
             logger.error("Failed to initialize percentile utilization storage for " + field, e);
@@ -76,6 +76,7 @@ public class PercentileCommodityData
             commodityFieldsAccessor.updateHistoryValue(field,
                                                        hv -> hv.setPercentile(percentile / 100d),
                                                        PercentileEditor.class.getSimpleName());
+            commodityFieldsAccessor.clearUtilizationData(field);
         } catch (HistoryCalculationException e) {
             logger.error("Failed to aggregate percentile utilization for " + field, e);
         }

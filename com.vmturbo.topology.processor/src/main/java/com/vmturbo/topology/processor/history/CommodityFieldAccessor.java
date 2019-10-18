@@ -125,6 +125,17 @@ public class CommodityFieldAccessor implements ICommodityFieldAccessor {
     }
 
     @Override
+    public void clearUtilizationData(@Nonnull EntityCommodityReference commRef) {
+        if (commRef.getProviderOid() == null) {
+            getCommodityBuilder(soldBuilders, commRef, SOLD_BUILDER_EXTRACTOR)
+                            .map(CommoditySoldDTO.Builder::clearUtilizationData);
+        } else {
+            getCommodityBuilder(boughtBuilders, commRef, BOUGHT_BUILDER_EXTRACTOR)
+                            .map(CommodityBoughtDTO.Builder::clearUtilizationData);
+        }
+    }
+
+    @Override
     public void updateHistoryValue(@Nonnull EntityCommodityFieldReference field,
                                    @Nonnull Consumer<HistoricalValues.Builder> setter,
                                    @Nonnull String description) {

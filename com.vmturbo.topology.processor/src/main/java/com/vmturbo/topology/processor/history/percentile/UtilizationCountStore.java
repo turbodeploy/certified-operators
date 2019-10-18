@@ -26,6 +26,7 @@ public class UtilizationCountStore {
     private final UtilizationCountArray full;
     private final PercentileBuckets buckets;
     private long latestStoredTimestamp;
+    private int periodDays;
 
     /**
      * Construct the counts history.
@@ -99,14 +100,16 @@ public class UtilizationCountStore {
     }
 
     /**
-     * Store the data from a persisted percentile record into the latest window counts array.
+     * Store the data from a persisted percentile record into the latest and full window counts arrays.
      *
      * @param record serialized record
      * @throws HistoryCalculationException when passed data are not valid
      */
     public void setLatestCountsRecord(PercentileRecord record) throws HistoryCalculationException {
         latest.clear();
-        latest.deserialize(record, fieldReference.toString());
+        String description = fieldReference.toString();
+        latest.deserialize(record, description);
+        full.deserialize(record, description);
     }
 
     /**
@@ -115,7 +118,7 @@ public class UtilizationCountStore {
      * @return serialized record
      */
     public PercentileRecord.Builder getLatestCountsRecord() {
-        return latest.serialize(fieldReference);
+        return latest.serialize(fieldReference).setPeriod(1);
     }
 
     /**
@@ -146,7 +149,14 @@ public class UtilizationCountStore {
             }
         }
         latest.clear();
-        return full.serialize(fieldReference);
+        return full.serialize(fieldReference).setPeriod(periodDays);
     }
 
+    public int getPeriodDays() {
+        return periodDays;
+    }
+
+    public void setPeriodDays(int periodDays) {
+        this.periodDays = periodDays;
+    }
 }

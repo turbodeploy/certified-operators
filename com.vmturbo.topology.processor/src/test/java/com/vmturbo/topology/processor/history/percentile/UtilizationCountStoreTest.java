@@ -63,7 +63,7 @@ public class UtilizationCountStoreTest {
                         .setEntityOid(ref.getEntityOid())
                         .setCommodityType(ref.getCommodityType().getType())
                         .setKey(ref.getCommodityType().getKey())
-                        .setProviderOid(ref.getProviderOid()).setCapacity(0f);
+                        .setProviderOid(ref.getProviderOid()).setCapacity(0f).setPeriod(30);
         for (int i = 0; i <= 100; ++i) {
             builder.addUtilization(20);
         }
@@ -85,7 +85,7 @@ public class UtilizationCountStoreTest {
     public void testCheckpoint() throws HistoryCalculationException {
         final float capacity = 100f;
         PercentileRecord.Builder oldest = PercentileRecord.newBuilder().setEntityOid(12)
-                        .setCommodityType(32).setCapacity(100f);
+                        .setCommodityType(32).setCapacity(100f).setPeriod(30);
         store.addPoints(ImmutableList.of(0.1d, 0.2d, 0.3d, 0.3d), capacity, 100);
         for (int i = 0; i <= 100; ++i) {
             oldest.addUtilization(i == 20 ? 1 : 0);

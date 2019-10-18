@@ -128,7 +128,7 @@ public class UtilizationCountArray {
         }
         int i = 0;
         for (Integer count : record.getUtilizationList()) {
-            counts[i++] = count;
+            counts[i++] += count;
         }
         capacity = record.getCapacity();
     }

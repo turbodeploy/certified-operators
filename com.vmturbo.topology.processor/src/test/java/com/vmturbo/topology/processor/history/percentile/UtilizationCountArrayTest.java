@@ -162,7 +162,7 @@ public class UtilizationCountArrayTest {
                                               4857L, CommodityField.USED);
         PercentileRecord.Builder builder = counts.serialize(ref);
         Assert.assertNotNull(builder);
-        PercentileRecord record = builder.build();
+        PercentileRecord record = builder.setPeriod(30).build();
 
         Assert.assertTrue(record.hasEntityOid());
         Assert.assertTrue(record.hasCapacity());
@@ -186,12 +186,17 @@ public class UtilizationCountArrayTest {
     public void testDeserialize() throws HistoryCalculationException {
         UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets(null));
         PercentileRecord.Builder builder = PercentileRecord.newBuilder().setEntityOid(12)
-                        .setCommodityType(32).setCapacity(100f);
-        for (int i = 0; i <= 100; ++i) {
-            builder.addUtilization(50);
-        }
+                        .setCommodityType(32).setCapacity(100f).setPeriod(30);
+        addCount(builder, 5, 10);
+        addCount(builder, 10, 10);
         counts.deserialize(builder.build(), "");
-        Assert.assertEquals(10, counts.getPercentile(10));
+        Assert.assertEquals(5, counts.getPercentile(50));
+
+        addCount(builder, 15, 10);
+        addCount(builder, 20, 10);
+        counts.deserialize(builder.build(), "");
+        Assert.assertEquals(5, counts.getPercentile(25));
+        Assert.assertEquals(10, counts.getPercentile(50));
     }
 
     /**
@@ -205,7 +210,7 @@ public class UtilizationCountArrayTest {
         expectedException.expectMessage("serialized percentile counts array is not valid");
         UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets(null));
         PercentileRecord.Builder builder = PercentileRecord.newBuilder().setEntityOid(12)
-                        .setCommodityType(32).setCapacity(100f).addUtilization(20);
+                        .setCommodityType(32).setCapacity(100f).addUtilization(20).setPeriod(30);
         counts.deserialize(builder.build(), "");
     }
 
@@ -214,5 +219,15 @@ public class UtilizationCountArrayTest {
         for (int i = 0; i < quantity; ++i) {
             counts.addPoint(count, 100, "", true);
         }
+    }
+
+    private static void addCount(PercentileRecord.Builder builder, int count, int quantity)
+                    throws HistoryCalculationException {
+        if (builder.getUtilizationCount() == 0) {
+            for (int i = 0; i <= 100; ++i) {
+                builder.addUtilization(0);
+            }
+        }
+        builder.setUtilization(count, builder.getUtilization(count) + quantity);
     }
 }

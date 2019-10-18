@@ -50,7 +50,7 @@ public class AbstractCachingHistoricalEditorTest {
     private EntityCommodityReference cref5;
     private List<EntityCommodityReference> allComms;
     private Set<EntityCommodityReference> seenCommRefs;
-    private Map<EntityCommodityReference, TopologyEntity> entity2commref;
+    private Map<EntityCommodityReference, TopologyEntity> entity2commref = new HashMap<>();
 
     @Before
     public void setUp() {

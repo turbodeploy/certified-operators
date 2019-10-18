@@ -71,11 +71,11 @@ public class PercentilePersistenceTaskTest {
         float cap = 89F;
         String key = "qqq";
         PercentileRecord rec1 = PercentileRecord.newBuilder().setEntityOid(oid1)
-                        .setCommodityType(ct1).setCapacity(cap).build();
+                        .setCommodityType(ct1).setCapacity(cap).setPeriod(30).build();
         PercentileRecord rec2 = PercentileRecord.newBuilder().setEntityOid(oid2)
-                        .setCommodityType(ct2).setCapacity(cap).build();
+                        .setCommodityType(ct2).setCapacity(cap).setPeriod(30).build();
         PercentileRecord rec3 = PercentileRecord.newBuilder().setEntityOid(oid3)
-                        .setCommodityType(ct2).setCapacity(cap).setKey(key).build();
+                        .setCommodityType(ct2).setCapacity(cap).setKey(key).setPeriod(30).build();
         byte[] payload = PercentileCounts.newBuilder()
                         .addPercentileRecords(rec1).addPercentileRecords(rec2)
                         .addPercentileRecords(rec3)
@@ -190,9 +190,9 @@ public class PercentilePersistenceTaskTest {
         float cap = 89F;
         String key = "qqq";
         PercentileRecord rec1 = PercentileRecord.newBuilder().setEntityOid(oid1)
-                        .setCommodityType(ct1).setCapacity(cap).build();
+                        .setCommodityType(ct1).setCapacity(cap).setPeriod(30).build();
         PercentileRecord rec2 = PercentileRecord.newBuilder().setEntityOid(oid3)
-                        .setCommodityType(ct2).setCapacity(cap).setKey(key).build();
+                        .setCommodityType(ct2).setCapacity(cap).setKey(key).setPeriod(30).build();
         PercentileCounts counts = PercentileCounts.newBuilder().addPercentileRecords(rec1)
                         .addPercentileRecords(rec2).build();
         long periodMs = 4756L;
