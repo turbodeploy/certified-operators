@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -27,6 +29,7 @@ import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountRespo
 import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceImplBase;
+import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanceMappingFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
@@ -74,9 +77,13 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
                                   .setScopeEntityType(scopeEntityType)
                                   .addAllBillingAccountId(relatedBusinessAccountOrSubscriptionOids)
                                   .build());
+            final List<Long> riOids = reservedInstanceBoughts.stream().map(riBought -> riBought.getId())
+                            .collect(Collectors.toList());
+            final Stream<ReservedInstanceBought> rebuiltReservedInstanceBoughtStream = stitchRICouponsUsed(reservedInstanceBoughts, riOids);
+
             final GetReservedInstanceBoughtByFilterResponse.Builder responseBuilder =
                     GetReservedInstanceBoughtByFilterResponse.newBuilder();
-            reservedInstanceBoughts.stream().forEach(responseBuilder::addReservedInstanceBoughts);
+            rebuiltReservedInstanceBoughtStream.forEach(responseBuilder::addReservedInstanceBoughts);
             responseObserver.onNext(responseBuilder.build());
             responseObserver.onCompleted();
         } catch (DataAccessException e) {
@@ -84,6 +91,21 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
                     .withDescription("Failed to get reserved instance bought by filter.")
                     .asException());
         }
+    }
+
+    private Stream<ReservedInstanceBought> stitchRICouponsUsed(List<ReservedInstanceBought> reservedInstanceBoughts, List<Long> scopeId) {
+        final EntityReservedInstanceMappingFilter filter = EntityReservedInstanceMappingFilter.newBuilder().addAllScopeId(scopeId).build();
+        final Map<Long, Double> reservedInstanceUsedCouponsMap =
+                        entityReservedInstanceMappingStore.getReservedInstanceUsedCouponsMapByFilter(filter);
+        return reservedInstanceBoughts.stream()
+                        .map(ReservedInstanceBought::toBuilder)
+                        .peek(riBuilder -> riBuilder
+                                        .getReservedInstanceBoughtInfoBuilder()
+                                        .getReservedInstanceBoughtCouponsBuilder()
+                                        .setNumberOfCouponsUsed(
+                                                        reservedInstanceUsedCouponsMap
+                                                                        .getOrDefault(riBuilder.getId(), 0D)))
+                        .map(ReservedInstanceBought.Builder::build);
     }
 
     @Override

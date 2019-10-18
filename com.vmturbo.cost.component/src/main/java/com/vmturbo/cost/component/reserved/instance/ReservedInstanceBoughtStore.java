@@ -175,7 +175,9 @@ public class ReservedInstanceBoughtStore {
                 existingReservedInstances.stream()
                         .collect(Collectors.toMap(ri -> ri.getProbeReservedInstanceId(),
                                 Function.identity()));
-        final Map<String, ReservedInstanceBoughtInfo> newRIsProbeKeysToRI = newReservedInstances.stream()
+        final List<ReservedInstanceBoughtInfo> reservedInstanceBoughtInfos =
+                        unsetNumberOfCouponsUsed(newReservedInstances);
+        final Map<String, ReservedInstanceBoughtInfo> newRIsProbeKeysToRI = reservedInstanceBoughtInfos.stream()
                 .collect(Collectors.toMap(ReservedInstanceBoughtInfo::getProbeReservedInstanceId,
                         Function.identity()));
         final List<ReservedInstanceBoughtInfo> reservedInstanceToAdd =
@@ -201,6 +203,15 @@ public class ReservedInstanceBoughtStore {
             updateEventEmitter.next(ReservedInstanceBoughtChangeType.UPDATED);
         }
         logger.info("Finished updating reserved instance bought.");
+    }
+
+    @Nonnull
+    private List<ReservedInstanceBoughtInfo> unsetNumberOfCouponsUsed(@Nonnull List<ReservedInstanceBoughtInfo> newReservedInstances) {
+        return newReservedInstances.stream().map(ReservedInstanceBoughtInfo::toBuilder)
+                        .peek(riInfoBuilder -> riInfoBuilder.getReservedInstanceBoughtCouponsBuilder()
+                                        .setNumberOfCouponsUsed(0D))
+                        .map(ReservedInstanceBoughtInfo.Builder::build)
+                        .collect(Collectors.toList());
     }
 
     /**

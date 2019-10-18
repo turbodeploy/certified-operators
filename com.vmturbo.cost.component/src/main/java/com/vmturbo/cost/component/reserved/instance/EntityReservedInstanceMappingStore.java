@@ -31,6 +31,7 @@ import com.vmturbo.cost.component.db.enums.EntityToReservedInstanceMappingRiSour
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.pojos.EntityToReservedInstanceMapping;
 import com.vmturbo.cost.component.db.tables.records.EntityToReservedInstanceMappingRecord;
+import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanceMappingFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 
 /**
@@ -130,6 +131,38 @@ public class EntityReservedInstanceMappingStore {
         return riUsedCouponsMap.intoMap(
                 riUsedCouponsMap.field(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID),
                 riUsedCouponsMap.field(RI_SUM_COUPONS).cast(Double.class));
+    }
+
+    /**
+     * Get the sum count of used coupons for each reserved instance in the filter.
+     *
+     * @param context {@link DSLContext} transactional context.
+     * @param filter {@link EntityReservedInstanceMappingFilter} filter for scoping to required Resrved Instance oids.
+     * @return a map which key is reserved instance id, value is the sum of used coupons.
+     */
+    public Map<Long, Double> getReservedInstanceUsedCouponsMapWithFilter(@Nonnull final DSLContext context, EntityReservedInstanceMappingFilter filter) {
+        final Result<Record2<Long, Double>> riUsedCouponsMap =
+                        context.select(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID,
+                                        (sum(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.USED_COUPONS))
+                                                        .cast(Double.class).as(RI_SUM_COUPONS))
+                                        .from(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING)
+                                        .where(filter.getConditions())
+                                        .groupBy(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID)
+                                        .fetch();
+        return riUsedCouponsMap.intoMap(
+                        riUsedCouponsMap.field(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID),
+                        riUsedCouponsMap.field(RI_SUM_COUPONS).cast(Double.class));
+    }
+
+    /**
+     * Get the sum count of used coupons for each reserved instance in the filter.
+     *
+     * @param filter EntityReservedInstanceMappingFilter which contains scoped Reserved Instance oids.
+     * @return a map which key is reserved instance id, value is the sum of used coupons.
+     */
+    public Map<Long, Double> getReservedInstanceUsedCouponsMapByFilter(
+                    @Nonnull final EntityReservedInstanceMappingFilter filter) {
+        return getReservedInstanceUsedCouponsMapWithFilter(dsl, filter);
     }
 
     /**
