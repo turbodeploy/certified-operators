@@ -19,12 +19,14 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.base.Stopwatch;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang.ArrayUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
@@ -65,11 +67,12 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.Offerin
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
 
 /**
+ * <p>This class is ported from Classic/Legacy Opsmgr.</p>
  *
- * This class is ported from Classic/Legacy Opsmgr.
+ * <p>This is the entry point for the RI buy analysis.  This class calls the kernel algorithm passing
+ * in demand.</p>
  *
- * Class for analyzing a Reserved Instance scenario and generating recommendations.
- *
+ * <p>Class for analyzing a Reserved Instance scenario and generating recommendations.
  * Inputs:
  *  - a scope of analysis (regions, tenancies, platform).
  *  - purchase constraints (specifies what kind of RIs the customer prefers to buy, standard/convertible, term, etc)
@@ -84,9 +87,11 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.Payment
  * Output:
  *  An AnalysisResult describing the analysis done and a list of recommendations,
  *  of actions to be taken (eg, buy some RIs, convert some others, sell some, etc).
+ *<\p>
  *
- *  NOTE: The current implementation is only capable of generating Buy recommendations.
+ * <p>NOTE: The current implementation is only capable of generating Buy recommendations.<\p>
  */
+@ThreadSafe
 public class ReservedInstanceAnalyzer {
 
     private static final Logger logger = LogManager.getLogger();
@@ -101,15 +106,17 @@ public class ReservedInstanceAnalyzer {
 
     private final ReservedInstanceActionsSender actionsSender;
 
-    // A count of the number of separate contexts that were analyzed -- separate
-    // combinations of region, tenancy, platform, and instance type or family
-    // (depending on whether instance size flexible rules applied).
-    private int numContextsAnalyzed = 0;
+    /*
+     * Stores needed for rates and RIs.
+     */
+    private final ReservedInstanceBoughtStore riBoughtStore;
+    private final ReservedInstanceSpecStore riSpecStore;
+    private final PriceTableStore priceTableStore;
 
     // A counter used to generate unique tags for log entries
     private static AtomicInteger logTagCounter = new AtomicInteger();
 
-    private ActionContextRIBuyStore actionContextRIBuyStore;
+    private final ActionContextRIBuyStore actionContextRIBuyStore;
 
     /*
      * Needed for optimize cloud plan to have the initial topology to start from.
@@ -124,20 +131,9 @@ public class ReservedInstanceAnalyzer {
      * TODO: This object should be passed into the constructor and eliminate the computeTierDemandStatsStore
      * parameter.
      */
-    private final ReservedInstanceAnalyzerHistoricalData historicalData;
-
-    /*
-     * Facade to access the rate and reserved instances.
-     * Refatoring code to improve JUnit testing, because this class is highly dependent on the Spring
-     * framework's dependency injection, which is difficult to JUnit test.
-     *
-     * TODO: This object should be passed into the constructor and eliminate the priceTableStore,
-     * riSpecStore, and riBoughtStore parameters.
-     */
-    private final ReservedInstanceAnalyzerRateAndRIs rateAndRIProvider;
+    private final ReservedInstanceAnalyzerHistoricalData historicalDemandDataReader;
 
    /**
-     *
      * Construct an analyzer.
      *
      * @param settingsServiceClient Setting Services client for fetching settings.
@@ -145,7 +141,7 @@ public class ReservedInstanceAnalyzer {
      * @param riBoughtStore Provide current RI bought information.
      * @param riSpecStore Provides details of RI Specs.
      * @param priceTableStore Provides price information for RIs and on-demand instances.
-     * @param computeTierDemandStatsStore Provides historical data for instances.
+     * @param computeTierDemandStatsStore historical demand data store for instances.
      * @param cloudTopologyFactory Cloud topology factory.
      * @param actionsSender used to broadcast the actions.
      * @param buyRiStore Place to store all the buy RIs suggested by this algorithm
@@ -172,13 +168,19 @@ public class ReservedInstanceAnalyzer {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
 
         /*
-         * accessors to historical data and rates and RIs.
+         * ComputeTierDemandStatsReader
          */
-        this.historicalData =
+        this.historicalDemandDataReader =
             new ReservedInstanceAnalyzerHistoricalData(Objects.requireNonNull(computeTierDemandStatsStore));
 
-        this.rateAndRIProvider =
-            new ReservedInstanceAnalyzerRateAndRIs(priceTableStore, riSpecStore, riBoughtStore);
+        /*
+         * Access to RI and rates stores.
+         */
+        this.riBoughtStore = Objects.requireNonNull(riBoughtStore);
+        this.riSpecStore = Objects.requireNonNull(riSpecStore);
+        this.priceTableStore = Objects.requireNonNull(priceTableStore);
+
+        logger.debug("ReservedInstanceAnalyzer constructor");
     }
 
     /**
@@ -195,7 +197,7 @@ public class ReservedInstanceAnalyzer {
                 @Nonnull ReservedInstanceAnalysisScope scope,
                 @Nonnull ReservedInstanceHistoricalDemandDataType historicalDemandDataType)
                                 throws CommunicationException, InterruptedException {
-       if (historicalData.containsDataOverWeek()) {
+       if (historicalDemandDataReader.containsDataOverWeek()) {
             @Nullable ReservedInstanceAnalysisResult result = analyze(topologyContextId, scope,
                 historicalDemandDataType);
             ActionPlan actionPlan;
@@ -247,7 +249,7 @@ public class ReservedInstanceAnalyzer {
             TopologyEntityCloudTopology cloudTopology =
                 computeCloudTopology(repositoryClient, realtimeTopologyContextId, scope);
             if (cloudTopology.size() == 0) {
-                logger.info("Something went wrong: no cloudTopology entities, time: {} ms");
+                logger.error("Something went wrong: no cloudTopology entities, time: {} ms");
                 return null;
             }
             // Describes what kind of RIs can be considered for purchase
@@ -264,7 +266,7 @@ public class ReservedInstanceAnalyzer {
             // Find the historical demand by context and create analysis clusters.
             final Stopwatch stopWatch = Stopwatch.createStarted();
             Map<ReservedInstanceRegionalContext, List<ReservedInstanceZonalContext>> clusters =
-                    historicalData.computeAnalysisClusters(scope, computeTierFamilies, cloudTopology);
+                historicalDemandDataReader.computeAnalysisClusters(scope, computeTierFamilies, cloudTopology);
             if (clusters.isEmpty()) {
                 logger.info("Something went wrong: discovered 0 Analyzer clusters, time: {} ms",
                     stopWatch.elapsed(TimeUnit.MILLISECONDS));
@@ -272,18 +274,28 @@ public class ReservedInstanceAnalyzer {
                 logger.info("discovered {} Analyzer clusters, time: {} ms",
                             clusters.size(), stopWatch.elapsed(TimeUnit.MILLISECONDS));
 
-                // Fetch the bought RIs from the DB.
+                /*
+                 * Facade to access the rate and reserved instances.
+                 * Must be constructed here to ensure accurate RI and rating information.
+                 */
+                ReservedInstanceAnalyzerRateAndRIs rateAndRIProvider =
+                    new ReservedInstanceAnalyzerRateAndRIs(priceTableStore, riSpecStore, riBoughtStore);
+
+                // A count of the number of separate contexts that were analyzed -- separate
+                // combinations of region, tenancy, platform, and instance type or family
+                // (depending on whether instance size flexible rules applied).
+                Integer clustersAnalyzed = new Integer(0);
 
                 // compute the recommendations
                 List<ReservedInstanceAnalysisRecommendation> recommendations =
                         computeRecommendations(scope, purchaseConstraints, clusters, cloudTopology,
-                                historicalDemandDataType);
+                                rateAndRIProvider,  clustersAnalyzed, historicalDemandDataType);
                 logRecommendations(recommendations);
                 removeBuyZeroRecommendations(recommendations);
                 ReservedInstanceAnalysisResult result =
                         new ReservedInstanceAnalysisResult(scope, purchaseConstraints, recommendations,
                                 topologyContextId, analysisStartTime.getTime(),
-                                (new Date()).getTime(), numContextsAnalyzed, buyRiStore, actionContextRIBuyStore);
+                                (new Date()).getTime(), clustersAnalyzed, buyRiStore, actionContextRIBuyStore);
 
                 logger.info("process {} Analyzer clusters for {} recommendations, in time: {} ms",
                         clusters.size(), recommendations.size(), overallTime.elapsed(TimeUnit.MILLISECONDS));
@@ -363,6 +375,8 @@ public class ReservedInstanceAnalyzer {
      * @param regionalToZonalContextMap Cluster analysis mapping:
      *                                  from regional context to set of zonal contexts in that region.
      * @param cloudTopology dictionary for cloud entities
+     * @param rateAndRIProvider facade for RIs and rates
+     * @param clustersAnalyzed keep count of how many clusters were analyzed
      * @param demandDataType what type of demand to use in the computation? e.g. allocation or consumption.
      * @return list of RIs to buy
      */
@@ -371,7 +385,11 @@ public class ReservedInstanceAnalyzer {
             ReservedInstancePurchaseConstraints purchaseConstraints,
             Map<ReservedInstanceRegionalContext, List<ReservedInstanceZonalContext>> regionalToZonalContextMap,
             TopologyEntityCloudTopology cloudTopology,
+            @Nonnull ReservedInstanceAnalyzerRateAndRIs rateAndRIProvider,
+            @Nonnull Integer clustersAnalyzed,
             ReservedInstanceHistoricalDemandDataType demandDataType) {
+        Objects.requireNonNull(rateAndRIProvider);
+        Objects.requireNonNull(clustersAnalyzed);
 
         // OM-42801: disabled override coverage
         if (scope.getOverrideRICoverage()) {
@@ -395,7 +413,7 @@ public class ReservedInstanceAnalyzer {
             Map<ReservedInstanceZonalContext, float[]> dBDemand =
                 getDemandFromDB(scope, zonalContexts, demandDataType);
 
-            /**
+            /*
              * We are doing a deep copy here because the original map gets modified in subsequent
              * steps (through normalization). dBDemandDeepCopy is going to be used for RI
              * Buy graph where we want to show values from the DB (in terms of NFU's) rather than
@@ -416,11 +434,11 @@ public class ReservedInstanceAnalyzer {
             normalizedDemand =
                     applyRegionalRIs(normalizedDemand, regionalContext, rateAndRIProvider,
                             cloudTopology.getEntities());
-            if (normalizedDemand == null) {
-                logger.info("{}no demand for cluster {}", logTag, regionalContext);
+            if (ArrayUtils.isEmpty(normalizedDemand)) {
+                logger.debug("{}no demand for cluster {}", logTag, regionalContext);
                 continue;
             }
-            logger.info("{}Buy RIs for profile={} in context={}",
+            logger.debug("{}Buy RIs for profile={} in context={}",
                     logTag, buyComputeTier.getDisplayName(), regionalContext);
             // Get the rates for the first instance type we're considering.
             // This will either be the only one, or if instance size flexible
@@ -432,7 +450,7 @@ public class ReservedInstanceAnalyzer {
                     regionalContext, purchaseConstraints);
                 continue;
             }
-            numContextsAnalyzed++;
+            clustersAnalyzed++;
             RecommendationKernelAlgorithmResult kernelResult;
             kernelResult = RecommendationKernelAlgorithm.computation(rates.getOnDemandRate(),
                 rates.getReservedInstanceRate(), normalizedDemand, regionalContext.toString(), logTag);
@@ -441,7 +459,8 @@ public class ReservedInstanceAnalyzer {
             }
             int activeHours = countActive(normalizedDemand, logTag);
             ReservedInstanceAnalysisRecommendation recommendation = generateRecommendation(scope,
-                    regionalContext, purchaseConstraints, kernelResult, rates, activeHours);
+                    regionalContext, purchaseConstraints, kernelResult, rates, rateAndRIProvider,
+                activeHours);
             if (recommendation != null) {
                 recommendations.add(recommendation);
                 if (recommendation.getCount() > 0) {
@@ -455,7 +474,7 @@ public class ReservedInstanceAnalyzer {
                                 .getComputeTier().getNumCoupons();
 
                         Float[] demandInCoupons = templateTypeHourlyDemand.get(computeTier);
-                        if (demandInCoupons == null) {
+                        if (ArrayUtils.isEmpty(demandInCoupons)) {
                             demandInCoupons = new Float[currentDemandInWorkLoad.length];
                             Arrays.fill(demandInCoupons, 0f);
                         }
@@ -541,10 +560,9 @@ public class ReservedInstanceAnalyzer {
             priceAndRIProvider.lookupReservedInstanceBoughtInfos(zonalContext.getMasterAccountId(),
                 zonalContext.getAvailabilityZoneId());
 
-        if (risBought == null) {
-            logger.debug("applyZonalRIs() no RI Bought records found for MasterAccount={} and AvailabilityZone={}",
-                    zonalContext.getMasterAccountId(), zonalContext.getAvailabilityZoneId());
-           return normalizedDemand;
+        if (CollectionUtils.isEmpty(risBought)) {
+            logger.debug("No bought Zonal RI present to be subtracted in cluster {}", zonalContext);
+            return normalizedDemand;
         }
 
         int normalizedCoupons = risBought.stream()
@@ -586,7 +604,7 @@ public class ReservedInstanceAnalyzer {
                                                                        ReservedInstanceHistoricalDemandDataType demandDataType) {
         Map<ReservedInstanceZonalContext, float[]> demands = new HashMap<>();
         for (ReservedInstanceZonalContext context : zonalContexts) {
-            float[] demand = historicalData.getDemand(scope, context, demandDataType);
+            float[] demand = historicalDemandDataReader.getDemand(scope, context, demandDataType);
             demands.put(context, demand);
         }
         return demands;
@@ -605,12 +623,15 @@ public class ReservedInstanceAnalyzer {
                              @Nonnull ReservedInstanceRegionalContext regionalContext,
                              @Nonnull ReservedInstanceAnalyzerRateAndRIs rateAndRIProvider,
                              @Nonnull Map<Long, TopologyEntityDTO> cloudEntities) {
+        Objects.requireNonNull(regionalContext);
+        Objects.requireNonNull(rateAndRIProvider);
+        Objects.requireNonNull(cloudEntities);
 
         List<ReservedInstanceBoughtInfo> risBought =
             rateAndRIProvider.lookupReservedInstancesBoughtInfos(regionalContext);
 
-        if (risBought == null || risBought.isEmpty()) {
-            logger.debug("No bought RI present to be subtracted in cluster {}", regionalContext);
+        if (CollectionUtils.isEmpty(risBought)) {
+            logger.debug("No bought Regional RI present to be subtracted in cluster {}", regionalContext);
             return normalizedDemand;
         }
 
@@ -655,6 +676,7 @@ public class ReservedInstanceAnalyzer {
      * @param constraints the constraints under which to purchase RIs.
      * @param kernelResult the results from running the kernel algorithm
      * @param pricing provider of rates and RIs.
+     * @param rateAndRIProvider facade to access RIs and rates.
      * @param activeHours how many hours had data?
      * @return a list of recommendations, which may be empty if no actions are necessary.
      */
@@ -664,12 +686,14 @@ public class ReservedInstanceAnalyzer {
                                                                           @Nonnull ReservedInstancePurchaseConstraints constraints,
                                                                           @Nonnull RecommendationKernelAlgorithmResult kernelResult,
                                                                           @Nonnull PricingProviderResult pricing,
+                                                                          @Nonnull ReservedInstanceAnalyzerRateAndRIs rateAndRIProvider,
                                                                           int activeHours) {
         Objects.requireNonNull(scope);
         Objects.requireNonNull(regionalContext);
         Objects.requireNonNull(constraints);
         Objects.requireNonNull(kernelResult);
         Objects.requireNonNull(pricing);
+        Objects.requireNonNull(rateAndRIProvider);
 
         final String logTag = kernelResult.getLogTag();
         final String recommendationTag = logTag.replace(": ", "");
@@ -766,9 +790,10 @@ public class ReservedInstanceAnalyzer {
      * Aggregates up multiple demand histories. For example, to add together zone
      * demand to get regional demand or to add instance types across a region.
      *
-     * All arrays must be of the same length.
+     * <p>All arrays must be of the same length.
      * Because the database can return an array with values of -1, to indicate the data has never been populated,
      * this routine does not remove -1 data values.
+     * </p>
      *
      * @param demandHistories a list of one or more demand arrays, which must all be the same length.
      *                       Can be null or empty if there is no demand.  A demand array may contain "-1" values.
@@ -821,7 +846,7 @@ public class ReservedInstanceAnalyzer {
      */
     @Nullable
     protected float[] removeNegativeDataPoints(float[] demand) {
-        if (demand == null || demand.length == 0) {
+        if (ArrayUtils.isEmpty(demand)) {
             return null;
         }
         // remove all "-1" from data
@@ -853,7 +878,7 @@ public class ReservedInstanceAnalyzer {
     @Nullable
     protected float sumDataPoints(float[] demand) {
         float result = 0f;
-        if (demand == null || demand.length == 0) {
+        if (ArrayUtils.isEmpty(demand)) {
             return result;
         }
         for (int i = 0; i < demand.length; i++) {
@@ -896,7 +921,7 @@ public class ReservedInstanceAnalyzer {
      */
     @Nullable
     protected float[] subtractCouponsFromDemand(@Nullable float[] demand, float coupons) {
-        if (demand == null) {
+        if (ArrayUtils.isEmpty(demand)) {
             return null;
         }
         if (coupons == 0) {

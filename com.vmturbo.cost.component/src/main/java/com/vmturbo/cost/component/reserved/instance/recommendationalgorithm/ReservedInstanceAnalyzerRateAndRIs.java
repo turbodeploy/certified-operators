@@ -12,13 +12,17 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Table;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
@@ -47,6 +51,7 @@ import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
  * access to the stored information.
  * An instance of this class must be created for each Reserved Instance buy algorithm.
  */
+@ThreadSafe
 public class ReservedInstanceAnalyzerRateAndRIs {
 
     private static final Logger logger = LogManager.getLogger();
@@ -54,7 +59,7 @@ public class ReservedInstanceAnalyzerRateAndRIs {
     private static final int HOURS_IN_A_MONTH = 730;
 
     /*
-     * Inputs.
+     * Inputs: set with populate* methods and only accessed threw lookup* methods.
      */
     // An interface for obtaining pricing.
     private final PriceTableStore priceTableStore;
@@ -70,20 +75,20 @@ public class ReservedInstanceAnalyzerRateAndRIs {
      * PriceTableStore,  ReservedInstanceBoughtStore and ReservedInstanceSpecStore.
      */
     // PriceTableStore: Map from region OID to OnDemandPriceTable
-    private Map<Long, OnDemandPriceTable> onDemandRateMap;
+    private ImmutableMap<Long, OnDemandPriceTable> onDemandRateMap;
 
     // PriceTableStore: Map from ReservedInstanceSpec OID to ReservedInstancePrice.
-    private Map<Long, ReservedInstancePrice> reservedInstanceRateMap;
+    private ImmutableMap<Long, ReservedInstancePrice> reservedInstanceRateMap;
 
     // ReservedInstanceSpecStore: Map from ReservedInstanceSpecInfo attributes to ReservedInstanceSpec.
-    private Map<ReservedInstanceSpecKey, ReservedInstanceSpec> reservedInstanceSpecKeyMap;
+    private ImmutableMap<ReservedInstanceSpecKey, ReservedInstanceSpec> reservedInstanceSpecKeyMap;
 
     // ReservedInstanceSpecStore: Map from ReservedInstanceSpec OID to ReservedInstanceSpec.
-    Map<Long, ReservedInstanceSpec> reservedInstanceSpecIdMap;
+    private ImmutableMap<Long, ReservedInstanceSpec> reservedInstanceSpecIdMap;
 
     // ReservedInstanceBoughtStore: Table row: BusinessAccountId column: availabilityZoneId to
     // list of ReservedInstanceBoughtInfo
-    private Table<Long, Long, List<ReservedInstanceBoughtInfo>> reservedInstanceBoughtInfoTable;
+    private ImmutableTable<Long, Long, List<ReservedInstanceBoughtInfo>> reservedInstanceBoughtInfoTable;
 
     /**
      * Constructor.  Build all the internal data structures.
@@ -141,7 +146,7 @@ public class ReservedInstanceAnalyzerRateAndRIs {
         float onDemandRate = 0f;
 
         // onDemandPriceTableByRegion from constructor
-        if (onDemandRateMap == null) {
+        if (CollectionUtils.isEmpty(onDemandRateMap)) {
             logger.warn("lookupOnDemandRate() on-demand rates are not available!");
             return onDemandRate;
         }
@@ -189,7 +194,7 @@ public class ReservedInstanceAnalyzerRateAndRIs {
                 }
             }
         }
-        logger.info("lookupOnDemandRate() onDemandRate={} for context={}",
+        logger.debug("lookupOnDemandRate() onDemandRate={} for context={}",
             onDemandRate, regionalContext);
         return onDemandRate;
     }
@@ -243,8 +248,8 @@ public class ReservedInstanceAnalyzerRateAndRIs {
             logger.warn("populateOnDemandRateMap() priceTableStore.getMergedPriceTable() == null!");
             return;
         }
-        onDemandRateMap = priceTable.getOnDemandPriceByRegionIdMap();
-        logger.info("populateOnDemandRateMap size={}", onDemandRateMap.size());
+        onDemandRateMap = ImmutableMap.copyOf(priceTable.getOnDemandPriceByRegionIdMap());
+        logger.debug("populateOnDemandRateMap size={}", () -> onDemandRateMap.size());
     }
 
     /**
@@ -284,7 +289,7 @@ public class ReservedInstanceAnalyzerRateAndRIs {
                 (float)(constraints.getTermInYears() * 12 * HOURS_IN_A_MONTH);
         }
         float riRate = upFrontAmortizedCost + new Double(hourlyAmount).floatValue();
-        logger.info("lookupReservedInstanceRate() riRate={} = hourlyAmount={} + upFrontAmortized{} (upFront={}) for specId={} context={} constraints={}",
+        logger.debug("lookupReservedInstanceRate() riRate={} = hourlyAmount={} + upFrontAmortized{} (upFront={}) for specId={} context={} constraints={}",
             riRate, hourlyAmount, upFrontAmortizedCost, upFrontAmount, specId, regionalContext, constraints);
         return riRate;
     }
@@ -304,7 +309,7 @@ public class ReservedInstanceAnalyzerRateAndRIs {
             return;
         }
         validateRiPricesBySpecIdMap(riPriceTable.getRiPricesBySpecIdMap());
-        reservedInstanceRateMap = riPriceTable.getRiPricesBySpecIdMap();
+        reservedInstanceRateMap = ImmutableMap.copyOf(riPriceTable.getRiPricesBySpecIdMap());
         logger.debug("populateReservedInstanceRateMap size={}", () -> reservedInstanceRateMap.size());
     }
 
@@ -366,11 +371,11 @@ public class ReservedInstanceAnalyzerRateAndRIs {
      */
     @VisibleForTesting
     void populateReservedInstanceSpecIdMap(ReservedInstanceSpecStore store) {
-        reservedInstanceSpecIdMap = store.getAllReservedInstanceSpec()
+        reservedInstanceSpecIdMap = ImmutableMap.copyOf(store.getAllReservedInstanceSpec()
             .stream()
             .collect(Collectors.toMap(ReservedInstanceSpec::getId,
-                Function.identity()));
-        logger.info("populateReservedInstanceSpecIdMap() size={}", reservedInstanceSpecIdMap.size());
+                Function.identity())));
+        logger.debug("populateReservedInstanceSpecIdMap() size={}", reservedInstanceSpecIdMap.size());
     }
 
     /**
@@ -440,8 +445,7 @@ public class ReservedInstanceAnalyzerRateAndRIs {
     @VisibleForTesting
     void populateReservedInstanceBoughtInfoTable(ReservedInstanceBoughtStore store) {
         // Table: business account OID X availability zone OID -> ReservedInstanceBoughtInfo
-        reservedInstanceBoughtInfoTable =
-            HashBasedTable.create();
+        Table<Long, Long, List<ReservedInstanceBoughtInfo>> table = HashBasedTable.create();
         store.getReservedInstanceBoughtByFilter(
             // no special filter. get all records
             ReservedInstanceBoughtFilter.newBuilder()
@@ -450,15 +454,16 @@ public class ReservedInstanceAnalyzerRateAndRIs {
             .map(ReservedInstanceBought::getReservedInstanceBoughtInfo)
             .forEach(riBought -> {
                 List<ReservedInstanceBoughtInfo> existingValue =
-                    reservedInstanceBoughtInfoTable.get(riBought.getBusinessAccountId(), riBought.getAvailabilityZoneId());
+                    table.get(riBought.getBusinessAccountId(), riBought.getAvailabilityZoneId());
                 if (existingValue == null) {
                     existingValue = new ArrayList<>();
                 }
                 existingValue.add(riBought);
-                reservedInstanceBoughtInfoTable.put(riBought.getBusinessAccountId(), riBought.getAvailabilityZoneId(),
+                table.put(riBought.getBusinessAccountId(), riBought.getAvailabilityZoneId(),
                     existingValue);
             });
-        logger.info("populateReservedInstanceBoughtInfoTable() size={}",
+        reservedInstanceBoughtInfoTable = ImmutableTable.copyOf(table);
+        logger.debug("populateReservedInstanceBoughtInfoTable() size={}",
             reservedInstanceBoughtInfoTable.size());
     }
 
@@ -506,8 +511,8 @@ public class ReservedInstanceAnalyzerRateAndRIs {
                     key, spec, map.get(key));
             }
         }
-        reservedInstanceSpecKeyMap = map;
-        logger.info("populateReservedInstanceSpecKeyMap() size={}", reservedInstanceSpecKeyMap.size());
+        reservedInstanceSpecKeyMap = ImmutableMap.copyOf(map);
+        logger.debug("populateReservedInstanceSpecKeyMap() size={}", reservedInstanceSpecKeyMap.size());
     }
 
     /**
