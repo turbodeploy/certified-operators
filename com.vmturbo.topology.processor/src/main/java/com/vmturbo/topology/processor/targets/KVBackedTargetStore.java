@@ -215,54 +215,53 @@ public class KVBackedTargetStore implements TargetStore {
      * {@inheritDoc}
      */
     @Override
-    public void createOrUpdateDerivedTargets(@Nonnull final List<TargetSpec> targetSpecs)
+    public void createOrUpdateDerivedTargets(@Nonnull final List<TargetSpec> targetSpecs,
+                                             final long parentTargetId)
         throws IdentityStoreException {
-        if (targetSpecs.isEmpty()) {
-            return;
-        }
-        // All the derived target specs are guaranteed from the same parent target, so we can pick up the
+       // All the derived target specs are guaranteed from the same parent target, so we can pick up the
         // parent id in the first element in the list.
-        final long parentTargetId = targetSpecs.get(0).getParentId();
         synchronized (storeLock) {
             // Fetch the current derived target oids. We need to remove the existing targets which are not
             // occurred in this discovery cycle.
             final Set<Long> existingDerivedTargetIds = getDerivedTargetIds(parentTargetId);
-            final IdentityStoreUpdate<TargetSpec> identityStoreUpdate =
+            if (!targetSpecs.isEmpty()) {
+                final IdentityStoreUpdate<TargetSpec> identityStoreUpdate =
                     identityStore.fetchOrAssignItemOids(targetSpecs);
-            // Save the created or new assigned oids which the derived target specs have into item maps.
-            final Map<TargetSpec, Long> oldItems = identityStoreUpdate.getOldItems();
-            final Map<TargetSpec, Long> newItems = identityStoreUpdate.getNewItems();
-            // Iterate created oids and update the existing derived targets.
-            oldItems.forEach((key, value) -> {
-                try {
-                    updateTarget(value, key.getAccountValueList());
-                    updateDerivedTargetIds(value);
-                    existingDerivedTargetIds.remove(value);
-                } catch (InvalidTargetException | TargetNotFoundException |
-                        IdentityStoreException | IdentifierConflictException e) {
-                    logger.error(
-                            String.format("Update derived target %s failed!", value), e);
-                }
-            });
-            // Iterate new assigned oids and create new derived targets.
-            newItems.forEach((key, value) -> {
-                try {
-                    final Target retTarget = new Target(value, probeStore,
-                            Objects.requireNonNull(key), true);
-                    registerTarget(retTarget);
-                } catch (InvalidTargetException e) {
+                // Save the created or new assigned oids which the derived target specs have into item maps.
+                final Map<TargetSpec, Long> oldItems = identityStoreUpdate.getOldItems();
+                final Map<TargetSpec, Long> newItems = identityStoreUpdate.getNewItems();
+                // Iterate created oids and update the existing derived targets.
+                oldItems.forEach((key, value) -> {
                     try {
-                        // clean up identityStore if we failed to create the target
-                        identityStore.removeItemOids(Sets.newHashSet(value));
-                    } catch (IdentityStoreException ex) {
-                        // should never happen
-                        logger.error(String.format(
-                            "Error cleaning up identity store after failed creation of target %s",
-                            value), ex);
+                        updateTarget(value, key.getAccountValueList());
+                        updateDerivedTargetIds(value);
+                        existingDerivedTargetIds.remove(value);
+                    } catch (InvalidTargetException | TargetNotFoundException |
+                        IdentityStoreException | IdentifierConflictException e) {
+                        logger.error(
+                            String.format("Update derived target %s failed!", value), e);
                     }
-                    logger.error(String.format("Create new derived target %s failed!", value), e);
-                }
-            });
+                });
+                // Iterate new assigned oids and create new derived targets.
+                newItems.forEach((key, value) -> {
+                    try {
+                        final Target retTarget = new Target(value, probeStore,
+                            Objects.requireNonNull(key), true);
+                        registerTarget(retTarget);
+                    } catch (InvalidTargetException e) {
+                        try {
+                            // clean up identityStore if we failed to create the target
+                            identityStore.removeItemOids(Sets.newHashSet(value));
+                        } catch (IdentityStoreException ex) {
+                            // should never happen
+                            logger.error(String.format(
+                                "Error cleaning up identity store after failed creation of target %s",
+                                value), ex);
+                        }
+                        logger.error(String.format("Create new derived target %s failed!", value), e);
+                    }
+                });
+            }
             // Remove all the derived targets which are not in the latest response DTO.
             existingDerivedTargetIds.forEach(targetId -> {
                 try {

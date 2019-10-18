@@ -513,7 +513,8 @@ public class KVBackedTargetStoreTest {
                 .build();
         final Target derived2 = targetStore.createTarget(derivedTargetSpec2);
 
-        targetStore.createOrUpdateDerivedTargets(Lists.newArrayList(derivedTargetSpec1, derivedTargetSpec2));
+        targetStore.createOrUpdateDerivedTargets(
+            Lists.newArrayList(derivedTargetSpec1, derivedTargetSpec2), parent.getId());
 
         // "derived1" and "derived2" are derived targets of "parent".
         verifyDerivedTargetIdsList(
@@ -528,7 +529,8 @@ public class KVBackedTargetStoreTest {
                 .build();
         final Target derived3 = targetStore.createTarget(derivedTargetSpec3);
 
-        targetStore.createOrUpdateDerivedTargets(Lists.newArrayList(derivedTargetSpec3));
+        targetStore.createOrUpdateDerivedTargets(Lists.newArrayList(derivedTargetSpec3),
+            derived1.getId());
 
         // "derived3" is a derived target of "derived1" (similar to cost targets in Azure).
         verifyDerivedTargetIdsList(
@@ -580,7 +582,8 @@ public class KVBackedTargetStoreTest {
             .build();
         // this call should fail to create a derived target, since the account value doesn't
         // match the probe's account definition
-        targetStore.createOrUpdateDerivedTargets(Lists.newArrayList(derivedTargetSpec1));
+        targetStore.createOrUpdateDerivedTargets(Lists.newArrayList(derivedTargetSpec1),
+            parent.getId());
         // now we make sure that the target spec does not exist in the identity store
         final IdentityStoreUpdate<TargetSpec> identityStoreUpdate = targetIdentityStore
             .fetchOrAssignItemOids(Arrays.asList(derivedTargetSpec1));

@@ -80,9 +80,11 @@ public interface TargetStore {
      * update the current one with non-identifier fields data, or create new derived target.
      *
      * @param targetSpecs List of target information.
+     * @param parentTargetId The id of the parent target of the derived targets in the targetSpecs.
      * @throws IdentityStoreException If fetching target identity attributes failed.
      */
-    void createOrUpdateDerivedTargets(@Nonnull final List<TargetSpec> targetSpecs)
+    void createOrUpdateDerivedTargets(@Nonnull List<TargetSpec> targetSpecs,
+                                      long parentTargetId)
             throws IdentityStoreException;
 
     /**

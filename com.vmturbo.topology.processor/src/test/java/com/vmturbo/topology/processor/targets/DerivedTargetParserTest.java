@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.targets;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Optional;
 
 import com.vmturbo.topology.processor.operation.validation.Validation;
@@ -202,6 +203,30 @@ public class DerivedTargetParserTest {
                 .anyMatch(av -> av.getKey().equals(userNameField) && av.getStringValue().equals(usernameValue1)));
         Assert.assertFalse(targetStore.getAll().get(0).getSpec().getAccountValueList().stream()
                 .anyMatch(av -> av.getKey().equals(addressField) && av.getStringValue().equals(addrValue1)));
+    }
+
+    /**
+     * Tests that existing, derived, dependent targets should be removed if parent target removes
+     * all derived targets.
+     */
+    @Test
+    public void testDeleteAllDependentDerivedTargets() {
+        derivedTargetParser.instantiateDerivedTargets(parentTargetID1, Arrays.asList(dto1, dto3));
+        Assert.assertEquals(2, targetStore.getAll().size());
+        derivedTargetParser.instantiateDerivedTargets(parentTargetID1, Collections.emptyList());
+        Assert.assertEquals(0, targetStore.getAll().size());
+    }
+
+    /**
+     * Tests that existing, derived, independent targets are not removed if parent target removes
+     * all derived targets.
+     */
+    @Test
+    public void testDeleteAllIndependentDerivedTargets() {
+        derivedTargetParser.instantiateDerivedTargets(parentTargetID1, Arrays.asList(dto2));
+        Assert.assertEquals(1, targetStore.getAll().size());
+        derivedTargetParser.instantiateDerivedTargets(parentTargetID1, Collections.emptyList());
+        Assert.assertEquals(1, targetStore.getAll().size());
     }
 
     /**

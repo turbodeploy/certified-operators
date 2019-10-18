@@ -96,7 +96,7 @@ public class DerivedTargetParser {
             }
         });
         try {
-            targetStore.createOrUpdateDerivedTargets(derivedTargetSpecs);
+            targetStore.createOrUpdateDerivedTargets(derivedTargetSpecs, parentTargetId);
         } catch (IdentityStoreException e) {
             logger.error("Error when fetching derived target identifiers and OIDs, derived targets creation "
                     + "or update failed", e);
