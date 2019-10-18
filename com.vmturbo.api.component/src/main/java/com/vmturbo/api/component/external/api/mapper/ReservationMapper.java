@@ -14,6 +14,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 import javax.ws.rs.NotSupportedException;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
@@ -84,6 +85,8 @@ public class ReservationMapper {
             .put(UIEntityType.VIRTUAL_DATACENTER.typeNumber(), ReservationConstraintInfo.Type.VIRTUAL_DATA_CENTER)
             .put(UIEntityType.NETWORK.typeNumber(), ReservationConstraintInfo.Type.NETWORK)
             .build();
+    @VisibleForTesting
+    static final String ONE_UNTRACKED_PLACEMENT_FAILED = "One untracked placement: Failed\n";
 
     private final Logger logger = LogManager.getLogger();
 
@@ -263,6 +266,27 @@ public class ReservationMapper {
             }
         }
         reservationApiDTO.setDemandEntities(demandEntityInfoDTOS);
+        if (placementStatus == PLACEMENT_FAILED) {
+            final int failedPlacements =
+                    topologyAddition.getAdditionCount() - placementInfos.size();
+            final StringBuilder builder = new StringBuilder(failedPlacements);
+            for (int i = 0; i < failedPlacements; i++) {
+                // TODO (GaryZeng Oct 18, 2019) append the failed placement details when they are available.
+                // Appending the messages because UI is expecting detail placement messages
+                // and use the messages to calculate failed count.
+                // const failed =
+                //      data.placementResultMessage !== undefined
+                //          ? data.placementResultMessage
+                //                .split('\n')
+                //                .reduce(
+                //                    (count, descr) => count + descr.includes(': Failed'),
+                //                    0
+                //                )
+                //          : data.count; // fallback for XL, which has no placement result msg
+                builder.append(ONE_UNTRACKED_PLACEMENT_FAILED);
+            }
+            reservationApiDTO.setPlacementResultMessage(builder.toString());
+        }
         return reservationApiDTO;
     }
 

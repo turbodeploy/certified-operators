@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static com.vmturbo.api.component.external.api.mapper.ReservationMapper.ONE_UNTRACKED_PLACEMENT_FAILED;
 import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -326,6 +327,34 @@ public class ReservationMapperTest {
                         Collections.EMPTY_LIST);
         assertEquals(1, (int)emptyDemandReservationApiDTO.getCount());
         assertEquals(PLACEMENT_FAILED, emptyDemandReservationApiDTO.getStatus());
+        assertEquals(ONE_UNTRACKED_PLACEMENT_FAILED, emptyDemandReservationApiDTO.getPlacementResultMessage());
+    }
+
+    /**
+     * Verify two failed placements should return two failed messages in placement result message.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testConvertToDemandReservationApiDTOTwoPlacementFailure() throws Exception {
+        final ScenarioChange scenarioChange = ScenarioChange.newBuilder()
+                .setTopologyAddition(TopologyAddition.newBuilder()
+                        .setTemplateId(TEMPLATE_ID)
+                        .setAdditionCount(2))
+                .build();
+
+        MultiEntityRequest req = ApiTestUtils.mockMultiSEReq(
+                Lists.newArrayList(vmServiceEntity, pmServiceEntity, stServiceEntity));
+        when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(req);
+
+        final DemandReservationApiDTO emptyDemandReservationApiDTO =
+                reservationMapper.convertToDemandReservationApiDTO(
+                        scenarioChange.getTopologyAddition(), Collections.EMPTY_LIST);
+        assertEquals(2, (int)emptyDemandReservationApiDTO.getCount());
+        assertEquals(PLACEMENT_FAILED, emptyDemandReservationApiDTO.getStatus());
+        // Two placement failures
+        final String expected = ONE_UNTRACKED_PLACEMENT_FAILED + ONE_UNTRACKED_PLACEMENT_FAILED;
+        assertEquals(expected, emptyDemandReservationApiDTO.getPlacementResultMessage());
     }
 
     /**
