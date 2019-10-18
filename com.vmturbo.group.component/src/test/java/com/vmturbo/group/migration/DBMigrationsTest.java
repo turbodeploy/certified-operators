@@ -24,9 +24,9 @@ import org.junit.Test;
  * made to a migration file (not even comment changes) after it has been committed and
  * pushed to a public branch
  */
-public class TestDBMigrations {
+public class DBMigrationsTest {
 
-    private final Logger logger = LogManager.getLogger(TestDBMigrations.class);
+    private final Logger logger = LogManager.getLogger(DBMigrationsTest.class);
 
     /**
      * Ensure all files in the migration directory have a checksum recorded, and that the

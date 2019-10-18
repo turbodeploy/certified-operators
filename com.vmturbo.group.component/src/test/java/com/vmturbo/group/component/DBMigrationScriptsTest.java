@@ -1,4 +1,4 @@
-package com.vmturbo.cost.component;
+package com.vmturbo.group.component;
 
 import static org.junit.Assert.assertTrue;
 
@@ -18,7 +18,7 @@ import com.vmturbo.sql.utils.TestDBMigrationChecksums;
  * You should always create a new migration file to adjust the final state of the
  * database. There can be exception to this rule, but never without a very compelling reason.</p>
  */
-public class TestDBMigrationScripts extends TestDBMigrationChecksums {
+public class DBMigrationScriptsTest extends TestDBMigrationChecksums {
 
     /**
      * Compares the files in this project with their recorded checksums.
