@@ -1,15 +1,20 @@
 package com.vmturbo.mediation.conversion.cloud.converter;
 
 import java.util.List;
+import java.util.Map;
 
 import javax.annotation.Nonnull;
 
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.mediation.conversion.cloud.CloudDiscoveryConverter;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
 import com.vmturbo.mediation.hybrid.cloud.common.OsDetailParser;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ComputeTierData;
@@ -32,6 +37,10 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 public class ComputeTierConverter implements IEntityConverter {
 
     private SDKProbeType probeType;
+
+    private static final Map<SDKProbeType, List<CommodityType>> resizableCommodities =
+            ImmutableMap.of(SDKProbeType.AWS,
+                    ImmutableList.of(CommodityType.IO_THROUGHPUT, CommodityType.NET_THROUGHPUT));
 
     /**
      * Constructor for {@link ComputeTierConverter}.
@@ -196,9 +205,13 @@ public class ComputeTierConverter implements IEntityConverter {
      * @return {@link CommodityDTO}
      */
     private CommodityDTO createCommodityDTO(CommodityType commodityType, double capacity) {
-        return CommodityDTO.newBuilder()
-                   .setCommodityType(commodityType)
-                   .setCapacity(capacity)
-                   .build();
+        final Builder commodityBuilder = CommodityDTO.newBuilder()
+                .setCommodityType(commodityType)
+                .setCapacity(capacity);
+        final List<CommodityType> commTypes = resizableCommodities.get(probeType);
+        if (commTypes != null && commTypes.contains(commodityType)) {
+            commodityBuilder.setResizable(true);
+        }
+        return  commodityBuilder.build();
     }
 }

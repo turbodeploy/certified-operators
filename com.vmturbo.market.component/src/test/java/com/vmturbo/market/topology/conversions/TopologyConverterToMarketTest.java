@@ -27,12 +27,12 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import com.google.protobuf.util.JsonFormat;
-
 import org.apache.commons.collections4.CollectionUtils;
 import org.junit.Assert;
 import org.junit.Before;
@@ -791,9 +791,11 @@ public class TopologyConverterToMarketTest {
                 CommodityDTO.CommodityType.VMEM_VALUE,
                 used, peak, max, 200, 0.9,
                 histPercentile, histUtilizaiton, EnvironmentType.CLOUD, null, null);
-        // new used = [(max * 0.9) + (used * 0.1)] / rtu
+        // new used = histPercentile * capacity / target util
         // new peak = max(peak, used) / rtu
-        assertEquals(histPercentile / 0.9, quantities[0], 0.01f);
+        // percentile in the historical values is set as a percent value that needs to
+        // be converted to the absolute used for the capacity.
+        assertEquals(histPercentile * 200 / 0.9, quantities[0], 0.01f);
         assertEquals(88.888, quantities[1], 0.01f);
     }
 
@@ -891,9 +893,11 @@ public class TopologyConverterToMarketTest {
                 CommodityDTO.CommodityType.VMEM_VALUE,
                 used, peak, max, 100, 0.5,
                 histPercentile, histUtil, EnvironmentType.CLOUD, null, null);
-        // new used = used / rtu
+        // new used = percentile * capacity / target util
         // new peak = max(peak, used) / rtu
-        assertEquals(140, quantities[0], 0.01f);
+        // percentile in the historical values is set as a percent value that needs to
+        // be converted to the absolute used for the capacity.
+        assertEquals(140 * 100, quantities[0], 0.01f);
         assertEquals(160, quantities[1], 0.01f);
     }
 
@@ -908,7 +912,7 @@ public class TopologyConverterToMarketTest {
                 100, 0.8, 80d, 75d, EnvironmentType.CLOUD, null, null);
         // new used = capacity
         // new peak = max(peak, used) / rtu
-        assertEquals(100, quantities[0], 0.01f);
+        assertEquals(100 * 100, quantities[0], 0.01f);
         assertEquals(peak / 0.8, quantities[1], 0.01f);
     }
 

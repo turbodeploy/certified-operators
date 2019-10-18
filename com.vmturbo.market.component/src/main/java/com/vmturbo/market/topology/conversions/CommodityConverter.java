@@ -220,8 +220,9 @@ public class CommodityConverter {
         // right sizing only if the percentile value is set.
         if (topologyCommSold.hasHistoricalUsed()
                 && topologyCommSold.getHistoricalUsed().hasPercentile()) {
-            soldCommBuilder.setHistoricalQuantity(
-                    (float)topologyCommSold.getHistoricalUsed().getPercentile());
+            soldCommBuilder.setHistoricalQuantity((float)(topologyCommSold.getCapacity()
+                            * topologyCommSold.getScalingFactor()
+                            * topologyCommSold.getHistoricalUsed().getPercentile()));
         }
         return soldCommBuilder.build();
     }
@@ -517,16 +518,25 @@ public class CommodityConverter {
         if (historicalExtractor != null) {
             HistoricalValues hv = historicalExtractor.apply(commDto);
             if (hv.hasPercentile()) {
-                return (float)hv.getPercentile();
+                float value = (float)hv.getPercentile();
+                logger.debug("Using percentile value {} for recalculating resize capacity for {}",
+                        value, commDto.getCommodityType().getType());
+                return value;
             } else if (hv.hasHistUtilization()) {
                 // if not then hist utilization which is the historical used value.
-                return (float)hv.getHistUtilization();
+                float value = (float)hv.getHistUtilization();
+                logger.debug("Using hist Utilization value {} for recalculating resize capacity for {}",
+                        value, commDto.getCommodityType().getType());
+                return value;
             }
         }
         // otherwise take real-time 'used'
         // real-time values have 0 defaults so there cannot be nulls
         if (usedExtractor != null) {
-            return usedExtractor.apply(commDto).floatValue();
+            float value = usedExtractor.apply(commDto).floatValue();
+            logger.debug("Using current used value {} for recalculating resize capacity for {}",
+                    value, commDto.getCommodityType().getType());
+            return value;
         } else {
             return null;
         }

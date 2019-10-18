@@ -87,7 +87,8 @@ public class CommodityConverterTest {
         final CommoditySoldTO cpuCommodityTO = result.iterator().next();
         assertThat(cpuCommodityTO.getCapacity(), equalTo(MARKET_CAPACITY));
         assertThat(cpuCommodityTO.getQuantity(), equalTo(MARKET_USED));
-        assertThat(cpuCommodityTO.getHistoricalQuantity(), equalTo(PERCENTILE_USED));
+        assertThat(cpuCommodityTO.getHistoricalQuantity(),
+                equalTo(PERCENTILE_USED * SCALING_FACTOR * RAW_CAPACITY));
     }
 
 }

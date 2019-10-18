@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBasedTable;
@@ -1306,50 +1307,17 @@ public class TopologyConverter {
             @Nonnull final TopologyDTO.CommodityBoughtDTO commBought,
             @Nullable final Long providerOid) {
 
+        logger.debug("Recalculating new capacity for {}", topologyDTO.getDisplayName());
         float histUsed =
                 CommodityConverter.getHistoricalUsedOrPeak(commBought, TopologyDTO.CommodityBoughtDTO::getUsed,
-                                TopologyDTO.CommodityBoughtDTO::getHistoricalUsed);
+                        TopologyDTO.CommodityBoughtDTO::getHistoricalUsed);
         float histPeak =
                 CommodityConverter.getHistoricalUsedOrPeak(commBought, TopologyDTO.CommodityBoughtDTO::getPeak,
-                                TopologyDTO.CommodityBoughtDTO::getHistoricalPeak);
+                        TopologyDTO.CommodityBoughtDTO::getHistoricalPeak);
 
         // TODO: Need to add check for Cloud migration here. This will apply to Cloud Migration too.
         if (topologyDTO.getEnvironmentType() != EnvironmentType.CLOUD) {
-            // An example use case for the condition below is the
-            // VDI use case where we need to apply the target Util on the percentile.
-            if (commBought.hasHistoricalUsed()
-                    && commBought.getHistoricalUsed().hasPercentile()) {
-                final TopologyEntityDTO providerTopologyEntity = entityOidToDto.get(providerOid);
-                if (providerTopologyEntity == null) {
-                    logger.warn("Could not find provider for entity {} with id {}." +
-                                    " Using percentile used and peak without " +
-                                    "applying the target utilization", topologyDTO.getDisplayName(),
-                            providerOid);
-
-                    return new double[]{histUsed, histPeak};
-                }
-                // Find the corresponding sold commodity. For example, in the VDI use case,
-                // this would be the image commodity sold by the desktop pool.
-                final List<TopologyDTO.CommoditySoldDTO> commoditiesSoldByProvider =
-                        providerTopologyEntity.getCommoditySoldListList()
-                                .stream()
-                                .filter(c -> c.getCommodityType().getType()
-                                        == commBought.getCommodityType().getType())
-                                .collect(Collectors.toList());
-                if (commoditiesSoldByProvider == null || commoditiesSoldByProvider.size() != 1 ||
-                        commoditiesSoldByProvider.get(0) == null) {
-                    logger.warn("Could not find corresponding sold commodity from provider {} for" +
-                                    "type {},  for entity {}. Using percentile used and peak without" +
-                                    "applying the target utilization", providerTopologyEntity.getDisplayName(),
-                            commBought.getCommodityType().getType(), topologyDTO.getDisplayName());
-                } else {
-                    float targetUtil = (float)commBought.getResizeTargetUtilization();
-                    double capacity = commoditiesSoldByProvider.get(0).getCapacity();
-                    histUsed = (float)(histUsed / targetUtil * capacity);
-                    histPeak = (float)(histPeak / targetUtil * capacity);
-                }
-            }
-            return new double[]{histUsed, histPeak};
+            return getOnPremResizedCapacity(histUsed, histPeak, commBought, providerOid, topologyDTO);
         }
         final Integer drivingCommSoldType =
                 TopologyConversionConstants.commDependancyMapForCloudResize.get(
@@ -1365,13 +1333,22 @@ public class TopologyConverter {
                 final CommoditySoldDTO commoditySoldDTO = drivingCommmoditySoldList.get(0);
                 float histUsage = (float)commoditySoldDTO.getUsed();
                 if (commoditySoldDTO.hasHistoricalUsed()) {
-                    if (commoditySoldDTO.getHistoricalUsed().hasPercentile()) {
+                    if (commoditySoldDTO.getHistoricalUsed().hasPercentile() &&
+                            commoditySoldDTO.getIsResizeable()) {
                         histUsage =
-                                (float)commoditySoldDTO.getHistoricalUsed().getPercentile();
+                                (float)commoditySoldDTO.getHistoricalUsed().getPercentile()
+                                        * (float)commoditySoldDTO.getCapacity();
+                        logger.debug("Using percentile value {} to recalculate capacity for {} in {}",
+                                histUsage, commoditySoldDTO.getCommodityType().getType(),
+                                topologyDTO.getDisplayName());
+
                     } else if (commoditySoldDTO.getHistoricalUsed().hasHistUtilization()) {
                         // if not then hist utilization which is the historical used value.
                         histUsage =
                                 (float)commoditySoldDTO.getHistoricalUsed().getHistUtilization();
+                        logger.debug("Using historical value {} to recalculate capacity for {} in {}",
+                                histUsage, commoditySoldDTO.getCommodityType().getType(),
+                                topologyDTO.getDisplayName());
                     }
                 }
                 final double[] resizedQuantity =
@@ -1399,7 +1376,7 @@ public class TopologyConverter {
                         .filter(c -> c.getCommodityType().equals(commBought.getCommodityType()))
                         .filter(CommoditySoldDTO::hasCapacity)
                         .findFirst();
-                if (commoditySoldDTO.isPresent()) {
+                if (commoditySoldDTO.isPresent() && commoditySoldDTO.get().getIsResizeable()) {
                     // We want to use the historical used (already smoothened) for both the resize-up
                     // and resize-down demand calculations. We do not want to consider the
                     // historical max or the peaks to avoid a one-time historic max value to cause
@@ -1422,6 +1399,60 @@ public class TopologyConverter {
             }
         }
 
+        return new double[]{histUsed, histPeak};
+    }
+
+    /**
+     * Calculates the new resized  capacities for the bought commodity based on historical
+     * demands.
+     * @param used Bought commodity historical used value.
+     * @param peak Bought commodity peak value.
+     * @param commBought Bought commodity.
+     * @param providerOid Oid of the provider DTO for this commodity.
+     * @param topologyDTO the TopologyDTO buying this commodity.
+     * @return the new calculated capacities for the bought commodity.
+     */
+    private double[] getOnPremResizedCapacity(final float used,
+                                              final float peak,
+                                              @Nonnull final TopologyDTO.CommodityBoughtDTO commBought,
+                                              final Long providerOid,
+                                              @Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO) {
+        // An example use case for the condition below is the
+        // VDI use case where we need to apply the target Util on the percentile.
+        float histUsed = used;
+        float histPeak = peak;
+        if (commBought.hasHistoricalUsed()
+                && commBought.getHistoricalUsed().hasPercentile()) {
+            final TopologyEntityDTO providerTopologyEntity = entityOidToDto.get(providerOid);
+            if (providerTopologyEntity == null) {
+                logger.warn("Could not find provider for entity {} with id {}." +
+                                " Using percentile used and peak without " +
+                                "applying the target utilization", topologyDTO.getDisplayName(),
+                        providerOid);
+
+                return new double[]{histUsed, histPeak};
+            }
+            // Find the corresponding sold commodity. For example, in the VDI use case,
+            // this would be the image commodity sold by the desktop pool.
+            final List<TopologyDTO.CommoditySoldDTO> commoditiesSoldByProvider =
+                    providerTopologyEntity.getCommoditySoldListList()
+                            .stream()
+                            .filter(c -> c.getCommodityType().getType()
+                                    == commBought.getCommodityType().getType())
+                            .collect(Collectors.toList());
+            if (commoditiesSoldByProvider == null || commoditiesSoldByProvider.size() != 1 ||
+                    commoditiesSoldByProvider.get(0) == null) {
+                logger.warn("Could not find corresponding sold commodity from provider {} for" +
+                                "type {},  for entity {}. Using percentile used and peak without" +
+                                "applying the target utilization", providerTopologyEntity.getDisplayName(),
+                        commBought.getCommodityType().getType(), topologyDTO.getDisplayName());
+            } else {
+                float targetUtil = (float)commBought.getResizeTargetUtilization();
+                double capacity = commoditiesSoldByProvider.get(0).getCapacity();
+                histUsed = (float)(histUsed / targetUtil * capacity);
+                histPeak = (float)(histPeak / targetUtil * capacity);
+            }
+        }
         return new double[]{histUsed, histPeak};
     }
 
