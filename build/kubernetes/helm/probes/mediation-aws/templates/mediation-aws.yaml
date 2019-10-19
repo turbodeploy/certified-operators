@@ -48,13 +48,10 @@ spec:
             drop:
             - ALL
         volumeMounts:
-        - mountPath: /home/turbonomic/data
-          name: mediation-aws-data
-        - mountPath: /etc/turbonomic
-          name: turbo-volume
-          readOnly: true
         - mountPath: /tmp
           name: mediation-aws-tmpfs0
+        - mountPath: /home/turbonomic/data
+          name: mediation-aws-data
 {{- if .Values.global }}
   {{- if and .Values.global.registry .Values.global.imageUsername .Values.global.imagePassword }}
       imagePullSecrets:
@@ -63,13 +60,9 @@ spec:
 {{- end }}
       restartPolicy: Always
       volumes:
-      - name: mediation-aws-data
-        emptyDir: {}
-      - name: turbo-volume
-        configMap:
-          name: global-properties-{{ .Release.Name }}
-          optional: true
       - name: mediation-aws-tmpfs0
+        emptyDir: {}
+      - name: mediation-aws-data
         emptyDir: {}
   selector:
     matchLabels:
