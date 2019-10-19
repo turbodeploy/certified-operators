@@ -21,14 +21,12 @@ import com.vmturbo.mediation.conversion.cloud.converter.DefaultConverter;
 import com.vmturbo.mediation.conversion.util.CloudService;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.SubDivisionData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.RedundancyType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
-import com.vmturbo.platform.sdk.common.util.SDKUtil;
 
 /**
  * Convert cloud discovery response (entities, profiles...) to new cloud model for use by XL.
@@ -274,14 +272,6 @@ public class CloudDiscoveryConverter {
                             } catch (IllegalArgumentException e) {
                                 logger.error("Unsupported redundancy type: {}",
                                     file.getRedundancyType());
-                            }
-                        }
-                        if (file.hasModificationTimeMs()) {
-                            vvData.setCreationTime(file.getModificationTimeMs());
-                        }
-                        for (final EntityProperty volumeProperty : file.getVolumePropertiesList()) {
-                            if (SDKUtil.VC_TAGS_NAMESPACE.equals(volumeProperty.getNamespace())) {
-                                volume.addEntityProperties(volumeProperty);
                             }
                         }
                         volume.setVirtualVolumeData(vvData.build());

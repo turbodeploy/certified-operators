@@ -8,7 +8,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -24,7 +23,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
-import com.vmturbo.mediation.aws.util.AwsConstants;
 import com.vmturbo.mediation.conversion.cloud.CloudDiscoveryConverter;
 import com.vmturbo.mediation.conversion.cloud.CloudProviderConversionContext;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
@@ -45,19 +43,14 @@ import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
 import com.vmturbo.mediation.conversion.util.CloudService;
 import com.vmturbo.mediation.conversion.util.ConverterUtils;
 import com.vmturbo.mediation.conversion.util.TestUtils;
-import com.vmturbo.platform.common.builders.EntityBuilders;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.SubDivisionData;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.platform.sdk.common.util.SDKUtil;
 
 public class AwsCloudDiscoveryConverterTest {
 
@@ -304,7 +297,7 @@ public class AwsCloudDiscoveryConverterTest {
 
     @Test
     public void testStorageTierConverter() {
-        IEntityConverter converter = new AwsStorageConverter();
+        IEntityConverter converter = new StorageConverter(SDKProbeType.AWS);
         rawEntitiesByType.get(EntityType.STORAGE).forEach(entity -> {
 
             String storageTierId = awsConversionContext.getStorageTierId(entity.getStorageData().getStorageTier());
@@ -376,42 +369,6 @@ public class AwsCloudDiscoveryConverterTest {
         // check all storage tiers are connected to 15 regions after converting all storages
         awsConverter.getAllStorageTierIds().forEach(s ->
             assertEquals(15, awsConverter.getNewEntityBuilder(s).getLayeredOverCount()));
-    }
-
-    /**
-     * Test that appropriate EntityProperties are used to set appropriate fields of
-     * VirtualVolumeData and that all other EntityProperties are handled gracefully (i.e. ignored).
-     */
-    @Test
-    public void testEntityPropertyUpdates() {
-        final EntityProperty TAG_ENTITY_PROPERTY = EntityBuilders.entityProperty()
-            .withNamespace(SDKUtil.VC_TAGS_NAMESPACE)
-            .named("tag-name").withValue("tag-value").build();
-        final EntityProperty THROUGHPUT_ENTITY_PROPERTY = EntityBuilders.entityProperty()
-            .named(AwsConstants.IO_THROUGHPUT_CAPACITY_PROPERTY).withValue("123").build();
-        final EntityProperty UNKNOWN_ENTITY_PROPERTY = EntityBuilders.entityProperty()
-            .named("some-unrecognized-name").withValue("some-value").build();
-        final EntityProperty UNKNOWN_STATE_ENTITY_PROPERTY = EntityBuilders.entityProperty()
-            .named(AwsConstants.STATE).withValue("some-unrecognized-state").build();
-        final EntityProperty KNOWN_STATE_ENTITY_PROPERTY = EntityBuilders.entityProperty()
-            .named(AwsConstants.STATE).withValue("available").build();
-
-        final VirtualVolumeData PREEXISTING = VirtualVolumeData.newBuilder().build();
-
-        final AwsStorageConverter converter = new AwsStorageConverter();
-        final VirtualVolumeData resultUnknownState = converter.updateVirtualVolumeData(PREEXISTING,
-            Arrays.asList(TAG_ENTITY_PROPERTY, THROUGHPUT_ENTITY_PROPERTY, UNKNOWN_ENTITY_PROPERTY,
-                UNKNOWN_STATE_ENTITY_PROPERTY));
-
-        assertEquals(AttachmentState.UNKNOWN, resultUnknownState.getAttachmentState());
-        assertEquals(123, resultUnknownState.getIoThroughputCapacity(), .001);
-
-        final VirtualVolumeData resultKnownState = converter.updateVirtualVolumeData(PREEXISTING,
-            Arrays.asList(TAG_ENTITY_PROPERTY, THROUGHPUT_ENTITY_PROPERTY, UNKNOWN_ENTITY_PROPERTY,
-                KNOWN_STATE_ENTITY_PROPERTY));
-
-        assertEquals(AttachmentState.AVAILABLE, resultKnownState.getAttachmentState());
-        assertEquals(123, resultKnownState.getIoThroughputCapacity(), .001);
     }
 
     @Test
