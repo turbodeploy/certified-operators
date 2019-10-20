@@ -267,7 +267,7 @@ data:
                     COMPLETED_ACTIONS
                 # Whether we should write cluster membership information as part of our metrics.
                 clustersSupported: true
-            plan.orchestrator:
+            plan-orchestrator:
                 dbSchemaName: plan
                 # cron spec for running cluster rollup at 1AM daily = second (0-60) ,minute (0-59), hour(0-23),
                 #     day of month(1-31), month(1-12), day of week(0-7, 7=sun)
@@ -289,7 +289,7 @@ data:
                 # If true, calculate headroom for all clusters in one plan instance.
                 # If false, calculate headroom for restricted number of clusters in multiple plan instances.
                 headroomCalculationForAllClusters: true
-            reports:
+            reporting:
                 dbSchemaName: vmtdb
                 identityGeneratorPrefix: 8
                 scheduledReportsGenerationTime: 1
@@ -306,7 +306,7 @@ data:
                 repositoryRealtimeTopologyDropDelaySecs: 30
                 numberOfExpectedRealtimeSourceDB: 2
                 numberOfExpectedRealtimeProjectedDB: 2
-            topology_processor:
+            topology-processor:
                 # suppress inspection "UnusedProperty" for whole file
                 identityGeneratorPrefix: 1
                 # This should be in sync with the schema in the Topology Processor s pom.xml
