@@ -3,6 +3,8 @@ package com.vmturbo.topology.processor.history.percentile;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.annotation.concurrent.Immutable;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -10,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 /**
  * Represent a collection of buckets covering the percents range (0-100) - only integer values.
  */
+@Immutable
 public class PercentileBuckets {
     private static final Logger LOGGER = LogManager.getLogger();
     private static final int PERCENT = 100;
@@ -25,6 +28,12 @@ public class PercentileBuckets {
      */
     private final Map<Integer, Float> bucket2average = new HashMap<>();
 
+    /**
+     * Constructs single percent precision bucket.
+     */
+    public PercentileBuckets() {
+        this(StringUtils.EMPTY);
+    }
     /**
      * Construct buckets from the CSV specification.
      *

@@ -7,6 +7,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -77,7 +78,7 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
      */
     public PercentileBuckets getPercentileBuckets(int commodityType) {
         return buckets.computeIfAbsent(CommodityType.forNumber(commodityType),
-                                       type -> new PercentileBuckets(null));
+                                       type -> new PercentileBuckets(StringUtils.EMPTY));
     }
 
     /**

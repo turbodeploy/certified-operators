@@ -3,10 +3,13 @@ package com.vmturbo.topology.processor.history.percentile;
 import java.time.Clock;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -91,7 +94,22 @@ public class PercentileEditor extends
      */
     public PercentileEditor(PercentileHistoricalEditorConfig config,
                             StatsHistoryServiceStub statsHistoryClient, Clock clock) {
-        super(config, statsHistoryClient, PercentilePersistenceTask::new, PercentileCommodityData::new);
+        this(config, statsHistoryClient, clock, PercentilePersistenceTask::new);
+    }
+
+    /**
+     * Construct the instance of percentile editor.
+     *
+     * @param config configuration values
+     * @param statsHistoryClient persistence component access handler
+     * @param clock the {@link Clock}
+     * @param historyLoadingTaskCreator creator of task to load or save data
+     */
+    public PercentileEditor(PercentileHistoricalEditorConfig config,
+                            StatsHistoryServiceStub statsHistoryClient,
+                            Clock clock,
+                            Function<StatsHistoryServiceStub, PercentilePersistenceTask> historyLoadingTaskCreator) {
+        super(config, statsHistoryClient, historyLoadingTaskCreator, PercentileCommodityData::new);
         this.clock = clock;
     }
 
@@ -164,8 +182,7 @@ public class PercentileEditor extends
         getCache().forEach((commRef, data) -> {
             builder.addPercentileRecords(data.getUtilizationCountStore().getLatestCountsRecord());
         });
-        new PercentilePersistenceTask(getStatsHistoryClient(), getCheckpoint())
-                        .save(builder.build(),
+        createTask(getCheckpoint()).save(builder.build(),
                               (long)(getConfig().getMaintenanceWindowHours() * Units.HOUR_MS),
                               getConfig());
 
@@ -173,13 +190,18 @@ public class PercentileEditor extends
         maintenance();
     }
 
+    private PercentilePersistenceTask createTask(long startTimestamp) {
+        PercentilePersistenceTask task = historyLoadingTaskCreator.apply(getStatsHistoryClient());
+        task.setStartTimestamp(startTimestamp);
+        return task;
+    }
+
     private void loadPersistedData() throws HistoryCalculationException, InterruptedException {
         if (!historyInitialized) {
             Stopwatch sw = Stopwatch.createStarted();
             // read the latest and full window blobs if haven't yet, set into cache
             Map<EntityCommodityFieldReference, PercentileRecord> fullPage =
-                            new PercentilePersistenceTask(getStatsHistoryClient(),
-                                                          0).load(Collections.emptyList(), getConfig());
+                            createTask(0).load(Collections.emptyList(), getConfig());
             for (Map.Entry<EntityCommodityFieldReference, PercentileRecord> fullEntry : fullPage.entrySet()) {
                 EntityCommodityFieldReference field = fullEntry.getKey();
                 PercentileRecord record = fullEntry.getValue();
@@ -197,8 +219,7 @@ public class PercentileEditor extends
             sw.start();
             long checkpointMs = getCheckpoint();
             Map<EntityCommodityFieldReference, PercentileRecord> latestPage =
-                        new PercentilePersistenceTask(getStatsHistoryClient(),
-                                                      checkpointMs).load(Collections.emptyList(), getConfig());
+                        createTask(checkpointMs).load(Collections.emptyList(), getConfig());
             for (Map.Entry<EntityCommodityFieldReference, PercentileRecord> latestEntry : latestPage.entrySet()) {
                 PercentileCommodityData data =
                                 getCache().computeIfAbsent(latestEntry.getKey(),
@@ -215,6 +236,7 @@ public class PercentileEditor extends
                          () -> checkpointMs, latestPage::size, sw::toString);
 
             historyInitialized = true;
+            lastCheckpointMs = checkpointMs;
         }
     }
 
@@ -260,7 +282,8 @@ public class PercentileEditor extends
             return;
         }
 
-        try (DataMetricTimer timer = SETTINGS_CHANGE_SUMMARY_METRIC.startTimer()) {
+        try (DataMetricTimer timer = SETTINGS_CHANGE_SUMMARY_METRIC.startTimer();
+             CacheBackup backup = new CacheBackup(getCache());) {
             final Stopwatch sw = Stopwatch.createStarted();
             // Read as many page blobs from persistence as constitute the max of new periods
             // and accumulate them into percentile cache, respect per-entity observation window settings
@@ -277,7 +300,7 @@ public class PercentileEditor extends
             // Load snapshots by selecting from history with shifting start timestamp by maintenance window.
             while (startTimestamp < checkpoint) {
                 final Map<EntityCommodityFieldReference, PercentileRecord> page =
-                        new PercentilePersistenceTask(getStatsHistoryClient(), startTimestamp).load(
+                        createTask(startTimestamp).load(
                                 Collections.emptyList(), getConfig());
                 // For each entry in cache with a changed observation period,
                 // apply loaded percentile commodity entries.
@@ -305,46 +328,122 @@ public class PercentileEditor extends
                 startTimestamp += windowMillis;
             }
             // Reset last checkpoint for force starting the maintenance.
-            this.lastCheckpointMs = 0;
+            backup.keepCacheOnClose();
             logger.info(
                     "Percentile observation windows changed for {} entries, recalculated from {} pages in {}",
                     changedPeriodEntries.size(), maxOfChangedPeriods, sw);
         }
     }
 
-    private void maintenance() throws HistoryCalculationException {
+    private void maintenance() throws HistoryCalculationException, InterruptedException {
+        if (!historyInitialized) {
+            throw new HistoryCalculationException("History is not initialized.");
+        }
+
         long checkpointMs = getCheckpoint();
         if (checkpointMs <= lastCheckpointMs) {
             logger.trace("Percentile cache checkpoint skipped - not enough time passed since last checkpoint "
                          + lastCheckpointMs);
             return;
         }
-        try (DataMetricTimer timer = MAINTENANCE_SUMMARY_METRIC.startTimer()) {
+
+        Stopwatch sw = Stopwatch.createStarted();
+        try (DataMetricTimer timer = MAINTENANCE_SUMMARY_METRIC.startTimer();
+                        CacheBackup backup = new CacheBackup(getCache())) {
             logger.debug("Performing percentile cache maintenance {}", ++checkpoints);
-            Stopwatch sw = Stopwatch.createStarted();
-            // TODO dmitry load the page(s) that go out of all possible observation windows
-            // there can be more than 1 page becoming obsolete for each window value,
-            // depending on time difference between checkpointMs and lastCheckpointMs
-            // i.e. we need to load 1 to 4 pages
-            // worst case if broadcasts are delayed and all windows are configured, perhaps 8 pages
-            Set<Integer> periods = graph.getEntities(Collections.emptySet())
+
+            Set<Integer> periods = graph.entities()
                             .map(entity -> getConfig().getObservationPeriod(entity.getOid()))
                             .collect(Collectors.toSet());
 
+            final PercentileCounts.Builder builder = PercentileCounts.newBuilder();
+            for (long currentCheckpointMs = lastCheckpointMs + getMaintenanceWindowInMs();
+                 currentCheckpointMs <= checkpointMs;
+                 currentCheckpointMs += getMaintenanceWindowInMs()) {
+                for (Integer periodInDays : periods) {
+                    final long outdatedTimestamp = currentCheckpointMs
+                                                   - periodInDays * TimeInMillisConstants.DAY_LENGTH_IN_MILLIS;
+                    final PercentilePersistenceTask loadOutdated = createTask(outdatedTimestamp);
+                    logger.debug("Started checkpoint percentile cache for timestamp {} with period of {} days. Outdated percentile timestamp is {} ",
+                                 currentCheckpointMs,
+                                 periodInDays,
+                                 outdatedTimestamp);
+
+                    final Map<EntityCommodityFieldReference, PercentileRecord> oldValues =
+                                    loadOutdated.load(Collections.emptyList(), getConfig());
+                    for (Map.Entry<EntityCommodityFieldReference, PercentileRecord> entry : oldValues
+                                    .entrySet()) {
+                        final EntityCommodityFieldReference currentReference = entry.getKey();
+                        final PercentileRecord record = entry.getValue();
+                        if (getConfig().getObservationPeriod(currentReference.getEntityOid())
+                            != periodInDays) {
+                            continue;
+                        }
+                        logger.trace("Checkpoint record {} for entity reference {}",
+                                     record, currentReference);
+                        final PercentileCommodityData data = getCache().get(currentReference);
+                        final PercentileRecord.Builder checkpoint = data.getUtilizationCountStore()
+                                        .checkpoint(Collections.singleton(record));
+                        builder.addPercentileRecords(checkpoint);
+                    }
+                }
+            }
+
+            final PercentileCounts total = builder.build();
+            logger.debug("Writing total percentile {} with timestamp {}", total, checkpointMs);
+            createTask(0).save(total, checkpointMs, getConfig());
+
             lastCheckpointMs = checkpointMs;
-            // TODO dmitry checkpoint all entries in the cache, persist the full window
-            // checkpoint per-entity as configured windows can be different
-            // getUtilizationCountStore().checkpoint();
-            // PercentilePersistenceTask.save()
+            backup.keepCacheOnClose();
+
+        } finally {
             logger.info("Percentile cache maintenance {} took {}", checkpoints, sw);
         }
     }
 
     private long getCheckpoint() {
         long checkpointMs = clock.millis();
-        double window = getConfig().getMaintenanceWindowHours() *
-                TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS;
+        double window = getMaintenanceWindowInMs();
         return (long)(Math.floor(checkpointMs / window) * window);
+    }
+
+    private long getMaintenanceWindowInMs() {
+        return getConfig().getMaintenanceWindowHours() *
+               TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS;
+    }
+
+    /**
+     * Helper class to store the latest valid state of cache and restore it in case of failures.
+     */
+    protected static class CacheBackup implements AutoCloseable {
+        private final Map<EntityCommodityFieldReference, PercentileCommodityData> originalCache;
+        private Map<EntityCommodityFieldReference, PercentileCommodityData> backup;
+
+        public CacheBackup(@Nonnull Map<EntityCommodityFieldReference, PercentileCommodityData> originalCache)
+                        throws HistoryCalculationException {
+            this.originalCache = Objects.requireNonNull(originalCache);
+            backup = new LinkedHashMap<>();
+            for (Map.Entry<EntityCommodityFieldReference, PercentileCommodityData> entry : originalCache
+                            .entrySet()) {
+                backup.put(entry.getKey(), new PercentileCommodityData(entry.getValue()));
+            }
+        }
+
+        /**
+         * Don't restore the original state of cache on {@link CacheBackup#close}.
+         */
+        public void keepCacheOnClose() {
+            backup = null;
+        }
+
+        @Override
+        public void close() {
+            if (backup != null) {
+                originalCache.clear();
+                originalCache.putAll(backup);
+                backup = null;
+            }
+        }
     }
 
 }

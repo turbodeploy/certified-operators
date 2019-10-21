@@ -37,7 +37,7 @@ public class UtilizationCountArrayTest {
      */
     @Test
     public void testEmptyArray() throws HistoryCalculationException {
-        UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets(null));
+        UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
         Assert.assertEquals(0, counts.getPercentile(90));
     }
 
@@ -50,7 +50,7 @@ public class UtilizationCountArrayTest {
     public void testNegativeRank() throws HistoryCalculationException {
         expectedException.expect(HistoryCalculationException.class);
         expectedException.expectMessage("invalid percentile rank");
-        UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets(null));
+        UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
         counts.getPercentile(-50);
     }
 
@@ -61,7 +61,7 @@ public class UtilizationCountArrayTest {
      */
     @Test
     public void testRankZero() throws HistoryCalculationException {
-        UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets(null));
+        UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
         for (int i = 0; i < 100; ++i) {
             counts.addPoint(i, 100, "", true);
         }
@@ -75,7 +75,7 @@ public class UtilizationCountArrayTest {
      */
     @Test
     public void testSingleCount() throws HistoryCalculationException {
-        UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets(null));
+        UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
         addCount(counts, 1, 5);
         Assert.assertEquals(1, counts.getPercentile(20));
         Assert.assertEquals(1, counts.getPercentile(30));
@@ -88,7 +88,7 @@ public class UtilizationCountArrayTest {
      */
     @Test
     public void testFiveCounts() throws HistoryCalculationException {
-        UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets(null));
+        UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
         addCount(counts, 0, 5);
         addCount(counts, 1, 4);
         addCount(counts, 2, 6);
@@ -106,7 +106,7 @@ public class UtilizationCountArrayTest {
      */
     @Test
     public void testSubtractPoints() throws HistoryCalculationException {
-        UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets(null));
+        UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
         addCount(counts, 1, 5);
         addCount(counts, 2, 5);
         Assert.assertEquals(2, counts.getPercentile(80));
@@ -124,7 +124,7 @@ public class UtilizationCountArrayTest {
      */
     @Test
     public void testSubtractPointsChangeCapacity() throws HistoryCalculationException {
-        UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets(null));
+        UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
         counts.addPoint(10, 200, "", true);
         counts.addPoint(20, 100, "", true);
         // now after rescaling we should have a point at 10 and a point at 20
@@ -144,7 +144,7 @@ public class UtilizationCountArrayTest {
      */
     @Test
     public void testRescaleCapacity() throws HistoryCalculationException {
-        UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets(null));
+        UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
         addCount(counts, 10, 5);
         addCount(counts, 20, 5);
         Assert.assertEquals(10, counts.getPercentile(40));
@@ -161,7 +161,7 @@ public class UtilizationCountArrayTest {
      */
     @Test
     public void testSerialize() throws HistoryCalculationException {
-        UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets(null));
+        UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
         float capacity = 72631;
         counts.addPoint(2, capacity, "", true);
         PercentileRecord.Builder builder = counts.serialize(REF);
@@ -188,7 +188,7 @@ public class UtilizationCountArrayTest {
      */
     @Test
     public void testDeserialize() throws HistoryCalculationException {
-        UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets(null));
+        UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
         PercentileRecord.Builder builder = PercentileRecord.newBuilder().setEntityOid(12)
                         .setCommodityType(32).setCapacity(100f).setPeriod(30);
         addCount(builder, 5, 10);
@@ -212,7 +212,7 @@ public class UtilizationCountArrayTest {
     public void testDeserializeIncorrectArray() throws HistoryCalculationException {
         expectedException.expect(HistoryCalculationException.class);
         expectedException.expectMessage("serialized percentile counts array is not valid");
-        UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets(null));
+        UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
         PercentileRecord.Builder builder = PercentileRecord.newBuilder().setEntityOid(12)
                         .setCommodityType(32).setCapacity(100f).addUtilization(20).setPeriod(30);
         counts.deserialize(builder.build(), "");

@@ -48,6 +48,22 @@ public class UtilizationCountStore {
     }
 
     /**
+     * Constructs a copy of <code>other</code> instance.
+     *
+     * @param other instance to copy
+     * @implNote This constructor copies immutable fields by reference.
+     */
+    @SuppressWarnings("IncompleteCopyConstructor")
+    public UtilizationCountStore(UtilizationCountStore other) {
+        buckets = other.buckets;
+        fieldReference = other.fieldReference;
+        full = new UtilizationCountArray(other.full);
+        latest = new UtilizationCountArray(other.latest);
+        latestStoredTimestamp = other.latestStoredTimestamp;
+        this.periodDays = other.periodDays;
+    }
+
+    /**
      * Calculate the percentile score for a given rank.
      *
      * @param rank must be between 0 and 100

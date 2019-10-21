@@ -2,24 +2,22 @@ package com.vmturbo.topology.processor.history.percentile;
 
 import java.time.Clock;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+
+import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.protobuf.ByteString;
-
-import io.grpc.stub.CallStreamObserver;
-import io.grpc.stub.StreamObserver;
 
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 import org.powermock.api.mockito.PowerMockito;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
@@ -28,15 +26,14 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.stats.Stats.GetPercentileCountsRequest;
-import com.vmturbo.common.protobuf.stats.Stats.PercentileChunk;
-import com.vmturbo.common.protobuf.stats.Stats.SetPercentileCountsResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
@@ -60,15 +57,13 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     private static final long TIMESTAMP_TOTAL = 0L;
     private static final long TIMESTAMP_AUG_28_2019_12_00 = 1566993600000L;
     private static final long TIMESTAMP_AUG_29_2019_00_00 = 1567036800000L;
+    private static final long TIMESTAMP_AUG_29_2019_06_00 = 1567058400000L;
     private static final long TIMESTAMP_AUG_29_2019_12_00 = 1567080000000L;
     private static final long TIMESTAMP_AUG_30_2019_00_00 = 1567123200000L;
     private static final long TIMESTAMP_AUG_30_2019_12_00 = 1567166400000L;
     private static final long TIMESTAMP_AUG_31_2019_00_00 = 1567209600000L;
     private static final long TIMESTAMP_AUG_31_2019_12_00 = 1567252800000L;
     private static final long TIMESTAMP_INIT_START_SEP_1_2019 = 1567296000000L;
-
-    // Entity OID -> timestamp -> utilization counts array.
-    private static final Map<Long, Map<Long, List<Integer>>> UTILIZATIONS;
 
     private static final int MAINTENANCE_WINDOW_HOURS = 12;
     private static final String PERCENTILE_BUCKETS_SPEC = "0,1,5,99,100";
@@ -99,46 +94,6 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                             .setKey("DesktopPool::key")
                             .build(), DESKTOP_POOL_PROVIDER_OID, CommodityField.USED);
 
-    static {
-        // Virtual Machine - VCPU
-        // 41 42 43 44 45 - TOTAL
-        // 36 37 38 39 40 - 28 Aug 2019 12:00:00 GMT.
-        // 31 32 33 34 35 - 29 Aug 2019 00:00:00 GMT.
-        // 26 27 28 29 30 - 29 Aug 2019 12:00:00 GMT.
-        // 21 22 23 24 25 - 30 Aug 2019 00:00:00 GMT.
-        // 16 14 18 19 20 - 30 Aug 2019 12:00:00 GMT.
-        // 11 12 13 14 15 - 31 Aug 2019 00:00:00 GMT.
-        //  6  7  8  9 10 - 31 Aug 2019 12:00:00 GMT.
-        //  1  2  3  4  5 -  1 Sep 2019 00:00:00 GMT. - LATEST
-
-        // Business User - ImageCPU
-        // 86 87 88 89 90 - TOTAL
-        // 81 82 83 84 85 - 28 Aug 2019 12:00:00 GMT.
-        // 76 77 78 79 80 - 29 Aug 2019 00:00:00 GMT.
-        // 71 72 73 74 75 - 29 Aug 2019 12:00:00 GMT.
-        // 66 67 68 69 70 - 30 Aug 2019 00:00:00 GMT.
-        // 61 62 63 64 65 - 30 Aug 2019 12:00:00 GMT.
-        // 56 57 58 59 60 - 31 Aug 2019 00:00:00 GMT.
-        // 51 52 53 54 55 - 31 Aug 2019 12:00:00 GMT.
-        // 46 47 48 49 50 -  1 Sep 2019 00:00:00 GMT. - LATEST
-
-        UTILIZATIONS = new HashMap<>();
-        final List<Long> timestamps =
-                Arrays.asList(TIMESTAMP_INIT_START_SEP_1_2019, TIMESTAMP_AUG_31_2019_12_00,
-                        TIMESTAMP_AUG_31_2019_00_00, TIMESTAMP_AUG_30_2019_12_00,
-                        TIMESTAMP_AUG_30_2019_00_00, TIMESTAMP_AUG_29_2019_12_00,
-                        TIMESTAMP_AUG_29_2019_00_00, TIMESTAMP_AUG_28_2019_12_00, TIMESTAMP_TOTAL);
-        int i = 0;
-        final List<Long> entities = Arrays.asList(VIRTUAL_MACHINE_OID, BUSINESS_USER_OID);
-        for (long entityOid : entities) {
-            final Map<Long, List<Integer>> timestampToUtilization = new HashMap<>();
-            UTILIZATIONS.put(entityOid, timestampToUtilization);
-            for (long timestamp : timestamps) {
-                timestampToUtilization.put(timestamp, Arrays.asList(++i, ++i, ++i, ++i, ++i));
-            }
-        }
-    }
-
     private final StatsHistoryServiceStub statsHistoryServiceStub =
             PowerMockito.mock(StatsHistoryServiceStub.class);
     private final Clock clock = Mockito.mock(Clock.class);
@@ -153,11 +108,9 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
      */
     @Before
     public void setUp() {
-        Mockito.when(clock.millis()).thenReturn(TIMESTAMP_INIT_START_SEP_1_2019);
-        setUpStatsHistoryService();
         setUpTopology();
         percentileEditor = new PercentileEditorCacheAccess(PERCENTILE_HISTORICAL_EDITOR_CONFIG,
-                statsHistoryServiceStub, clock);
+                                                           statsHistoryServiceStub, clock);
     }
 
     private void setUpTopology() {
@@ -183,27 +136,6 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                 createPercentileObservationWindowSetting(entityOid, value, entitySettingSpecs));
     }
 
-    private void setUpStatsHistoryService() {
-        Mockito.when(statsHistoryServiceStub.setPercentileCounts(Mockito.any()))
-                .thenAnswer((invocation -> {
-                    final StreamObserver<SetPercentileCountsResponse> streamObserver =
-                            invocation.getArgumentAt(0, StreamObserver.class);
-                    final CallStreamObserver<PercentileChunk> mock =
-                            Mockito.mock(CallStreamObserver.class);
-                    Mockito.doAnswer(i -> {
-                        streamObserver.onNext(SetPercentileCountsResponse.newBuilder().build());
-                        streamObserver.onCompleted();
-                        return null;
-                    }).when(mock).onCompleted();
-                    Mockito.when(mock.isReady()).thenReturn(true);
-                    return mock;
-                }));
-
-        Mockito.doAnswer(new GetPercentileCountsAnswer())
-                .when(statsHistoryServiceStub)
-                .getPercentileCounts(Mockito.any(), Mockito.any());
-    }
-
     /**
      * Test the initial data loading.
      * That requests to load full and latest window blobs are made and results are accumulated.
@@ -213,6 +145,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
      */
     @Test
     public void testLoadData() throws HistoryCalculationException, InterruptedException {
+        Mockito.when(clock.millis()).thenReturn(TIMESTAMP_INIT_START_SEP_1_2019);
         // First initializing history from db.
         percentileEditor.initContext(graphWithSettings, commodityFieldAccessor);
         // LATEST(1, 2, 3, 4, 5) + TOTAL(41, 42, 43, 44, 45) = FULL(42, 44, 46, 48, 50)
@@ -232,7 +165,8 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     }
 
     /**
-     * Test for {@link PercentileEditor#checkObservationPeriodsChanged}.
+     * Test that {@link PercentileEditor#initContext}
+     * correctly handles case when observation period of entity changed.
      *
      * @throws InterruptedException when interrupted
      * @throws HistoryCalculationException when failed
@@ -240,6 +174,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     @Test
     public void testCheckObservationPeriodsChanged()
             throws InterruptedException, HistoryCalculationException {
+        Mockito.when(clock.millis()).thenReturn(TIMESTAMP_INIT_START_SEP_1_2019);
         // First initializing history from db.
         percentileEditor.initContext(graphWithSettings, commodityFieldAccessor);
         // Necessary to set last checkpoint timestamp.
@@ -301,6 +236,162 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                 imageCpuPercentileRecord.getPeriod());
     }
 
+    /**
+     * Tests that {@link PercentileEditor#completeBroadcast()} fails if
+     * object is not initialized.
+     *
+     * @throws HistoryCalculationException always
+     * @throws InterruptedException when something goes wrong
+     */
+    @Test(expected = HistoryCalculationException.class)
+    public void testCompleteBroadcastFailsIfObjectIsNotInitialized()
+                    throws HistoryCalculationException, InterruptedException {
+        percentileEditor.completeBroadcast();
+    }
+
+    /**
+     * Tests that {@link PercentileEditor.CacheBackup} doesn't restore cache after call of
+     * {@link PercentileEditor.CacheBackup#keepCacheOnClose()}.
+     *
+     * @throws HistoryCalculationException when something goes wrong
+     * @throws InterruptedException when something goes wrong
+     */
+    @Test
+    public void testCacheBackupSuccessCase()
+                    throws HistoryCalculationException, InterruptedException {
+        percentileEditor.initContext(graphWithSettings, commodityFieldAccessor);
+        final EntityCommodityFieldReference mockReference =
+                        Mockito.mock(EntityCommodityFieldReference.class);
+        try (PercentileEditor.CacheBackup cacheBackup = new PercentileEditor.CacheBackup(percentileEditor.getCache())) {
+            percentileEditor.getCache().put(mockReference,
+                                            Mockito.mock(PercentileCommodityData.class));
+            cacheBackup.keepCacheOnClose();
+        }
+
+        Assert.assertTrue(percentileEditor.getCache().containsKey(mockReference));
+    }
+
+    /**
+     * Tests that {@link PercentileEditor.CacheBackup} restores cache after call of
+     * {@link PercentileEditor.CacheBackup#close()}. Also checks that two subsequent calls
+     * of {@link PercentileEditor.CacheBackup#close()} doesn't emit a cache backup.
+     *
+     * @throws HistoryCalculationException when something goes wrong
+     * @throws InterruptedException when something goes wrong
+     */
+    @Test
+    public void testCacheBackupFailureCase() throws HistoryCalculationException, InterruptedException {
+        percentileEditor.initContext(graphWithSettings, commodityFieldAccessor);
+        final Map<EntityCommodityFieldReference, PercentileCommodityData> originalCache =
+                        percentileEditor.getCache();
+        final PercentileEditor.CacheBackup cacheBackup =
+                        new PercentileEditor.CacheBackup(originalCache);
+        final EntityCommodityFieldReference mock =
+                        Mockito.mock(EntityCommodityFieldReference.class);
+        originalCache.put(mock, Mockito.mock(PercentileCommodityData.class));
+        cacheBackup.close();
+        Assert.assertFalse(originalCache.containsKey(mock));
+
+        // Check that double close don't override original cache
+        originalCache.put(mock, Mockito.mock(PercentileCommodityData.class));
+        cacheBackup.close();
+        Assert.assertTrue(originalCache.containsKey(mock));
+    }
+
+    /**
+     * Tests that {@link PercentileEditor#completeBroadcast()} works correctly
+     * when half of maintenance windows passed since last checkpoint.
+     *
+     * @throws HistoryCalculationException when something goes wrong
+     * @throws InterruptedException when something goes wrong
+     */
+    @Test
+    public void testCompleteBroadcastTooSoon() throws HistoryCalculationException, InterruptedException {
+        final PercentileTaskStub stub = Mockito.spy(new PercentileTaskStub(statsHistoryServiceStub));
+        percentileEditor = new PercentileEditorCacheAccess(PERCENTILE_HISTORICAL_EDITOR_CONFIG,
+                                                           statsHistoryServiceStub, clock,
+                                                           (service) -> stub);
+        Mockito.when(clock.millis()).thenReturn(TIMESTAMP_AUG_29_2019_00_00);
+        percentileEditor.initContext(graphWithSettings, commodityFieldAccessor);
+        Mockito.when(clock.millis()).thenReturn(TIMESTAMP_AUG_29_2019_06_00);
+
+        Mockito.verify(stub, Mockito.times(2)).load(Mockito.any(),
+                                                    Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
+
+        percentileEditor.completeBroadcast();
+        Mockito.verify(stub, Mockito.times(1)).save(Mockito.any(),
+                                                    Mockito.eq((long)(PERCENTILE_HISTORICAL_EDITOR_CONFIG.getMaintenanceWindowHours() * Units.HOUR_MS)),
+                                                    Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
+        Mockito.verify(stub, Mockito.never()).save(Mockito.any(),
+                                                    Mockito.eq(TIMESTAMP_AUG_29_2019_00_00),
+                                                    Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
+
+        Mockito.verify(stub, Mockito.times(2)).load(Mockito.any(),
+                                                    Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
+    }
+
+    /**
+     * Tests that {@link PercentileEditor#completeBroadcast()} works correctly
+     * when one maintenance windows passed since last checkpoint.
+     *
+     * @throws HistoryCalculationException when something goes wrong
+     * @throws InterruptedException when something goes wrong
+     */
+    @Test
+    public void testCompleteBroadcastOneMaintenanceWindow() throws HistoryCalculationException, InterruptedException {
+        final PercentileTaskStub stub = Mockito.spy(new PercentileTaskStub(statsHistoryServiceStub));
+        percentileEditor = new PercentileEditorCacheAccess(PERCENTILE_HISTORICAL_EDITOR_CONFIG,
+                                                           statsHistoryServiceStub, clock,
+                                                           (service) -> stub);
+        Mockito.when(clock.millis()).thenReturn(TIMESTAMP_AUG_29_2019_00_00);
+        percentileEditor.initContext(graphWithSettings, commodityFieldAccessor);
+        Mockito.when(clock.millis()).thenReturn(TIMESTAMP_AUG_29_2019_12_00);
+
+        Mockito.verify(stub, Mockito.times(2)).load(Mockito.any(),
+                                                    Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
+
+        percentileEditor.completeBroadcast();
+        Mockito.verify(stub, Mockito.times(1)).save(Mockito.any(),
+                                                    Mockito.eq((long)(PERCENTILE_HISTORICAL_EDITOR_CONFIG.getMaintenanceWindowHours() * Units.HOUR_MS)),
+                                                    Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
+        Mockito.verify(stub, Mockito.times(1)).save(Mockito.any(),
+                                                    Mockito.eq(TIMESTAMP_AUG_29_2019_12_00),
+                                                    Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
+
+        // 2 Additional calls of load: one per period
+        Mockito.verify(stub, Mockito.times(4)).load(Mockito.any(),
+                                                    Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
+    }
+
+    /**
+     * Tests that {@link PercentileEditor#completeBroadcast()} works correctly
+     * when several maintenance windows passed since last checkpoint.
+     *
+     * @throws HistoryCalculationException when something goes wrong
+     * @throws InterruptedException when something goes wrong
+     */
+    @Test
+    public void testCompleteBroadcastTwoMaintenanceWindows() throws HistoryCalculationException, InterruptedException {
+        final PercentileTaskStub stub = Mockito.spy(new PercentileTaskStub(statsHistoryServiceStub));
+        percentileEditor = new PercentileEditorCacheAccess(PERCENTILE_HISTORICAL_EDITOR_CONFIG,
+                                                           statsHistoryServiceStub, clock,
+                                                           (service) -> stub);
+        Mockito.when(clock.millis()).thenReturn(TIMESTAMP_AUG_29_2019_00_00);
+        percentileEditor.initContext(graphWithSettings, commodityFieldAccessor);
+        Mockito.when(clock.millis()).thenReturn(TIMESTAMP_AUG_30_2019_00_00);
+
+        percentileEditor.completeBroadcast();
+        Mockito.verify(stub, Mockito.times(1)).save(Mockito.any(),
+                                                    Mockito.eq((long)(PERCENTILE_HISTORICAL_EDITOR_CONFIG.getMaintenanceWindowHours() * Units.HOUR_MS)),
+                                                    Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
+        Mockito.verify(stub, Mockito.times(1)).save(Mockito.any(),
+                                                    Mockito.eq(TIMESTAMP_AUG_30_2019_00_00),
+                                                    Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
+
+        Mockito.verify(stub, Mockito.times(6)).load(Mockito.any(),
+                                                    Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
+    }
+
     private static EntitySettings createPercentileObservationWindowSetting(long entityOid,
             long value, EntitySettingSpecs entitySettingSpecs) {
         return EntitySettings.newBuilder()
@@ -318,68 +409,137 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     }
 
     /**
-     * To answer when the stubbed {@link StatsHistoryServiceStub#getPercentileCounts} method is
-     * called.
-     */
-    private static class GetPercentileCountsAnswer implements Answer<Object> {
-
-        @Override
-        public Object answer(InvocationOnMock invocation) {
-            final GetPercentileCountsRequest getPercentileCountsRequest =
-                    invocation.getArgumentAt(0, GetPercentileCountsRequest.class);
-
-            final StreamObserver<PercentileChunk> streamObserver =
-                    invocation.getArgumentAt(1, StreamObserver.class);
-
-            PercentileRecord virtualMachinePercentileRecord = PercentileRecord.newBuilder()
-                    .setEntityOid(VIRTUAL_MACHINE_OID)
-                    .setCommodityType(VCPU_COMMODITY_REFERENCE.getCommodityType().getType())
-                    .addAllUtilization(UTILIZATIONS.get(VIRTUAL_MACHINE_OID)
-                            .get(getPercentileCountsRequest.getStartTimestamp()))
-                    .setCapacity(CAPACITY)
-                    .setPeriod((int)PREVIOUS_VIRTUAL_MACHINE_OBSERVATION_PERIOD)
-                    .build();
-
-            PercentileRecord businessUserPercentileRecord = PercentileRecord.newBuilder()
-                    .setEntityOid(BUSINESS_USER_OID)
-                    .setCommodityType(IMAGE_CPU_COMMODITY_REFERENCE.getCommodityType().getType())
-                    .setProviderOid(IMAGE_CPU_COMMODITY_REFERENCE.getProviderOid())
-                    .setKey(IMAGE_CPU_COMMODITY_REFERENCE.getCommodityType().getKey())
-                    .addAllUtilization(UTILIZATIONS.get(BUSINESS_USER_OID)
-                            .get(getPercentileCountsRequest.getStartTimestamp()))
-                    .setCapacity(CAPACITY)
-                    .setProviderOid(DESKTOP_POOL_PROVIDER_OID)
-                    .setPeriod((int)PREVIOUS_BUSINESS_USER_OBSERVATION_PERIOD)
-                    .build();
-
-            final byte[] content = PercentileCounts.newBuilder()
-                    .addPercentileRecords(virtualMachinePercentileRecord)
-                    .addPercentileRecords(businessUserPercentileRecord)
-                    .build()
-                    .toByteArray();
-
-            streamObserver.onNext(PercentileChunk.newBuilder()
-                    .setPeriod(MAINTENANCE_WINDOW_HOURS)
-                    .setStartTimestamp(getPercentileCountsRequest.getStartTimestamp())
-                    .setContent(ByteString.copyFrom(content))
-                    .build());
-
-            streamObserver.onCompleted();
-            return null;
-        }
-    }
-
-    /**
      * Access to the percentile editor cached data.
      */
     private static class PercentileEditorCacheAccess extends PercentileEditor {
         PercentileEditorCacheAccess(PercentileHistoricalEditorConfig config,
-                StatsHistoryServiceStub statsHistoryClient, Clock clock) {
-            super(config, statsHistoryClient, clock);
+                StatsHistoryServiceStub statsHistoryClient, Clock clock,
+                Function<StatsHistoryServiceStub, PercentilePersistenceTask> taskCreator) {
+            super(config, statsHistoryClient, clock, taskCreator);
+        }
+
+        PercentileEditorCacheAccess(PercentileHistoricalEditorConfig config,
+                                    StatsHistoryServiceStub statsHistoryClient, Clock clock) {
+            this(config, statsHistoryClient, clock, PercentileTaskStub::new);
         }
 
         PercentileCommodityData getCacheEntry(EntityCommodityFieldReference field) {
             return getCache().get(field);
+        }
+
+        @Override
+        public Map<EntityCommodityFieldReference, PercentileCommodityData> getCache() {
+            return super.getCache();
+        }
+    }
+
+    /**
+     * Helper for load/save operations without use to GRPC.
+     */
+    private static class PercentileTaskStub extends PercentilePersistenceTask {
+        // Entity OID -> timestamp -> utilization counts array.
+        private static final Map<Long, Map<Long, List<Integer>>> DEFAULT_UTILISATION;
+        private final Map<Long, Map<Long, List<Integer>>> currentUtilization;
+        private Map<EntityCommodityFieldReference, PercentileRecord> resultForLoad;
+
+        static {
+            // Virtual Machine - VCPU
+            // 41 42 43 44 45 - TOTAL
+            // 36 37 38 39 40 - 28 Aug 2019 12:00:00 GMT.
+            // 31 32 33 34 35 - 29 Aug 2019 00:00:00 GMT.
+            // 26 27 28 29 30 - 29 Aug 2019 12:00:00 GMT.
+            // 21 22 23 24 25 - 30 Aug 2019 00:00:00 GMT.
+            // 16 14 18 19 20 - 30 Aug 2019 12:00:00 GMT.
+            // 11 12 13 14 15 - 31 Aug 2019 00:00:00 GMT.
+            //  6  7  8  9 10 - 31 Aug 2019 12:00:00 GMT.
+            //  1  2  3  4  5 -  1 Sep 2019 00:00:00 GMT. - LATEST
+
+            // Business User - ImageCPU
+            // 86 87 88 89 90 - TOTAL
+            // 81 82 83 84 85 - 28 Aug 2019 12:00:00 GMT.
+            // 76 77 78 79 80 - 29 Aug 2019 00:00:00 GMT.
+            // 71 72 73 74 75 - 29 Aug 2019 12:00:00 GMT.
+            // 66 67 68 69 70 - 30 Aug 2019 00:00:00 GMT.
+            // 61 62 63 64 65 - 30 Aug 2019 12:00:00 GMT.
+            // 56 57 58 59 60 - 31 Aug 2019 00:00:00 GMT.
+            // 51 52 53 54 55 - 31 Aug 2019 12:00:00 GMT.
+            // 46 47 48 49 50 -  1 Sep 2019 00:00:00 GMT. - LATEST
+
+            DEFAULT_UTILISATION = new HashMap<>();
+            final List<Long> timestamps =
+                            Arrays.asList(TIMESTAMP_INIT_START_SEP_1_2019, TIMESTAMP_AUG_31_2019_12_00,
+                                          TIMESTAMP_AUG_31_2019_00_00, TIMESTAMP_AUG_30_2019_12_00,
+                                          TIMESTAMP_AUG_30_2019_00_00, TIMESTAMP_AUG_29_2019_12_00,
+                                          TIMESTAMP_AUG_29_2019_00_00, TIMESTAMP_AUG_28_2019_12_00, TIMESTAMP_TOTAL);
+            int i = 0;
+            final List<Long> entities = Arrays.asList(VIRTUAL_MACHINE_OID, BUSINESS_USER_OID);
+            for (long entityOid : entities) {
+                final Map<Long, List<Integer>> timestampToUtilization = new HashMap<>();
+                DEFAULT_UTILISATION.put(entityOid, timestampToUtilization);
+                for (long timestamp : timestamps) {
+                    timestampToUtilization.put(timestamp, Arrays.asList(++i, ++i, ++i, ++i, ++i));
+                }
+            }
+        }
+
+        PercentileTaskStub(StatsHistoryServiceStub unused) {
+            super(null);
+            currentUtilization = new HashMap<>(DEFAULT_UTILISATION);
+            PercentileRecord virtualMachinePercentileRecord = PercentileRecord.newBuilder()
+                            .setEntityOid(VIRTUAL_MACHINE_OID)
+                            .setCommodityType(VCPU_COMMODITY_REFERENCE.getCommodityType().getType())
+                            .setCapacity(CAPACITY)
+                            .setPeriod((int)PREVIOUS_VIRTUAL_MACHINE_OBSERVATION_PERIOD)
+                            .build();
+
+            PercentileRecord businessUserPercentileRecord = PercentileRecord.newBuilder()
+                            .setEntityOid(BUSINESS_USER_OID)
+                            .setCommodityType(IMAGE_CPU_COMMODITY_REFERENCE.getCommodityType().getType())
+                            .setProviderOid(IMAGE_CPU_COMMODITY_REFERENCE.getProviderOid())
+                            .setKey(IMAGE_CPU_COMMODITY_REFERENCE.getCommodityType().getKey())
+                            .setCapacity(CAPACITY)
+                            .setProviderOid(DESKTOP_POOL_PROVIDER_OID)
+                            .setPeriod((int)PREVIOUS_BUSINESS_USER_OBSERVATION_PERIOD)
+                            .build();
+
+            resultForLoad = new HashMap<>();
+            resultForLoad.put(new EntityCommodityFieldReference(VCPU_COMMODITY_REFERENCE,
+                                                                CommodityField.USED),
+                              virtualMachinePercentileRecord);
+            resultForLoad.put(new EntityCommodityFieldReference(IMAGE_CPU_COMMODITY_REFERENCE, CommodityField.USED),
+                              businessUserPercentileRecord);
+        }
+
+        public Map<EntityCommodityFieldReference, PercentileRecord> getResultForLoad() {
+            return resultForLoad;
+        }
+
+        @Override
+        public Map<EntityCommodityFieldReference, PercentileRecord> load(
+                        @Nonnull Collection<EntityCommodityReference> commodities,
+                        @Nonnull PercentileHistoricalEditorConfig config) {
+            for (Map.Entry<EntityCommodityFieldReference, PercentileRecord> entry : resultForLoad
+                            .entrySet()) {
+                EntityCommodityFieldReference entityCommodityFieldReference = entry.getKey();
+                PercentileRecord percentileRecord = entry.getValue();
+                final List<Integer> utilizations =
+                                currentUtilization.get(entityCommodityFieldReference.getEntityOid())
+                                                .get(getStartTimestamp());
+                if (utilizations == null) {
+                    continue;
+                }
+                entry.setValue(percentileRecord.toBuilder().clearUtilization().addAllUtilization(
+                                utilizations).build());
+            }
+            return Collections.unmodifiableMap(resultForLoad);
+        }
+
+        @Override
+        public void save(@Nonnull PercentileCounts counts,
+                         long periodMs,
+                         @Nonnull PercentileHistoricalEditorConfig config)
+                        throws HistoryCalculationException, InterruptedException {
+            // UNUSED
         }
     }
 }

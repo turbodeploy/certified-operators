@@ -24,6 +24,25 @@ public class PercentileCommodityData
 
     private UtilizationCountStore utilizationCounts;
 
+    /**
+     * Construct an empty instance of class.
+     *
+     * @apiNote We need an explicit empty constructor because this class has a throwing copy one.
+     */
+    public PercentileCommodityData() {
+    }
+
+    /**
+     * Construct a copy of <code>other</code>.
+     *
+     * @param other object to copy from
+     * @throws HistoryCalculationException when coping of utilizationCounts fails
+     */
+    public PercentileCommodityData(PercentileCommodityData other)
+                    throws HistoryCalculationException {
+        this.utilizationCounts = new UtilizationCountStore(other.utilizationCounts);
+    }
+
     @Override
     public void init(@Nonnull EntityCommodityFieldReference field,
                      @Nullable PercentileRecord dbValue,

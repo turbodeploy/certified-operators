@@ -44,7 +44,7 @@ public class PercentilePersistenceTask extends
     private static final Logger logger = LogManager.getLogger();
     private static final long waitForChannelReadinessIntervalMs = 50;
     private final StatsHistoryServiceStub statsHistoryClient;
-    private final long startTimestamp;
+    private long startTimestamp;
 
     /**
      * Construct the task to load percentile data for the 'full window' from the persistent store.
@@ -52,8 +52,15 @@ public class PercentilePersistenceTask extends
      * @param statsHistoryClient persistent store grpc interface
      */
     public PercentilePersistenceTask(StatsHistoryServiceStub statsHistoryClient) {
-        this.statsHistoryClient = statsHistoryClient;
-        this.startTimestamp = 0;
+        this(statsHistoryClient, 0);
+    }
+
+    public long getStartTimestamp() {
+        return startTimestamp;
+    }
+
+    public void setStartTimestamp(long startTimestamp) {
+        this.startTimestamp = startTimestamp;
     }
 
     /**
@@ -151,6 +158,7 @@ public class PercentilePersistenceTask extends
         logger.debug("Saved {} percentile commodity entries for timestamp {} in {}",
                      counts::getPercentileRecordsCount, () -> startTimestamp, sw::toString);
     }
+
 
     /**
      * Grpc stream observer that retains last occurred exception.

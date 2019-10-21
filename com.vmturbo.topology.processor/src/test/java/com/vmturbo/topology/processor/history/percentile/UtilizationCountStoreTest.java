@@ -33,7 +33,7 @@ public class UtilizationCountStoreTest {
             new EntityCommodityFieldReference(134L,
                                               CommodityType.newBuilder().setKey("efds").setType(12).build(),
                                               4857L, CommodityField.USED);
-        store = new UtilizationCountStore(new PercentileBuckets(null), ref);
+        store = new UtilizationCountStore(new PercentileBuckets(), ref);
     }
 
     /**

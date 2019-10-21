@@ -35,6 +35,19 @@ public class UtilizationCountArray {
     }
 
     /**
+     * Construct a deep copy of <code>other</code> instance.
+     *
+     * @param other instance to copy from
+     * @implNote This constructor copies immutable fields by reference.
+     */
+    @SuppressWarnings("IncompleteCopyConstructor")
+    public UtilizationCountArray(UtilizationCountArray other) {
+        buckets = other.buckets;
+        capacity = other.capacity;
+        counts = Arrays.copyOf(other.counts, other.counts.length);
+    }
+
+    /**
      * Add a utilization point to the counts.
      *
      * @param usage usage value
