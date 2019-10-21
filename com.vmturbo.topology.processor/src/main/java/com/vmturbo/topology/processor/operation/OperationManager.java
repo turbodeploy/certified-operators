@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
@@ -25,6 +26,7 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
@@ -53,6 +55,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -227,6 +230,11 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     private final int probeDiscoveryPermitWaitTimeoutIntervalMins;
 
     private final MatrixInterface matrix;
+
+    //TODO(OM-51696): Remove this Map once AWS cost discoveries are scheduled once per hour
+    // irrespective of the number of added AWS targets.
+    private static final Map<String, Integer> probeTypeToConcurrentDiscoveriesCount =
+            ImmutableMap.of(SDKProbeType.AWS_COST.getProbeType(), 1);
 
     public OperationManager(@Nonnull final IdentityProvider identityProvider,
                             @Nonnull final TargetStore targetStore,
@@ -907,8 +915,12 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     @Override
     public void onProbeRegistered(long probeId, ProbeInfo probe) {
         logger.info("Registration of probe {}", probeId);
+        final int maxConcurrentDiscoveries =
+                Optional.ofNullable(probeTypeToConcurrentDiscoveriesCount
+                        .get(probe.getProbeType()))
+                        .orElse(maxConcurrentTargetDiscoveriesPerProbeCount);
         probeOperationPermits.computeIfAbsent(probeId,
-                k -> new Semaphore(maxConcurrentTargetDiscoveriesPerProbeCount, true /*fair*/));
+                k -> new Semaphore(maxConcurrentDiscoveries, true /*fair*/));
         logger.info("Setting number of permits for probe: {} to: {}",
                 probeId, probeOperationPermits.get(probeId).availablePermits());
         targetStore.getProbeTargets(probeId).stream()
