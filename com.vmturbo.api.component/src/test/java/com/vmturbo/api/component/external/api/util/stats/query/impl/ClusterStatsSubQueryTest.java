@@ -9,7 +9,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -34,6 +36,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.utils.StringConstants;
 
 public class ClusterStatsSubQueryTest {
 
@@ -57,10 +60,25 @@ public class ClusterStatsSubQueryTest {
     public void testApplicableToCluster() {
         final ApiId scope = mock(ApiId.class);
         when(scope.getGroupType()).thenReturn(Optional.of(Type.CLUSTER));
-
         final StatsQueryContext context = mock(StatsQueryContext.class);
         when(context.getInputScope()).thenReturn(scope);
+        StatApiInputDTO clusterStat = new StatApiInputDTO();
+        clusterStat.setName(StringConstants.HEADROOM_VMS);
+        when(context.getRequestedStats()).thenReturn(new HashSet<>(Arrays.asList(clusterStat)));
         assertThat(query.applicableInContext(context), is(true));
+    }
+
+    /**
+     * Test that the query is not a cluster query, since it doesn't contain any cluster
+     * commodities in the request.
+     */
+    @Test
+    public void testNotApplicableToCluster() {
+        final ApiId scope = mock(ApiId.class);
+        when(scope.getGroupType()).thenReturn(Optional.of(Type.CLUSTER));
+        final StatsQueryContext context = mock(StatsQueryContext.class);
+        when(context.getInputScope()).thenReturn(scope);
+        assertThat(query.applicableInContext(context), is(false));
     }
 
     @Test
