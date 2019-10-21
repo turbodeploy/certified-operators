@@ -81,7 +81,6 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults.NewShoppingListToBuyerEntry;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context.Builder;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
@@ -122,12 +121,12 @@ public class TopologyConverter {
         // TODO: Add container collection
         EntityType.CONTAINER_VALUE);
 
-    // if cloud entity buys from this set of cloud entity types, then we need to create DataCenter
-    // commodity bought for it
+    // If a cloud entity buys from this set of cloud entity types, then we need to create DataCenter
+    // commodity bought for it.
     private static final Set<Integer> CLOUD_ENTITY_TYPES_TO_CREATE_DC_COMM_BOUGHT = ImmutableSet.of(
-            EntityType.COMPUTE_TIER_VALUE,
-            EntityType.DATABASE_TIER_VALUE,
-            EntityType.DATABASE_SERVER_TIER_VALUE
+        EntityType.COMPUTE_TIER_VALUE,
+        EntityType.DATABASE_TIER_VALUE,
+        EntityType.DATABASE_SERVER_TIER_VALUE
     );
 
     private static final Logger logger = LogManager.getLogger();
@@ -933,11 +932,6 @@ public class TopologyConverter {
             int bicliqueBaseType = commodityTypeAllocator.allocate(
                     TopologyConversionConstants.BICLIQUE);
             for (CommodityDTOs.CommodityBoughtTO commBought : sl.getCommoditiesBoughtList()) {
-                // If the commodity bought was created by market-component for tier exclusion,
-                // then do not include it in the projected topology.
-                if (tierExcluder.isCommSpecTypeForTierExclusion(commBought.getSpecification().getType())) {
-                    continue;
-                }
                 // if the commodity bought DTO type is biclique, create new
                 // DSPM and Datastore bought
                 if (bicliqueBaseType == commBought.getSpecification().getBaseType()) {
@@ -953,6 +947,10 @@ public class TopologyConverter {
                         // create dspm commodity bought because the supplier is ST
                         commList.add(newCommodity(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE, pmOid));
                     }
+                } else if (tierExcluder.isCommSpecTypeForTierExclusion(commBought.getSpecification().getType())) {
+                    // If the commodity bought was created by market-component for tier exclusion,
+                    // then do not include it in the projected topology.
+                    continue;
                 } else {
                     commBoughtTOtoCommBoughtDTO(traderTO.getOid(), sl.getSupplier(), sl.getOid(),
                         commBought, reservedCapacityAnalysis, originalEntity).ifPresent(commList::add);
@@ -1286,7 +1284,6 @@ public class TopologyConverter {
     private Set<TopologyDTO.CommoditySoldDTO> retrieveCommSoldList(
             @Nonnull final TraderTO traderTO) {
         return traderTO.getCommoditiesSoldList().stream()
-                    .filter(c -> !tierExcluder.isCommSpecTypeForTierExclusion(c.getSpecification().getType()))
                     .map(commoditySoldTO -> commSoldTOtoCommSoldDTO(traderTO.getOid(), commoditySoldTO))
                     .filter(Optional::isPresent)
                     .map(Optional::get)
@@ -1859,7 +1856,7 @@ public class TopologyConverter {
             // Create Coupon Comm
             createCouponCommodityBoughtForCloudEntity(providerOid, buyerOid).ifPresent(values::add);
             // Create template exclusion commodity bought
-            createTierExclusionCommodityBoughtForCloudEntity(buyerOid);
+            values.addAll(createTierExclusionCommodityBoughtForCloudEntity(providerOid, buyerOid));
         }
         final long id = shoppingListId++;
         // Check if the provider of the shopping list is UNKNOWN. If true, set movable false.
@@ -1962,15 +1959,23 @@ public class TopologyConverter {
 
     /**
      * Creates template exclusion commodities bought for cloud consumer.
+     *
+     * @param providerOid oid of the market tier provider oid
      * @param buyerOid the cloud consumer
      * @return the list of template exclusion commodities the cloud consumer needs to buy
      */
-    private List<CommodityBoughtTO> createTierExclusionCommodityBoughtForCloudEntity(long buyerOid) {
-        return tierExcluder.getTierExclusionCommoditiesToBuy(buyerOid).stream()
-            .map(ct -> CommodityBoughtTO.newBuilder()
-                .setSpecification(commodityConverter.commoditySpecification(ct))
-                .build())
-            .collect(Collectors.toList());
+    private Set<CommodityBoughtTO> createTierExclusionCommodityBoughtForCloudEntity(
+            long providerOid, long buyerOid) {
+        MarketTier marketTier = cloudTc.getMarketTier(providerOid);
+        int providerEntityType = marketTier.getTier().getEntityType();
+        if (TopologyDTOUtil.isPrimaryTierEntityType(providerEntityType)) {
+            return tierExcluder.getTierExclusionCommoditiesToBuy(buyerOid).stream()
+                .map(ct -> CommodityBoughtTO.newBuilder()
+                    .setSpecification(commodityConverter.commoditySpecification(ct))
+                    .build())
+                .collect(Collectors.toSet());
+        }
+        return Collections.emptySet();
     }
 
     /**
@@ -2202,15 +2207,13 @@ public class TopologyConverter {
             peak = 0;
         }
 
-        float peakQuantity = peak;
-
-
-
         Optional<CommodityType> commTypeOptional =
                 commodityConverter.economyToTopologyCommodity(commSoldTO.getSpecification());
-        if (!commTypeOptional.isPresent()) {
+        if (!commTypeOptional.isPresent() ||
+            tierExcluder.isCommSpecTypeForTierExclusion(commSoldTO.getSpecification().getType())) {
             return Optional.empty();
         }
+
         CommodityType commType = commTypeOptional.get();
         TraderTO projectedTraderTO = oidToProjectedTraderTOMap.get(traderOid);
 
@@ -2229,7 +2232,7 @@ public class TopologyConverter {
         CommoditySoldDTO.Builder commoditySoldBuilder = CommoditySoldDTO.newBuilder()
             .setCapacity(reverseScaleCommSold(capacity, originalCommoditySold))
             .setUsed(reverseScaleCommSold(usage, originalCommoditySold))
-            .setPeak(peakQuantity)
+            .setPeak(peak)
             .setIsResizeable(commSoldTO.getSettings().getResizable())
             .setEffectiveCapacityPercentage(
                 commSoldTO.getSettings().getUtilizationUpperBound() * 100)

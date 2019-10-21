@@ -26,7 +26,6 @@ import com.google.common.collect.Sets;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -361,7 +360,6 @@ public class TierExcluderTest {
      * Check that the responsible settings are 500 and 502, and not 501 even though all of them have VM1 in their scope.
      */
     @Test
-    @Ignore
     public void testComputeReasonSettings1() {
         EntitySettingGroup entitySettingGroup1 = createEntitySettingGroup(
             Arrays.asList(1L, 2L, 4L), Arrays.asList(VM1), Arrays.asList(500L, 501L, 502L));
@@ -393,7 +391,6 @@ public class TierExcluderTest {
      * Check that the responsible settings are 500, and not 501 even though both exclude tier 1.
      */
     @Test
-    @Ignore
     public void testComputeReasonSettings2() {
         EntitySettingGroup entitySettingGroup1 = createEntitySettingGroup(
             Arrays.asList(1L), Arrays.asList(VM1), Arrays.asList(500L));
@@ -423,7 +420,6 @@ public class TierExcluderTest {
      * generate reason settings.
      */
     @Test
-    @Ignore
     public void testOtherActionTypesDoNotGenerateReasonSettings() {
         ActionTO resize = ActionTO.newBuilder().setResize(ResizeTO.getDefaultInstance())
             .setImportance(100).setIsNotExecutable(false).build();
@@ -456,7 +452,6 @@ public class TierExcluderTest {
      * Check that the responsible settings are 500.
      */
     @Test
-    @Ignore
     public void testReconfigureGeneratesReasonSettings() {
         EntitySettingGroup entitySettingGroup1 = createEntitySettingGroup(
             Arrays.asList(1L, 2L, 3L, 4L, 5L), Arrays.asList(VM1), Arrays.asList(500L));
@@ -483,7 +478,6 @@ public class TierExcluderTest {
      * Check that the responsible settings are 500.
      */
     @Test
-    @Ignore
     public void testCompoundMoveGeneratesReasonSettings() {
         EntitySettingGroup entitySettingGroup1 = createEntitySettingGroup(
             Arrays.asList(1L, 2L), Arrays.asList(VM1), Arrays.asList(500L));
