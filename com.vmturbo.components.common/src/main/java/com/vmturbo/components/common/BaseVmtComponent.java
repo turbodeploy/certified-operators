@@ -53,8 +53,8 @@ import io.prometheus.client.hotspot.DefaultExports;
 
 import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.SystemUtils;
+import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.SystemUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.jetty.servlet.ServletContextHandler;
@@ -81,6 +81,7 @@ import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.common.health.CompositeHealthMonitor;
+import com.vmturbo.components.common.health.ConsulHealthcheckRegistration;
 import com.vmturbo.components.common.health.HealthStatus;
 import com.vmturbo.components.common.health.HealthStatusProvider;
 import com.vmturbo.components.common.health.SimpleHealthStatus;
@@ -220,7 +221,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     private ServletContext servletContext;
 
     @Autowired
-    private ConsulRegistrationConfig consulRegistrationConfig;
+    private ConsulHealthcheckRegistration consulHealthcheckRegistration;
 
     /**
      * Embed a component for monitoring dependency/subcomponent health.
@@ -292,6 +293,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
 
     /**
      * The metrics endpoint that exposes Prometheus metrics on the pre-defined /metrics URL.
+     *
+     * @return a new Servlet to handle the /metrics REST API calls
      */
     @Bean
     public Servlet metricsServlet() {
@@ -362,7 +365,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         final Boolean enableConsulRegistration = EnvironmentUtils
             .getOptionalEnvProperty(ENABLE_CONSUL_REGISTRATION)
             .map(Boolean::parseBoolean)
-            .orElse(false);
+            .orElse(true);
         if (enableConsulRegistration) {
             baseVmtComponentConfig.migrationFramework().startMigrations(getMigrations(), false);
         }
@@ -377,6 +380,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     @Override
     public final void stopComponent() {
         setStatus(ExecutionStatus.STOPPING);
+        logger.info("Deregistering service: {}", instanceId);
+        consulHealthcheckRegistration.deregisterService();
         onStopComponent();
         stopGrpc();
         JETTY_SERVER.getValue().ifPresent(server -> {
@@ -539,7 +544,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                         // to send intermittent keepalives to keep the http2 connections open.
                         .permitKeepAliveWithoutCalls(true)
                         .permitKeepAliveTime(GRPC_MIN_KEEPALIVE_TIME_MIN, TimeUnit.MINUTES)
-                        .maxMessageSize(grpcMaxMessageBytes);
+                        .maxInboundMessageSize(grpcMaxMessageBytes);
                 final MonitoringServerInterceptor monitoringInterceptor =
                     MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());
                 final ServerTracingInterceptor tracingInterceptor =
@@ -558,8 +563,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                 // and the other interceptors get traced too.
                 serverInterceptors.add(tracingInterceptor);
 
-                allServices.forEach(service -> serverBuilder
-                    .addService(ServerInterceptors.intercept(service, serverInterceptors)));
+                allServices.forEach(service -> serverBuilder.addService(
+                    ServerInterceptors.intercept(service, serverInterceptors)));
 
                 try {
                     grpcServer = serverBuilder.build();
@@ -762,7 +767,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         return defaultProperties;
     }
 
-    private static Properties loadDefaultProperties() throws IOException {
+    private static Properties loadDefaultProperties() {
         // TODO: what if there are other jars with the same resource? Should we
         // forcefully prevent that (not let the component start)? Consider them as override?
         logger.info("Loading component defaults from " + COMPONENT_DEFAULT_PATH);
@@ -898,7 +903,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      * Fetch the local configuration for this component type and store them in
      * the System properties. Retry until you succeed - this is a blocking call.
      *
-     * This method is intended to be called by each component's main() method before
+     * <p>This method is intended to be called by each component's main() method before
      * beginning Spring instantiation.
      *
      * @param defaultProperties the set of properties to use as the baseline;
@@ -925,7 +930,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      * Fetch the configuration for this component type from ClusterMgr and store them in
      * the System properties. Retry until you succeed - this is a blocking call.
      *
-     * This method is intended to be called by each component's main() method before
+     * <p>This method is intended to be called by each component's main() method before
      * beginning Spring instantiation.
      *
      * @param clusterMgrClient the clustermgr api client handle
@@ -1035,7 +1040,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
             if (specVersion != null) {
                 logger.info("Component version for {} found: {}", componentType, specVersion);
                 baseVmtComponentConfig.keyValueStore().put(COMPONENT_VERSION_KEY, specVersion);
-            } else if (specVersion == null) {
+            } else {
                 logger.error("Could not get Specification-Version for component class {}", getClass());
             }
             // and the component IP address
@@ -1050,6 +1055,13 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      * Exception to be thrown if error occurred while configuring servlet context holder.
      */
     public static class ContextConfigurationException extends Exception {
+        /**
+         * Create an instance of the ContextConfigurationException initialized with
+         * a message and a root cause Throwable.
+         *
+         * @param message the text message describing this exception
+         * @param cause the original cause of this exception
+         */
         public ContextConfigurationException(@Nonnull String message, @Nonnull Throwable cause) {
             super(message, cause);
         }
