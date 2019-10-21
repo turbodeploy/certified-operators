@@ -13,6 +13,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -20,6 +21,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -167,50 +169,65 @@ public class PriceTableUploader implements Diagnosable {
     public void checkForUpload(@Nonnull CloudEntitiesMap cloudEntitiesMap) {
 
         DataMetricTimer timer = PRICE_TABLE_HASH_CALCULATION_TIME.startTimer();
+        final List<ProbePriceData> probePricesList = buildPricesToUpload(cloudEntitiesMap);
+        int cloudEntitiesMapHash = cloudEntitiesMap.hashCode();
+        // Get a mapping of hash codes to probe price data
+        Map<Long, ProbePriceData> hashCodesToProbePriceDataMap = probePricesList.stream()
+                .collect(Collectors.toMap(s -> ((long)cloudEntitiesMapHash * 31
+                + s.hashCode()), s -> s));
         // Calculate a hashcode for the new data being assembled based on the source price tables
         // and cloud entities map.
-        final long newHashcode = cloudEntitiesMap.hashCode() * 31
-                        + sourcePriceTableByProbeType.hashCode();
         double hashCalculationSecs = timer.observe();
         logger.debug("Price table hash code calculation took {} secs", hashCalculationSecs);
-        Optional<Long> previousPriceTableCheckSum;
-        Long lastConfirmedHashCode;
+        Map<PriceTableKey, Long> previousPriceTableKeyToChecksumMap;
         try {
-            // Get new hashcode checksum
-            previousPriceTableCheckSum = getCheckSum();
+            // Get the mapping of PriceTableKey to checksum
+            previousPriceTableKeyToChecksumMap = getCheckSum();
         } catch (ExecutionException | InterruptedException e) {
             logger.error("Could not retrieve last persisted price table hash. Will not proceed with price table upload.", e);
             return;
         }
+        Map<Long, ProbePriceData> priceTablesToUpload = new HashMap<>();
         // See if we even need to update the price tables.
-        if (previousPriceTableCheckSum.isPresent() && previousPriceTableCheckSum.get().equals(newHashcode)) {
-            logger.info("Last processed upload hash is the same as this one [{}], skipping this upload.",
-                    Long.toUnsignedString(newHashcode));
-            return;
+        if (!previousPriceTableKeyToChecksumMap.isEmpty()) {
+            for (Map.Entry<Long, ProbePriceData> entry : hashCodesToProbePriceDataMap.entrySet()) {
+                long hashcode = entry.getKey();
+                ProbePriceData probePriceData = entry.getValue();
+                if (probePriceData.probeType != null) {
+                    PriceTableKey priceTableKey = PriceTableKey.newBuilder().setProbeType(probePriceData.probeType).build();
+                    Long previousHashCode = previousPriceTableKeyToChecksumMap.get(priceTableKey);
+                    if (previousHashCode != null && previousHashCode == hashcode) {
+                        logger.info("Last processed upload hash is the same as this one [{}], skipping upload" +
+                                        " for this price table.",
+                                Long.toUnsignedString(hashcode));
+                    } else {
+                        logger.info("Price table upload hash check: new upload {} not found in database." +
+                                " We will upload.", hashcode);
+                        priceTablesToUpload.put(hashcode, hashCodesToProbePriceDataMap.get(hashcode));
+                    }
+                }
+            }
         } else {
-            lastConfirmedHashCode = previousPriceTableCheckSum.orElse(-1L);
+            priceTablesToUpload = hashCodesToProbePriceDataMap;
         }
-        logger.info("Price table upload hash check: new upload {} last upload {}. We will upload.",
-                Long.toUnsignedString(newHashcode), Long.toUnsignedString(lastConfirmedHashCode));
-        final List<ProbePriceData> probePricesList = buildPricesToUpload(cloudEntitiesMap);
-        uploadPrices(probePricesList, newHashcode);
+
+        // Upload the price tables
+        if (!priceTablesToUpload.isEmpty()) {
+            uploadPrices(priceTablesToUpload);
+        }
     }
 
-    private Optional<Long> getCheckSum() throws ExecutionException, InterruptedException {
+    private Map<PriceTableKey, Long> getCheckSum() throws ExecutionException, InterruptedException {
         // Check if the data has changed since our last upload by comparing the new hash against
         // the hash of the last successfully saved price table from the cost component
-        CompletableFuture<Optional<Long>> lastConfirmedHashFuture = new CompletableFuture<>();
+        CompletableFuture<Map<PriceTableKey, Long>> lastConfirmedHashFuture = new CompletableFuture<>();
         priceServiceClient.getPriceTableChecksum(
             GetPriceTableChecksumRequest.getDefaultInstance(),
             new StreamObserver<GetPriceTableChecksumResponse>() {
                 @Override
                 public void onNext(final GetPriceTableChecksumResponse getPriceTableChecksumResponse) {
-                    Iterator<PriceTableChecksum> priceTableChecksumIterator = getPriceTableChecksumResponse
-                            .getPricetableToChecksumList().stream()
-                            .iterator();
-                    Optional<Long> previousCheckSumOptional = priceTableChecksumIterator.hasNext() ?
-                            Optional.of(priceTableChecksumIterator.next().getCheckSum()) :
-                            Optional.empty();
+                    Map<PriceTableKey, Long> previousCheckSumOptional = getPriceTableChecksumResponse.getPricetableToChecksumList().stream()
+                                    .collect(Collectors.toMap(s -> s.getPriceTableKey(), s -> s.getCheckSum()));
                     lastConfirmedHashFuture.complete(previousCheckSumOptional);
                 }
 
@@ -249,11 +266,11 @@ public class PriceTableUploader implements Diagnosable {
     }
 
     @VisibleForTesting
-    void uploadPrices(List<ProbePriceData> probePricesList, long newHashcode) {
+    void uploadPrices(Map<Long, ProbePriceData> priceTablesToUpload) {
         DataMetricTimer uploadTimer = CLOUD_COST_UPLOAD_TIME.labels(CLOUD_COST_PRICES_SECTION,
             UPLOAD_REQUEST_UPLOAD_STAGE).startTimer();
         try {
-            logger.info("Uploading price tables for {} probe types", probePricesList.size());          // upload the data
+            logger.info("Uploading price tables for {} probe types", priceTablesToUpload.keySet().size());          // upload the data
             // Since we want this to be a synchronous upload, we will wait for the upload to complete
             // in this thread.
             CountDownLatch uploadLatch = new CountDownLatch(1);
@@ -273,7 +290,7 @@ public class PriceTableUploader implements Diagnosable {
                 }
             }));
 
-            priceDataSender.sendProbePrices(probePricesList, newHashcode);
+            priceDataSender.sendProbePrices(priceTablesToUpload);
 
             uploadLatch.await();
         } catch (InterruptedException | RuntimeException e) {
@@ -552,6 +569,7 @@ public class PriceTableUploader implements Diagnosable {
                     try {
                         parser.merge(priceTableStr, priceTableBldr);
                         sourcePriceTableByProbeType.put(sdkProbeType, priceTableBldr.build());
+                        sourcePriceTableByProbeType.put(sdkProbeType, priceTableBldr.build());
                     } catch (InvalidProtocolBufferException e) {
                         logger.error("Failed to deserialize price table for probe: {}. Error: {}", probeType, e.getMessage());
                     }
@@ -563,10 +581,31 @@ public class PriceTableUploader implements Diagnosable {
     /**
      * Utility class for assembling price upload data.
      */
-    private static class ProbePriceData {
+    public static class ProbePriceData {
         public String probeType;
         public PriceTable priceTable;
         public List<ReservedInstanceSpecPrice> riSpecPrices;
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+
+            if (!(other instanceof ProbePriceData)) {
+                return false;
+            }
+
+            ProbePriceData otherProbePriceData = (ProbePriceData)other;
+
+            return this.probeType == otherProbePriceData.probeType && this.priceTable == otherProbePriceData.priceTable
+                    && this.riSpecPrices == otherProbePriceData.riSpecPrices;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(probeType, priceTable, riSpecPrices);
+        }
     }
 
     /**
@@ -581,9 +620,11 @@ public class PriceTableUploader implements Diagnosable {
             this.uploadStream = uploadStream;
         }
 
-        public void sendProbePrices(List<ProbePriceData> probePriceDataList, long checksum) {
+        public void sendProbePrices(Map<Long, ProbePriceData> priceTablesToUpload) {
             // send the header and the upload segments
-            for (ProbePriceData probePriceData : probePriceDataList) {
+            for (Map.Entry<Long, ProbePriceData> entry : priceTablesToUpload.entrySet()) {
+                long checksum = entry.getKey();
+                ProbePriceData probePriceData = entry.getValue();
                 if (probePriceData.priceTable != null) {
                     logger.debug("Sending price table for probe {}", probePriceData.probeType);
                     sendSegment(ProbePriceTableSegment.newBuilder().setHeader((ProbePriceTableHeader.newBuilder()

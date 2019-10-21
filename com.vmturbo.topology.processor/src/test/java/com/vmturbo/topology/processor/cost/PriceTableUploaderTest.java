@@ -17,6 +17,8 @@ import org.junit.Test;
 import org.mockito.Mockito;
 import org.mockito.internal.util.reflection.Whitebox;
 
+import com.google.common.collect.ImmutableMap;
+
 import io.grpc.Channel;
 
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
@@ -54,6 +56,7 @@ import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable.ReservedInstancePri
 import com.vmturbo.platform.sdk.common.PricingDTO.StorageTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.StorageTierPriceList.StorageTierPrice;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
+import com.vmturbo.topology.processor.cost.PriceTableUploader.ProbePriceData;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
@@ -363,7 +366,9 @@ public class PriceTableUploaderTest {
         priceTableUploader.recordPriceTable(SDKProbeType.AZURE_COST, sourcePriceTable);
         // Triggering 'buildPricesToUpload' method a few time instead of saving re result in order
         // to no add a mvn dependency for ProbePriceData
-        priceTableUploader.uploadPrices(priceTableUploader.buildPricesToUpload(cloudEntitiesMap), 0L);
+        ImmutableMap<Long, ProbePriceData> checksumToProbePriceData = ImmutableMap.of(0L,
+                priceTableUploader.buildPricesToUpload(cloudEntitiesMap).get(0));
+        priceTableUploader.uploadPrices(checksumToProbePriceData);
         Assert.assertEquals(1, priceTableUploader.buildPricesToUpload(cloudEntitiesMap).size());
         String probeType = (String)Whitebox.getInternalState(priceTableUploader
             .buildPricesToUpload(cloudEntitiesMap).get(0), PROBE_TYPE_FIELD);
