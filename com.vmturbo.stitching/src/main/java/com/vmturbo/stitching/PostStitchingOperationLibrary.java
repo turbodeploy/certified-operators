@@ -25,6 +25,7 @@ import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOpe
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.VmmPmMemoryAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.PropagatePowerStatePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.PropagateStorageAccessAndLatencyPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.ProtectSharedStorageWastedFilesPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetCommodityCapacityFromSettingPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig;
@@ -65,6 +66,8 @@ public class PostStitchingOperationLibrary {
      *    LogicalPoolStorageAccessPostStitchingOperation.
      *  - VmmPmMemoryAllocationPostStitchingOperation must be executed before
      *    PmMemoryAllocationPostStitchingOperation.
+     *  - ProtectSharedStorageWastedFilesPostStitchingOperation must be executed before
+     *    WastedFilesPostStitchingOperation
      *
      * @param setMaxValuesConfig Configuration parameters for SetCommodityMaxQuantityPostStitchingOperation
      * @param cpuCapacityStore
@@ -308,6 +311,7 @@ public class PostStitchingOperationLibrary {
                     ProbeCategory.GUEST_OS_PROCESSES,
                     "transactionsCapacity",
                     "autoSetTransactionsCapacity"),
+            new ProtectSharedStorageWastedFilesPostStitchingOperation(),
             new WastedFilesPostStitchingOperation(),
             new PropagatePowerStatePostStitchingOperation(),
             new GuestLoadAppPostStitchingOperation()

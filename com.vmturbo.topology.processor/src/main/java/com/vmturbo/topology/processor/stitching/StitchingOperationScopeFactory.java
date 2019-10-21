@@ -127,6 +127,18 @@ public class StitchingOperationScopeFactory implements StitchingScopeFactory<Sti
                 entityType, probeStore, targetStore);
     }
 
+    @Override
+    public StitchingScope<StitchingEntity> missingDerivedTargetEntityTypeScope(
+        @Nonnull final String parentProbeType,
+        @Nonnull final String childProbeType,
+        @Nonnull final EntityType entityType) {
+        // TODO there is no compelling reason to implement this here right now.  It is very specfic
+        // to shared storage wasted files which are only handled in post stitching.  This can be
+        // implemented at a later date in the unlikely event we have a use for it.
+        throw new UnsupportedOperationException(
+            "missingDerivedTargetEntityTypeScope is not supported for stitching or pre-stitching");
+    }
+
     public StitchingContext getStitchingContext() {
         return stitchingContext;
     }

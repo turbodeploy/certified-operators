@@ -138,5 +138,25 @@ public interface StitchingScope<ENTITY> {
                 @Nonnull final Set<ProbeCategory> probeCategories,
                 @Nonnull final EntityType entityType);
 
+        /**
+         * Return a {@link StitchingScope} that restricts the calculation to operate on only entities
+         * of a given {@link EntityType} discovered by a specific type of probe and not discovered
+         * by a derived target of another type of probe.  This is used for identifying shared
+         * storages that are we don't have complete storage browsing information for.
+         *
+         * @param parentProbeType The name of the probe type of the main probe that discovers the
+         *                        entity.
+         * @param childProbeType The name of the probe type that is the derived target of the main
+         *                       probe type.
+         * @param entityType The type of entity to find.
+         * @return A {@link StitchingScope} used for retrieving entities of a given type discovered
+         * by multiple targets of the parentProbeType but missing at least one matching target of
+         * childProbeType.
+         */
+        StitchingScope<ENTITY> missingDerivedTargetEntityTypeScope(
+            @Nonnull String parentProbeType,
+            @Nonnull String childProbeType,
+            @Nonnull EntityType entityType);
     }
+
 }

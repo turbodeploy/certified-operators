@@ -6,7 +6,9 @@ import static org.junit.Assert.assertNull;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import org.junit.Before;
@@ -39,6 +41,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -74,18 +77,30 @@ public class VirtualVolumeAspectMapperTest {
     private String storageTierName2 = "UNMANAGED_STANDARD";
 
     // VCenter
-    private Long volumeId4 = 24L;
-    private String volumeName4 = "volume4";
-    private Long wastedVolumeId1 = 25L;
-    private String wastedVolumeDisplayName = "wastedVolumeForStorage1";
-    private Long storageId = 33L;
-    private String storageDisplayName = "storage1";
-    private String pathFile1 = "file3";
-    private String pathFile2 = "file4";
-    private Long sizeFile1 = 3000L;
-    private Long sizeFile2 = 4000L;
-    private Long timeFile1 = 300L;
-    private Long timeFile2 = 400L;
+    private static final Long volumeId4 = 24L;
+    private static final String volumeName4 = "volume4";
+    private static final Long wastedVolumeId1 = 25L;
+    // wastedVolume oid for wasted storage attached to storage that is set to have
+    // wasted files ignored
+    private static final Long wastedVolumeId2 = 26L;
+    private static final String wastedVolumeDisplayName = "wastedVolumeForStorage1";
+    private static final String wastedVolume2DisplayName = "wastedVolumeForStorage2";
+    private static final Long storageId = 33L;
+    // storage oid for storage with ignoreWastedFiles == true
+    private static final Long storageId2 = 34L;
+    private static final String storageDisplayName = "storage1";
+    private static final String storage2DisplayName = "storage2";
+    private static final String pathFile1 = "file3";
+    private static final String pathFile2 = "file4";
+    private static final Long sizeFile1 = 3000L;
+    private static final Long sizeFile2 = 4000L;
+    private static final Long timeFile1 = 300L;
+    private static final Long timeFile2 = 400L;
+
+    private static final String[] wastedFiles = { pathFile1, pathFile2 };
+    private static final String[] wastedFiles2 = { "file5", "file6" };
+    private static final long[] wastedFileSizes = { sizeFile1, sizeFile2 };
+    private static final long[] wastedFileModTimes = { timeFile1, timeFile2 };
 
     // aws entities:
     // vm1 --> volume1, vm1 --> storageTier1
@@ -257,6 +272,17 @@ public class VirtualVolumeAspectMapperTest {
         .setEntityType(EntityType.STORAGE_VALUE)
         .build();
 
+    private TopologyEntityDTO storage2 = TopologyEntityDTO.newBuilder()
+        .setOid(storageId2)
+        .setDisplayName(storage2DisplayName)
+        .setEntityType(EntityType.STORAGE_VALUE)
+        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+            .setStorage(StorageInfo.newBuilder()
+                .setIgnoreWastedFiles(true)
+                .build())
+            .build())
+        .build();
+
     private final Long volumeConnectedZoneId = 102L;
     private final String volumeConnectedZoneDisplayName = "zone1";
 
@@ -361,7 +387,7 @@ public class VirtualVolumeAspectMapperTest {
         assertEquals(String.valueOf(vmId1), volumeAspect.getAttachedVirtualMachine().getUuid());
     }
 
-    private TopologyEntityDTO volume4 = TopologyEntityDTO.newBuilder()
+    private static final TopologyEntityDTO volume4 = TopologyEntityDTO.newBuilder()
         .setOid(volumeId4)
         .setDisplayName(volumeName4)
         .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
@@ -382,28 +408,11 @@ public class VirtualVolumeAspectMapperTest {
                 .build()))
         .build();
 
-    private TopologyEntityDTO wastedFilesVolume = TopologyEntityDTO.newBuilder()
-        .setOid(wastedVolumeId1)
-        .setDisplayName(wastedVolumeDisplayName)
-        .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-        .addConnectedEntityList(ConnectedEntity.newBuilder()
-            .setConnectedEntityType(EntityType.STORAGE_VALUE)
-            .setConnectedEntityId(storageId)
-            .build())
-        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-            .setVirtualVolume(VirtualVolumeInfo.newBuilder()
-                .addFiles(VirtualVolumeFileDescriptor.newBuilder()
-                    .setPath(pathFile1)
-                    .setSizeKb(sizeFile1)
-                    .setModificationTimeMs(timeFile1)
-                    .build())
-                .addFiles(VirtualVolumeFileDescriptor.newBuilder()
-                    .setPath(pathFile2)
-                    .setSizeKb(sizeFile2)
-                    .setModificationTimeMs(timeFile2)
-                    .build())
-                .build()))
-        .build();
+    private static final TopologyEntityDTO wastedFilesVolume = createWastedFilesVolume(wastedVolumeId1,
+        wastedVolumeDisplayName, storageId, wastedFiles, wastedFileSizes, wastedFileModTimes);
+
+    private static final TopologyEntityDTO wastedFilesVolume2 = createWastedFilesVolume(wastedVolumeId2,
+        wastedVolume2DisplayName, storageId2, wastedFiles2, wastedFileSizes, wastedFileModTimes);
 
     private VirtualVolumeAspectMapper volumeAspectMapper;
 
@@ -549,11 +558,18 @@ public class VirtualVolumeAspectMapperTest {
             }
         }).when(repositoryApi).newSearchRequest(any(SearchParameters.class));
 
+        verify(repositoryApi, never()).newSearchRequest(SearchProtoUtil.neighborsOfType(storageId2, TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_VOLUME));
+        verify(repositoryApi, never()).newSearchRequest(SearchProtoUtil.neighborsOfType(storageId, TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_VOLUME));
+
         MultiEntityRequest req = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList(volume4, wastedFilesVolume));
         when(repositoryApi.entitiesRequest(Sets.newHashSet(volumeId4, wastedVolumeId1))).thenReturn(req);
 
         VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO) volumeAspectMapper.mapEntitiesToAspect(
-            Lists.newArrayList(storage1));
+            Lists.newArrayList(storage1, storage2));
+
+        // if ignoreWastedFiles for storage2 was honored, we should never search for storage2
+        verify(repositoryApi, never()).newSearchRequest(SearchProtoUtil.neighborsOfType(storageId2,
+            TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_VOLUME));
 
         assertEquals(2, aspect.getVirtualDisks().size());
 
@@ -583,5 +599,32 @@ public class VirtualVolumeAspectMapperTest {
         assertEquals(pathFile2, volumeAspect2.getDisplayName());
         assertEquals(sizeFile2 / 1024.0D, volumeAspect2.getStats().get(0).getValue(), 0.1D);
         assertEquals((long) timeFile2, volumeAspect2.getLastModified());
+    }
+
+    private static TopologyEntityDTO createWastedFilesVolume(long oid,
+                                                      String displayName,
+                                                      long connectedStorage,
+                                                      String[] paths,
+                                                      long[] sizes,
+                                                      long[] modificationTimes) {
+        VirtualVolumeInfo.Builder vviBuilder = VirtualVolumeInfo.newBuilder();
+        for (int i = 0; i < paths.length; i++) {
+            vviBuilder.addFiles(VirtualVolumeFileDescriptor.newBuilder()
+                .setPath(paths[i])
+                .setSizeKb(sizes[i])
+                .setModificationTimeMs(modificationTimes[i])
+                .build());
+        }
+        return TopologyEntityDTO.newBuilder()
+            .setOid(oid)
+            .setDisplayName(displayName)
+            .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+            .addConnectedEntityList(ConnectedEntity.newBuilder()
+                .setConnectedEntityType(EntityType.STORAGE_VALUE)
+                .setConnectedEntityId(connectedStorage)
+                .build())
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setVirtualVolume(vviBuilder.build()))
+            .build();
     }
 }

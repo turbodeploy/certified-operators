@@ -2,11 +2,14 @@ package com.vmturbo.stitching.poststitching;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -17,7 +20,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
 import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
@@ -441,5 +446,47 @@ public class PostStitchingTestUtilities {
         return Setting.newBuilder()
             .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(value).build())
             .build();
+    }
+
+
+    /**
+     * Add VirtualVolumeFileDescriptors corresponding to a list of path names to a VirtualVolume.
+     *
+     * @param builder   A builder for the VirtualVolume's TopologyEntity
+     * @param pathNames A String array with the pathnames of the files to add.
+     */
+    static void addFilesToVirtualVolume(@Nonnull TopologyEntity.Builder builder,
+                                                @Nonnull String[] pathNames) {
+        builder.getEntityBuilder().setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+            .setVirtualVolume(
+                builder.getEntityBuilder()
+                    .getTypeSpecificInfo()
+                    .getVirtualVolume()
+                    .toBuilder()
+                    .addAllFiles(Stream.of(pathNames).map(pathName ->
+                        VirtualVolumeFileDescriptor.newBuilder().setPath(pathName)
+                            .build())
+                        .collect(Collectors.toList()))));
+    }
+
+    /**
+     * Add VirtualVolumeFileDescriptors corresponding to a list of path names to a VirtualVolume.
+     *
+     * @param builder   A builder for the VirtualVolume's TopologyEntity
+     * @param path The pathname of the file to add.
+     * @param links An array of alternative paths to the same file as path.
+     */
+    static void addFileToVirtualVolume(@Nonnull TopologyEntity.Builder builder,
+                                               @Nonnull String path, @Nonnull String[] links) {
+        builder.getEntityBuilder().setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+            .setVirtualVolume(
+                builder.getEntityBuilder()
+                    .getTypeSpecificInfo()
+                    .getVirtualVolume()
+                    .toBuilder()
+                    .addAllFiles(Collections.singletonList(
+                        VirtualVolumeFileDescriptor.newBuilder().setPath(path)
+                            .addAllLinkedPaths(Arrays.asList(links)).build())
+                    )));
     }
 }

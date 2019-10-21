@@ -56,54 +56,59 @@ public class WastedFilesPostStitchingOperation implements PostStitchingOperation
         @Nonnull final EntitySettingsCollection settingsCollection,
         @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
         // iterate over storages and update the related wasted files volume for each by removing
-        // any file that is used by a VirtualVolume associated with a VirtualMachine
-        entities.forEach(storage -> {
-            // Get the regex for ignored directories and files from the settings for the storage
-            // and, if they exist, create Pattern objects to use for filtering the list of wasted
-            // files.  We'll remove any files that match the ignore Patterns.
-            final Optional<Setting> ignoreDirectorySetting =
-                settingsCollection.getEntitySetting(storage.getOid(),
-                    EntitySettingSpecs.IgnoreDirectories);
-            final Optional<Setting> ignoreFilesSetting =
-                settingsCollection.getEntitySetting(storage.getOid(),
-                    EntitySettingSpecs.IgnoreFiles);
-            final Optional<Pattern> ignoreDirsPattern = ignoreDirectorySetting.isPresent() ?
-                safePatternCompile(ignoreDirectorySetting.get().getStringSettingValue()
-                    .getValue())
-                : Optional.empty();
-            final Optional<Pattern> ignoreFilesPattern = ignoreFilesSetting.isPresent() ?
-                safePatternCompile(ignoreFilesSetting.get().getStringSettingValue().getValue())
-                : Optional.empty();
+        // any file that is used by a VirtualVolume associated with a VirtualMachine.
+        // Skip storages that are marked as ignoreWastedFiles==true as those will be skipped when
+        // generating actions anyway.
+        entities.filter(storage -> storage.getTypeSpecificInfo() == null
+            || !storage.getTypeSpecificInfo().hasStorage()
+            || !storage.getTypeSpecificInfo().getStorage().getIgnoreWastedFiles())
+            .forEach(storage -> {
+                // Get the regex for ignored directories and files from the settings for the storage
+                // and, if they exist, create Pattern objects to use for filtering the list of wasted
+                // files.  We'll remove any files that match the ignore Patterns.
+                final Optional<Setting> ignoreDirectorySetting =
+                    settingsCollection.getEntitySetting(storage.getOid(),
+                        EntitySettingSpecs.IgnoreDirectories);
+                final Optional<Setting> ignoreFilesSetting =
+                    settingsCollection.getEntitySetting(storage.getOid(),
+                        EntitySettingSpecs.IgnoreFiles);
+                final Optional<Pattern> ignoreDirsPattern = ignoreDirectorySetting.isPresent() ?
+                    safePatternCompile(ignoreDirectorySetting.get().getStringSettingValue()
+                        .getValue())
+                    : Optional.empty();
+                final Optional<Pattern> ignoreFilesPattern = ignoreFilesSetting.isPresent() ?
+                    safePatternCompile(ignoreFilesSetting.get().getStringSettingValue().getValue())
+                    : Optional.empty();
 
-            getWastedFilesVirtualVolume(storage).ifPresent(wastedFilesVolume -> {
-                Set<String> filesUsedByVms = getAllVmVirtualVolumes(storage)
-                    .stream()
-                    .flatMap(vmVolume -> vmVolume.getTopologyEntityDtoBuilder()
-                        .getTypeSpecificInfo().getVirtualVolume().getFilesList().stream())
-                    .map(VirtualVolumeFileDescriptor::getPath)
-                    .collect(Collectors.toSet());
+                getWastedFilesVirtualVolume(storage).ifPresent(wastedFilesVolume -> {
+                    Set<String> filesUsedByVms = getAllVmVirtualVolumes(storage)
+                        .stream()
+                        .flatMap(vmVolume -> vmVolume.getTopologyEntityDtoBuilder()
+                            .getTypeSpecificInfo().getVirtualVolume().getFilesList().stream())
+                        .map(VirtualVolumeFileDescriptor::getPath)
+                        .collect(Collectors.toSet());
 
-                resultBuilder.queueUpdateEntityAlone(wastedFilesVolume, toUpdate -> {
-                    Set<VirtualVolumeFileDescriptor> keepFiles =
-                        Sets.newHashSet(toUpdate.getTopologyEntityDtoBuilder()
-                            .getTypeSpecificInfo()
-                            .getVirtualVolume()
-                            .getFilesList()
-                            .stream()
-                            .filter(file -> !filesUsedByVms.contains(file.getPath()))
-                            .filter(file -> !isIgnored(file.getPath(), ignoreFilesPattern,
-                                ignoreDirsPattern))
-                            .filter(file -> file.getLinkedPathsList().stream().noneMatch(link ->
-                                            isIgnored(link, ignoreFilesPattern, ignoreDirsPattern)))
-                            .collect(Collectors.toList()));
-                    toUpdate.getTopologyEntityDtoBuilder()
-                        .getTypeSpecificInfoBuilder()
-                        .getVirtualVolumeBuilder()
-                        .clearFiles()
-                        .addAllFiles(keepFiles);
+                    resultBuilder.queueUpdateEntityAlone(wastedFilesVolume, toUpdate -> {
+                        Set<VirtualVolumeFileDescriptor> keepFiles =
+                            Sets.newHashSet(toUpdate.getTopologyEntityDtoBuilder()
+                                .getTypeSpecificInfo()
+                                .getVirtualVolume()
+                                .getFilesList()
+                                .stream()
+                                .filter(file -> !filesUsedByVms.contains(file.getPath()))
+                                .filter(file -> !isIgnored(file.getPath(), ignoreFilesPattern,
+                                    ignoreDirsPattern))
+                                .filter(file -> file.getLinkedPathsList().stream().noneMatch(link ->
+                                    isIgnored(link, ignoreFilesPattern, ignoreDirsPattern)))
+                                .collect(Collectors.toList()));
+                        toUpdate.getTopologyEntityDtoBuilder()
+                            .getTypeSpecificInfoBuilder()
+                            .getVirtualVolumeBuilder()
+                            .clearFiles()
+                            .addAllFiles(keepFiles);
+                    });
                 });
             });
-        });
         return resultBuilder.build();
     }
 

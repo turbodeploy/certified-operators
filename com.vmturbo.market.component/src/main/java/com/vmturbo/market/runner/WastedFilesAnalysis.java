@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -123,6 +124,16 @@ public class WastedFilesAnalysis {
         logger.info("{} Started", logPrefix);
         try {
             try (final DataMetricTimer scopingTimer = Metrics.WASTED_FILES_SUMMARY.startTimer()) {
+                // create a set of storage OIDs for which we want to ignore wasted files
+                final Set<Long> storagesToIgnoreWastedFiles = topologyDTOs.values().stream()
+                    .filter(topoEntity -> topoEntity.getEntityType() == EntityType.STORAGE_VALUE)
+                    .filter(topoEntity -> topoEntity.hasTypeSpecificInfo()
+                        && topoEntity.getTypeSpecificInfo().hasStorage())
+                    .filter(topoEntity -> topoEntity.getTypeSpecificInfo().getStorage()
+                        .getIgnoreWastedFiles())
+                    .map(TopologyEntityDTO::getOid)
+                    .collect(Collectors.toSet());
+
                 // create a map by OID of all virtual volumes that have file data and are connected to
                 // Storages or StorageTiers
                 final Map<Long, TopologyEntityDTO> wastedFilesMap = topologyDTOs.values().stream()
@@ -136,7 +147,10 @@ public class WastedFilesAnalysis {
                     .filter(topoEntity -> topoEntity.getConnectedEntityListList().stream()
                         .anyMatch(connEntity -> connEntity.hasConnectedEntityType()
                             && (connEntity.getConnectedEntityType() == EntityType.STORAGE_VALUE
-                            || connEntity.getConnectedEntityType() == EntityType.STORAGE_TIER_VALUE)))
+                            || connEntity.getConnectedEntityType() == EntityType.STORAGE_TIER_VALUE)
+                            && !storagesToIgnoreWastedFiles.contains(
+                                connEntity.getConnectedEntityId())
+                        ))
                     .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
                 // remove any VirtualVolumes that have VMs which are connectedTo them
                  topologyDTOs.values().stream()

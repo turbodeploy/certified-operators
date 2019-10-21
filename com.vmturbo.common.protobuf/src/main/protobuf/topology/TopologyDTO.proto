@@ -183,6 +183,11 @@ message TypeSpecificInfo {
         // boolean that marks a storage connected with isLocalSupported true from mediation and is connected
         // to just 1 PM as local
         optional bool is_local = 3;
+
+        // boolean indicating that wasted storage actions should not be generated for this storage
+        // this is set to true for storages where storage browsing is disabled for at least one
+        // discovering target.
+        optional bool ignore_wasted_files = 4 [default = false];
     }
 
     // specific data for a disk array

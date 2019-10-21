@@ -1,4 +1,4 @@
-package com.vmturbo.topology.processor.stitching.prestitching;
+package com.vmturbo.topology.processor.stitching;
 
 import static com.vmturbo.stitching.DiscoveryOriginBuilder.discoveredBy;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntityBuilder;
@@ -14,24 +14,28 @@ import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
+
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.probes.ProbeStore;
-import com.vmturbo.topology.processor.stitching.PostStitchingOperationScopeFactory;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
@@ -219,5 +223,74 @@ public class PostStitchingOperationScopeFactoryTest {
                 EntityType.STORAGE).entities()
                 .map(TopologyEntity::getOid)
                 .collect(Collectors.toList()), is(empty()));
+    }
+
+    /**
+     * Test that the missingDerivedTargetEntityTypeScope works by creating a topology with a
+     * storage shared by 2 targets and cover the various scenarios: 1 both VC targets have
+     * storage browsing derived targets, 2 Exactly one VC target has a derived storage browsing
+     * target, and 3 neither VC target has a derived browsing target.
+     */
+    @Test
+    public void testMissingDerivedTargetEntityTypeScope() {
+        // For this test, we treat targets 1 and 2 as VC targets with target 3 being the
+        // storage browsing target related to target 1.  Target 2 has storage browsing disabled.
+        // Then we create Storages with different
+        // combinations of targets and make sure we get the correct matches for this scope
+        // stor1 has one VC target and its corresponding storage browsing target
+        final TopologyEntity.Builder stor1 = topologyEntityBuilder(1L, EntityType.STORAGE,
+            discoveredBy(1L).withMergeFromTargetIds(3L).lastUpdatedAt(11L),
+            Collections.emptyList());
+        // Shared Storage discovered by 2 VCs but only one storage browsing target
+        final TopologyEntity.Builder stor2 = topologyEntityBuilder(2L, EntityType.STORAGE,
+            discoveredBy(1L).withMergeFromTargetIds(Arrays.asList(2L, 3L))
+                .lastUpdatedAt(33L), Collections.emptyList());
+        // Storage discovered by VC target 2 only
+        final TopologyEntity.Builder stor3 = topologyEntityBuilder(3L, EntityType.STORAGE,
+            discoveredBy(2L).lastUpdatedAt(44L), Collections.emptyList());
+        // VM discovered by VC target 2 only - make sure our scope only includes Storages
+        final TopologyEntity.Builder vm1 = topologyEntityBuilder(4L, EntityType.VIRTUAL_MACHINE,
+            discoveredBy(2L).lastUpdatedAt(44L), Collections.emptyList());
+        final ProbeInfo vcProbeInfo = ProbeInfo.newBuilder()
+            .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
+            .setProbeType(SDKProbeType.VCENTER.getProbeType())
+            .build();
+        final ProbeInfo vcStorageBrowseProbeInfo = ProbeInfo.newBuilder()
+            .setProbeCategory(ProbeCategory.STORAGE_BROWSING.getCategory())
+            .setProbeType(SDKProbeType.VC_STORAGE_BROWSE.getProbeType())
+            .build();
+        when(target1.getProbeInfo()).thenReturn(vcProbeInfo);
+        when(target2.getProbeInfo()).thenReturn(vcProbeInfo);
+        when(target3.getProbeInfo()).thenReturn(vcStorageBrowseProbeInfo);
+        when(probeStore.getProbeIdForType(SDKProbeType.VCENTER.getProbeType()))
+            .thenReturn(Optional.of(111L));
+        when(probeStore.getProbeIdForType(SDKProbeType.VC_STORAGE_BROWSE.getProbeType()))
+            .thenReturn(Optional.of(222L));
+        when(targetStore.getProbeTargets(eq(111L)))
+            .thenReturn(Arrays.asList(target1, target2));
+        when(targetStore.getProbeTargets(eq(222L)))
+            .thenReturn(Arrays.asList(target3));
+        when(targetStore.getDerivedTargetIds(1L))
+            .thenReturn(Sets.newHashSet(3L));
+        when(targetStore.getDerivedTargetIds(2L))
+            .thenReturn(Sets.newHashSet());
+        when(targetStore.getProbeTypeForTarget(1L))
+            .thenReturn(Optional.of(SDKProbeType.VCENTER));
+        when(targetStore.getProbeTypeForTarget(2L))
+            .thenReturn(Optional.of(SDKProbeType.VCENTER));
+        when(targetStore.getProbeTypeForTarget(3L))
+            .thenReturn(Optional.of(SDKProbeType.VC_STORAGE_BROWSE));
+        when(targetStore.getTarget(3L)).thenReturn(Optional.of(target3));
+        final TopologyGraph<TopologyEntity> topologyGraph =
+            topologyGraphOf(stor1, stor2, stor3, vm1);
+        scopeFactory = new PostStitchingOperationScopeFactory(topologyGraph,
+            probeStore, targetStore, cpuCapacityStore);
+        List<Long> entitiesInScope = scopeFactory
+            .missingDerivedTargetEntityTypeScope(SDKProbeType.VCENTER.getProbeType(),
+            SDKProbeType.VC_STORAGE_BROWSE.getProbeType(), EntityType.STORAGE).entities()
+            .map(TopologyEntity::getOid)
+            .collect(Collectors.toList());
+        Assert.assertEquals(2, entitiesInScope.size());
+        assertThat(entitiesInScope, containsInAnyOrder(stor2.getOid(), stor3.getOid()));
     }
 }

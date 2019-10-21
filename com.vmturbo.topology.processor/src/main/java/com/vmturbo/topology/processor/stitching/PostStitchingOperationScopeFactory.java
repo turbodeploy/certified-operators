@@ -134,6 +134,15 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
                 entityType, probeStore, targetStore);
     }
 
+    @Override
+    public StitchingScope<TopologyEntity> missingDerivedTargetEntityTypeScope(
+        @Nonnull final String parentProbeType,
+        @Nonnull final String childProbeType,
+        @Nonnull final EntityType entityType) {
+        return new MissingDerivedTargetEntityTypeScope(topologyGraph, parentProbeType,
+            childProbeType, entityType, probeStore, targetStore);
+    }
+
     public TopologyGraph<TopologyEntity> getTopologyGraph() {
         return topologyGraph;
     }
@@ -461,6 +470,61 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
                     .filter(TopologyEntity::hasDiscoveryOrigin)
                     .filter(entity -> entity.getDiscoveryOrigin().get().getDiscoveringTargetIdsList().stream()
                             .anyMatch(probeCategoryTargetIds::contains));
+        }
+    }
+
+    /**
+     * A scope for finding entities that have at least one discovering target of a particular type
+     * (parentProbeType) that don't have a derived target of a specific type (childProbeType).
+     * For example, we use this scope to identify VC storages that don't have storage browsing
+     * enabled for {@link
+     * com.vmturbo.stitching.poststitching.ProtectSharedStorageWastedFilesPostStitchingOperation}
+     */
+    private static class MissingDerivedTargetEntityTypeScope extends BaseStitchingScope {
+
+        private final String parentProbeType;
+        private final String childProbeType;
+        private final EntityType entityType;
+        private final ProbeStore probeStore;
+        private final TargetStore targetStore;
+
+        MissingDerivedTargetEntityTypeScope(
+            @Nonnull TopologyGraph<TopologyEntity> topologyGraph,
+            @Nonnull String parentProbeType,
+            @Nonnull String childProbeType,
+            @Nonnull EntityType entityType,
+            @Nonnull ProbeStore probeStore,
+            @Nonnull TargetStore targetStore) {
+            super(topologyGraph);
+            this.parentProbeType = Objects.requireNonNull(parentProbeType);
+            this.childProbeType = Objects.requireNonNull(childProbeType);
+            this.entityType = Objects.requireNonNull(entityType);
+            this.probeStore = Objects.requireNonNull(probeStore);
+            this.targetStore = Objects.requireNonNull(targetStore);
+        }
+
+        @Nonnull
+        @Override
+        public Stream<TopologyEntity> entities() {
+            // Make a set of targets of the parent probe that don't have derived targets of the
+            // child probe type
+            Set<Long> targetIdsMissingDerivedTarget =
+                targetStore.getProbeTargets(probeStore
+                    .getProbeIdForType(parentProbeType).orElse(-1L))
+                    .stream()
+                    .filter(target -> !targetStore.getDerivedTargetIds(target.getId()).stream()
+                        .map(targetId -> targetStore.getTarget(targetId).orElse(null))
+                        .filter(Objects::nonNull)
+                        .anyMatch(derivedTarget -> childProbeType.equals(
+                            derivedTarget.getProbeInfo().getProbeType())))
+                    .map(target -> target.getId())
+                .collect(Collectors.toSet());
+
+            return getTopologyGraph().entitiesOfType(entityType)
+                .filter(TopologyEntity::hasDiscoveryOrigin)
+                .filter(entity -> entity.getDiscoveryOrigin().get().getDiscoveringTargetIdsList()
+                    .stream()
+                    .anyMatch(targetIdsMissingDerivedTarget::contains));
         }
     }
 }

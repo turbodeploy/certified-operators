@@ -33,6 +33,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.CostJournal;
@@ -115,26 +116,43 @@ public class WastedFilesAnalysisTest {
         final long storOid = 2l;
         final long wastedFileVolumeOid = 3l;
         final long connectedVolumeOid = 4l;
+        final long stor2Oid = 5L;
+        final long wastedFileVolume2Oid = 6L;
         final TopologyEntityDTO.Builder vm = createOnPremEntity(vmOid, EntityType.VIRTUAL_MACHINE);
         final TopologyEntityDTO.Builder storage = createOnPremEntity(storOid, EntityType.STORAGE);
         final TopologyEntityDTO.Builder wastedFileVolume = createOnPremEntity(wastedFileVolumeOid,
             EntityType.VIRTUAL_VOLUME);
         final TopologyEntityDTO.Builder connectedVolume = createOnPremEntity(connectedVolumeOid,
             EntityType.VIRTUAL_VOLUME);
+        final TopologyEntityDTO.Builder storage2 = createOnPremEntity(stor2Oid, EntityType.STORAGE);
+        final TopologyEntityDTO.Builder wastedFileVolume2 = createOnPremEntity(wastedFileVolume2Oid,
+            EntityType.VIRTUAL_VOLUME);
         final String [] filePathsWasted = {"/foo/bar/file1", "/etc/turbo/file2.iso", "file3"};
+        final String[] filePathsWasted2 = {"skippedWastedFile1", "skippedWastedFile2",
+            "skippedWastedFile3"};
         final String [] filePathsUsed = {"/foo/bar/used1", "/etc/turbo/used2.iso", "used3"};
         final long [] wastedSizesKb = {900, 1100, 2400000};
         final long [] usedSizesKb = {800, 1200, 2500000};
         connectEntities(vm, connectedVolume);
         connectEntities(connectedVolume, storage);
         connectEntities(wastedFileVolume, storage);
+        connectEntities(wastedFileVolume2, storage2);
         addFilesToOnpremVolume(wastedFileVolume, filePathsWasted, wastedSizesKb);
+        addFilesToOnpremVolume(wastedFileVolume2, filePathsWasted2, wastedSizesKb);
         addFilesToOnpremVolume(connectedVolume, filePathsUsed, usedSizesKb);
-        return ImmutableMap.of(
-            vm.getOid(), vm.build(),
-            storage.getOid(), storage.build(),
-            wastedFileVolume.getOid(), wastedFileVolume.build(),
-            connectedVolume.getOid(), connectedVolume.build());
+        // mark storage as ignoreWastedFiles - this ensures that no actions will be created for the
+        // related wasted files
+        storage2.setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+            .setStorage(StorageInfo.newBuilder().setIgnoreWastedFiles(true))
+            .build());
+        return new ImmutableMap.Builder<Long, TopologyEntityDTO>()
+            .put(vm.getOid(), vm.build())
+            .put(storage.getOid(), storage.build())
+            .put(storage2.getOid(), storage2.build())
+            .put(wastedFileVolume.getOid(), wastedFileVolume.build())
+            .put(wastedFileVolume2.getOid(), wastedFileVolume2.build())
+            .put(connectedVolume.getOid(), connectedVolume.build())
+            .build();
     }
 
     private Map<Long, TopologyEntityDTO> createTestCloudTopology() {
