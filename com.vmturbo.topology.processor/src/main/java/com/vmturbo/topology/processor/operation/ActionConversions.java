@@ -33,6 +33,8 @@ public class ActionConversions {
                 return ActionType.SUSPEND;
             case RECONFIGURE:
                 return ActionType.RECONFIGURE;
+            case DELETE:
+                return ActionType.DELETE;
             default:
                 logger.warn("Unrecognized action type: {}", type.name());
                 return null;

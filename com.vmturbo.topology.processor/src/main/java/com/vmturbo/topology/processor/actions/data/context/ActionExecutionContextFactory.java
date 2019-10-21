@@ -122,6 +122,9 @@ public class ActionExecutionContextFactory {
             case PROVISION:
                 return new ProvisionContext(request, dataManager, entityStore, entityRetriever,
                     request.getActionType());
+            case DELETE:
+                return new DeleteContext(request, dataManager, entityStore, entityRetriever,
+                    request.getActionType());
             default:
                 throw new IllegalArgumentException("Unsupported action type: " +
                         actionInfo.getActionTypeCase());

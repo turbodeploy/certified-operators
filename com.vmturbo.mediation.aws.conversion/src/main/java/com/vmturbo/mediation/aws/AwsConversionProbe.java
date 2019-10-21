@@ -165,6 +165,7 @@ public class AwsConversionProbe extends AwsProbe {
         actionPolicies.addAll(
             new ActionPolicyBuilder().entityType(EntityType.VIRTUAL_VOLUME)
                 .policy(ActionType.MOVE, ActionCapability.SUPPORTED)
+                .policy(ActionType.DELETE, ActionCapability.SUPPORTED)
                 .build()
         );
         return actionPolicies;

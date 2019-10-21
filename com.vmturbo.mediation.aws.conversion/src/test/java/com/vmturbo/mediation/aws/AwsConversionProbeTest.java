@@ -162,6 +162,7 @@ public class AwsConversionProbeTest extends AwsConversionProbe {
         final List<ActionPolicyDTO> newActionPolicies = new ActionPolicyBuilder()
             .entityType(EntityType.VIRTUAL_VOLUME)
             .policy(ActionType.MOVE, ActionCapability.SUPPORTED)
+            .policy(ActionType.DELETE, ActionCapability.SUPPORTED)
             .build();
 
         assertTrue(resultPolicies.containsAll(oldActionPolicies));

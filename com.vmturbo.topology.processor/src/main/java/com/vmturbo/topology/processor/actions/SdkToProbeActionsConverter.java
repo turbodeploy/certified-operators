@@ -90,7 +90,7 @@ public class SdkToProbeActionsConverter {
         capabilityBuilders.put(ActionItemDTO.ActionType.RECONFIGURE_THRESHOLD,
                 new SimpleCapabilityCreator(ActionDTO.ActionType.RECONFIGURE));
         capabilityBuilders.put(ActionItemDTO.ActionType.DELETE,
-                new SimpleCapabilityCreator(ActionDTO.ActionType.NONE));
+                new SimpleCapabilityCreator(ActionDTO.ActionType.DELETE));
         capabilityBuilders.put(ActionItemDTO.ActionType.RIGHT_SIZE,
                 new SimpleCapabilityCreator(ActionDTO.ActionType.RESIZE));
         capabilityBuilders.put(ActionItemDTO.ActionType.RESERVE_ON_PM,

@@ -147,7 +147,7 @@ public enum EntitySettingSpecs {
      * Delete action automation mode.
      */
     Delete("delete", "Delete", Collections.emptyList(), SettingTiebreaker.SMALLER,
-        EnumSet.of(EntityType.STORAGE, EntityType.STORAGE_TIER), nonExecutableActionMode(), true),
+        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_VOLUME), actionExecutionModeSetToManual(), true),
 
     /**
      * Provision action automation mode.
@@ -617,7 +617,7 @@ public enum EntitySettingSpecs {
     DeleteActionWorkflow("deleteActionWorkflow", "Delete Workflow",
         Collections.singletonList(CategoryPathConstants.AUTOMATION),
         SettingTiebreaker.SMALLER,
-        EnumSet.of(EntityType.STORAGE, EntityType.STORAGE_TIER),
+        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_VOLUME),
         string(), true),
 
     /**
@@ -627,7 +627,7 @@ public enum EntitySettingSpecs {
     PreDeleteActionWorkflow("preDeleteActionWorkflow", "Delete Pre Workflow",
         Collections.singletonList(CategoryPathConstants.AUTOMATION),
         SettingTiebreaker.SMALLER,
-        EnumSet.of(EntityType.STORAGE, EntityType.STORAGE_TIER),
+        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_VOLUME),
         string(), true),
 
     /**
@@ -637,7 +637,7 @@ public enum EntitySettingSpecs {
     PostDeleteActionWorkflow("postDeleteActionWorkflow", "Delete Post Workflow",
         Collections.singletonList(CategoryPathConstants.AUTOMATION),
         SettingTiebreaker.SMALLER,
-        EnumSet.of(EntityType.STORAGE, EntityType.STORAGE_TIER),
+        EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_VOLUME),
         string(), true),
 
     /**
