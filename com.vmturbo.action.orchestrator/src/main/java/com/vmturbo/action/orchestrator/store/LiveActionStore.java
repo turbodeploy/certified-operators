@@ -286,9 +286,7 @@ public class LiveActionStore implements ActionStore {
                 .filter(Objects::nonNull), snapshot);
 
             final MutableInt removedCount = new MutableInt(0);
-            final Set<ActionTypeCase> unsupportedActionTypes = new HashSet<>();
             final List<Action> translatedActionsToAdd = new ArrayList<>();
-            final Set<Long> entitiesToRetrieve = new HashSet<>();
 
             // This actually drains the stream defined above, updating the recommendation, creating
             // new actions, and so on.
@@ -302,12 +300,7 @@ public class LiveActionStore implements ActionStore {
                     logger.trace("Removed action {} with failed translation. Full action: {}",
                             action.getId(), action);
                 } else {
-                    try {
-                        entitiesToRetrieve.addAll(ActionDTOUtil.getInvolvedEntityIds(action.getRecommendation()));
-                        translatedActionsToAdd.add(action);
-                    } catch (UnsupportedActionException e) {
-                        unsupportedActionTypes.add(e.getActionType());
-                    }
+                    translatedActionsToAdd.add(action);
                 }
             });
 
@@ -315,10 +308,6 @@ public class LiveActionStore implements ActionStore {
             // We don't explicitly clear actions that were not successfully translated.
             if (removedCount.intValue() > 0) {
                 logger.warn("Dropped {} actions due to failed translations.", removedCount);
-            }
-
-            if (!unsupportedActionTypes.isEmpty()) {
-                logger.error("Action plan contained unsupported action types: {}", unsupportedActionTypes);
             }
 
 

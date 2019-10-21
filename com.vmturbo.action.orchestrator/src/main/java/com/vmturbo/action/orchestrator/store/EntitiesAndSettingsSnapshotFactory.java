@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -11,13 +12,13 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.Maps;
 
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
@@ -42,6 +43,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPart
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
+import com.vmturbo.repository.api.RepositoryListener;
+import com.vmturbo.repository.api.TopologyAvailabilityTracker;
+import com.vmturbo.repository.api.TopologyAvailabilityTracker.TopologyUnavailableException;
 
 /**
  * The {@link EntitiesAndSettingsSnapshotFactory} is a way to create a
@@ -49,7 +53,7 @@ import com.vmturbo.components.common.setting.SettingDTOUtil;
  * information during {@link LiveActionStore} population.
  */
 @ThreadSafe
-public class EntitiesAndSettingsSnapshotFactory {
+public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -61,23 +65,27 @@ public class EntitiesAndSettingsSnapshotFactory {
     //      so that no explicitly call need to be made.
     private final SearchServiceBlockingStub searchService;
 
-    private final int entityRetrievalRetryIntervalMillis;
+    private final long timeToWaitForTopology;
 
-    private final int entityRetrievalMaxRetries;
+    private final TimeUnit timeToWaitUnit;
+
+    private final TopologyAvailabilityTracker topologyAvailabilityTracker;
 
     private final long realtimeTopologyContextId;
 
     EntitiesAndSettingsSnapshotFactory(@Nonnull final Channel groupChannel,
                                        @Nonnull final Channel repoChannel,
-                                       @Nonnull final int entityRetrievalRetryIntervalMillis,
-                                       @Nonnull final int entityRetrievalMaxRetries,
-                                       @Nonnull final long realtimeTopologyContextId) {
+                                       @Nonnull final long realtimeTopologyContextId,
+                                       @Nonnull final TopologyAvailabilityTracker topologyAvailabilityTracker,
+                                       @Nonnull final long timeToWaitForTopology,
+                                       @Nonnull final TimeUnit timeToWaitUnit) {
         this.settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(groupChannel);
         this.repositoryService = RepositoryServiceGrpc.newBlockingStub(repoChannel);
         this.searchService = SearchServiceGrpc.newBlockingStub(repoChannel);
-        this.entityRetrievalRetryIntervalMillis = entityRetrievalRetryIntervalMillis;
-        this.entityRetrievalMaxRetries = entityRetrievalMaxRetries;
+        this.timeToWaitForTopology = timeToWaitForTopology;
+        this.timeToWaitUnit = timeToWaitUnit;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.topologyAvailabilityTracker = topologyAvailabilityTracker;
     }
 
     /**
@@ -173,8 +181,12 @@ public class EntitiesAndSettingsSnapshotFactory {
                                                    @Nullable final Long topologyId) {
         final Map<Long, Map<String, Setting>> newSettings = retrieveEntityToSettingListMap(entities,
             topologyContextId, topologyId);
-        final Map<Long, ActionPartialEntity> entityMap = retrieveOidToEntityMap(entities,
-            topologyContextId, topologyId);
+        final Map<Long, ActionPartialEntity> entityMap;
+        if (topologyId != null) {
+            entityMap = retrieveOidToEntityMap(entities, topologyContextId, topologyId);
+        } else {
+            entityMap = Collections.emptyMap();
+        }
         return new EntitiesAndSettingsSnapshot(newSettings, entityMap, topologyContextId, searchService);
     }
 
@@ -198,16 +210,21 @@ public class EntitiesAndSettingsSnapshotFactory {
      * @return mapping with oid as key and {@link ActionPartialEntity} as value.
      */
     private Map<Long, ActionPartialEntity> retrieveOidToEntityMap(Set<Long> entities,
-                    @Nonnull Long topologyContextId, @Nullable Long topologyId) {
-        try {
-            RetrieveTopologyEntitiesRequest.Builder getEntitiesRequestBuilder = RetrieveTopologyEntitiesRequest.newBuilder()
-                .setTopologyContextId(topologyContextId)
-                .addAllEntityOids(entities)
-                .setReturnType(PartialEntity.Type.ACTION);
-            if (topologyId != null) {
-                getEntitiesRequestBuilder.setTopologyId(topologyId);
-            }
+                    long topologyContextId, long topologyId) {
+        if (entities.isEmpty()) {
+            return Collections.emptyMap();
+        }
 
+        try {
+
+            topologyAvailabilityTracker.queueTopologyRequest(topologyContextId, topologyId)
+                .waitForTopology(timeToWaitForTopology, timeToWaitUnit);
+
+            final RetrieveTopologyEntitiesRequest.Builder getEntitiesRequestBuilder =
+                RetrieveTopologyEntitiesRequest.newBuilder()
+                    .setTopologyContextId(topologyContextId)
+                    .addAllEntityOids(entities)
+                    .setReturnType(PartialEntity.Type.ACTION);
             if (topologyContextId == realtimeTopologyContextId) {
                 getEntitiesRequestBuilder.setTopologyType(TopologyType.SOURCE);
             } else {
@@ -215,12 +232,15 @@ public class EntitiesAndSettingsSnapshotFactory {
                 getEntitiesRequestBuilder.setTopologyType(TopologyType.PROJECTED);
             }
 
-            Map<Long, ActionPartialEntity> entitiesMap = waitUntilRepositoryReturnsData(getEntitiesRequestBuilder.build());
-
-            if (entitiesMap.size() == 0) {
-                logger.error("After retrying for 30m, still the requested topology "+topologyContextId+" doesn't exist in the repository");
-            }
+            final Map<Long, ActionPartialEntity> entitiesMap = RepositoryDTOUtil.topologyEntityStream(
+                repositoryService.retrieveTopologyEntities(getEntitiesRequestBuilder.build()))
+                .map(PartialEntity::getAction)
+                .collect(Collectors.toMap(ActionPartialEntity::getOid, Function.identity()));
             return entitiesMap;
+        } catch (TopologyUnavailableException e) {
+            logger.error("Topology not available. Entity snapshot won't have entity information." +
+                " Error: {}", e.getMessage());
+            return Collections.emptyMap();
         } catch (StatusRuntimeException ex) {
             logger.error("Failed to fetch entities due to exception : " + ex);
             return Collections.emptyMap();
@@ -229,32 +249,6 @@ public class EntitiesAndSettingsSnapshotFactory {
             logger.error("Failed to wait for repository to return data due to exception : " + e);
             return Collections.emptyMap();
         }
-    }
-
-    /**
-     * Waits for the repository to return entities data for the given request. The method will wait
-     * until the defined number of retries in MAXIMUM_RETRIES. If the repository still doesn't have
-     * the requested data, an empty map will be returned
-     *
-     * @param request An object of class {@link RetrieveTopologyEntitiesRequest}
-     *                                  that holds the repository request
-     * @return mapping with oid as key and {@link ActionPartialEntity} as value.
-     * @throws InterruptedException
-     */
-    private Map<Long, ActionPartialEntity> waitUntilRepositoryReturnsData(@Nonnull final RetrieveTopologyEntitiesRequest request)
-        throws InterruptedException {
-        Map<Long, ActionPartialEntity> entitiesMap = Collections.emptyMap();
-        for (int currentTry = 0; currentTry < entityRetrievalMaxRetries; ++currentTry) {
-            entitiesMap = RepositoryDTOUtil.topologyEntityStream(repositoryService.retrieveTopologyEntities(request))
-                .map(PartialEntity::getAction)
-                .collect(Collectors.toMap(ActionPartialEntity::getOid, Function.identity()));
-            if (entitiesMap.isEmpty()) {
-                Thread.sleep(entityRetrievalRetryIntervalMillis);
-            } else {
-                break;
-            }
-        }
-        return entitiesMap;
     }
 
     @Nonnull

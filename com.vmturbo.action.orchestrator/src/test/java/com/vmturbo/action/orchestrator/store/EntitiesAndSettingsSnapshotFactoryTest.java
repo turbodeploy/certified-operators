@@ -4,10 +4,10 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -15,18 +15,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
+
+import io.grpc.Status;
 
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
-
-import io.grpc.Status;
 
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -41,6 +38,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.repository.api.TopologyAvailabilityTracker;
+import com.vmturbo.repository.api.TopologyAvailabilityTracker.QueuedTopologyRequest;
 
 /**
  * Unit tests for {@link EntitiesAndSettingsSnapshotFactory}.
@@ -52,37 +51,38 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
     private static final EntityType VM_ENTITY_TYPE = EntityType.VIRTUAL_MACHINE;
     private static final String VM_CLASSIC_ENTITY_TYPE = "VirtualMachine";
 
-    private final HttpEntity<Set<Long>> httpEntity = new HttpEntity<>(Collections.singleton(ENTITY_ID));
-    private final ParameterizedTypeReference<List<ServiceEntityApiDTO>> type =
-            new ParameterizedTypeReference<List<ServiceEntityApiDTO>>() {};
-
     private SettingPolicyServiceMole spServiceSpy = spy(new SettingPolicyServiceMole());
     private RepositoryServiceMole repoServiceSpy = spy(new RepositoryServiceMole());
 
     @Rule
-    public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(spServiceSpy);
-
-    @Rule
-    public GrpcTestServer groupTestServer = GrpcTestServer.newServer(spServiceSpy);
-
-    @Rule
-    public GrpcTestServer repoTestServer = GrpcTestServer.newServer(repoServiceSpy);
+    public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(spServiceSpy, repoServiceSpy);
 
     private EntitiesAndSettingsSnapshotFactory entitySettingsCache;
 
-    private RestTemplate restTemplate = mock(RestTemplate.class);
+    private final QueuedTopologyRequest topologyRequest = mock(QueuedTopologyRequest.class);
+    private TopologyAvailabilityTracker topologyAvailabilityTracker = mock(TopologyAvailabilityTracker.class);
+
+    private static final long MIN_TO_WAIT = 1;
 
     @Before
     public void setup() {
-        entitySettingsCache = new EntitiesAndSettingsSnapshotFactory(grpcTestServer.getChannel(), repoTestServer.getChannel(),2000,5,777777);
+        entitySettingsCache = new EntitiesAndSettingsSnapshotFactory(grpcTestServer.getChannel(),
+            grpcTestServer.getChannel(),
+            777777,
+            topologyAvailabilityTracker, MIN_TO_WAIT, TimeUnit.MINUTES);
 
-        when(restTemplate.exchange(anyString(), eq(HttpMethod.POST), eq(httpEntity), eq(type)))
-                .thenReturn(ResponseEntity.ok(Collections.emptyList()));
-
+        when(topologyAvailabilityTracker.queueTopologyRequest(anyLong(), anyLong()))
+            .thenReturn(topologyRequest);
     }
 
+    /**
+     * Test that creating a new snapshot makes the necessary remote calls and builds up the
+     * inner maps.
+     *
+     * @throws Exception To satisfy compiler.
+     */
     @Test
-    public void testRefresh() {
+    public void testNewSnapshot() throws Exception {
         final Setting setting = Setting.newBuilder()
                 .setSettingSpecName("foo")
                 .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
@@ -105,9 +105,6 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
                     .addEntityOids(ENTITY_ID))
                 .build()));
 
-        when(restTemplate.exchange(anyString(), eq(HttpMethod.POST), eq(httpEntity), eq(type)))
-                .thenReturn(ResponseEntity.ok(Collections.singletonList(entityDto)));
-
 
         final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(
             Collections.singleton(ENTITY_ID), TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
@@ -115,15 +112,20 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
         final Map<String, Setting> newSettings = snapshot.getSettingsForEntity(ENTITY_ID);
         assertTrue(newSettings.containsKey(setting.getSettingSpecName()));
         assertThat(newSettings.get(setting.getSettingSpecName()), is(setting));
+
+        verify(topologyAvailabilityTracker).queueTopologyRequest(TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
+        verify(topologyRequest).waitForTopology(MIN_TO_WAIT, TimeUnit.MINUTES);
     }
 
+    /**
+     * Test RPC error when creating a new snapshot.
+     *
+     * @throws Exception To satisfy compiler.
+     */
     @Test
-    public void testRefreshError() {
+    public void testNewSnapshotError() {
         when(spServiceSpy.getEntitySettingsError(any()))
             .thenReturn(Optional.of(Status.INTERNAL.asException()));
-
-        when(restTemplate.exchange(anyString(), eq(HttpMethod.POST), eq(httpEntity), eq(type)))
-                .thenThrow(new RestClientException("NO!"));
 
         final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(Collections.singleton(ENTITY_ID),
             TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);

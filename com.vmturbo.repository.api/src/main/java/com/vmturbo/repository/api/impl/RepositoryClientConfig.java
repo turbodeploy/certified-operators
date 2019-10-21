@@ -26,6 +26,7 @@ import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.repository.api.Repository;
 import com.vmturbo.repository.api.RepositoryClient;
+import com.vmturbo.repository.api.TopologyAvailabilityTracker;
 
 /**
  * Configuration for the Repository gRPC API Client.
@@ -46,6 +47,9 @@ public class RepositoryClientConfig {
 
     @Value("${grpcPingIntervalSeconds}")
     private long grpcPingIntervalSeconds;
+
+    @Value("${realtimeTopologyContextId}")
+    private long realtimeTopologyContextId;
 
     @Autowired
     private BaseKafkaConsumerConfig kafkaConsumerConfig;
@@ -75,6 +79,19 @@ public class RepositoryClientConfig {
         return GrpcChannelFactory.newChannelBuilder(repositoryHost, grpcPort)
                 .keepAliveTime(grpcPingIntervalSeconds, TimeUnit.SECONDS)
                 .build();
+    }
+
+    /**
+     * Utility class to help wait for topologies to become available.
+     *
+     * @return The {@link TopologyAvailabilityTracker}.
+     */
+    @Bean
+    public TopologyAvailabilityTracker topologyAvailabilityTracker() {
+        final TopologyAvailabilityTracker topologyAvailabilityTracker =
+            new TopologyAvailabilityTracker(realtimeTopologyContextId);
+        repository().addListener(topologyAvailabilityTracker);
+        return topologyAvailabilityTracker;
     }
 
     @Bean

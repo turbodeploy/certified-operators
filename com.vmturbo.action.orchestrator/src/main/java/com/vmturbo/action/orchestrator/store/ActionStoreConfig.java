@@ -2,6 +2,7 @@ package com.vmturbo.action.orchestrator.store;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -70,11 +71,8 @@ public class ActionStoreConfig {
     @Value("${entityTypeMaxRetries}")
     private long entityTypeMaxRetries;
 
-    @Value("${entityRetrievalRetryIntervalMillis:2000}")
-    private int entityRetrievalRetryIntervalMillis;
-
-    @Value("${entityRetrievalMaxRetries:900}")
-    private int entityRetrievalMaxRetries;
+    @Value("${minsToWaitForTopology:60}")
+    private long minsToWaitForTopology;
 
     @Value("${actionExecution.concurrentAutomatedActions:5}")
     private int concurrentAutomatedActions;
@@ -92,9 +90,10 @@ public class ActionStoreConfig {
         return new EntitiesAndSettingsSnapshotFactory(
             groupClientConfig.groupChannel(),
             repositoryClientConfig.repositoryChannel(),
-            entityRetrievalRetryIntervalMillis,
-            entityRetrievalMaxRetries,
-            actionOrchestratorGlobalConfig.realtimeTopologyContextId());
+            actionOrchestratorGlobalConfig.realtimeTopologyContextId(),
+            repositoryClientConfig.topologyAvailabilityTracker(),
+            minsToWaitForTopology,
+            TimeUnit.MINUTES);
     }
 
     @Bean
