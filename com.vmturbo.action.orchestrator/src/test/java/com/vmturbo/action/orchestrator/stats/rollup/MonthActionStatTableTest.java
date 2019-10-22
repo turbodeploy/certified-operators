@@ -145,9 +145,14 @@ public class MonthActionStatTableTest {
         reader.rollupRecords(1, Collections.emptyMap());
     }
 
-    @Test(expected = UnsupportedOperationException.class)
+    /**
+     * Test the numActionSnapshots method.
+     */
+    @Test
     public void testReaderNumSnapshotsInRecordException() {
-        final MonthlyReader reader = (MonthlyReader) monthActionStatTable.reader();
-        reader.numSnapshotsInSnapshotRecord(new ActionSnapshotMonthRecord());
+        final MonthlyReader reader = (MonthlyReader)monthActionStatTable.reader();
+        ActionSnapshotMonthRecord record = new ActionSnapshotMonthRecord();
+        record.setNumActionSnapshots(10);
+        assertThat(reader.numSnapshotsInSnapshotRecord(record), is(10));
     }
 }

@@ -91,7 +91,7 @@ public class MonthActionStatTable implements ActionStatTable {
 
         @Override
         protected int numSnapshotsInSnapshotRecord(@Nonnull final ActionSnapshotMonthRecord record) {
-            throw new UnsupportedOperationException("Unexpected rollup on monthly record.");
+            return record.getNumActionSnapshots();
         }
 
         @Override
