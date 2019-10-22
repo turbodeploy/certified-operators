@@ -111,16 +111,16 @@ class Cache {
     }
 
     /**
-     * A constant function that remains constant regardless of utilization.
+     * A constant function that remains constant for the income statement but returns infinite
+     * price for SLs looking for price for placement.
      *
-     * @param constant the value.
      * @return The price function.
      */
-     public static PriceFunction createRemainingConstantPriceFunction(double constant) {
-         String key = "RCPF-" + constant;
+     public static PriceFunction createIgnoreUtilizationPriceFunction() {
+         String key = "IUPF-0";
          PriceFunction pf = pfMap.get(key);
          if (pf == null) {
-             pf = (u, sl, seller, commSold, e) ->  Double.isNaN(u) ? Double.POSITIVE_INFINITY : constant;
+             pf = (u, sl, seller, commSold, e) -> sl == null ? 0 : Double.POSITIVE_INFINITY;
              pfMap.put(key, pf);
          }
          return pf;

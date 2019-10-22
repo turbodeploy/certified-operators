@@ -94,9 +94,8 @@ public final class ProtobufToAnalysis {
                 return PriceFunction.Cache
                                 .createSquaredReciprocalBoughtUtilizationPriceFunction(input
                                                 .getSquaredReciprocalBought().getWeight());
-            case REMAINING_CONSTANT:
-                return PriceFunction.Cache.createRemainingConstantPriceFunction(input
-                                                            .getRemainingConstant().getValue());
+            case IGNORE_UTILIZATION:
+                return PriceFunction.Cache.createIgnoreUtilizationPriceFunction();
             case SCALED_CAPACITY_STANDARD_WEIGHTED:
                 return PriceFunction.Cache.createScaledCapacityStandardWeightedPriceFunction(
                         input.getScaledCapacityStandardWeighted().getWeight(),

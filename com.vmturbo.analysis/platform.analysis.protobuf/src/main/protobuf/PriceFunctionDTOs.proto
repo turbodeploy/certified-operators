@@ -54,8 +54,9 @@ message PriceFunctionTO {
         optional float weight = 1 [default = 1.0]; // The 'w' in the above formula.
     }
 
-    // A constant function that remains constant regardless of utilization.
-    message RemainingConstant {
+    // A constant function that remains constant for the income statement but returns infinite
+    // price for SLs looking for price for placement.
+    message IgnoreUtilization {
         optional float value = 1;
     }
 
@@ -74,7 +75,7 @@ message PriceFunctionTO {
         FiniteStandardWeighted finite_standard_weighted = 6;
         ExternalPriceFunction external_price_function = 7;
         SquaredReciprocalBought squared_reciprocal_bought = 8;
-        RemainingConstant remaining_constant = 9;
+        IgnoreUtilization ignore_utilization = 9;
         ScaledCapacityStandardWeighted scaled_capacity_standard_weighted = 10;
     }
 }
