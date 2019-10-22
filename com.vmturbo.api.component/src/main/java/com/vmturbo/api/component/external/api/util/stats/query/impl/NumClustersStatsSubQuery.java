@@ -46,7 +46,9 @@ public class NumClustersStatsSubQuery implements StatsSubQuery {
         // We only have the current number of clusters.
         // Because the number of clusters is dynamic, it would be misleading to return current
         // stats for some date in the past.
-        return context.isGlobalScope() && context.includeCurrent();
+        return context.isGlobalScope() && context.includeCurrent() &&
+                // only applicable if numClusters is requested intentionally
+                !context.findStats(Collections.singleton(StringConstants.NUM_CLUSTERS)).isEmpty();
     }
 
     @Override

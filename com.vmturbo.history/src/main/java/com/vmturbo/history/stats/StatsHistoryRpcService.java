@@ -422,6 +422,14 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                     .withDescription("DB Error fetching stats for " + scopeErrorDescription(scope))
                     .withCause(e)
                     .asException());
+        } catch (IllegalArgumentException e) {
+            final String errorMessage = "Invalid stats query: " + scopeErrorDescription(scope) +
+                    ", " + e.getMessage();
+            logger.error(errorMessage);
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription(errorMessage)
+                    .withCause(e)
+                    .asException());
         } catch (RuntimeException e) {
             logger.error("Internal exception fetching stats for " + scopeErrorDescription(scope));
             responseObserver.onError(Status.INTERNAL

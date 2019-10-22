@@ -8,6 +8,9 @@ import javax.servlet.http.HttpServletRequest;
 import javax.validation.ConstraintViolation;
 import javax.validation.ConstraintViolationException;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.google.common.base.Throwables;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.http.HttpStatus;
@@ -24,10 +27,8 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.client.HttpClientErrorException;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.google.common.base.Throwables;
-
 import com.vmturbo.api.dto.ErrorApiDTO;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.ServiceUnavailableException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
@@ -112,6 +113,19 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(FileNotFoundException.class)
     @ResponseBody
     public ResponseEntity<ErrorApiDTO> handleFileNotFoundException(HttpServletRequest req, FileNotFoundException ex) {
+        return createErrorDTO(req, ex, HttpStatus.BAD_REQUEST);
+    }
+
+    /**
+     * Handle the {@link InvalidOperationException} by creating an error dto to return to client.
+     *
+     * @param req http request
+     * @param ex the exception to handle
+     * @return spring {@link ResponseEntity} wrapping around the error dto
+     */
+    @ExceptionHandler(InvalidOperationException.class)
+    @ResponseBody
+    public ResponseEntity<ErrorApiDTO> handleInvalidOperationException(HttpServletRequest req, InvalidOperationException ex) {
         return createErrorDTO(req, ex, HttpStatus.BAD_REQUEST);
     }
 

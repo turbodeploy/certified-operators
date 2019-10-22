@@ -49,13 +49,32 @@ public class NumClustersStatsSubQueryTest {
         query = new NumClustersStatsSubQuery(GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel()));
     }
 
+    /**
+     * Test that the query is applicable if the given stats is requested for global env.
+     */
     @Test
-    public void testApplicableInGlobalContext() {
+    public void testApplicableInGlobalContextIfStatsRequested() {
+        final StatApiInputDTO numClusters = StatsTestUtil.statInput(StringConstants.NUM_CLUSTERS);
+
         final StatsQueryContext context = mock(StatsQueryContext.class);
         when(context.isGlobalScope()).thenReturn(true);
         when(context.includeCurrent()).thenReturn(true);
+        when(context.findStats(any())).thenReturn(Collections.singleton(numClusters));
 
         assertThat(query.applicableInContext(context), is(true));
+    }
+
+    /**
+     * Test that the query is not applicable if the given stats is not requested for global env.
+     */
+    @Test
+    public void testNotApplicableInGlobalContextIfStatsNotRequested() {
+        final StatsQueryContext context = mock(StatsQueryContext.class);
+        when(context.isGlobalScope()).thenReturn(true);
+        when(context.includeCurrent()).thenReturn(true);
+        when(context.findStats(any())).thenReturn(Collections.emptySet());
+
+        assertThat(query.applicableInContext(context), is(false));
     }
 
     @Test
