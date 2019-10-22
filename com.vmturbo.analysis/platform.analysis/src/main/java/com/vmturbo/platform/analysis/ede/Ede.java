@@ -178,6 +178,12 @@ public final class Ede {
 
         Ledger ledger = new Ledger(economy);
 
+        if (isReplay && getReplayActions() != null) {
+            getReplayActions().replayActions(economy, ledger);
+            actions.addAll(getReplayActions().getActions());
+            logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "replaying");
+        }
+
         logBasketSoldOfTradersWithDebugEnabled(economy.getTraders());
 
         if (logger.isTraceEnabled()) {
@@ -197,6 +203,7 @@ public final class Ede {
             logger.trace("PSL Execution time of sortShoppingLists of size: "
                     + economy.getPreferentialShoppingLists().size() + " is: " + (end - start) + " milliseconds");
         }
+
 
         // generate moves for preferential shoppingLists
         List<Action> preferentialActions = new ArrayList<>(Placement.prefPlacementDecisions(economy,
@@ -251,12 +258,6 @@ public final class Ede {
         logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "resizing");
         // resize time
         statsUtils.after();
-
-        if (isReplay && getReplayActions() != null) {
-            getReplayActions().replayActions(economy, ledger);
-            actions.addAll(getReplayActions().getActions());
-            logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "replaying");
-        }
 
         statsUtils.before();
         PlacementResults placementResults = Placement.runPlacementsTillConverge(economy, ledger,

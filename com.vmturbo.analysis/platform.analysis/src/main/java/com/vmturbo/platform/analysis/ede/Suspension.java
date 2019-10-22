@@ -167,7 +167,7 @@ public class Suspension {
             double oldNumActions = allActions.size();
             while ((trader = suspensionCandidateHeap_.poll()) != null) {
                 if (!soleProviders.contains(trader) && trader.getState().isActive()) {
-                    allActions.addAll(deactivateTraderIfPossible(trader, economy, ledger, false));
+                    allActions.addAll(deactivateTraderIfPossible(trader, economy, ledger));
                 }
             }
             // reset threshold
@@ -190,12 +190,9 @@ public class Suspension {
      * @param trader The {@link Trader} we try to suspend.
      * @param economy the {@link Economy} which is being evaluated for suspension.
      * @param ledger The {@link Ledger} related to current {@link Economy}
-     * @param moveAllPossibleCustomers is true when we want all the possible customers of suspensionCandidate to
-     *                                 find placement. Move just the customers of candidate when false.
      * @return action list related to suspension of trader.
      */
-    List<Action> deactivateTraderIfPossible(Trader trader, Economy economy, Ledger ledger,
-                                            boolean moveAllPossibleCustomers) {
+    List<Action> deactivateTraderIfPossible(Trader trader, Economy economy, Ledger ledger) {
         boolean isDebugTrader = trader.isDebugEnabled();
         String traderDebugInfo = trader.getDebugInfoNeverUseInCode();
         if (logger.isTraceEnabled() || isDebugTrader) {
@@ -223,15 +220,7 @@ public class Suspension {
         }
 
         Set<ShoppingList> customersOfSuspCandidate = new HashSet<>();
-        if (moveAllPossibleCustomers) {
-            economy.getMarketsAsSeller(trader).stream()
-                    .map(Market::getBuyers)
-                    .flatMap(List::stream)
-                    .filter(sl -> !Suspension.isDaemon(sl))
-                    .forEach(customersOfSuspCandidate::add);
-        } else {
-            customersOfSuspCandidate.addAll(getNonDaemonCustomers(trader));
-        }
+        customersOfSuspCandidate.addAll(getNonDaemonCustomers(trader));
         customersOfSuspCandidate.addAll(resizeThroughSupplierCustomers);
 
         // Need to get this before doing the suspend, or the list will be empty.
@@ -470,11 +459,7 @@ public class Suspension {
     }
 
     private static Stream<ShoppingList> makeNonDaemonCustomerStream(Trader seller) {
-        return seller.getCustomers().stream().filter(sl -> !isDaemon(sl));
-    }
-
-    private static boolean isDaemon(ShoppingList buyer) {
-        return buyer.getBuyer().getSettings().isDaemon();
+        return seller.getCustomers().stream().filter(sl -> !sl.getBuyer().getSettings().isDaemon());
     }
 
     /**

@@ -235,8 +235,9 @@ public class ReplayActions {
                     Suspension.makeCoSellersNonSuspendable(economy, newTrader);
                 }
                 if (newTrader.getSettings().isControllable()) {
-                    suspendActions.addAll(suspensionInstance.deactivateTraderIfPossible(newTrader, economy,
-                                    ledger, true));
+                    suspendActions.addAll(suspensionInstance.deactivateTraderIfPossible(newTrader,
+                                    economy,
+                                    ledger));
                 } else {
                     // If controllable is false, deactivate the trader without checking criteria
                     // as entities may not be able to move out of the trader with controllable false.
