@@ -7,13 +7,13 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
+import com.google.common.collect.Lists;
+import com.google.common.hash.Hashing;
+
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
-
-import com.google.common.collect.Lists;
-import com.google.common.hash.Hashing;
 
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
@@ -217,7 +217,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
     public static void updateQuantities(@NonNull UnmodifiableEconomy economy,
                     @NonNull ShoppingList shoppingList,
             @Nullable Trader traderToUpdate, @NonNull FunctionalOperator defaultCombinator) {
-        @NonNull Basket basketBought = economy.getMarket(shoppingList).getBasket();
+        @NonNull Basket basketBought = shoppingList.getBasket();
 
         if (traderToUpdate != null) {
             final @NonNull @ReadOnly Basket basketSold = traderToUpdate.getBasketSold();

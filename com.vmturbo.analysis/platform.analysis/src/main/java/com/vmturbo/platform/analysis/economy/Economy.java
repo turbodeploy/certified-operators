@@ -19,7 +19,10 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
-import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Sets;
+import com.google.common.primitives.Longs;
 
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -28,12 +31,8 @@ import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 import org.checkerframework.dataflow.qual.SideEffectFree;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Sets;
-import com.google.common.primitives.Longs;
-
 import com.vmturbo.platform.analysis.actions.Move;
+import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.ede.ActionClassifier;
 import com.vmturbo.platform.analysis.ede.Placement;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
@@ -217,7 +216,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     @SideEffectFree
     public @NonNull @ReadOnly List<@NonNull CommodityBought> getCommoditiesBought(@ReadOnly Economy this,
                                                @NonNull @ReadOnly ShoppingList shoppingList) {
-        final int basketSize = getMarket(shoppingList).getBasket().size();
+        final int basketSize = shoppingList.getBasket().size();
         final @NonNull List<@NonNull CommodityBought> result = new ArrayList<>(basketSize);
 
         for (int i = 0; i < basketSize; ++i) { // should be same size as the shopping list
@@ -232,7 +231,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     public @NonNull @PolyRead CommodityBought getCommodityBought(@PolyRead Economy this,
                                          @NonNull @PolyRead ShoppingList shoppingList,
                                          @NonNull @ReadOnly CommoditySpecification specification) {
-        return new CommodityBought(shoppingList,getMarket(shoppingList).getBasket().indexOf(specification));
+        return new CommodityBought(shoppingList, shoppingList.getBasket().indexOf(specification));
     }
 
     @Override
