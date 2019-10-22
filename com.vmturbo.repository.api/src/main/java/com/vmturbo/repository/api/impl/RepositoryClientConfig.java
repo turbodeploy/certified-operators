@@ -24,6 +24,8 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockin
 import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
+import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings;
+import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
 import com.vmturbo.repository.api.Repository;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.repository.api.TopologyAvailabilityTracker;
@@ -63,9 +65,9 @@ public class RepositoryClientConfig {
 
     @Bean
     protected IMessageReceiver<RepositoryNotification> repositoryClientMessageReceiver() {
-        return kafkaConsumerConfig.kafkaConsumer()
-                .messageReceiver(RepositoryNotificationReceiver.TOPOLOGY_TOPIC,
-                        RepositoryNotification::parseFrom);
+        return kafkaConsumerConfig.kafkaConsumer().messageReceiverWithSettings(
+            new TopicSettings(RepositoryNotificationReceiver.TOPOLOGY_TOPIC, StartFrom.BEGINNING),
+            RepositoryNotification::parseFrom);
     }
 
     @Bean

@@ -227,6 +227,27 @@ public class TopologyAvailabilityTrackerTest {
     }
 
     /**
+     * Test that plan projected topology satisfies waiters.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test
+    public void testWaitForPlanTopologyFulfilledByProjected() throws Exception {
+        final long planId = 123;
+        final long topologyId = 10;
+        // Get the request first.
+        QueuedTopologyRequest topologyRequest =
+            availabilityTracker.queueTopologyRequest(planId, topologyId);
+
+        // Projected topology is now available... but it's a different topology ID!
+        availabilityTracker.onProjectedTopologyAvailable(topologyId + 10, planId);
+
+        // This should complete immediately, because the projected topology for plans counts,
+        // since we currently ONLY save the projected topology. No errors.
+        topologyRequest.waitForTopology(1, TimeUnit.MILLISECONDS);
+    }
+
+    /**
      * Test that realtime notifications don't affect plan waiters.
      *
      * @throws Exception To satisfy compiler.

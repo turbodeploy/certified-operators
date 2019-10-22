@@ -83,7 +83,7 @@ public class TopologyAvailabilityTracker implements RepositoryListener {
         QueuedTopologyRequest topologyRequest = null;
         synchronized (availabilityLock) {
             final TopologyAvailabilityStatus existingResult = latestTopologyByContext.get(topologyContextId);
-            if (existingResult == null || existingResult.topologyId < topologyId) {
+            if (existingResult == null || !existingResult.matches(isPlan(topologyContextId), topologyId)) {
                 // Don't have it yet. Need to wait.
                 topologyRequest = new QueuedTopologyRequest(topologyContextId, topologyId);
                 queuedRequests.add(topologyRequest);
@@ -102,8 +102,9 @@ public class TopologyAvailabilityTracker implements RepositoryListener {
      * @param topologyContextId {@inheritDoc}
      */
     @Override
-    public void onSourceTopologyAvailable(final long topologyId, final long topologyContextId) {
-        processNotification(topologyContextId, topologyId, Optional.empty());
+    public void onSourceTopologyAvailable(final long topologyId,
+                                          final long topologyContextId) {
+        processNotification(topologyContextId, topologyId, false, Optional.empty());
     }
 
     /**
@@ -114,57 +115,75 @@ public class TopologyAvailabilityTracker implements RepositoryListener {
      * @param failureDescription {@inheritDoc}
      */
     @Override
-    public void onSourceTopologyFailure(final long topologyId, final long topologyContextId,
+    public void onSourceTopologyFailure(final long topologyId,
+                                        final long topologyContextId,
                                         @Nonnull final String failureDescription) {
-        processNotification(topologyContextId, topologyId, Optional.of(failureDescription));
+        processNotification(topologyContextId, topologyId, false, Optional.of(failureDescription));
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * @param projectedTopologyId {@inheritDoc}
+     * @param topologyContextId {@inheritDoc}
+     */
+    @Override
+    public void onProjectedTopologyAvailable(final long projectedTopologyId,
+                                             final long topologyContextId) {
+        processNotification(topologyContextId, projectedTopologyId, true, Optional.empty());
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * @param projectedTopologyId {@inheritDoc}
+     * @param topologyContextId {@inheritDoc}
+     * @param failureDescription {@inheritDoc}
+     */
+    @Override
+    public void onProjectedTopologyFailure(final long projectedTopologyId,
+                                           final long topologyContextId,
+                                           @Nonnull final String failureDescription) {
+        processNotification(topologyContextId, projectedTopologyId, true, Optional.of(failureDescription));
     }
 
     private void processNotification(final long topologyContextId,
                                      final long topologyId,
+                                     final boolean projected,
                                      final Optional<String> failureDescription) {
         synchronized (availabilityLock) {
-            latestTopologyByContext.compute(topologyContextId, (k, existingId) -> {
-                if (existingId != null && existingId.topologyId > topologyId) {
-                    return existingId;
-                } else {
-                    return new TopologyAvailabilityStatus(topologyId, failureDescription);
-                }
-            });
+            final TopologyAvailabilityStatus availabilityStatus =
+                latestTopologyByContext.compute(topologyContextId, (k, existingId) -> {
+                    if (existingId != null && existingId.topologyId > topologyId) {
+                        return existingId;
+                    } else {
+                        return new TopologyAvailabilityStatus(topologyId, projected, failureDescription);
+                    }
+                });
 
             final Iterator<QueuedTopologyRequest> reqIt = queuedRequests.iterator();
             while (reqIt.hasNext()) {
                 final QueuedTopologyRequest nextReq = reqIt.next();
-                if (dequeueRequest(topologyContextId, topologyId, nextReq)) {
-                    if (failureDescription.isPresent()) {
-                        nextReq.completableFuture.completeExceptionally(
-                            TopologyUnavailableException.failed(topologyContextId,
-                                topologyId, failureDescription.get()));
-                    } else {
-                        nextReq.completableFuture.complete(nextReq);
+                // Check for matches on the same context.
+                if (topologyContextId == nextReq.topologyContextId) {
+                    if (availabilityStatus.matches(isPlan(topologyContextId), nextReq.topologyId)) {
+                        if (failureDescription.isPresent()) {
+                            nextReq.completableFuture.completeExceptionally(
+                                TopologyUnavailableException.failed(topologyContextId,
+                                    topologyId, failureDescription.get()));
+                        } else {
+                            nextReq.completableFuture.complete(nextReq);
+                        }
+                        // Remove the queued waiter, since it found the topology it was looking for!
+                        reqIt.remove();
                     }
-                    // Remove the queued waiter, since it found the topology it was looking for!
-                    reqIt.remove();
                 }
             }
         }
     }
 
-    private boolean dequeueRequest(final long availableContextId,
-                                   final long availableTopologyId,
-                                   final QueuedTopologyRequest request) {
-        if (availableContextId != request.topologyContextId) {
-            return false;
-        }
-
-        if (availableContextId == realtimeTopologyContextId) {
-            // In the realtime context we also accept a topology "newer" than the topology
-            // we're waiting for. We assume IDs are monotonically increasing (which is a
-            // relatively safe assumption given the nature of the identity service).
-            return availableTopologyId >= request.topologyId;
-        } else {
-            // In a plan we look for an exact match.
-            return availableTopologyId == request.topologyId;
-        }
+    private boolean isPlan(final long topologyContextId) {
+        return topologyContextId != realtimeTopologyContextId;
     }
 
     /**
@@ -174,12 +193,24 @@ public class TopologyAvailabilityTracker implements RepositoryListener {
 
         private final long topologyId;
 
+        private final boolean projectedTopology;
+
         private final Optional<String> failureDescription;
 
         private TopologyAvailabilityStatus(final long topologyId,
+                                           final boolean projectedTopology,
                                            final Optional<String> failureDescription) {
             this.topologyId = topologyId;
+            this.projectedTopology = projectedTopology;
             this.failureDescription = failureDescription;
+        }
+
+        private boolean matches(final boolean isPlan, final long inputTopologyId) {
+            if (isPlan) {
+                return this.topologyId == inputTopologyId || projectedTopology;
+            } else {
+                return this.topologyId >= inputTopologyId;
+            }
         }
     }
 
