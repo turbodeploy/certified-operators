@@ -11,6 +11,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -18,6 +19,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
@@ -64,6 +68,11 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
 
     private final Object storeLock = new Object();
 
+    // Keeping missing template to make sure we don't overflow the log.
+    private Cache<String, Object> loggedMissingTemplateCache;
+
+    private static final int MISSING_TEMPLATE_IN_LINE = 20;
+
     // Map all discovered templates to list of deployment profile which associate with, for
     // those discovered templates without deployment profiles, it will map to a empty list.
     @GuardedBy("storeLock")
@@ -86,6 +95,8 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
         Objects.requireNonNull(entityStore);
         this.entityStore = entityStore;
         this.templateDeploymentProfileService = Objects.requireNonNull(templatesDeploymentProfileService);
+        this.loggedMissingTemplateCache = CacheBuilder.newBuilder()
+            .expireAfterAccess(6, TimeUnit.HOURS).build();
     }
 
     /**
@@ -327,6 +338,7 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
         }));
         final Map<EntityProfileDTO, Set<DeploymentProfileDTO>> templateToDeploymentProfileDTOMap =
             buildDefaultEntityProfileMap(entityProfileDTOs);
+        List<String> missingTemplates = Lists.newArrayList();
         // Build map of template to list of attached deployment profile
         for (DeploymentProfileDTO deploymentProfile : deploymentProfileDTOs) {
             final List<String> relatedTemplates = deploymentProfile.getRelatedEntityProfileIdList();
@@ -338,11 +350,15 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
                     deploymentProfileDTOList.add(deploymentProfile);
                     templateToDeploymentProfileDTOMap.put(templateObj, deploymentProfileDTOList);
                 });
-                if (!template.isPresent()) {
-                    logger.error("DeploymentProfile {} related entity profile {} is not found",
-                        deploymentProfile.getId(), templateId);
+                // Making sure we log the missing template without overloading the logger by using a cache
+                if (!template.isPresent() && (loggedMissingTemplateCache.getIfPresent(templateId) == null)) {
+                    missingTemplates.add(templateId);
+                    loggedMissingTemplateCache.put(templateId, new Object());
                 }
             }
+        }
+        if (!missingTemplates.isEmpty()) {
+            logMissingTemplate(missingTemplates);
         }
         // Convert DeploymentProfileDTO to DeploymentProfileInfo
         final Map<EntityProfileDTO, Set<DeploymentProfileInfo>> templateToDeploymentProfileInfoMap =
@@ -354,6 +370,18 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
                         .collect(Collectors.toSet())
                 ));
         return new EntityProfileToDeploymentProfileMap(templateToDeploymentProfileInfoMap);
+    }
+
+    /**
+     * Logging error messages for missing templates.
+     *
+     * @param missingTemplate contains all the missing templates.
+     */
+    private void logMissingTemplate(List<String> missingTemplate) {
+        List<List<String>> missingTemplatePartition =
+                Lists.partition(missingTemplate, MISSING_TEMPLATE_IN_LINE);
+        missingTemplatePartition.stream().forEach(subList -> logger.error("Missing templates: {}",
+                String.join(", ", subList)));
     }
 
     /**
