@@ -26,7 +26,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.auth.api.JWTKeyCodec;
-import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.auth.api.authorization.IAuthorizationVerifier;
@@ -124,22 +123,23 @@ public class JwtServerInterceptor implements ServerInterceptor {
             public void onHalfClose() {
                 try {
                     super.onHalfClose();
-                } catch (Throwable t) {
+                } catch (RuntimeException t) {
                     translateException(t);
                 }
             }
 
-            private void translateException(Throwable t) {
+            private void translateException(RuntimeException t) {
                 final Status returnStatus;
                 if (t instanceof UserAccessScopeException) {
                     returnStatus = Status.PERMISSION_DENIED;
                 } else if (t instanceof UserAccessException) {
                     returnStatus = Status.PERMISSION_DENIED;
-                } else if (t instanceof AuthorizationException) {
-                    returnStatus = Status.UNAUTHENTICATED;
                 } else {
-                    returnStatus = Status.fromThrowable(t);
+                    // Exception is not related to Auth component logic. Rethrow it.
+                    throw t;
                 }
+                logger.debug("gRPC call to " + call.getMethodDescriptor().getFullMethodName() +
+                        " failed", t);
                 call.close(returnStatus.withCause(t).withDescription(t.getMessage()), new Metadata());
             }
         };

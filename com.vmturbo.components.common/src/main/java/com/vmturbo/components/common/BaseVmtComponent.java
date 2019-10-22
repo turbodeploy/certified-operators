@@ -549,6 +549,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                     MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());
                 final ServerTracingInterceptor tracingInterceptor =
                     new ServerTracingInterceptor(Tracing.tracer());
+                final GrpcCatchExceptionInterceptor catchExceptionInterceptor =
+                        new GrpcCatchExceptionInterceptor();
 
                 // add a log level configuration service that will be available if the
                 // component decides to build a grpc server. (if not, the REST endpoint for it will
@@ -562,6 +564,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                 // Add the tracing interceptor last, so that it gets called first (Matthew 20:16 :P),
                 // and the other interceptors get traced too.
                 serverInterceptors.add(tracingInterceptor);
+                serverInterceptors.add(catchExceptionInterceptor);
 
                 allServices.forEach(service -> serverBuilder.addService(
                     ServerInterceptors.intercept(service, serverInterceptors)));
