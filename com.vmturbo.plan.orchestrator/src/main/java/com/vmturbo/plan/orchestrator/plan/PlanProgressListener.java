@@ -4,6 +4,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -14,9 +15,13 @@ import com.vmturbo.action.orchestrator.api.ActionsListener;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.Status;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.Builder;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.cost.api.CostNotificationListener;
@@ -37,7 +42,7 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
 
     private final long realtimeTopologyContextId;
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(PlanProgressListener.class);
 
     private final PlanRpcService planService;
 
@@ -207,70 +212,165 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
     }
 
     private static void processStatsAvailable(@Nonnull final PlanInstance.Builder plan) {
-        /*
-         * TODO (OM-51246): Combine it with the cost notification feedback logic. Based on all
-         *  the notifications, the plan status should be set.
-         */
         plan.setStatsAvailable(true);
-        if (plan.hasProjectedTopologyId() && !plan.getActionPlanIdList().isEmpty()) {
-            plan.setStatus(PlanStatus.SUCCEEDED);
-        } else {
-            plan.setStatus(PlanStatus.WAITING_FOR_RESULT);
-        }
+        plan.setStatus(getPlanStatusBasedOnPlanType(plan));
     }
 
     private void processActionsUpdated(@Nonnull final PlanInstance.Builder plan,
             @Nonnull final ActionsUpdated actionsUpdated) {
-        /*
-         * TODO (OM-51246): Combine it with the cost notification feedback logic. Based on all
-         *  the notifications, the plan status should be set.
-         */
         plan.addActionPlanId(actionsUpdated.getActionPlanId());
-        if (plan.hasProjectedTopologyId() && plan.hasStatsAvailable()) {
-            plan.setStatus(PlanStatus.SUCCEEDED);
-        } else {
-            plan.setStatus(PlanStatus.WAITING_FOR_RESULT);
-        }
+        plan.setStatus(getPlanStatusBasedOnPlanType(plan));
     }
 
     private static void processProjectedTopology(@Nonnull final PlanInstance.Builder plan,
             final long projectedTopologyId) {
-        /*
-         * TODO (OM-51246): Combine it with the cost notification feedback logic. Based on all
-         *  the notifications, the plan status should be set.
-         */
         plan.setProjectedTopologyId(projectedTopologyId);
-        if (!plan.getActionPlanIdList().isEmpty() && plan.hasStatsAvailable()) {
-            plan.setStatus(PlanStatus.SUCCEEDED);
-        } else {
-            plan.setStatus(PlanStatus.WAITING_FOR_RESULT);
-        }
+        plan.setStatus(getPlanStatusBasedOnPlanType(plan));
     }
 
     @Override
     public void onCostNotificationReceived(@Nonnull final CostNotification costNotification) {
-        /*
-         * TODO (OM-51246): Combine it with the cost notification feedback logic. Based on all
-         *  the notifications, the plan status should be set.
-         */
-        if (costNotification.hasProjectedCostUpdate()) {
-            final StatusUpdate projectedCostUpdate = costNotification.getProjectedCostUpdate();
-            logger.debug("Projected cost notification has been received from cost component- " +
-                            "status: {} topology ID: {} topology context ID: {}",
-                    projectedCostUpdate.getStatus(),
-                    projectedCostUpdate.getTopologyId(),
-                    projectedCostUpdate.getTopologyContextId());
-        } else if (costNotification.hasProjectedRiCoverageUpdate()) {
-            final StatusUpdate projectedRiCoverageUpdate =
-                    costNotification.getProjectedRiCoverageUpdate();
-            logger.debug("Projected RI coverage notification has been received from cost " +
-                            "component- status:{} topology ID: {} topology context ID: {}",
-                    projectedRiCoverageUpdate.getStatus(),
-                    projectedRiCoverageUpdate.getTopologyId(),
-                    projectedRiCoverageUpdate.getTopologyContextId());
+        // The context of the action plan is the plan that the actions apply to.
+        final long planId = costNotification.hasProjectedCostUpdate() ?
+                costNotification.getProjectedCostUpdate().getTopologyContextId() :
+                costNotification.getProjectedRiCoverageUpdate().getTopologyContextId();
+        if (planId != realtimeTopologyContextId) {
+            try {
+                // TODO: (OM-51227) Plan exception should be reflected in the status of the plan.
+                if (costNotification.hasProjectedCostUpdate()) {
+                    planDao.updatePlanInstance(planId, p -> {
+                        processProjectedCostUpdate(p, costNotification);
+                    });
+                    final StatusUpdate projectedCostUpdate = costNotification
+                            .getProjectedCostUpdate();
+                    final Status projectedCostUpdateStatus = projectedCostUpdate.getStatus();
+                    logger.info("Projected cost notification has been received from " +
+                                    "cost component- status: {} topology ID: {} topology " +
+                                    "context ID: {}",
+                            projectedCostUpdateStatus,
+                            projectedCostUpdate.getTopologyId(),
+                            projectedCostUpdate.getTopologyContextId());
+                } else if (costNotification.hasProjectedRiCoverageUpdate()) {
+                    planDao.updatePlanInstance(planId, p -> {
+                        processProjectedRiUpdate(p, costNotification);
+                    });
+                    final StatusUpdate projectedRiCoverageUpdate =
+                            costNotification.getProjectedRiCoverageUpdate();
+                    final Status projectedRiCoverageUpdateStatus = projectedRiCoverageUpdate
+                            .getStatus();
+                    logger.info("Projected RI coverage notification has been received " +
+                                    "from cost component- status:{} topology ID: {} topology " +
+                                    "context ID: {}",
+                            projectedRiCoverageUpdateStatus,
+                            projectedRiCoverageUpdate.getTopologyId(),
+                            projectedRiCoverageUpdate.getTopologyContextId());
+                } else {
+                    logger.error("This cost notification is not implemented yet.");
+                }
+            } catch (IntegrityException e) {
+                logger.error("Could not change plan's "
+                        + planId + " state according to cost notification.", e);
+            } catch (NoSuchObjectException e) {
+                logger.warn("Could not find plan by topology context id {}",
+                        planId, e);
+            }
         } else {
-            logger.error("This cost notification is not implemented yet.");
+            logger.debug("Dropping real-time cost notification.");
         }
+    }
+
+    /**
+     * Processes the projected cost notifications related to a plan.
+     *
+     * @param plan                      The plan
+     * @param projectedCostNotification The projected cost notification
+     */
+    private static void processProjectedCostUpdate(@Nonnull final PlanInstance.Builder plan,
+                                                   @Nonnull final CostNotification
+                                                           projectedCostNotification) {
+        final Status projectedCostUpdateStatus = projectedCostNotification.getProjectedCostUpdate()
+                .getStatus();
+        plan.setPlanProgress(plan.getPlanProgress().toBuilder()
+                .setProjectedCostStatus(projectedCostUpdateStatus));
+        plan.setStatus(getPlanStatusBasedOnPlanType(plan));
+    }
+
+    /**
+     * Processes the projected RI coverage notifications related to a plan.
+     *
+     * @param plan                            The plan
+     * @param projectedRiCoverageNotification The projected RI coverage notification
+     */
+    private static void processProjectedRiUpdate(@Nonnull final PlanInstance.Builder plan,
+                                                 @Nonnull final CostNotification
+                                                         projectedRiCoverageNotification) {
+        final Status projectedRiCoverageUpdateStatus = projectedRiCoverageNotification
+                .getProjectedRiCoverageUpdate().getStatus();
+        plan.setPlanProgress(plan.getPlanProgress().toBuilder()
+                .setProjectedRiCoverageStatus(projectedRiCoverageUpdateStatus));
+        plan.setStatus(getPlanStatusBasedOnPlanType(plan));
+    }
+
+    /**
+     * Returns the status of the plan based on the plan type. For example, optimize cloud plan
+     * with buy RI or optimize cloud plan without buy RI.
+     * TODO: (OM-50691) Add OCP type 3 to the logic.
+     *
+     * @param plan The plan
+     * @return The plan new status
+     */
+    @Nonnull
+    private static PlanStatus getPlanStatusBasedOnPlanType(@Nonnull final Builder plan) {
+        final PlanStatus existingStatus = plan.getStatus();
+        if (PlanStatus.FAILED.equals(existingStatus) ||
+                PlanStatus.SUCCEEDED.equals(existingStatus)) {
+            return existingStatus;
+        }
+        @Nullable ScenarioInfo scenarioInfo = plan.hasScenario() ? plan.getScenario()
+                .getScenarioInfo() : null;
+        if (scenarioInfo != null &&
+                StringConstants.OPTIMIZE_CLOUD_PLAN_TYPE.equals(scenarioInfo.getType()) &&
+                scenarioInfo.getChangesList().stream().anyMatch(ScenarioChange::hasRiSetting)) {
+            // OCP with buy RI (type 1 and 3).
+            final PlanStatus newStatus = getOCPWithBuyRIPlanStatus(plan);
+            if (!newStatus.equals(existingStatus)) {
+                logger.debug("The plan status has been changed from {} to {}- plan ID: " +
+                        "{}", existingStatus, newStatus, plan.getPlanId());
+            }
+            return newStatus;
+        } else {
+            // Plans other than OCP with buy RI (type 1 and 3).
+            return (plan.getStatsAvailable() && !plan.getActionPlanIdList().isEmpty() &&
+                    plan.hasProjectedTopologyId()) ?
+                    PlanStatus.SUCCEEDED : PlanStatus.WAITING_FOR_RESULT;
+        }
+    }
+
+    /**
+     * Defines the OCP plan with buy RI status based on the notifications from stats, topology and
+     * cost.
+     * TODO: (OM-51279) Add the timeout logic to this method.
+     *
+     * @param plan The plan
+     * @return The status of the plan
+     */
+    @Nonnull
+    private static PlanStatus getOCPWithBuyRIPlanStatus(@Nonnull final PlanInstance.Builder plan) {
+        final Status planProgressProjectedCostStatus = plan.getPlanProgress()
+                .getProjectedCostStatus();
+        final Status planProgressProjectedRiCoverageStatus = plan.getPlanProgress()
+                .getProjectedRiCoverageStatus();
+        if (Status.FAIL.equals(planProgressProjectedCostStatus) ||
+                Status.FAIL.equals(planProgressProjectedRiCoverageStatus)) {
+            return PlanStatus.FAILED;
+        }
+        if (plan.getStatsAvailable() && !plan.getActionPlanIdList().isEmpty() &&
+                plan.hasProjectedTopologyId() &&
+                Status.SUCCESS.equals(planProgressProjectedCostStatus) &&
+                Status.SUCCESS.equals(planProgressProjectedRiCoverageStatus)) {
+            return PlanStatus.SUCCEEDED;
+        }
+        return PlanStatus.WAITING_FOR_RESULT;
     }
 
 }
