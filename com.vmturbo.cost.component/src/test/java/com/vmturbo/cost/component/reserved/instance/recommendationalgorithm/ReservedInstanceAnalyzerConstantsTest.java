@@ -219,30 +219,40 @@ public class ReservedInstanceAnalyzerConstantsTest {
     /*
      * ReservedInstanceRegionalContext
      */
+    static final TopologyEntityDTO regionOhio = TopologyEntityDTO.newBuilder()
+                        .setEntityType(EntityType.REGION_VALUE)
+                        .setOid(ReservedInstanceAnalyzerConstantsTest.REGION_AWS_OHIO_OID)
+                        .setDisplayName("ohio region")
+                        .build();
+    static final TopologyEntityDTO regionOregon = TopologyEntityDTO.newBuilder()
+                        .setEntityType(EntityType.REGION_VALUE)
+                        .setOid(ReservedInstanceAnalyzerConstantsTest.REGION_AWS_OREGON_OID)
+                        .setDisplayName("oregon region")
+                        .build();
     static final ReservedInstanceRegionalContext REGIONAL_CONTEXT_1 =
         new ReservedInstanceRegionalContext(ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_1_OID,
             OSType.LINUX,
             Tenancy.DEFAULT,
             ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_M5_LARGE,
-            ReservedInstanceAnalyzerConstantsTest.REGION_AWS_OHIO_OID);
+            regionOhio);
     static final ReservedInstanceRegionalContext REGIONAL_CONTEXT_2 =
         new ReservedInstanceRegionalContext(ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_2_OID,
             OSType.WINDOWS,
             Tenancy.DEDICATED,
             ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_T2_MICRO,
-            ReservedInstanceAnalyzerConstantsTest.REGION_AWS_OREGON_OID);
+            regionOregon);
     static final ReservedInstanceRegionalContext REGIONAL_CONTEXT_4 =
         new ReservedInstanceRegionalContext(ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_2_OID,
             OSType.RHEL,
             Tenancy.DEFAULT,
             ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_M5_LARGE,
-            ReservedInstanceAnalyzerConstantsTest.REGION_AWS_OREGON_OID);
+            regionOregon);
     static final ReservedInstanceRegionalContext REGIONAL_CONTEXT_5 =
         new ReservedInstanceRegionalContext(ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_2_OID,
             OSType.SUSE,
             Tenancy.DEFAULT,
             ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_T2_MICRO,
-            ReservedInstanceAnalyzerConstantsTest.REGION_AWS_OHIO_OID);
+            regionOhio);
 
 
     /*

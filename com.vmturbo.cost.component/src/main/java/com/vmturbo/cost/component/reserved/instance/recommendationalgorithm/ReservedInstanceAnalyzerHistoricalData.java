@@ -174,7 +174,7 @@ public class ReservedInstanceAnalyzerHistoricalData {
             // for instance size flexible, find smallest instance type in family
             computeTier = getComputeTierToBuyFor(computeTier, platform, tenancy, computeTierFamilies);
             regionalContext = new ReservedInstanceRegionalContext(masterAccount, platform, tenancy,
-                computeTier, region.getOid());
+                                                                  computeTier, region);
 
             List<ReservedInstanceZonalContext> contexts = map.get(regionalContext);
             if (contexts == null) {

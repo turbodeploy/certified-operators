@@ -170,8 +170,8 @@ public class ReservedInstanceAnalysisRecommendation {
     }
 
 
-    private static final String csvHeader = "Log Key,Buy Type,Master Account,"
-                    + "Instance Type,Location,Platform,Tenancy,Offering Class,Term,Payment Option,"
+    private static final String csvHeader = ",Log Key,Buy Type,Master Account,Instance Type,"
+                                            + "Location,Location OID,Platform,Tenancy,Offering Class,Term,Payment Option,"
                     + "Action,Count,hourly onDemand cost,hourly RI cost,hourly savings,"
                     + "discount cost,discount %,savings %,# hours,active hours,avg coupon demand,"
                     + "RI coupons,RI coupons used,RI utilization";
@@ -185,16 +185,32 @@ public class ReservedInstanceAnalysisRecommendation {
         // None of the fields currently can contain a comma.
         // If this changes, consider switching to using Apache Commons CSV.
 
-        // From context get master account and linked account, if any
+        // From context get master account
         long masterAccountId = context.getMasterAccountId();
+
+        // is riHourlyCost known, unknown is sent as Float.MAX_VALUE
+        boolean isRiHourlyCostKnown = riHourlyCost != Float.MAX_VALUE;
+
+        // Make informative String for RiHourlyCost
+        String riHourlyCostString = isRiHourlyCostKnown
+            ? String.format(Locale.ROOT, "%.5f", riHourlyCost)
+            : "unknown";
+        // Make informative string for discount percentage when RIHourlyCost is not known
+        String discountPercentageString = isRiHourlyCostKnown
+            ? String.format(Locale.ROOT, "%.5f%%",
+                            ((onDemandHourlyCost - riHourlyCost) / onDemandHourlyCost) * 100.0f)
+            : "unknown";
 
         StringJoiner joiner = new StringJoiner(",");
 
-        joiner.add(logTag)
+        // initial comma allows adding log snippet into Excel as a csv, ignoring the first field,
+        // which is inserted by the logger and delimited by this initial comma.
+        joiner.add("," + logTag)
                 .add(actionGoal)
-                .add(Long.toString(context.getMasterAccountId()))
+                .add(Long.toString(masterAccountId))
                 .add(context.getComputeTier().getDisplayName())
-                .add(Long.toString(context.getRegionId()))
+                .add(context.getRegionDisplayName())
+                        .add(Long.toString(context.getRegionId()))
                 .add(context.getPlatform().toString())
                 .add(context.getTenancy().name())
                 .add(constraints.getOfferingClass().toString())
@@ -203,10 +219,10 @@ public class ReservedInstanceAnalysisRecommendation {
                 .add(action.toString())
                 .add(Integer.toString(count))
                 .add(String.format(Locale.ROOT, "%.5f", onDemandHourlyCost))
-                .add(String.format(Locale.ROOT, "%.5f", riHourlyCost))
+                .add(riHourlyCostString)
                 .add(String.format(Locale.ROOT, "%.5f", hourlyCostSavings))
                 .add(String.format(Locale.ROOT, "%.5f", onDemandHourlyCost - hourlyCostSavings))
-                .add(String.format(Locale.ROOT, "%.5f%%", ((onDemandHourlyCost - riHourlyCost)/onDemandHourlyCost)*100.0f))
+                .add(discountPercentageString)
                 .add(String.format(Locale.ROOT, "%.5f%%", (hourlyCostSavings/onDemandHourlyCost)*100.0f))
                 .add(Integer.toString(numberOfHours))
                 .add(Integer.toString(activeHours))
@@ -329,7 +345,7 @@ public class ReservedInstanceAnalysisRecommendation {
 
     /**
      * Creates the RI Bought object from the buy RI recommendation
-     * 
+     *
      * @return The reserved instance bought info representing this Buy RI recommendation
      */
     public ReservedInstanceBoughtInfo createRiBoughtInfo() {

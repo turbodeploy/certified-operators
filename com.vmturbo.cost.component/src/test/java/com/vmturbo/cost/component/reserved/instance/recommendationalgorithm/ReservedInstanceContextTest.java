@@ -27,6 +27,21 @@ public class ReservedInstanceContextTest {
         .setEntityType(EntityType.COMPUTE_TIER_VALUE)
         .setOid(17)
         .build();
+    private static final TopologyEntityDTO REGION = TopologyEntityDTO.newBuilder()
+                    .setEntityType(EntityType.REGION_VALUE)
+                    .setOid(REGION_ID)
+                    .setDisplayName("REGION")
+                    .build();
+    private static final TopologyEntityDTO REGION_1 = TopologyEntityDTO.newBuilder()
+                    .setEntityType(EntityType.REGION_VALUE)
+                    .setOid(REGION_ID_1)
+                    .setDisplayName("REGION_1")
+                    .build();
+    private static final TopologyEntityDTO REGION_Z = TopologyEntityDTO.newBuilder()
+                    .setEntityType(EntityType.REGION_VALUE)
+                    .setOid(ZONE_ID)
+                    .setDisplayName("REGION_Z")
+                    .build();
 
     /**
      * Test ReservedInstanceRegionalContext construction.
@@ -34,7 +49,7 @@ public class ReservedInstanceContextTest {
     @Test
     public void testReservedInstanceRegionalContextConstructor() {
         ReservedInstanceRegionalContext context = new ReservedInstanceRegionalContext(MASTER_ID,
-            OSType.LINUX, Tenancy.DEFAULT, COMPUTE_TIER, REGION_ID);
+            OSType.LINUX, Tenancy.DEFAULT, COMPUTE_TIER, REGION);
         Assert.assertTrue(context.getMasterAccountId() == MASTER_ID);
         Assert.assertTrue(context.getPlatform() == OSType.LINUX);
         Assert.assertTrue(context.getPlatform() != OSType.WINDOWS);
@@ -44,33 +59,34 @@ public class ReservedInstanceContextTest {
         Assert.assertTrue(context.getComputeTier().equals(COMPUTE_TIER));
         Assert.assertTrue(context.isInstanceSizeFlexible() == true);
         Assert.assertTrue(context.getRegionId() == REGION_ID);
+        Assert.assertTrue("REGION".equals(context.getRegionDisplayName()));
 
         ReservedInstanceContext context1 = new ReservedInstanceRegionalContext(MASTER_ID,
-            OSType.LINUX, Tenancy.DEFAULT, COMPUTE_TIER, REGION_ID);
+            OSType.LINUX, Tenancy.DEFAULT, COMPUTE_TIER, REGION);
         Assert.assertTrue(context1.isInstanceSizeFlexible() == true);
         Assert.assertTrue(context.equals(context1));
         Assert.assertTrue(context.hashCode() == context1.hashCode());
 
         ReservedInstanceContext context2 = new ReservedInstanceRegionalContext(MASTER_ID_1,
-            OSType.WINDOWS, Tenancy.DEFAULT, COMPUTE_TIER, REGION_ID_1);
+            OSType.WINDOWS, Tenancy.DEFAULT, COMPUTE_TIER, REGION_1);
         Assert.assertTrue(context2.isInstanceSizeFlexible() == false);
         Assert.assertFalse(context.equals(context2));
         Assert.assertFalse(context.hashCode() == context2.hashCode());
 
         ReservedInstanceContext context3 = new ReservedInstanceRegionalContext(MASTER_ID_1,
-            OSType.LINUX, Tenancy.HOST, COMPUTE_TIER, REGION_ID_1);
+            OSType.LINUX, Tenancy.HOST, COMPUTE_TIER, REGION_1);
         Assert.assertTrue(context3.isInstanceSizeFlexible() == false);
         Assert.assertFalse(context.equals(context3));
         Assert.assertFalse(context.hashCode() == context3.hashCode());
 
         ReservedInstanceContext context4 = new ReservedInstanceRegionalContext(MASTER_ID,
-            OSType.LINUX, Tenancy.DEFAULT, COMPUTE_TIER_1, REGION_ID);
+            OSType.LINUX, Tenancy.DEFAULT, COMPUTE_TIER_1, REGION);
         Assert.assertTrue(context4.isInstanceSizeFlexible() == true);
         Assert.assertFalse(context.equals(context4));
         Assert.assertFalse(context.hashCode() == context4.hashCode());
 
         ReservedInstanceContext context5 = new ReservedInstanceRegionalContext(MASTER_ID_1,
-            OSType.WINDOWS, Tenancy.DEDICATED, COMPUTE_TIER, REGION_ID_1);
+            OSType.WINDOWS, Tenancy.DEDICATED, COMPUTE_TIER, REGION_1);
         Assert.assertTrue(context5.isInstanceSizeFlexible() == false);
         Assert.assertFalse(context.equals(context5));
         Assert.assertFalse(context.hashCode() == context5.hashCode());
@@ -143,13 +159,14 @@ public class ReservedInstanceContextTest {
         Assert.assertTrue(zonalContext3.isInstanceSizeFlexible() == false);
         Assert.assertFalse(zonalContext.equals(zonalContext3));
 
+        // REGION_Z is a Region with ID == ZONE_ID
         ReservedInstanceContext regionalContext = new ReservedInstanceRegionalContext(MASTER_ID,
-            OSType.LINUX, Tenancy.DEFAULT, COMPUTE_TIER_1, ZONE_ID);
+            OSType.LINUX, Tenancy.DEFAULT, COMPUTE_TIER_1, REGION_Z);
         Assert.assertTrue(regionalContext.isInstanceSizeFlexible() == true);
         Assert.assertFalse(zonalContext.equals(regionalContext));
 
         ReservedInstanceContext regionalContext1 = new ReservedInstanceRegionalContext(MASTER_ID,
-            OSType.LINUX, Tenancy.HOST, COMPUTE_TIER_1, ZONE_ID);
+            OSType.LINUX, Tenancy.HOST, COMPUTE_TIER_1, REGION_Z);
         Assert.assertTrue(regionalContext1.isInstanceSizeFlexible() == false);
         Assert.assertFalse(zonalContext.equals(regionalContext1));
         Assert.assertFalse(regionalContext.equals(regionalContext1));

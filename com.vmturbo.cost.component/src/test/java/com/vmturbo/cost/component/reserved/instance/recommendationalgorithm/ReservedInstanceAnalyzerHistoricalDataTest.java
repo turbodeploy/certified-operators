@@ -19,6 +19,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.component.db.tables.records.ComputeTierTypeHourlyByWeekRecord;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsStore;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.ReservedInstanceData.Platform;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
@@ -63,12 +64,17 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
 
         Assert.assertTrue(result.size() == 1);
 
+        TopologyEntityDTO region = TopologyEntityDTO.newBuilder()
+                        .setEntityType(EntityType.REGION_VALUE)
+                        .setOid(ReservedInstanceAnalyzerConstantsTest.REGION_AWS_OHIO_OID)
+                        .setDisplayName("test region")
+                        .build();
         ReservedInstanceRegionalContext regionalContext = new ReservedInstanceRegionalContext(
             ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_1_OID,
             OSType.LINUX,
             Tenancy.DEFAULT,
             ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_M5_LARGE,
-            ReservedInstanceAnalyzerConstantsTest.REGION_AWS_OHIO_OID);
+            region);
         Assert.assertTrue(result.keySet().contains(regionalContext));
 
 
@@ -323,12 +329,17 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
                 cloudTopology);
         Assert.assertTrue(result.size() == 2);
 
+        TopologyEntityDTO regionOhio = TopologyEntityDTO.newBuilder()
+                        .setEntityType(EntityType.REGION_VALUE)
+                        .setOid(ReservedInstanceAnalyzerConstantsTest.REGION_AWS_OHIO_OID)
+                        .setDisplayName("ohio region")
+                        .build();
         ReservedInstanceRegionalContext regionOhioContext = new ReservedInstanceRegionalContext(
             ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_1_OID,
             OSType.LINUX,
             Tenancy.DEFAULT,
             ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_M5_LARGE,
-            ReservedInstanceAnalyzerConstantsTest.REGION_AWS_OHIO_OID);
+            regionOhio);
         Assert.assertTrue(result.keySet().contains(regionOhioContext));
 
         List<ReservedInstanceZonalContext> ohioZones = result.get(regionOhioContext);
@@ -338,12 +349,17 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
          * Because this is ISF, the compute tier is t2.nano, which is the smallest instance type in
          * t2 family, even though the demand is for t2.micro.
          */
+        TopologyEntityDTO regionOregon = TopologyEntityDTO.newBuilder()
+                        .setEntityType(EntityType.REGION_VALUE)
+                        .setOid(ReservedInstanceAnalyzerConstantsTest.REGION_AWS_OREGON_OID)
+                        .setDisplayName("oregon region")
+                        .build();
         ReservedInstanceRegionalContext regionOregonContext = new ReservedInstanceRegionalContext(
             ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_2_OID,
             OSType.LINUX,
             Tenancy.DEFAULT,
             ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_T2_NANO,
-            ReservedInstanceAnalyzerConstantsTest.REGION_AWS_OREGON_OID);
+            regionOregon);
         Assert.assertTrue(result.keySet().contains(regionOregonContext));
 
         List<ReservedInstanceZonalContext> oregonZones = result.get(regionOregonContext);
@@ -413,12 +429,18 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
                 tierFamilies,
                 cloudTopology);
         Assert.assertTrue(result.size() == 1);
+
+        TopologyEntityDTO regionOregon = TopologyEntityDTO.newBuilder()
+                        .setEntityType(EntityType.REGION_VALUE)
+                        .setOid(ReservedInstanceAnalyzerConstantsTest.REGION_AWS_OREGON_OID)
+                        .setDisplayName("oregon region 2")
+                        .build();
         ReservedInstanceRegionalContext regionOregonContext = new ReservedInstanceRegionalContext(
             ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_2_OID,
             OSType.LINUX,
             Tenancy.DEFAULT,
             ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_T2_NANO,
-            ReservedInstanceAnalyzerConstantsTest.REGION_AWS_OREGON_OID);
+            regionOregon);
         Assert.assertTrue(result.keySet().contains(regionOregonContext));
         List<ReservedInstanceZonalContext> zones = result.get(regionOregonContext);
         Assert.assertTrue(zones != null);
@@ -503,9 +525,9 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
     private Map<String, List<TopologyEntityDTO>> createTierFamilies() {
         Map<String, List<TopologyEntityDTO>> map = new HashMap<>();
         map.put(ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_M5_FAMILY,
-            (List<TopologyEntityDTO>)Arrays.asList(ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_M5_LARGE));
+            Arrays.asList(ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_M5_LARGE));
         map.put(ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_T2_FAMILY,
-            (List<TopologyEntityDTO>)Arrays.asList(ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_T2_NANO,
+            Arrays.asList(ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_T2_NANO,
                                                     ReservedInstanceAnalyzerConstantsTest.COMPUTE_TIER_T2_MICRO));
         return map;
     }

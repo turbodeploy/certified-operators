@@ -23,28 +23,45 @@ public class ReservedInstanceRegionalContext extends ReservedInstanceContext {
     private static final Logger logger = LogManager.getLogger();
 
     // region: e.g. aws-us-east-1
+    private final String regionDisplayName;
     private final long regionId;
 
     /**
-     * Constructor.
+     * Constructor, we only save the Region OID and DisplayName, not whole DTO.
      *
      * @param masterAccountId master account ID.
      * @param platform OS type.
-     * @param tenancy  tenancy.
+     * @param tenancy tenancy.
      * @param computeTier template or instance type.
-     * @param regionId  region ID.
+     * @param region region.
      */
     public ReservedInstanceRegionalContext(@Nonnull long masterAccountId,
                                            @Nonnull OSType platform,
                                            @Nonnull Tenancy tenancy,
                                            @Nonnull TopologyEntityDTO computeTier,
-                                           long regionId) {
+                                           @Nonnull TopologyEntityDTO region) {
         super(masterAccountId, platform, tenancy, computeTier);
-        this.regionId = regionId;
+        TopologyEntityDTO myregion = Objects.requireNonNull(region, "Region is null for RI.");
+        regionId = myregion.getOid();
+        regionDisplayName = myregion.getDisplayName();
     }
 
+    /**
+     * Get the region's OID.
+     *
+     * @return the region's OID.
+     */
     public long getRegionId() {
         return regionId;
+    }
+
+    /**
+     * Get the region's display name.
+     *
+     * @return The region's display name.
+     */
+    public String getRegionDisplayName() {
+        return regionDisplayName;
     }
 
     @Override
@@ -73,9 +90,11 @@ public class ReservedInstanceRegionalContext extends ReservedInstanceContext {
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
-        builder.append("regionId=").append(regionId)
-            .append(" computeTierId=").append(computeTier.getOid())
-            .append(" platform=").append(platform.name())
+        builder.append("region(").append(regionDisplayName)
+            .append(", ").append(regionId)
+            .append(") computeTier(").append(computeTier.getDisplayName())
+            .append(", ").append(computeTier.getOid())
+            .append(") platform=").append(platform.name())
             .append(" tenancy=").append(tenancy.name())
             .append(" masterAccountId=").append(masterAccountId);
         return builder.toString();

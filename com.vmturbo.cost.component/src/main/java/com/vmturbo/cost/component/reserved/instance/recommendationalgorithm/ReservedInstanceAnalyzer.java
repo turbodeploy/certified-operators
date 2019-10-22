@@ -45,6 +45,7 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBloc
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.reservedinstance.recommendationalgorithm.RecommendationKernelAlgorithm;
 import com.vmturbo.commons.reservedinstance.recommendationalgorithm.RecommendationKernelAlgorithmResult;
@@ -439,15 +440,15 @@ public class ReservedInstanceAnalyzer {
                 continue;
             }
             logger.debug("{}Buy RIs for profile={} in context={}",
-                    logTag, buyComputeTier.getDisplayName(), regionalContext);
+                        logTag, buyComputeTier.getDisplayName(), regionalContext);
             // Get the rates for the first instance type we're considering.
             // This will either be the only one, or if instance size flexible
             // this will be the one with the smallest coupon value.
             PricingProviderResult rates = rateAndRIProvider.findRates(regionalContext, purchaseConstraints);
             if (rates == null) {
                 // something went wrong with the looking up rates.
-                logger.warn("analyze() rates are null for regionContext={} and constraints={}",
-                    regionalContext, purchaseConstraints);
+                logger.warn("{}analyze() rates are null for regionContext={} and constraints={}",
+                            logTag, regionalContext, purchaseConstraints);
                 continue;
             }
             clustersAnalyzed++;
@@ -631,15 +632,20 @@ public class ReservedInstanceAnalyzer {
             rateAndRIProvider.lookupReservedInstancesBoughtInfos(regionalContext);
 
         if (CollectionUtils.isEmpty(risBought)) {
-            logger.debug("No bought Regional RI present to be subtracted in cluster {}", regionalContext);
+            logger.debug("No bought Regional RI present to be subtracted in cluster {}",
+                         regionalContext);
             return normalizedDemand;
         }
 
-        int buyComputeTierCoupons = regionalContext.getComputeTier().getTypeSpecificInfo().getComputeTier().getNumCoupons();
+        ComputeTierInfo computeTierInfo = regionalContext.getComputeTier().getTypeSpecificInfo()
+                        .getComputeTier();
+        String family = computeTierInfo.getFamily();
+        int buyComputeTierCoupons = computeTierInfo.getNumCoupons();
         float normalizedCoupons = 0;
         for (ReservedInstanceBoughtInfo boughtInfo: risBought) {
             ReservedInstanceSpec riSpec =
-                rateAndRIProvider.lookupReservedInstanceSpecWithId(boughtInfo.getReservedInstanceSpec());
+                rateAndRIProvider.lookupReservedInstanceSpecWithId(boughtInfo
+                                .getReservedInstanceSpec());
             if (riSpec == null || !boughtInfo.hasBusinessAccountId()) {
                 logger.warn("applyRegionalRIs Skipping RI: {}", boughtInfo);
                 continue;
@@ -650,11 +656,11 @@ public class ReservedInstanceAnalyzer {
                 && boughtInfo.getBusinessAccountId() == regionalContext.getMasterAccountId()
                 && riSpecInfo.getTenancy() == regionalContext.getTenancy()
                 && riSpecInfo.getOs() == regionalContext.getPlatform()
-                && (regionalContext.isInstanceSizeFlexible() ?
-                (regionalContext.getComputeTier().getTypeSpecificInfo().getComputeTier().getFamily() ==
-                    cloudEntities.get(riSpecInfo.getTierId()).getTypeSpecificInfo().getComputeTier().getFamily())
-                : riSpecInfo.getTierId() == regionalContext.getComputeTier().getOid())
-                && (regionalContext.getComputeTier().getTypeSpecificInfo().getComputeTier().getNumCoupons() > 0)) {
+                && (regionalContext.isInstanceSizeFlexible()
+                    ? (Objects.equals(family, cloudEntities.get(riSpecInfo.getTierId())
+                                    .getTypeSpecificInfo().getComputeTier().getFamily()))
+                    : riSpecInfo.getTierId() == regionalContext.getComputeTier().getOid())
+                && buyComputeTierCoupons > 0) {
                 normalizedCoupons +=
                     boughtInfo.getReservedInstanceBoughtCoupons().getNumberOfCoupons() /
                         (float)buyComputeTierCoupons;
