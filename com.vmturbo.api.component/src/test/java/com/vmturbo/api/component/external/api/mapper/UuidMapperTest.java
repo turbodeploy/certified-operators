@@ -32,10 +32,13 @@ import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.ImmutableGroupAndMembers;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
@@ -270,6 +273,118 @@ public class UuidMapperTest {
         assertFalse(id.isPlan());
         assertFalse(id.isEntity());
     }
+
+    /**
+     * Test that cloud tempgroups are accepted as cloud, group, and cloud-group ApiIds.
+     * @throws OperationFailedException never.
+     */
+    @Test
+    public void testIsCloudGroup() throws OperationFailedException {
+        when(groupExpander.getMembersForGroup(any())).thenReturn(
+            ImmutableGroupAndMembers.builder().group(Group.newBuilder().build())
+                .members(Collections.emptyList()).entities(Collections.emptyList()).build());
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReqEmpty();
+        when(repositoryApi.entitiesRequest(any())).thenReturn(req);
+
+        doReturn(GetGroupResponse.newBuilder()
+            .setGroup(Group.newBuilder()
+                .setId(123)
+                .setType(Type.TEMP_GROUP)
+                .setTempGroup(TempGroupInfo.newBuilder()
+                    .setName("foo")
+                    .setEntityType(UIEntityType.VIRTUAL_VOLUME.typeNumber())
+                    .setEnvironmentType(EnvironmentType.CLOUD)
+                )
+                .build())
+            .build()).when(groupServiceBackend).getGroup(GroupID.newBuilder()
+            .setId(123)
+            .build());
+
+        ApiId id = uuidMapper.fromUuid("123");
+        assertTrue(id.isCloudGroup());
+        verify(groupServiceBackend, times(1)).getGroup(any());
+
+        // Test caching
+        assertTrue(id.isCloudGroup());
+        verify(groupServiceBackend, times(1)).getGroup(any());
+
+        assertTrue(id.isCloud());
+        assertTrue(id.isGroup());
+        assertFalse(id.isRealtimeMarket());
+        assertFalse(id.isPlan());
+        assertFalse(id.isEntity());
+    }
+
+    /**
+     * Test that cloud entities and temp-groups are accepted as cloud ApiIds, and that others aren't.
+     * @throws OperationFailedException never
+     */
+    @Test
+    public void testIsCloud() throws OperationFailedException {
+        when(groupExpander.getMembersForGroup(any())).thenReturn(
+            ImmutableGroupAndMembers.builder().group(Group.newBuilder().build())
+                .members(Collections.emptyList()).entities(Collections.emptyList()).build());
+        final MultiEntityRequest req0 = ApiTestUtils.mockMultiEntityReqEmpty();
+        when(repositoryApi.entitiesRequest(any())).thenReturn(req0);
+
+        final SingleEntityRequest req1 = ApiTestUtils.mockSingleEntityRequest(MinimalEntity.newBuilder()
+            .setOid(123)
+            .build());
+        when(repositoryApi.entityRequest(123)).thenReturn(req1);
+
+        final ApiId apiId1 = uuidMapper.fromOid(123);
+        assertTrue(apiId1.isEntity());
+        assertFalse(apiId1.isCloudEntity());
+        assertFalse(apiId1.isCloud());
+
+        final SingleEntityRequest req2 = ApiTestUtils.mockSingleEntityRequest(MinimalEntity.newBuilder()
+            .setOid(456)
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .build());
+        when(repositoryApi.entityRequest(456)).thenReturn(req2);
+
+        final ApiId apiId2 = uuidMapper.fromOid(456);
+        assertTrue(apiId2.isEntity());
+        assertTrue(apiId2.isCloudEntity());
+        assertTrue(apiId2.isCloud());
+
+        doReturn(GetGroupResponse.newBuilder()
+            .setGroup(Group.newBuilder()
+                .setId(789)
+                .setType(Type.TEMP_GROUP)
+                .setTempGroup(TempGroupInfo.newBuilder()
+                    .setName("foo")
+                    .setEntityType(UIEntityType.VIRTUAL_VOLUME.typeNumber())
+                    .setEnvironmentType(EnvironmentType.CLOUD)
+                )
+                .build())
+            .build()).when(groupServiceBackend).getGroup(GroupID.newBuilder()
+            .setId(789)
+            .build());
+
+        ApiId apiId3 = uuidMapper.fromUuid("789");
+        assertTrue(apiId3.isGroup());
+        assertTrue(apiId3.isCloudGroup());
+        assertTrue(apiId3.isCloud());
+
+        doReturn(GetGroupResponse.newBuilder()
+            .setGroup(Group.newBuilder()
+                .setId(13579)
+                .setGroup(GroupInfo.newBuilder()
+                    .setName("bar")
+                    .setEntityType(UIEntityType.VIRTUAL_VOLUME.typeNumber())
+                )
+                .build())
+            .build()).when(groupServiceBackend).getGroup(GroupID.newBuilder()
+            .setId(13579)
+            .build());
+
+        ApiId apiId4 = uuidMapper.fromUuid("13579");
+        assertFalse(apiId4.isCloudGroup());
+        assertTrue(apiId4.isGroup());
+        assertFalse(apiId4.isCloud());
+    }
+
 
     @Test
     public void testGroupIdNotGroup() throws OperationFailedException {

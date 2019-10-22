@@ -205,7 +205,7 @@ public class UuidMapper {
 
         private final boolean globalTempGroup;
 
-        private final Optional<EnvironmentType> globalTempGroupEnv;
+        private final EnvironmentType globalTempGroupEnv;
 
         private final Type groupType;
 
@@ -215,7 +215,13 @@ public class UuidMapper {
 
         private final Set<Long> discoveringTargetIds;
 
-        private CachedGroupInfo(Group group, final Set<Long> discoveringTargetIds) {
+        /**
+         * @param envTypeFromMember the environment type of a member of the group, or
+         *                          EnvironmentType.UNKNOWN_ENV if it could not be determined. It
+         *                          is used if the group's environment type is not already provided.
+         */
+        private CachedGroupInfo(Group group, final Set<Long> discoveringTargetIds,
+                EnvironmentType envTypeFromMember) {
             this.entityType = UIEntityType.fromType(GroupProtoUtil.getEntityType(group));
             // Will be set to false if it's not a temp group, because it's false in the default
             // instance.
@@ -224,7 +230,7 @@ public class UuidMapper {
             this.name = GroupProtoUtil.getGroupName(group);
             this.discoveringTargetIds = discoveringTargetIds;
             this.globalTempGroupEnv = group.getTempGroup().hasEnvironmentType() ?
-                Optional.of(group.getTempGroup().getEnvironmentType()) : Optional.empty();
+                group.getTempGroup().getEnvironmentType() : envTypeFromMember;
         }
 
         public boolean isGlobalTempGroup() {
@@ -238,7 +244,7 @@ public class UuidMapper {
 
         @Nonnull
         public Optional<EnvironmentType> getGlobalEnvType() {
-            return globalTempGroupEnv;
+            return Optional.of(globalTempGroupEnv).filter(type -> type != EnvironmentType.UNKNOWN_ENV);
         }
 
         public Type getGroupType() {
@@ -423,6 +429,16 @@ public class UuidMapper {
             return getCachedGroupInfo().isPresent();
         }
 
+        public boolean isCloudGroup() {
+            return getCachedGroupInfo().flatMap(cgi ->
+                    cgi.getGlobalEnvType().map(envType -> envType == EnvironmentType.CLOUD))
+                .orElse(false);
+        }
+
+        public boolean isCloud() {
+            return isCloudEntity() || isCloudGroup();
+        }
+
         public Optional<Group.Type> getGroupType() {
             return getCachedGroupInfo().map(CachedGroupInfo::getGroupType);
         }
@@ -466,11 +482,20 @@ public class UuidMapper {
                     if (resp.hasGroup()) {
                         final Collection<Long> members =
                             groupExpander.getMembersForGroup(resp.getGroup()).members();
-                        final Set<Long> discoveringTargetIds =
+                        final Set<MinimalEntity> minimalMembers =
                             repositoryApi.entitiesRequest(Sets.newHashSet(members)).getMinimalEntities()
+                                .collect(Collectors.toSet());
+
+                        final EnvironmentType envTypeFromMember = minimalMembers.isEmpty() ?
+                            EnvironmentType.UNKNOWN_ENV :
+                            minimalMembers.iterator().next().getEnvironmentType();
+
+                        final Set<Long> discoveringTargetIds =
+                            minimalMembers.stream()
                                 .flatMap(minEntity -> minEntity.getDiscoveringTargetIdsList().stream())
                                 .collect(Collectors.toSet());
-                        return Optional.of(new CachedGroupInfo(resp.getGroup(), discoveringTargetIds));
+                        return Optional.of(new CachedGroupInfo(resp.getGroup(), discoveringTargetIds,
+                            envTypeFromMember));
                     } else {
                         return Optional.empty();
                     }

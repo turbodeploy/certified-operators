@@ -197,7 +197,8 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                 .forEach(statSnapshot -> {
                     retStats.put(DateTimeUtil.parseTime(statSnapshot.getDate()), statSnapshot.getStatistics());
                 });
-        } else if (context.getInputScope().isRealtimeMarket() || context.getInputScope().isPlan() || context.getInputScope().isCloudEntity()) {
+        } else if (context.getInputScope().isRealtimeMarket() || context.getInputScope().isPlan() ||
+                context.getInputScope().isCloud()) {
             final Set<Long> cloudEntityOids;
             if (context.getInputScope().isPlan()) {
                 cloudEntityOids = supplyChainFetcherFactory.expandScope(context.getQueryScope().getEntities(),
