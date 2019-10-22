@@ -21,6 +21,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Stopwatch;
 
 import org.apache.commons.collections4.CollectionUtils;
@@ -134,6 +135,9 @@ public class ReservedInstanceAnalyzer {
      */
     private final ReservedInstanceAnalyzerHistoricalData historicalDemandDataReader;
 
+
+    private final float preferredCurrentWeight;
+
    /**
      * Construct an analyzer.
      *
@@ -148,6 +152,7 @@ public class ReservedInstanceAnalyzer {
      * @param buyRiStore Place to store all the buy RIs suggested by this algorithm
      * @param actionContextRIBuyStore the class to perform database operation on the cost.action_context_ri_buy
      * @param realtimeTopologyContextId realtime topology context id
+     * @param preferredCurrentWeight The weight of the current value when added to the  historical data.
      */
     public ReservedInstanceAnalyzer(@Nonnull SettingServiceBlockingStub settingsServiceClient,
                                     @Nonnull RepositoryServiceBlockingStub repositoryClient,
@@ -159,7 +164,8 @@ public class ReservedInstanceAnalyzer {
                                     @Nonnull ReservedInstanceActionsSender actionsSender,
                                     @Nonnull BuyReservedInstanceStore buyRiStore,
                                     @Nonnull ActionContextRIBuyStore actionContextRIBuyStore,
-                                    final long realtimeTopologyContextId) {
+                                    final long realtimeTopologyContextId,
+                                    final float preferredCurrentWeight) {
         this.settingsServiceClient = Objects.requireNonNull(settingsServiceClient);
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
         this.cloudTopologyFactory = Objects.requireNonNull(cloudTopologyFactory);
@@ -180,8 +186,24 @@ public class ReservedInstanceAnalyzer {
         this.riBoughtStore = Objects.requireNonNull(riBoughtStore);
         this.riSpecStore = Objects.requireNonNull(riSpecStore);
         this.priceTableStore = Objects.requireNonNull(priceTableStore);
-
+        this.preferredCurrentWeight = preferredCurrentWeight;
         logger.debug("ReservedInstanceAnalyzer constructor");
+    }
+
+    @VisibleForTesting
+    protected ReservedInstanceAnalyzer() {
+        this.settingsServiceClient = null;
+        this.repositoryClient = null;
+        this.cloudTopologyFactory = null;
+        this.actionsSender = null;
+        this.buyRiStore = null;
+        this.actionContextRIBuyStore = null;
+        this.realtimeTopologyContextId = 1l;
+        this.historicalDemandDataReader = null;
+        this.riBoughtStore = null;
+        this.riSpecStore = null;
+        this.priceTableStore = null;
+        this.preferredCurrentWeight = 0.6f;
     }
 
     /**
@@ -411,31 +433,11 @@ public class ReservedInstanceAnalyzer {
             // it must be the smallest compute tier for this family.
             TopologyEntityDTO buyComputeTier = regionalContext.getComputeTier();
 
-            Map<ReservedInstanceZonalContext, float[]> dBDemand =
-                getDemandFromDB(scope, zonalContexts, demandDataType);
+            ReservedInstanceDataProcessor dataProcessor = new ReservedInstanceDataProcessor(historicalDemandDataReader,
+                    regionalContext, zonalContexts, scope, demandDataType, cloudTopology, rateAndRIProvider, preferredCurrentWeight);
+            final float[] riBuyDemand = dataProcessor.getRIBuyDemand();
 
-            /*
-             * We are doing a deep copy here because the original map gets modified in subsequent
-             * steps (through normalization). dBDemandDeepCopy is going to be used for RI
-             * Buy graph where we want to show values from the DB (in terms of NFU's) rather than
-             * the normalized values.
-             */
-            final Map<ReservedInstanceZonalContext, float[]> dBDemandDeepCopy = dBDemand.entrySet()
-                    .stream()
-                    .collect(Collectors.toMap(e -> e.getKey(), e -> Arrays.copyOf(e.getValue(),
-                            e.getValue().length)));
-
-            // get the historical demand for each RI context
-            Map<ReservedInstanceZonalContext, float[]> riContextDemand =
-                    normalizeDemand(dBDemand, regionalContext, cloudTopology, logTag);
-            // apply zonal RIs
-            float[] normalizedDemand =
-                    applyZonalRIsToCluster(riContextDemand, regionalContext, rateAndRIProvider);
-            // apply regional RIs and return the normalized array of demands
-            normalizedDemand =
-                    applyRegionalRIs(normalizedDemand, regionalContext, rateAndRIProvider,
-                            cloudTopology.getEntities());
-            if (ArrayUtils.isEmpty(normalizedDemand)) {
+            if (ArrayUtils.isEmpty(riBuyDemand)) {
                 logger.debug("{}no demand for cluster {}", logTag, regionalContext);
                 continue;
             }
@@ -454,45 +456,68 @@ public class ReservedInstanceAnalyzer {
             clustersAnalyzed++;
             RecommendationKernelAlgorithmResult kernelResult;
             kernelResult = RecommendationKernelAlgorithm.computation(rates.getOnDemandRate(),
-                rates.getReservedInstanceRate(), normalizedDemand, regionalContext.toString(), logTag);
+                rates.getReservedInstanceRate(), riBuyDemand, regionalContext.toString(), logTag);
             if (kernelResult == null) {
                 continue;
             }
-            int activeHours = countActive(normalizedDemand, logTag);
+            int activeHours = countActive(riBuyDemand, logTag);
             ReservedInstanceAnalysisRecommendation recommendation = generateRecommendation(scope,
                     regionalContext, purchaseConstraints, kernelResult, rates, rateAndRIProvider,
                 activeHours);
             if (recommendation != null) {
                 recommendations.add(recommendation);
                 if (recommendation.getCount() > 0) {
-                    final Map<TopologyEntityDTO, Float[]> templateTypeHourlyDemand = new HashMap<>();
-                    for (Entry<ReservedInstanceZonalContext, float[]> e : dBDemandDeepCopy.entrySet()) {
-                        final ReservedInstanceZonalContext zonalContext = e.getKey();
-                        final float[] currentDemandInWorkLoad = e.getValue();
-
-                        final TopologyEntityDTO computeTier = zonalContext.getComputeTier();
-                        final int numberOfCoupons = computeTier.getTypeSpecificInfo()
-                                .getComputeTier().getNumCoupons();
-
-                        Float[] demandInCoupons = templateTypeHourlyDemand.get(computeTier);
-                        if (ArrayUtils.isEmpty(demandInCoupons)) {
-                            demandInCoupons = new Float[currentDemandInWorkLoad.length];
-                            Arrays.fill(demandInCoupons, 0f);
-                        }
-
-                        // Add the current demand to the existing demand for the same template type.
-                        // Also convert the '-1' demand to 0 for the context.
-                        for (int i = 0; i < demandInCoupons.length; i++) {
-                            demandInCoupons[i] = demandInCoupons[i] + Math.max(0, (currentDemandInWorkLoad[i]
-                                    * numberOfCoupons));
-                        }
-                        templateTypeHourlyDemand.put(computeTier, demandInCoupons);
-                    }
-                    recommendation.setTemplateTypeHourlyDemand(templateTypeHourlyDemand);
+                    // Get the graph data.
+                    Map<TopologyEntityDTO, float[]> riBuyChartDemand = dataProcessor.getRIBuyChartDemand();
+                    float hourlyOnDemandCost = getHourlyOnDemandCost(riBuyChartDemand,
+                            regionalContext, rateAndRIProvider);
+                    recommendation.setEstimatedOnDemandCost(hourlyOnDemandCost *
+                            ReservedInstanceAnalyzerRateAndRIs.HOURS_IN_A_MONTH
+                            * 12 * recommendation.getTermInYears());
+                    recommendation.setTemplateTypeHourlyDemand(riBuyChartDemand);
                 }
             }
         }
         return recommendations;
+    }
+
+    /**
+     * An ISF RI can cover multiple compute tiers. A non ISF RI covers only a single computer tier.
+     * This method based on what type of recommendation (ISF RI or non ISF RI) returns the on demand
+     * cost of all compute tiers being covered or just the single compute tier being covered. This
+     * method also factors in how much demand each of that compute tier had.
+     *
+     * @param templateTypeHourlyDemand mapping from template to demand in coupons.
+     * @param regionalContext Regional Context.
+     * @param rateAndRIProvider Facade to access the rate and reserved instances.
+     * @return the average hourly charges for the weekly demand.
+     */
+    public float getHourlyOnDemandCost(final Map<TopologyEntityDTO, float[]> templateTypeHourlyDemand,
+                                       ReservedInstanceRegionalContext regionalContext,
+                                       ReservedInstanceAnalyzerRateAndRIs rateAndRIProvider) {
+        float totalCostAcrossWorkloads = 0f;
+        for (Entry<TopologyEntityDTO, float[]> entry : templateTypeHourlyDemand.entrySet()) {
+            /**
+             * An ISF RI Buy recommendation can have different compute tiers covered.
+             * We want to calculate the on demand cost of each of those different compute tier demand.
+             * We constuct a new ReservedInstanceRegionalContext using the compute tier of the current
+             * template. The reason in doing so is to be able to use the existing
+             * rateAndRIProvider:: lookupOnDemandRate.
+             */
+            ReservedInstanceRegionalContext newRegionalContext = new ReservedInstanceRegionalContext
+                    (regionalContext.getMasterAccountId(), regionalContext.getPlatform(),
+                            regionalContext.getTenancy(), entry.getKey(), regionalContext.getRegion());
+            float onDemandPrice = rateAndRIProvider.lookupOnDemandRate(newRegionalContext);
+            int numberOfCoupons = entry.getKey().getTypeSpecificInfo().getComputeTier().getNumCoupons();
+            float weeklyWorkloadDemand = 0f;
+            // The demand is in terms of zonal coupons. So inorder to get actual workload demand we
+            // divide each demand by the corresponding zonal coupons.
+            for (float f : entry.getValue()) {
+                weeklyWorkloadDemand += (f / numberOfCoupons);
+            }
+            totalCostAcrossWorkloads += (weeklyWorkloadDemand * onDemandPrice);
+        }
+        return (totalCostAcrossWorkloads / ReservedInstanceDataProcessor.WEEKLY_DEMAND_DATA_SIZE);
     }
 
     private int countActive(@Nonnull float[] normalizedDemand, @Nonnull String logTag) {
@@ -512,166 +537,6 @@ public class ReservedInstanceAnalyzer {
     private static String generateLogTag() {
         int count = logTagCounter.getAndIncrement();
         return String.format("RILT%04d: ", count);
-    }
-
-    /**
-     * Apply zonal RI with the demand. The instance type in the context may be different than the
-     * instance type in the cluster if instance size flexible. Then we combine the results with
-     * combineDemand. We Also remove the negative unpopulated data points before return the array
-     * of demands.
-     *
-     * @param zonalContextDemands a map of from zonal context to demand.
-     * @param regionalContext       the scope of analysis, regionalContext.
-     * @param priceAndRIProvider   provider of rates and RIs.
-     * @return a normalized array of demands.
-     */
-    @Nullable
-    float[] applyZonalRIsToCluster(@Nonnull Map<ReservedInstanceZonalContext, float[]> zonalContextDemands,
-                                   @Nonnull ReservedInstanceRegionalContext regionalContext,
-                                   @Nonnull ReservedInstanceAnalyzerRateAndRIs priceAndRIProvider) {
-
-        List<float[]> demands = new ArrayList<>();
-        for (ReservedInstanceZonalContext zonalContext : zonalContextDemands.keySet()) {
-            float[] demand = applyZonalRIs(zonalContextDemands.get(zonalContext),
-                    zonalContext, regionalContext.getComputeTier(), priceAndRIProvider);
-            if (demand != null) {
-                demands.add(demand);
-            }
-        }
-        float[] combinedDemand = combineDemand(demands);
-        return removeNegativeDataPoints(combinedDemand);
-    }
-
-    /**
-     * Return demand adjusted by coupons from applicable zonal RIs.
-     * For zonal RIs, instance size flexible is not allowed.
-     * Multiple zonal RIs can apply to a single context.  Only one context can apply to a zonal RI.
-     *
-     * @param normalizedDemand historical demand, in normalized coupons.
-     * @param zonalContext the context that is looking for zonal RIs.
-     * @param buyComputeTier the compute tier buying RIs for and whose number of coupons normalizes RI coupons.
-     * @param priceAndRIProvider   provider of rates and RIs.
-     * @return normalizedDemand adjust for zonal RIs.
-     */
-    float[] applyZonalRIs(@Nullable float[] normalizedDemand,
-                          @Nonnull ReservedInstanceZonalContext zonalContext,
-                          @Nonnull TopologyEntityDTO buyComputeTier,
-                          @Nonnull ReservedInstanceAnalyzerRateAndRIs priceAndRIProvider) {
-        List<ReservedInstanceBoughtInfo> risBought =
-            priceAndRIProvider.lookupReservedInstanceBoughtInfos(zonalContext.getMasterAccountId(),
-                zonalContext.getAvailabilityZoneId());
-
-        if (CollectionUtils.isEmpty(risBought)) {
-            logger.debug("No bought Zonal RI present to be subtracted in cluster {}", zonalContext);
-            return normalizedDemand;
-        }
-
-        int normalizedCoupons = risBought.stream()
-                .mapToInt(riBoughtInfo -> {
-                    ReservedInstanceSpec riSpec =
-                        priceAndRIProvider.lookupReservedInstanceSpecWithId(riBoughtInfo.getReservedInstanceSpec());
-                    if (riSpec == null) {
-                        logger.warn("RISpec is null. Skipping RI: {}", riBoughtInfo);
-                        //skip this RI.
-                        return 0;
-                    }
-                    ReservedInstanceSpecInfo riSpecInfo = riSpec.getReservedInstanceSpecInfo();
-                    if (riSpecInfo.getTenancy() == zonalContext.getTenancy()
-                            && riSpecInfo.getOs() == zonalContext.getPlatform()
-                            && riSpecInfo.getTierId() == zonalContext.getComputeTier().getOid()) {
-                        return (riBoughtInfo.getReservedInstanceBoughtCoupons().getNumberOfCoupons() /
-                            buyComputeTier.getTypeSpecificInfo().getComputeTier().getNumCoupons());
-                    }
-                    return 0;
-                })
-                .sum();
-
-        if (normalizedCoupons == 0) {
-            logger.debug("no zonal RIs applicable in context {}", zonalContext);
-            return normalizedDemand;
-        }
-        return subtractCouponsFromDemand(normalizedDemand, normalizedCoupons);
-    }
-
-    /** Returns a mapping of zonal contexts with their demand from the DB.
-     *
-     * @param scope analysis scope.
-     * @param zonalContexts a list of zonal contexts associated with the regional context.
-     * @param demandDataType what demand to use for the analysis? E.g. allocation or consumption.
-     * @return A mapping of zonal contexts with their demand from the DB.
-     */
-    private Map<ReservedInstanceZonalContext, float[]> getDemandFromDB(ReservedInstanceAnalysisScope scope,
-                                                                       List<ReservedInstanceZonalContext> zonalContexts,
-                                                                       ReservedInstanceHistoricalDemandDataType demandDataType) {
-        Map<ReservedInstanceZonalContext, float[]> demands = new HashMap<>();
-        for (ReservedInstanceZonalContext context : zonalContexts) {
-            float[] demand = historicalDemandDataReader.getDemand(scope, context, demandDataType);
-            demands.put(context, demand);
-        }
-        return demands;
-    }
-
-    /**
-     * Return demand adjusted by regional RIs.
-     *
-     * @param normalizedDemand historical demand, in coupons normalized by regional context's compute tier.
-     * @param regionalContext scope of analysis cluster.
-     * @param rateAndRIProvider provider of rates and RIs.
-     * @param cloudEntities dictionary for cloud entities.
-     * @return normalized demand adjusted by regional RIs
-     */
-    float[] applyRegionalRIs(float[] normalizedDemand,
-                             @Nonnull ReservedInstanceRegionalContext regionalContext,
-                             @Nonnull ReservedInstanceAnalyzerRateAndRIs rateAndRIProvider,
-                             @Nonnull Map<Long, TopologyEntityDTO> cloudEntities) {
-        Objects.requireNonNull(regionalContext);
-        Objects.requireNonNull(rateAndRIProvider);
-        Objects.requireNonNull(cloudEntities);
-
-        List<ReservedInstanceBoughtInfo> risBought =
-            rateAndRIProvider.lookupReservedInstancesBoughtInfos(regionalContext);
-
-        if (CollectionUtils.isEmpty(risBought)) {
-            logger.debug("No bought Regional RI present to be subtracted in cluster {}",
-                         regionalContext);
-            return normalizedDemand;
-        }
-
-        ComputeTierInfo computeTierInfo = regionalContext.getComputeTier().getTypeSpecificInfo()
-                        .getComputeTier();
-        String family = computeTierInfo.getFamily();
-        int buyComputeTierCoupons = computeTierInfo.getNumCoupons();
-        float normalizedCoupons = 0;
-        for (ReservedInstanceBoughtInfo boughtInfo: risBought) {
-            ReservedInstanceSpec riSpec =
-                rateAndRIProvider.lookupReservedInstanceSpecWithId(boughtInfo
-                                .getReservedInstanceSpec());
-            if (riSpec == null || !boughtInfo.hasBusinessAccountId()) {
-                logger.warn("applyRegionalRIs Skipping RI: {}", boughtInfo);
-                continue;
-            }
-            ReservedInstanceSpecInfo riSpecInfo = riSpec.getReservedInstanceSpecInfo();
-            if (riSpecInfo.getRegionId() == regionalContext.getRegionId()
-                // might have to look up master account for boughtInfo
-                && boughtInfo.getBusinessAccountId() == regionalContext.getMasterAccountId()
-                && riSpecInfo.getTenancy() == regionalContext.getTenancy()
-                && riSpecInfo.getOs() == regionalContext.getPlatform()
-                && (regionalContext.isInstanceSizeFlexible()
-                    ? (Objects.equals(family, cloudEntities.get(riSpecInfo.getTierId())
-                                    .getTypeSpecificInfo().getComputeTier().getFamily()))
-                    : riSpecInfo.getTierId() == regionalContext.getComputeTier().getOid())
-                && buyComputeTierCoupons > 0) {
-                normalizedCoupons +=
-                    boughtInfo.getReservedInstanceBoughtCoupons().getNumberOfCoupons() /
-                        (float)buyComputeTierCoupons;
-            }
-        }
-        if (normalizedCoupons == 0) {
-            logger.debug("No regional RIs applicable in cluster {}", regionalContext);
-            return normalizedDemand;
-        }
-
-        return subtractCouponsFromDemand(normalizedDemand, normalizedCoupons);
     }
 
     /**
@@ -744,215 +609,6 @@ public class ReservedInstanceAnalyzer {
 
         return recommendation;
     }
-
-    /**
-     * Normalize the demand for an analysis cluster.  This is required for instance size flexible
-     * where demand from different size templates are analyzed together.
-     * The demand for each zonal context is normalized by the number of coupons for the regional
-     * cluster's compute tier.
-     * Note dbDemand, which was obtained from the database, may contain "-1" values.
-     * Want the number of coupons relative to compute tier that RIs are bought for, buyComputeTier.
-     * For example, "c4" family, minimum size if 'large', which is 8 coupons, want the
-     * number of coupons normalized by 8.
-     * Constraint:
-     *   zonalContext.getInstanceType().getNumberOfCoupons() >= regionalContext.getInstanceType().getNumberOfCoupons()
-     *
-     * @param dBDemand a map from zonal context to demand.
-     * @param regionalContext  the scope of analysis cluster, a regional context.
-     * @param cloudTopology topology entity dictionary for cloud entities.
-     * @param logTag tag for logging messages.
-     * @return a map from zonal context to array of demand.
-     */
-    Map<ReservedInstanceZonalContext, float[]> normalizeDemand(Map<ReservedInstanceZonalContext, float[]> dBDemand,
-                                                               ReservedInstanceRegionalContext regionalContext,
-                                                               TopologyEntityCloudTopology cloudTopology,
-                                                               String logTag) {
-
-        Map<ReservedInstanceZonalContext, float[]> demands = new HashMap<>();
-        // why isn't the next line: regionCoupons = regionalContext.getComputeTier().getNumCoupons();
-        int regionCoupons = regionalContext.getComputeTier().getTypeSpecificInfo().getComputeTier().getNumCoupons();
-        for (Entry<ReservedInstanceZonalContext, float[]> entry : dBDemand.entrySet()) {
-            float[] demand = entry.getValue();
-            ReservedInstanceZonalContext zonalContext = entry.getKey();
-            int normalizedCoupons = 1;
-            int zonalCoupons = zonalContext.getComputeTier().getTypeSpecificInfo().getComputeTier().getNumCoupons();
-            if (regionCoupons <= 0 || zonalCoupons < regionCoupons) {
-                logger.error("{}context.getInstanceType().getNumberOfCoupons() {} < profile" +
-                        ".getNumberOfCoupons() {} for {}",
-                        logTag, zonalCoupons, regionCoupons, zonalContext.toString());
-            } else {
-                normalizedCoupons = zonalCoupons / regionCoupons;
-            }
-            demand = multiplyByCoupons(demand, normalizedCoupons);
-
-            if (demand != null) {
-                demands.put(zonalContext, demand);
-            }
-        }
-        return demands;
-    }
-
-    /**
-     * Aggregates up multiple demand histories. For example, to add together zone
-     * demand to get regional demand or to add instance types across a region.
-     *
-     * <p>All arrays must be of the same length.
-     * Because the database can return an array with values of -1, to indicate the data has never been populated,
-     * this routine does not remove -1 data values.
-     * </p>
-     *
-     * @param demandHistories a list of one or more demand arrays, which must all be the same length.
-     *                       Can be null or empty if there is no demand.  A demand array may contain "-1" values.
-     * @return the combined demand.
-     */
-    @Nullable
-    protected float[] combineDemand(@Nullable List<float[]> demandHistories) {
-        if (CollectionUtils.isEmpty(demandHistories)) {
-            return null;
-        }
-
-        // assumption all arrays are of the same length.
-        int length = demandHistories.get(0).length;
-
-        for (float[] demandHistory : demandHistories) {
-            assert length == demandHistory.length;
-        }
-
-        // combined result may contain "-1" values to ensure proper combining.
-        float[] combinedResult = new float[length];
-        Arrays.fill(combinedResult, -1f);  // initialize to unpopulated.
-
-        boolean foundData = false;
-        for (float[] demandHistory : demandHistories) {
-            for (int i = 0; i < demandHistory.length; i++) {
-                // Only write non negative values to result.
-                if (demandHistory[i] >= 0) { // do not add unpopulated data (-1).
-                    foundData = true;
-                    if (combinedResult[i] < 0f) {  // if unpopulated, set to demand history
-                        combinedResult[i] = demandHistory[i];
-                    } else {
-                        combinedResult[i] += demandHistory[i];
-                    }
-                }
-            }
-        }
-
-        if (!foundData) {
-            return null;
-        } else {
-            return combinedResult;
-        }
-    }
-
-    /**
-     * Given an array of floats, remove the negative values.
-     *
-     * @param demand data that may contain "-1".
-     * @return demand with "-1" removed.
-     */
-    @Nullable
-    protected float[] removeNegativeDataPoints(float[] demand) {
-        if (ArrayUtils.isEmpty(demand)) {
-            return null;
-        }
-        // remove all "-1" from data
-        ArrayList<Float> resultList = new ArrayList<>();
-        for (int i = 0; i < demand.length; i++) {
-            if (demand[i] >= 0) {
-                resultList.add(demand[i]);
-            }
-        }
-        if (resultList.size() == 0) {
-            return null;
-        }
-
-        // convert to float array.
-        float[] results = new float[resultList.size()];
-        int i = 0;
-        for (Float f: resultList) {
-            results[i++] = (f != null ? f : 0f);
-        }
-        return results;
-    }
-
-    /**
-     * Given an array of floats, sum the values. Ignoring any negative entries.
-     *
-     * @param demand data that may contain "-1".
-     * @return demand with "-1" removed.
-     */
-    @Nullable
-    protected float sumDataPoints(float[] demand) {
-        float result = 0f;
-        if (ArrayUtils.isEmpty(demand)) {
-            return result;
-        }
-        for (int i = 0; i < demand.length; i++) {
-            if (demand[i] >= 0) {
-                result = demand[i] + result;
-            }
-        }
-        return result;
-    }
-
-
-    @Nullable
-    protected float[] multiplyByCoupons(float[] demand, int coupons) {
-        boolean foundValue = false;
-        for (int i = 0; i < demand.length; i++) {
-            if (demand[i] > 0) {
-                // do not multiply un-populated data by number of coupons.
-                demand[i] *= coupons;
-                foundValue = true;
-            }
-        }
-        if (foundValue) {
-            return demand;
-        }
-        return null;
-    }
-
-    /**
-     * Compute uncovered demand: given a demand history, subtract out the demand that
-     * is covered by existing RIs.
-     * Two cases:
-     * 1) A data point in the demand history is populated
-     * and has a value > 0, then don't allow value to go negative.
-     * 2) A data point in the demand history is not populated and has a value == "-1", keep its value as "-1".
-     *
-     * @param demand Historical demand, on coupons, over time.
-     * @param coupons The number of coupons to be subtracted from the demand.
-     *                Guaranteed to be greater than 0.
-     * @return the adjusted historical demand.  The length is the same as the input demand array.
-     */
-    @Nullable
-    protected float[] subtractCouponsFromDemand(@Nullable float[] demand, float coupons) {
-        if (ArrayUtils.isEmpty(demand)) {
-            return null;
-        }
-        if (coupons == 0) {
-            return demand;
-        }
-        float[] adjustedDemand = new float[demand.length];
-
-        boolean containsANonZeroValue = false;
-        for (int i = 0; i < demand.length; i++) {
-            // if un-populated data, i.e. "-1", then keep
-            if (demand[i] > 0) {
-                // Do not allow populated data to go negative.
-                containsANonZeroValue = true;
-                adjustedDemand[i] = Math.max(0.0f, demand[i] - coupons);
-            } else {
-                adjustedDemand[i] = demand[i];  // this could be 0 or "-1"
-            }
-        }
-
-        if (containsANonZeroValue == false) {
-            return null;
-        }
-        return adjustedDemand;
-    }
-
 
     /**
      * Group ComputeTiers into families, sorted by coupon value within each family.

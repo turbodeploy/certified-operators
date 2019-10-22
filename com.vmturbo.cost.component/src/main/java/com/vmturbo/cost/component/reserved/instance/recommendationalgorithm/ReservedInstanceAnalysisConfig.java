@@ -36,6 +36,9 @@ public class ReservedInstanceAnalysisConfig {
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
+    @Value("${preferredCurrentWeight}")
+    private float preferredCurrentWeight;
+
     @Autowired
     private ComputeTierDemandStatsConfig computeTierDemandStatsConfig;
 
@@ -83,7 +86,7 @@ public class ReservedInstanceAnalysisConfig {
                 reservedInstanceActionsSenderConfig.actionSender(),
                 reservedInstanceConfig.buyReservedInstanceStore(),
                 reservedInstanceConfig.actionContextRIBuyStore(),
-                realtimeTopologyContextId);
+                realtimeTopologyContextId, preferredCurrentWeight);
     }
 
     public ReservedInstanceBoughtStore reservedInstanceBoughtStore() {

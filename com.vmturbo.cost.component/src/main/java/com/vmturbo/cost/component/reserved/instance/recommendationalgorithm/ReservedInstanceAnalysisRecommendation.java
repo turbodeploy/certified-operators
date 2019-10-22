@@ -121,11 +121,16 @@ public class ReservedInstanceAnalysisRecommendation {
 
     private final ReservedInstanceSpec riSpec;
 
+    /**
+     * The dollar amount you would pay for the workloads if you don't buy this RI.
+     */
+    private float estimatedOnDemandCost;
+
     /*
      How much hourly demand each template had for a week based on which this RI Buy recommendation
      was generated.
     */
-    private Map<TopologyEntityDTO, Float[]> templateTypeHourlyDemand;
+    private Map<TopologyEntityDTO, float[]> templateTypeHourlyDemand;
 
     public ReservedInstanceAnalysisRecommendation(@Nonnull String logTag,
                                                   @Nonnull String actionGoal,
@@ -335,18 +340,36 @@ public class ReservedInstanceAnalysisRecommendation {
         return buyRiId;
     }
 
-    public Map<TopologyEntityDTO, Float[]> getTemplateTypeHourlyDemand() {
+    public Map<TopologyEntityDTO, float[]> getTemplateTypeHourlyDemand() {
         return templateTypeHourlyDemand;
     }
 
-    public void setTemplateTypeHourlyDemand(final Map<TopologyEntityDTO, Float[]> templateTypeHourlyDemand) {
+    public void setTemplateTypeHourlyDemand(final Map<TopologyEntityDTO, float[]> templateTypeHourlyDemand) {
         this.templateTypeHourlyDemand = templateTypeHourlyDemand;
     }
 
     /**
-     * Creates the RI Bought object from the buy RI recommendation
+     * Gets the dollar amount you would pay for the workloads if you don't buy this RI.
      *
-     * @return The reserved instance bought info representing this Buy RI recommendation
+     * @return on demand dollar amount.
+     */
+    public float getEstimatedOnDemandCost() {
+        return estimatedOnDemandCost;
+    }
+
+    /**
+     * Gets the dollar amount you would pay for the workloads if you don't buy this RI.
+     *
+     * @param estimatedOnDemandCost The estimated OnDemand Cost.
+     */
+    public void setEstimatedOnDemandCost(final float estimatedOnDemandCost) {
+        this.estimatedOnDemandCost = estimatedOnDemandCost;
+    }
+
+    /**
+     * Creates the RI Bought object from the buy RI recommendation.
+     * 
+     * @return The reserved instance bought info representing this Buy RI recommendation.
      */
     public ReservedInstanceBoughtInfo createRiBoughtInfo() {
         // TODO: Set the costs once it is ready
@@ -389,7 +412,7 @@ public class ReservedInstanceAnalysisRecommendation {
         int instanceTypeCoupons = computeTier.getNumCoupons();
         final float totalAverageDemand = averageCouponDemand * instanceTypeCoupons;
         float coveredAverageDemand = getRiUtilization() * count * instanceTypeCoupons;
-        float estimatedOnDemandCost = 0f;
+        float estimatedOnDemandCost = getEstimatedOnDemandCost();
 
         Explanation explanation = Explanation.newBuilder()
                 .setBuyRI(BuyRIExplanation.newBuilder()

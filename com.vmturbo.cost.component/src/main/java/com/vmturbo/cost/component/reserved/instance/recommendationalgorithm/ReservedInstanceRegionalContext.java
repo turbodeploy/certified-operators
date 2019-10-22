@@ -23,9 +23,7 @@ public class ReservedInstanceRegionalContext extends ReservedInstanceContext {
     private static final Logger logger = LogManager.getLogger();
 
     // region: e.g. aws-us-east-1
-    private final String regionDisplayName;
-    private final long regionId;
-
+    private final TopologyEntityDTO region;
     /**
      * Constructor, we only save the Region OID and DisplayName, not whole DTO.
      *
@@ -41,9 +39,16 @@ public class ReservedInstanceRegionalContext extends ReservedInstanceContext {
                                            @Nonnull TopologyEntityDTO computeTier,
                                            @Nonnull TopologyEntityDTO region) {
         super(masterAccountId, platform, tenancy, computeTier);
-        TopologyEntityDTO myregion = Objects.requireNonNull(region, "Region is null for RI.");
-        regionId = myregion.getOid();
-        regionDisplayName = myregion.getDisplayName();
+        this.region = Objects.requireNonNull(region, "Region is null for RI.");
+    }
+
+    /**
+     * Returns the region for this regional context.
+     *
+     * @return region for this regional context.
+     */
+    public TopologyEntityDTO getRegion() {
+        return region;
     }
 
     /**
@@ -52,7 +57,7 @@ public class ReservedInstanceRegionalContext extends ReservedInstanceContext {
      * @return the region's OID.
      */
     public long getRegionId() {
-        return regionId;
+        return region.getOid();
     }
 
     /**
@@ -61,7 +66,7 @@ public class ReservedInstanceRegionalContext extends ReservedInstanceContext {
      * @return The region's display name.
      */
     public String getRegionDisplayName() {
-        return regionDisplayName;
+        return region.getDisplayName();
     }
 
     @Override
@@ -79,19 +84,19 @@ public class ReservedInstanceRegionalContext extends ReservedInstanceContext {
             return false;
         }
         final ReservedInstanceRegionalContext context = (ReservedInstanceRegionalContext)o;
-        return super.equals(o) && Objects.equals(regionId, context.getRegionId());
+        return super.equals(o) && Objects.equals(getRegionId(), context.getRegionId());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(regionId, platform, tenancy, computeTier, masterAccountId);
+        return Objects.hash(getRegionId(), platform, tenancy, computeTier, masterAccountId);
     }
 
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
-        builder.append("region(").append(regionDisplayName)
-            .append(", ").append(regionId)
+        builder.append("region(").append(getRegionDisplayName())
+            .append(", ").append(getRegionId())
             .append(") computeTier(").append(computeTier.getDisplayName())
             .append(", ").append(computeTier.getOid())
             .append(") platform=").append(platform.name())

@@ -56,7 +56,8 @@ public class ReservedInstanceAnalyzerRateAndRIs {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private static final int HOURS_IN_A_MONTH = 730;
+    // Hours in a month.
+    public static final int HOURS_IN_A_MONTH = 730;
 
     /*
      * Inputs: set with populate* methods and only accessed threw lookup* methods.
