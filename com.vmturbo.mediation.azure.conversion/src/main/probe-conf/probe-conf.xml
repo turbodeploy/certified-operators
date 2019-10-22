@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <probe>
     <full-class-name>com.vmturbo.mediation.azure.AzureConversionProbe</full-class-name>
-    <type>Azure</type>
+    <type>Azure Subscription</type>
     <category>Cloud Management</category>
     <version>1.0.0</version>
     <creation-mode>DERIVED</creation-mode>

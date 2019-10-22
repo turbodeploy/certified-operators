@@ -11,6 +11,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -64,9 +65,9 @@ public class KVBackedProbePropertyStore implements ProbePropertyStore {
             // Disable saving the cost.usage.report for AWS and Azure. The SDK probes won't be
             // able to write the report to disk (because it's a read-only volume), so enabling
             // these will break discovery.
-            .put("AWS Billing", ImmutableMap.of("probe.AWS Billing.save.cost.usage.report", "true",
+            .put(SDKProbeType.AWS_BILLING.getProbeType(), ImmutableMap.of("probe.AWS Billing.save.cost.usage.report", "true",
                     "probe.AWS Billing.tmp.diags.dir", "/tmp/diags/aws/billing/"))
-            .put("Azure", ImmutableMap.of("probe.Azure.save.cost.usage.report", "false"))
+            .put(SDKProbeType.AZURE.getProbeType(), ImmutableMap.of("probe.Azure.save.cost.usage.report", "false"))
             .build();
 
     /**
