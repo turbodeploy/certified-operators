@@ -33,7 +33,10 @@ public class ComputeTierDemandStatsStore {
 
     private final Logger logger = LogManager.getLogger();
 
-
+    private static final int RI_HOUR_ADDITION = 23;
+    private static final int HOURS_A_DAY = 24;
+    private static final int RI_MINIMUM_DATA_POINTS_LOWER_BOUND = 1;
+    private static final int RI_MINIMUM_DATA_POINTS_UPPER_BOUND = 168;
     /**
      * Number of records to commit in one batch.
      */
@@ -81,22 +84,28 @@ public class ComputeTierDemandStatsStore {
     }
 
     /**
-     * Check if the table has already contains over one week data, the current logic is try to check
-     * if next 2 hour record has already exists in table.
+     * Checks the data points in the ComputeTierTypeHourlyByWeek table to have more or equal
+     * data points than riMinimumDataPoints in the table.
+     * To calculate this we add 23 to the riMinimumDataPoints get the date and hour and query for it.
      *
-     * @return true if table has already contains over one week data, otherwise return false.
+     * @param riMinimumDataPoints RI buy hour data points value range from 1 to 168 inclusive
+     *
+     * @return true if there are historical data points at least of riMinimumDataPoints hours.
      */
-    public boolean containsDataOverWeek() {
-        // get next two hour milliseconds.
-        final long nextTwoHourMillis = Instant.now().plus(2, ChronoUnit.HOURS).toEpochMilli();
-        final Calendar calendar = GregorianCalendar.getInstance(TimeZone.getTimeZone("UTC"));
-        calendar.setTimeInMillis(nextTwoHourMillis);
-        final int hourOfDay = calendar.get(Calendar.HOUR_OF_DAY);
-        final int dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK);
-        // check if next hour record exists in table
+    public boolean containsDataOverWeek(int riMinimumDataPoints) {
+        if (riMinimumDataPoints < RI_MINIMUM_DATA_POINTS_LOWER_BOUND ||
+            riMinimumDataPoints > RI_MINIMUM_DATA_POINTS_UPPER_BOUND) {
+            logger.error("riMinimumDataPoints should be set between 1 to 168 inclusive, " +
+                "current value is: {}", riMinimumDataPoints);
+            riMinimumDataPoints = RI_MINIMUM_DATA_POINTS_UPPER_BOUND;
+        }
+        riMinimumDataPoints += RI_HOUR_ADDITION;
+        final int dayOfWeek = riMinimumDataPoints / HOURS_A_DAY;
+        final int hourOfDay = riMinimumDataPoints % HOURS_A_DAY;
+        // check if next hour record in comparison to the given riMinimumDataPoints
         return dslContext.fetchExists(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK,
-            COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.HOUR.eq((byte) hourOfDay)
-                .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.DAY.eq((byte) dayOfWeek)));
+            COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.HOUR.ge((byte)hourOfDay)
+                .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.DAY.ge((byte)dayOfWeek)));
     }
 
     public void persistComputeTierDemandStats(

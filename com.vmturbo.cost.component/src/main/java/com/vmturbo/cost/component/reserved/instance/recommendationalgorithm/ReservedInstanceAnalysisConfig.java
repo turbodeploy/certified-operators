@@ -39,6 +39,9 @@ public class ReservedInstanceAnalysisConfig {
     @Value("${preferredCurrentWeight}")
     private float preferredCurrentWeight;
 
+    @Value("${riMinimumDataPoints}")
+    private int riMinimumDataPoints;
+
     @Autowired
     private ComputeTierDemandStatsConfig computeTierDemandStatsConfig;
 
@@ -86,7 +89,8 @@ public class ReservedInstanceAnalysisConfig {
                 reservedInstanceActionsSenderConfig.actionSender(),
                 reservedInstanceConfig.buyReservedInstanceStore(),
                 reservedInstanceConfig.actionContextRIBuyStore(),
-                realtimeTopologyContextId, preferredCurrentWeight);
+                realtimeTopologyContextId, preferredCurrentWeight,
+                riMinimumDataPoints);
     }
 
     public ReservedInstanceBoughtStore reservedInstanceBoughtStore() {

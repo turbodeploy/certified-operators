@@ -48,13 +48,14 @@ public class BuyRIAnalysisSchedulerTest {
 
     @Test
     public void testCreateNormalScheduleTask() {
+        int riMinimumDataPoint = 1;
         final ScheduledFuture<?> initialMockFuture = Mockito.mock(ScheduledFuture.class);
         final long initialIntervalMillis = TimeUnit.MILLISECONDS.convert(initialIntervalHours, TimeUnit.HOURS);
         final long normalIntervalMillis = TimeUnit.MILLISECONDS.convert(normalIntervalHours, TimeUnit.HOURS);
         Mockito.doReturn(initialMockFuture).when(scheduledExecutorSpy).scheduleAtFixedRate(
                 any(), Mockito.anyLong(), eq(initialIntervalMillis), any()
         );
-        Mockito.when(computeTierDemandStatsStoreMock.containsDataOverWeek()).thenReturn(true);
+        Mockito.when(computeTierDemandStatsStoreMock.containsDataOverWeek(riMinimumDataPoint)).thenReturn(true);
         final BuyRIAnalysisScheduler buyRIAnalysisScheduler = new BuyRIAnalysisScheduler(
                 scheduledExecutorSpy, Mockito.mock(ReservedInstanceAnalysisInvoker.class),
                 initialIntervalHours, normalIntervalHours);
