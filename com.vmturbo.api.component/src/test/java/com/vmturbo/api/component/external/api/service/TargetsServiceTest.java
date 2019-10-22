@@ -94,6 +94,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
@@ -224,12 +225,18 @@ public class TargetsServiceTest {
     }
 
     private ProbeInfo createMockProbeInfo(long probeId, String type, String category,
-                    AccountDefEntry... entries) throws Exception {
+            AccountDefEntry... entries) throws Exception {
+        return createMockProbeInfo(probeId, type, category, CreationMode.STAND_ALONE, entries);
+    }
+
+    private ProbeInfo createMockProbeInfo(long probeId, String type, String category,
+            CreationMode creationMode, AccountDefEntry... entries) throws Exception {
         final ProbeInfo newProbeInfo = Mockito.mock(ProbeInfo.class);
         when(newProbeInfo.getId()).thenReturn(probeId);
         when(newProbeInfo.getType()).thenReturn(type);
         when(newProbeInfo.getCategory()).thenReturn(category);
         when(newProbeInfo.getAccountDefinitions()).thenReturn(Arrays.asList(entries));
+        when(newProbeInfo.getCreationMode()).thenReturn(creationMode);
         if (entries.length > 0) {
             when(newProbeInfo.getIdentifyingFields())
                             .thenReturn(Collections.singletonList(entries[0].getName()));
@@ -845,9 +852,9 @@ public class TargetsServiceTest {
         probesCollection.add(createMockProbeInfo(1, "type1", "category1",
                         createAccountDef(field1), createAccountDef("field12")));
         probesCollection.add(createMockProbeInfo(2, "type2", ProbeCategory.BILLING.getCategory(),
-                        createAccountDef(field2), createAccountDef("field22")));
+                        CreationMode.DERIVED, createAccountDef(field2), createAccountDef("field22")));
         probesCollection.add(createMockProbeInfo(3, "type3", ProbeCategory.STORAGE_BROWSING.getCategory(),
-                        createAccountDef(field3)));
+                        CreationMode.DERIVED, createAccountDef(field3)));
         final Map<String, ProbeInfo> probeByType = probesCollection.stream().collect(
                         Collectors.toMap(pr -> pr.getType(), pr -> pr));
 

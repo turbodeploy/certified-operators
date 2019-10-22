@@ -12,6 +12,7 @@ import com.google.common.collect.ImmutableList;
 import io.swagger.annotations.ApiModelProperty;
 
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.topology.processor.api.AccountFieldValueType;
 import com.vmturbo.topology.processor.api.ProbeInfo;
@@ -144,6 +145,10 @@ public class ProbeRESTApi {
         @ApiModelProperty(value = "The type of the probe (vCenter, HyperV, etc.).", required = true)
         private final String type;
 
+        @ApiModelProperty(value = "Indicates if the probe will show in the UI",
+            required = true)
+        private final CreationMode creationMode;
+
         @ApiModelProperty(
                         value = "Input fields required for target management (IP, username, etc.).",
                         required = true)
@@ -167,6 +172,7 @@ public class ProbeRESTApi {
             this.id = -1;
             this.category = null;
             this.type = null;
+            this.creationMode = CreationMode.STAND_ALONE;
             this.accountFields = null;
             this.error = null;
             this.identifyingFields = null;
@@ -175,12 +181,14 @@ public class ProbeRESTApi {
 
         public ProbeDescription(final long probeId, @Nonnull final String type,
                 @Nonnull final String category,
+                @Nonnull final CreationMode creationMode,
                 @Nonnull final List<AccountField> accountFields,
                 @Nonnull final List<String> identifyingFields,
                 @Nonnull final List<ProbeActionCapability> actionPolicies) {
             this.id = probeId;
             this.type = Objects.requireNonNull(type);
             this.category = Objects.requireNonNull(category);
+            this.creationMode = creationMode;
             this.accountFields = accountFields;
             this.error = null;
             this.identifyingFields = identifyingFields;
@@ -198,6 +206,7 @@ public class ProbeRESTApi {
             this.id = -1;
             this.category = null;
             this.type = null;
+            this.creationMode = CreationMode.STAND_ALONE;
             this.accountFields = null;
             this.identifyingFields = null;
             this.error = Objects.requireNonNull(error);
@@ -220,6 +229,12 @@ public class ProbeRESTApi {
         @Override
         public String getCategory() {
             return Objects.requireNonNull(category, "category field is absent");
+        }
+
+        @Nonnull
+        @Override
+        public CreationMode getCreationMode() {
+            return creationMode;
         }
 
         @Override

@@ -67,6 +67,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
@@ -129,18 +130,6 @@ public class TargetsService implements ITargetsService {
                     .put(TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS, UI_VALIDATING_STATUS)
                     .put(TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS, UI_VALIDATED_STATUS)
                     .put(TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS, UI_VALIDATING_STATUS)
-                    .build();
-
-    /**
-     * The probe categorys that we should hide and prevent users to create that kind of target on UI.
-     *
-     * TODO: We should define the hidden flag in each ProbeInfo instead of hard code here..
-     */
-    @VisibleForTesting
-    static final Set<String> HIDDEN_PROBE_CATEGORIES =
-            new ImmutableSet.Builder<String>()
-                    .add(ProbeCategory.BILLING.getCategory())
-                    .add(ProbeCategory.STORAGE_BROWSING.getCategory())
                     .build();
 
     /**
@@ -323,7 +312,8 @@ public class TargetsService implements ITargetsService {
         final List<TargetApiDTO> answer = new ArrayList<>(probes.size());
         for (ProbeInfo probeInfo : probes) {
             try {
-                if (isProbeLicensed(probeInfo) && !isProbeHidden(probeInfo)) {
+                if (isProbeLicensed(probeInfo)
+                    && (probeInfo.getCreationMode() != CreationMode.DERIVED)) {
                     answer.add(mapProbeInfoToDTO(probeInfo));
                 }
             } catch (FieldVerificationException e) {
@@ -388,19 +378,6 @@ public class TargetsService implements ITargetsService {
         // default behavior is that the probe is licensed.
         return true;
     }
-
-    /**
-     * Check the if the probe category should be hidden on UI and we should prevent users createing such
-     * kind of target.
-     *
-     * @param probeInfo the ProbeInfo to check.
-     * @return true, if the probe is hidden from users.
-     */
-    private boolean isProbeHidden(ProbeInfo probeInfo) {
-        final String category = probeInfo.getCategory();
-        return HIDDEN_PROBE_CATEGORIES.contains(category);
-    }
-
 
     /**
      * Return information about all the Actions related to the entities discovered by

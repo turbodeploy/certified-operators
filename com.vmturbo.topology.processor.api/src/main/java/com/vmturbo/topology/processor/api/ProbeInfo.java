@@ -4,6 +4,8 @@ import java.util.List;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
+
 /**
  * Represents probe information.
  */
@@ -31,6 +33,14 @@ public interface ProbeInfo {
      */
     @Nonnull
     String getCategory();
+
+    /**
+     * The creation mode of the probe.
+     *
+     * @return true if the probe is hidden in the UI.
+     */
+    @Nonnull
+    CreationMode getCreationMode();
 
     /**
      * Returns account definitions list for this probe.

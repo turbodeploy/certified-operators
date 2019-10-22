@@ -5,4 +5,5 @@
     <category>Storage Browsing</category>
     <version>1.0.0</version>
     <rediscovery-interval-seconds>86400</rediscovery-interval-seconds>
+    <creation-mode>DERIVED</creation-mode>
 </probe>

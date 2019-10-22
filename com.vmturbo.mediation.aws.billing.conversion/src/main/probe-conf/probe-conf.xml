@@ -6,4 +6,5 @@
     <version>1.0.0</version>
     <!-- run every hour -->
     <rediscovery-interval-seconds>3600</rediscovery-interval-seconds>
+    <creation-mode>DERIVED</creation-mode>
 </probe>

@@ -4,4 +4,5 @@
     <type>Azure</type>
     <category>Cloud Management</category>
     <version>1.0.0</version>
+    <creation-mode>DERIVED</creation-mode>
 </probe>
