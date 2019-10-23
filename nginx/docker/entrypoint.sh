@@ -44,7 +44,7 @@ if [ ! -f "/etc/nginx/certs/tls.crt" ] | [ ! -f "/etc/nginx/certs/tls.key" ]; th
     rm -f /tmp/certs/*
     mkdir -p /tmp/certs
     pushd /tmp/certs
-    openssl genrsa -out cert.key 2048
+    openssl genrsa -out tls.key 2048
     openssl req -new -sha256 -key tls.key -out csr.csr -subj '/CN=turbonomic'
     openssl req -x509 -sha256 -days 3650 -key tls.key -in csr.csr -out tls.crt
     popd
