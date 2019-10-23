@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableSet;
 
 import org.jooq.DSLContext;
+import org.jooq.exception.DataAccessException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -45,6 +46,7 @@ import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.group.common.DuplicateNameException;
+import com.vmturbo.group.common.ImmutableUpdateException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutableGroupUpdateException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutablePolicyUpdateException;
 import com.vmturbo.group.common.ItemNotFoundException.GroupNotFoundException;
@@ -447,7 +449,7 @@ public class GroupStoreTest {
         assertFalse(groupStore.get(GROUP_ID).isPresent());
         assertFalse(tagsAreInDB(GROUP_ID));
 
-        verify(policyStore).deletePoliciesForGroup(any(), eq(GROUP_ID));
+        verify(policyStore).deletePoliciesForGroupBeingRemoved(any(), eq(group));
     }
 
     @Test(expected = GroupNotFoundException.class)
@@ -464,15 +466,24 @@ public class GroupStoreTest {
         groupStore.deleteUserGroup(GROUP_ID);
     }
 
-    @Test(expected = PolicyDeleteException.class)
-    public void testDeleteGroupImmutableRelatedPolicy() throws DuplicateNameException, ImmutablePolicyUpdateException, PolicyNotFoundException, GroupNotFoundException, ImmutableGroupUpdateException, PolicyDeleteException {
+    /**
+     * Verify that deleting a user group referenced by a discovered policy will throw an error.
+     *
+     * @throws Throwable errors of various types
+     */
+    @Test(expected = ImmutableUpdateException.class)
+    public void testDeleteUserGroupImmutableRelatedPolicy() throws Throwable {
         when(identityProvider.next()).thenReturn(GROUP_ID);
-        groupStore.newUserGroup(GROUP_INFO);
+        Group group = groupStore.newUserGroup(GROUP_INFO);
 
-        doThrow(PolicyDeleteException.class)
-            .when(policyStore).deletePoliciesForGroup(any(), eq(GROUP_ID));
+        doThrow(ImmutablePolicyUpdateException.class)
+            .when(policyStore).deletePoliciesForGroupBeingRemoved(any(), eq(group));
 
-        groupStore.deleteUserGroup(GROUP_ID);
+        try {
+            groupStore.deleteUserGroup(GROUP_ID);
+        } catch (DataAccessException dae) {
+            throw dae.getCause();
+        }
     }
 
     /**

@@ -33,19 +33,22 @@ import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToGroupPolicy;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.group.common.DuplicateNameException;
+import com.vmturbo.group.common.ImmutableUpdateException;
+import com.vmturbo.group.common.ImmutableUpdateException.ImmutablePolicyUpdateException;
+import com.vmturbo.group.common.ItemNotFoundException.PolicyNotFoundException;
 import com.vmturbo.group.db.Tables;
 import com.vmturbo.group.db.tables.pojos.PolicyGroup;
 import com.vmturbo.group.db.tables.records.GroupingRecord;
 import com.vmturbo.group.db.tables.records.PolicyRecord;
 import com.vmturbo.group.identity.IdentityProvider;
-import com.vmturbo.group.common.DuplicateNameException;
-import com.vmturbo.group.common.ImmutableUpdateException.ImmutablePolicyUpdateException;
-import com.vmturbo.group.common.ItemNotFoundException.PolicyNotFoundException;
 import com.vmturbo.group.policy.PolicyStore.PolicyDeleteException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
@@ -227,17 +230,37 @@ public class PolicyStoreTest {
     }
 
     @Test
-    public void testDeletePoliciesForGroup() throws DuplicateNameException, PolicyDeleteException {
+    public void testDeletePoliciesForGroup() throws DuplicateNameException, PolicyDeleteException, ImmutableUpdateException {
         when(identityProvider.next()).thenReturn(POLICY_ID);
-        policyStore.newUserPolicy(POLICY_INFO);
+        policyStore.newUserPolicy(POLICY_INFO.toBuilder().setName("User Policy").build());
 
         assertTrue(policyStore.get(POLICY_ID).isPresent());
 
-        policyStore.deletePoliciesForGroup(dbConfig.dsl(), CONSUMER_GROUP_ID);
+        // add a discovered policy scoped to the same groups
+        long discoveredPolicyId = 77L;
+        when(identityProvider.next()).thenReturn(discoveredPolicyId);
+        when(discoveredPoliciesMapper.inputPolicy(DISCOVERED_POLICY_INFO)).thenReturn(Optional.of(POLICY_INFO));
+        when(mapperFactory.newMapper(GROUP_TO_OID_MAP)).thenReturn(discoveredPoliciesMapper);
+        policyStore.updateTargetPolicies(dbConfig.dsl(), TARGET_ID,
+                Collections.singletonList(DISCOVERED_POLICY_INFO), GROUP_TO_OID_MAP);
 
+        Group groupBeingDeleted = Group.newBuilder()
+                .setId(CONSUMER_GROUP_ID)
+                .setOrigin(Origin.DISCOVERED)
+                .build();
+
+        // delete the discovered group
+        policyStore.deletePoliciesForGroupBeingRemoved(dbConfig.dsl(), groupBeingDeleted);
+
+        // the user policy should have been deleted
         assertFalse(policyStore.get(POLICY_ID).isPresent());
-        // Policy-to-group mappings should be cleared.
-        assertTrue(getPolicyToGroupMapping().isEmpty());
+        // the discovered policy should still be there.
+        assertTrue(policyStore.get(discoveredPolicyId).isPresent());
+        // Policy-to-group mappings should be cleared for the user policy id, but not the discovered
+        // policy id.
+        Map<Long, Set<Long>> policyToGroupMap = getPolicyToGroupMapping();
+        assertFalse(policyToGroupMap.containsKey(POLICY_ID));
+        assertTrue(policyToGroupMap.containsKey(discoveredPolicyId));
     }
 
     @Test

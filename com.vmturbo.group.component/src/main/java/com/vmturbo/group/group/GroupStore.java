@@ -450,9 +450,6 @@ public class GroupStore implements Diagnosable {
                     throw new ImmutableGroupUpdateException(existingGroup);
                 }
 
-                // delete any placement policies associated with the group
-                policyStore.deletePoliciesForGroup(transactionDsl, id);
-
                 // The group exists, and is non-discovered. It's safe to delete.
                 internalDelete(transactionDsl, existingGroup);
                 return existingGroup;
@@ -602,8 +599,11 @@ public class GroupStore implements Diagnosable {
                                      .map(v -> new TagsGroupRecord(id, e.getKey(), v)));
     }
 
-    private void internalDelete(@Nonnull final DSLContext context,
-                                final Group group) {
+    private void internalDelete(@Nonnull final DSLContext context, final Group group) {
+        // remove any user policies related to this group, before the policy-group relationships
+        // for this group get removed by the cascading delete.
+        policyStore.deletePoliciesForGroupBeingRemoved(context, group);
+
         // The entries from the POLICY_GROUP and the TAG_GROUP table will
         // be deleted automatically because of the foreign key constraint.
         context.deleteFrom(Tables.GROUPING)
