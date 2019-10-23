@@ -40,9 +40,11 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisOrigin;
@@ -1335,12 +1337,11 @@ public class TopologyConverter {
                 if (commoditySoldDTO.hasHistoricalUsed()) {
                     if (commoditySoldDTO.getHistoricalUsed().hasPercentile() &&
                             commoditySoldDTO.getIsResizeable()) {
-                        histUsage =
-                                (float)commoditySoldDTO.getHistoricalUsed().getPercentile()
-                                        * (float)commoditySoldDTO.getCapacity();
+                        final float percentile = (float)commoditySoldDTO.getHistoricalUsed().getPercentile();
                         logger.debug("Using percentile value {} to recalculate capacity for {} in {}",
-                                histUsage, commoditySoldDTO.getCommodityType().getType(),
+                                percentile, commoditySoldDTO.getCommodityType().getType(),
                                 topologyDTO.getDisplayName());
+                        histUsage =  percentile * (float)commoditySoldDTO.getCapacity();
 
                     } else if (commoditySoldDTO.getHistoricalUsed().hasHistUtilization()) {
                         // if not then hist utilization which is the historical used value.
@@ -1547,12 +1548,21 @@ public class TopologyConverter {
                             commodityIndex.getCommBought(traderOid, supplierOid, commType, volumeId);
                     float currentUsage = getOriginalUsedValue(commBoughtTO, traderOid,
                             supplierOid, commType, volumeId, originalEntity);
-                     return TopologyDTO.CommodityBoughtDTO.newBuilder()
-                    .setUsed(reverseScaleCommBought(currentUsage, originalCommodityBoughtDTO))
+                    final Builder builder = CommodityBoughtDTO.newBuilder();
+                    builder.setUsed(reverseScaleCommBought(currentUsage, originalCommodityBoughtDTO))
                     .setReservedCapacity(reservedCapacityAnalysis.getReservedCapacity(traderOid, commType))
                     .setCommodityType(commType)
-                    .setPeak(peakQuantity)
-                    .build(); });
+                    .setPeak(peakQuantity);
+                    if (originalCommodityBoughtDTO.isPresent()
+                            && originalCommodityBoughtDTO.get().hasHistoricalUsed()
+                            && originalCommodityBoughtDTO.get().getHistoricalUsed().hasPercentile()) {
+                        //TODO Lakshmi - Set the projected percentile as exsitingPercentile * (existing capacity/new caapcity)
+                        // this wil be required by the VDI Image commodites.
+                        builder.setHistoricalUsed(HistoricalValues.newBuilder()
+                                .setPercentile(originalCommodityBoughtDTO.get().getHistoricalUsed().getPercentile())
+                                .build());
+                    }
+                    return builder.build(); });
     }
 
     /**
@@ -2260,8 +2270,9 @@ public class TopologyConverter {
                 commodityIndex.getCommSold(traderOid, commType);
         float usage = commSoldTO.getQuantity();
         float capacity = getCapacityForCommodity(commSoldTO, marketTier, commType, traderOid);
+        double newCapacity = reverseScaleCommSold(capacity, originalCommoditySold);
         CommoditySoldDTO.Builder commoditySoldBuilder = CommoditySoldDTO.newBuilder()
-            .setCapacity(reverseScaleCommSold(capacity, originalCommoditySold))
+            .setCapacity(newCapacity)
             .setUsed(reverseScaleCommSold(usage, originalCommoditySold))
             .setPeak(peak)
             .setIsResizeable(commSoldTO.getSettings().getResizable())
@@ -2277,6 +2288,17 @@ public class TopologyConverter {
             .filter(CommoditySoldDTO::hasHotResizeInfo)
             .map(CommoditySoldDTO::getHotResizeInfo)
             .ifPresent(commoditySoldBuilder::setHotResizeInfo);
+        if (originalCommoditySold.isPresent()
+                && originalCommoditySold.get().hasHistoricalUsed()
+                && originalCommoditySold.get().getHistoricalUsed().hasPercentile()) {
+            float existingPercentile = (float)originalCommoditySold.get().getHistoricalUsed()
+                                        .getPercentile();
+            double existingCapacity = originalCommoditySold.get().getCapacity();
+            float projectedPercentile = (float)(existingCapacity / newCapacity) * existingPercentile;
+            commoditySoldBuilder.setHistoricalUsed(HistoricalValues.newBuilder()
+                    .setPercentile(projectedPercentile)
+                    .build());
+        }
 
         return Optional.of(commoditySoldBuilder.build());
     }

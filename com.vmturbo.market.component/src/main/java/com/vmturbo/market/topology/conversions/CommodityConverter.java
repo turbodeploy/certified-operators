@@ -220,6 +220,10 @@ public class CommodityConverter {
         // right sizing only if the percentile value is set.
         if (topologyCommSold.hasHistoricalUsed()
                 && topologyCommSold.getHistoricalUsed().hasPercentile()) {
+            logger.debug("Using percentile {} for {} in {}",
+                    topologyCommSold.getHistoricalUsed().getPercentile(),
+                    topologyCommSold.getCommodityType().getType(),
+                    dto.getDisplayName());
             soldCommBuilder.setHistoricalQuantity((float)(topologyCommSold.getCapacity()
                             * topologyCommSold.getScalingFactor()
                             * topologyCommSold.getHistoricalUsed().getPercentile()));
