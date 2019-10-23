@@ -3,7 +3,6 @@ package com.vmturbo.action.orchestrator.action;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.COMMODITY_KEY_SEPARATOR;
 import static org.junit.Assert.assertEquals;
 
-import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
@@ -18,7 +17,6 @@ import com.google.common.collect.ImmutableMap;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
-import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanation;
@@ -109,10 +107,10 @@ public class ExplanationComposerTest {
                             .addReasonSettings(reasonSetting2)))))
             .build();
 
-        assertEquals("(^_^)~{entity:1:displayName:Virtual Machine} doesn't comply to setting1, setting2",
+        assertEquals("(^_^)~{entity:1:displayName:Virtual Machine} doesn't comply with setting1, setting2",
             ExplanationComposer.composeExplanation(moveAction,
                 ImmutableMap.of(reasonSetting1, "setting1", reasonSetting2, "setting2")));
-        assertEquals("Current entity doesn't comply to setting",
+        assertEquals("Current entity doesn't comply with setting",
             ExplanationComposer.shortExplanation(moveAction));
     }
 
@@ -301,10 +299,10 @@ public class ExplanationComposerTest {
                     .addReasonSettings(reasonSetting2)))
             .build();
 
-        assertEquals("(^_^)~{entity:1:displayName:Virtual Machine} doesn't comply to setting1, setting2",
+        assertEquals("(^_^)~{entity:1:displayName:Virtual Machine} doesn't comply with setting1, setting2",
             ExplanationComposer.composeExplanation(reconfigureAction,
                 ImmutableMap.of(reasonSetting1, "setting1", reasonSetting2, "setting2")));
-        assertEquals("Current entity doesn't comply to setting",
+        assertEquals("Current entity doesn't comply with setting",
             ExplanationComposer.shortExplanation(reconfigureAction));
     }
 

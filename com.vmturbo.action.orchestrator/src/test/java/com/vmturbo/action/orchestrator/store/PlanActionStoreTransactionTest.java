@@ -14,7 +14,6 @@ import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -26,15 +25,12 @@ import org.jooq.tools.jdbc.MockDataProvider;
 import org.jooq.tools.jdbc.MockResult;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
-import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator.TranslationExecutor;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 
@@ -77,7 +73,7 @@ public class PlanActionStoreTransactionTest {
     private final ActionModeCalculator actionModeCalculator = mock(ActionModeCalculator.class);
     private final EntitiesAndSettingsSnapshotFactory entitiesSnapshotFactory = mock(EntitiesAndSettingsSnapshotFactory.class);
     private final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-    private final ActionTranslator actionTranslator = passThroughTranslator();
+    private final ActionTranslator actionTranslator = passthroughTranslator();
 
     private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
     private PlanActionStore actionStore;
@@ -101,18 +97,6 @@ public class PlanActionStoreTransactionTest {
         when(snapshot.getEntityFromOid(eq(hostB)))
             .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(hostB,
                 EntityType.PHYSICAL_MACHINE.getNumber()));
-    }
-
-
-    @Nonnull
-    public static ActionTranslator passThroughTranslator() {
-        return Mockito.spy(new ActionTranslator(new TranslationExecutor() {
-            @Override
-            public <T extends ActionView> Stream<T> translate(@Nonnull final Stream<T> actionStream,
-                                                              @Nonnull final EntitiesAndSettingsSnapshot snapshot) {
-                return actionStream.peek(action -> action.getActionTranslation().setPassthroughTranslationSuccess());
-            }
-        }));
     }
 
     @Test

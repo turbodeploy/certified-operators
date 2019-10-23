@@ -4,12 +4,10 @@ import static com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils.passth
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -75,7 +73,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -140,8 +138,10 @@ public class ActionExecutionRpcTest {
             liveStatReader,
             userSessionContext);
 
+    private final SettingPolicyServiceMole settingPolicyServiceMole = new SettingPolicyServiceMole();
+
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService, settingPolicyServiceMole);
 
     private ActionStore actionStoreSpy;
 
@@ -378,7 +378,7 @@ public class ActionExecutionRpcTest {
                                                               @Nonnull final EntitiesAndSettingsSnapshot snapshot) {
                 return actionStream;
             }
-        }));
+        }, grpcServer.getChannel()));
         ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
         final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
                 executor, actionStoreLoader, actionModeCalculator);

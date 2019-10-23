@@ -1,4 +1,4 @@
-package com.vmturbo.action.orchestrator.translation;
+package com.vmturbo.action.orchestrator.action;
 
 import static org.junit.Assert.*;
 

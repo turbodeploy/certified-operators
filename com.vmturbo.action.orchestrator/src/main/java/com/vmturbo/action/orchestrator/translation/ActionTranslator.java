@@ -118,6 +118,7 @@ public class ActionTranslator {
      * @param repoChannel The searchServiceRpc to the repository component.
      * @param groupChannel Channel to use for creating a blocking stub to query the Group Service.
      */
+    @VisibleForTesting
     public ActionTranslator(@Nonnull final Channel repoChannel, @Nonnull final Channel groupChannel) {
         translationExecutor = new ActionTranslationExecutor(RepositoryServiceGrpc.newBlockingStub(repoChannel));
         this.settingPolicyService =
@@ -135,11 +136,14 @@ public class ActionTranslator {
      * This method should NOT be used in production code.
      *
      * @param translationExecutor The object that will perform translation of actions.
+     * @param groupChannel Channel to use for creating a blocking stub to query the Group Service.
      */
     @VisibleForTesting
-    public ActionTranslator(@Nonnull final TranslationExecutor translationExecutor) {
+    public ActionTranslator(@Nonnull final TranslationExecutor translationExecutor,
+                            @Nonnull final Channel groupChannel) {
         this.translationExecutor = Objects.requireNonNull(translationExecutor);
-        this.settingPolicyService = null;
+        this.settingPolicyService =
+            SettingPolicyServiceGrpc.newBlockingStub(Objects.requireNonNull(groupChannel));
     }
 
     /**
@@ -160,32 +164,24 @@ public class ActionTranslator {
      * @return The {@link ActionSpec} descriptions of the input actions.
      */
     @Nonnull
-    public Stream<ActionSpec> translateToSpecs(@Nonnull final List<ActionView> actionViews) {
-        // Get all reason setting ids.
-        final Set<Long> reasonSettings = getAllReasonSettings(actionViews);
-
-        // Make a RPC to get raw settingPolicies for all reason setting ids.
-        // We only need the displayName of the settingPolicy.
-        final Map<Long, String> settingPolicyIdToSettingPolicyName = new HashMap<>();
-        if (!reasonSettings.isEmpty()) {
-            settingPolicyService.listSettingPolicies(ListSettingPoliciesRequest.newBuilder()
-                .addAllIdFilter(reasonSettings).build())
-                .forEachRemaining(settingPolicy -> settingPolicyIdToSettingPolicyName.put(
-                    settingPolicy.getId(), settingPolicy.getInfo().getDisplayName()));
-        }
-
-        return actionViews.stream().map(actionView -> toSpec(actionView, settingPolicyIdToSettingPolicyName));
+    public Stream<ActionSpec> translateToSpecs(@Nonnull final List<? extends ActionView> actionViews) {
+        final Map<Long, String> settingPolicyIdToSettingPolicyName =
+            getReasonSettingPolicyIdToSettingPolicyNameMap(actionViews);
+        return actionViews.stream()
+            .map(actionView -> toSpec(actionView, settingPolicyIdToSettingPolicyName));
     }
 
     /**
-     * Get all reason settings from all actionViews.
+     * Get all reason settings from all actionViews and
+     * construct a map from settingPolicyId to settingPolicyName.
      *
      * @param actionViews the actions from where we extract reason settings
-     * @return a set of reason settings
+     * @return a map from settingPolicyId to settingPolicyName
      */
     @Nonnull
     @VisibleForTesting
-    public Set<Long> getAllReasonSettings(@Nonnull final List<ActionView> actionViews) {
+    Map<Long, String> getReasonSettingPolicyIdToSettingPolicyNameMap(
+            @Nonnull final List<? extends ActionView> actionViews) {
         final Set<Long> reasonSettings = new HashSet<>();
         for (ActionView actionView : actionViews) {
             Explanation explanation = actionView.getRecommendation().getExplanation();
@@ -206,7 +202,18 @@ public class ActionTranslator {
                     break;
             }
         }
-        return reasonSettings;
+
+        // Make a RPC to get raw settingPolicies for all reason setting ids.
+        // We only need the displayName of the settingPolicy.
+        final Map<Long, String> settingPolicyIdToSettingPolicyName = new HashMap<>();
+        if (!reasonSettings.isEmpty()) {
+            settingPolicyService.listSettingPolicies(ListSettingPoliciesRequest.newBuilder()
+                .addAllIdFilter(reasonSettings).build())
+                .forEachRemaining(settingPolicy -> settingPolicyIdToSettingPolicyName.put(
+                    settingPolicy.getId(), settingPolicy.getInfo().getDisplayName()));
+        }
+
+        return settingPolicyIdToSettingPolicyName;
     }
 
     /**

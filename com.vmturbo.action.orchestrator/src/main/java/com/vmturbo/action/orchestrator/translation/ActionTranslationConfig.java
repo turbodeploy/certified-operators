@@ -10,7 +10,7 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 
 @Configuration
-@Import({TopologyProcessorClientConfig.class})
+@Import({TopologyProcessorClientConfig.class, RepositoryClientConfig.class, GroupClientConfig.class})
 public class ActionTranslationConfig {
 
     @Autowired

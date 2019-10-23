@@ -19,9 +19,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Stream;
-
-import javax.annotation.Nonnull;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -34,11 +31,7 @@ import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
-import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
-import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator.TranslationExecutor;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -119,13 +112,7 @@ public class FailedCloudVMGroupProcessorTest {
             .build();
 
     private final GroupServiceMole testGroupService = spy(new GroupServiceMole());
-    private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(new TranslationExecutor() {
-        @Override
-        public <T extends ActionView> Stream<T> translate(@Nonnull final Stream<T> actionStream,
-                                                          @Nonnull final EntitiesAndSettingsSnapshot snapshot) {
-            return actionStream.peek(action -> action.getActionTranslation().setPassthroughTranslationSuccess());
-        }
-    }));
+
     private final ArgumentCaptor<Runnable> scheduledRunnableCaptor =
             ArgumentCaptor.forClass(Runnable.class);
     @Rule

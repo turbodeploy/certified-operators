@@ -1,4 +1,4 @@
-package com.vmturbo.action.orchestrator.execution;
+package com.vmturbo.action.orchestrator.translation;
 
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
@@ -7,7 +7,6 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -16,9 +15,8 @@ import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Stream;
 
 import org.junit.Before;
@@ -26,7 +24,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.MockitoAnnotations;
 
-import com.google.common.collect.Sets;
+import com.google.common.collect.ImmutableMap;
 
 import io.grpc.Status;
 
@@ -36,7 +34,6 @@ import com.vmturbo.action.orchestrator.action.ActionEvent;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision.ClearingDecision;
@@ -51,12 +48,11 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExpla
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
-import com.vmturbo.common.protobuf.topology.EntityInfo.GetHostInfoRequest;
-import com.vmturbo.common.protobuf.topology.EntityInfo.GetHostInfoResponse;
 import com.vmturbo.common.protobuf.topology.EntityInfo.HostInfo;
-import com.vmturbo.common.protobuf.topology.EntityInfoMoles.EntityServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
@@ -255,7 +251,7 @@ public class ActionTranslatorTest {
     }
 
     /**
-     * Test {@link ActionTranslator#getAllReasonSettings}.
+     * Test {@link ActionTranslator#getReasonSettingPolicyIdToSettingPolicyNameMap}.
      */
     @Test
     public void testGetAllReasonSettings() {
@@ -295,9 +291,23 @@ public class ActionTranslatorTest {
                     .addReasonSettings(reasonSetting3))).build(),
             actionPlanId, actionModeCalculator);
 
-        final Set<Long> reasonSettings =
-            translator.getAllReasonSettings(Arrays.asList(moveAction1, moveAction2, reconfigureAction));
-        assertEquals(Sets.newHashSet(reasonSetting1, reasonSetting3), reasonSettings);
+        // Return a list of SettingPolicies only when
+        // the input request has reasonSetting1 and reasonSetting3 as the idFilter.
+        // If the assertEquals() is true,
+        // it means that we get the correct reasonSettings from the Actions.
+        when(settingPolicyServiceSpy.listSettingPolicies(ListSettingPoliciesRequest.newBuilder()
+            .addAllIdFilter(Arrays.asList(reasonSetting1, reasonSetting3)).build()))
+            .thenReturn(Arrays.asList(
+                SettingPolicy.newBuilder().setId(reasonSetting1).setInfo(
+                    SettingPolicyInfo.newBuilder().setDisplayName("reasonSetting1")).build(),
+                SettingPolicy.newBuilder().setId(reasonSetting3).setInfo(
+                    SettingPolicyInfo.newBuilder().setDisplayName("reasonSetting3")).build()));
+
+        final Map<Long, String> settingPolicyIdToSettingPolicyName =
+            translator.getReasonSettingPolicyIdToSettingPolicyNameMap(
+                Arrays.asList(moveAction1, moveAction2, reconfigureAction));
+        assertEquals(ImmutableMap.of(reasonSetting1, "reasonSetting1", reasonSetting3, "reasonSetting3"),
+            settingPolicyIdToSettingPolicyName);
     }
 
     private Action setupDefaultResizeAction() {

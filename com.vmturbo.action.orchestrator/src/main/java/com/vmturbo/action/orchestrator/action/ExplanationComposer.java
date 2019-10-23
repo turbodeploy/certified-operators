@@ -63,7 +63,7 @@ public class ExplanationComposer {
     private static final String RECONFIGURE_REASON_COMMODITY_EXPLANATION =
         "Enable supplier to offer requested resource(s) ";
     private static final String REASON_SETTINGS_EXPLANATION =
-        "{0} doesn''t comply to {1}";
+        "{0} doesn''t comply with {1}";
     private static final String ACTION_TYPE_ERROR =
         "Can not give a proper explanation as action type is not defined";
     private static final String INCREASE_RI_UTILIZATION =

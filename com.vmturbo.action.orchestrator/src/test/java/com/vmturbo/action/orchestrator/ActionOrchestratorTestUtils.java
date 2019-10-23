@@ -1,9 +1,9 @@
 package com.vmturbo.action.orchestrator;
 
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
@@ -11,6 +11,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import org.junit.Assert;
 import org.mockito.Mockito;
@@ -37,6 +38,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -56,8 +58,19 @@ public class ActionOrchestratorTestUtils {
 
     private static final int DEFAULT_ENTITY_TYPE = EntityType.VIRTUAL_MACHINE_VALUE;
 
-    private static ActionTranslator actionTranslator = mock(ActionTranslator.class);
     private static ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
+
+    private static final SettingPolicyServiceMole settingPolicyServiceMole = new SettingPolicyServiceMole();
+
+    private static final GrpcTestServer grpcTestServer = GrpcTestServer.newServer(settingPolicyServiceMole);
+
+    static {
+        try {
+            grpcTestServer.start();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
     @Nonnull
     public static ActionTranslator passthroughTranslator() {
@@ -67,7 +80,7 @@ public class ActionOrchestratorTestUtils {
                                                               @Nonnull final EntitiesAndSettingsSnapshot snapshot) {
                 return actionStream.peek(action -> action.getActionTranslation().setPassthroughTranslationSuccess());
             }
-        }));
+        }, grpcTestServer.getChannel()));
     }
 
     @Nonnull
