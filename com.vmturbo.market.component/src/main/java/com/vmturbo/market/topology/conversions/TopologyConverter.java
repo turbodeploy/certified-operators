@@ -1044,13 +1044,14 @@ public class TopologyConverter {
 
         copyStaticAttributes(originalEntity, entityDTOBuilder);
 
-        // get dspm and datastore commodity sold from the original trader, add
-        // them to projected topology entity DTO
+        // Get dspm, datastore and inactive commodity sold from the original trader,
+        // add them to the projected topology entity DTO.
         entityDTOBuilder.addAllCommoditySoldList(
-                originalEntity.getCommoditySoldListList().stream()
-                        .filter(c -> AnalysisUtil.DSPM_OR_DATASTORE
-                                .contains(c.getCommodityType().getType()))
-                        .collect(Collectors.toSet()));
+            originalEntity.getCommoditySoldListList().stream()
+                .filter(commSold ->
+                    AnalysisUtil.DSPM_OR_DATASTORE.contains(commSold.getCommodityType().getType()) ||
+                    !commSold.getActive())
+                .collect(Collectors.toSet()));
 
         // handle 'delete wasted file analysis' to update entity from market
         wastedFileAnalysis.getStorageAmountReleasedForOid(traderTO.getOid())
