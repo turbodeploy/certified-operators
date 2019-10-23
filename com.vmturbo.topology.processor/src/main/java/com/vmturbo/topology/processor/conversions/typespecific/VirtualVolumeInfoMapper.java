@@ -36,6 +36,9 @@ public class VirtualVolumeInfoMapper extends TypeSpecificInfoMapper {
         if (vvData.hasRedundancyType()) {
             vvInfo.setRedundancyType(vvData.getRedundancyType());
         }
+        if (vvData.hasAttachmentState()) {
+            vvInfo.setAttachmentState(vvData.getAttachmentState());
+        }
         vvInfo.addAllFiles(vvData.getFileList());
         retBuilder.setVirtualVolume(vvInfo.build());
         return retBuilder.build();

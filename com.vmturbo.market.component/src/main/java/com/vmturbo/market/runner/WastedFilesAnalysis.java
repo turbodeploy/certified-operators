@@ -38,6 +38,7 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.proactivesupport.DataMetricCounter;
@@ -258,6 +259,15 @@ public class WastedFilesAnalysis {
      */
     private Collection<Action> createActionsFromVolume(final TopologyEntityDTO volume) {
         Optional<Long> storageOid;
+        if (volume.hasTypeSpecificInfo() && volume.getTypeSpecificInfo().hasVirtualVolume() &&
+                volume.getTypeSpecificInfo().getVirtualVolume().hasAttachmentState() &&
+                volume.getTypeSpecificInfo().getVirtualVolume().getAttachmentState()
+                        == AttachmentState.IN_USE) {
+            logger.trace("Cannot generate delete action on volume {} since it is in use.",
+                    volume.getDisplayName());
+            return Collections.emptyList();
+        }
+
         if (volume.getEnvironmentType() != EnvironmentType.ON_PREM) {
             // handle cloud case
             storageOid = TopologyDTOUtil.getOidsOfConnectedEntityOfType(volume,

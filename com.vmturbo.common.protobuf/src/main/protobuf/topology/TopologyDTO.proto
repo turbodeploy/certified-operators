@@ -170,6 +170,9 @@ message TypeSpecificInfo {
         // string snapshot ID of volume needed for entity details
         optional string snapshotId = 5;
 
+        // Volume attachment state. It is set to IN_USE only in particular cases like AWS volume.
+        // In other cases, the attachment state will be deduced based on the association with VM.
+        optional .common_dto.EntityDTO.VirtualVolumeData.AttachmentState attachment_state = 6;
     }
 
     // specific data for a Storage entity

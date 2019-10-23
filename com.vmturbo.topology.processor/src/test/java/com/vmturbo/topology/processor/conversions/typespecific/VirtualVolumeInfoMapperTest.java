@@ -12,6 +12,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Databas
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.RedundancyType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 
@@ -32,6 +33,7 @@ public class VirtualVolumeInfoMapperTest {
                         .setStorageAmountCapacity(STORAGE_AMOUNT_CAPACITY)
                         .setRedundancyType(REDUNDANCY_TYPE)
                         .setSnapshotId(SNAPSHOT_ID)
+                        .setAttachmentState(AttachmentState.IN_USE)
                         .build());
         TypeSpecificInfo expected = TypeSpecificInfo.newBuilder()
                 .setVirtualVolume(VirtualVolumeInfo.newBuilder()
@@ -39,6 +41,7 @@ public class VirtualVolumeInfoMapperTest {
                         .setStorageAmountCapacity(STORAGE_AMOUNT_CAPACITY)
                         .setRedundancyType(REDUNDANCY_TYPE)
                         .setSnapshotId(SNAPSHOT_ID)
+                        .setAttachmentState(AttachmentState.IN_USE)
                         .build())
                 .build();
         DatabaseInfo.newBuilder()

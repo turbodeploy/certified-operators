@@ -44,6 +44,7 @@ import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCost
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
 
 public class WastedFilesAnalysisTest {
@@ -78,7 +79,8 @@ public class WastedFilesAnalysisTest {
             .setEnvironmentType(EnvironmentType.ON_PREM);
     }
 
-    private TopologyEntityDTO.Builder createCloudEntity(long oid, EntityType entityType) {
+    private TopologyEntityDTO.Builder createCloudEntity(long oid, EntityType entityType,
+                                                        AttachmentState attachmentState) {
         if (entityType == EntityType.VIRTUAL_VOLUME) {
             return TopologyEntityDTO.newBuilder()
                 .setOid(oid)
@@ -87,7 +89,8 @@ public class WastedFilesAnalysisTest {
                 .setEnvironmentType(EnvironmentType.CLOUD)
                 .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setVirtualVolume(VirtualVolumeInfo.newBuilder()
                     .setStorageAccessCapacity(10f)
-                    .setStorageAmountCapacity(20f).build()).build());
+                    .setStorageAmountCapacity(20f)
+                    .setAttachmentState(attachmentState).build()).build());
         } else {
             return TopologyEntityDTO.newBuilder()
                 .setOid(oid)
@@ -160,27 +163,34 @@ public class WastedFilesAnalysisTest {
         final long wastedFileVolume1Oid = 2L;
         final long wastedFileVolume2Oid = 3L;
         final long connectedVolumeOid = 4L;
-        final long storageTierOid = 5L;
-        final TopologyEntityDTO.Builder vm = createCloudEntity(vmOid, EntityType.VIRTUAL_MACHINE);
+        final long unConnectedVolumeInUseOid = 5L;
+        final long storageTierOid = 6L;
+        final TopologyEntityDTO.Builder vm = createCloudEntity(vmOid, EntityType.VIRTUAL_MACHINE, null);
         final TopologyEntityDTO.Builder wastedFileVolume1 = createCloudEntity(wastedFileVolume1Oid,
-            EntityType.VIRTUAL_VOLUME);
+            EntityType.VIRTUAL_VOLUME, AttachmentState.AVAILABLE);
         final TopologyEntityDTO.Builder wastedFileVolume2 = createCloudEntity(wastedFileVolume2Oid,
-            EntityType.VIRTUAL_VOLUME);
+            EntityType.VIRTUAL_VOLUME, AttachmentState.AVAILABLE);
         final TopologyEntityDTO.Builder connectedVolume = createCloudEntity(connectedVolumeOid,
-            EntityType.VIRTUAL_VOLUME);
-        final TopologyEntityDTO.Builder storageTier = createCloudEntity(storageTierOid, EntityType.STORAGE_TIER);
+            EntityType.VIRTUAL_VOLUME, AttachmentState.IN_USE);
+        final TopologyEntityDTO.Builder unConnectedVolumeInUse = createCloudEntity(unConnectedVolumeInUseOid,
+                EntityType.VIRTUAL_VOLUME, AttachmentState.IN_USE);
+        final TopologyEntityDTO.Builder storageTier = createCloudEntity(storageTierOid,
+                EntityType.STORAGE_TIER, null);
 
         connectEntities(vm, connectedVolume);
         connectEntities(connectedVolume, storageTier);
         connectEntities(wastedFileVolume1, storageTier);
         connectEntities(wastedFileVolume2, storageTier);
+        connectEntities(unConnectedVolumeInUse, storageTier);
 
-        return ImmutableMap.of(
-            vm.getOid(), vm.build(),
-            storageTier.getOid(), storageTier.build(),
-            wastedFileVolume1.getOid(), wastedFileVolume1.build(),
-            wastedFileVolume2.getOid(), wastedFileVolume2.build(),
-            connectedVolume.getOid(), connectedVolume.build());
+        return ImmutableMap.<Long, TopologyEntityDTO>builder()
+                .put(vm.getOid(), vm.build())
+                .put(storageTier.getOid(), storageTier.build())
+                .put(wastedFileVolume1.getOid(), wastedFileVolume1.build())
+                .put(wastedFileVolume2.getOid(), wastedFileVolume2.build())
+                .put(connectedVolume.getOid(), connectedVolume.build())
+                .put(unConnectedVolumeInUse.getOid(), unConnectedVolumeInUse.build())
+                .build();
     }
 
     /**
@@ -268,7 +278,7 @@ public class WastedFilesAnalysisTest {
                 .collect(Collectors.toSet()));
 
         assertEquals("Ensure Action has the storage tier oid as the source target",
-            ImmutableSet.of(5L, 5L),
+            ImmutableSet.of(6L, 6L),
             analysis.getActions().stream()
                 .map(Action::getInfo)
                 .map(ActionInfo::getDelete)
@@ -280,6 +290,7 @@ public class WastedFilesAnalysisTest {
             .put(2L, 20d)
             .put(3L, 30d)
             .put(4L, 40d)
+            .put(5L, 50d)
             .build();
         analysis.getActions().forEach(action ->
             assertEquals("Ensure action has the right savings",
@@ -297,7 +308,7 @@ public class WastedFilesAnalysisTest {
 
             ActionEntity source = action.getInfo().getDelete().getSource();
             assertEquals(EntityType.STORAGE_TIER_VALUE, source.getType());
-            assertEquals(5L, source.getId());
+            assertEquals(6L, source.getId());
         });
     }
 }
