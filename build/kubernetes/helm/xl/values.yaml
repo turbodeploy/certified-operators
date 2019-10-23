@@ -47,11 +47,29 @@ metron:
   enabled: false
 kubeturbo:
   enabled: false
+training:
+  enabled: false
 
 prometheus:
   enabled: false
 grafana:
   enabled: false
+chronograf:
+  enabled: false
+timescaledb:
+  enabled: false
+postgresql:
+  fullnameOverride: timescaledb
+  image:
+    repository: timescale/timescaledb
+    tag: latest-pg11
+  postgresqlPassword: password
+  postgresqlDatabase: postgres
+  securityContext:
+    fsGroup: 70
+    runAsUser: 70
+  metrics:
+    enabled: true
 
 # Enable mediation
 actionscript:

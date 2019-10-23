@@ -16,6 +16,10 @@ dependencies:
     repository: file://../base/influxdb
     version: 0.1.0
     condition: metron.enabled
+  - name: postgresql
+    repository: file://../base/postgresql
+    version: 6.3.2
+    condition: timescaledb.enabled
   - name: kafka
     repository: file://../base/kafka
     version: 0.1.0
@@ -72,7 +76,7 @@ dependencies:
   - name: ml-training
     repository: file://../services/ml-training
     version: 0.1.0
-    condition: metron.enabled
+    condition: training.enabled
   - name: plan-orchestrator
     repository: file://../services/plan-orchestrator
     version: 0.1.0
@@ -117,6 +121,10 @@ dependencies:
     repository: file://../base/kubeturbo
     version: 0.1.0
     condition: kubeturbo.enabled
+  - name: chronograf
+    repository: file://../base/chronograf
+    version: 1.1.0
+    condition: chronograf.enabled
 
 # Mediation dependencies
   - name: mediation-actionscript
