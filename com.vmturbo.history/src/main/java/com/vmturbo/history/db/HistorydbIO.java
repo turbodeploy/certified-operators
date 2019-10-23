@@ -760,6 +760,51 @@ public class  HistorydbIO extends BasedbIO {
                         || c.getCommodityName().equals(CURRENT_PRICE_INDEX));
     }
 
+    private Set<String> getRequestedScopeIds(EntityStatsScope entityScope) {
+        if (entityScope.hasEntityList()) {
+            return Sets.newHashSet(Collections2.transform(
+                    entityScope.getEntityList().getEntitiesList(), id -> Long.toString(id)));
+        }
+
+        return Collections.emptySet();
+    }
+
+    /**
+     * Gets entityType from {@link EntityStatsScope}.
+     *
+     * @param entityScope   The {@link EntityStatsScope} to use
+     * @return single {@link EntityType} within EntityStatsScope
+     * @throws VmtDbException if there's an error querying DB for types of entities
+     * @throws IllegalArgumentException if entityType resolves to multiple or invalid entityType
+     */
+    public EntityType getEntityTypeFromEntityStatsScope(final EntityStatsScope entityScope)
+            throws VmtDbException, IllegalArgumentException {
+        if (!entityScope.hasEntityList()) {
+            return getEntityType(entityScope.getEntityType())
+                    .orElseThrow(() -> new IllegalArgumentException("Invalid entity type: " + entityScope.getEntityType()));
+        }
+
+        final Set<String> requestedIdSet = getRequestedScopeIds(entityScope);
+
+        final Set<String> entityTypes = getTypesForEntities(requestedIdSet).values()
+                .stream()
+                .collect(Collectors.toSet());
+
+        if (entityTypes.isEmpty()) {
+            return null;
+        }
+
+        if (entityTypes.size() > 1) {
+            logger.error("Attempting to paginate across multiple entity types: {}",
+                    entityTypes);
+            throw new IllegalArgumentException("Pagination across multiple entity types not supported.");
+        }
+
+        String entityType = entityTypes.iterator().next();
+        return EntityType.getTypeForName(entityType)
+                .orElseThrow(() -> new IllegalArgumentException("Entities resolve to invalid entity type: " + entityType));
+    }
+
     /**
      * Get the next page of entity IDs given a time frame and pagination parameters.
      *
@@ -769,6 +814,7 @@ public class  HistorydbIO extends BasedbIO {
      * @param paginationParams The pagination parameters. For princeIndex, we sort the results by
      *                         the average value; for others, we sort the results by the utilization
      *                        (average/capacity) value of the sort commodity. And then by the UUID of the entity.
+     * @param entityType       The {@link EntityType} to determine tables to query
      * @return A {@link NextPageInfo} object describing the entity IDs that should be in the next page.
      * @throws VmtDbException           If there is an error interacting with the database.
      * @throws IllegalArgumentException If the input is invalid.
@@ -777,41 +823,23 @@ public class  HistorydbIO extends BasedbIO {
     public NextPageInfo getNextPage(final EntityStatsScope entityScope,
                                     final Timestamp timestamp,
                                     final TimeFrame tFrame,
-                                    final EntityStatsPaginationParams paginationParams) throws VmtDbException {
+                                    final EntityStatsPaginationParams paginationParams,
+                                    final EntityType entityType) throws VmtDbException {
         // This will be an empty list if entity list is not set.
         // This should NOT be an empty list if the entity list is set (we should filter out
         // those requests earlier on).
         Preconditions.checkArgument(entityScope.hasEntityType()
             || (entityScope.hasEntityList() && entityScope.getEntityList().getEntitiesCount() > 0));
-        final EntityType entityType;
-        final Set<String> requestedIdSet;
-        // Make sure the layers that call this method filtered out invalid arguments.
-        if (entityScope.hasEntityList()) {
-            requestedIdSet = Sets.newHashSet(Collections2.transform(
-                entityScope.getEntityList().getEntitiesList(), id -> Long.toString(id)));
-            final List<String> entityTypes = getTypesForEntities(requestedIdSet).values().stream()
-                .distinct()
-                .collect(Collectors.toList());
-            if (entityTypes.isEmpty()) {
-                // We don't want to treat this an error, because this may occur when the user
-                // scopes to an entity of a type for which we do not collect stats. We'll log
-                // a warning and send back an empty result.
-                logger.warn("No entity types resolved from entity IDs {}; " +
-                    "this is expected if entity type is one for which we do not collect stats.",
+
+        if (entityType == null) {
+            // We don't want to treat this an error, because this may occur when the user
+            // scopes to an entity of a type for which we do not collect stats. We'll log
+            // a warning and send back an empty result.
+            logger.warn("No entity types resolved from entity IDs {}; " +
+                            "this is expected if entity type is one for which we do not collect stats.",
                     entityScope.getEntityList().getEntitiesList());
-                return NextPageInfo.EMPTY_INSTANCE;
-            }
-            if (entityTypes.size() > 1) {
-                logger.error("Attempting to paginate across multiple entity types: {}",
-                    entityTypes);
-                throw new IllegalArgumentException("Pagination across multiple entity types not supported.");
-            }
-            entityType = EntityType.getTypeForName(entityTypes.get(0))
-                .orElseThrow(() -> new IllegalArgumentException("Entities resolve to invalid entity type: " + entityTypes.get(0)));
-        } else {
-            requestedIdSet = Collections.emptySet();
-            entityType = getEntityType(entityScope.getEntityType())
-                .orElseThrow(() -> new IllegalArgumentException("Invalid entity type: " + entityScope.getEntityType()));
+            return NextPageInfo.EMPTY_INSTANCE;
+
         }
 
         final SeekPaginationCursor seekPaginationCursor = SeekPaginationCursor.parseCursor(paginationParams.getNextCursor().orElse(""));
@@ -835,6 +863,9 @@ public class  HistorydbIO extends BasedbIO {
             avg(doubl(dField(table, CAPACITY))).as(CAPACITY);
         final Field<String> uuid =
             str(dField(table, UUID));
+
+        final Set<String> requestedIdSet = getRequestedScopeIds(entityScope);
+
         if (!requestedIdSet.isEmpty()) {
             conditions.add(uuid.in(requestedIdSet));
         }

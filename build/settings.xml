@@ -59,6 +59,16 @@
          <name>Codehaus Snapshots Repository</name>
          <url>https://oss.sonatype.org/content/repositories/codehaus-snapshots/</url>
        </pluginRepository>
+         <pluginRepository>
+             <id>vmturbo</id>
+             <name>Turbonomic Repository</name>
+             <url>http://build.vmturbo.com:8081/nexus/content/repositories/vmturbo</url>
+         </pluginRepository>
+         <pluginRepository>
+             <id>thirdparty</id>
+             <name>Turbonomic Repository</name>
+             <url>http://build.vmturbo.com:8081/nexus/content/repositories/thirdparty</url>
+         </pluginRepository>
      </pluginRepositories>
    </profile>
  </profiles>

@@ -171,9 +171,12 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
                                      @Nonnull final StatsFilter statsFilter,
                                      @Nonnull final EntityStatsPaginationParams paginationParams) throws VmtDbException {
 
+        EntityType entityType = historydbIO.getEntityTypeFromEntityStatsScope(entityStatsScope);
+
         // resolve the time range for pagination param
         final Optional<TimeRange> paginationTimeRangeOpt = timeRangeFactory.resolveTimeRange(statsFilter,
-                Optional.empty(), Optional.empty(), Optional.of(paginationParams));
+                Optional.empty(), Optional.of(entityType), Optional.of(paginationParams));
+
         if (!paginationTimeRangeOpt.isPresent()) {
             // no data persisted yet; just return an empty answer
             logger.warn("Stats filter with start {} and end {} does not resolve to any timestamps for pagination param {}."
@@ -188,7 +191,8 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
         final NextPageInfo nextPageInfo = historydbIO.getNextPage(entityStatsScope,
                 paginationTimeRange.getMostRecentSnapshotTime(),
                 paginationTimeRange.getTimeFrame(),
-                paginationParams);
+                paginationParams,
+                entityType);
 
         //  Only add records when next page is NOT empty, otherwise do an early return.
         if (nextPageInfo.getEntityOids().isEmpty()) {
@@ -222,7 +226,7 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
             commRequestTimeRange = paginationTimeRangeOpt;
         } else {
             commRequestTimeRange = timeRangeFactory.resolveTimeRange(statsFilter,
-                    Optional.empty(), Optional.empty(), Optional.empty());
+                    Optional.empty(), Optional.of(entityType), Optional.empty());
         }
         if (!commRequestTimeRange.isPresent()) {
             // no data persisted yet; just return an empty answer
