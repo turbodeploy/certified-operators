@@ -1,6 +1,7 @@
 package com.vmturbo.market.topology.conversions;
 
 import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.FAMILY_NAME;
+import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.REGION_ID;
 import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.REGION_NAME;
 import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.TIER_NAME;
 import static org.mockito.Mockito.mock;
@@ -58,7 +59,7 @@ public class ComputeTierConverterTest {
     @Test
     public void testTemplateAccessCommoditySold() {
         final TopologyEntityDTO computeTier = CloudTestEntityFactory.mockComputeTier();
-        final TopologyEntityDTO region = CloudTestEntityFactory.mockRegion();
+        final TopologyEntityDTO region = CloudTestEntityFactory.mockRegion(REGION_ID, REGION_NAME);
         final Collection<CommoditySoldTO> soldTenancyAccessCommodities =
                 computeTierConverter.commoditiesSoldList(computeTier, Collections.singletonList(region)).stream()
                 .filter(c -> c.getSpecification().getBaseType()

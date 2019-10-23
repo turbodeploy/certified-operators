@@ -19,34 +19,45 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 class CloudTestEntityFactory {
 
     static final long REGION_ID = 1L;
+    static final long REGION_ID_2 = 2L;
     static final long TIER_ID = 100L;
+    static final long TIER_ID_2 = 101L;
     static final long ZONE_ID = 4;
     static final String FAMILY_NAME = "compute_optimized";
     static final String TIER_NAME = "compute_optimized_medium";
     static final String REGION_NAME = "antarctica";
+    static final String REGION_NAME_2 = "oceania";
+    static final String TIER_NAME_2 = "compute_optimized_large";
 
-    static TopologyEntityDTO mockRegion() {
+
+    static TopologyEntityDTO mockRegion(long oid, String name) {
         return TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.REGION_VALUE)
-                .setDisplayName(REGION_NAME)
-                .setOid(REGION_ID)
+                .setDisplayName(name)
+                .setOid(oid)
                 .build();
     }
 
     static TopologyEntityDTO mockComputeTier() {
-        return TopologyEntityDTO.newBuilder()
+        return mockComputeTier(TIER_ID, true);
+    }
+
+    static TopologyEntityDTO mockComputeTier(long oid, boolean connectToRegion) {
+        final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.COMPUTE_TIER_VALUE)
-                .setOid(TIER_ID)
+                .setOid(oid)
                 .setDisplayName(TIER_NAME)
                 .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                         .setComputeTier(ComputeTierInfo.newBuilder()
                                 .setFamily(FAMILY_NAME)
                                 .build()).build())
-                .addAllCommoditySoldList(createComputeTierSoldCommodities())
-                .addConnectedEntityList(ConnectedEntity.newBuilder().setConnectedEntityId(REGION_ID)
-                        .setConnectedEntityType(EntityType.REGION_VALUE)
-                        .build())
-                .build();
+                .addAllCommoditySoldList(createComputeTierSoldCommodities());
+        if (connectToRegion) {
+            builder.addConnectedEntityList(ConnectedEntity.newBuilder().setConnectedEntityId(REGION_ID)
+                    .setConnectedEntityType(EntityType.REGION_VALUE)
+                    .build());
+        }
+        return builder.build();
     }
 
     private static List<CommoditySoldDTO> createComputeTierSoldCommodities() {

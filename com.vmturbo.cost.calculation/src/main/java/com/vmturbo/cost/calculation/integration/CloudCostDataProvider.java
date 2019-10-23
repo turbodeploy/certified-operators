@@ -358,8 +358,8 @@ public interface CloudCostDataProvider {
         public boolean isValid(@Nonnull Map<Long, TopologyEntityDTO> topology) {
             return topology.get(reservedInstanceSpec.getReservedInstanceSpecInfo().getTierId())
                     // checking region id to exclude Ri that is not within the scoped region
-                    != null && topology.get(new Long(reservedInstanceSpec
-                            .getReservedInstanceSpecInfo().getRegionId())) != null;
+                    != null && topology.get(reservedInstanceSpec
+                    .getReservedInstanceSpecInfo().getRegionId()) != null;
         }
     }
 

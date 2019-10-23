@@ -2,8 +2,11 @@ package com.vmturbo.market.topology.conversions;
 
 import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.FAMILY_NAME;
 import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.REGION_ID;
+import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.REGION_ID_2;
 import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.REGION_NAME;
+import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.REGION_NAME_2;
 import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.TIER_ID;
+import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.TIER_ID_2;
 import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.TIER_NAME;
 import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.ZONE_ID;
 import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.mockComputeTier;
@@ -12,7 +15,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -25,6 +27,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
@@ -39,7 +42,6 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.market.topology.RiDiscountedMarketTier;
-import com.vmturbo.market.topology.conversions.ReservedInstanceAggregate.ReservedInstanceKey;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
@@ -83,7 +85,7 @@ public class ReservedInstanceConverterTest {
     public void testNonPlatformFlexibleLicenseCommodityConversion() {
         final TopologyEntityDTO computeTier = mockComputeTier();
         final RiDiscountedMarketTier riDiscountedTier = mockRiDiscountedTier(false);
-        final TopologyEntityDTO region = mockRegion();
+        final TopologyEntityDTO region = mockRegion(REGION_ID, REGION_NAME);
         final Collection<CommoditySoldTO> licenseCommodityTOs =
                 converter.commoditiesSoldList(computeTier, region, riDiscountedTier).stream()
                 .filter(c -> c.getSpecification().getBaseType()
@@ -100,7 +102,7 @@ public class ReservedInstanceConverterTest {
     public void testPlatformFlexibleLicenseCommodityConversion() {
         final TopologyEntityDTO computeTier = mockComputeTier();
         final RiDiscountedMarketTier riDiscountedTier = mockRiDiscountedTier(true);
-        final TopologyEntityDTO region = mockRegion();
+        final TopologyEntityDTO region = mockRegion(REGION_ID, REGION_NAME);
         final Collection<CommoditySoldTO> licenseCommodityTOs =
                 converter.commoditiesSoldList(computeTier, region, riDiscountedTier).stream()
                         .filter(c -> c.getSpecification().getBaseType()
@@ -193,28 +195,34 @@ public class ReservedInstanceConverterTest {
 
     private List<TraderTO> createMarketTierTraderTOs(boolean isf, boolean zonal) {
         final CloudCostData cloudCostData = mock(CloudCostData.class);
-        when(cloudCostData.getExistingRiBought())
-                .thenReturn(Collections.singleton(createRiData(isf, zonal)));
-        final Map<Long, TopologyEntityDTO> topology = ImmutableMap.of(REGION_ID, mockRegion(),
-                TIER_ID, mockComputeTier());
+        final List<ReservedInstanceData> riDataList = ImmutableList.of(
+                createRiData(isf, zonal, TIER_ID, REGION_ID, ZONE_ID),
+                createRiData(isf, zonal, TIER_ID_2, REGION_ID_2, 0L));
+        when(cloudCostData.getExistingRiBought()).thenReturn(riDataList);
+        final Map<Long, TopologyEntityDTO> topology = ImmutableMap.of(
+                REGION_ID, mockRegion(REGION_ID, REGION_NAME),
+                REGION_ID_2, mockRegion(REGION_ID_2, REGION_NAME_2),
+                TIER_ID, mockComputeTier(),
+                TIER_ID_2, mockComputeTier(TIER_ID_2, false));
         return converter.createMarketTierTraderTOs(cloudCostData,
                         topology, new HashSet<>()).keySet().stream().map(TraderTO.Builder::build)
                 .collect(Collectors.toList());
     }
 
-    private static ReservedInstanceData createRiData(boolean isf, boolean zonal) {
+    private static ReservedInstanceData createRiData(boolean isf, boolean zonal, long tierId,
+                                                     long regionId, long zoneId) {
         final OSType osType = isf ? OSType.LINUX : OSType.WINDOWS;
         final ReservedInstanceBought.Builder boughtRiBuilder = ReservedInstanceBought.newBuilder();
         if (zonal) {
             boughtRiBuilder.setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
-                    .setAvailabilityZoneId(ZONE_ID).build());
+                    .setAvailabilityZoneId(zoneId).build());
         }
         final ReservedInstanceSpecInfo riInfo = ReservedInstanceSpecInfo.newBuilder()
                 .setPlatformFlexible(false)
                 .setOs(osType)
                 .setSizeFlexible(isf)
-                .setRegionId(REGION_ID)
-                .setTierId(TIER_ID)
+                .setRegionId(regionId)
+                .setTierId(tierId)
                 .build();
         final ReservedInstanceSpec riSpec = ReservedInstanceSpec.newBuilder()
                 .setReservedInstanceSpecInfo(riInfo)

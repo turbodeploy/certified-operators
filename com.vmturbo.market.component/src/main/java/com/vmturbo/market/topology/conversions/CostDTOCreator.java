@@ -21,7 +21,6 @@ import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.Comput
 import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle.DatabasePrice;
 import com.vmturbo.market.runner.cost.MarketPriceTable.StoragePriceBundle;
-import com.vmturbo.market.topology.conversions.ReservedInstanceAggregate.ReservedInstanceKey;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CbtpCostDTO;

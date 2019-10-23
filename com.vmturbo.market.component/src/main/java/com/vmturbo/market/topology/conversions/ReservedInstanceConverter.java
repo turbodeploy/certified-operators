@@ -25,7 +25,6 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedIn
 import com.vmturbo.market.topology.RiDiscountedMarketTier;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.TopologyConversionConstants;
-import com.vmturbo.market.topology.conversions.ReservedInstanceAggregate.ReservedInstanceKey;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;

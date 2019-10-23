@@ -1203,11 +1203,13 @@ public class TopologyConverter {
                         }
                     }
                     destAZOrRegion = destAZOrRegion != null ? destAZOrRegion : destinationRegion;
-                    ConnectedEntity az = ConnectedEntity.newBuilder()
-                        .setConnectedEntityId(destAZOrRegion.getOid())
-                        .setConnectedEntityType(destAZOrRegion.getEntityType())
-                        .setConnectionType(ConnectionType.NORMAL_CONNECTION).build();
-                    connectedEntities.add(az);
+                    if (destAZOrRegion != null) {
+                        ConnectedEntity az = ConnectedEntity.newBuilder()
+                                .setConnectedEntityId(destAZOrRegion.getOid())
+                                .setConnectedEntityType(destAZOrRegion.getEntityType())
+                                .setConnectionType(ConnectionType.NORMAL_CONNECTION).build();
+                        connectedEntities.add(az);
+                    }
                 }
             }
         }
@@ -1949,6 +1951,10 @@ public class TopologyConverter {
         CommodityBoughtTO dcCommBought = null;
         if (CLOUD_ENTITY_TYPES_TO_CREATE_DC_COMM_BOUGHT.contains(providerEntityType)) {
             TopologyEntityDTO region = cloudTc.getRegionOfCloudConsumer(entityOidToDto.get(buyerOid));
+            if (region == null) {
+                logger.warn("Region not found for tier {}", marketTier.getDisplayName());
+                return Optional.empty();
+            }
             List<CommoditySoldDTO> dcCommSoldList = region.getCommoditySoldListList().stream()
                 .filter(commSold -> commSold.getCommodityType().getType() ==
                     CommodityDTO.CommodityType.DATACENTER_VALUE)
@@ -2043,9 +2049,9 @@ public class TopologyConverter {
                     .filter(Objects::nonNull)
                     .forEach(bcKeys::add);
         } else if (providerEntityType == EntityType.STORAGE_TIER_VALUE) {
-            dsBasedBicliquer.getBcKeys(String.valueOf(providerOid))
-                    .stream().filter(Objects::nonNull)
-                    .forEach(bcKeys::add);
+            Optional.ofNullable(dsBasedBicliquer.getBcKeys(String.valueOf(providerOid)))
+                    .ifPresent(keys -> keys.stream().filter(Objects::nonNull)
+                    .forEach(bcKeys::add));
         }
         return bcKeys.stream().map(this::bcCommodityBought)
                 .filter(Objects::nonNull).collect(Collectors.toCollection(HashSet::new));
@@ -2107,14 +2113,21 @@ public class TopologyConverter {
             // Get the region connected to the topologyEntity
             Optional<EntityReservedInstanceCoverage> coverage = cloudTc
                     .getRiCoverageForEntity(topologyEntity.getOid());
+
             TopologyEntityDTO region = cloudTc.getRegionOfCloudConsumer(topologyEntity);
             if (providerTopologyEntity.getEntityType() == EntityType.COMPUTE_TIER_VALUE &&
-                    coverage.isPresent()) {
+                    coverage.isPresent() && region != null) {
                 long riId = coverage.get().getCouponsCoveredByRiMap().keySet().iterator().next();
-                ReservedInstanceData riData = cloudTc.getRiDataById(riId);
-                ReservedInstanceSpecInfo spec = riData.getReservedInstanceSpec().getReservedInstanceSpecInfo();
-                providerId = cloudTc.getTraderTOOid(new RiDiscountedMarketTier(entityOidToDto.get(spec.getTierId()),
-                        region, riData, entityOidToDto));
+                final ReservedInstanceData riData = cloudTc.getRiDataById(riId);
+                final TopologyEntityDTO computeTier =
+                        entityOidToDto.get(riData.getReservedInstanceSpec()
+                                .getReservedInstanceSpecInfo().getTierId());
+                final ReservedInstanceKey riKey = new ReservedInstanceKey(riData,
+                        computeTier.getTypeSpecificInfo().getComputeTier().getFamily());
+                final ReservedInstanceAggregate riAggregate =
+                        new ReservedInstanceAggregate(riData, riKey, computeTier);
+                providerId = cloudTc.getTraderTOOid(new RiDiscountedMarketTier(computeTier,
+                        region, riAggregate));
             } else {
                 providerId = cloudTc.getTraderTOOid(new OnDemandMarketTier(
                         providerTopologyEntity));

@@ -1,8 +1,5 @@
 package com.vmturbo.market.topology;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -14,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.market.topology.conversions.ReservedInstanceAggregate;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -45,13 +41,6 @@ public class RiDiscountedMarketTier implements SingleRegionMarketTier {
         this.tier = tier;
         this.region = region;
         this.riAggregate = riAggregate;
-    }
-
-    public RiDiscountedMarketTier(@Nonnull TopologyEntityDTO tier,
-                                  @Nonnull TopologyEntityDTO region,
-                                  @Nonnull ReservedInstanceData riData,
-                                  @Nonnull Map<Long, TopologyEntityDTO> topology) {
-        this(tier, region, new ReservedInstanceAggregate(riData, topology));
     }
 
     @Override

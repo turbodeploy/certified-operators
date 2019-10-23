@@ -2,16 +2,19 @@ package com.vmturbo.market.topology.conversions;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
@@ -19,6 +22,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
@@ -33,7 +37,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 public class ReservedInstanceAggregatorTest {
 
-    private static final int REGION_1 = 10;
+    private static final long REGION_1 = 10;
     private static final int REGION_2 = 11;
     private static final int ZONE_1 = 20;
     private static final int ACCOUNT_1 = 15;
@@ -42,7 +46,7 @@ public class ReservedInstanceAggregatorTest {
     private static final long TIER_1 = 50;
     private static final String FAMILY_1 = "LINUX";
 
-    private final Map<Long, TopologyEntityDTO> topology = mock(Map.class);
+    private final Map<Long, TopologyEntityDTO> topology = Mockito.spy(new HashMap<>());
     private final ReservedInstanceBought riBought1 = ReservedInstanceBought.newBuilder().setId(10)
         .setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder().setAvailabilityZoneId(ZONE_1)
             .setBusinessAccountId(ACCOUNT_1)
@@ -84,13 +88,23 @@ public class ReservedInstanceAggregatorTest {
 
         ReservedInstanceData riData3 = new ReservedInstanceData(riBought2, riSpec2);
 
-        CloudCostData ccd = mock(CloudCostData.class);
-        ReservedInstanceAggregate riAgg1 = new ReservedInstanceAggregate(riData1, topology);
-        ReservedInstanceAggregate riAgg2 = new ReservedInstanceAggregate(riData2, topology);
-        assertTrue(riAgg1.equals(riAgg2));
+        final ReservedInstanceKey riKey1 = new ReservedInstanceKey(riData1, FAMILY_1);
+        final ReservedInstanceKey riKey2 = new ReservedInstanceKey(riData2, FAMILY_1);
+        final ReservedInstanceKey riKey3 = new ReservedInstanceKey(riData3, FAMILY_1);
+        final TopologyEntityDTO computeTier = TopologyEntityDTO.newBuilder().setOid(TIER_1)
+                .setEntityType(EntityType.COMPUTE_TIER_VALUE)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setComputeTier(
+                        ComputeTierInfo.newBuilder().setFamily(FAMILY_1)
+                                .build()).build()).build();
+        ReservedInstanceAggregate riAgg1 = new ReservedInstanceAggregate(riData1, riKey1,
+                computeTier);
+        ReservedInstanceAggregate riAgg2 = new ReservedInstanceAggregate(riData2, riKey2,
+                computeTier);
+        assertEquals(riAgg1, riAgg2);
 
-        ReservedInstanceAggregate riAgg3 = new ReservedInstanceAggregate(riData3, topology);
-        assertFalse(riAgg1.equals(riAgg3));
+        ReservedInstanceAggregate riAgg3 = new ReservedInstanceAggregate(riData3, riKey3,
+                computeTier);
+        assertNotEquals(riAgg1, riAgg3);
 
         Set<ReservedInstanceAggregate> aggregates = new HashSet<>();
         aggregates.add(riAgg1);
@@ -105,8 +119,8 @@ public class ReservedInstanceAggregatorTest {
         RiDiscountedMarketTier riMarketTier1 = new RiDiscountedMarketTier(topology.get(TIER_1), region1, riAgg1);
         RiDiscountedMarketTier riMarketTier2 = new RiDiscountedMarketTier(topology.get(TIER_1), region1, riAgg2);
         RiDiscountedMarketTier riMarketTier3 = new RiDiscountedMarketTier(topology.get(TIER_1), region2, riAgg3);
-        assertTrue(riMarketTier1.equals(riMarketTier2));
-        assertFalse(riMarketTier1.equals(riMarketTier3));
+        assertEquals(riMarketTier1, riMarketTier2);
+        assertNotEquals(riMarketTier1, riMarketTier3);
     }
 
     /**
@@ -117,10 +131,9 @@ public class ReservedInstanceAggregatorTest {
     public void testAggregateRis() {
         TopologyInfo topoInfo = TopologyInfo.newBuilder().build();
         CloudCostData ccd = mock(CloudCostData.class);
-        when(ccd.getExistingRiBought()).thenReturn(Arrays.asList(riData1));
+        when(ccd.getExistingRiBought()).thenReturn(Collections.singletonList(riData1));
         ReservedInstanceAggregator ria = new ReservedInstanceAggregator(ccd, topology);
-        assertFalse(ria.aggregateRis(topoInfo));
-        assertEquals(0, ria.riAggregates.size());
+        assertEquals(0, ria.aggregate(topoInfo).size());
 
 
         TopologyEntityDTO computeTier = TopologyEntityDTO.newBuilder().setOid(TIER_1)
@@ -129,10 +142,13 @@ public class ReservedInstanceAggregatorTest {
                 ComputeTierInfo.newBuilder().setFamily(FAMILY_1)
                     .build())
                 .build())
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectedEntityType(EntityType.REGION_VALUE)
+                        .setConnectedEntityId(REGION_1)
+                        .build())
             .build();
-        when(topology.get(TIER_1)).thenReturn(computeTier);
-        when(topology.get(new Long(REGION_1))).thenReturn(computeTier);
-        assertTrue(ria.aggregateRis(topoInfo));
-        assertEquals(1, ria.riAggregates.size());
+        topology.put(TIER_1, computeTier);
+        topology.put(REGION_1, computeTier);
+        assertEquals(1, ria.aggregate(topoInfo).size());
     }
 }
