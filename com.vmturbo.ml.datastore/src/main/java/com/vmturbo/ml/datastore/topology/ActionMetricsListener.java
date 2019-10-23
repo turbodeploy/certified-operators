@@ -35,7 +35,8 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
  *
  * Writes metrics from the topology to influx for use in training ML data models.s
  */
-public class ActionMetricsListener implements com.vmturbo.action.orchestrator.api.ActionsListener {
+public class ActionMetricsListener implements com.vmturbo.action.orchestrator.api.ActionsListener,
+        com.vmturbo.market.component.api.ActionsListener {
     private final Logger logger = LogManager.getLogger();
 
     private static final long REALTIME_CONTEXT_ID = 777777;

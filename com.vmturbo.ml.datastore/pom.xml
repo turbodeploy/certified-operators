@@ -96,5 +96,9 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>auth-api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>market-component-api</artifactId>
+        </dependency>
     </dependencies>
 </project>
