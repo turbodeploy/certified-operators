@@ -8,8 +8,8 @@ provisionDataStore:
 
 tag: 1.13.1
 
-nameOverride: ""
-fullnameOverride: ""
+#nameOverride: ""
+fullnameOverride: jaeger
 
 serviceAccounts:
   cassandraSchema:

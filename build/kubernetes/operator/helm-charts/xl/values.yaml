@@ -75,6 +75,9 @@ jaeger:
   provisionDataStore:
     cassandra: true
     elasticsearch: false
+  cassandra:
+    config:
+      dc_name: dc1
 
 # Enable mediation
 actionscript:
