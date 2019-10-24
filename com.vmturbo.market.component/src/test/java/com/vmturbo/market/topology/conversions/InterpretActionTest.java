@@ -1,5 +1,6 @@
 package com.vmturbo.market.topology.conversions;
 
+import static com.vmturbo.trax.Trax.trax;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -24,14 +25,13 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
+
 import org.hamcrest.collection.IsIterableContainingInAnyOrder;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -549,25 +549,15 @@ public class InterpretActionTest {
 
     @Test
     public void testInterpretMoveAction_Cloud() throws IOException {
-        interpretMoveToCheaperTemplateActionForCloud(false, true);
-    }
-
-    @Test
-    public void testInterpretCompoundMoveAction_Cloud() throws IOException {
-        interpretMoveToCheaperTemplateActionForCloud(true, true);
+        interpretMoveToCheaperTemplateActionForCloud(true);
     }
 
     @Test
     public void testInterpretMoveAction_Cloud_No_AZ() throws IOException {
-        interpretMoveToCheaperTemplateActionForCloud(false, false);
+        interpretMoveToCheaperTemplateActionForCloud(false);
     }
 
-    @Test
-    public void testInterpretCompoundMoveAction_Cloud_No_AZ() throws IOException {
-        interpretMoveToCheaperTemplateActionForCloud(true, false);
-    }
-
-    private void interpretMoveToCheaperTemplateActionForCloud(boolean isVmShopTogether, boolean hasAZ)
+    private void interpretMoveToCheaperTemplateActionForCloud(boolean hasAZ)
             throws IOException {
         Set<TopologyEntityDTO.Builder> topologyEntityDTOBuilders = hasAZ ?
             TopologyEntitiesHandlerTest.readCloudTopologyFromJsonFile() :
@@ -577,7 +567,7 @@ public class InterpretActionTest {
                 builder -> builder.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
                 .collect(Collectors.toList()).get(0);
         // Set the shopTogether flag
-        vmBuilder.getAnalysisSettingsBuilder().setShopTogether(isVmShopTogether);
+        vmBuilder.getAnalysisSettingsBuilder().setShopTogether(false);
         Set<TopologyEntityDTO> topologyEntityDTOs = topologyEntityDTOBuilders.stream()
                 .map(builder -> builder.build()).collect(Collectors.toSet());
         Map<Long, TopologyEntityDTO> originalTopology = topologyEntityDTOs.stream()
@@ -614,21 +604,21 @@ public class InterpretActionTest {
         TopologyCostCalculator mockTopologyCostCalculator = mock(TopologyCostCalculator.class);
         CostJournal<TopologyEntityDTO> sourceCostJournal = mock(CostJournal.class);
         // Source compute cost = 10 + 2 +3 = 15 (compute + ip + license)
-        when(sourceCostJournal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE)).thenReturn(10d);
-        when(sourceCostJournal.getHourlyCostForCategory(CostCategory.IP)).thenReturn(2d);
-        when(sourceCostJournal.getHourlyCostForCategory(CostCategory.LICENSE)).thenReturn(3d);
+        when(sourceCostJournal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE)).thenReturn(trax(10d));
+        when(sourceCostJournal.getHourlyCostForCategory(CostCategory.IP)).thenReturn(trax(2d));
+        when(sourceCostJournal.getHourlyCostForCategory(CostCategory.LICENSE)).thenReturn(trax(3d));
         // Total Source cost = 20
-        when(sourceCostJournal.getTotalHourlyCostExcluding(anySet())).thenReturn(20d);
+        when(sourceCostJournal.getTotalHourlyCostExcluding(anySet())).thenReturn(trax(20d));
         when(mockTopologyCostCalculator.calculateCostForEntity(any(), eq(vm))).thenReturn(Optional.of(sourceCostJournal));
 
         Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts = new HashMap<>();
         CostJournal<TopologyEntityDTO> projectedCostJournal = mock(CostJournal.class);
         // Destination compute cost = 9 + 1 + 2 = 12
-        when(projectedCostJournal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE)).thenReturn(9d);
-        when(projectedCostJournal.getHourlyCostForCategory(CostCategory.IP)).thenReturn(1d);
-        when(projectedCostJournal.getHourlyCostForCategory(CostCategory.LICENSE)).thenReturn(2d);
+        when(projectedCostJournal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE)).thenReturn(trax(9d));
+        when(projectedCostJournal.getHourlyCostForCategory(CostCategory.IP)).thenReturn(trax(1d));
+        when(projectedCostJournal.getHourlyCostForCategory(CostCategory.LICENSE)).thenReturn(trax(2d));
         // Total destination cost = 15
-        when(projectedCostJournal.getTotalHourlyCostExcluding(anySet())).thenReturn(15d);
+        when(projectedCostJournal.getTotalHourlyCostExcluding(anySet())).thenReturn(trax(15d));
         projectedCosts.put(vm.getOid(), projectedCostJournal);
         CommodityConverter mockedCommodityConverter = mock(CommodityConverter.class);
         CommodityType mockedCommType = CommodityType.newBuilder().setType(10).build();
@@ -639,28 +629,15 @@ public class InterpretActionTest {
         ActionTO actionTO = null;
         // Assuming that 1 is the oid of trader created for m1.large x region and 2 is the oid
         // created for m1.medium x region
-        if (isVmShopTogether) {
-            actionTO = ActionTO.newBuilder().setImportance(0).setIsNotExecutable(false)
-                    .setCompoundMove(
-                            CompoundMoveTO.newBuilder().addMoves(
-                                MoveTO.newBuilder()
-                            .setShoppingListToMove(5)
-                            .setSource(1)
-                            .setDestination(2)
-                            .setMoveContext(Context.newBuilder().setRegionId(15)
-                                    .setBalanceAccount(BalanceAccountDTO.newBuilder().setId(17438L).build()).build())
-                            .setMoveExplanation(MoveExplanation.getDefaultInstance()).build())
-                                    .build()).build();
-        } else {
-            actionTO = ActionTO.newBuilder().setImportance(0).setIsNotExecutable(false)
-                    .setMove(MoveTO.newBuilder()
-                            .setShoppingListToMove(5)
-                            .setSource(1)
-                            .setMoveContext(Context.newBuilder().setRegionId(15)
-                                    .setBalanceAccount(BalanceAccountDTO.newBuilder().setId(17438L).build()).build())
-                            .setDestination(2)
-                            .setMoveExplanation(MoveExplanation.getDefaultInstance())).build();
-        }
+        actionTO = ActionTO.newBuilder().setImportance(0).setIsNotExecutable(false)
+                .setMove(MoveTO.newBuilder()
+                        .setShoppingListToMove(5)
+                        .setSource(1)
+                        .setMoveContext(Context.newBuilder().setRegionId(15)
+                                .setBalanceAccount(BalanceAccountDTO.newBuilder().setId(17438L).build()).build())
+                        .setDestination(2)
+                        .setMoveExplanation(MoveExplanation.getDefaultInstance())).build();
+
         // We don't create projected topology entries for the "fake" traders (1 and 2), since
         // those are completely internal to the market.
         Map<Long, ProjectedTopologyEntity> projectedTopology = ImmutableMap.of(
@@ -672,11 +649,8 @@ public class InterpretActionTest {
         originalTopology.put(15L, region);
         Optional<Action> action = interpreter.interpretAction(actionTO, projectedTopology,
                 mockedOriginalTopology, projectedCosts, mockTopologyCostCalculator);
-        if (isVmShopTogether) {
-            assertEquals(5, action.get().getSavingsPerHour().getAmount(), 0.0001);
-        } else {
-            assertEquals(3, action.get().getSavingsPerHour().getAmount(), 0.0001);
-        }
+
+        assertEquals(3, action.get().getSavingsPerHour().getAmount(), 0.0001);
         assertThat(action.get().getInfo().getMove().getChanges(0).getSource().getId(), is(m1Large.getOid()));
         assertThat(action.get().getInfo().getMove().getChanges(0).getSource().getType(), is(m1Large.getEntityType()));
         assertThat(action.get().getInfo().getMove().getChanges(0).getSource().getEnvironmentType(), is(m1Large.getEnvironmentType()));

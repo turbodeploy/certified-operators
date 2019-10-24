@@ -146,7 +146,6 @@ public class TopologyCostCalculator {
         entities.forEach(entity -> {
             retCosts.put(entity.getOid(), costCalculator.calculateCost(entity));
         });
-        logger.info("Cost calculation completed.");
         return retCosts;
     }
 

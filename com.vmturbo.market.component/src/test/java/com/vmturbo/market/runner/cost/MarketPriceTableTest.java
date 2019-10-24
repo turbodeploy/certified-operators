@@ -1,5 +1,6 @@
 package com.vmturbo.market.runner.cost;
 
+import static com.vmturbo.trax.Trax.trax;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
@@ -338,7 +339,7 @@ public class MarketPriceTableTest {
 
         final long discountBaId = 17L;
         final DiscountApplicator<TopologyEntityDTO> discount = mock(DiscountApplicator.class);
-        when(discount.getDiscountPercentage(AWS_COMPUTE_TIER_ID)).thenReturn(0.2);
+        when(discount.getDiscountPercentage(AWS_COMPUTE_TIER_ID)).thenReturn(trax(0.2));
 
         doReturn(ImmutableMap.of(
                 noDiscountBaId, makeBusinessAccount(noDiscountBaId, noDiscount),
@@ -374,7 +375,7 @@ public class MarketPriceTableTest {
 
         final long discountBaId = 17L;
         final DiscountApplicator<TopologyEntityDTO> discount = mock(DiscountApplicator.class);
-        when(discount.getDiscountPercentage(AZURE_COMPUTE_TIER_ID)).thenReturn(0.2);
+        when(discount.getDiscountPercentage(AZURE_COMPUTE_TIER_ID)).thenReturn(trax(0.2));
 
         doReturn(ImmutableMap.of(
             noDiscountBaId, makeBusinessAccount(noDiscountBaId, noDiscount),
@@ -652,7 +653,7 @@ public class MarketPriceTableTest {
         final long baId = 7L;
         // Add a 20% discount for the storage tier.
         final DiscountApplicator<TopologyEntityDTO> discount = mock(DiscountApplicator.class);
-        when(discount.getDiscountPercentage(STORAGE_TIER_ID)).thenReturn(0.2);
+        when(discount.getDiscountPercentage(STORAGE_TIER_ID)).thenReturn(trax(0.2));
         doReturn(ImmutableMap.of(baId, makeBusinessAccount(baId, discount)))
                 .when(topology).getEntities();
 

@@ -179,7 +179,7 @@ public class DiscountApplicatorTest {
         final DiscountApplicator<TestEntityClass> applicator = makeDiscountApplicator(entity, discount);
 
         // The input to the applicator is the tier, because the applicator itself is entity-specific.
-        assertThat(applicator.getDiscountPercentage(tier.getId()), is(discountPercentage));
+        assertThat(applicator.getDiscountPercentage(tier.getId()).getValue(), is(discountPercentage));
     }
 
     @Test
@@ -207,7 +207,7 @@ public class DiscountApplicatorTest {
         final DiscountApplicator<TestEntityClass> applicator = makeDiscountApplicator(entity, discount);
 
         // The input to the applicator is the tier, because the applicator itself is entity-specific.
-        assertThat(applicator.getDiscountPercentage(tier.getId()), is(discountPercentage));
+        assertThat(applicator.getDiscountPercentage(tier.getId()).getValue(), is(discountPercentage));
     }
 
     @Test
@@ -233,7 +233,7 @@ public class DiscountApplicatorTest {
         final DiscountApplicator<TestEntityClass> applicator = makeDiscountApplicator(entity, discount);
 
         // The input to the applicator is the tier, because the applicator itself is entity-specific.
-        assertThat(applicator.getDiscountPercentage(tier.getId()), is(discountPercentage));
+        assertThat(applicator.getDiscountPercentage(tier.getId()).getValue(), is(discountPercentage));
     }
 
     @Test

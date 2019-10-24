@@ -1,5 +1,8 @@
 package com.vmturbo.cost.calculation;
 
+import static com.vmturbo.trax.Trax.trax;
+import static com.vmturbo.trax.Trax.traxConstant;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -40,6 +43,8 @@ import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
+import com.vmturbo.trax.TraxCollectors;
+import com.vmturbo.trax.TraxNumber;
 
 /**
  * The {@link CostJournal} collects the elements that contribute to the cost of a particular entity.
@@ -54,6 +59,13 @@ import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 public class CostJournal<ENTITY_CLASS> {
 
     private static final Logger logger = LogManager.getLogger();
+
+    private static final Map<CostCategory, TraxNumber> NO_COST_MAP = new EnumMap<>(CostCategory.class);
+    static {
+        for (CostCategory category : CostCategory.values()) {
+            NO_COST_MAP.put(category, traxConstant(0, "No " + category.name() + " cost"));
+        }
+    }
 
     /**
      * Template for logging the cost journal.
@@ -87,7 +99,7 @@ public class CostJournal<ENTITY_CLASS> {
 
     private final Map<CostCategory, List<JournalEntry<ENTITY_CLASS>>> costEntries;
 
-    private final Map<CostCategory, Double> finalCostsByCategory = Collections.synchronizedMap(new HashMap<>());
+    private final Map<CostCategory, TraxNumber> finalCostsByCategory = Collections.synchronizedMap(new HashMap<>());
 
     /**
      * We calculate the costs from the journal entries the first time costs are actually requested.
@@ -123,12 +135,9 @@ public class CostJournal<ENTITY_CLASS> {
             synchronized (finalCostsByCategory) {
                 logger.trace("Summing price entries.");
                 costEntries.forEach((category, priceEntries) -> {
-                    double aggregateHourly = 0.0;
-                    logger.trace("Aggregating hourly costs for category {}", category);
-                    for (JournalEntry<ENTITY_CLASS> journalEntry : priceEntries) {
-                        aggregateHourly += journalEntry.calculateHourlyCost(infoExtractor, discountApplicator)
-                            .getAmount();
-                    }
+                    final TraxNumber aggregateHourly = priceEntries.stream()
+                        .map(journalEntry -> journalEntry.calculateHourlyCost(infoExtractor, discountApplicator))
+                        .collect(TraxCollectors.sum(category.name()));
                     logger.trace("Aggregated hourly cost for category {} is {}", category, aggregateHourly);
                     finalCostsByCategory.put(category, aggregateHourly);
                 });
@@ -137,24 +146,26 @@ public class CostJournal<ENTITY_CLASS> {
                 // costs calculated so far.
                 childCostEntities.forEach(childCostEntity -> {
                     final CostJournal<ENTITY_CLASS> journal =
-                            dependentCostLookup.getCostJournal(childCostEntity);
+                        dependentCostLookup.getCostJournal(childCostEntity);
                     if (journal == null) {
                         logger.error("Could not find costs for child entity {} (id: {})",
                             infoExtractor.getName(childCostEntity),
                             infoExtractor.getId(childCostEntity));
                     } else {
                         logger.trace(() -> "Inheriting costs from " + infoExtractor.getName(childCostEntity)
-                                + " id: " + infoExtractor.getId(childCostEntity));
+                            + " id: " + infoExtractor.getId(childCostEntity));
                         // Make sure the child journal's prices have already been calculated.
                         // Hope there are no circular dependencies, fingers crossed!
                         journal.calculateCosts();
                         journal.getCategories().forEach(category ->
                             finalCostsByCategory.compute(category, (k, curPrice) -> {
-                                final double inheritedCost =
-                                        journal.getHourlyCostForCategory(category);
-                                final double newCost = inheritedCost + (curPrice == null ? 0 : curPrice);
+                                final TraxNumber curPriceNum = curPrice == null ?
+                                    trax(0, "none") : curPrice;
+                                final TraxNumber inheritedCost = journal.getHourlyCostForCategory(category);
+                                final TraxNumber newCost = inheritedCost.plus(curPriceNum)
+                                    .compute("inherited hourly costs from " + infoExtractor.getName(childCostEntity));
                                 logger.trace("Inheriting {} for category {}. New cost is: {}",
-                                        inheritedCost, category, newCost);
+                                    inheritedCost, category, newCost);
                                 return newCost;
                             }));
                     }
@@ -194,12 +205,12 @@ public class CostJournal<ENTITY_CLASS> {
             .setAssociatedEntityId(infoExtractor.getId(entity))
             .setAssociatedEntityType(infoExtractor.getEntityType(entity))
             .setTotalAmount(CurrencyAmount.newBuilder()
-                .setAmount(getTotalHourlyCost()));
+                .setAmount(getTotalHourlyCost().getValue()));
         getCategories().forEach(category -> {
             costBuilder.addComponentCost(ComponentCost.newBuilder()
                 .setCategory(category)
                 .setAmount(CurrencyAmount.newBuilder()
-                    .setAmount(getHourlyCostForCategory(category))));
+                    .setAmount(getHourlyCostForCategory(category).getValue())));
         });
         return costBuilder.build();
     }
@@ -210,9 +221,10 @@ public class CostJournal<ENTITY_CLASS> {
      * @param category The category.
      * @return The hourly cost for the category.
      */
-    public double getHourlyCostForCategory(@Nonnull final CostCategory category) {
+    @Nonnull
+    public TraxNumber getHourlyCostForCategory(@Nonnull final CostCategory category) {
         calculateCosts();
-        return finalCostsByCategory.getOrDefault(category, 0.0);
+        return finalCostsByCategory.getOrDefault(category, NO_COST_MAP.get(category));
     }
 
     /**
@@ -221,13 +233,13 @@ public class CostJournal<ENTITY_CLASS> {
      * @param excludeCategories The categories to exclude.
      * @return The hourly cost for all categories except for the categories to exclude.
      */
-    public double getTotalHourlyCostExcluding(@Nonnull final Set<CostCategory> excludeCategories) {
+    @Nonnull
+    public TraxNumber getTotalHourlyCostExcluding(@Nonnull final Set<CostCategory> excludeCategories) {
         calculateCosts();
         return finalCostsByCategory.entrySet().stream()
-                .filter(e -> !excludeCategories.contains(e.getKey()))
-                .map(Entry::getValue)
-                .mapToDouble(d -> d)
-                .sum();
+            .filter(e -> !excludeCategories.contains(e.getKey()))
+            .map(Entry::getValue)
+            .collect(TraxCollectors.sum("total hourly costs with exclusions"));
     }
 
     /**
@@ -246,9 +258,10 @@ public class CostJournal<ENTITY_CLASS> {
      *
      * @return The total (hourly) cost for the entity.
      */
-    public double getTotalHourlyCost() {
+    public TraxNumber getTotalHourlyCost() {
         calculateCosts();
-        return finalCostsByCategory.values().stream().mapToDouble(d -> d).sum();
+        return finalCostsByCategory.values().stream()
+            .collect(TraxCollectors.sum("total hourly cost"));
     }
 
     /**
@@ -349,8 +362,8 @@ public class CostJournal<ENTITY_CLASS> {
          *                           the entity whose journal this entry belongs to.
          * @return The hourly cost.
          */
-        CurrencyAmount calculateHourlyCost(@Nonnull final EntityInfoExtractor<ENTITY_CLASS> infoExtractor,
-                               @Nonnull final DiscountApplicator<ENTITY_CLASS> discountApplicator);
+        TraxNumber calculateHourlyCost(@Nonnull EntityInfoExtractor<ENTITY_CLASS> infoExtractor,
+                                       @Nonnull DiscountApplicator<ENTITY_CLASS> discountApplicator);
     }
 
     /**
@@ -370,16 +383,16 @@ public class CostJournal<ENTITY_CLASS> {
         /**
          * The number of coupons covered by this RI.
          */
-        private final double couponsCovered;
+        private final TraxNumber couponsCovered;
 
         /**
          * The cost of the reserved instance for this entity.
          */
-        private final CurrencyAmount hourlyCost;
+        private final TraxNumber hourlyCost;
 
         RIJournalEntry(@Nonnull final ReservedInstanceData riData,
-                       final double couponsCovered,
-                       @Nonnull final CurrencyAmount hourlyCost) {
+                       final TraxNumber couponsCovered,
+                       @Nonnull final TraxNumber hourlyCost) {
             this.riData = riData;
             this.couponsCovered = couponsCovered;
             this.hourlyCost = hourlyCost;
@@ -389,7 +402,7 @@ public class CostJournal<ENTITY_CLASS> {
          * {@inheritDoc}
          */
         @Override
-        public CurrencyAmount calculateHourlyCost(@Nonnull final EntityInfoExtractor<ENTITY_CLASS_> infoExtractor,
+        public TraxNumber calculateHourlyCost(@Nonnull final EntityInfoExtractor<ENTITY_CLASS_> infoExtractor,
                           @Nonnull final DiscountApplicator<ENTITY_CLASS_> discountApplicator) {
             // We still want to apply discounts to RI prices.
             // When looking up the discount for an RI we use the tier that the RI is for.
@@ -402,10 +415,11 @@ public class CostJournal<ENTITY_CLASS> {
             // be under the same master account.
             final long providerId =
                     riData.getReservedInstanceSpec().getReservedInstanceSpecInfo().getTierId();
-            final double discountPercentage = discountApplicator.getDiscountPercentage(providerId);
-            return hourlyCost.toBuilder()
-                .setAmount(hourlyCost.getAmount() * (1.0 - discountPercentage))
-                .build();
+            final TraxNumber discountPercentage = discountApplicator.getDiscountPercentage(providerId);
+            final TraxNumber fullPricePercentage = trax(1.0, "100%")
+                .minus(discountPercentage)
+                .compute("full price portion");
+            return hourlyCost.times(fullPricePercentage).compute("hourly discounted RI");
         }
     }
 
@@ -431,15 +445,13 @@ public class CostJournal<ENTITY_CLASS> {
         /**
          * The number of units of the item that the buyer is buying from the payee. This can
          * be combined with the price to get the cost of the item to the buyer.
-         *
-         * The number can be
          */
-        private final double unitsBought;
+        private final TraxNumber unitsBought;
 
         OnDemandJournalEntry(@Nonnull final ENTITY_CLASS_ payee,
                              @Nonnull final Price price,
-                             final double unitsBought) {
-            Preconditions.checkArgument(unitsBought >= 0);
+                             final TraxNumber unitsBought) {
+            Preconditions.checkArgument(unitsBought.getValue() >= 0);
             this.payee = payee;
             this.price = price;
             this.unitsBought = unitsBought;
@@ -449,30 +461,28 @@ public class CostJournal<ENTITY_CLASS> {
          * {@inheritDoc}
          */
         @Override
-        public CurrencyAmount calculateHourlyCost(@Nonnull final EntityInfoExtractor<ENTITY_CLASS_> infoExtractor,
+        public TraxNumber calculateHourlyCost(@Nonnull final EntityInfoExtractor<ENTITY_CLASS_> infoExtractor,
                                           @Nonnull final DiscountApplicator<ENTITY_CLASS_> discountApplicator) {
             logger.trace("Calculating hourly cost for purchase from entity {} of type {}",
                     infoExtractor.getId(payee), infoExtractor.getEntityType(payee));
-            final CurrencyAmount cost;
-            final CurrencyAmount unitPrice = price.getPriceAmount();
-            final double discountPercentage = discountApplicator.getDiscountPercentage(payee);
-            final double discountedUnitPrice = unitPrice.getAmount() * (1.0 - discountPercentage);
-            final double totalPrice = unitsBought * discountedUnitPrice;
+            final TraxNumber unitPrice = trax(price.getPriceAmount().getAmount(),
+                infoExtractor.getName(payee) + " unit price");
+            final TraxNumber discountPercentage = trax(1.0, "full price portion")
+                .minus(discountApplicator.getDiscountPercentage(payee))
+                .compute("discount coefficient");
+            final TraxNumber discountedUnitPrice = unitPrice.times(discountPercentage).compute("discounted unit price");
+            final TraxNumber totalPrice = discountedUnitPrice.times(unitsBought).compute("total price");
             logger.trace("Buying {} units at unit price {} with discount percentage {}",
-                unitsBought, price.getUnit().name(), unitPrice.getAmount(), discountPercentage);
+                unitsBought, price.getUnit().name(), unitPrice, discountPercentage);
+            final TraxNumber cost;
             switch (price.getUnit()) {
                 case HOURS: {
-                    cost = unitPrice.toBuilder()
-                            .setAmount(totalPrice)
-                            // Currency inherited from unit price.
-                            .build();
+                    cost = totalPrice;
                     break;
                 }
                 case DAYS: {
-                    cost = unitPrice.toBuilder()
-                        .setAmount(totalPrice / CostProtoUtil.HOURS_IN_DAY)
-                        // Currency inherited from unit price.
-                        .build();
+                    cost = totalPrice.dividedBy(CostProtoUtil.HOURS_IN_DAY, "hrs in day")
+                        .compute("hourly cost for " + infoExtractor.getName(payee));
                     break;
                 }
                 case MONTH:
@@ -480,15 +490,13 @@ public class CostJournal<ENTITY_CLASS> {
                 case GB_MONTH: {
                     // In all of these cases, the key distinction is that the price is monthly,
                     // so to get the hourly price we need to divide.
-                    cost = unitPrice.toBuilder()
-                            .setAmount(totalPrice / CostProtoUtil.HOURS_IN_MONTH)
-                            // Currency inherited from unit price.
-                            .build();
+                    cost = totalPrice.dividedBy(CostProtoUtil.HOURS_IN_MONTH, "hrs in month")
+                        .compute("hourly cost for " + infoExtractor.getName(payee));
                     break;
                 }
                 default:
                     logger.warn("Unsupported unit: {}", price.getUnit());
-                    cost = CurrencyAmount.getDefaultInstance();
+                    cost = trax(0, "unsupported unit");
                     break;
             }
             logger.trace("Purchase from entity {} of type {} has cost: {}",
@@ -567,7 +575,7 @@ public class CostJournal<ENTITY_CLASS> {
                 @Nonnull final CostCategory category,
                 @Nonnull final ENTITY_CLASS_ payee,
                 @Nonnull final Price price,
-                final double amount) {
+                final TraxNumber amount) {
             if (logger.isTraceEnabled()) {
                 logger.trace("On-demand {} purchase of {} from payee {} (id: {}) at price {}",
                         category, amount, infoExtractor.getName(payee), infoExtractor.getId(payee), price);
@@ -593,14 +601,15 @@ public class CostJournal<ENTITY_CLASS> {
          * by reserved instances, instead of providers in the topology.
          *
          * @param payee Data about the RI the cost is going to.
+         * @param couponsCovered The number of coupons covered by the RI.
          * @param hourlyCost The hourly cost for using the RI.
          * @return The builder, for method chaining.
          */
         @Nonnull
         public Builder<ENTITY_CLASS_> recordRiCost(
                 @Nonnull final ReservedInstanceData payee,
-                final double couponsCovered,
-                @Nonnull final CurrencyAmount hourlyCost) {
+                @Nonnull final TraxNumber couponsCovered,
+                @Nonnull final TraxNumber hourlyCost) {
             if (logger.isTraceEnabled()) {
                 logger.trace("RI {} coverage by {} at cost {}",
                         payee.getReservedInstanceBought().getId(), hourlyCost);
@@ -769,7 +778,7 @@ public class CostJournal<ENTITY_CLASS> {
                     onDemandEntry.price.getUnit().name(),
                     onDemandEntry.price.getEndRangeInUnits() == 0 ? "Inf" : Long.toString(onDemandEntry.price.getEndRangeInUnits()),
                     Double.toString(onDemandEntry.price.getPriceAmount().getAmount()),
-                    Double.toString(onDemandEntry.unitsBought));
+                    Double.toString(onDemandEntry.unitsBought.getValue()));
             }
         }
 
@@ -812,7 +821,7 @@ public class CostJournal<ENTITY_CLASS> {
                         riEntry.riData.getReservedInstanceBought().getId(),
                         riEntry.riData.getReservedInstanceSpec().getId(),
                         riEntry.couponsCovered,
-                        riEntry.hourlyCost.getAmount());
+                        riEntry.hourlyCost.getValue());
             }
 
         }

@@ -38,6 +38,7 @@
                                     <locations>
                                         <location>com.vmturbo.components.common</location>
                                         <location>com.vmturbo.common.protobuf.logging</location>
+                                        <location>com.vmturbo.common.protobuf.trax</location>
                                         <location>com.vmturbo.common.protobuf.market</location>
                                     </locations>
                                 </apiSource>
@@ -121,6 +122,10 @@
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>cost-calculation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>trax</artifactId>
         </dependency>
         <dependency>
             <groupId>com.google.protobuf</groupId>

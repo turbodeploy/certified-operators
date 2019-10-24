@@ -39,6 +39,11 @@ import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
  * <li>Validate JWT token with public key</li>
  * <li>Store caller subject to context {@link Context}</li>
  * </ul>
+ * This passes user identity and role in the JWT token so we can authorize and track
+ * gRPC activity.
+ * <p/>
+ * Every component exposing a gRPC server should add a {@link JwtServerInterceptor} to
+ * its list of {@link ServerInterceptor}s.
  */
 public class JwtServerInterceptor implements ServerInterceptor {
     private static final int ALLOWED_CLOCK_SKEW_SECONDS = 60;

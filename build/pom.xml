@@ -755,6 +755,7 @@
                 <module>../com.vmturbo.auth.test</module>
                 <module>../com.vmturbo.api.component</module>
                 <module>../com.vmturbo.common.protobuf</module>
+                <module>../com.vmturbo.trax</module>
                 <module>../com.vmturbo.clustermgr</module>
                 <module>../com.vmturbo.clustermgr.api</module>
                 <module>../com.vmturbo.components</module>
@@ -827,6 +828,7 @@
                 <module>../com.vmturbo.auth.test</module>
                 <module>../com.vmturbo.api.component</module>
                 <module>../com.vmturbo.common.protobuf</module>
+                <module>../com.vmturbo.trax</module>
                 <module>../com.vmturbo.clustermgr</module>
                 <module>../com.vmturbo.clustermgr.api</module>
                 <module>../com.vmturbo.components</module>
@@ -889,6 +891,7 @@
                 <module>../com.vmturbo.auth.test</module>
                 <module>../com.vmturbo.api.component</module>
                 <module>../com.vmturbo.common.protobuf</module>
+                <module>../com.vmturbo.trax</module>
                 <module>../com.vmturbo.clustermgr</module>
                 <module>../com.vmturbo.clustermgr.api</module>
                 <module>../com.vmturbo.components</module>
@@ -1806,6 +1809,12 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>system-notification-receiver</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>trax</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

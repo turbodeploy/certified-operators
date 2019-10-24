@@ -1,5 +1,6 @@
 package com.vmturbo.market.runner;
 
+import static com.vmturbo.trax.Trax.trax;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -258,7 +259,7 @@ public class WastedFilesAnalysisTest {
         cloudTopology.values().stream().filter(dto -> dto.getEntityType() == EntityType.VIRTUAL_VOLUME.getNumber())
             .forEach(dto -> {
                 CostJournal<TopologyEntityDTO> costJournal = mock(CostJournal.class);
-                when(costJournal.getTotalHourlyCost()).thenReturn(10d * dto.getOid());
+                when(costJournal.getTotalHourlyCost()).thenReturn(trax(10d * dto.getOid()));
                 when(cloudCostCalculator.calculateCostForEntity(any(), eq(dto))).thenReturn(Optional.of(costJournal));
             });
 

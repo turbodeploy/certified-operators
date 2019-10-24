@@ -39,6 +39,7 @@ import com.vmturbo.cost.component.util.CostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.sql.utils.DbException;
+import com.vmturbo.trax.TraxNumber;
 
 /**
  * {@inheritDoc}
@@ -150,7 +151,7 @@ public class SqlEntityCostStore implements EntityCostStore {
                         // Bind values to the batch insert statement. Each "bind" should have values for
                         // all fields set during batch initialization.
                         chunk.forEach(journal -> journal.getCategories().forEach(costType -> {
-                            final double categoryCost = journal.getHourlyCostForCategory(costType);
+                            final TraxNumber categoryCost = journal.getHourlyCostForCategory(costType);
                             batch.bind(journal.getEntity().getOid(),
                                     curTime,
                                     journal.getEntity().getEntityType(),
@@ -158,7 +159,7 @@ public class SqlEntityCostStore implements EntityCostStore {
                                     // TODO (roman, Sept 5 2018): Not handling currency in cost
                                     // calculation yet.
                                     CurrencyAmount.getDefaultInstance().getCurrency(),
-                                    BigDecimal.valueOf(categoryCost));
+                                    BigDecimal.valueOf(categoryCost.getValue()));
                         }));
 
                         if (batch.size() > 0) {

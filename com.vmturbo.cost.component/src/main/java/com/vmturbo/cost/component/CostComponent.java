@@ -1,8 +1,10 @@
 package com.vmturbo.cost.component;
 
+import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
@@ -19,6 +21,8 @@ import io.grpc.ServerInterceptor;
 
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
+import com.vmturbo.common.protobuf.trax.Trax.TraxTopicConfiguration;
+import com.vmturbo.common.protobuf.trax.Trax.TraxTopicConfiguration.Verbosity;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.cost.component.discount.CostConfig;
@@ -28,6 +32,9 @@ import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.rpc.CostDebugConfig;
 import com.vmturbo.cost.component.topology.TopologyListenerConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
+import com.vmturbo.trax.TraxConfiguration;
+import com.vmturbo.trax.TraxConfiguration.TopicSettings;
+import com.vmturbo.trax.TraxThrottlingLimit;
 
 /**
  * The main cost component.
@@ -71,6 +78,9 @@ public class CostComponent extends BaseVmtComponent {
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;
 
+    @Value("${defaultTraxCalculationsTrackedPerDay:360}")
+    private int defaultTraxCalculationsTrackedPerDay;
+
     /**
      * JWT token verification and decoding.
      */
@@ -95,6 +105,14 @@ public class CostComponent extends BaseVmtComponent {
         getHealthMonitor()
                 .addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
                         dbConfig.dataSource()::getConnection));
+
+        // Configure Trax to randomly sample a certain number of calculations per day for
+        // tracking and debugging purposes.
+        TraxConfiguration.configureTopics(new TopicSettings(TraxTopicConfiguration.newBuilder()
+            .setVerbosity(Verbosity.DEBUG)
+            .build(),
+            new TraxThrottlingLimit(defaultTraxCalculationsTrackedPerDay, Clock.systemUTC(), new Random()),
+            Collections.singletonList(TraxConfiguration.DEFAULT_TOPIC_NAME)));
     }
 
 
@@ -110,7 +128,8 @@ public class CostComponent extends BaseVmtComponent {
             costServiceConfig.riAndExpenseUploadRpcService(),
             costDebugConfig.costDebugRpcService(),
             buyRIAnalysisConfig.buyReservedInstanceRpcService(),
-            buyRIAnalysisConfig.riBuyContextFetchRpcService());
+            buyRIAnalysisConfig.riBuyContextFetchRpcService(),
+            costDebugConfig.traxConfigurationRpcService());
     }
 
     @Nonnull

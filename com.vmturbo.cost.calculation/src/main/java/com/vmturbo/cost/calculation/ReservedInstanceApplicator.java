@@ -1,5 +1,8 @@
 package com.vmturbo.cost.calculation;
 
+import static com.vmturbo.trax.Trax.trax;
+import static com.vmturbo.trax.Trax.traxConstant;
+
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -20,6 +23,7 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedIn
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.trax.TraxNumber;
 
 /**
  * The {@link ReservedInstanceApplicator} is responsible for calculating the percentage of an
@@ -32,6 +36,8 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 public class ReservedInstanceApplicator<ENTITY_CLASS> {
 
     private static final Logger logger = LogManager.getLogger();
+
+    private static final TraxNumber NO_COVERAGE = traxConstant(0, "no coverage");
 
     /**
      * The journal to write the RI costs into.
@@ -77,31 +83,27 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
      * @return The percentage of the entity's compute demand that's covered by reserved instances.
      *         This should be a number between 0 and 1.
      */
-    public double recordRICoverage(@Nonnull final ENTITY_CLASS computeTier) {
+    public TraxNumber recordRICoverage(@Nonnull final ENTITY_CLASS computeTier) {
         final long entityId = entityInfoExtractor.getId(journal.getEntity());
         return Optional.ofNullable(topologyRICoverage.get(entityId))
             .map(entityRiCoverage -> {
-                final double totalRequired = entityInfoExtractor.getComputeTierConfig(computeTier)
+                final TraxNumber totalRequired = trax(entityInfoExtractor.getComputeTierConfig(computeTier)
                     .orElseThrow(() -> new IllegalArgumentException("Expected compute tier with compute tier config."))
-                    .getNumCoupons();
-                double totalCovered = 0.0;
+                    .getNumCoupons(), "coupons required");
+                TraxNumber totalCovered = trax(0);
                 for (Map.Entry<Long, Double> entry : entityRiCoverage.getCouponsCoveredByRiMap().entrySet()) {
                     final long riBoughtId = entry.getKey();
-                    final double coveredCoupons = entry.getValue();
+                    final TraxNumber coveredCoupons = trax(entry.getValue(), "Covered by " + riBoughtId);
                     Optional<ReservedInstanceData> riDataOpt = cloudCostData.getExistingRiBoughtData(riBoughtId);
                     if (riDataOpt.isPresent()) {
                         // Since we can calculate the cost, the coupons covered by this instance
                         // contribute to the RI coverage of the entity.
-                        totalCovered += coveredCoupons;
+                        totalCovered = totalCovered.plus(coveredCoupons).compute();
                         final ReservedInstanceData riData = riDataOpt.get();
 
-                        final double riBoughtPercentage = calculateRiBoughtPercentage(entityId,
+                        final TraxNumber riBoughtPercentage = calculateRiBoughtPercentage(entityId,
                                 coveredCoupons, riData);
-                        final CurrencyAmount cost = CurrencyAmount.newBuilder()
-                            .setCurrency(CostProtoUtil.getRiCurrency(riData.getReservedInstanceBought()))
-                            .setAmount(calculateEffectiveHourlyCost(riBoughtPercentage, riData))
-                            .build();
-                        journal.recordRiCost(riData, coveredCoupons, cost);
+                        journal.recordRiCost(riData, coveredCoupons, calculateEffectiveHourlyCost(riBoughtPercentage, riData));
                     } else {
                         // If we don't know about this reserved instance, we can't calculate a cost for
                         // it and we shouldn't include it in the cost calculation.
@@ -110,18 +112,18 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
                     }
                 }
 
-                if (totalCovered == totalRequired) {
+                if (totalCovered.getValue() == totalRequired.getValue()) {
                     // Handle the equality case separately to avoid division by 0 if
                     // required == 0 and covered == 0.
-                    return 1.0;
-                } else if (totalCovered > totalRequired) {
+                    return trax(1.0, "fully covered");
+                } else if (totalCovered.getValue() > totalRequired.getValue()) {
                     logger.warn("Entity {} has RI coverage > 100%! Required: {} Covered: {}." +
                             " Trimming back to 100%.", entityId, totalRequired, totalCovered);
-                    return 1.0;
+                    return trax(1.0, "over 100% covered");
                 } else {
-                    return totalCovered / totalRequired;
+                    return totalCovered.dividedBy(totalRequired).compute("coverage");
                 }
-            }).orElse(0.0);
+            }).orElse(NO_COVERAGE);
     }
 
     /**
@@ -134,22 +136,22 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
      * @param riData {@link ReservedInstanceData} about the RI selling the coupons.
      * @return The effective hourly cost of the coupons.
      */
-    private double calculateEffectiveHourlyCost(final double riBoughtPercentage,
+    private TraxNumber calculateEffectiveHourlyCost(final TraxNumber riBoughtPercentage,
                                                 @Nonnull final ReservedInstanceData riData) {
         final ReservedInstanceBoughtCost cost = riData.getReservedInstanceBought()
                 .getReservedInstanceBoughtInfo()
                 .getReservedInstanceBoughtCost();
 
         // effective cost: (hourly cost) + (fixed cost / hours in term)
-        final long hrsInTerm = CostProtoUtil.timeUnitsInTerm(
-                riData.getReservedInstanceSpec().getReservedInstanceSpecInfo().getType(), TimeUnit.HOURS);
+        final TraxNumber hrsInTerm = trax(CostProtoUtil.timeUnitsInTerm(
+                riData.getReservedInstanceSpec().getReservedInstanceSpecInfo().getType(), TimeUnit.HOURS), "hrs in RI term");
         // We currently don't consider the offering type of the RI Spec. This may be the wrong thing
         // to do. For example, if the RI Spec says the payment for the RI is all-upfront and the
         // RIBought has an hourly cost, it may be more correct to disregard the cost in the RIBought.
         // However, we take the RIBought to be authoritative.
-        final double totalHourlyFixedCost = cost.getFixedCost().getAmount() / hrsInTerm;
-        final double hourlyFixedCost = riBoughtPercentage * totalHourlyFixedCost;
-        return hourlyFixedCost + calculateHourlyUsageCost(riBoughtPercentage, riData);
+        final TraxNumber totalHourlyFixedCost = trax(cost.getFixedCost().getAmount(), "RI cost").dividedBy(hrsInTerm).compute("total hourly fixed");
+        final TraxNumber hourlyFixedCost = riBoughtPercentage.times(totalHourlyFixedCost).compute("hourly fixed");
+        return hourlyFixedCost.plus(calculateHourlyUsageCost(riBoughtPercentage, riData)).compute("effective cost/hr");
     }
 
     /**
@@ -160,15 +162,20 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
      * @param riData {@link ReservedInstanceData} about the RI selling the coupons.
      * @return The hourly cost of the coupons (not including the fixed cost).
      */
-    private double calculateHourlyUsageCost(final double riBoughtPercentage,
+    private TraxNumber calculateHourlyUsageCost(final TraxNumber riBoughtPercentage,
                                             @Nonnull final ReservedInstanceData riData) {
         final ReservedInstanceBoughtCost cost = riData.getReservedInstanceBought()
                 .getReservedInstanceBoughtInfo()
                 .getReservedInstanceBoughtCost();
 
         // usage cost: recurring cost + usage cost.
-        return riBoughtPercentage * cost.getRecurringCostPerHour().getAmount() +
-               riBoughtPercentage * cost.getUsageCostPerHour().getAmount();
+        final TraxNumber recurringCost = riBoughtPercentage
+            .times(cost.getRecurringCostPerHour().getAmount(), "recurring cost/hr")
+            .compute("usage cost");
+        final TraxNumber usageCost = riBoughtPercentage
+            .times(cost.getUsageCostPerHour().getAmount(), "usage cost/hr")
+            .compute("usage cost");
+        return recurringCost.plus(usageCost).compute("total usage cost/hr");
     }
 
     /**
@@ -180,8 +187,8 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
      * @param riData {@link ReservedInstanceData} about the RI selling the coupons.
      * @return A number between 0 and 1.
      */
-    private double calculateRiBoughtPercentage(final long entityId,
-                                               final double couponsBought,
+    private TraxNumber calculateRiBoughtPercentage(final long entityId,
+                                               final TraxNumber couponsBought,
                                                @Nonnull final ReservedInstanceData riData) {
         final ReservedInstanceBoughtInfo riBoughtInfo =
                 riData.getReservedInstanceBought().getReservedInstanceBoughtInfo();
@@ -189,14 +196,14 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
         final int totalNumCoupons =
                 riBoughtInfo.getReservedInstanceBoughtCoupons().getNumberOfCoupons();
 
-        if (couponsBought > totalNumCoupons) {
+        if (couponsBought.getValue() > totalNumCoupons) {
             logger.warn("Inconsistent data - RI Bought {} is selling {} coupons, but entity {} is buying {}!",
                     riData.getReservedInstanceBought().getId(), totalNumCoupons, entityId, couponsBought);
-            return 1;
-        } else if (couponsBought == 0) {
-            return 0;
+            return trax(1, "over 100% cvg");
+        } else if (couponsBought.getValue() == 0) {
+            return trax(0, "no cvg");
         } else {
-            return couponsBought / totalNumCoupons;
+            return couponsBought.dividedBy(totalNumCoupons).compute("Coverage percentage");
         }
     }
 

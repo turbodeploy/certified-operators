@@ -1,8 +1,11 @@
 package com.vmturbo.cost.calculation;
 
+import static com.vmturbo.trax.Trax.trax;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -22,6 +25,7 @@ import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price.Unit;
+import com.vmturbo.trax.TraxNumber;
 
 public class CostJournalTest {
 
@@ -40,12 +44,11 @@ public class CostJournalTest {
         final Price price = createPrice(Unit.DAYS, TOTAL_PRICE);
         final TestEntityClass entity = TestEntityClass.newBuilder(7L)
             .build(infoExtractor);
-        final JournalEntry<TestEntityClass> entry = new OnDemandJournalEntry<>(entity, price, 1);
+        final JournalEntry<TestEntityClass> entry = new OnDemandJournalEntry<>(entity, price, trax(1));
         final DiscountApplicator<TestEntityClass> discountApplicator = mock(DiscountApplicator.class);
-        when(discountApplicator.getDiscountPercentage(entity)).thenReturn(0.0);
-        CurrencyAmount cost = entry.calculateHourlyCost(infoExtractor, discountApplicator);
-        assertThat(cost.getAmount(), closeTo(PRICE_AMOUNT_PER_DAYS_NO_DISCOUNT, VALID_DELTA));
-        assertThat(cost.getCurrency(), is(price.getPriceAmount().getCurrency()));
+        when(discountApplicator.getDiscountPercentage(entity)).thenReturn(trax(0.0));
+        TraxNumber cost = entry.calculateHourlyCost(infoExtractor, discountApplicator);
+        assertThat(cost.getValue(), closeTo(PRICE_AMOUNT_PER_DAYS_NO_DISCOUNT, VALID_DELTA));
     }
 
     @Test
@@ -53,12 +56,11 @@ public class CostJournalTest {
         final Price price = createPrice(Unit.HOURS, TOTAL_PRICE);
         final TestEntityClass entity = TestEntityClass.newBuilder(7L)
                 .build(infoExtractor);
-        final JournalEntry<TestEntityClass> entry = new OnDemandJournalEntry<>(entity, price, 1);
+        final JournalEntry<TestEntityClass> entry = new OnDemandJournalEntry<>(entity, price, trax(1));
         final DiscountApplicator<TestEntityClass> discountApplicator = mock(DiscountApplicator.class);
-        when(discountApplicator.getDiscountPercentage(entity)).thenReturn(0.5);
-        CurrencyAmount cost = entry.calculateHourlyCost(infoExtractor, discountApplicator);
-        assertThat(cost.getAmount(), closeTo(50, VALID_DELTA));
-        assertThat(cost.getCurrency(), is(price.getPriceAmount().getCurrency()));
+        when(discountApplicator.getDiscountPercentage(entity)).thenReturn(trax(0.5));
+        TraxNumber cost = entry.calculateHourlyCost(infoExtractor, discountApplicator);
+        assertThat(cost.getValue(), closeTo(50, VALID_DELTA));
     }
 
     @Test
@@ -66,12 +68,11 @@ public class CostJournalTest {
         final Price price = createPrice(Unit.MONTH, TOTAL_PRICE * CostProtoUtil.HOURS_IN_MONTH);
         final TestEntityClass entity = TestEntityClass.newBuilder(7L)
                 .build(infoExtractor);
-        final JournalEntry<TestEntityClass> entry = new OnDemandJournalEntry<>(entity, price, 1);
+        final JournalEntry<TestEntityClass> entry = new OnDemandJournalEntry<>(entity, price, trax(1));
         final DiscountApplicator<TestEntityClass> discountApplicator = mock(DiscountApplicator.class);
-        when(discountApplicator.getDiscountPercentage(entity)).thenReturn(0.5);
-        CurrencyAmount cost = entry.calculateHourlyCost(infoExtractor, discountApplicator);
-        assertThat(cost.getAmount(), closeTo(50, VALID_DELTA));
-        assertThat(cost.getCurrency(), is(price.getPriceAmount().getCurrency()));
+        when(discountApplicator.getDiscountPercentage(entity)).thenReturn(trax(0.5));
+        TraxNumber cost = entry.calculateHourlyCost(infoExtractor, discountApplicator);
+        assertThat(cost.getValue(), closeTo(50, VALID_DELTA));
     }
 
     @Test
@@ -79,12 +80,11 @@ public class CostJournalTest {
         final Price price = createPrice(Unit.GB_MONTH, TOTAL_PRICE * CostProtoUtil.HOURS_IN_MONTH);
         final TestEntityClass entity = TestEntityClass.newBuilder(7L)
                 .build(infoExtractor);
-        final JournalEntry<TestEntityClass> entry = new OnDemandJournalEntry<>(entity, price, 1);
+        final JournalEntry<TestEntityClass> entry = new OnDemandJournalEntry<>(entity, price, trax(1));
         final DiscountApplicator<TestEntityClass> discountApplicator = mock(DiscountApplicator.class);
-        when(discountApplicator.getDiscountPercentage(entity)).thenReturn(0.5);
-        CurrencyAmount cost = entry.calculateHourlyCost(infoExtractor, discountApplicator);
-        assertThat(cost.getAmount(), closeTo(50, VALID_DELTA));
-        assertThat(cost.getCurrency(), is(price.getPriceAmount().getCurrency()));
+        when(discountApplicator.getDiscountPercentage(entity)).thenReturn(trax(0.5));
+        TraxNumber cost = entry.calculateHourlyCost(infoExtractor, discountApplicator);
+        assertThat(cost.getValue(), closeTo(50, VALID_DELTA));
     }
 
     @Test
@@ -92,12 +92,11 @@ public class CostJournalTest {
         final Price price = createPrice(Unit.MILLION_IOPS, TOTAL_PRICE * CostProtoUtil.HOURS_IN_MONTH);
         final TestEntityClass entity = TestEntityClass.newBuilder(7L)
                 .build(infoExtractor);
-        final JournalEntry<TestEntityClass> entry = new OnDemandJournalEntry<>(entity, price, 1);
+        final JournalEntry<TestEntityClass> entry = new OnDemandJournalEntry<>(entity, price, trax(1));
         final DiscountApplicator<TestEntityClass> discountApplicator = mock(DiscountApplicator.class);
-        when(discountApplicator.getDiscountPercentage(entity)).thenReturn(0.5);
-        CurrencyAmount cost = entry.calculateHourlyCost(infoExtractor, discountApplicator);
-        assertThat(cost.getAmount(), closeTo(50, VALID_DELTA));
-        assertThat(cost.getCurrency(), is(price.getPriceAmount().getCurrency()));
+        when(discountApplicator.getDiscountPercentage(entity)).thenReturn(trax(0.5));
+        TraxNumber cost = entry.calculateHourlyCost(infoExtractor, discountApplicator);
+        assertThat(cost.getValue(), closeTo(50, VALID_DELTA));
     }
 
     @Test
@@ -105,12 +104,11 @@ public class CostJournalTest {
         final Price price = createPrice(Unit.HOURS, TOTAL_PRICE);
         final TestEntityClass entity = TestEntityClass.newBuilder(7L)
                 .build(infoExtractor);
-        final JournalEntry<TestEntityClass> entry = new OnDemandJournalEntry<>(entity, price, 1);
+        final JournalEntry<TestEntityClass> entry = new OnDemandJournalEntry<>(entity, price, trax(1));
         final DiscountApplicator<TestEntityClass> discountApplicator = mock(DiscountApplicator.class);
-        when(discountApplicator.getDiscountPercentage(entity)).thenReturn(0.0);
-        CurrencyAmount cost = entry.calculateHourlyCost(infoExtractor, discountApplicator);
-        assertThat(cost.getAmount(), closeTo(TOTAL_PRICE, VALID_DELTA));
-        assertThat(cost.getCurrency(), is(price.getPriceAmount().getCurrency()));
+        when(discountApplicator.getDiscountPercentage(entity)).thenReturn(trax(0.0));
+        TraxNumber cost = entry.calculateHourlyCost(infoExtractor, discountApplicator);
+        assertThat(cost.getValue(), closeTo(TOTAL_PRICE, VALID_DELTA));
     }
 
     @Test
@@ -125,16 +123,11 @@ public class CostJournalTest {
                         .setTierId(tierId))
                 .build());
         final JournalEntry<TestEntityClass> entry = new RIJournalEntry<>(riData,
-                1,
-                CurrencyAmount.newBuilder()
-                    .setAmount(hourlyCost)
-                    .setCurrency(currency)
-                    .build());
+                trax(1), trax(hourlyCost));
         final DiscountApplicator<TestEntityClass> discountApplicator = mock(DiscountApplicator.class);
-        when(discountApplicator.getDiscountPercentage(tierId)).thenReturn(0.1);
-        final CurrencyAmount finalCost = entry.calculateHourlyCost(infoExtractor, discountApplicator);
-        assertThat(finalCost.getAmount(), closeTo(9, VALID_DELTA));
-        assertThat(finalCost.getCurrency(), is(currency));
+        when(discountApplicator.getDiscountPercentage(tierId)).thenReturn(trax(0.1));
+        final TraxNumber finalCost = entry.calculateHourlyCost(infoExtractor, discountApplicator);
+        assertThat(finalCost.getValue(), closeTo(9, VALID_DELTA));
     }
 
     @Test
@@ -149,16 +142,11 @@ public class CostJournalTest {
                                 .setTierId(tierId))
                         .build());
         final JournalEntry<TestEntityClass> entry = new RIJournalEntry<>(riData,
-                1,
-                CurrencyAmount.newBuilder()
-                        .setAmount(hourlyCost)
-                        .setCurrency(currency)
-                        .build());
+                trax(1), trax(hourlyCost));
         final DiscountApplicator<TestEntityClass> discountApplicator = mock(DiscountApplicator.class);
-        when(discountApplicator.getDiscountPercentage(tierId)).thenReturn(0.0);
-        final CurrencyAmount finalCost = entry.calculateHourlyCost(infoExtractor, discountApplicator);
-        assertThat(finalCost.getAmount(), is(hourlyCost));
-        assertThat(finalCost.getCurrency(), is(currency));
+        when(discountApplicator.getDiscountPercentage(tierId)).thenReturn(trax(0.0));
+        final TraxNumber finalCost = entry.calculateHourlyCost(infoExtractor, discountApplicator);
+        assertThat(finalCost.getValue(), is(hourlyCost));
     }
 
     @Test
@@ -176,20 +164,20 @@ public class CostJournalTest {
                                 .setTierId(payee.getId()))
                         .build());
         final DiscountApplicator<TestEntityClass> discountApplicator = mock(DiscountApplicator.class);
+        when(discountApplicator.getDiscountPercentage(any(TestEntityClass.class))).thenReturn(trax(0));
+        when(discountApplicator.getDiscountPercentage(anyLong())).thenReturn(trax(0));
         final CostJournal<TestEntityClass> journal =
             CostJournal.newBuilder(entity, infoExtractor, region, discountApplicator, e -> null)
-                .recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, payee, computePrice, 1)
-                .recordOnDemandCost(CostCategory.LICENSE, payee, licensePrice, 1)
-                .recordRiCost(riData, 1, CurrencyAmount.newBuilder()
-                    .setAmount(25.0)
-                    .build())
+                .recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, payee, computePrice, trax(1))
+                .recordOnDemandCost(CostCategory.LICENSE, payee, licensePrice, trax(1))
+                .recordRiCost(riData, trax(1), trax(25))
                 .build();
 
-        assertThat(journal.getTotalHourlyCost(), is(135.0));
+        assertThat(journal.getTotalHourlyCost().getValue(), is(135.0));
         assertThat(journal.getEntity(), is(entity));
-        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE), is(100.0));
-        assertThat(journal.getHourlyCostForCategory(CostCategory.RI_COMPUTE), is(25.0));
-        assertThat(journal.getHourlyCostForCategory(CostCategory.LICENSE), is(10.0));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(), is(100.0));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.RI_COMPUTE).getValue(), is(25.0));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.LICENSE).getValue(), is(10.0));
     }
 
     @Test
@@ -199,14 +187,15 @@ public class CostJournalTest {
         final Price price = createPrice(Unit.HOURS, TOTAL_PRICE);
         final TestEntityClass payee = TestEntityClass.newBuilder(123).build(infoExtractor);
         final DiscountApplicator<TestEntityClass> discountApplicator = mock(DiscountApplicator.class);
+        when(discountApplicator.getDiscountPercentage(any(TestEntityClass.class))).thenReturn(trax(0));
 
         final TestEntityClass childCostProvider = TestEntityClass.newBuilder(123).build(infoExtractor);
         final CostJournal<TestEntityClass> childCostJournal =
                 CostJournal.newBuilder(entity, infoExtractor, region, discountApplicator, e -> null)
                         // One cost category that is also present in the test entity.
-                        .recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, payee, price, 1)
+                        .recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, payee, price, trax(1))
                         // One cost category that is NOT present in the test entity.
-                        .recordOnDemandCost(CostCategory.STORAGE, payee, price, 1)
+                        .recordOnDemandCost(CostCategory.STORAGE, payee, price, trax(1))
                         .build();
         final DependentCostLookup<TestEntityClass> dependentCostLookup = e -> {
             assertThat(e, is(childCostProvider));
@@ -215,14 +204,14 @@ public class CostJournalTest {
 
         final CostJournal<TestEntityClass> journal =
                 CostJournal.newBuilder(entity, infoExtractor, region, discountApplicator, dependentCostLookup)
-                        .recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, payee, price, 1)
+                        .recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, payee, price, trax(1))
                         .inheritCost(childCostProvider)
                         .build();
 
-        assertThat(journal.getTotalHourlyCost(), is(300.0));
+        assertThat(journal.getTotalHourlyCost().getValue(), is(300.0));
         assertThat(journal.getEntity(), is(entity));
-        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE), is(200.0));
-        assertThat(journal.getHourlyCostForCategory(CostCategory.STORAGE), is(100.0));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(), is(200.0));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.STORAGE).getValue(), is(100.0));
 
         System.out.println(journal.toString());
     }

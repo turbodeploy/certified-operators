@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.entity.cost;
 
+import static com.vmturbo.trax.Trax.trax;
 import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -399,7 +400,7 @@ public class SqlEntityCostStoreTest {
         when(journal.getCategories()).thenReturn(costsByCategory.keySet());
         for (final CostCategory category : CostCategory.values()) {
             when(journal.getHourlyCostForCategory(category))
-                    .thenReturn(costsByCategory.getOrDefault(category, 0.0));
+                    .thenReturn(trax(costsByCategory.getOrDefault(category, 0.0)));
         }
         return journal;
     }

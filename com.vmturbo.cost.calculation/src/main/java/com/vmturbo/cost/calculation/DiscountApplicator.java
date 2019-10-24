@@ -1,5 +1,8 @@
 package com.vmturbo.cost.calculation;
 
+import static com.vmturbo.trax.Trax.trax;
+import static com.vmturbo.trax.Trax.traxConstant;
+
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -20,6 +23,7 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostD
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.trax.TraxNumber;
 
 /**
  * The discount applicator is responsible for calculating the discount that applies to
@@ -47,7 +51,10 @@ public class DiscountApplicator<ENTITY_CLASS> {
     private static final DiscountApplicator EMPTY_APPLICATOR =
             new DiscountApplicator(null, null, null, null);
 
-    public static final double NO_DISCOUNT = 0;
+    /**
+     * A constant {@link TraxNumber} representing no discount.
+     */
+    public static final TraxNumber NO_DISCOUNT = traxConstant(0, "no discount");
 
     /**
      * The entity this {@link DiscountApplicator} is associated with. Mostly for debugging purposes,
@@ -103,7 +110,7 @@ public class DiscountApplicator<ENTITY_CLASS> {
      * @param provider The provider of a particular commodity.
      * @return See {@link DiscountApplicator#getDiscountPercentage(long)}.
      */
-    public double getDiscountPercentage(@Nonnull final ENTITY_CLASS provider) {
+    public TraxNumber getDiscountPercentage(@Nonnull final ENTITY_CLASS provider) {
         return infoExtractor == null ? NO_DISCOUNT : getDiscountPercentage(infoExtractor.getId(provider));
     }
 
@@ -115,7 +122,7 @@ public class DiscountApplicator<ENTITY_CLASS> {
      * @return A number between 0 and 1 indicating the amount of the discount. For example, a 20%
      *         discount would be represented by 0.2.
      */
-    public double getDiscountPercentage(final long providerId) {
+    public TraxNumber getDiscountPercentage(final long providerId) {
         if (discount == null || infoExtractor == null || cloudTopology == null) {
             return NO_DISCOUNT;
         }
@@ -130,7 +137,7 @@ public class DiscountApplicator<ENTITY_CLASS> {
                 discountInfo.getTierLevelDiscount();
         final Double tierDiscount = tierLevelDiscount.getDiscountPercentageByTierIdMap().get(providerId);
         if (tierDiscount != null) {
-            return tierDiscount;
+            return trax(tierDiscount, "Tier discount");
         }
 
         final ServiceLevelDiscount serviceLevelDiscount = discountInfo.getServiceLevelDiscount();
@@ -139,11 +146,11 @@ public class DiscountApplicator<ENTITY_CLASS> {
                 .map(serviceId -> serviceLevelDiscount.getDiscountPercentageByServiceIdMap().get(serviceId))
                 .orElse(null);
         if (serviceDiscount != null) {
-            return serviceDiscount;
+            return trax(serviceDiscount, "Service discount");
         }
 
         if (discountInfo.getAccountLevelDiscount().hasDiscountPercentage()) {
-            return discountInfo.getAccountLevelDiscount().getDiscountPercentage();
+            return trax(discountInfo.getAccountLevelDiscount().getDiscountPercentage(), "Account discount");
         } else {
             return NO_DISCOUNT;
         }

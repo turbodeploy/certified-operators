@@ -282,7 +282,7 @@ public class WastedFilesAnalysis {
             double costSavings = 0.0d;
             if (costJournalOpt.isPresent()) {
                 // This will set the hourly saving rate to the action
-                costSavings = costJournalOpt.get().getTotalHourlyCost();
+                costSavings = costJournalOpt.get().getTotalHourlyCost().getValue();
             } else {
                 logger.debug("Unable to get cost for volume", volume.getDisplayName());
             }

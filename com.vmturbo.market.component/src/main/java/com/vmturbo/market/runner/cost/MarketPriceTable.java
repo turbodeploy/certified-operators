@@ -169,7 +169,7 @@ public class MarketPriceTable {
 
         entityInfoExtractor.getComputeTierConfig(tier).ifPresent(computeTierConfig -> {
             discountsByBusinessAccount.forEach((accountId, discountApplicator) -> {
-                final double discount = (1.0 - discountApplicator.getDiscountPercentage(tierId));
+                final double discount = (1.0 - discountApplicator.getDiscountPercentage(tierId).getValue());
                 final double basePriceWithDiscount = baseHourlyPrice * discount;
 
                 // for each OS - calculate its license price and save its total price
@@ -233,7 +233,7 @@ public class MarketPriceTable {
                     dbEdition,
                     deploymentType,
                     licenseModel,
-                    baseHourlyPrice * (1.0 - discountApplicator.getDiscountPercentage(tierId)));
+                    baseHourlyPrice * (1.0 - discountApplicator.getDiscountPercentage(tierId).getValue()));
 
             for (DatabaseTierConfigPrice dbTierConfigPrice : dbTierPrices.getConfigurationPriceAdjustmentsList()) {
                 if (dbTierConfigPrice.getPricesList().size() == 0) {
@@ -250,7 +250,7 @@ public class MarketPriceTable {
                     dbTierConfigPrice.getDbDeploymentType(),
                     dbTierConfigPrice.getDbLicenseModel(),
                     (baseHourlyPrice + dbTierConfigPrice.getPricesList().get(0).getPriceAmount().getAmount())
-                                    * (1.0 - discountApplicator.getDiscountPercentage(tierId)));
+                                    * (1.0 - discountApplicator.getDiscountPercentage(tierId).getValue()));
             }
         });
         return priceBuilder.build();
@@ -363,7 +363,7 @@ public class MarketPriceTable {
                     final Set<TopologyDTO.CommodityType> soldCommTypes =
                             unit == Unit.MILLION_IOPS ? soldAccessTypes : soldAmountTypes;
                     priceList.forEach(price -> {
-                        final double discountPercentage = discountApplicator.getDiscountPercentage(tierId);
+                        final double discountPercentage = discountApplicator.getDiscountPercentage(tierId).getValue();
 
                         // Note: We probably don't need to normalize to hours in month because currently
                         // storage prices are monthly. But it's technically possible to get hourly

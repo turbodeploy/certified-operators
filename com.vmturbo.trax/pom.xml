@@ -10,54 +10,55 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>cost-calculation</artifactId>
-
-    <description>The cost calculation package contains the library components can use
-        to calculate costs of entities.</description>
+    <artifactId>trax</artifactId>
 
     <dependencies>
+        <dependency>
+            <groupId>com.google.code.findbugs</groupId>
+            <artifactId>jsr305</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+        </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>common-protobuf</artifactId>
         </dependency>
 
-        <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>trax</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>topology-processor-api</artifactId>
-        </dependency>
-
-        <!-- START Dependencies for cost journal serialization to readable format -->
-        <dependency>
-            <groupId>de.vandermeer</groupId>
-            <artifactId>asciitable</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.antlr</groupId>
-            <artifactId>ST4</artifactId>
-        </dependency>
-        <!-- END Dependencies for cost journal serialization to readable format -->
-
+        <!-- test dependencies -->
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.mockito</groupId>
-            <artifactId>mockito-all</artifactId>
+            <artifactId>mockito-core</artifactId>
             <scope>test</scope>
         </dependency>
-
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>components-api-test</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.hamcrest</groupId>
             <artifactId>hamcrest-all</artifactId>
             <scope>test</scope>
         </dependency>
-
     </dependencies>
 
 </project>

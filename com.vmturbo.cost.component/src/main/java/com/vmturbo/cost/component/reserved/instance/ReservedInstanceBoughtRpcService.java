@@ -10,6 +10,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
 import org.apache.logging.log4j.LogManager;
@@ -90,6 +91,10 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
             responseObserver.onError(Status.INTERNAL
                     .withDescription("Failed to get reserved instance bought by filter.")
                     .asException());
+        } catch (StatusRuntimeException e) {
+            responseObserver.onError(Status.INTERNAL
+                .withDescription("Failed to get reserved instance bought by filter due to " + e.getLocalizedMessage())
+                .asException());
         }
     }
 

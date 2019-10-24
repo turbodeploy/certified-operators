@@ -1,5 +1,6 @@
 package com.vmturbo.cost.calculation;
 
+import static com.vmturbo.trax.Trax.trax;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.closeTo;
@@ -156,7 +157,7 @@ public class CloudCostCalculatorTest {
         // Configure ReservedInstanceApplicator
         final ReservedInstanceApplicator<TestEntityClass> riApplicator =
             mock(ReservedInstanceApplicator.class);
-        when(riApplicator.recordRICoverage(computeTier)).thenReturn(DEFAULT_RI_COVERAGE);
+        when(riApplicator.recordRICoverage(computeTier)).thenReturn(trax(DEFAULT_RI_COVERAGE));
         when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(
             any(), eq(infoExtractor), eq(CLOUD_COST_DATA), eq(topologyRiCoverage)))
             .thenReturn(riApplicator);
@@ -175,7 +176,7 @@ public class CloudCostCalculatorTest {
     private DiscountApplicator<TestEntityClass> setupDiscountApplicator(double returnDiscount) {
         DiscountApplicator<TestEntityClass> discountApplicator =
                 (DiscountApplicator<TestEntityClass>)mock(DiscountApplicator.class);
-        when(discountApplicator.getDiscountPercentage(any())).thenReturn(returnDiscount);
+        when(discountApplicator.getDiscountPercentage(any())).thenReturn(trax(returnDiscount));
         when(discountApplicatorFactory.entityDiscountApplicator(any(), any(), any(), any()))
                 .thenReturn(discountApplicator);
         return discountApplicator;
@@ -194,14 +195,14 @@ public class CloudCostCalculatorTest {
         double expectedIpAdjustment = IP_RANGE * IP_PRICE_RANGE_1 + (IP_COUNT - IP_RANGE) * IP_PRICE;
 
         // The cost of the RI isn't factored in because we mocked out the RI Applicator.
-        assertThat(journal1.getTotalHourlyCost(),
+        assertThat(journal1.getTotalHourlyCost().getValue(),
             is((BASE_PRICE + WSQL_ADJUSTMENT) * (1 - DEFAULT_RI_COVERAGE) + expectedIpAdjustment
                 + WSQL_ENTERPRISE_8));
-        assertThat(journal1.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE),
+        assertThat(journal1.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(),
             is(BASE_PRICE * (1 - DEFAULT_RI_COVERAGE)));
-        assertThat(journal1.getHourlyCostForCategory(CostCategory.LICENSE),
+        assertThat(journal1.getHourlyCostForCategory(CostCategory.LICENSE).getValue(),
             is(WSQL_ADJUSTMENT * (1 - DEFAULT_RI_COVERAGE) + WSQL_ENTERPRISE_8));
-        assertThat(journal1.getHourlyCostForCategory(CostCategory.IP), is(expectedIpAdjustment));
+        assertThat(journal1.getHourlyCostForCategory(CostCategory.IP).getValue(), is(expectedIpAdjustment));
 
         // Once for the compute, once for the adjustment, once for the license, because all costs
         // are "paid to" the compute tier.
@@ -215,24 +216,24 @@ public class CloudCostCalculatorTest {
             OSType.WINDOWS_WITH_SQL_ENTERPRISE, Tenancy.DEFAULT, VMBillingType.ONDEMAND, 2,
                 EntityDTO.LicenseModel.LICENSE_INCLUDED);
         final CostJournal<TestEntityClass> journal2 = CALCULATOR.calculateCost(wsqlVm2Cores);
-        assertThat(journal2.getHourlyCostForCategory(CostCategory.LICENSE),
+        assertThat(journal2.getHourlyCostForCategory(CostCategory.LICENSE).getValue(),
             is(WSQL_ADJUSTMENT * (1 - DEFAULT_RI_COVERAGE) + WSQL_ENTERPRISE_2));
 
         final TestEntityClass spotVm = createVmTestEntity(DEFAULT_VM_ID, EntityType.VIRTUAL_MACHINE_VALUE,
             OSType.SUSE, Tenancy.DEFAULT, VMBillingType.BIDDING, 2,
                 EntityDTO.LicenseModel.LICENSE_INCLUDED);
         final CostJournal<TestEntityClass> spotJournal = CALCULATOR.calculateCost(spotVm);
-        assertThat(spotJournal.getHourlyCostForCategory(CostCategory.SPOT),
+        assertThat(spotJournal.getHourlyCostForCategory(CostCategory.SPOT).getValue(),
             is(BASE_PRICE * (1 - DEFAULT_RI_COVERAGE)));
         // No adjustment and license costs for spot instances
-        assertThat(spotJournal.getHourlyCostForCategory(CostCategory.LICENSE), is(0.0));
+        assertThat(spotJournal.getHourlyCostForCategory(CostCategory.LICENSE).getValue(), is(0.0));
 
         final TestEntityClass suseVm =  createVmTestEntity(DEFAULT_VM_ID, EntityType.VIRTUAL_MACHINE_VALUE,
             OSType.SUSE, Tenancy.DEFAULT, VMBillingType.ONDEMAND, 2,
                 EntityDTO.LicenseModel.LICENSE_INCLUDED);
 
         final CostJournal<TestEntityClass> journal3 = CALCULATOR.calculateCost(suseVm);
-        assertThat(journal3.getHourlyCostForCategory(CostCategory.LICENSE),
+        assertThat(journal3.getHourlyCostForCategory(CostCategory.LICENSE).getValue(),
             is(SUSE_ADJUSTMENT * (1 - DEFAULT_RI_COVERAGE)));
     }
 
@@ -249,17 +250,16 @@ public class CloudCostCalculatorTest {
                 VMBillingType.ONDEMAND, 4, EntityDTO.LicenseModel.AHUB);
         double expectedIpAdjustment = IP_RANGE * IP_PRICE_RANGE_1 + (IP_COUNT - IP_RANGE) * IP_PRICE;
 
-
         // act
         final CostJournal<TestEntityClass> journal1 = CALCULATOR.calculateCost(windowsVm4CoresBYOL);
 
         // The cost of the RI isn't factored in because we mocked out the RI Applicator.
-        assertThat(journal1.getTotalHourlyCost(), is(BASE_PRICE * (1 - DEFAULT_RI_COVERAGE)
+        assertThat(journal1.getTotalHourlyCost().getValue(), is(BASE_PRICE * (1 - DEFAULT_RI_COVERAGE)
                 + expectedIpAdjustment));
-        assertThat(journal1.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE),
+        assertThat(journal1.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(),
                 is(BASE_PRICE * (1 - DEFAULT_RI_COVERAGE)));
         // assert no license price
-        assertThat(journal1.getHourlyCostForCategory(CostCategory.LICENSE), is(0.0));
+        assertThat(journal1.getHourlyCostForCategory(CostCategory.LICENSE).getValue(), is(0.0));
     }
 
     /**
@@ -286,7 +286,7 @@ public class CloudCostCalculatorTest {
         // Set up the RI applicator (no RI)
         final ReservedInstanceApplicator<TestEntityClass> riApplicator =
                 mock(ReservedInstanceApplicator.class);
-        when(riApplicator.recordRICoverage(computeTier)).thenReturn(0.0);
+        when(riApplicator.recordRICoverage(computeTier)).thenReturn(trax(0.0));
         when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(
             any(), eq(infoExtractor), eq(CLOUD_COST_DATA), eq(topologyRiCoverage)))
                 .thenReturn(riApplicator);
@@ -304,7 +304,7 @@ public class CloudCostCalculatorTest {
                         .setUnit(Unit.HOURS)
                         .setPriceAmount(CurrencyAmount.newBuilder()
                                 .setAmount(10))
-                        .build(), 1)
+                        .build(), trax(1))
                 .build();
         // The cost lookup will tell the VM's cost journal what the cost journal of the volume
         // looks like.
@@ -317,10 +317,10 @@ public class CloudCostCalculatorTest {
 
         final CostJournal<TestEntityClass> vmJournal = calculator.calculateCost(vm);
         // The cost for the VM sh
-        assertThat(vmJournal.getTotalHourlyCost(),
-                closeTo(volumeJournal.getTotalHourlyCost(), DELTA));
-        assertThat(vmJournal.getHourlyCostForCategory(CostCategory.STORAGE),
-                closeTo(volumeJournal.getHourlyCostForCategory(CostCategory.STORAGE), DELTA));
+        assertThat(vmJournal.getTotalHourlyCost().getValue(),
+                closeTo(volumeJournal.getTotalHourlyCost().getValue(), DELTA));
+        assertThat(vmJournal.getHourlyCostForCategory(CostCategory.STORAGE).getValue(),
+                closeTo(volumeJournal.getHourlyCostForCategory(CostCategory.STORAGE).getValue(), DELTA));
     }
 
     @Test
@@ -343,7 +343,7 @@ public class CloudCostCalculatorTest {
         setupDiscountApplicator(0.0);
 
         final CostJournal<TestEntityClass> journal = CALCULATOR.calculateCost(volume);
-        assertThat(journal.getTotalHourlyCost(),
+        assertThat(journal.getTotalHourlyCost().getValue(),
             closeTo(IOPS_RANGE * IOPS_PRICE_RANGE_1 + (V_VOLUME_SIZRE_IOPS - IOPS_RANGE)
                     * IOPS_PRICE, DELTA));
     }
@@ -367,7 +367,7 @@ public class CloudCostCalculatorTest {
         setupDiscountApplicator(0.0);
 
         final CostJournal<TestEntityClass> journal = CALCULATOR.calculateCost(volume);
-        assertThat(journal.getTotalHourlyCost(),
+        assertThat(journal.getTotalHourlyCost().getValue(),
             closeTo(GB_RANGE * GB_PRICE_RANGE_1 + (vVolSizeMb - GB_RANGE) * GB_PRICE
                 + GB_MONTH_PRICE_20, DELTA));
     }
@@ -397,9 +397,9 @@ public class CloudCostCalculatorTest {
         final CostJournal<TestEntityClass> journal = CALCULATOR.calculateCost(db);
 
         // assert
-        assertThat(journal.getTotalHourlyCost(), is(BASE_PRICE + MYSQL_ADJUSTMENT));
-        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE), is(BASE_PRICE));
-        assertThat(journal.getHourlyCostForCategory(CostCategory.LICENSE), is(MYSQL_ADJUSTMENT));
+        assertThat(journal.getTotalHourlyCost().getValue(), is(BASE_PRICE + MYSQL_ADJUSTMENT));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(), is(BASE_PRICE));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.LICENSE).getValue(), is(MYSQL_ADJUSTMENT));
 
         // Once for the compute, once for the license, because both costs are "paid to" the
         // database tier.
@@ -429,9 +429,9 @@ public class CloudCostCalculatorTest {
         final CostJournal<TestEntityClass> journal = CALCULATOR.calculateCost(db);
 
         // assert
-        assertThat(journal.getTotalHourlyCost(), is(BASE_PRICE + MYSQL_ADJUSTMENT));
-        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE), is(BASE_PRICE));
-        assertThat(journal.getHourlyCostForCategory(CostCategory.LICENSE), is(MYSQL_ADJUSTMENT));
+        assertThat(journal.getTotalHourlyCost().getValue(), is(BASE_PRICE + MYSQL_ADJUSTMENT));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(), is(BASE_PRICE));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.LICENSE).getValue(), is(MYSQL_ADJUSTMENT));
 
         // Once for the compute, once for the license, because both costs are "paid to" the
         // database server tier.
@@ -451,7 +451,7 @@ public class CloudCostCalculatorTest {
             .build(infoExtractor);
         final CostJournal<TestEntityClass> journal = CALCULATOR.calculateCost(noCostEntity);
         assertThat(journal.getEntity(), is(noCostEntity));
-        assertThat(journal.getTotalHourlyCost(), is(0.0));
+        assertThat(journal.getTotalHourlyCost().getValue(), is(0.0));
         assertThat(journal.getCategories(), is(Collections.emptySet()));
     }
 

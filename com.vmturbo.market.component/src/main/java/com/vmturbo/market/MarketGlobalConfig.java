@@ -5,8 +5,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.converter.json.GsonHttpMessageConverter;
 
+import com.vmturbo.common.protobuf.trax.TraxREST.TraxConfigurationServiceController;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.trax.rpc.TraxConfigurationRpcService;
 
 /**
  * Global configuration for beans that do not belong in a specific
@@ -34,5 +36,25 @@ public class MarketGlobalConfig {
         final GsonHttpMessageConverter msgConverter = new GsonHttpMessageConverter();
         msgConverter.setGson(ComponentGsonFactory.createGson());
         return msgConverter;
+    }
+
+    /**
+     * Create the traxConfigurationRpcService.
+     *
+     * @return A {@link TraxConfigurationRpcService} instance.
+     */
+    @Bean
+    public TraxConfigurationRpcService traxConfigurationRpcService() {
+        return new TraxConfigurationRpcService();
+    }
+
+    /**
+     * Create the traxConfigurationServiceController.
+     *
+     * @return A {@link TraxConfigurationServiceController} instance.
+     */
+    @Bean
+    public TraxConfigurationServiceController traxConfigurationServiceController() {
+        return new TraxConfigurationServiceController(traxConfigurationRpcService());
     }
 }
