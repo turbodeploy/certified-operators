@@ -4,9 +4,12 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Mockito.mock;
 
+import javax.annotation.Nonnull;
+
 import java.lang.reflect.Type;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -27,6 +30,8 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
+import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
+import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTableKey;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -106,7 +111,7 @@ public class PriceTableKeyIdentityStoreTest {
      */
     @Test
     public void testOidWithIdentifiers() throws IdentityStoreException {
-        PriceTableKey priceTableKey = mockPriceTable("aws");
+        PriceTableKey priceTableKey = mockPriceTableKey("aws");
 
         testIdentityStore.fetchOrAssignOid(priceTableKey);
         Map<IdentityMatchingAttributes, Long> matchingAttributesLongMap = testIdentityStore.fetchAllOidMappings();
@@ -131,7 +136,7 @@ public class PriceTableKeyIdentityStoreTest {
      */
     @Test
     public void testOidWithSameIdentifier() throws IdentityStoreException {
-        PriceTableKey priceTableKey = mockPriceTable("aws");
+        PriceTableKey priceTableKey = mockPriceTableKey("aws");
         testIdentityStore.fetchOrAssignOid(priceTableKey);
         testIdentityStore.fetchOrAssignOid(priceTableKey);
         Map<IdentityMatchingAttributes, Long> matchingAttributesLongMap = testIdentityStore.fetchAllOidMappings();
@@ -146,7 +151,7 @@ public class PriceTableKeyIdentityStoreTest {
      */
     @Test
     public void testOidWithUniqueIdentifiers() throws IdentityStoreException {
-        PriceTableKey priceTableKey = mockPriceTable("azure");
+        PriceTableKey priceTableKey = mockPriceTableKey("azure");
         testIdentityStore.fetchOrAssignOid(priceTableKey);
 
         priceTableKey = priceTableKey.newBuilderForType().setProbeType("aws").build();
@@ -164,7 +169,7 @@ public class PriceTableKeyIdentityStoreTest {
      */
     @Test
     public void testCascadeDeleteOnPriceTableKeyOidDelete() throws IdentityStoreException {
-        PriceTableKey priceTableKey = mockPriceTable("azure");
+        PriceTableKey priceTableKey = mockPriceTableKey("azure");
         final long oid = testIdentityStore.fetchOrAssignOid(priceTableKey);
 
         final PriceTableMergeFactory mergeFactory = mock(PriceTableMergeFactory.class);
@@ -190,7 +195,42 @@ public class PriceTableKeyIdentityStoreTest {
 
     }
 
-    private PriceTableKey mockPriceTable(final String probeType) {
+
+    /**
+     * Test querying of price tables by oids.
+     *
+     * @throws IdentityStoreException An IdentityStore Exception.
+     */
+    @Test
+    public void testGetOidToPriceTableMapping() throws IdentityStoreException {
+        final PriceTable priceTable1 = mockPriceTable(2L);
+        final PriceTable priceTable2 = mockPriceTable(2L);
+
+        final PriceTableKey priceTableKey1 = mockPriceTableKey("Aws");
+        final PriceTableKey priceTableKey2 = mockPriceTableKey("Azure");
+
+        final long oid1 = testIdentityStore.fetchOrAssignOid(priceTableKey1);
+        final long oid2 = testIdentityStore.fetchOrAssignOid(priceTableKey2);
+
+        final PriceTableMergeFactory mergeFactory = mock(PriceTableMergeFactory.class);
+        SQLPriceTableStore sqlPriceTableStore = new SQLPriceTableStore(clock, dsl, new PriceTableKeyIdentityStore(dsl,
+                new IdentityProvider(0)), mergeFactory);
+
+        sqlPriceTableStore.putProbePriceTables(ImmutableMap.of(priceTableKey1, new PriceTables(priceTable1, null, 111L)));
+        sqlPriceTableStore.putProbePriceTables(ImmutableMap.of(priceTableKey2, new PriceTables(priceTable2, null, 222L)));
+
+        Map<Long, PriceTable> oidToPriceTable = sqlPriceTableStore.getPriceTables(Arrays.asList(oid1, oid2));
+
+        assertThat(oidToPriceTable.isEmpty(), is(false));
+
+        assertThat(oidToPriceTable.size(), is(2));
+
+        assertThat(oidToPriceTable.get(oid1), is(priceTable1));
+
+        assertThat(oidToPriceTable.get(oid2), is(priceTable2));
+    }
+
+    private PriceTableKey mockPriceTableKey(final String probeType) {
         return PriceTableKey.newBuilder().setProbeType(probeType)
                 .putProbeKeyMaterial("enrollmentId", "123")
                 .putProbeKeyMaterial("offerId", "456")
@@ -205,4 +245,12 @@ public class PriceTableKeyIdentityStoreTest {
     private int getRowCount() {
         return dsl.fetchCount(dsl.select(Tables.PRICE_TABLE.PRICE_TABLE_DATA).from(Tables.PRICE_TABLE));
     }
+
+    @Nonnull
+    private static PriceTable mockPriceTable(final long key) {
+        return PriceTable.newBuilder()
+                .putOnDemandPriceByRegionId(key, OnDemandPriceTable.getDefaultInstance())
+                .build();
+    }
+
 }

@@ -26,6 +26,8 @@ import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableChecksumResponse;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableChecksumResponse.Builder;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableRequest;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableResponse;
+import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTablesRequest;
+import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTablesResponse;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTableChecksum;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTableKey;
@@ -68,6 +70,14 @@ public class PricingRpcService extends PricingServiceImplBase {
                               StreamObserver<GetPriceTableResponse> responseObserver) {
         responseObserver.onNext(GetPriceTableResponse.newBuilder()
                 .setGlobalPriceTable(priceTableStore.getMergedPriceTable())
+                .build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void getPriceTables(GetPriceTablesRequest request, StreamObserver<GetPriceTablesResponse> responseObserver) {
+        Map<Long, PriceTable> priceTables = priceTableStore.getPriceTables(request.getOidList());
+        responseObserver.onNext(GetPriceTablesResponse.newBuilder().putAllPriceTablesByOid(priceTables)
                 .build());
         responseObserver.onCompleted();
     }

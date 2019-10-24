@@ -124,10 +124,20 @@ message SpotInstancePriceTable {
 message GetPriceTableRequest {
 }
 
+message GetPriceTablesRequest {
+    // List of oids to get price tables for.
+    repeated int64 oid = 1;
+}
+
 message GetPriceTableResponse {
     // The global price table is a merging of all the per-target price tables.
     // We can merge all of them safely because the individual tiers have globally unique IDs.
     optional PriceTable global_price_table = 1;
+}
+
+message GetPriceTablesResponse{
+    // List of price tables corresponding to a list of oids
+    map <int64, PriceTable> price_tables_by_oid = 1;
 }
 
 // a segment of a probe price table delivery
@@ -183,7 +193,12 @@ message GetPriceTableChecksumResponse {
 // component.
 service PricingService {
     // Get the current "global" price table.
-    rpc GetPriceTable (GetPriceTableRequest) returns (GetPriceTableResponse);
+    rpc GetPriceTable (GetPriceTableRequest) returns (GetPriceTableResponse) {
+        option deprecated = true;
+    };
+
+    // Gets a list of price tables
+    rpc GetPriceTables (GetPriceTablesRequest) returns (GetPriceTablesResponse);
 
     // request for the checksum of the list of price tables
     rpc GetPriceTableChecksum (GetPriceTableChecksumRequest) returns (GetPriceTableChecksumResponse);

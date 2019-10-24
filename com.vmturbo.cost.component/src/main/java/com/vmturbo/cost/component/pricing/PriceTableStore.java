@@ -46,6 +46,15 @@ public interface PriceTableStore {
     ReservedInstancePriceTable getMergedRiPriceTable();
 
     /**
+     * Gets a list of price tables corresponding to the list of oids.
+     *
+     * @param oids The oids whose price tables to retrieve.
+     *
+     * @return The list of price tables.
+     */
+    Map<Long, PriceTable> getPriceTables(Collection<Long> oids);
+
+    /**
      * Put a new collection of probe type -> price table associations into the store. This
      * completely overwrites the existing probe type -> price table associations.
      *

@@ -83,6 +83,14 @@ public class SQLPriceTableStore implements PriceTableStore {
         return merge.mergeRi(priceTables);
     }
 
+    @Override
+    public Map<Long, PriceTable> getPriceTables(final Collection<Long> oids) {
+        Map<Long, PriceTable> oidToPriceTableMap = dsl.select(Tables.PRICE_TABLE.OID, Tables.PRICE_TABLE.PRICE_TABLE_DATA)
+                .from(Tables.PRICE_TABLE)
+                .where(filterByOidsCondition(oids)).fetchMap(Tables.PRICE_TABLE.OID, Tables.PRICE_TABLE.PRICE_TABLE_DATA);
+        return oidToPriceTableMap;
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -180,5 +188,15 @@ public class SQLPriceTableStore implements PriceTableStore {
         return priceTableKeySet.isEmpty() ?
                 DSL.trueCondition() :
                 Tables.PRICE_TABLE.PRICE_TABLE_KEY.in(priceTableKeySet);
+    }
+
+    /**
+     * Condition to filter the Price Table by the list of oids.
+     *
+     * @param oids The oids.
+     * @return The condition.
+     */
+    private Condition filterByOidsCondition(final Collection oids) {
+        return oids.isEmpty() ? DSL.trueCondition() : Tables.PRICE_TABLE.OID.in(oids);
     }
 }
