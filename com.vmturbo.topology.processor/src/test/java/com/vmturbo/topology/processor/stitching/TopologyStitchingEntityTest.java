@@ -23,6 +23,7 @@ import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.EntityPipelineErrors.StitchingErrorCode;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.stitching.utilities.CommoditiesBought;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity.CommoditySold;
@@ -37,7 +38,12 @@ public class TopologyStitchingEntityTest {
 
     private final TopologyStitchingEntity vm = new TopologyStitchingEntity(virtualMachine("vm")
         .buying(cpuMHz().from("pm").used(50.0))
-        .build().toBuilder(), 2L, targetId, 0);
+        .build().toBuilder().setOrigin(EntityOrigin.PROXY), 2L, targetId, 0);
+
+    private final TopologyStitchingEntity vm_remove =
+        new TopologyStitchingEntity(virtualMachine("vmRemove").build().toBuilder()
+            .setOrigin(EntityOrigin.PROXY)
+        .setKeepStandalone(false), 3L, targetId, 0);
 
     @Before
     public void setup() {
@@ -202,5 +208,17 @@ public class TopologyStitchingEntityTest {
 
         assertEquals(pm.getLastUpdatedTime(), snapshotCopy.getLastUpdatedTime());
         assertEquals(pm.getTargetId(), snapshotCopy.getTargetId());
+        assertEquals(pm.removeIfUnstitched(), snapshotCopy.removeIfUnstitched());
+    }
+
+    /**
+     * Tests that entities with keepStandalone == false and origin == PROXY get marked with
+     * removeIfUnstitched = true, but other entities do not.
+     */
+    @Test
+    public void testRemoveIfUnstitched() {
+        assertFalse(vm.removeIfUnstitched());
+        assertFalse(pm.removeIfUnstitched());
+        assertTrue(vm_remove.removeIfUnstitched());
     }
 }

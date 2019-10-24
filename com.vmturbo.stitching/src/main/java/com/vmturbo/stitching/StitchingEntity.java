@@ -332,6 +332,17 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      */
     boolean hasMergeInformation();
 
+    /**
+     * Indicates an entity that only exists to push data and/or relationships in stitching.  This
+     * entity should be removed in the event that it doesn't get stitched.
+     *
+     * @return Boolean value indicating whether or not to remove this entity in the event that it
+     * doesn't get stitched.
+     */
+    default boolean removeIfUnstitched() {
+        return false;
+    }
+
     @Nonnull
     @Override
     default Stream<Long> getDiscoveringTargetIds() {

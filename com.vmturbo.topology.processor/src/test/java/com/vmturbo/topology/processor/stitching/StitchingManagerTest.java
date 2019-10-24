@@ -8,6 +8,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -38,6 +39,7 @@ import org.mockito.MockitoAnnotations;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.PostStitchingOperation;
@@ -96,18 +98,32 @@ public class StitchingManagerTest {
     private final EntityDTO.Builder otherBar = virtualMachine("other-bar")
         .guestName("bar")
         .build().toBuilder();
+    private final EntityDTO.Builder unstitchedProxy2Remove =
+        virtualMachine("unstitched-proxy-delete")
+        .guestName("nomatch")
+        .build().toBuilder()
+        .setKeepStandalone(false)
+        .setOrigin(EntityOrigin.PROXY);
+    private final EntityDTO.Builder unstitchedProxy2Keep = virtualMachine("unstitched-proxy-keep")
+        .guestName("nomatch")
+        .build().toBuilder()
+        .setKeepStandalone(true)
+        .setOrigin(EntityOrigin.PROXY);
 
     private final EntityDTO.Builder pm = physicalMachine("pm")
         .numCpuCores(3)
         .build().toBuilder();
 
-    private final Map<String, StitchingEntityData> entityData = ImmutableMap.of(
-        vmFoo.getId(), nextEntity(vmFoo, firstTargetId),
-        vmBar.getId(), nextEntity(vmBar, firstTargetId),
-        otherFoo.getId(), nextEntity(otherFoo, secondTargetId),
-        otherBar.getId(), nextEntity(otherBar, secondTargetId),
-        pm.getId(), nextEntity(pm, firstTargetId)
-    );
+    private final Map<String, StitchingEntityData> entityData =
+        ImmutableMap.<String, StitchingEntityData>builder()
+            .put(vmFoo.getId(), nextEntity(vmFoo, firstTargetId))
+            .put(vmBar.getId(), nextEntity(vmBar, firstTargetId))
+            .put(otherFoo.getId(), nextEntity(otherFoo, secondTargetId))
+            .put(otherBar.getId(), nextEntity(otherBar, secondTargetId))
+            .put(unstitchedProxy2Remove.getId(), nextEntity(unstitchedProxy2Remove, secondTargetId))
+            .put(unstitchedProxy2Keep.getId(), nextEntity(unstitchedProxy2Keep, secondTargetId))
+            .put(pm.getId(), nextEntity(pm, firstTargetId))
+            .build();
 
     @Captor
     private ArgumentCaptor<TopologyStitchingEntity> stitchingEntityCaptor;
@@ -140,9 +156,15 @@ public class StitchingManagerTest {
                     postStitchingOperationLibrary, probeStore, targetStore, cpuCapacityStore);
 
         stitchingManager.stitch(stitchingContext, new StitchingJournal<>());
-        verify(stitchingContext).removeEntity(stitchingEntityCaptor.capture());
+        verify(stitchingContext, times(2))
+            .removeEntity(stitchingEntityCaptor.capture());
 
-        assertEquals("foo", stitchingEntityCaptor.getValue().getLocalId());
+        final List<String> removedEntities = stitchingEntityCaptor.getAllValues().stream()
+            .map(StitchingEntity::getLocalId)
+            .collect(Collectors.toList());
+
+        assertThat(removedEntities, containsInAnyOrder(vmFoo.getId(),
+            unstitchedProxy2Remove.getId()));
         assertEquals("updated-vm", vmBar.getDisplayName());
     }
 
@@ -163,13 +185,15 @@ public class StitchingManagerTest {
             preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore, cpuCapacityStore);
 
         stitchingManager.stitch(stitchingContext, new StitchingJournal<>());
-        verify(stitchingContext, times(2)).removeEntity(stitchingEntityCaptor.capture());
+        verify(stitchingContext, times(3)).removeEntity(stitchingEntityCaptor.capture());
 
         final List<String> removedEntities = stitchingEntityCaptor.getAllValues().stream()
             .map(StitchingEntity::getLocalId)
             .collect(Collectors.toList());
 
-        assertThat(removedEntities, containsInAnyOrder("other-foo", "other-bar"));
+        assertThat(removedEntities, containsInAnyOrder(otherFoo.getId(), otherBar.getId(),
+            unstitchedProxy2Remove.getId()));
+        assertFalse(removedEntities.contains(unstitchedProxy2Keep.getId()));
         assertEquals("updated-foo", vmFoo.getDisplayName());
         assertEquals("updated-bar", vmBar.getDisplayName());
     }
@@ -229,7 +253,11 @@ public class StitchingManagerTest {
 
     @Test
     public void testTargetsRecordedInJournal() {
-        final StitchingContext stitchingContext = mock(StitchingContext.class);
+        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(0)
+            .setTargetStore(mock(TargetStore.class))
+            .setIdentityProvider(mock(IdentityProviderImpl.class));
+        final StitchingContext stitchingContext = spy(contextBuilder.build());
+        when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
         when(stitchingOperationStore.getAllOperations()).thenReturn(Collections.emptyList());
         final StitchingManager stitchingManager =
             spy(new StitchingManager(stitchingOperationStore, preStitchingOperationLibrary,

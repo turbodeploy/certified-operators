@@ -23,6 +23,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.EntityPipelineErrors.StitchingErrorCode;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingMergeInformation;
@@ -71,6 +72,11 @@ public class TopologyStitchingEntity implements StitchingEntity {
 
     private final Map<ConnectionType, Set<StitchingEntity>> connectedFrom = new IdentityHashMap<>();
 
+    /**
+     * Indicates that this is a proxy object that should be removed if it doesn't get stitched.
+     */
+    private final boolean removeIfUnstitched;
+
     public TopologyStitchingEntity(@Nonnull final StitchingEntityData stitchingEntityData) {
         this(stitchingEntityData.getEntityDtoBuilder(),
             stitchingEntityData.getOid(),
@@ -87,6 +93,8 @@ public class TopologyStitchingEntity implements StitchingEntity {
         this.targetId = targetId;
         this.lastUpdatedTime = lastUpdatedTime;
         this.mergeInformation = null;
+        removeIfUnstitched = !entityBuilder.getKeepStandalone()
+            && EntityOrigin.PROXY == entityBuilder.getOrigin();
     }
 
     @Nonnull
@@ -439,5 +447,10 @@ public class TopologyStitchingEntity implements StitchingEntity {
             @Nonnull CommoditySold that = (CommoditySold)obj;
             return (accesses == that.accesses && sold.equals(that.sold));
         }
+    }
+
+    @Override
+    public boolean removeIfUnstitched() {
+        return removeIfUnstitched;
     }
 }

@@ -188,6 +188,30 @@ public class StitchingManager {
     }
 
     /**
+     * Remove from the topology proxy entities that were not stitched and not marked
+     * keepStandalone = true by their discovering probe.
+     *
+     * @param scopeFactory The factory for use in generating the scopes to be used to create the scope
+     *                     of entities that this method will operate on.
+     * @param stitchingJournal The stitching journal used to track changes.
+     */
+    private void cleanupUnstitchedProxyEntities(
+        final StitchingOperationScopeFactory scopeFactory,
+        final IStitchingJournal<StitchingEntity> stitchingJournal) {
+        stitchingJournal.recordMessage(
+            "--------------- START: Cleanup of unstitched proxy entities ---------------");
+        final StitchingResultBuilder resultBuilder =
+            new StitchingResultBuilder(scopeFactory.getStitchingContext());
+        scopeFactory.globalScope().entities()
+            .filter(StitchingEntity::removeIfUnstitched)
+            .forEach(stitchingEntity -> resultBuilder.queueEntityRemoval(stitchingEntity));
+        TopologicalChangelog<StitchingEntity> results = resultBuilder.build();
+        results.getChanges().forEach(change -> change.applyChange(stitchingJournal));
+        stitchingJournal.recordMessage(
+            "--------------- END: Cleanup of unstitched proxy entities ---------------");
+    }
+
+    /**
      * Apply post-stitching operations to the {@link GraphWithSettings}. See {@link PostStitchingOperation} for
      * details on what happens during post-stitching.
      *
@@ -256,6 +280,7 @@ public class StitchingManager {
                         targetStore.getProbeTargets(probeOperation.probeId).forEach(
                                 target -> applyOperationForTarget(probeOperation.stitchingOperation,
                                         scopeFactory, stitchingJournal, target.getId())));
+        cleanupUnstitchedProxyEntities(scopeFactory, stitchingJournal);
         executionTimer.observe();
     }
 
