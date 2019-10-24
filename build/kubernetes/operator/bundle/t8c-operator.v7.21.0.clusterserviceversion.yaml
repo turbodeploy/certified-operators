@@ -120,6 +120,12 @@ spec:
                 - virtualservices
               verbs:
                 - '*'
+            - apiGroups:
+                - certmanager.k8s.io
+              resources:
+                - certificates
+              verbs:
+                - '*'
           serviceAccountName: t8c-operator
     strategy: deployment
   installModes:
