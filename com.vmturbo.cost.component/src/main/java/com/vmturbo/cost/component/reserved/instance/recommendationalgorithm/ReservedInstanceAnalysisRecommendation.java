@@ -431,6 +431,8 @@ public class ReservedInstanceAnalysisRecommendation {
                         .setExplanation(explanation)
                         .setDeprecatedImportance(0)
                         .setSupportingLevel(SupportLevel.SHOW_ONLY)
+                        .setSavingsPerHour(CurrencyAmount.newBuilder()
+                                .setAmount(hourlyCostSavings).build())
                         .setExecutable(false)
                         .build();
 
