@@ -11,8 +11,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.validation.constraints.Max;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Multimap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -32,6 +35,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuild
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.graph.TopologyGraphEntity;
 import com.vmturbo.topology.processor.group.GroupResolver;
 
 /**
@@ -45,22 +49,22 @@ public class SettingOverrides {
     // of settings chosen is based on the classic implementation for this plan configuration, which
     // is hardcoded to set commodity utilization thresholds for these three commodity types.
     private static final Map<String, SettingSpec> MAX_UTILIZATION_SETTING_SPECS = ImmutableMap.of(
-            EntitySettingSpecs.CpuUtilization.getSettingName(), EntitySettingSpecs.CpuUtilization.getSettingSpec(),
-            EntitySettingSpecs.MemoryUtilization.getSettingName(), EntitySettingSpecs.MemoryUtilization.getSettingSpec(),
-            EntitySettingSpecs.StorageAmountUtilization.getSettingName(), EntitySettingSpecs.StorageAmountUtilization.getSettingSpec()
+        EntitySettingSpecs.CpuUtilization.getSettingName(), EntitySettingSpecs.CpuUtilization.getSettingSpec(),
+        EntitySettingSpecs.MemoryUtilization.getSettingName(), EntitySettingSpecs.MemoryUtilization.getSettingSpec(),
+        EntitySettingSpecs.StorageAmountUtilization.getSettingName(), EntitySettingSpecs.StorageAmountUtilization.getSettingSpec()
     );
 
     /**
      * settingName -> setting
      *
-     * These overrides apply to all entities that have a setting matching settingName.
+     *<p> These overrides apply to all entities that have a setting matching settingName.
      */
     private Map<String, Setting> globalOverrides = new HashMap<>();
 
     /**
      * entityType -> settingName -> setting
      *
-     * These overrides apply to all entities of a particular type that have a setting matching
+     *<p> These overrides apply to all entities of a particular type that have a setting matching
      * settingName.
      */
     private Map<Integer, Map<String, Setting>> overridesForEntityType = new HashMap<>();
@@ -75,9 +79,10 @@ public class SettingOverrides {
     /**
      * entityOid -> settingName -> setting
      *
-     * These overrides apply to a specific entity.
+     *<p> These overrides apply to a specific entity.
      */
-    private Map<Long, Map<String, Setting>> overridesForEntity = new HashMap<>();
+    @VisibleForTesting
+    protected Map<Long, Map<String, Setting>> overridesForEntity = new HashMap<>();
 
     public SettingOverrides(@Nonnull final List<ScenarioChange> changes) {
         // find any global or entity-type based setting overrides
@@ -89,7 +94,7 @@ public class SettingOverrides {
                 final Map<String, Setting> settingByNameMap;
                 if (settingOverride.hasEntityType()) {
                     settingByNameMap = overridesForEntityType.computeIfAbsent(
-                            settingOverride.getEntityType(), k -> new HashMap<>());
+                        settingOverride.getEntityType(), k -> new HashMap<>());
                 } else {
                     settingByNameMap = globalOverrides;
                 }
@@ -100,11 +105,11 @@ public class SettingOverrides {
         // find any max utilization overrides in the set of changes -- we will resolve these later,
         // when we have a topology graph available.
         maxUtilizationLevels = changes.stream()
-                .filter(ScenarioChange::hasPlanChanges)
-                .map(ScenarioChange::getPlanChanges)
-                .filter(PlanChanges::hasMaxUtilizationLevel)
-                .map(PlanChanges::getMaxUtilizationLevel)
-                .collect(Collectors.toList());
+            .filter(ScenarioChange::hasPlanChanges)
+            .map(ScenarioChange::getPlanChanges)
+            .filter(PlanChanges::hasMaxUtilizationLevel)
+            .map(PlanChanges::getMaxUtilizationLevel)
+            .collect(Collectors.toList());
     }
 
     /**
@@ -113,67 +118,99 @@ public class SettingOverrides {
      * @return a list of group id's present in the settings changes.
      */
     public Set<Long> getInvolvedGroups() {
-        return maxUtilizationLevels.stream()
+        if (maxUtilizationLevels.stream().anyMatch(MaxUtilizationLevel::hasGroupOid)) {
+            return maxUtilizationLevels.stream()
                 .map(MaxUtilizationLevel::getGroupOid)
                 .collect(Collectors.toSet());
+        } else {
+            return Collections.emptySet();
+        }
+
     }
 
     /**
-     * For group-based overrides, we will create setting overrides on a per-entity basis, based on
-     * max utilization settings.
+     * For group-based or plan full scope overrides, we will create setting overrides on a per-entity basis,
+     * based on max utilization settings.
      *
-     * We are creating them as entity setting overrides rather than SettingPolicy because we want
+     *<p> We are creating them as entity setting overrides rather than SettingPolicy because we want
      * these to override the existing policies, rather than co-exist with them.
      *
-     * TODO: Instead of specifically handling MaxUtilization settings, we should treat these more
+     *<p> TODO: Instead of specifically handling MaxUtilization settings, we should treat these more
      * generically, by enhancing the existing SettingOverride object to allow support for group-specific
      * or even entity-specific targeting. Then, instead of MaxUtilizationLevel objects we can work
      * with the more widely usable SettingOverride objects.
      *
-     * @param groupsById A map of group id -> Groups, used for group resolution.
+     * @param groupsById    A map of group id -> Groups, used for group resolution.
      * @param groupResolver the group resolver to use
      * @param topologyGraph the topology graph used for finding group members
      */
     public void resolveGroupOverrides(@Nonnull Map<Long, Group> groupsById,
                                       @Nonnull GroupResolver groupResolver, TopologyGraph<TopologyEntity> topologyGraph) {
+        Map<Setting, Set<Long>> entitiesToApplySetting = new HashMap<>();
+        for (MaxUtilizationLevel u : maxUtilizationLevels) {
+            if (maxUtilizationLevels.stream().noneMatch(MaxUtilizationLevel::hasGroupOid)) {
+                // this is a full scope utilization setting
+                final Set<Long> entitiesOid = topologyGraph.entitiesOfType(u.getSelectedEntityType())
+                        .map(TopologyGraphEntity::getOid)
+                        .collect(Collectors.toSet());
+                MAX_UTILIZATION_SETTING_SPECS.values().stream()
+                        // use selected entity type of full scope to filter setting spec
+                        .filter(spec -> isSettingSpecForEntityType(spec, u.getSelectedEntityType()))
+                        .forEach(spec -> entitiesToApplySetting.put(createSetting(spec, u), entitiesOid));
+            } else {
+                // get the group members to apply this setting to
+                Group group = groupsById.get(u.getGroupOid());
+                System.out.println("Group is " + group.getId());
+                Set<Long> groupMemberOids = groupResolver.resolve(group, topologyGraph);
+                MAX_UTILIZATION_SETTING_SPECS.values().stream()
+                    // use group entity type to filter setting spec
+                        .filter(spec -> isSettingSpecForEntityType(spec, group.getGroup().getEntityType()))
+                        .forEach(spec -> entitiesToApplySetting.put(createSetting(spec, u), groupMemberOids));
+            }
+        }
+        resolveEntitySettings(entitiesToApplySetting);
+    }
 
+    /**
+     * Construct a max utilization setting.
+     *
+     * @param spec the setting spec
+     * @param maxUtil the max utilization level
+     * @return a max utilization setting
+     */
+    private @Nonnull Setting createSetting(@Nonnull final SettingSpec spec,
+                                           @Nonnull final MaxUtilizationLevel maxUtil) {
+        return Setting.newBuilder()
+                .setNumericSettingValue(NumericSettingValue
+                        .newBuilder()
+                        .setValue(maxUtil.getPercentage()))
+                .setSettingSpecName(spec.getName())
+                .build();
+    }
 
-        for (MaxUtilizationLevel maxUtilizationLevel : maxUtilizationLevels) {
-            // get the group members to apply this setting to
-            Group group = groupsById.get(maxUtilizationLevel.getGroupOid());
-
-            // get the set of specs to create
-            List<SettingSpec> specsToCreate = MAX_UTILIZATION_SETTING_SPECS.values().stream()
-                    .filter(spec -> isSettingSpecForEntityType(spec, group.getGroup().getEntityType()))
-                    .collect(Collectors.toList());
-
-            Set<Long> groupMemberOids = groupResolver.resolve(group, topologyGraph);
-            for (Long entityOid : groupMemberOids) {
+    /**
+     * Resolve settings for each entity based on the entitiesToApplySetting map.
+     *
+     * @param entitiesToApplySetting a map of a setting and the entities to apply that setting
+     */
+    private void resolveEntitySettings(Map<Setting, Set<Long>> entitiesToApplySetting) {
+        for (Map.Entry<Setting, Set<Long>> entry : entitiesToApplySetting.entrySet()) {
+            Setting setting = entry.getKey();
+            for (long oid : entry.getValue()) {
                 logger.debug("Creating max utilization settings of {}% for entity {}",
-                        maxUtilizationLevel.getPercentage(), entityOid);
-
-                Map<String, Setting> entitySettingOverrides
-                        = overridesForEntity.computeIfAbsent(entityOid, k -> new HashMap<>());
-
-                for (SettingSpec settingSpec : specsToCreate) {
-
-                    Setting newSetting = Setting.newBuilder()
-                            .setNumericSettingValue(NumericSettingValue.newBuilder()
-                                    .setValue(maxUtilizationLevel.getPercentage()))
-                            .setSettingSpecName(settingSpec.getName())
-                            .build();
-                    // add this setting to the map, using the tiebreaker if there is a conflict
-                    entitySettingOverrides.merge(settingSpec.getName(), newSetting,
-                            (setting1, setting2) -> {
-                                // use the tiebreaker if there is a conflict
-                                Setting winner = EntitySettingsResolver.SettingResolver
-                                    .applyTiebreaker(setting1, setting2, MAX_UTILIZATION_SETTING_SPECS);
-                                logger.trace("Plan override of max utilization settings for entity {}"
-                                                + " selected {}% from ({}%,{}%) for setting {}", entityOid,
-                                        winner, setting1, setting2, settingSpec.getName());
-                                return winner;
-                            });
-                }
+                    setting.getNumericSettingValue().getValue(), oid);
+                Map<String, Setting> entitySettingOverrides = overridesForEntity
+                    .computeIfAbsent(oid, k -> new HashMap<>());
+                // add this setting to the map, using the tiebreaker if there is a conflict
+                entitySettingOverrides.merge(setting.getSettingSpecName(), setting, (setting1, setting2) -> {
+                    // use the tiebreaker if there is a conflict
+                    Setting winner = EntitySettingsResolver.SettingResolver.applyTiebreaker(setting1, setting2,
+                            MAX_UTILIZATION_SETTING_SPECS);
+                    logger.trace("Plan override of max utilization settings for entity {}"
+                            + " selected {}% from ({}%,{}%) for setting {}", oid,
+                        winner, setting1, setting2, setting.getSettingSpecName());
+                    return winner;
+                });
             }
         }
     }
@@ -198,7 +235,7 @@ public class SettingOverrides {
      * Override the settings in a {@link EntitySettings.Builder} with the settings
      * that apply to the entity.
      *
-     * @param entity The entity that the settings apply to.
+     * @param entity          The entity that the settings apply to.
      * @param settingsBuilder The {@link EntitySettings.Builder}. This builder can be modified
      *                        inside the function. We accept the builder as an
      *                        argument instead of returning a map so that we're not constructing
@@ -217,14 +254,14 @@ public class SettingOverrides {
             .forEach(setting -> {
                 // add setting overrides that haven't been added yet. They should be handled
                 // in order of priority.
-                if (! settingsAdded.contains(setting.getSettingSpecName())) {
+                if (!settingsAdded.contains(setting.getSettingSpecName())) {
                     settingsBuilder.addUserSettings(SettingToPolicyId.newBuilder()
-                            // no policy id is associated with global setting or setting overrides.
-                            .setSetting(setting)
-                            .build());
+                        // no policy id is associated with global setting or setting overrides.
+                        .setSetting(setting)
+                        .build());
                     settingsAdded.add(setting.getSettingSpecName());
                     logger.trace("Setting overrides adding setting {} value {}",
-                            setting.getSettingSpecName(), setting);
+                        setting.getSettingSpecName(), setting);
                 }
             });
     }
