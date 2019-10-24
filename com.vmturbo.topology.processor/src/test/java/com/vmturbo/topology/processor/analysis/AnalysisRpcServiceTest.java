@@ -72,6 +72,8 @@ public class AnalysisRpcServiceTest {
 
     private final String testPlanType = "TEST_PLAN";
 
+    private final String testPlanSubType = "TEST_PLAN_SUBTYPE";
+
     private final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
         .setTopologyContextId(planId)
         .setTopologyId(topologyId)
@@ -80,7 +82,8 @@ public class AnalysisRpcServiceTest {
         .addAnalysisType(AnalysisType.MARKET_ANALYSIS)
         .setPlanInfo(PlanTopologyInfo.newBuilder()
             .setPlanProjectType(PlanProjectType.USER)
-            .setPlanType(testPlanType))
+            .setPlanType(testPlanType)
+            .setPlanSubType(testPlanSubType))
         .build();
 
     private TopologyBroadcastInfo broadcastInfo = mock(TopologyBroadcastInfo.class);
@@ -118,6 +121,7 @@ public class AnalysisRpcServiceTest {
                     .setTopologyId(topologyId)
                     .setPlanProjectType(PlanProjectType.USER)
                     .setPlanType(testPlanType)
+                    .setPlanSubType(testPlanSubType)
                     .build(), responseObserver);
 
         final ArgumentCaptor<StartAnalysisResponse> responseCaptor =
@@ -154,6 +158,7 @@ public class AnalysisRpcServiceTest {
                 .setPlanId(planId)
                 .setPlanProjectType(PlanProjectType.USER)
                 .setPlanType(testPlanType)
+                .setPlanSubType(testPlanSubType)
                 // Don't set topology ID.
                 .build(), responseObserver);
 
@@ -219,7 +224,7 @@ public class AnalysisRpcServiceTest {
         StartAnalysisRequest request = StartAnalysisRequest.newBuilder()
             .setPlanId(planId)
             .setPlanProjectType(PlanProjectType.USER)
-            .setPlanType(StringConstants.CLOUD_MIGRATION_PLAN_TYPE)
+            .setPlanType(StringConstants.CLOUD_MIGRATION_PLAN)
             .build();
         analysisService.startAnalysis(request, mock(StreamObserver.class));
 

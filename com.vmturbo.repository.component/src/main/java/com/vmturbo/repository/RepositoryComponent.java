@@ -599,14 +599,18 @@ public class RepositoryComponent extends BaseVmtComponent {
                 MarketSubscription.forTopicWithStartFrom(
                     MarketSubscription.Topic.ProjectedTopologies, StartFrom.BEGINNING),
                 MarketSubscription.forTopicWithStartFrom(
-                    MarketSubscription.Topic.AnalysisSummary, StartFrom.BEGINNING));
+                    MarketSubscription.Topic.AnalysisSummary, StartFrom.BEGINNING),
+                MarketSubscription.forTopicWithStartFrom(
+                    MarketSubscription.Topic.PlanAnalysisTopologies, StartFrom.BEGINNING));
         } else {
             market = marketClientConfig.marketComponent(
                 MarketSubscription.forTopic(MarketSubscription.Topic.ProjectedTopologies),
-                MarketSubscription.forTopic(MarketSubscription.Topic.AnalysisSummary));
+                MarketSubscription.forTopic(MarketSubscription.Topic.AnalysisSummary),
+                MarketSubscription.forTopic(MarketSubscription.Topic.PlanAnalysisTopologies));
         }
         market.addProjectedTopologyListener(marketTopologyListener());
         market.addAnalysisSummaryListener(marketTopologyListener());
+        market.addPlanAnalysisTopologyListener(marketTopologyListener());
         return market;
     }
 

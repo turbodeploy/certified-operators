@@ -78,7 +78,7 @@ public class ActionListenerTest {
         actionsListener.onActionsUpdated(actionsUpdated);
         final PlanInstance instance = planDao.getPlanInstance(planId).get();
         Assert.assertTrue(ACTION_PLAN_ID == instance.getActionPlanIdList().get(0));
-        Assert.assertEquals(PlanStatus.SUCCEEDED, instance.getStatus());
+        Assert.assertEquals(PlanStatus.WAITING_FOR_RESULT, instance.getStatus());
     }
 
     /**

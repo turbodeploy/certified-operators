@@ -1,8 +1,6 @@
 package com.vmturbo.repository.listener;
 
-import java.util.Collection;
 import java.util.Objects;
-import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
@@ -19,11 +17,9 @@ import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.RepositoryNotificationSender;
 import com.vmturbo.repository.SharedMetrics;
-import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseException;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
-import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyEntitiesException;
 import com.vmturbo.topology.processor.api.EntitiesListener;
 import com.vmturbo.topology.processor.api.TopologySummaryListener;
 
@@ -125,16 +121,7 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
         if (!shouldProcessTopology(topologyInfo)) {
             logger.info("Skipping processing of topology {}, since it appears to be older than"
                     +" latest known realtime topology.", topologyId);
-            // drain the iterator and exit.
-            try {
-                while (entityIterator.hasNext()) {
-                    entityIterator.nextChunk();
-                }
-            } catch (TimeoutException e) {
-                logger.warn("TimeoutException while skipping topology {}", topologyId);
-            } finally {
-                SharedMetrics.TOPOLOGY_COUNTER.labels(SharedMetrics.SOURCE_LABEL, SharedMetrics.SKIPPED_LABEL).increment();
-            }
+            TopologyEntitiesUtil.drainIterator(entityIterator, topologyId);
             return;
         }
 
@@ -144,45 +131,8 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
         final TopologyID tid = new TopologyID(topologyContextId, topologyId, TopologyID.TopologyType.SOURCE);
         final TopologyCreator<TopologyEntityDTO> topologyCreator =
             topologyManager.newSourceTopologyCreator(tid, topologyInfo);
-        try {
-            topologyCreator.initialize();
-            logger.info("Start updating topology {}", tid);
-            int numberOfEntities = 0;
-            int chunkNumber = 0;
-            while (entityIterator.hasNext()) {
-                Collection<TopologyEntityDTO> chunk = entityIterator.nextChunk();
-
-                logger.debug("Received chunk #{} of size {} for topology {}", ++chunkNumber, chunk.size(), tid);
-                topologyCreator.addEntities(chunk);
-                numberOfEntities += chunk.size();
-            }
-            topologyCreator.complete();
-
-            SharedMetrics.TOPOLOGY_ENTITY_COUNT_GAUGE
-                .labels(SharedMetrics.SOURCE_LABEL)
-                .setData((double) numberOfEntities);
-            logger.info("Finished updating topology {} with {} entities", tid, numberOfEntities);
-            notificationSender.onSourceTopologyAvailable(topologyId, topologyContextId);
-
-            timer.observe();
-        } catch (GraphDatabaseException | CommunicationException |
-            TopologyEntitiesException | TimeoutException e) {
-            logger.error("Error occurred while receiving topology " + topologyId, e);
-            topologyCreator.rollback();
-            notificationSender.onSourceTopologyFailure(topologyId, topologyContextId,
-                "Error receiving source topology " + topologyId + ": " + e.getMessage());
-        } catch (InterruptedException e) {
-            logger.info("Thread interrupted receiving topology " + topologyId, e);
-            topologyCreator.rollback();
-            notificationSender.onSourceTopologyFailure(topologyId, topologyContextId,
-                "Error receiving source topology " + topologyId + ": " + e.getMessage());
-            throw e;
-        } catch (RuntimeException e) {
-            logger.error("Exception while receiving topology " + topologyId, e);
-            topologyCreator.rollback();
-            notificationSender.onSourceTopologyFailure(topologyId, topologyContextId,
-                "Error receiving source topology " + topologyId + ": " + e.getMessage());
-            throw e;
-        }
+        TopologyEntitiesUtil.createTopology(entityIterator, topologyId, topologyContextId, timer,
+                tid, topologyCreator, notificationSender);
     }
+
 }

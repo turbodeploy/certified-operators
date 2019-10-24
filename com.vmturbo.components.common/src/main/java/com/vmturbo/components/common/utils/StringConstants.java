@@ -295,8 +295,27 @@ public class StringConstants {
 
     public static final String DOLLARS_PER_HOUR = "$/h";
     public static final String PROPERTY = "property";
-    public static final String OPTIMIZE_CLOUD_PLAN_TYPE = "OPTIMIZE_CLOUD";
-    public static final String CLOUD_MIGRATION_PLAN_TYPE = "CLOUD_MIGRATION";
+    /**
+     * Optimize cloud plan type.
+     */
+    public static final String OPTIMIZE_CLOUD_PLAN = "OPTIMIZE_CLOUD";
+    /**
+     * Optimize services only.
+     */
+    public static final String OPTIMIZE_CLOUD_PLAN__OPTIMIZE_SERVICES = "OPTIMIZE_CLOUD__OPTIMIZE_SERVICES_ONLY";
+    /**
+     * Optimize services and make RI purchases.
+     */
+    public static final String OPTIMIZE_CLOUD_PLAN__RIBUY_AND_OPTIMIZE_SERVICES =
+            "OPTIMIZE_CLOUD__RIBUY_AND_OPTIMIZE_SERVICES";
+    /**
+     * Purchase RI only.
+     */
+    public static final String OPTIMIZE_CLOUD_PLAN__RIBUY_ONLY = "OPTIMIZE_CLOUD__RIBUY_ONLY";
+    /**
+     * Cloud migration plan type.
+     */
+    public static final String CLOUD_MIGRATION_PLAN = "CLOUD_MIGRATION";
     /**
      * DISABLED action mode. This is used to check if VM scale actions are disabled in OCP.
      */

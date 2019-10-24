@@ -45,7 +45,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
     private static final Set<String> CLOUD_PLAN_TYPES = ImmutableSet.of(
-        StringConstants.OPTIMIZE_CLOUD_PLAN_TYPE, StringConstants.CLOUD_MIGRATION_PLAN_TYPE);
+        StringConstants.OPTIMIZE_CLOUD_PLAN, StringConstants.CLOUD_MIGRATION_PLAN);
 
     // set of stats passed from UI, which are for the number of entities grouped by tier
     private static final Set<String> CLOUD_PLAN_ENTITIES_BY_TIER_STATS = ImmutableSet.of(

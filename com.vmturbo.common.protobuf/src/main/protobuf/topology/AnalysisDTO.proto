@@ -33,6 +33,9 @@ message StartAnalysisRequest {
 
     // The type of the plan initiated.
     optional string plan_type = 6;
+
+    // The sub-type of the plan initiated.
+    optional string plan_sub_type = 7;
 }
 
 message StartAnalysisResponse {

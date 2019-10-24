@@ -1,14 +1,15 @@
 package com.vmturbo.market.runner;
 
+import java.time.Clock;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.collect.Sets;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
@@ -24,10 +25,12 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionP
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.rpc.MarketDebugRpcService;
@@ -117,6 +120,40 @@ public class MarketRunner {
                         .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                         .setRightsizeUpperWatermark(rightsizeUpperWatermark));
 
+            if (isBuyRIOnlyOptimizeCloudPlan(topologyInfo)) {
+                try {
+                    // Notify source topology
+                    serverApi.notifyPlanAnalysisTopology(analysis.getTopologyInfo(),
+                            analysis.getTopology().values());
+                    // Notify projected topology (same as source)
+                    final long projectedTopologyId = IdentityGenerator.next();
+                    logger.info("Creating empty action plan for " +
+                                    "SOURCE topology context {} " +
+                                    "PROJECTED topology id {}.  " +
+                                    "Projected topology == Source Topology ",
+                            analysis.getTopologyInfo().getTopologyContextId(),
+                            projectedTopologyId);
+                    final ActionPlan.Builder actionPlanBuilder = ActionPlan.newBuilder()
+                            .setId(IdentityGenerator.next())
+                            .setInfo(ActionPlanInfo.newBuilder()
+                                    .setMarket(MarketActionPlanInfo.newBuilder()
+                                            .setSourceTopologyInfo(topologyInfo)))
+                            .setAnalysisStartTimestamp(Clock.systemUTC().instant().toEpochMilli());
+                    Set<ProjectedTopologyEntity> projectedEntitiesFromSourceEntities =
+                            topologyDTOs
+                                    .stream()
+                                    .map(sourceEntityDTO -> ProjectedTopologyEntity.newBuilder()
+                                            .setEntity(sourceEntityDTO).build()).collect(Collectors.toSet());
+                    actionPlanBuilder.setAnalysisCompleteTimestamp(Clock.systemUTC().instant().toEpochMilli()).build();
+                    serverApi.notifyProjectedTopology(analysis.getTopologyInfo(), // original (source) topology info
+                            projectedTopologyId,  // Generate a projected topologyID
+                            projectedEntitiesFromSourceEntities, // Same as source topology
+                            actionPlanBuilder.getId()); // Empty action plan
+                    return analysis;
+                } catch (CommunicationException | InterruptedException e) {
+                    logger.error("Could not send market notifications", e);
+                }
+            }
             if (!analysis.getTopologyInfo().hasPlanInfo()) {
                 Optional<Setting> disbaleAllActionsSetting = analysis.getConfig()
                                 .getGlobalSetting(GlobalSettingSpecs.DisableAllActions);
@@ -258,6 +295,23 @@ public class MarketRunner {
                         topologyContextId, analysis.getTopologyId(), topologyId);
                 return true;
             }
+        }
+        return false;
+    }
+
+    /**
+     * Check if the topology received is for a Buy RI Optimize Cloud Plan
+     *
+     * @param topologyInfo Topology Info
+     * @return true if the received topology is for Buy RI Optimize Cloud Plan
+     */
+    public boolean isBuyRIOnlyOptimizeCloudPlan(@Nonnull TopologyDTO.TopologyInfo topologyInfo) {
+        long topologyContextId = topologyInfo.getTopologyContextId();
+        long topologyId = topologyInfo.getTopologyId();
+        if (TopologyDTO.TopologyType.PLAN.equals(topologyInfo.getTopologyType()) &&
+            StringConstants.OPTIMIZE_CLOUD_PLAN.equals(topologyInfo.getPlanInfo().getPlanType()) &&
+            StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_ONLY.equals(topologyInfo.getPlanInfo().getPlanSubType())) {
+            return true;
         }
         return false;
     }

@@ -72,7 +72,7 @@ public class PlanRpcServiceTest {
                         .addChanges(getResizeScenarioChanges(StringConstants.AUTOMATIC))
                         .addChanges(ScenarioChange.newBuilder()
                                 .setRiSetting(RISetting.newBuilder().build()))
-                        .setType(StringConstants.OPTIMIZE_CLOUD_PLAN_TYPE).build())).build();
+                        .setType(StringConstants.OPTIMIZE_CLOUD_PLAN).build())).build();
     }
 
     /**
@@ -90,7 +90,7 @@ public class PlanRpcServiceTest {
         return PlanInstance.newBuilder().setPlanId(2L).setStatus(PlanStatus.QUEUED)
                 .setScenario(Scenario.newBuilder().setScenarioInfo(ScenarioInfo.newBuilder()
                         .addChanges(getResizeScenarioChanges(StringConstants.AUTOMATIC))
-                        .setType(StringConstants.OPTIMIZE_CLOUD_PLAN_TYPE).build())).build();
+                        .setType(StringConstants.OPTIMIZE_CLOUD_PLAN).build())).build();
     }
 
     /**
@@ -106,7 +106,7 @@ public class PlanRpcServiceTest {
     private PlanInstance createOptimizePlanWithBuyRiOnly() {
         return PlanInstance.newBuilder().setPlanId(3L).setStatus(PlanStatus.QUEUED)
                 .setScenario(Scenario.newBuilder().setScenarioInfo(ScenarioInfo.newBuilder()
-                        .setType(StringConstants.OPTIMIZE_CLOUD_PLAN_TYPE)
+                        .setType(StringConstants.OPTIMIZE_CLOUD_PLAN)
                         .addChanges(getResizeScenarioChanges(StringConstants.DISABLED))
                         .addChanges(ScenarioChange.newBuilder()
                                 .setRiSetting(RISetting.newBuilder().build())))).build();

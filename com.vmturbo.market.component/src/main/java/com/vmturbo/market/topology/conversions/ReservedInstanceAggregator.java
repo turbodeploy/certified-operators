@@ -87,7 +87,7 @@ public class ReservedInstanceAggregator {
         boolean success = false;
         Collection<ReservedInstanceData> riCollection;
         if (topologyInfo.hasPlanInfo() && topologyInfo.getPlanInfo().getPlanType()
-                .equals(StringConstants.OPTIMIZE_CLOUD_PLAN_TYPE)) {
+                .equals(StringConstants.OPTIMIZE_CLOUD_PLAN)) {
             // get buy RI and existing RI
             riCollection = cloudCostData.getAllRiBought();
         } else {

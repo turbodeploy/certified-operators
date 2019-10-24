@@ -1308,8 +1308,8 @@ public class Stages {
                         topologyInfo.getTopologyContextId() + " has no planInfo object");
             }
             final GroupResolver groupResolver = new GroupResolver(searchResolver, groupServiceClient);
-            if (!topologyInfo.getPlanInfo().getPlanType().equals(StringConstants.OPTIMIZE_CLOUD_PLAN_TYPE)
-                            && !topologyInfo.getPlanInfo().getPlanType().equals(StringConstants.CLOUD_MIGRATION_PLAN_TYPE)) {
+            if (!topologyInfo.getPlanInfo().getPlanType().equals(StringConstants.OPTIMIZE_CLOUD_PLAN)
+                            && !topologyInfo.getPlanInfo().getPlanType().equals(StringConstants.CLOUD_MIGRATION_PLAN)) {
                 // on prem plans
                 result = planTopologyScopeEditor.scopeOnPremTopology(topologyInfo, graph, planScope,
                         groupResolver, changes);

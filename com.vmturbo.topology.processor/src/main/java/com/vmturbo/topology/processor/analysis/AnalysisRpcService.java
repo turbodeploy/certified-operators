@@ -75,16 +75,21 @@ public class AnalysisRpcService extends AnalysisServiceImplBase {
             logger.info("Received analysis request for projected topology {}", topologyId);
         }
 
+        PlanTopologyInfo.Builder planTopologyInfoBuilder = PlanTopologyInfo.newBuilder()
+                .setPlanProjectType(request.getPlanProjectType())
+                .setPlanType(request.getPlanType());
+        if (request.hasPlanSubType()) {
+            planTopologyInfoBuilder.setPlanSubType(request.getPlanSubType());
+        }
+        PlanTopologyInfo planTopologyInfo = planTopologyInfoBuilder.build();
+
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
                 .setTopologyContextId(request.getPlanId())
                 .setTopologyId(topologyId)
                 .setCreationTime(clock.millis())
                 .setTopologyType(TopologyType.PLAN)
-                .setPlanInfo(PlanTopologyInfo.newBuilder()
-                    .setPlanProjectType(request.getPlanProjectType())
-                    .setPlanType(request.getPlanType()))
-                .addAllAnalysisType(getAnalysisTypes(request.getPlanType(), topologyHandler))
-                .build();
+                .setPlanInfo(planTopologyInfo)
+                .addAllAnalysisType(getAnalysisTypes(request.getPlanType(), topologyHandler)).build();
 
         try {
             final TopologyBroadcastInfo broadcastInfo;
@@ -128,7 +133,7 @@ public class AnalysisRpcService extends AnalysisServiceImplBase {
         final Set<AnalysisType> analysisTypes = new HashSet<>();
         analysisTypes.add(AnalysisType.MARKET_ANALYSIS);
         // do not run wasted files analysis for Cloud Migration plan or if no related targets
-        if (!StringConstants.CLOUD_MIGRATION_PLAN_TYPE.equals(planType) &&
+        if (!StringConstants.CLOUD_MIGRATION_PLAN.equals(planType) &&
                 topologyHandler.includesWastedFiles()) {
             analysisTypes.add(AnalysisType.WASTED_FILES);
         }

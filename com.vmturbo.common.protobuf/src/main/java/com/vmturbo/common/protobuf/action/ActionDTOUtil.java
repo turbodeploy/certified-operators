@@ -352,7 +352,6 @@ public class ActionDTOUtil {
                 actionEntities.add(buyRi.getComputeTier());
                 actionEntities.add(buyRi.getRegion());
                 actionEntities.add(buyRi.getMasterAccount());
-                actionEntities.add(buyRi.getComputeTier());
                 return actionEntities;
             default:
                 throw new UnsupportedActionException(action);

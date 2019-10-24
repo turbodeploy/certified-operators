@@ -14,11 +14,13 @@ import com.arangodb.ArangoDBException;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.market.component.api.AnalysisSummaryListener;
+import com.vmturbo.market.component.api.PlanAnalysisTopologyListener;
 import com.vmturbo.market.component.api.ProjectedTopologyListener;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.RepositoryNotificationSender;
@@ -29,10 +31,14 @@ import com.vmturbo.repository.topology.TopologyLifecycleManager;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyEntitiesException;
 
+
 /**
  * Listens to changes in the topology after running the market.
  */
-public class MarketTopologyListener implements ProjectedTopologyListener, AnalysisSummaryListener {
+public class MarketTopologyListener implements
+        ProjectedTopologyListener,
+        PlanAnalysisTopologyListener,
+        AnalysisSummaryListener {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -59,7 +65,7 @@ public class MarketTopologyListener implements ProjectedTopologyListener, Analys
         } catch (CommunicationException | InterruptedException e) {
             // TODO This message is very required by plan orchestrator. Need to do something here
             logger.error(
-                    "Faled to send notification about received topology " + projectedTopologyId, e);
+                    "Failed to send notification about received topology " + projectedTopologyId, e);
         }
     }
 
@@ -71,21 +77,22 @@ public class MarketTopologyListener implements ProjectedTopologyListener, Analys
 
     @Override
     public void onAnalysisSummary(@Nonnull final AnalysisSummary analysisSummary){
-            TopologyInfo topologyInfo = analysisSummary.getSourceTopologyInfo();
-            if (topologyInfo.getTopologyType() == TopologyType.REALTIME) {
-                synchronized (topologyInfoLock) {
-                    updateLatestKnownProjectedTopologyId(
+        TopologyInfo topologyInfo = analysisSummary.getSourceTopologyInfo();
+        if (topologyInfo.getTopologyType() == TopologyType.REALTIME) {
+            synchronized (topologyInfoLock) {
+                updateLatestKnownProjectedTopologyId(
                         analysisSummary.getProjectedTopologyInfo().getProjectedTopologyId());
-                    logger.info("Setting latest known projected realtime topology id to {}, " +
-                            "referring to source topology {}",
+                logger.info("Setting latest known projected realtime topology id to {}, " +
+                                "referring to source topology {}",
                         latestKnownProjectedTopologyId, topologyInfo.getTopologyId());
-                }
             }
+        }
     }
 
     private boolean shouldProcessTopology(TopologyInfo originalTopologyInfo, long projectedTopologyId) {
-        // should we skip this one? We will skip it only if the most up to date projected
-        // topology received so far, is "newer" than the one we just received.
+        // should we skip this one? We will skip real time topology if only if the most up to
+        // date projected topology received so far, is "newer" than the one we just received.
+        // Plan topology are not skipped
         if (originalTopologyInfo.getTopologyType() == TopologyType.REALTIME) {
             // don't process if this projected topology is older than the once we already
             // received.
@@ -98,19 +105,21 @@ public class MarketTopologyListener implements ProjectedTopologyListener, Analys
         return true;
     }
 
-    public void onProjectedTopologyReceivedInternal(long projectedTopologyId,
+    private void onProjectedTopologyReceivedInternal(long projectedTopologyId,
             TopologyInfo originalTopologyInfo,
             @Nonnull final RemoteIterator<ProjectedTopologyEntity> projectedTopo)
             throws CommunicationException, InterruptedException {
 
-        updateLatestKnownProjectedTopologyId(projectedTopologyId);
+        if (originalTopologyInfo.getTopologyType() == TopologyType.REALTIME) {
+            updateLatestKnownProjectedTopologyId(projectedTopologyId);
+        }
 
         final long topologyContextId = originalTopologyInfo.getTopologyContextId();
         final TopologyID tid = new TopologyID(topologyContextId, projectedTopologyId,
             TopologyID.TopologyType.PROJECTED);
 
         if (!shouldProcessTopology(originalTopologyInfo, projectedTopologyId)) {
-            // skip this realtime topology project cause it looks stale.
+            // skip this real-time topology project cause it looks stale.
             logger.info("Skipping stale realtime projected topology id {} for source topology id {}",
                     projectedTopologyId, originalTopologyInfo.getTopologyId());
             // drain the iterator and exit.
@@ -173,4 +182,47 @@ public class MarketTopologyListener implements ProjectedTopologyListener, Analys
         notificationSender.onProjectedTopologyAvailable(projectedTopologyId, topologyContextId);
         timer.observe();
     }
+
+    @Override
+    public void onPlanAnalysisTopology(final TopologyInfo topologyInfo,
+                                       @Nonnull final RemoteIterator<TopologyEntityDTO> topologyDTOs) {
+        try {
+            onPlanAnalysisTopologyReceivedInternal(topologyInfo, topologyDTOs);
+        } catch (CommunicationException | InterruptedException e) {
+            logger.error(
+                    "Failed to send notification about received plan id {} " +
+                            "Topology ID {} Topology Type {}",
+                    topologyInfo.getTopologyContextId(),
+                    topologyInfo.getTopologyId(), topologyInfo.getTopologyType(), e);
+        }
+    }
+
+    /**
+     * A plan analysis topology has been broadcasted -- onPlanAnalysisTopology is your chance to
+     * process it.
+     *
+     * @param topologyInfo TopologyInfo describing the topology
+     * @param entityIterator A remote iterator for receiving the plan analysis topology entities.
+     * @throws CommunicationException Throws CommunicationException
+     * @throws InterruptedException  Throws InterruptedException
+     */
+    private void onPlanAnalysisTopologyReceivedInternal(TopologyInfo topologyInfo,
+                                                @Nonnull final RemoteIterator<TopologyEntityDTO> entityIterator)
+            throws CommunicationException, InterruptedException {
+
+        final long topologyId = topologyInfo.getTopologyId();
+        final long topologyContextId = topologyInfo.getTopologyContextId();
+        logger.info("Received SOURCE topology {} for context {} topology DTOs from Market component",
+                topologyId, topologyContextId);
+
+        final DataMetricTimer timer = SharedMetrics.TOPOLOGY_DURATION_SUMMARY
+                .labels(SharedMetrics.SOURCE_LABEL)
+                .startTimer();
+        final TopologyID tid = new TopologyID(topologyContextId, topologyId, TopologyID.TopologyType.SOURCE);
+        final TopologyCreator<TopologyEntityDTO> topologyCreator = topologyManager.newSourceTopologyCreator(tid, topologyInfo);
+
+        TopologyEntitiesUtil.createTopology(entityIterator, topologyId, topologyContextId, timer,
+                tid, topologyCreator, notificationSender);
+    }
+
 }

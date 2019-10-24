@@ -811,8 +811,12 @@ message PlanTopologyInfo {
     // The type of the plan project that initiated the topology broadcast.
     optional plan.PlanProjectType plan_project_type = 1 [default = USER];
 
-    // The type of the plan initiated.
+    // The type of the plan initiated. For example, the plan_type could be OPTIMIZE_CLOUD_PLAN.
     optional string plan_type = 2;
+
+    // The sub-type of the plan initiated. For example, the plan_sub_type could be the specific
+    // optimize cloud plan type (like OPTIMIZE_CLOUD__RIBUY_ONLY)
+    optional string plan_sub_type = 3;
 }
 
 enum EntityState {

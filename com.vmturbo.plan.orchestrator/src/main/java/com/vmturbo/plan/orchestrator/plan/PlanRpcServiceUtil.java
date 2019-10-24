@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -28,7 +29,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
  */
 public class PlanRpcServiceUtil {
 
-  /**
+    /**
      * Create StartBuyRIAnalysisRequest.
      *
      * @param scenarioInfo the scenarioInfo of plan instance
@@ -65,7 +66,8 @@ public class PlanRpcServiceUtil {
                         .setTopologyContextId(planId)
                         .setTopologyType(TopologyType.PLAN)
                         .setPlanInfo(PlanTopologyInfo.newBuilder()
-                                .setPlanType(scenarioInfo.getType()))
+                                .setPlanType(scenarioInfo.getType())
+                                .setPlanSubType(getPlanSubType(scenarioInfo)))
                                 .build())
                 .setPurchaseProfile(RIPurchaseProfile.newBuilder()
                         .setRiType(ReservedInstanceType.newBuilder()
@@ -82,18 +84,58 @@ public class PlanRpcServiceUtil {
         if (baIds != null && !baIds.isEmpty()) {
             buyRiRequest.addAllAccounts(baIds);
         }
-        if (scenarioInfo.getChangesList()
+        if (isScalingEnabled(scenarioInfo)) {
+            buyRiRequest.setDemandType(DemandType.CONSUMPTION);
+        } else {
+            buyRiRequest.setDemandType(DemandType.ALLOCATION);
+        }
+        return buyRiRequest.build();
+    }
+
+    /**
+     * Check if scaling is enabled for this scenario.
+     *
+     * @param scenarioInfo Input scenarioInfo
+     * @return true if scaling is enabled, false otherwise
+     */
+    public static boolean isScalingEnabled(ScenarioInfo scenarioInfo) {
+        return scenarioInfo.getChangesList()
+                .stream()
+                .filter(sc -> sc.hasSettingOverride())
+                .map(sc -> sc.getSettingOverride())
+                .filter(so -> so.hasSetting())
+                .map(so -> so.getSetting())
+                .anyMatch(setting -> setting.getSettingSpecName()
+                        .equals(EntitySettingSpecs.Resize.getSettingName())
+                        && !setting.getEnumSettingValue().getValue().equals(StringConstants.DISABLED));
+    }
+
+    /**
+     * Get OCP subtype for this scenario.
+     *
+     * @param scenarioInfo Input scenarioInfo
+     * @return The optimize cloud plan sub type
+     */
+    public static String getPlanSubType(ScenarioInfo scenarioInfo) {
+        final boolean isScalingEnbld = scenarioInfo.getChangesList()
                 .stream()
                 .filter(sc -> sc.hasSettingOverride())
                 .map(sc -> sc.getSettingOverride())
                 .map(so -> so.getSetting())
                 .anyMatch(setting -> setting.getSettingSpecName()
                         .equals(EntitySettingSpecs.Resize.getSettingName())
-                        && !setting.getEnumSettingValue().getValue().equals(StringConstants.DISABLED))) {
-            buyRiRequest.setDemandType(DemandType.CONSUMPTION);
+                        && !setting.getEnumSettingValue().getValue().equals(StringConstants.DISABLED));
+        final boolean isRIBuyEnabled = !scenarioInfo.getChangesList()
+                .stream()
+                .filter(c -> c.hasRiSetting())
+                .collect(Collectors.toList()).isEmpty();
+        String planSubType;
+        if (isRIBuyEnabled) {
+            planSubType = isScalingEnbld ? StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_AND_OPTIMIZE_SERVICES :
+                    StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_ONLY;
         } else {
-            buyRiRequest.setDemandType(DemandType.ALLOCATION);
+            planSubType = StringConstants.OPTIMIZE_CLOUD_PLAN__OPTIMIZE_SERVICES;
         }
-        return buyRiRequest.build();
+        return planSubType;
     }
 }

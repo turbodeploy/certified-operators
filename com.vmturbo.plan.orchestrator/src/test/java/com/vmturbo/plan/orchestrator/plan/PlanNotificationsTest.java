@@ -97,11 +97,11 @@ public class PlanNotificationsTest {
     public void testResizeEnabled() throws Exception {
         PlanInstance planInstance = PlanInstance.newBuilder().setPlanId(1L).setStatus(PlanStatus.QUEUED)
                 .setScenario(Scenario.newBuilder().setScenarioInfo(ScenarioInfo.newBuilder()
-                        .setType(StringConstants.OPTIMIZE_CLOUD_PLAN_TYPE)
+                        .setType(StringConstants.OPTIMIZE_CLOUD_PLAN)
                         .addChanges(getResizeScenarioChanges(StringConstants.AUTOMATIC))
                         .addChanges(ScenarioChange.newBuilder()
                                 .setRiSetting(RISetting.newBuilder().build())))).build();
-        Assert.assertTrue(actionsListener.resizeEnabled(planInstance));
+        Assert.assertTrue(PlanRpcServiceUtil.isScalingEnabled(planInstance.getScenario().getScenarioInfo()));
     }
 
     /**
@@ -113,11 +113,11 @@ public class PlanNotificationsTest {
     public void testResizeDisabled() throws Exception {
         PlanInstance planInstance = PlanInstance.newBuilder().setPlanId(3L).setStatus(PlanStatus.QUEUED)
                 .setScenario(Scenario.newBuilder().setScenarioInfo(ScenarioInfo.newBuilder()
-                        .setType(StringConstants.OPTIMIZE_CLOUD_PLAN_TYPE)
+                        .setType(StringConstants.OPTIMIZE_CLOUD_PLAN)
                         .addChanges(getResizeScenarioChanges(StringConstants.DISABLED))
                         .addChanges(ScenarioChange.newBuilder()
                                 .setRiSetting(RISetting.newBuilder().build())))).build();
-        Assert.assertTrue(!actionsListener.resizeEnabled(planInstance));
+        Assert.assertTrue(!PlanRpcServiceUtil.isScalingEnabled(planInstance.getScenario().getScenarioInfo()));
     }
 
     private ScenarioChange getResizeScenarioChanges(String actionSetting) {
