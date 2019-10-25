@@ -8,27 +8,23 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-
-import org.junit.Rule;
-import org.junit.Test;
-import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import org.junit.Rule;
+import org.junit.Test;
+import org.mockito.Mockito;
+
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -47,17 +43,11 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
-import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.CommodityHeadroom;
-import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
-import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
-import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SaveClusterHeadroomRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
-import com.vmturbo.common.protobuf.stats.Stats.StatSnapshotOrBuilder;
-import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -71,6 +61,7 @@ import com.vmturbo.plan.orchestrator.project.ProjectPlanPostProcessor;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 public class ClusterHeadroomPostProcessorTest {
 
@@ -81,11 +72,11 @@ public class ClusterHeadroomPostProcessorTest {
     // Milliseconds in a day
     private static final long DAY_MILLI_SECS = TimeUnit.DAYS.toMillis(1);
 
-    private static final Group CLUSTER = Group.newBuilder()
-            .setType(Group.Type.CLUSTER)
+    private static final Grouping CLUSTER = Grouping.newBuilder()
+            .setDefinition(GroupDefinition.newBuilder()
+                    .setType(GroupType.COMPUTE_HOST_CLUSTER)
+                    .setDisplayName("foo"))
             .setId(CLUSTER_ID)
-            .setCluster(ClusterInfo.newBuilder()
-                    .setName("foo"))
             .build();
 
     private RepositoryServiceMole repositoryServiceMole = spy(new RepositoryServiceMole());

@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -25,6 +26,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
@@ -32,8 +35,6 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToGroupPolicy;
@@ -46,6 +47,7 @@ import com.vmturbo.group.db.Tables;
 import com.vmturbo.group.db.tables.pojos.PolicyGroup;
 import com.vmturbo.group.db.tables.records.GroupingRecord;
 import com.vmturbo.group.db.tables.records.PolicyRecord;
+import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.policy.PolicyStore.PolicyDeleteException;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -95,11 +97,17 @@ public class PolicyStoreTest {
             mock(DiscoveredPoliciesMapperFactory.class);
 
     private DiscoveredPoliciesMapper discoveredPoliciesMapper = mock(DiscoveredPoliciesMapper.class);
+    private Consumer<Long> deletedGroupsCaptor;
 
     @Before
     public void setup() {
+        @SuppressWarnings("unchecked")
+        final ArgumentCaptor<Consumer<Long>> captor = (ArgumentCaptor)ArgumentCaptor.forClass(Consumer.class);
+        final IGroupStore groupStore = Mockito.mock(IGroupStore.class);
         final DSLContext dslContext = dbConfig.prepareDatabase();
-        policyStore = new PolicyStore(dslContext, mapperFactory, identityProvider);
+        policyStore = new PolicyStore(dslContext, mapperFactory, identityProvider, groupStore);
+        Mockito.verify(groupStore).subscribeUserGroupRemoved(captor.capture());
+        deletedGroupsCaptor = captor.getValue();
 
         injectGroup(CONSUMER_GROUP_ID);
         injectGroup(PRODUCER_GROUP_ID);
@@ -242,13 +250,9 @@ public class PolicyStoreTest {
         policyStore.updateTargetPolicies(dbConfig.dsl(), TARGET_ID,
                 Collections.singletonList(DISCOVERED_POLICY_INFO), GROUP_TO_OID_MAP);
 
-        Group groupBeingDeleted = Group.newBuilder()
-                .setId(CONSUMER_GROUP_ID)
-                .setOrigin(Origin.DISCOVERED)
-                .build();
 
         // delete the discovered group
-        policyStore.deletePoliciesForGroupBeingRemoved(dbConfig.dsl(), groupBeingDeleted);
+        deletedGroupsCaptor.accept(CONSUMER_GROUP_ID);
 
         // the user policy should have been deleted
         assertFalse(policyStore.get(POLICY_ID).isPresent());
@@ -329,7 +333,8 @@ public class PolicyStoreTest {
         dbConfig.dsl().deleteFrom(Tables.POLICY);
 
         final PolicyStore newPolicyStore =
-                new PolicyStore(dbConfig.dsl(), mapperFactory, identityProvider);
+                new PolicyStore(dbConfig.dsl(), mapperFactory, identityProvider,
+                        Mockito.mock(IGroupStore.class));
         newPolicyStore.restoreDiags(diags);
 
         final Policy gotPolicy = policyStore.get(POLICY_ID).get();

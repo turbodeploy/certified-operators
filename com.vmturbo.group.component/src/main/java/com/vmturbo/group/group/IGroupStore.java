@@ -135,7 +135,7 @@ public interface IGroupStore {
     Set<Grouping> getStaticGroupsForEntity(long entityId);
 
     /**
-     * Subscrtibes to deletion of user or system group. The callback will not be called for any
+     * Subscribe to deletion of user or system group. The callback will not be called for any
      * discovered groups. Callback receives a OID of the group after the deletion.
      *
      * @param consumer callback

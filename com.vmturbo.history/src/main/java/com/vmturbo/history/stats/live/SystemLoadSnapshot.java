@@ -18,10 +18,7 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.auth.api.Pair;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterFilter;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;

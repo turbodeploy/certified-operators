@@ -54,11 +54,6 @@ public class GroupConfig {
     }
 
     @Bean
-    public EntityToClusterMapping entityToClusterMapping() {
-        return new EntityToClusterMapping();
-    }
-
-    @Bean
     public GroupDAO groupStore() {
         return new GroupDAO(databaseConfig.dsl(),
                         identityProviderConfig.identityProvider());

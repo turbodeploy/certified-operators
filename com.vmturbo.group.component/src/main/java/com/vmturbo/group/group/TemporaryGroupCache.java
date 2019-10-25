@@ -9,28 +9,26 @@ import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.commons.lang3.StringUtils;
-
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 
+import org.apache.commons.lang3.StringUtils;
+
 import com.vmturbo.common.protobuf.group.GroupDTO;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
-import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
 import com.vmturbo.group.identity.IdentityProvider;
 
 /**
  * A cache for temporary groups that don't get saved to the database and expire after
  * a certain period of time.
  *
- * It's separated from {@link GroupStore} because temporary groups do not get "stored" per se.
- * We don't want to over-complicate the {@link GroupStore} implementation with persistend AND
+ * It's separated from {@link IGroupStore} because temporary groups do not get "stored" per se.
+ * We don't want to over-complicate the {@link IGroupStore} implementation with persistend AND
  * transient information. Also, we intentionally want to separate temporary groups and make them
  * harder to find "by accident" so that they can't be used to create policies/setting policies.
- * This is a simple way to do that - validation code that queries the {@link GroupStore}
+ * This is a simple way to do that - validation code that queries the {@link IGroupStore}
  * to make sure groups exist will fail when given a temporary group ID.
  */
 @ThreadSafe
@@ -82,7 +80,8 @@ public class TemporaryGroupCache {
      * Deletes a temporary group with a particular ID. No effect if the group does not exist.
      *
      * @param id The id of the group to delete.
-     * @return An optional that contains the deleted {@link Group}, or an empty optional if the group does not exist.
+     * @return An optional that contains the deleted {@link Grouping}, or an empty optional if the
+     *         group does not exist.
      */
     @Nonnull
     public Optional<Grouping> deleteGrouping(final long id) {
@@ -103,7 +102,7 @@ public class TemporaryGroupCache {
     }
 
     /**
-     * An exception thrown when the {@link TempGroupInfo} describing a group is illegal.
+     * An exception thrown when the {@link GroupDefinition} describing a group is illegal.
      */
     public static class InvalidTempGroupException extends Exception {
 

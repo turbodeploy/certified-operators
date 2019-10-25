@@ -63,9 +63,7 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
-import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
-import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest;
@@ -90,7 +88,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
-import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
@@ -422,30 +419,6 @@ public class GroupsServiceTest {
         assertThat(clustersList, containsInAnyOrder(clusterApiDto));
         final GetGroupsRequest request = getGroupsRequestCaptor.getValue();
         assertEquals(GroupType.STORAGE_CLUSTER, request.getGroupFilter().getGroupType());
-    }
-
-    @Test
-    @Ignore
-    public void testPutSettingByUuidAndName() throws Exception {
-        String groupUuid = "1234";
-        String templateId = "3333";
-
-        SettingApiDTO<String> setting = new SettingApiDTO<>();
-        setting.setValue(templateId);
-
-        Template template = Template.newBuilder()
-                .setId(Long.parseLong(templateId))
-                .setType(Template.Type.SYSTEM)
-                .setTemplateInfo(TemplateInfo.newBuilder()
-                        .setName("template name"))
-                .build();
-        when(templateServiceSpy.getTemplates(any(GetTemplatesRequest.class)))
-                .thenReturn(Arrays.asList(GetTemplatesResponse.newBuilder()
-                    .addTemplates(SingleTemplateResponse.newBuilder()
-                        .setTemplate(template))
-                    .build()));
-        groupsService.putSettingByUuidAndName(groupUuid, "capacityplandatamanager",
-                "templateName", setting);
     }
 
     @Test(expected = UnknownObjectException.class)

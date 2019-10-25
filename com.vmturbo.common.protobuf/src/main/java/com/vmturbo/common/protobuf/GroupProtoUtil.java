@@ -17,21 +17,13 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterFilter;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings.UploadedGroup;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinitionOrBuilder;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupOrBuilder;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupingOrBuilder;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
-import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo.TypeCase;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin.CreationOriginCase;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
@@ -116,31 +108,11 @@ public class GroupProtoUtil {
     }
 
     /**
-     * Check that the input {@link Group} has a valid entity type.
-     *
-     * @param group The {@link Group}.
-     * @throws IllegalArgumentException If the {@link Group} does not have a valid entity type.
-     */
-    public static void checkEntityTypeForPolicy(@Nonnull final GroupOrBuilder group) {
-        if (group.getType() == Type.NESTED_GROUP) {
-            // Nested groups don't have an explicitly-specified type. We currently support
-            // just one type of nested group - a group of clusters - in which case we can infer
-            // the entity type from the type of clusters in the group.
-            Preconditions.checkArgument(group.getNestedGroup().getTypeCase() ==
-                TypeCase.CLUSTER);
-        } else {
-            Preconditions.checkArgument(group.getType().equals(Type.CLUSTER) ||
-                group.getTempGroup().hasEntityType() ||
-                group.getGroup().hasEntityType());
-        }
-    }
-
-    /**
      * Check that the input {@link Grouping} has a valid entity type for a policy. For now a valid
      * entity type for a policy is a group with a single type.
      *
      * @param group The {@link Grouping}.
-     * @throws IllegalArgumentException If the {@link Group} does not have a valid entity type.
+     * @throws IllegalArgumentException If the {@link Grouping} does not have a valid entity type.
      */
     public static void checkEntityTypeForPolicy(@Nonnull final GroupingOrBuilder group) {
         Preconditions.checkArgument(GroupProtoUtil.getEntityTypes(group).size() == 1,
@@ -148,53 +120,6 @@ public class GroupProtoUtil {
     }
 
     /**
-     * Get the entity type of entities in a {@link Group}.
-     *
-     * @param group The {@link Group}.
-     * @return An integer representing the entity type.
-     * @throws IllegalArgumentException If the {@link Group} does not have a valid entity type.
-     */
-    public static int getEntityType(@Nonnull final GroupOrBuilder group) {
-        checkEntityTypeForPolicy(group);
-        switch (group.getType()) {
-            case GROUP:
-                return group.getGroup().getEntityType();
-            case CLUSTER:
-                switch (group.getCluster().getClusterType()) {
-                    case COMPUTE:
-                        return EntityType.PHYSICAL_MACHINE_VALUE;
-                    case STORAGE:
-                        return EntityType.STORAGE_VALUE;
-                    case COMPUTE_VIRTUAL_MACHINE:
-                        return EntityType.VIRTUAL_MACHINE_VALUE;
-                    default:
-                        throw new IllegalArgumentException("Unknown cluster type: " +
-                            group.getCluster().getClusterType());
-                }
-            case TEMP_GROUP:
-                return group.getTempGroup().getEntityType();
-            case NESTED_GROUP:
-                if (group.getNestedGroup().getTypeCase() == TypeCase.CLUSTER) {
-                    switch (group.getNestedGroup().getCluster()) {
-                        case COMPUTE:
-                            return EntityType.PHYSICAL_MACHINE_VALUE;
-                        case STORAGE:
-                            return EntityType.STORAGE_VALUE;
-                        case COMPUTE_VIRTUAL_MACHINE:
-                            return EntityType.VIRTUAL_MACHINE_VALUE;
-                        default:
-                            throw new IllegalArgumentException("Unknown nested cluster type: " +
-                                group.getNestedGroup().getCluster());
-                    }
-                } else {
-                    throw new IllegalArgumentException("Unknown nested group type: " +
-                        group.getNestedGroup().getTypeCase());
-                }
-            default:
-                throw new IllegalArgumentException("Unknown group type: " + group.getType());
-        }
-    }
-
     /**
      * Returns a set of entity types of expected members of the specified group.
      *
@@ -212,74 +137,6 @@ public class GroupProtoUtil {
     }
 
     /**
-     * Get the name of a {@link Group}.
-     *
-     * @param group The {@link Group}.
-     * @return The name of the {@link Group}.
-     * @throws IllegalArgumentException If the {@link Group} is not properly formatted and does not
-     *                                  have a name.
-     */
-    @Nonnull
-    public static String getGroupName(@Nonnull final Group group) {
-        final String name;
-        switch (group.getType()) {
-            case GROUP:
-                Preconditions.checkArgument(group.hasGroup() && group.getGroup().hasName());
-                name = group.getGroup().getName();
-                break;
-            case CLUSTER:
-                Preconditions.checkArgument(group.hasCluster() && group.getCluster().hasName());
-                name = group.getCluster().getName();
-                break;
-            case TEMP_GROUP:
-                Preconditions.checkArgument(group.hasTempGroup() && group.getTempGroup().hasName());
-                name = group.getTempGroup().getName();
-                break;
-            case NESTED_GROUP:
-                Preconditions.checkArgument(group.hasNestedGroup() && group.getNestedGroup().hasName());
-                name = group.getNestedGroup().getName();
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown group type: " + group.getType());
-        }
-        return name;
-    }
-
-    /**
-     * Get the display name of a {@link Group}.
-     *
-     * @param group The {@link Group}.
-     * @return The display name of the {@link Group}.
-     * @throws IllegalArgumentException If the {@link Group} is not properly formatted.
-     */
-    @Nonnull
-    public static String getGroupDisplayName(@Nonnull final Group group) {
-        final String name;
-        switch (group.getType()) {
-            case GROUP:
-                Preconditions.checkArgument(group.hasGroup());
-                name = group.getGroup().hasDisplayName() ?
-                    group.getGroup().getDisplayName() :
-                    group.getGroup().getName();
-                break;
-            case CLUSTER:
-                Preconditions.checkArgument(group.hasCluster());
-                name = group.getCluster().hasDisplayName() ?
-                    group.getCluster().getDisplayName() :
-                    group.getCluster().getName();
-                break;
-            case TEMP_GROUP:
-                Preconditions.checkArgument(group.hasTempGroup());
-                name = group.getTempGroup().getName();
-                break;
-            case NESTED_GROUP:
-                Preconditions.checkArgument(group.hasNestedGroup() && group.getNestedGroup().hasName());
-                name = group.getNestedGroup().getName();
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown group type: " + group.getType());
-        }
-        return name;
     }
 
     /**
@@ -359,63 +216,6 @@ public class GroupProtoUtil {
     }
 
     /**
-     * For groups, the identifiers used by the group component are built from the name and entity
-     * type of groups. This is done to distinguish groups of the same name but different entity types
-     * (ie we may discover two groups named "foo" one for storage, one for hosts), and they need
-     * to be distinguished from each other.
-     *
-     * This method operates on XL-internal groups.
-     *
-     * @param group The group whose id should be constructed from its name.
-     * @return The id of the discovered group as used by the group component.
-     */
-    // todo: remove once TargetClusterUpdate is removed (OM-51757)
-    @Nonnull
-    public static String discoveredIdFromName(@Nonnull final GroupInfo group,
-                                              @Nonnull final long targetId) {
-        return createGroupCompoundKey(group.getName(), EntityType.forNumber(group.getEntityType()),
-                targetId);
-    }
-
-    /**
-     * For clusters, the identifiers used by the group component are built from the name and entity
-     * type of groups. This is done to distinguish clusters of the same name but different entity types
-     * (ie we may discover two clusters named "foo" one for storage, one for hosts), and they need
-     * to be distinguished from each other.
-     *
-     * @param clusterInfo The cluster whose id should be constructed from its name.
-     * @return The id of the discovered cluster as used by the group component.
-     */
-    // todo: remove once TargetClusterUpdate is removed (OM-51757)
-    @Nonnull
-    public static String discoveredIdFromName(@Nonnull final ClusterInfo clusterInfo,
-                                              @Nonnull final long targetId) {
-        return createGroupCompoundKey(clusterInfo.getName(), getClusterEntityType(clusterInfo),
-                targetId);
-    }
-
-    /**
-     *  Clusters can either have members which are all of type Host entities or
-     *  all of type Storage(In the future it may involve more entity types).
-     *  This is a helper function to determine the entity
-     *  type the cluster contains.
-     *
-     * @param clusterInfo The cluster whose entity type needs to be displayed.
-     * @return The entity type of the cluster.
-     */
-    @Nonnull
-    public static EntityType getClusterEntityType(@Nonnull final ClusterInfo clusterInfo) {
-        switch (clusterInfo.getClusterType()) {
-            case STORAGE:
-                return EntityType.STORAGE;
-            case COMPUTE_VIRTUAL_MACHINE:
-                return EntityType.VIRTUAL_MACHINE;
-            default:
-                return EntityType.PHYSICAL_MACHINE;
-        }
-    }
-
-    /**
      *  Create the composite key for the Group.
      *
      * @param groupName Discovered name of the group
@@ -492,58 +292,6 @@ public class GroupProtoUtil {
     }
 
     /**
-     * Check whether a {@link Group} matches a {@link ClusterFilter}.
-     *
-     * @param group The {@link Group}.
-     * @param filter The {@link ClusterFilter} to use for
-     * @return True if the filter matches. False otherwise. If the {@link Group} is not a cluster,
-     *         the filter is not applicable, and this method will return true.
-     */
-    public static boolean clusterFilterMatcher(@Nonnull final Group group,
-                                               @Nonnull final ClusterFilter filter) {
-        if (!group.getType().equals(Type.CLUSTER)) {
-            return true;
-        }
-
-        return !filter.hasTypeFilter() ||
-            group.getCluster().getClusterType().equals(filter.getTypeFilter());
-    }
-
-    /**
-     * If the group is a static group, get the list of members. This method is useful when we have
-     * a {@link Group} outside the group component and want its members, but want to avoid an extra
-     * RPC call.
-     *
-     * @param group The {@link Group} object.
-     * @return If the group is a static group (of any type), return an {@link Optional} containing
-     *         the static members. If the group is a dynamic group, return an empty optional.
-     */
-    public static Optional<List<Long>> getStaticMembers(@Nonnull final Group group) {
-        List<Long> retGroup = null;
-        switch (group.getType()) {
-            case GROUP:
-                if (group.getGroup().getSelectionCriteriaCase() == GroupInfo.SelectionCriteriaCase.STATIC_GROUP_MEMBERS) {
-                    retGroup = group.getGroup().getStaticGroupMembers().getStaticMemberOidsList();
-                }
-                break;
-            case CLUSTER:
-                retGroup = group.getCluster().getMembers().getStaticMemberOidsList();
-                break;
-            case TEMP_GROUP:
-                retGroup = group.getTempGroup().getMembers().getStaticMemberOidsList();
-                break;
-            case NESTED_GROUP:
-                if (group.getNestedGroup().getSelectionCriteriaCase() == NestedGroupInfo.SelectionCriteriaCase.STATIC_GROUP_MEMBERS) {
-                    retGroup = group.getNestedGroup().getStaticGroupMembers().getStaticMemberOidsList();
-                }
-                break;
-            default:
-                throw new IllegalArgumentException("Unhandled group type: " + group.getType());
-        }
-        return Optional.ofNullable(retGroup);
-    }
-
-    /**
      * If the group is a static group of entities, get the list of immediate members.
      *
      * @param group The {@link Grouping} object.
@@ -575,24 +323,10 @@ public class GroupProtoUtil {
     }
 
     /**
-     * Get the list of members in a group with type == CLUSTER.
-     *
-     * @param cluster A {@link Group} representing a cluster.
-     * @return The set of IDS of members in the cluster.
-     * @throws IllegalArgumentException If the {@link Group} is not a cluster.
-     */
-    @Nonnull
-    public static Set<Long> getClusterMembers(@Nonnull final Group cluster) {
-        Preconditions.checkArgument(cluster.getType().equals(Type.CLUSTER) &&
-                cluster.hasCluster());
-        return new HashSet<>(cluster.getCluster().getMembers().getStaticMemberOidsList());
-    }
-
-    /**
      * Get the IDs of groups specified in a {@link Policy}.
      *
      * @param policy The {@link Policy}.
-     * @return A set containing the IDs of {@link Group}s the policy relates to.
+     * @return A set containing the IDs of {@link Grouping}s the policy relates to.
      */
     @Nonnull
     public static Set<Long> getPolicyGroupIds(@Nonnull final Policy policy) {

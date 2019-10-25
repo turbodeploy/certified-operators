@@ -21,8 +21,6 @@ import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.commons.Pair;
@@ -37,6 +35,7 @@ import com.vmturbo.group.db.Tables;
 import com.vmturbo.group.db.tables.pojos.Policy;
 import com.vmturbo.group.db.tables.pojos.PolicyGroup;
 import com.vmturbo.group.db.tables.records.PolicyRecord;
+import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 
@@ -77,10 +76,12 @@ public class PolicyStore implements Diagnosable {
 
     public PolicyStore(@Nonnull final DSLContext dslContext,
                        @Nonnull final DiscoveredPoliciesMapperFactory mapperFactory,
-                       @Nonnull final IdentityProvider identityProvider) {
+                       @Nonnull final IdentityProvider identityProvider,
+            @Nonnull final IGroupStore groupStore) {
         this.dslContext = Objects.requireNonNull(dslContext);
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.discoveredPoliciesMapperFactory = Objects.requireNonNull(mapperFactory);
+        groupStore.subscribeUserGroupRemoved(this::deletePoliciesForGroupBeingRemoved);
     }
 
     /**
@@ -227,26 +228,21 @@ public class PolicyStore implements Diagnosable {
      * are both handled elsewhere (See {@link com.vmturbo.group.service.GroupRpcService#storeDiscoveredGroupsPoliciesSettings})
      * and can be ignored in this method.</li>
      *
-     * @param context The transaction context to use to do the deletion. We need this so that
-     *                the policy deletions happen within the same transaction as the original
-     *                group deletion.
-     * @param group The group being removed.
+     * @param groupId id of the group deleted.
      * @throws PolicyDeleteException If there is an error deleting the policies.
      */
-    public void deletePoliciesForGroupBeingRemoved(@Nonnull final DSLContext context,
-                                                   final Group group) throws PolicyDeleteException {
-        long groupId = group.getId();
-        boolean isDiscoveredGroup = group.getOrigin().equals(Origin.DISCOVERED);
+    private void deletePoliciesForGroupBeingRemoved(final long groupId)
+            throws PolicyDeleteException {
         try {
             // Delete any user-created placement policies associated with the group.
             // Find all placement policies associated with the group, as well as whether they were
             // discovered by targets or not.
             List<Pair<Long, Long>> associatedPolicies =
-                    context.select(Tables.POLICY_GROUP.POLICY_ID, Tables.POLICY.DISCOVERED_BY_ID)
+                    dslContext.select(Tables.POLICY_GROUP.POLICY_ID, Tables.POLICY.DISCOVERED_BY_ID)
                             .from(Tables.POLICY_GROUP)
                             .innerJoin(Tables.POLICY)
                             .on(Tables.POLICY_GROUP.POLICY_ID.eq(Tables.POLICY.ID))
-                            .where(Tables.POLICY_GROUP.GROUP_ID.eq(group.getId()))
+                            .where(Tables.POLICY_GROUP.GROUP_ID.eq(groupId))
                             .fetch()
                             .stream()
                             .map(r -> new Pair<Long, Long>(r.get(Tables.POLICY_GROUP.POLICY_ID),
@@ -257,21 +253,19 @@ public class PolicyStore implements Diagnosable {
                 boolean isDiscoveredPolicy = Objects.nonNull(policyInfo.second);
                 // if this is a discovered policy and we're removing a discovered group, do nothing.
                 // discovered data is all taken care of in the discovered group/policy upload logic.
-                if (isDiscoveredGroup && isDiscoveredPolicy) {
+                if (isDiscoveredPolicy) {
                     continue;
                 }
                 try {
                     logger.info("Deleting user policy {} scoped to group {}", policyId, groupId);
-                    internalDelete(context, policyId, false);
+                    internalDelete(dslContext, policyId, false);
                 } catch (ImmutablePolicyUpdateException e) {
                     logger.error("Policy {} could not be deleted because it's immutable", policyId);
                     // if we're deleting a discovered group, this isn't a blocker -- continue.
                     // Otherwise, we were trying to delete a discovered policy scoped to a
                     // user group -- these should not exist, but if this case ever arises, then
                     // let's throw an exception to prevent the group from getting deleted.
-                    if (!isDiscoveredGroup) {
-                        throw new PolicyDeleteException(policyId, groupId, e);
-                    }
+                    throw new PolicyDeleteException(policyId, groupId, e);
                 } catch (PolicyNotFoundException e) {
                     // In this case we want to continue deleting associated policies - this isn't
                     // a fatal error.

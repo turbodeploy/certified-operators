@@ -12,19 +12,18 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
-import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
@@ -54,7 +53,6 @@ import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.plan.orchestrator.plan.IntegrityException;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
-import com.vmturbo.plan.orchestrator.plan.PlanInstanceQueue;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
 import com.vmturbo.plan.orchestrator.project.headroom.ClusterHeadroomPlanPostProcessor;
 import com.vmturbo.plan.orchestrator.project.headroom.SystemLoadCalculatedProfile;

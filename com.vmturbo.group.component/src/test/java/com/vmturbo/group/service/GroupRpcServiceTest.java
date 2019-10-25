@@ -101,7 +101,6 @@ import com.vmturbo.components.common.identity.OidSet;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutableGroupUpdateException;
 import com.vmturbo.group.common.ItemNotFoundException.GroupNotFoundException;
-import com.vmturbo.group.group.EntityToClusterMapping;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.InvalidGroupException;
@@ -144,8 +143,6 @@ public class GroupRpcServiceTest {
     private PolicyStore policyStore = mock(PolicyStore.class);
 
     private SettingStore settingStore = mock(SettingStore.class);
-
-    private EntityToClusterMapping entityToClusterMapping = mock(EntityToClusterMapping.class);
 
     private UserSessionContext userSessionContext = mock(UserSessionContext.class);
 
@@ -190,7 +187,7 @@ public class GroupRpcServiceTest {
     public void setUp() throws Exception {
         SearchServiceBlockingStub searchServiceRpc = SearchServiceGrpc.newBlockingStub(testServer.getChannel());
         groupRpcService = new GroupRpcService(temporaryGroupCache,
-                searchServiceRpc, entityToClusterMapping,
+                searchServiceRpc,
                 dbConfig.dsl(), policyStore, settingStore, userSessionContext, groupStoreDAO,
                 groupStitchingManager);
         when(temporaryGroupCache.getGrouping(anyLong())).thenReturn(Optional.empty());

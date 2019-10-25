@@ -12,6 +12,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.After;
@@ -22,9 +24,6 @@ import org.junit.rules.TestName;
 import org.mockito.AdditionalAnswers;
 import org.mockito.Mockito;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;

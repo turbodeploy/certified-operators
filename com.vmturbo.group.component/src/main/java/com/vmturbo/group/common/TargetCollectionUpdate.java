@@ -23,11 +23,6 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
@@ -45,9 +40,9 @@ import com.vmturbo.group.identity.IdentityProvider;
  * from the persistence logic, since the update logic is
  * independent of the storage logic.
  *
- * @param <InstanceType> Instances of the collection have this type, e.g. {@link Group}.
+ * @param <InstanceType> Instances of the collection have this type, e.g. {@link Policy}.
  * @param <SpecType> Specifications for instances of the collection have this type,
- *                  e.g. {@link GroupInfo}.
+ *                  e.g. {@link PolicyInfo}.
  */
 public abstract class TargetCollectionUpdate<InstanceType extends MessageOrBuilder,
     SpecType extends MessageOrBuilder> {
@@ -291,129 +286,6 @@ public abstract class TargetCollectionUpdate<InstanceType extends MessageOrBuild
         });
 
         return oidMap;
-    }
-
-    /**
-     * An implementation of {@link TargetCollectionUpdate} to update {@link Group}s.
-     */
-    public static class TargetGroupUpdate extends TargetCollectionUpdate<Group, GroupInfo> {
-
-        public TargetGroupUpdate(final long targetId,
-                          @Nonnull final IdentityProvider identityProvider,
-                          @Nonnull final List<GroupInfo> newDiscoveredGroups,
-                          @Nonnull final Collection<Group> existingGroups) {
-            super(targetId, identityProvider, newDiscoveredGroups, existingGroups);
-        }
-
-        @Override
-        protected long getId(@Nonnull Group src) {
-            return src.getId();
-        }
-
-        @Override
-        protected GroupInfo getInfo(@Nonnull Group src) {
-            return src.getGroup();
-        }
-
-        @Nonnull
-        @Override
-        protected String getNameFromInfo(@Nonnull GroupInfo src) {
-            return src.getName();
-        }
-
-        @Nonnull
-        @Override
-        protected String getInfoForId(@Nonnull GroupInfo info, long id) {
-            return GroupProtoUtil.discoveredIdFromName(info, id);
-        }
-
-        @Override
-        protected int getMemberType(GroupInfo src) {
-            return src.getEntityType();
-        }
-
-        @Override
-        protected GroupInfo transitAttribution(Group instance, GroupInfo src) {
-            return src;
-        }
-
-
-        @Override
-        protected Group createInstance(final long id, final GroupInfo info) {
-            return Group.newBuilder()
-                    .setId(id)
-                    .setTargetId(targetId)
-                    .setType(Type.GROUP)
-                    .setOrigin(Origin.DISCOVERED)
-                    .setGroup(info)
-                    .build();
-        }
-    }
-
-    /**
-     * An implementation of {@link TargetCollectionUpdate} to update {@link Group}s with
-     * Type == CLUSTER.
-     */
-    public static class TargetClusterUpdate extends TargetCollectionUpdate<Group, ClusterInfo> {
-        public TargetClusterUpdate(final long targetId,
-                            @Nonnull final IdentityProvider identityProvider,
-                            @Nonnull final List<ClusterInfo> newDiscoveredGroups,
-                            @Nonnull final Collection<Group> existingClusters) {
-            super(targetId, identityProvider, newDiscoveredGroups, existingClusters);
-        }
-
-        @Override
-        protected long getId(@Nonnull Group src) {
-            return src.getId();
-        }
-
-        @Nonnull
-        @Override
-        protected String getNameFromInfo(@Nonnull ClusterInfo src) {
-            return src.getName();
-        }
-
-        @Nonnull
-        @Override
-        protected String getInfoForId(@Nonnull ClusterInfo src, long id) {
-            return GroupProtoUtil.discoveredIdFromName(src, id);
-        }
-
-        @Override
-        protected int getMemberType(ClusterInfo info) {
-            // Technically this is not the the type of the entity associated with the cluster,
-            // but it works to distinguish clusters that have different member types.
-            return info.getClusterType().getNumber();
-        }
-
-        @Override
-        protected ClusterInfo transitAttribution(Group existingCluster, ClusterInfo newCluster) {
-            // If the cluster has a specified headroom template, make sure to keep it.
-            if (existingCluster.getCluster().hasClusterHeadroomTemplateId()) {
-                return newCluster.toBuilder()
-                        .setClusterHeadroomTemplateId(existingCluster.getCluster().getClusterHeadroomTemplateId())
-                        .build();
-            } else {
-                return newCluster;
-            }
-        }
-
-        @Override
-        protected ClusterInfo getInfo(@Nonnull Group src) {
-            return src.getCluster();
-        }
-
-        @Override
-        protected Group createInstance(final long id, final ClusterInfo info) {
-            return Group.newBuilder()
-                    .setId(id)
-                    .setTargetId(targetId)
-                    .setType(Type.CLUSTER)
-                    .setOrigin(Origin.DISCOVERED)
-                    .setCluster(info)
-                    .build();
-        }
-
     }
 
     /**

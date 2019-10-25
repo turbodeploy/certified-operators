@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import io.grpc.Channel;
+
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
@@ -26,13 +28,10 @@ import org.junit.Test;
 import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import io.grpc.Channel;
-
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
-import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateRequest;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanDTO;

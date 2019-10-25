@@ -22,7 +22,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings.UploadedGroup;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
@@ -346,7 +345,7 @@ public class DiscoveredSettingPolicyScanner {
      * Wraps optional mem and cpu utilization thresholds per (optional) cluster.
      *
      * Overrides {@link #equals(Object)} and {@link #hashCode()} so that these objects can be
-     * compared and used as keys in {@link HashMap}s. In {@link ClusterInfo} only checks the
+     * compared and used as keys in {@link HashMap}s. In {@link GroupDefinition} only checks the
      * name of the cluster to determine equality.
      */
     private static class UtilizationThresholdValues {

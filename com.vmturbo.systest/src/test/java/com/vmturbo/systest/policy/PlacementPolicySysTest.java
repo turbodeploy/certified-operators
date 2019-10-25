@@ -35,6 +35,9 @@ import java.util.concurrent.TimeoutException;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import io.grpc.stub.StreamObserver;
+import io.swagger.annotations.ApiOperation;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.After;
@@ -60,13 +63,12 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import io.grpc.stub.StreamObserver;
-import io.swagger.annotations.ApiOperation;
-
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityCosts;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityReservedInstanceCoverage;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
@@ -184,67 +186,86 @@ public class PlacementPolicySysTest {
     public TestName testName = new TestName();
 
     // All hosts with the number two in their display name.
-    private final GroupInfo hostsWithTwo = GroupInfo.newBuilder()
-        .setEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
-        .setSearchParametersCollection(
-            SearchParametersCollection.newBuilder()
-                .addSearchParameters(
-                    SearchParameters.newBuilder()
-                        .setStartingFilter(Search.PropertyFilter.newBuilder()
-                                .setPropertyName("entityType")
-                                .setNumericFilter(NumericFilter.newBuilder()
-                                    .setComparisonOperator(ComparisonOperator.EQ)
-                                    .setValue(EntityType.PHYSICAL_MACHINE.getNumber()))
-                        ).addSearchFilter(SearchFilter.newBuilder()
-                        .setPropertyFilter(Search.PropertyFilter.newBuilder()
-                            .setPropertyName("displayName")
-                            .setStringFilter(StringFilter.newBuilder()
-                                    .setStringPropertyRegex(".*2.*")
-                            )))))
-        .build();
+    private final GroupDefinition hostsWithTwo = GroupDefinition.newBuilder()
+            .setEntityFilters(EntityFilters.newBuilder()
+                    .addEntityFilter(EntityFilter.newBuilder()
+                            .setEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
+                            .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+                                    .addSearchParameters(SearchParameters.newBuilder()
+                                            .setStartingFilter(Search.PropertyFilter.newBuilder()
+                                                    .setPropertyName("entityType")
+                                                    .setNumericFilter(NumericFilter.newBuilder()
+                                                            .setComparisonOperator(
+                                                                    ComparisonOperator.EQ)
+                                                            .setValue(
+                                                                    EntityType.PHYSICAL_MACHINE.getNumber())))
+                                            .addSearchFilter(SearchFilter.newBuilder()
+                                                    .setPropertyFilter(
+                                                            Search.PropertyFilter.newBuilder()
+                                                                    .setPropertyName("displayName")
+                                                                    .setStringFilter(
+                                                                            StringFilter.newBuilder()
+                                                                                    .setStringPropertyRegex(
+                                                                                            ".*2.*"))))))))
+            .build();
 
     // All hosts with the phrase "in-group" in their display name.
-    private final GroupInfo hostsWithInGroup = GroupInfo.newBuilder()
-        .setEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
-        .setSearchParametersCollection(
-            SearchParametersCollection.newBuilder()
-                .addSearchParameters(
-                    SearchParameters.newBuilder()
-                        .setStartingFilter(Search.PropertyFilter.newBuilder()
-                                .setPropertyName("entityType")
-                                .setNumericFilter(NumericFilter.newBuilder()
-                                    .setComparisonOperator(ComparisonOperator.EQ)
-                                    .setValue(EntityType.PHYSICAL_MACHINE.getNumber()))
-                        ).addSearchFilter(SearchFilter.newBuilder()
-                        .setPropertyFilter(Search.PropertyFilter.newBuilder()
-                            .setPropertyName("displayName")
-                            .setStringFilter(StringFilter.newBuilder()
-                                    .setStringPropertyRegex("in-group")
-                            )))))
-        .build();
+    private final GroupDefinition hostsWithInGroup = GroupDefinition.newBuilder()
+            .setEntityFilters(EntityFilters.newBuilder()
+                    .addEntityFilter(EntityFilter.newBuilder()
+                            .setEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
+                            .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+                                    .addSearchParameters(SearchParameters.newBuilder()
+                                            .setStartingFilter(Search.PropertyFilter.newBuilder()
+                                                    .setPropertyName("entityType")
+                                                    .setNumericFilter(NumericFilter.newBuilder()
+                                                            .setComparisonOperator(
+                                                                    ComparisonOperator.EQ)
+                                                            .setValue(
+                                                                    EntityType.PHYSICAL_MACHINE.getNumber())))
+                                            .addSearchFilter(SearchFilter.newBuilder()
+                                                    .setPropertyFilter(
+                                                            Search.PropertyFilter.newBuilder()
+                                                                    .setPropertyName("displayName")
+                                                                    .setStringFilter(
+                                                                            StringFilter.newBuilder()
+                                                                                    .setStringPropertyRegex(
+                                                                                            "in-group"))))))))
+            .build();
 
     // All virtual machines consuming from physical machines.
-    private final GroupInfo vmsOnHosts = GroupInfo.newBuilder()
-        .setSearchParametersCollection(
-            SearchParametersCollection.newBuilder()
-                .addSearchParameters(
-                    SearchParameters.newBuilder()
-                        .setStartingFilter(Search.PropertyFilter.newBuilder()
-                                .setPropertyName("entityType")
-                                .setNumericFilter(NumericFilter.newBuilder()
-                                    .setComparisonOperator(ComparisonOperator.EQ)
-                                    .setValue(EntityType.PHYSICAL_MACHINE.getNumber()))
-                        ).addSearchFilter(SearchFilter.newBuilder()
-                        .setTraversalFilter(TraversalFilter.newBuilder()
-                            .setTraversalDirection(TraversalDirection.PRODUCES)
-                            .setStoppingCondition(StoppingCondition.newBuilder()
-                                .setStoppingPropertyFilter(Search.PropertyFilter.newBuilder()
-                                        .setPropertyName("entityType")
-                                        .setNumericFilter(NumericFilter.newBuilder()
-                                            .setComparisonOperator(ComparisonOperator.EQ)
-                                            .setValue(EntityType.VIRTUAL_MACHINE.getNumber()))
-                                ))))))
-        .build();
+    private final GroupDefinition vmsOnHosts = GroupDefinition.newBuilder()
+            .setEntityFilters(EntityFilters.newBuilder()
+                    .addEntityFilter(EntityFilter.newBuilder()
+                            .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+                                    .addSearchParameters(SearchParameters.newBuilder()
+                                            .setStartingFilter(Search.PropertyFilter.newBuilder()
+                                                    .setPropertyName("entityType")
+                                                    .setNumericFilter(NumericFilter.newBuilder()
+                                                            .setComparisonOperator(
+                                                                    ComparisonOperator.EQ)
+                                                            .setValue(
+                                                                    EntityType.PHYSICAL_MACHINE.getNumber())))
+                                            .addSearchFilter(SearchFilter.newBuilder()
+                                                    .setTraversalFilter(TraversalFilter.newBuilder()
+                                                            .setTraversalDirection(
+                                                                    TraversalDirection.PRODUCES)
+                                                            .setStoppingCondition(
+                                                                    StoppingCondition.newBuilder()
+                                                                            .setStoppingPropertyFilter(
+                                                                                    Search.PropertyFilter
+                                                                                            .newBuilder()
+                                                                                            .setPropertyName(
+                                                                                                    "entityType")
+                                                                                            .setNumericFilter(
+                                                                                                    NumericFilter
+                                                                                                            .newBuilder()
+                                                                                                            .setComparisonOperator(
+                                                                                                                    ComparisonOperator.EQ)
+                                                                                                            .setValue(
+                                                                                                                    EntityType.VIRTUAL_MACHINE
+                                                                                                                            .getNumber()))))))))))
+            .build();
 
     @Before
     public void setup() throws Exception {

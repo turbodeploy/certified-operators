@@ -7,10 +7,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.group.IdentityProviderConfig;
+import com.vmturbo.group.group.GroupConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
-@Import({SQLDatabaseConfig.class, IdentityProviderConfig.class})
+@Import({SQLDatabaseConfig.class, IdentityProviderConfig.class, GroupConfig.class})
 public class PolicyConfig {
 
     @Autowired
@@ -19,11 +20,15 @@ public class PolicyConfig {
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
 
+    @Autowired
+    private GroupConfig groupConfig;
+
     @Bean
     public PolicyStore policyStore() {
         return new PolicyStore(databaseConfig.dsl(),
                 discoveredPoliciesMapperFactory(),
-                identityProviderConfig.identityProvider());
+                identityProviderConfig.identityProvider(),
+                groupConfig.groupStore());
     }
 
     @Bean

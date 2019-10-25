@@ -59,8 +59,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsPoliciesSettingsResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
@@ -78,7 +76,6 @@ import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutableGroupUpdateException;
 import com.vmturbo.group.common.ItemNotFoundException.GroupNotFoundException;
-import com.vmturbo.group.group.EntityToClusterMapping;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.InvalidGroupException;
@@ -101,8 +98,6 @@ public class GroupRpcService extends GroupServiceImplBase {
 
     private final SearchServiceBlockingStub searchServiceRpc;
 
-    private final EntityToClusterMapping entityToClusterMapping;
-
     private final DSLContext dslContext;
 
     private final PolicyStore policyStore;
@@ -117,7 +112,6 @@ public class GroupRpcService extends GroupServiceImplBase {
 
     public GroupRpcService(@Nonnull final TemporaryGroupCache tempGroupCache,
                            @Nonnull final SearchServiceBlockingStub searchServiceRpc,
-                           @Nonnull final EntityToClusterMapping entityToClusterMapping,
                            @Nonnull final DSLContext dslContext,
                            @Nonnull final PolicyStore policyStore,
                            @Nonnull final SettingStore settingStore,
@@ -126,7 +120,6 @@ public class GroupRpcService extends GroupServiceImplBase {
                            @Nonnull final GroupStitchingManager groupStitchingManager) {
         this.tempGroupCache = Objects.requireNonNull(tempGroupCache);
         this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
-        this.entityToClusterMapping = Objects.requireNonNull(entityToClusterMapping);
         this.dslContext = Objects.requireNonNull(dslContext);
         this.policyStore = Objects.requireNonNull(policyStore);
         this.settingStore = Objects.requireNonNull(settingStore);

@@ -80,7 +80,6 @@ public class RpcConfig {
         return new GroupRpcService(
                 groupConfig.temporaryGroupCache(),
                 repositoryClientConfig.searchServiceClient(),
-                groupConfig.entityToClusterMapping(),
                 databaseConfig.dsl(),
                 policyConfig.policyStore(),
                 settingConfig.settingStore(),

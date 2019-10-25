@@ -12,18 +12,14 @@ import org.junit.Test;
 
 import junit.framework.TestCase;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings.UploadedGroup;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.AtMostNPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
@@ -129,30 +125,6 @@ public class GroupProtoUtilTest {
 
         Assert.assertTrue(result.containsAll(expected));
         Assert.assertTrue(expected.containsAll(result));
-    }
-
-    @Test
-    public void testGroupInfoDiscoveredId() {
-        final GroupInfo group = GroupInfo.newBuilder()
-            .setName("foo")
-            .setEntityType(EntityType.STORAGE_VALUE)
-            .build();
-
-        long targetId = 111L;
-        Assert.assertEquals("foo-STORAGE" + "-" + String.valueOf(targetId),
-                GroupProtoUtil.discoveredIdFromName(group, targetId));
-    }
-
-    @Test
-    public void testClusterInfoDiscoveredId() {
-        final ClusterInfo group = ClusterInfo.newBuilder()
-            .setName("foo")
-            .setClusterType(Type.COMPUTE)
-            .build();
-
-        long targetId = 111L;
-        Assert.assertEquals("foo-PHYSICAL_MACHINE" + "-" + String.valueOf(targetId),
-                GroupProtoUtil.discoveredIdFromName(group, targetId));
     }
 
     /**

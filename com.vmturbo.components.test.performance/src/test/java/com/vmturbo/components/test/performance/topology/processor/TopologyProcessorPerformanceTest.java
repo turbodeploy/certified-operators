@@ -13,6 +13,10 @@ import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import io.grpc.stub.StreamObserver;
+import io.prometheus.client.Summary;
+import io.prometheus.client.Summary.Timer;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.After;
@@ -20,13 +24,12 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
-import io.grpc.stub.StreamObserver;
-import io.prometheus.client.Summary;
-import io.prometheus.client.Summary.Timer;
 import tec.units.ri.unit.MetricPrefix;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
@@ -34,15 +37,15 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToGroupPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceImplBase;
-import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
-import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -61,6 +64,7 @@ import com.vmturbo.components.test.utilities.component.ComponentUtils;
 import com.vmturbo.components.test.utilities.component.DockerEnvironment;
 import com.vmturbo.components.test.utilities.utils.TopologyUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.sdk.examples.stressProbe.StressAccount;
 import com.vmturbo.topology.processor.api.AccountValue;
 import com.vmturbo.topology.processor.api.DiscoveryStatus;
@@ -344,51 +348,94 @@ public class TopologyProcessorPerformanceTest {
     }
 
     // All hosts with the number one in their display name.
-    final Group hostsWithOne = Group.newBuilder()
-        .setId(1234L)
-        .setType(Group.Type.GROUP)
-        .setGroup(GroupInfo.newBuilder()
-            .setSearchParametersCollection(SearchParametersCollection.newBuilder()
-                .addSearchParameters(SearchParameters.newBuilder()
-                    .setStartingFilter(Search.PropertyFilter.newBuilder()
-                        .setPropertyName("entityType")
-                        .setNumericFilter(NumericFilter.newBuilder()
-                            .setComparisonOperator(ComparisonOperator.EQ)
-                            .setValue(EntityType.PHYSICAL_MACHINE.getNumber()))
-                    ).addSearchFilter(SearchFilter.newBuilder()
-                        .setPropertyFilter(Search.PropertyFilter.newBuilder()
-                            .setPropertyName("displayName")
-                            .setStringFilter(StringFilter.newBuilder()
-                                .setStringPropertyRegex(".*1.*")
-                    ))))))
-        .build();
+    final Grouping hostsWithOne = Grouping.newBuilder()
+            .setId(1234L)
+            .setDefinition(GroupDefinition.newBuilder()
+                    .setType(GroupType.COMPUTE_HOST_CLUSTER)
+                    .setEntityFilters(EntityFilters.newBuilder()
+                            .addEntityFilter(EntityFilter.newBuilder()
+                                    .setSearchParametersCollection(
+                                            SearchParametersCollection.newBuilder()
+                                                    .addSearchParameters(
+                                                            SearchParameters.newBuilder()
+                                                                    .setStartingFilter(
+                                                                            PropertyFilter.newBuilder()
+                                                                                    .setPropertyName(
+                                                                                            "entityType")
+                                                                                    .setNumericFilter(
+                                                                                            NumericFilter
+                                                                                                    .newBuilder()
+                                                                                                    .setComparisonOperator(
+                                                                                                            ComparisonOperator.EQ)
+                                                                                                    .setValue(
+                                                                                                            EntityType.PHYSICAL_MACHINE
+                                                                                                                    .getNumber())))
+                                                                    .addSearchFilter(
+                                                                            SearchFilter.newBuilder()
+                                                                                    .setPropertyFilter(
+                                                                                            PropertyFilter
+                                                                                                    .newBuilder()
+                                                                                                    .setPropertyName(
+                                                                                                            "displayName")
+                                                                                                    .setStringFilter(
+                                                                                                            StringFilter
+                                                                                                                    .newBuilder()
+                                                                                                                    .setStringPropertyRegex(
+                                                                                                                            ".*1.*")))))
+                                                    .build())))
+                    .build())
+            .build();
 
     // All virtual machines consuming from physical machines.
-    final Group vmsOnHosts = Group.newBuilder()
-        .setId(1234L)
-        .setType(Group.Type.GROUP)
-        .setGroup(GroupInfo.newBuilder()
-            .setSearchParametersCollection(SearchParametersCollection.newBuilder()
-                .addSearchParameters(SearchParameters.newBuilder()
-                    .setStartingFilter(Search.PropertyFilter.newBuilder()
-                        .setPropertyName("entityType")
-                        .setNumericFilter(NumericFilter.newBuilder()
-                            .setComparisonOperator(ComparisonOperator.EQ)
-                            .setValue(EntityType.PHYSICAL_MACHINE.getNumber()))
-                    ).addSearchFilter(SearchFilter.newBuilder()
-                        .setTraversalFilter(TraversalFilter.newBuilder()
-                            .setTraversalDirection(TraversalDirection.PRODUCES)
-                            .setStoppingCondition(StoppingCondition.newBuilder()
-                                .setStoppingPropertyFilter(Search.PropertyFilter.newBuilder()
-                                    .setPropertyName("entityType")
-                                    .setNumericFilter(NumericFilter.newBuilder()
-                                        .setComparisonOperator(ComparisonOperator.EQ)
-                                        .setValue(EntityType.VIRTUAL_MACHINE.getNumber()))))
-                    )))))
-        .build();
+    final Grouping vmsOnHosts = Grouping.newBuilder()
+            .setId(1234L)
+            .setDefinition(GroupDefinition.newBuilder()
+                    .setEntityFilters(EntityFilters.newBuilder()
+                            .addEntityFilter(EntityFilter.newBuilder()
+                                    .setEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
+                                    .setSearchParametersCollection(
+                                            SearchParametersCollection.newBuilder()
+                                                    .addSearchParameters(
+                                                            SearchParameters.newBuilder()
+                                                                    .setStartingFilter(
+                                                                            PropertyFilter.newBuilder()
+                                                                                    .setPropertyName(
+                                                                                            "entityType")
+                                                                                    .setNumericFilter(
+                                                                                            NumericFilter
+                                                                                                    .newBuilder()
+                                                                                                    .setComparisonOperator(
+                                                                                                            ComparisonOperator.EQ)
+                                                                                                    .setValue(
+                                                                                                            EntityType.PHYSICAL_MACHINE
+                                                                                                                    .getNumber())))
+                                                                    .addSearchFilter(
+                                                                            SearchFilter.newBuilder()
+                                                                                    .setTraversalFilter(
+                                                                                            TraversalFilter
+                                                                                                    .newBuilder()
+                                                                                                    .setTraversalDirection(
+                                                                                                            TraversalDirection.PRODUCES)
+                                                                                                    .setStoppingCondition(
+                                                                                                            StoppingCondition
+                                                                                                                    .newBuilder()
+                                                                                                                    .setStoppingPropertyFilter(
+                                                                                                                            PropertyFilter
+                                                                                                                                    .newBuilder()
+                                                                                                                                    .setPropertyName(
+                                                                                                                                            "entityType")
+                                                                                                                                    .setNumericFilter(
+                                                                                                                                            NumericFilter
+                                                                                                                                                    .newBuilder()
+                                                                                                                                                    .setComparisonOperator(
+                                                                                                                                                            ComparisonOperator.EQ)
+                                                                                                                                                    .setValue(
+                                                                                                                                                            EntityType.VIRTUAL_MACHINE
+                                                                                                                                                                    .getNumber())))))))))))
+            .build();
 
-    private static Policy bindToGroup(@Nonnull final Group consumerGroup,
-                                      @Nonnull final Group providerGroup) {
+    private static Policy bindToGroup(@Nonnull final Grouping consumerGroup,
+                                      @Nonnull final Grouping providerGroup) {
         return Policy.newBuilder()
             .setPolicyInfo(PolicyInfo.newBuilder()
                 .setBindToGroup(BindToGroupPolicy.newBuilder()

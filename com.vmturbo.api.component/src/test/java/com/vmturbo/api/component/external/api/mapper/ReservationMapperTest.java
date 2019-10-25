@@ -43,7 +43,6 @@ import com.vmturbo.api.dto.template.ResourceApiDTO;
 import com.vmturbo.api.enums.ReservationAction;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;

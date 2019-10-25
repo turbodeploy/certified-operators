@@ -18,16 +18,15 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;

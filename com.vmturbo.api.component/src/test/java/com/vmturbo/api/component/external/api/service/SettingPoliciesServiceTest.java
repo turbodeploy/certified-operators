@@ -18,14 +18,14 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 
+import com.google.common.collect.ImmutableList;
+
+import io.grpc.Status;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
-
-import com.google.common.collect.ImmutableList;
-
-import io.grpc.Status;
 
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
@@ -34,8 +34,8 @@ import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyResponse;
@@ -60,6 +60,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
  * Unit tests for {@link SettingsPoliciesService}.
@@ -97,11 +98,11 @@ public class SettingPoliciesServiceTest {
             .setName(SETTING_NAME)
             .build();
 
-    private static final Group GROUP = Group.newBuilder()
+    private static final Grouping GROUP = Grouping.newBuilder()
             .setId(GROUP_ID)
-            .setType(Group.Type.GROUP)
-            .setGroup(GroupInfo.newBuilder()
-                    .setName(GROUP_NAME))
+            .setDefinition(GroupDefinition.newBuilder()
+                    .setType(GroupType.REGULAR)
+                    .setDisplayName(GROUP_NAME))
             .build();
 
     private static final SettingsPolicyApiDTO RET_SP_DTO = new SettingsPolicyApiDTO();
