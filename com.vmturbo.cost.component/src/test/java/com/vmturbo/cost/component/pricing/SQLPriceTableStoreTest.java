@@ -33,6 +33,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
@@ -44,6 +45,7 @@ import com.vmturbo.cost.component.identity.IdentityProvider;
 import com.vmturbo.cost.component.identity.PriceTableKeyIdentityStore;
 import com.vmturbo.cost.component.pricing.PriceTableMerge.PriceTableMergeFactory;
 import com.vmturbo.cost.component.pricing.PriceTableStore.PriceTables;
+import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
@@ -276,6 +278,24 @@ public class SQLPriceTableStoreTest {
         assertThat(priceTableKeyLongMap.size(), is(2));
     }
 
+    /**
+     * Test to check IdentityStoreException is thrown when trying to upload PriceTable.
+     *
+     * @throws IdentityStoreException intended exception.
+     */
+    @ExceptionHandler(IdentityStoreException.class)
+    @Test
+    public void testExceptionHandlingWhenUploadingPriceTable() throws IdentityStoreException {
+        final PriceTable fooPriceTable = mockPriceTable(1L);
+        final PriceTableKey fooPriceTableKey = mockPriceTableKey(1L);
+        PriceTableKeyIdentityStore priceTableKeyIdentityStore = mock(PriceTableKeyIdentityStore.class);
+        PriceTableMergeFactory mergeFactory = mock(PriceTableMergeFactory.class);
+        store = new SQLPriceTableStore(clock, dsl, priceTableKeyIdentityStore, mergeFactory);
+        when(priceTableKeyIdentityStore.fetchOrAssignOid(any()))
+                .thenThrow(new IdentityStoreException("Intended exception."));
+        store.putProbePriceTables(ImmutableMap.of(fooPriceTableKey, new PriceTables(fooPriceTable,
+                null, 111L)));
+    }
 
     @Nonnull
     private static PriceTable mockPriceTable(final long key) {

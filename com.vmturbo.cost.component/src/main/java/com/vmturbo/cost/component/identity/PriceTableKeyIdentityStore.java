@@ -13,13 +13,15 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
 import com.google.gson.Gson;
+import com.google.gson.JsonParseException;
 
-import org.apache.commons.lang.NotImplementedException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
@@ -27,6 +29,7 @@ import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTableKey;
+import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.cost.component.db.Tables;
@@ -53,7 +56,7 @@ public class PriceTableKeyIdentityStore implements Diagnosable {
     /**
      * Constructor for the PriceTableKeyIdentityStore.
      *
-     * @param dsl The dsl context.
+     * @param dsl              The dsl context.
      * @param identityProvider The identity provider.
      */
     public PriceTableKeyIdentityStore(@Nonnull final DSLContext dsl,
@@ -212,17 +215,69 @@ public class PriceTableKeyIdentityStore implements Diagnosable {
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     @Nonnull
     public List<String> collectDiags() throws DiagnosticsException {
-        //todo roop Add ability to export diags.
-        throw new NotImplementedException();
+        final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
+        try {
+            return fetchAllOidMappings().entrySet().stream()
+                    .map(entry -> {
+                        try {
+                            return new PriceTableKeyOid(entry.getKey(), entry.getValue());
+                        } catch (NumberFormatException | IdentityStoreException e) {
+                            logger.error("Could not collect diags for {}.",
+                                    entry.getValue(), e);
+                            return null;
+                        }
+                    })
+                    .filter(Objects::nonNull)
+                    .map(priceTableKeyOid -> gson.toJson(priceTableKeyOid, PriceTableKeyOid.class))
+                    .collect(Collectors.toList());
+        } catch (IdentityStoreException e) {
+            throw new DiagnosticsException(String.format("Retrieving workflow identifiers from database "
+                    + "failed. %s", e));
+        }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
-        //todo roop Add ability to restore price table data from diags provided.
-        throw new NotImplementedException();
+        final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
+        try {
+            dsl.transaction(configuration -> {
+                DSLContext context = DSL.using(configuration);
+                removeAllOids();
+                collectedDiags.forEach(diag -> {
+                    PriceTableKeyOid priceTableKeyOid = null;
+                    try {
+                        priceTableKeyOid = gson.fromJson(diag, PriceTableKeyOid.class);
+                        final IdentityMatchingAttributes attrs = getMatchingAttributes(priceTableKeyOid
+                                .priceTableKeyIdentifiers);
+                        saveNewOid(context, attrs, priceTableKeyOid.id);
+                    } catch (JsonParseException e) {
+                        logger.error("Could not convert diag JSON : {} to priceTableKeyOid.", diag, e);
+                    } catch (IdentityStoreException e) {
+                        logger.error("Could not restore priceTableKeyOid {}.",
+                                priceTableKeyOid.id, e);
+                    }
+                });
+            });
+        } catch (DataAccessException e) {
+            throw new DiagnosticsException(String.format("restoring priceTableKeys to database "
+                    + "failed. %s", e));
+        }
+    }
+
+    private void removeAllOids() {
+        dsl.transaction(configuration -> {
+            DSLContext context = DSL.using(configuration);
+            context.delete(Tables.PRICE_TABLE_KEY_OID).execute();
+        });
     }
 
     /**
@@ -232,7 +287,9 @@ public class PriceTableKeyIdentityStore implements Diagnosable {
      *                      of the priceTableKey.
      * @return a new {@link SimpleMatchingAttributes} initialized with the priceTableKey.
      */
-    private SimpleMatchingAttributes getMatchingAttributes(@Nonnull final String priceTableKey) {
+    @VisibleForTesting
+    @Nonnull
+    public static SimpleMatchingAttributes getMatchingAttributes(@Nonnull final String priceTableKey) {
         return new SimpleMatchingAttributes.Builder()
                 .addAttribute(PRICE_TABLE_KEY_IDENTIFIERS,
                         priceTableKey)
@@ -249,14 +306,35 @@ public class PriceTableKeyIdentityStore implements Diagnosable {
         @Override
         @Nonnull
         public IdentityMatchingAttributes extractAttributes(@Nonnull PriceTableKey priceTableKey) {
-            Gson gson = new Gson();
             Map<String, String> probeKeyMaterialMap = Maps.newHashMap(priceTableKey.getProbeKeyMaterialMap());
 
             probeKeyMaterialMap.put("probe_type", priceTableKey.getProbeType());
-
+            final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
             return SimpleMatchingAttributes.newBuilder()
                     .addAttribute(PRICE_TABLE_KEY_IDENTIFIERS, gson.toJson(probeKeyMaterialMap))
                     .build();
+        }
+    }
+
+    /**
+     * Class used to collect and restore from priceTableKeyOid table.
+     */
+    static class PriceTableKeyOid {
+        /**
+         * price table key oid.
+         */
+        private final long id;
+
+        /**
+         * IdentityMatchingAttributes used in {@link PriceTableKey}.
+         */
+        final String priceTableKeyIdentifiers;
+
+        private PriceTableKeyOid(@Nonnull final IdentityMatchingAttributes attrs, final long id)
+                throws NumberFormatException, IdentityStoreException {
+            this.id = id;
+            this.priceTableKeyIdentifiers = Objects.requireNonNull(attrs.getMatchingAttribute(PRICE_TABLE_KEY_IDENTIFIERS)
+                    .getAttributeValue());
         }
     }
 }

@@ -1,5 +1,7 @@
 package com.vmturbo.cost.component.identity;
 
+import static com.vmturbo.cost.component.identity.PriceTableKeyIdentityStore.getMatchingAttributes;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Mockito.mock;
@@ -11,11 +13,12 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.ecwid.consul.json.GsonFactory;
 import com.google.common.collect.ImmutableMap;
+import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
 import org.flywaydb.core.Flyway;
@@ -35,8 +38,11 @@ import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTableKey;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.MutableFixedClock;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.identity.PriceTableKeyIdentityStore.PriceTableKeyOid;
 import com.vmturbo.cost.component.pricing.PriceTableMerge.PriceTableMergeFactory;
 import com.vmturbo.cost.component.pricing.PriceTableStore.PriceTables;
 import com.vmturbo.cost.component.pricing.SQLPriceTableStore;
@@ -59,6 +65,7 @@ public class PriceTableKeyIdentityStoreTest {
 
     private final Type type = new TypeToken<Map<String, String>>() {
     }.getType();
+    private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
     private MutableFixedClock clock = new MutableFixedClock(Instant.ofEpochMilli(1_000_000_000), ZoneId.systemDefault());
 
     @Autowired
@@ -121,7 +128,8 @@ public class PriceTableKeyIdentityStoreTest {
 
         IdentityMatchingAttribute identityMatchingAttribute = identityMatchingAttributes.iterator()
                 .next().getMatchingAttribute(PriceTableKeyIdentityStore.PRICE_TABLE_KEY_IDENTIFIERS);
-        Map<String, String> identityMatchingAttributeMap = GsonFactory.getGson().fromJson(identityMatchingAttribute.getAttributeValue(), type);
+        Map<String, String> identityMatchingAttributeMap = GSON.fromJson(
+                identityMatchingAttribute.getAttributeValue(), type);
 
         assertThat(identityMatchingAttributeMap.get("enrollmentId"), is("123"));
         assertThat(identityMatchingAttributeMap.get("offerId"), is("456"));
@@ -228,6 +236,85 @@ public class PriceTableKeyIdentityStoreTest {
         assertThat(oidToPriceTable.get(oid1), is(priceTable1));
 
         assertThat(oidToPriceTable.get(oid2), is(priceTable2));
+    }
+
+    /**
+     * Testing collect diags ability for Table: price table key oid.
+     *
+     * @throws DiagnosticsException   if exception occurs while collecting diags.
+     * @throws IdentityStoreException An IdentityStore Exception.
+     */
+    @Test
+    public void testCollectDiags() throws DiagnosticsException, IdentityStoreException {
+        insertAzurePriceTable();
+        //collecting diags
+        List<String> listOfString = testIdentityStore.collectDiags();
+        final PriceTableKeyOid priceTableKeyOid =
+                GSON.fromJson(listOfString.iterator().next(), PriceTableKeyOid.class);
+        final IdentityMatchingAttributes attrs = getMatchingAttributes(priceTableKeyOid.priceTableKeyIdentifiers);
+        Map<IdentityMatchingAttributes, Long> identityMatchingAttributesLongMap = testIdentityStore.fetchAllOidMappings();
+        assertThat(identityMatchingAttributesLongMap.size(), is(1));
+        final IdentityMatchingAttributes attributes =
+                identityMatchingAttributesLongMap.entrySet().iterator().next().getKey();
+        assertThat(attributes, equalTo(attrs));
+    }
+
+    /**
+     * Testing restoring diags to {@link Tables.PRICE_TABLE_KEY_OID}.
+     *
+     * @throws DiagnosticsException   if exception occurs while collecting diags.
+     * @throws IdentityStoreException An IdentityStore Exception.
+     */
+    @Test
+    public void testRestoreDiags() throws DiagnosticsException, IdentityStoreException {
+        insertAzurePriceTable();
+        //collecting diags
+        final List<String> restoreList = testIdentityStore.collectDiags();
+        final Map<IdentityMatchingAttributes, Long> controlMatchingAttributesLongMap =
+                testIdentityStore.fetchAllOidMappings();
+
+        dsl.delete(Tables.PRICE_TABLE_KEY_OID).execute();
+        assertThat(testIdentityStore.fetchAllOidMappings().isEmpty(), is(true));
+
+        testIdentityStore.restoreDiags(restoreList);
+        assertThat(controlMatchingAttributesLongMap,
+                equalTo(testIdentityStore.fetchAllOidMappings()));
+    }
+
+    /**
+     * Test collect and restore diags using a newer store.
+     *
+     * @throws IdentityStoreException if unable to fetch oid mappings.
+     * @throws DiagnosticsException   exception during collecting or restoring diags.
+     */
+    @Test
+    public void testCollectAndRestoreDiags() throws IdentityStoreException, DiagnosticsException {
+        insertAzurePriceTable();
+
+        Map<IdentityMatchingAttributes, Long> originalMap = testIdentityStore
+                .fetchAllOidMappings();
+        final List<String> collectedDiags = testIdentityStore.collectDiags();
+
+        PriceTableKeyIdentityStore newPriceTableKeyIdentityStore = new PriceTableKeyIdentityStore(dsl,
+                new IdentityProvider(0));
+        newPriceTableKeyIdentityStore.restoreDiags(collectedDiags);
+
+        Map<IdentityMatchingAttributes, Long> newMap = newPriceTableKeyIdentityStore.fetchAllOidMappings();
+        assertThat(originalMap, equalTo(newMap));
+    }
+
+    private void insertAzurePriceTable() {
+        PriceTableKey priceTableKey = mockPriceTableKey("azure");
+        final PriceTableMergeFactory mergeFactory = mock(PriceTableMergeFactory.class);
+        //add new price Table.
+        SQLPriceTableStore sqlPriceTableStore = new SQLPriceTableStore(clock, dsl, new PriceTableKeyIdentityStore(dsl,
+                new IdentityProvider(0)), mergeFactory);
+
+        sqlPriceTableStore.putProbePriceTables(ImmutableMap.of(priceTableKey,
+                new PriceTables(null, null, 111L)));
+        final PriceTable priceTable = mockPriceTable(2L);
+        sqlPriceTableStore.putProbePriceTables(ImmutableMap.of(priceTableKey, new PriceTables(priceTable, null, 222L)));
+
     }
 
     private PriceTableKey mockPriceTableKey(final String probeType) {
