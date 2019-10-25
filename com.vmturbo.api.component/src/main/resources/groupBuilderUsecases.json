@@ -16,7 +16,7 @@
             {"inputType": "#", "elements": "virtualMachineInfoRepoDTO.numCpus", "filterCategory": "property", "filterType": "vmsByNumCPUs"},
             {"inputType": "s", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "vmsByBusinessAccountUuid"},
             {"inputType": "#", "elements": "commoditySoldList[type=VMem,capacity]", "filterCategory": "property", "filterType": "vmsByMem"},
-            {"inputType": "*", "elements": "LogicalPool:displayName:PRODUCES:Storage:PRODUCES", "filterCategory": "entity", "filterType": "vmsByLogicalPoolName"},
+            {"inputType": "*", "elements": "LogicalPool:displayName:PRODUCES:Storage:PRODUCES:1", "filterCategory": "entity", "filterType": "vmsByLogicalPoolName"},
             {"inputType": "*", "elements": "networks", "filterCategory": "property", "filterType": "vmsByNetwork"}
         ]
     },
