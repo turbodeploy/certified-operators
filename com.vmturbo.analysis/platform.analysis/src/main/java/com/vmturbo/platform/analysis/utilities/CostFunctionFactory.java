@@ -641,10 +641,9 @@ public class CostFunctionFactory {
         // NOTE: CostTable.NO_VALUE (-1) is the no license commodity type
         if (licenseCommBoughtIndex == CostTable.NO_VALUE) {
             licenseTypeKey = licenseCommBoughtIndex;
-            logger.error("Cannot find license commodity on seller: {}, for shopping list: {}, "
-                         + "license base type: {}",
-                         seller.getDebugInfoNeverUseInCode(), sl.getDebugInfoNeverUseInCode(),
-                         licenseBaseType);
+            logger.error("License access commodity is missing in shopping list: {}, "
+                    + "license base type: {}",
+                    sl.getDebugInfoNeverUseInCode(), licenseBaseType);
         } else {
             licenseTypeKey = sl.getBasket().get(licenseCommBoughtIndex).getType();
         }
