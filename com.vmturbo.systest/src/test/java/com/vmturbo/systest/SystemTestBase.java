@@ -126,7 +126,7 @@ public class SystemTestBase {
 
         @Override
         public void onTopologyNotification(TopologyInfo topologyInfo,
-                                           @Nonnull RemoteIterator<TopologyDTO.TopologyEntityDTO> topologyDTOs) {
+                                           @Nonnull RemoteIterator<TopologyDTO.Topology.DataSegment> topologyDTOs) {
             int entityCount = 0;
             while (topologyDTOs.hasNext()) {
                 try {

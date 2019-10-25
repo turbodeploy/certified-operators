@@ -919,12 +919,12 @@ public class PlacementPolicySysTest {
 
         @Override
         public void onTopologyNotification(TopologyInfo topologyInfo,
-                                           @Nonnull RemoteIterator<TopologyEntityDTO> topologyDTOs) {
+                                           @Nonnull RemoteIterator<Topology.DataSegment> topologyDTOs) {
             while (topologyDTOs.hasNext()) {
                 try {
-                    for (TopologyEntityDTO entityDTO : topologyDTOs.nextChunk()) {
-                        topologyResult.getIdMap().put(entityDTO.getDisplayName(), entityDTO.getOid());
-                        topologyResult.getEntities().add(entityDTO);
+                    for (Topology.DataSegment entityDTO : topologyDTOs.nextChunk()) {
+                        topologyResult.getIdMap().put(entityDTO.getEntity().getDisplayName(), entityDTO.getEntity().getOid());
+                        topologyResult.getEntities().add(entityDTO.getEntity());
                     }
                 } catch (Exception e) {
                     logger.error("Error during topology broadcast reading: ", e);

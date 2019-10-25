@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
@@ -26,7 +27,7 @@ public interface TopologyEntityCloudTopologyFactory {
      * @return A {@link TopologyEntityCloudTopology} containing the cloud subset of the entities.
      */
     @Nonnull
-    TopologyEntityCloudTopology newCloudTopology(@Nonnull final Stream<TopologyEntityDTO> entities);
+    TopologyEntityCloudTopology newCloudTopology(@Nonnull Stream<TopologyEntityDTO> entities);
 
     /**
      * Create a new {@link TopologyEntityCloudTopology} out of a {@link RemoteIterator}.
@@ -37,7 +38,7 @@ public interface TopologyEntityCloudTopologyFactory {
      * @return A {@link TopologyEntityCloudTopology} containing the cloud subset of the entities.
      */
     @Nonnull
-    TopologyEntityCloudTopology newCloudTopology(final long topologyContextId, @Nonnull final RemoteIterator<TopologyEntityDTO> entities);
+    TopologyEntityCloudTopology newCloudTopology(long topologyContextId, @Nonnull RemoteIterator<TopologyDTO.Topology.DataSegment> entities);
 
     /**
      * The default implementation of {@link TopologyEntityCloudTopologyFactory}.
@@ -62,13 +63,15 @@ public interface TopologyEntityCloudTopologyFactory {
         @Nonnull
         @Override
         public TopologyEntityCloudTopology newCloudTopology(final long topologyContextId,
-                                                            @Nonnull final RemoteIterator<TopologyEntityDTO> entities) {
+                                                            @Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> entities) {
             final Stream.Builder<TopologyEntityDTO> streamBuilder = Stream.builder();
             try {
                 while (entities.hasNext()) {
                     entities.nextChunk().stream()
-                        .filter(this::isCloudEntity)
-                        .forEach(streamBuilder);
+                            .filter(TopologyDTO.Topology.DataSegment::hasEntity)
+                            .map(TopologyDTO.Topology.DataSegment::getEntity)
+                            .filter(this::isCloudEntity)
+                            .forEach(streamBuilder);
                 }
             } catch (TimeoutException | CommunicationException  e) {
                 logger.error("Error retrieving topology in context " + topologyContextId, e);

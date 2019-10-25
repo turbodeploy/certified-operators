@@ -16,6 +16,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
@@ -46,7 +47,7 @@ public class LiveTopologyListenerTest {
         LiveTopologyEntitiesListener serviceUndertest =
                         new LiveTopologyEntitiesListener(statsWriteCoordinator, availabilityTracker);
 
-        RemoteIterator<TopologyEntityDTO> iterator = Mockito.mock(RemoteIterator.class);
+        RemoteIterator<TopologyDTO.Topology.DataSegment> iterator = Mockito.mock(RemoteIterator.class);
 
         CountDownLatch latch = new CountDownLatch(1);
 

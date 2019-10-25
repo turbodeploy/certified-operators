@@ -30,7 +30,7 @@ public class TopologyListenerLiveVsPlanTest {
 
     private StatsWriteCoordinator statsWriteCoordinator;
     private PlanStatsWriter planStatsWriter;
-    private RemoteIterator<TopologyDTO.TopologyEntityDTO> testTopologyDTOs;
+    private RemoteIterator<TopologyDTO.Topology.DataSegment> testTopologyDTOs;
     private StatsAvailabilityTracker availabilityTracker;
 
     @Before
@@ -47,7 +47,7 @@ public class TopologyListenerLiveVsPlanTest {
                         statsWriteCoordinator,
                 availabilityTracker);
         // Arrange
-        RemoteIterator<TopologyDTO.TopologyEntityDTO> iterator
+        RemoteIterator<TopologyDTO.Topology.DataSegment> iterator
                 = Mockito.mock(RemoteIterator.class);
 
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()

@@ -25,6 +25,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
@@ -182,11 +183,11 @@ public class StatsWriteCoordinatorTest {
                                         MAX_WRITE_TOPOLOGY_CHUNK_SIZE)), Collections.singleton(
                         new TestCompleteTopologyWriter(vmsAmount + pmsAmount + storagesAmount)),
                         MAX_WRITE_TOPOLOGY_CHUNK_SIZE);
-        final Collection<TopologyEntityDTO> vmsChunk =
+        final Collection<TopologyDTO.Topology.DataSegment> vmsChunk =
                         createChunk(vmsAmount, EntityType.VIRTUAL_MACHINE);
-        final Collection<TopologyEntityDTO> pmsChunk =
+        final Collection<TopologyDTO.Topology.DataSegment> pmsChunk =
                         createChunk(pmsAmount, EntityType.PHYSICAL_MACHINE);
-        final Collection<TopologyEntityDTO> storagesChunk =
+        final Collection<TopologyDTO.Topology.DataSegment> storagesChunk =
                         createChunk(storagesAmount, EntityType.STORAGE);
         statsWriteCoordinator.processChunks(topologyInfo,
                         mockRemoteIterator(vmsChunk, pmsChunk, storagesChunk));
@@ -215,11 +216,11 @@ public class StatsWriteCoordinatorTest {
                                         MAX_WRITE_TOPOLOGY_CHUNK_SIZE)), Collections.singleton(
                         new TestCompleteTopologyWriter(vmsAmount + pmsAmount + storagesAmount)),
                         MAX_WRITE_TOPOLOGY_CHUNK_SIZE);
-        final Collection<TopologyEntityDTO> vmsChunk =
+        final Collection<TopologyDTO.Topology.DataSegment> vmsChunk =
                         createChunk(vmsAmount, EntityType.VIRTUAL_MACHINE);
-        final Collection<TopologyEntityDTO> pmsChunk =
+        final Collection<TopologyDTO.Topology.DataSegment> pmsChunk =
                         createChunk(pmsAmount, EntityType.PHYSICAL_MACHINE);
-        final Collection<TopologyEntityDTO> storagesChunk =
+        final Collection<TopologyDTO.Topology.DataSegment> storagesChunk =
                         createChunk(storagesAmount, EntityType.STORAGE);
         statsWriteCoordinator.processChunks(topologyInfo,
                         mockRemoteIterator(vmsChunk, pmsChunk, storagesChunk));
@@ -250,11 +251,11 @@ public class StatsWriteCoordinatorTest {
                                                         Collections.singletonMap(allEntitiesNumber,
                                                                         EXPECTED_COMPLETE_EXCEPTION),
                                                         0)), MAX_WRITE_TOPOLOGY_CHUNK_SIZE);
-        final Collection<TopologyEntityDTO> vmsChunk =
+        final Collection<TopologyDTO.Topology.DataSegment> vmsChunk =
                         createChunk(vmsAmount, EntityType.VIRTUAL_MACHINE);
-        final Collection<TopologyEntityDTO> pmsChunk =
+        final Collection<TopologyDTO.Topology.DataSegment> pmsChunk =
                         createChunk(pmsAmount, EntityType.PHYSICAL_MACHINE);
-        final Collection<TopologyEntityDTO> storagesChunk =
+        final Collection<TopologyDTO.Topology.DataSegment> storagesChunk =
                         createChunk(storagesAmount, EntityType.STORAGE);
         statsWriteCoordinator.processChunks(topologyInfo,
                         mockRemoteIterator(vmsChunk, pmsChunk, storagesChunk));
@@ -288,36 +289,37 @@ public class StatsWriteCoordinatorTest {
                                                         Collections.singletonMap(allEntitiesNumber,
                                                                         EXPECTED_COMPLETE_EXCEPTION),
                                                         0)), MAX_WRITE_TOPOLOGY_CHUNK_SIZE);
-        final Collection<TopologyEntityDTO> vmsChunk =
+        final Collection<TopologyDTO.Topology.DataSegment> vmsChunk =
                         createChunk(vmsAmount, EntityType.VIRTUAL_MACHINE);
-        final Collection<TopologyEntityDTO> pmsChunk =
+        final Collection<TopologyDTO.Topology.DataSegment> pmsChunk =
                         createChunk(pmsAmount, EntityType.PHYSICAL_MACHINE);
-        final Collection<TopologyEntityDTO> storagesChunk =
+        final Collection<TopologyDTO.Topology.DataSegment> storagesChunk =
                         createChunk(storagesAmount, EntityType.STORAGE);
         statsWriteCoordinator.processChunks(topologyInfo,
                         mockRemoteIterator(vmsChunk, pmsChunk, storagesChunk));
     }
 
-    private static RemoteIterator<TopologyEntityDTO> mockRemoteIterator(
-                    Collection<TopologyEntityDTO>... chunks)
+    private static RemoteIterator<TopologyDTO.Topology.DataSegment> mockRemoteIterator(
+                    Collection<TopologyDTO.Topology.DataSegment>... chunks)
                     throws InterruptedException, TimeoutException, CommunicationException {
-        final Queue<Collection<TopologyEntityDTO>> chunksQueue =
+        final Queue<Collection<TopologyDTO.Topology.DataSegment>> chunksQueue =
                         Stream.of(chunks).collect(Collectors.toCollection(LinkedList::new));
         @SuppressWarnings("unchecked")
-        final RemoteIterator<TopologyEntityDTO> result = Mockito.mock(RemoteIterator.class);
+        final RemoteIterator<TopologyDTO.Topology.DataSegment> result = Mockito.mock(RemoteIterator.class);
         Mockito.when(result.hasNext())
                         .thenAnswer((Answer<Boolean>)invocation -> !chunksQueue.isEmpty());
         Mockito.when(result.nextChunk())
-                        .thenAnswer((Answer<Collection<TopologyEntityDTO>>)invocation -> chunksQueue
+                        .thenAnswer((Answer<Collection<TopologyDTO.Topology.DataSegment>>)invocation -> chunksQueue
                                         .poll());
         return result;
     }
 
-    private static TopologyEntityDTO createEntity(EntityType type, int oid) {
-        return TopologyEntityDTO.newBuilder().setEntityType(type.getNumber()).setOid(oid).build();
+    private static TopologyDTO.Topology.DataSegment createEntity(EntityType type, int oid) {
+        TopologyEntityDTO dto = TopologyEntityDTO.newBuilder().setEntityType(type.getNumber()).setOid(oid).build();
+        return TopologyDTO.Topology.DataSegment.newBuilder().setEntity(dto).build();
     }
 
-    private static Collection<TopologyEntityDTO> createChunk(int entitiesNumber, EntityType type) {
+    private static Collection<TopologyDTO.Topology.DataSegment> createChunk(int entitiesNumber, EntityType type) {
         return IntStream.range(0, entitiesNumber).mapToObj(oid -> createEntity(type, oid))
                         .collect(Collectors.toSet());
     }

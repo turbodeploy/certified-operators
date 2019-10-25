@@ -8,6 +8,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
@@ -57,7 +58,7 @@ public class PlanTopologyEntitiesListener implements PlanAnalysisTopologyListene
      */
     @Override
     public void onPlanAnalysisTopology(final TopologyInfo topologyInfo,
-                                       @Nonnull final RemoteIterator<TopologyEntityDTO> topologyDTOs) {
+                                       @Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> topologyDTOs) {
         try (DataMetricTimer timer = SharedMetrics.UPDATE_TOPOLOGY_DURATION_SUMMARY.labels(
                 SharedMetrics.SOURCE_TOPOLOGY_TYPE_LABEL, SharedMetrics.PLAN_CONTEXT_TYPE_LABEL)
                 .startTimer()) {
@@ -66,7 +67,7 @@ public class PlanTopologyEntitiesListener implements PlanAnalysisTopologyListene
     }
 
     private void handleScopedTopology(TopologyInfo topologyInfo,
-            RemoteIterator<TopologyEntityDTO> dtosIterator) {
+            RemoteIterator<TopologyDTO.Topology.DataSegment> dtosIterator) {
         final long topologyContextId = topologyInfo.getTopologyContextId();
         final long topologyId = topologyInfo.getTopologyId();
         logger.info("Receiving plan topology, context: {}, id: {}", topologyContextId, topologyId);

@@ -35,6 +35,7 @@ import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.rpc.MarketDebugRpcService;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
+import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
 
@@ -275,6 +276,9 @@ public class MarketRunner {
                 } catch (CommunicationException | InterruptedException e) {
                     // TODO we need to decide, whether to commit the incoming topology here or not.
                     logger.error("Could not send market notifications", e);
+                } finally {
+                    // Clear the Matrix for a given topology.
+                    TheMatrix.clearInstance(analysis.getTopologyInfo().getTopologyId());
                 }
             }
         }

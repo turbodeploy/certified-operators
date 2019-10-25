@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -30,6 +31,7 @@ import com.google.common.collect.ImmutableList;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
@@ -568,10 +570,12 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
 
         @Override
         public void onTopologyNotification(TopologyInfo topologyInfo,
-                @Nonnull RemoteIterator<TopologyEntityDTO> topologyDTOs) {
+                @Nonnull RemoteIterator<TopologyDTO.Topology.DataSegment> topologyDTOs) {
             try {
                 while (topologyDTOs.hasNext()) {
-                    result.addAll(topologyDTOs.nextChunk());
+                    result.addAll(topologyDTOs.nextChunk().stream().filter(
+                        TopologyDTO.Topology.DataSegment::hasEntity).map(
+                        TopologyDTO.Topology.DataSegment::getEntity).collect(Collectors.toList()));
                 }
             } catch (Exception e) {
                 logger.error("Error retrieving topologies", e);

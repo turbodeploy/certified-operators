@@ -24,6 +24,7 @@ import com.google.common.collect.Lists;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
@@ -82,7 +83,7 @@ public class StatsWriteCoordinator {
      *                 have been interrupted.
      */
     public int processChunks(@Nonnull final TopologyInfo topologyInfo,
-                    @Nonnull final RemoteIterator<TopologyEntityDTO> dtosIterator)
+                    @Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> dtosIterator)
                     throws CommunicationException, TimeoutException, InterruptedException {
         try (DataMetricTimer dataMetricTimer = SharedMetrics.STATISTICS_AGGREGATION_SUMMARY
                         .labels(SharedMetrics.ALL_AGGREGATORS_LABEL).startTimer()) {
@@ -115,7 +116,7 @@ public class StatsWriteCoordinator {
     }
 
     private ChunkedStatistics collectChunks(@Nonnull TopologyInfo topologyInfo,
-                    @Nonnull RemoteIterator<TopologyEntityDTO> dtosIterator)
+                    @Nonnull RemoteIterator<TopologyDTO.Topology.DataSegment> dtosIterator)
                     throws InterruptedException, TimeoutException, CommunicationException {
         /*
          * Stores all DTOs from all independent chunks which will be used to schedule complete
@@ -126,12 +127,16 @@ public class StatsWriteCoordinator {
         int amountOfChunks = 0;
         int numberOfEntities = 0;
         while (dtosIterator.hasNext()) {
-            final Collection<TopologyEntityDTO> chunk = dtosIterator.nextChunk();
+            final Collection<TopologyEntityDTO> chunk =
+                dtosIterator.nextChunk().stream()
+                .filter(TopologyDTO.Topology.DataSegment::hasEntity)
+                .map(TopologyDTO.Topology.DataSegment::getEntity)
+                .collect(Collectors.toList());
             final int chunkSize = chunk.size();
             numberOfEntities += chunkSize;
-            createInternalChunks(new ArrayList<>(chunk)).
-                            forEach(ch -> chunkWritingTasks.putAll(submitTasks(topologyInfo, ch,
-                                            chunkedTopologyStatsWriters)));
+            createInternalChunks(new ArrayList<>(chunk))
+                .forEach(ch -> chunkWritingTasks.putAll(submitTasks(topologyInfo, ch,
+                                                                    chunkedTopologyStatsWriters)));
             logger.debug("Received chunk #{} of size {} for topology {} and context {} [soFar={}]",
                             ++amountOfChunks, chunkSize, topologyInfo.getTopologyId(),
                             topologyInfo.getTopologyContextId(), numberOfEntities);

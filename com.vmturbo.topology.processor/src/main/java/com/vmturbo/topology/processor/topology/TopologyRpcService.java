@@ -5,16 +5,18 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.Data;
@@ -76,15 +78,15 @@ public class TopologyRpcService extends TopologyServiceImplBase {
             scheduler.resetBroadcastSchedule();
             topologyHandler.broadcastLatestTopology(journalFactory);
             responseObserver.onNext(TopologyBroadcastResponse.newBuilder()
-                .build());
+                                                             .build());
             responseObserver.onCompleted();
         } catch (Exception e) {
             logger.error("Unable to broadcast topology due to error: ", e);
             responseObserver.onError(Status.INTERNAL
-                .withDescription(e.getMessage())
-                .withCause(e)
-                .asException()
-            );
+                                         .withDescription(e.getMessage())
+                                         .withCause(e)
+                                         .asException()
+                                    );
         }
     }
 
@@ -93,11 +95,15 @@ public class TopologyRpcService extends TopologyServiceImplBase {
                                            StreamObserver<Topology> responseObserver) {
         try {
             final TopologyInfo.Builder topologyInfo = TopologyInfo.newBuilder()
-                .setTopologyType(TopologyType.REALTIME)
-                .setTopologyId(identityProvider.generateTopologyId())
-                .setTopologyContextId(realtimeTopologyContextId)
-                .setCreationTime(clock.millis())
-                .addAnalysisType(AnalysisType.MARKET_ANALYSIS);
+                                                                  .setTopologyType(
+                                                                      TopologyType.REALTIME)
+                                                                  .setTopologyId(identityProvider
+                                                                                     .generateTopologyId())
+                                                                  .setTopologyContextId(
+                                                                      realtimeTopologyContextId)
+                                                                  .setCreationTime(clock.millis())
+                                                                  .addAnalysisType(
+                                                                      AnalysisType.MARKET_ANALYSIS);
 
             if (topologyHandler.includesWastedFiles()) {
                 topologyInfo.addAnalysisType(AnalysisType.WASTED_FILES);
@@ -108,15 +114,16 @@ public class TopologyRpcService extends TopologyServiceImplBase {
             scheduler.resetBroadcastSchedule();
             topologyPipelineFactory
                 .liveTopology(topologyInfo.build(),
-                    Collections.singletonList(new GrpcBroadcastManager(responseObserver)), journalFactory)
+                              Collections.singletonList(new GrpcBroadcastManager(responseObserver)),
+                              journalFactory)
                 .run(entityStore);
         } catch (Exception e) {
             logger.error("Unable to get broadcast topology due to error: ", e);
             responseObserver.onError(Status.INTERNAL
-                .withDescription(e.getMessage())
-                .withCause(e)
-                .asException()
-            );
+                                         .withDescription(e.getMessage())
+                                         .withCause(e)
+                                         .asException()
+                                    );
         }
     }
 
@@ -146,13 +153,15 @@ public class TopologyRpcService extends TopologyServiceImplBase {
 
         @Nonnull
         @Override
-        public TopologyBroadcast broadcastScheduledPlanTopology(@Nonnull TopologyInfo topologyInfo) {
+        public TopologyBroadcast broadcastScheduledPlanTopology(
+            @Nonnull TopologyInfo topologyInfo) {
             return new GrpcBroadcastImpl(responseObserver, topologyInfo);
         }
     }
 
     /**
-     * A simple implementation of the {@link TopologyBroadcast} interface for sending topologies over
+     * A simple implementation of the {@link TopologyBroadcast} interface for sending topologies
+     * over
      * gRPC.
      */
     @NotThreadSafe
@@ -161,6 +170,8 @@ public class TopologyRpcService extends TopologyServiceImplBase {
         private final TopologyInfo topologyInfo;
         private final StreamObserver<Topology> responseObserver;
         private final Collection<TopologyEntityDTO> chunk;
+        private final Collection<TopologyDTO.TopologyExtension> extensionChunk;
+
         private long entitiesSent;
 
         public GrpcBroadcastImpl(@Nonnull final StreamObserver<Topology> responseObserver,
@@ -168,33 +179,60 @@ public class TopologyRpcService extends TopologyServiceImplBase {
             this.responseObserver = Objects.requireNonNull(responseObserver);
             this.topologyInfo = Objects.requireNonNull(topologyInfo);
             this.chunk = new ArrayList<>(MessageChunker.CHUNK_SIZE);
+            this.extensionChunk = new ArrayList<>(MessageChunker.CHUNK_SIZE);
             entitiesSent = 0;
 
             // Send the first message for the start of the topology.
             final Topology initialMessage = Topology.newBuilder()
-                .setTopologyId(getTopologyId())
-                .setStart(Start.newBuilder()
-                    .setTopologyInfo(topologyInfo))
-                .build();
+                                                    .setTopologyId(getTopologyId())
+                                                    .setStart(Start.newBuilder()
+                                                                   .setTopologyInfo(topologyInfo))
+                                                    .build();
             responseObserver.onNext(initialMessage);
         }
 
         @Override
-        public void append(@Nonnull TopologyEntityDTO entity) throws CommunicationException, InterruptedException {
+        public void append(@Nonnull TopologyEntityDTO entity)
+            throws CommunicationException, InterruptedException {
             chunk.add(entity);
             if (chunk.size() >= MessageChunker.CHUNK_SIZE) {
                 sendChunk();
             }
         }
 
+        /**
+         * Appends the next topology extension entity to the notification.
+         * This call may block until the next chunk is sent.
+         *
+         * @param extension to add to broadcast.
+         * @throws InterruptedException   if thread has been interrupted
+         * @throws NullPointerException   if {@code entity} is {@code null}
+         * @throws IllegalStateException  if {@link #finish()} has been already called
+         * @throws CommunicationException persistent communication exception
+         */
+        @Override
+        public void appendExtension(@Nonnull TopologyDTO.TopologyExtension extension)
+            throws CommunicationException, InterruptedException {
+            // Send the entities first.
+            if (chunk.size() > 0) {
+                sendChunk();
+            }
+            extensionChunk.add(extension);
+            if (extensionChunk.size() >= MessageChunker.CHUNK_SIZE) {
+                sendExtensionChunk();
+            }
+        }
+
         @Override
         public long finish() throws CommunicationException, InterruptedException {
             sendChunk();
+            sendExtensionChunk();
 
             final Topology endMessage = Topology.newBuilder()
-                .setTopologyId(getTopologyId())
-                .setEnd(End.newBuilder().setTotalCount(entitiesSent))
-                .build();
+                                                .setTopologyId(getTopologyId())
+                                                .setEnd(
+                                                    End.newBuilder().setTotalCount(entitiesSent))
+                                                .build();
             responseObserver.onNext(endMessage);
             responseObserver.onCompleted();
 
@@ -221,17 +259,36 @@ public class TopologyRpcService extends TopologyServiceImplBase {
             return topologyInfo.getCreationTime();
         }
 
-        private void sendChunk() {
-            if (chunk.size() > 0) {
-                final Topology dataMessage = Topology.newBuilder()
-                    .setData(Data.newBuilder().addAllEntities(chunk))
-                    .setTopologyId(getTopologyId())
-                    .build();
-                responseObserver.onNext(dataMessage);
-                entitiesSent += chunk.size();
-
-                chunk.clear();
+        private void sendChunk() throws CommunicationException, InterruptedException {
+            if (chunk.size() <= 0) {
+                return;
             }
+            Collection<Topology.DataSegment> segments = chunk.stream().map(dto -> {
+                return Topology.DataSegment.newBuilder().setEntity(dto).build();
+            }).collect(Collectors.toList());
+            final Topology message = Topology.newBuilder()
+                                             .setData(Data.newBuilder().addAllEntities(segments))
+                                             .setTopologyId(getTopologyId())
+                                             .build();
+            responseObserver.onNext(message);
+            entitiesSent += chunk.size();
+            chunk.clear();
+        }
+
+        private void sendExtensionChunk() throws CommunicationException, InterruptedException {
+            if (extensionChunk.size() <= 0) {
+                return;
+            }
+            Collection<Topology.DataSegment> segments = extensionChunk.stream().map(ext -> {
+                return Topology.DataSegment.newBuilder().setExtension(ext).build();
+            }).collect(Collectors.toList());
+            final Topology message = Topology.newBuilder()
+                                             .setData(Data.newBuilder().addAllEntities(segments))
+                                             .setTopologyId(getTopologyId())
+                                             .build();
+            responseObserver.onNext(message);
+            entitiesSent += extensionChunk.size();
+            chunk.clear();
         }
     }
 }

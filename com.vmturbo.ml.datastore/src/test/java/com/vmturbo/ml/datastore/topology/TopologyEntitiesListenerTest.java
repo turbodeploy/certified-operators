@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.ml.datastore.influx.*;
 import org.junit.Before;
 import org.junit.Test;
@@ -38,19 +39,28 @@ public class TopologyEntitiesListenerTest {
         .setCreationTime(TIME)
         .build();
 
-    private final TopologyEntityDTO dtoOne = TopologyEntityDTO.newBuilder()
+    private final TopologyEntityDTO dtoOneE = TopologyEntityDTO.newBuilder()
         .setOid(1L)
         .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
         .build();
 
-    private final TopologyEntityDTO dtoTwo = TopologyEntityDTO.newBuilder()
+    private final TopologyDTO.Topology.DataSegment
+        dtoOne = TopologyDTO.Topology.DataSegment.newBuilder()
+                                                       .setEntity(dtoOneE)
+                                                       .build();
+
+    private final TopologyEntityDTO dtoTwoE = TopologyEntityDTO.newBuilder()
         .setOid(2L)
         .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
         .build();
 
+    private final TopologyDTO.Topology.DataSegment
+        dtoTwo = TopologyDTO.Topology.DataSegment.newBuilder()
+                                                 .setEntity(dtoTwoE)
+                                                 .build();
     @SuppressWarnings("unchecked")
-    private final RemoteIterator<TopologyEntityDTO> iterator =
-        (RemoteIterator<TopologyEntityDTO>)mock(RemoteIterator.class);
+    private final RemoteIterator<TopologyDTO.Topology.DataSegment> iterator =
+        (RemoteIterator<TopologyDTO.Topology.DataSegment>)mock(RemoteIterator.class);
 
     @Before
     @SuppressWarnings("unchecked")
@@ -69,9 +79,9 @@ public class TopologyEntitiesListenerTest {
             .thenReturn(metricsWriter);
 
         listener.onTopologyNotification(topologyInfo, iterator);
-        verify(metricsWriter).writeMetrics(eq(Collections.singletonList(dtoOne)), eq(TIME),
+        verify(metricsWriter).writeMetrics(eq(Collections.singletonList(dtoOneE)), eq(TIME),
             anyMap(), anyMap(), anyMap());
-        verify(metricsWriter).writeMetrics(eq(Collections.singletonList(dtoTwo)), eq(TIME),
+        verify(metricsWriter).writeMetrics(eq(Collections.singletonList(dtoTwoE)), eq(TIME),
             anyMap(), anyMap(), anyMap());
     }
 
@@ -97,9 +107,9 @@ public class TopologyEntitiesListenerTest {
         when(connectionFactory.createTopologyMetricsWriter(eq(whitelist), eq(metricJitter), eq(obfuscator)))
             .thenReturn(metricsWriter);
         listener.onTopologyNotification(topologyInfo, iterator);
-        verify(metricsWriter).writeMetrics(eq(Collections.singletonList(dtoOne)), eq(TIME),
+        verify(metricsWriter).writeMetrics(eq(Collections.singletonList(dtoOneE)), eq(TIME),
             anyMap(), anyMap(), anyMap());
-        verify(metricsWriter).writeMetrics(eq(Collections.singletonList(dtoTwo)), eq(TIME),
+        verify(metricsWriter).writeMetrics(eq(Collections.singletonList(dtoTwoE)), eq(TIME),
             anyMap(), anyMap(), anyMap());
     }
 }

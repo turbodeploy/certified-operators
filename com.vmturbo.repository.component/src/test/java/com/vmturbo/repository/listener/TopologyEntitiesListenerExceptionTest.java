@@ -19,6 +19,7 @@ import org.mockito.runners.MockitoJUnitRunner;
 
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
@@ -53,7 +54,7 @@ public class TopologyEntitiesListenerExceptionTest {
     private final long realtimeTopologyContextId = 77L;
 
     @Mock
-    private RemoteIterator<TopologyEntityDTO> entityIterator;
+    private RemoteIterator<TopologyDTO.Topology.DataSegment> entityIterator;
 
     @Mock
     private RepositoryNotificationSender notificationSender;
@@ -61,12 +62,14 @@ public class TopologyEntitiesListenerExceptionTest {
     @Mock
     private LiveTopologyStore liveTopologyStore;
 
-    private final TopologyEntityDTO vmDTO;
-    private final TopologyEntityDTO pmDTO;
+    private final TopologyDTO.Topology.DataSegment vmDTO;
+    private final TopologyDTO.Topology.DataSegment pmDTO;
 
     public TopologyEntitiesListenerExceptionTest() throws IOException {
-        vmDTO = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
-        pmDTO = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/pm-1.dto.json");
+        TopologyEntityDTO vmDTOE = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
+        TopologyEntityDTO pmDTOE = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/pm-1.dto.json");
+        vmDTO = TopologyDTO.Topology.DataSegment.newBuilder().setEntity(vmDTOE).build();
+        pmDTO = TopologyDTO.Topology.DataSegment.newBuilder().setEntity(pmDTOE).build();
     }
 
     @Before

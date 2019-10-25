@@ -10,7 +10,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.DataSegment;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
@@ -37,7 +37,7 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
 
     // keeps track of the live topologies being processed. Used to prevent processing more than the
     // expected amount.
-    List<TopologyInfo> topologiesInProcess = new ArrayList<>();
+    private final List<TopologyInfo> topologiesInProcess = new ArrayList<>();
 
     public LiveTopologyEntitiesListener(@Nonnull final StatsWriteCoordinator statsWriteCoordinator,
                     @Nonnull final StatsAvailabilityTracker statsAvailabilityTracker) {
@@ -48,7 +48,7 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
     /**
      * Receive a new Topology and call the {@link HistorydbIO} to persist the elements of the topology.
      * The Topology is received in chunks, using {@link RemoteIterator}, to reduce maximum memory footprint required.
-     * An instance of {@link TopologySnapshotRegistry} is used to coordinate the async receipt of the Topology and
+     * An instance of TopologySnapshotRegistry is used to coordinate the async receipt of the Topology and
      * PriceIndex information.
      * The entire collection of ServiceEntities is required for two reasons:
      * <ol>
@@ -60,7 +60,7 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
      */
     @Override
     public void onTopologyNotification(TopologyInfo topologyInfo,
-                                       RemoteIterator<TopologyEntityDTO> topologyDTOs) {
+                                       RemoteIterator<DataSegment> topologyDTOs) {
         try (final DataMetricTimer timer = SharedMetrics.UPDATE_TOPOLOGY_DURATION_SUMMARY.labels(
                 SharedMetrics.SOURCE_TOPOLOGY_TYPE_LABEL, SharedMetrics.
                         LIVE_CONTEXT_TYPE_LABEL).startTimer()) {
@@ -71,9 +71,12 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
     /**
      * Skip processing of the rest of the topology in the iterator by consuming the chunks and
      * doing nothing with them.
+     *
+     * @param topologyInfo The topology information.
+     * @param iterator     The data segment iterator.
      */
     private void skipRestOfTopology(TopologyInfo topologyInfo,
-                                    RemoteIterator<TopologyEntityDTO> iterator) {
+                                    RemoteIterator<DataSegment> iterator) {
         final long topologyContextId = topologyInfo.getTopologyContextId();
         final long topologyId = topologyInfo.getTopologyId();
         logger.warn("Going to skip writing data for topology {} since one is still in progress.",
@@ -89,7 +92,7 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
     }
 
     private void handleLiveTopology(TopologyInfo topologyInfo,
-                                    RemoteIterator<TopologyEntityDTO> dtosIterator) {
+                                    RemoteIterator<DataSegment> dtosIterator) {
         final long topologyContextId = topologyInfo.getTopologyContextId();
         final long topologyId = topologyInfo.getTopologyId();
         final long creationTime = topologyInfo.getCreationTime();

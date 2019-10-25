@@ -8,6 +8,7 @@ import javax.annotation.concurrent.GuardedBy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.DataSegment;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
@@ -100,8 +101,8 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
     }
 
     @Override
-    public void onTopologyNotification(TopologyInfo topologyInfo,
-            @Nonnull final RemoteIterator<TopologyEntityDTO> entityIterator) {
+    public void onTopologyNotification(@Nonnull TopologyInfo topologyInfo,
+                                       @Nonnull RemoteIterator<DataSegment> entityIterator) {
         try {
             onTopologyNotificationInternal(topologyInfo, entityIterator);
         } catch (CommunicationException | InterruptedException e) {
@@ -112,9 +113,8 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
     }
 
     private void onTopologyNotificationInternal(TopologyInfo topologyInfo,
-            @Nonnull final RemoteIterator<TopologyEntityDTO> entityIterator)
-            throws CommunicationException, InterruptedException {
-
+                                                final RemoteIterator<DataSegment> entityIterator)
+        throws CommunicationException, InterruptedException {
         final long topologyId = topologyInfo.getTopologyId();
         final long topologyContextId = topologyInfo.getTopologyContextId();
         logger.info("Received topology {} for context {} topology DTOs from TopologyProcessor",

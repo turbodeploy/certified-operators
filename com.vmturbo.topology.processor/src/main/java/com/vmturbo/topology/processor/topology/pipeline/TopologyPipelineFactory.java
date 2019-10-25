@@ -269,7 +269,7 @@ public class TopologyPipelineFactory {
                 .addStage(new ExtractTopologyGraphStage())
                 .addStage(new HistoricalUtilizationStage(historicalEditor))
                 .addStage(new ProbeActionCapabilitiesApplicatorStage(applicatorEditor))
-                .addStage(new BroadcastStage(managers))
+                .addStage(new BroadcastStage(managers, matrix))
                 .build();
     }
 
@@ -335,7 +335,7 @@ public class TopologyPipelineFactory {
                 .addStage(new PlanScopingStage(planTopologyScopeEditor, scope, searchResolver, changes, groupServiceClient))
                 .addStage(new HistoricalUtilizationStage(historicalEditor, changes))
                 .addStage(new OverrideWorkLoadDemandStage(demandOverriddenCommodityEditor, searchResolver, groupServiceClient, changes))
-                .addStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager)))
+                .addStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager), matrix))
                 .build();
     }
 
@@ -369,7 +369,7 @@ public class TopologyPipelineFactory {
                 // One approach is to clear settings/policies from a topology, and then run the
                 // stages. The other approach is to extend the stages to handle already-existing
                 // policies/settings.
-                .addStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager)))
+                .addStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager), matrix))
                 .build();
     }
 

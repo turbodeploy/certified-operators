@@ -17,6 +17,7 @@ import org.mockito.runners.MockitoJUnitRunner;
 
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
@@ -46,7 +47,7 @@ public class TopologyEntitiesListenerTest {
     private final long realtimeTopologyContextId = 77L;
 
     @Mock
-    private RemoteIterator<TopologyEntityDTO> entityIterator;
+    private RemoteIterator<TopologyDTO.Topology.DataSegment> entityIterator;
 
     @Mock
     private RepositoryNotificationSender notificationSender;
@@ -54,14 +55,22 @@ public class TopologyEntitiesListenerTest {
     @Mock
     private LiveTopologyStore liveTopologyStore;
 
-    private final TopologyEntityDTO vmDTO;
-    private final TopologyEntityDTO pmDTO;
-    private final TopologyEntityDTO dsDTO;
+    private final TopologyDTO.Topology.DataSegment vmDTO;
+    private final TopologyDTO.Topology.DataSegment pmDTO;
+    private final TopologyDTO.Topology.DataSegment dsDTO;
 
     public TopologyEntitiesListenerTest() throws IOException {
-        vmDTO = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
-        pmDTO = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/pm-1.dto.json");
-        dsDTO = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/ds-1.dto.json");
+        TopologyEntityDTO vmDTOE;
+        TopologyEntityDTO pmDTOE;
+        TopologyEntityDTO dsDTOE;
+
+        vmDTOE = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
+        pmDTOE = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/pm-1.dto.json");
+        dsDTOE = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/ds-1.dto.json");
+
+        vmDTO = TopologyDTO.Topology.DataSegment.newBuilder().setEntity(vmDTOE).build();
+        pmDTO = TopologyDTO.Topology.DataSegment.newBuilder().setEntity(pmDTOE).build();
+        dsDTO = TopologyDTO.Topology.DataSegment.newBuilder().setEntity(dsDTOE).build();
     }
 
     @Before

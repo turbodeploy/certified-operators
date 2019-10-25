@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.api.server;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
@@ -26,6 +27,19 @@ public interface TopologyBroadcast {
      */
     void append(@Nonnull TopologyEntityDTO entity)
             throws CommunicationException, InterruptedException;
+
+    /**
+     * Appends the next topology extension entity to the notification.
+     * This call may block until the next chunk is sent.
+     *
+     * @param extension to add to broadcast.
+     * @throws InterruptedException   if thread has been interrupted
+     * @throws NullPointerException   if {@code entity} is {@code null}
+     * @throws IllegalStateException  if {@link #finish()} has been already called
+     * @throws CommunicationException persistent communication exception
+     */
+    void appendExtension(@Nonnull TopologyDTO.TopologyExtension extension)
+        throws CommunicationException, InterruptedException;
 
     /**
      * Marks the topology broadcast as complete and sends the last data (if required). This call

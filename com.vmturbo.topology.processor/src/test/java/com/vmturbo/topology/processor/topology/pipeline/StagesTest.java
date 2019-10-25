@@ -42,6 +42,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.TopologyEntity;
@@ -423,7 +424,7 @@ public class StagesTest {
         final TopoBroadcastManager broadcastManager1 = mock(TopoBroadcastManager.class);
         final TopoBroadcastManager broadcastManager2 = mock(TopoBroadcastManager.class);
         final BroadcastStage stage = new BroadcastStage(Arrays.asList(broadcastManager1,
-                broadcastManager2));
+                broadcastManager2), TheMatrix.instance());
 
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
                 .setTopologyType(TopologyType.REALTIME)
@@ -466,7 +467,7 @@ public class StagesTest {
     @Test
     public void testPlanBroadcastStage() throws CommunicationException, InterruptedException, PipelineStageException {
         final TopoBroadcastManager broadcastManager = mock(TopoBroadcastManager.class);
-        final BroadcastStage stage = new BroadcastStage(Collections.singletonList(broadcastManager));
+        final BroadcastStage stage = new BroadcastStage(Collections.singletonList(broadcastManager), TheMatrix.instance());
 
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
                 .setTopologyId(2L)

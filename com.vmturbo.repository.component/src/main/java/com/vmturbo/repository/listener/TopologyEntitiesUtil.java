@@ -2,12 +2,14 @@ package com.vmturbo.repository.listener;
 
 import java.util.Collection;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
@@ -41,7 +43,7 @@ public class TopologyEntitiesUtil {
      * @throws CommunicationException Throws CommunicationException
      * @throws InterruptedException Throws InterruptedException
      */
-    public static void createTopology(@Nonnull final RemoteIterator<TopologyEntityDTO> entityIterator,
+    public static void createTopology(@Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> entityIterator,
                                @Nonnull final long topologyId,
                                @Nonnull final long topologyContextId,
                                @Nonnull final DataMetricTimer timer,
@@ -55,11 +57,18 @@ public class TopologyEntitiesUtil {
             int numberOfEntities = 0;
             int chunkNumber = 0;
             while (entityIterator.hasNext()) {
-                Collection<TopologyEntityDTO> chunk = entityIterator.nextChunk();
-
+                Collection<TopologyDTO.Topology.DataSegment> chunk = entityIterator.nextChunk();
                 logger.debug("Received chunk #{} of size {} for topology {}", ++chunkNumber, chunk.size(), tid);
-                topologyCreator.addEntities(chunk);
-                numberOfEntities += chunk.size();
+                Collection<TopologyEntityDTO> entities =
+                    chunk.stream()
+                         .filter(TopologyDTO.Topology.DataSegment::hasEntity)
+                         .map(TopologyDTO.Topology.DataSegment::getEntity)
+                         .collect(Collectors.toList());
+                if (entities.isEmpty()) {
+                    continue;
+                }
+                topologyCreator.addEntities(entities);
+                numberOfEntities += entities.size();
             }
             topologyCreator.complete();
 
@@ -99,7 +108,7 @@ public class TopologyEntitiesUtil {
      * @throws InterruptedException Throws InterruptedException
      * @throws CommunicationException Throws CommunicationException
      */
-    public static void drainIterator(@Nonnull final RemoteIterator<TopologyEntityDTO> entityIterator,
+    public static void drainIterator(@Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> entityIterator,
                                final long topologyId)
             throws InterruptedException, CommunicationException {
         // drain the iterator and exit.

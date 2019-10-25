@@ -330,11 +330,11 @@ public class TopologyProcessorPerformanceTest {
 
         @Override
         public void onTopologyNotification(TopologyInfo topologyInfo,
-                                           @Nonnull RemoteIterator<TopologyEntityDTO> topologyDTOs) {
+                                           @Nonnull RemoteIterator<Topology.DataSegment> topologyDTOs) {
             int entityCount = 0;
             while (topologyDTOs.hasNext()) {
                 try {
-                    for (TopologyEntityDTO ignored : topologyDTOs.nextChunk()) {
+                    for (Topology.DataSegment ignored : topologyDTOs.nextChunk()) {
                         entityCount++;
                     }
                 } catch (Exception e) {

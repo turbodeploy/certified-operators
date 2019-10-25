@@ -21,6 +21,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Preconditions;
+import com.google.protobuf.AbstractMessage;
+
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -35,7 +37,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuild
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ncm.MatrixDTO;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.communication.chunking.MessageChunker;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -1149,8 +1153,18 @@ public class Stages {
 
         private final Map<UIEntityType, MutableInt> counts = new HashMap<>();
 
-        public BroadcastStage(@Nonnull final List<TopoBroadcastManager> broadcastManagers) {
+        private final MatrixInterface matrix;
+
+        /**
+         * Constructs the BroadcastStage.
+         *
+         * @param broadcastManagers The brodcast managers.
+         * @param matrix            The matrix.
+         */
+        public BroadcastStage(@Nonnull final List<TopoBroadcastManager> broadcastManagers,
+                              final MatrixInterface matrix) {
             this.broadcastManagers = Objects.requireNonNull(broadcastManagers);
+            this.matrix = Objects.requireNonNull(matrix);
             Preconditions.checkArgument(broadcastManagers.size() > 0);
         }
 
@@ -1238,7 +1252,12 @@ public class Stages {
                     broadcast.append(entity);
                 }
             }
-
+            // Export Matrix.
+            matrix.exportMatrix(new MatrixExporter(broadcasts));
+            //
+            // TODO(MB): Add action merging/conversion extension.
+            //
+            // Do the accounting.
             long resultSentCount = 0;
             for (TopologyBroadcast broadcast : broadcasts) {
                 final long sentCount = broadcast.finish();
@@ -1428,4 +1447,105 @@ public class Stages {
         }
     }
 
+    /**
+     * The Communication Matrix Exporter.
+     */
+    private static class MatrixExporter implements MatrixInterface.Codec {
+        /**
+         * The current component.
+         */
+        private MatrixInterface.Component component_;
+
+        /**
+         * The Matrix builder.
+         */
+        private TopologyDTO.TopologyExtension.Matrix.Builder matrixBuilder_;
+
+        /**
+         * The topology broadcasters.
+         */
+        private final List<TopologyBroadcast> broadcasts_;
+
+        /**
+         * Constructs the matrix exporter.
+         *
+         * @param broadcasts The topology broadcasters.
+         */
+        MatrixExporter(final @Nonnull List<TopologyBroadcast> broadcasts) {
+            broadcasts_ = broadcasts;
+        }
+
+        /**
+         * Start the next component.
+         *
+         * @param component The matrix component
+         * @throws IllegalStateException Never.
+         */
+        @Override public void start(final @Nonnull MatrixInterface.Component component)
+            throws IllegalStateException {
+            component_ = component;
+            if (matrixBuilder_ == null) {
+                matrixBuilder_ = TopologyDTO.TopologyExtension.Matrix.newBuilder();
+            }
+        }
+
+        /**
+         * Processes the next message for the current component.
+         *
+         * @param msg The message.
+         * @param <T> The message type.
+         * @throws IllegalStateException If the processing fails down the stream.
+         */
+        @Override
+        public <T extends AbstractMessage> void next(@Nonnull T msg)
+            throws IllegalStateException {
+            switch (component_) {
+                case OVERLAY:
+                    matrixBuilder_.addEdges((MatrixDTO.OverlayEdge)msg);
+                    break;
+                case UNDERLAY:
+                    matrixBuilder_.addUnderlay((MatrixDTO.UnderlayStruct)msg);
+                    break;
+                case CONSUMER_2_PROVIDER:
+                    matrixBuilder_.addConsumerToProvider((MatrixDTO.ConsumerToProvider)msg);
+                    break;
+            }
+            sendChunk(MessageChunker.CHUNK_SIZE);
+        }
+
+        /**
+         * Sends the next chunk.
+         *
+         * @param threshold The minimum number of elements in the matrix needed to send things.
+         */
+        private void sendChunk(final int threshold) {
+            if (matrixBuilder_.getEdgesCount() + matrixBuilder_.getUnderlayCount() +
+                matrixBuilder_.getConsumerToProviderCount() <= threshold) {
+                return;
+            }
+            TopologyDTO.TopologyExtension ext = TopologyDTO.TopologyExtension
+                                                    .newBuilder().setMatrix(matrixBuilder_.build())
+                                                    .build();
+            // Send the next chunk
+            for (TopologyBroadcast broadcast : broadcasts_) {
+                try {
+                    broadcast.appendExtension(ext);
+                } catch (Exception e) {
+                    throw new IllegalStateException(e);
+                }
+            }
+            matrixBuilder_.clear();
+        }
+
+        /**
+         * Finishes current component.
+         *
+         * @throws IllegalStateException Never.
+         */
+        @Override
+        public void finish() throws IllegalStateException {
+            sendChunk(0);
+            component_ = null;
+        }
+    }
 }

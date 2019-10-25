@@ -2,6 +2,7 @@ package com.vmturbo.market;
 
 import java.util.Collection;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -88,8 +89,11 @@ public class MarketNotificationSender extends
         long totalCount = 0;
         for (Collection<TopologyEntityDTO> chunk : chunks) {
             totalCount += chunk.size();
+            Collection<Topology.DataSegment> segments = chunk.stream().map(dto -> {
+                return Topology.DataSegment.newBuilder().setEntity(dto).build();
+            }).collect(Collectors.toList());
             final Topology topology = Topology.newBuilder()
-                    .setData(Topology.Data.newBuilder().addAllEntities(chunk).build())
+                    .setData(Topology.Data.newBuilder().addAllEntities(segments).build())
                     .setTopologyId(sourceTopologyInfo.getTopologyId())
                     .build();
             sendPlanAnalysisTopologySegment(topology);

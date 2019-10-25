@@ -8,6 +8,7 @@ import "plan/PlanDTO.proto";
 import "CloudCostDTO.proto";
 import "CommonDTO.proto";
 import "tag/Tag.proto";
+import "ncm/Matrix.proto";
 
 // Different entity types may have additional configuration options that get discovered by the
 // SDK. We could represent these options as part of the loose-form entity properties, but it
@@ -781,6 +782,27 @@ message PerTargetEntityInformation {
     optional string vendor_id = 1;
 }
 
+// The Topology Extension.
+// Due to the fact that Action Merging/Action Conversion is tied to a particular Topology, the need for Topology Extensions arises.
+// The Action Merging/Action Conversion is discovered by a probe, and is valid for a lifetime of a topology, which that particular discovery is a part of.
+// We have to preserve the Action Merging/Action Conversion specs, so that any Plans for that topology will generate same types of actions as a real-time Market.
+// By same type of action we mean that if actions would be merged/converted in a real-time Market, they would be merged/converted when running a Plan over
+// the same Topology.
+// So, essentially, the Topology Extension is something that is tied to a Topology, has the lifetime of that Topology, yet not a part of Topology.
+// The Communication Matrix (Communication Topology) and Action Merging/Conversion data serve as examples.
+message TopologyExtension {
+    oneof extension {
+        Matrix matrix = 1;
+    }
+    // The Network Topology extension.
+    message Matrix {
+        repeated OverlayVertex vertices = 1;
+        repeated OverlayEdge edges = 2;
+        repeated UnderlayStruct underlay = 3;
+        repeated ConsumerToProvider consumer_to_provider = 4;
+    }
+}
+
 // Message to hold original topology broadcast message.
 message Topology {
     // The ID of the topology
@@ -799,8 +821,15 @@ message Topology {
     };
     // Message to hold real data of the topology - it is the chunk
     message Data {
-        // The entities in the topology
-        repeated TopologyEntityDTO entities = 1;
+        // The segments in the topology
+        repeated DataSegment entities = 3;
+    }
+    // Data segment
+    message DataSegment {
+        oneof data_segment {
+            TopologyEntityDTO entity = 1;
+            TopologyExtension extension = 2;
+        }
     }
     // Message to appear at the very end of topology broadcast
     message End {

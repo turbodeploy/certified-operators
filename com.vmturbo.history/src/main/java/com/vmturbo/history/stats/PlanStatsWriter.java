@@ -3,6 +3,7 @@ package com.vmturbo.history.stats;
 import java.util.Collection;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -11,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.Collections2;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -155,16 +157,20 @@ public class PlanStatsWriter {
      * @return The number of entities processed.
      */
     public int processChunks(@Nonnull final TopologyInfo topologyInfo,
-                             @Nonnull final RemoteIterator<TopologyEntityDTO> dtosIterator)
+                             @Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> dtosIterator)
             throws CommunicationException, TimeoutException, InterruptedException, VmtDbException {
         int numberOfEntities = 0;
         historydbIO.addMktSnapshotRecord(topologyInfo);
         final PlanStatsAggregator aggregator
                 = new PlanStatsAggregator(historydbIO, topologyInfo, true);
         while (dtosIterator.hasNext()) {
-            final Collection<TopologyEntityDTO> chunk = dtosIterator.nextChunk();
-            aggregator.handleChunk(chunk);
-            numberOfEntities += chunk.size();
+            final Collection<TopologyDTO.Topology.DataSegment> chunk = dtosIterator.nextChunk();
+            final Collection<TopologyEntityDTO> dtos =
+                chunk.stream().filter(TopologyDTO.Topology.DataSegment::hasEntity)
+                     .map(TopologyDTO.Topology.DataSegment::getEntity)
+                     .collect(Collectors.toList());
+            aggregator.handleChunk(dtos);
+            numberOfEntities += dtos.size();
         }
         aggregator.writeAggregates();
         logger.debug("Done handling topology notification for source topology {} in context {}."

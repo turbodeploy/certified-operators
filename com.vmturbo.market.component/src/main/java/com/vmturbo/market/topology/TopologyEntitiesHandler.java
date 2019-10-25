@@ -136,6 +136,7 @@ public class TopologyEntitiesHandler {
         // added. Map creation is not dependent on it, but for clarity it makes sense to add all
         // sellers into markets after traders have been added.
         topology.populateMarketsWithSellers();
+        topology.setTopologyId(topologyInfo.getTopologyId());
 
         populateCommodityResizeDependencyMap(topology);
         populateProducesDependencyMap(topology);

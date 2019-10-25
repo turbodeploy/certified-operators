@@ -12,6 +12,7 @@ import java.util.stream.Stream;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
@@ -26,7 +27,7 @@ public class TopologyEntityCloudTopologyFactoryTest {
     private static final long CLOUD_TARGET_ID = 11;
     private static final long NON_CLOUD_TARGET_ID = 22;
 
-    private static final TopologyEntityDTO CLOUD_ENTITY = TopologyEntityDTO.newBuilder()
+    private static final TopologyEntityDTO CLOUD_ENTITY_E = TopologyEntityDTO.newBuilder()
             .setOid(1L)
             .setEntityType(EntityType.COMPUTE_TIER_VALUE)
             .setEnvironmentType(EnvironmentType.CLOUD)
@@ -35,7 +36,12 @@ public class TopologyEntityCloudTopologyFactoryTest {
                         .putDiscoveredTargetData(CLOUD_TARGET_ID, PerTargetEntityInformation.getDefaultInstance())))
             .build();
 
-    private static final TopologyEntityDTO NON_CLOUD_ENTITY = TopologyEntityDTO.newBuilder()
+    private static final TopologyDTO.Topology.DataSegment
+        CLOUD_ENTITY = TopologyDTO.Topology.DataSegment.newBuilder()
+                                                       .setEntity(CLOUD_ENTITY_E)
+                                                       .build();
+
+    private static final TopologyEntityDTO NON_CLOUD_ENTITY_E = TopologyEntityDTO.newBuilder()
             .setOid(2L)
             .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
             .setEnvironmentType(EnvironmentType.ON_PREM)
@@ -44,17 +50,21 @@ public class TopologyEntityCloudTopologyFactoryTest {
                         .putDiscoveredTargetData(NON_CLOUD_TARGET_ID, PerTargetEntityInformation.getDefaultInstance())))
             .build();
 
+    private static final TopologyDTO.Topology.DataSegment
+        NON_CLOUD_ENTITY = TopologyDTO.Topology.DataSegment.newBuilder()
+                                                       .setEntity(NON_CLOUD_ENTITY_E)
+                                                       .build();
     @Test
     public void testStream() {
         final TopologyEntityCloudTopologyFactory factory =
                 new DefaultTopologyEntityCloudTopologyFactory();
-        final TopologyEntityCloudTopology topology = factory.newCloudTopology(Stream.of(CLOUD_ENTITY, NON_CLOUD_ENTITY));
-        assertThat(topology.getEntities().values(), contains(CLOUD_ENTITY));
+        final TopologyEntityCloudTopology topology = factory.newCloudTopology(Stream.of(CLOUD_ENTITY_E, NON_CLOUD_ENTITY_E));
+        assertThat(topology.getEntities().values(), contains(CLOUD_ENTITY_E));
     }
 
     @Test
     public void testRemoteIterator() throws InterruptedException, TimeoutException, CommunicationException {
-        final RemoteIterator<TopologyEntityDTO> remoteIterator = mock(RemoteIterator.class);
+        final RemoteIterator<TopologyDTO.Topology.DataSegment> remoteIterator = mock(RemoteIterator.class);
         when(remoteIterator.hasNext()).thenReturn(true).thenReturn(true).thenReturn(false);
         when(remoteIterator.nextChunk())
                 .thenReturn(Collections.singleton(NON_CLOUD_ENTITY))
@@ -62,6 +72,6 @@ public class TopologyEntityCloudTopologyFactoryTest {
         final TopologyEntityCloudTopologyFactory factory =
                 new DefaultTopologyEntityCloudTopologyFactory();
         final TopologyEntityCloudTopology topology = factory.newCloudTopology(1, remoteIterator);
-        assertThat(topology.getEntities().values(), contains(CLOUD_ENTITY));
+        assertThat(topology.getEntities().values(), contains(CLOUD_ENTITY_E));
     }
 }

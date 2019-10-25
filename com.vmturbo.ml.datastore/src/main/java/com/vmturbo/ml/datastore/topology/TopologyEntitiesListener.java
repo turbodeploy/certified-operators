@@ -1,14 +1,17 @@
 package com.vmturbo.ml.datastore.topology;
 
 import java.time.Duration;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.ml.datastore.influx.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -96,7 +99,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
      */
     @Override
     public void onTopologyNotification(@Nonnull final TopologyInfo topologyInfo,
-                                       @Nonnull final RemoteIterator<TopologyEntityDTO> entityIterator) {
+                                       @Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> entityIterator) {
         final long topologyContextId = topologyInfo.getTopologyContextId();
         final long topologyId = topologyInfo.getTopologyId();
         final long timeMs = topologyInfo.getCreationTime();
@@ -116,7 +119,12 @@ public class TopologyEntitiesListener implements EntitiesListener {
 
             final DataMetricTimer topologyWriterTimer = TOPOLOGY_METRIC_WRITE_TIME_HISTOGRAM.startTimer();
             while (entityIterator.hasNext()) {
-                totalDataPointsWritten += metricsWriter.writeMetrics(entityIterator.nextChunk(), timeMs,
+                Collection<TopologyEntityDTO> dtos =
+                    entityIterator.nextChunk().stream()
+                                  .filter(TopologyDTO.Topology.DataSegment::hasEntity)
+                                  .map(TopologyDTO.Topology.DataSegment::getEntity)
+                                  .collect(Collectors.toList());
+                totalDataPointsWritten += metricsWriter.writeMetrics(dtos, timeMs,
                     boughtStatistics,
                     soldStatistics,
                     clusterStatistics);

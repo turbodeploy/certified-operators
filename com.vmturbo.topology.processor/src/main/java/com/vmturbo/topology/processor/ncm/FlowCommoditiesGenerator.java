@@ -1,8 +1,23 @@
 package com.vmturbo.topology.processor.ncm;
 
+import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.FLOW;
+import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.NET_THROUGHPUT;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.AVAILABILITY_ZONE;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.CHASSIS;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.CONTAINER_POD;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.DATACENTER;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.REGION;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_DATACENTER;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -12,14 +27,14 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.utilities.CommoditiesBought;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
 
-import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.FLOW;
-import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.NET_THROUGHPUT;
-import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.*;
-
+/**
+ * The flow commodities generator.
+ */
 public class FlowCommoditiesGenerator {
     /**
      * The matrix.
@@ -27,7 +42,7 @@ public class FlowCommoditiesGenerator {
     private final MatrixInterface matrix;
 
     /**
-     * Constructs the {@link FlowCommoditiesGenerator}
+     * Constructs the {@link FlowCommoditiesGenerator}.
      *
      * @param matrix The Communication Matrix.
      */
@@ -186,25 +201,8 @@ public class FlowCommoditiesGenerator {
                                      .setActive(true)
                                      .setResizable(true)
                                      .setKey(key)
+                                     .setUsed(0)
                                      .setCapacity(capacity);
-    }
-
-    /**
-     * Build bought Flow commodity.
-     *
-     * @param providerID   The provider ID.
-     * @param providerType The provider type.
-     * @return The bought commodity.
-     */
-    private CommodityBought buildBoughtFlowComm(
-        final String providerID,
-        final CommonDTO.EntityDTO.EntityType providerType,
-        final @Nonnull Builder soldComm) {
-        return CommodityBought.newBuilder()
-                              .setProviderId(providerID)
-                              .setProviderType(providerType)
-                              .addBought(soldComm)
-                              .build();
     }
 
     /**
@@ -230,11 +228,52 @@ public class FlowCommoditiesGenerator {
             soldComms[i] = buildSoldFlowComm(FlowsCommonUtils.FLOW_KEYS[i], flowCapacities[i]);
             pm.addCommoditySold(soldComms[i], Optional.empty());
         }
+        List<StitchingEntity> vms = new ArrayList<>();
+        // Get the VDCs.
+        pm.getConsumers().stream().filter(e -> e.getEntityType().equals(VIRTUAL_DATACENTER))
+          .forEach(vdc -> vdc.getConsumers().stream()
+                             .filter(e -> e.getEntityType().equals(VIRTUAL_MACHINE))
+                             .collect(Collectors.toCollection(() -> vms)));
         // Get the VMs.
-        Set<StitchingEntity> consumers = pm.getConsumers().stream()
-                                           .filter(e -> e.getEntityType().equals(VIRTUAL_MACHINE))
-                                           .collect(Collectors.toSet());
-        consumers.forEach(c -> setFlowCommoditiesVMs(pm.getLocalId(), c, soldComms));
+        pm.getConsumers().stream().filter(e -> e.getEntityType().equals(VIRTUAL_MACHINE))
+          .collect(Collectors.toCollection(() -> vms));
+        vms.forEach(c -> setFlowCommoditiesVMs(pm.getLocalId(), c, soldComms));
+    }
+
+    /**
+     * Constructs bought flow commodity.
+     *
+     * @param key      The key.
+     * @param capacity The capacity.
+     * @param used     The used value.
+     * @return The bought commodity builder.
+     */
+    private @Nonnull CommonDTO.CommodityDTO.Builder genBoughtComm(final @Nonnull String key,
+                                                                  final double used,
+                                                                  final double capacity) {
+        return CommonDTO.CommodityDTO.newBuilder()
+                                     .setCommodityType(FLOW)
+                                     .setActive(true)
+                                     .setResizable(true)
+                                     .setKey(key)
+                                     .setUsed(used)
+                                     .setCapacity(capacity);
+    }
+
+    /**
+     * Retrieves the endpoint flows.
+     *
+     * @param enpoint The endpoint.
+     * @return The flows.
+     */
+    private double[] getFlows(final @Nonnull StitchingEntity enpoint) {
+        double[] flows = matrix.getEndpointFlows(enpoint.getOid());
+        if (flows.length == 0) {
+            flows = new double[]{0., 0., 0., 0.};
+        } else if (flows[0] == 0) {
+            flows[0] = 1.;
+        }
+        return flows;
     }
 
     /**
@@ -247,13 +286,21 @@ public class FlowCommoditiesGenerator {
     private void setFlowCommoditiesVMs(final @Nonnull String providerID,
                                        final @Nonnull StitchingEntity vm,
                                        final @Nonnull Builder[] soldComms) {
+        // Check whether we've been here already.
+        if (vm.getCommoditiesSold().anyMatch(c -> c.getKey().startsWith("FLOW"))) {
+            return;
+        }
+        CommodityBought.Builder cb = CommodityBought.newBuilder()
+                                                    .setProviderId(providerID)
+                                                    .setProviderType(PHYSICAL_MACHINE);
+        final double[] flows = getFlows(vm);
         for (int i = 0; i < FlowsCommonUtils.FLOW_KEYS.length; i++) {
-            CommodityBought comm = buildBoughtFlowComm(providerID, PHYSICAL_MACHINE, soldComms[i]);
-            vm.getEntityBuilder().addCommoditiesBought(comm);
+            cb.addBought(genBoughtComm(soldComms[i].getKey(), flows[i], soldComms[i].getCapacity()));
             vm.addCommoditySold(buildSoldFlowComm(FlowsCommonUtils.FLOW_KEYS[i],
                                                   soldComms[i].getCapacity()),
                                 Optional.empty());
         }
+        addBoughtComm(vm, PHYSICAL_MACHINE, cb);
         Set<StitchingEntity> consumers = vm.getConsumers().stream()
                                            .filter(e -> e.getEntityType().equals(CONTAINER_POD))
                                            .collect(Collectors.toSet());
@@ -261,19 +308,50 @@ public class FlowCommoditiesGenerator {
     }
 
     /**
+     * Add bought commodities.
+     *
+     * @param se   The entity.
+     * @param type The provider entity type.
+     * @param cb   The bought commodities.
+     */
+    private void addBoughtComm(final @Nonnull StitchingEntity se,
+                               final @Nonnull CommonDTO.EntityDTO.EntityType type,
+                               final @Nonnull CommodityBought.Builder cb) {
+        List<CommonDTO.CommodityDTO.Builder> comms = cb.getBoughtList().stream()
+                                                       .map(CommonDTO.CommodityDTO::toBuilder)
+                                                       .collect(Collectors.toList());
+        for (Map.Entry<StitchingEntity, List<CommoditiesBought>> e :
+            se.getCommodityBoughtListByProvider().entrySet()) {
+            if (e.getKey().getEntityBuilder().getEntityType() == type) {
+                final List<CommoditiesBought> v = e.getValue();
+                if (v.isEmpty()) {
+                    v.add(new CommoditiesBought(comms));
+                } else {
+                    v.get(v.size() - 1).getBoughtList().addAll(comms);
+                }
+                return;
+            }
+        }
+    }
+
+    /**
      * Sets the flow commodities for Container Pods.
      *
      * @param providerID The provider ID.
-     * @param vm         The entity (VM).
+     * @param pod        The entity.
      * @param soldComms  The array of sold commodities.
      */
     private void setFlowCommoditiesPods(final @Nonnull String providerID,
-                                        final @Nonnull StitchingEntity vm,
+                                        final @Nonnull StitchingEntity pod,
                                         final @Nonnull Builder[] soldComms) {
+        CommodityBought.Builder cb = CommodityBought.newBuilder()
+                                                    .setProviderId(providerID)
+                                                    .setProviderType(VIRTUAL_MACHINE);
+        final double[] flows = getFlows(pod);
         for (int i = 0; i < FlowsCommonUtils.FLOW_KEYS.length; i++) {
-            CommodityBought comm = buildBoughtFlowComm(providerID, VIRTUAL_MACHINE, soldComms[i]);
-            vm.getEntityBuilder().addCommoditiesBought(comm);
+            cb.addBought(genBoughtComm(soldComms[i].getKey(), flows[i], soldComms[i].getCapacity()));
         }
+        addBoughtComm(pod, VIRTUAL_MACHINE, cb);
     }
 
     //

@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.arangodb.ArangoDBException;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -185,7 +186,7 @@ public class MarketTopologyListener implements
 
     @Override
     public void onPlanAnalysisTopology(final TopologyInfo topologyInfo,
-                                       @Nonnull final RemoteIterator<TopologyEntityDTO> topologyDTOs) {
+                                       @Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> topologyDTOs) {
         try {
             onPlanAnalysisTopologyReceivedInternal(topologyInfo, topologyDTOs);
         } catch (CommunicationException | InterruptedException e) {
@@ -207,7 +208,7 @@ public class MarketTopologyListener implements
      * @throws InterruptedException  Throws InterruptedException
      */
     private void onPlanAnalysisTopologyReceivedInternal(TopologyInfo topologyInfo,
-                                                @Nonnull final RemoteIterator<TopologyEntityDTO> entityIterator)
+                                                @Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> entityIterator)
             throws CommunicationException, InterruptedException {
 
         final long topologyId = topologyInfo.getTopologyId();

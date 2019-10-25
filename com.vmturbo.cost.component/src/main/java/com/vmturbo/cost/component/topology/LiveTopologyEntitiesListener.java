@@ -9,6 +9,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
@@ -74,7 +75,7 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
 
     @Override
     public void onTopologyNotification(@Nonnull final TopologyInfo topologyInfo,
-                                       @Nonnull final RemoteIterator<TopologyEntityDTO> entityIterator) {
+                                       @Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> entityIterator) {
 
         final long topologyContextId = topologyInfo.getTopologyContextId();
         if (topologyContextId != realtimeTopologyContextId) {

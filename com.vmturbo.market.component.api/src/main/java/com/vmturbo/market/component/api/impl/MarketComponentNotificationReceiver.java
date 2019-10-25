@@ -19,6 +19,7 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityCosts;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start;
@@ -82,7 +83,7 @@ public class MarketComponentNotificationReceiver extends
     private final Set<ProjectedEntityCostsListener> projectedEntityCostsListenersSet;
     private final Set<ProjectedReservedInstanceCoverageListener> projectedEntityRiCoverageListenersSet;
     private final Set<PlanAnalysisTopologyListener> planAnalysisTopologyListenersSet;
-    private final ChunkingReceiver<TopologyEntityDTO> planAnalysisTopologyChunkReceiver;
+    private final ChunkingReceiver<TopologyDTO.Topology.DataSegment> planAnalysisTopologyChunkReceiver;
     private final ChunkingReceiver<ProjectedTopologyEntity> projectedTopologyChunkReceiver;
     private final ChunkingReceiver<EntityCost> projectedEntityCostChunkReceiver;
     private final ChunkingReceiver<EntityReservedInstanceCoverage> projectedEntityRiCoverageChunkReceiver;
@@ -344,10 +345,10 @@ public class MarketComponentNotificationReceiver extends
         }).collect(Collectors.toList());
     }
 
-    private Collection<Consumer<RemoteIterator<TopologyEntityDTO>>> createPlanAnalysisTopologyChunkConsumers(
+    private Collection<Consumer<RemoteIterator<TopologyDTO.Topology.DataSegment>>> createPlanAnalysisTopologyChunkConsumers(
             final TopologyInfo topologyInfo) {
         return planAnalysisTopologyListenersSet.stream().map(listener -> {
-            final Consumer<RemoteIterator<TopologyEntityDTO>> consumer =
+            final Consumer<RemoteIterator<TopologyDTO.Topology.DataSegment>> consumer =
                     iterator -> listener.onPlanAnalysisTopology(
                             topologyInfo, iterator);
             return consumer;
