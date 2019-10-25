@@ -11,6 +11,8 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.function.Function;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -25,7 +27,7 @@ import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
 import com.vmturbo.api.dto.entityaspect.VirtualDisksAspectApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
-
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
@@ -303,13 +305,14 @@ public class VirtualVolumeAspectMapperTest {
     private final String virtualVolumeDisplayName = "volume1";
 
     private final int storageAccessCapacity = 512000;
-    private final int storageAmountCapacity = 500;
+    private final int storageAmountCapacityInMB = 2 * 1024;
     private final String snapshotId = "snap-vv1";
 
-    private TopologyEntityDTO virtualVolume1 = TopologyEntityDTO.newBuilder()
+    private Function<EnvironmentType, TopologyEntityDTO> getVirtualVolume = (envType) -> TopologyEntityDTO.newBuilder()
             .setOid(virtualVolumeId)
             .setDisplayName(virtualVolumeDisplayName)
             .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+            .setEnvironmentType(envType)
             .addConnectedEntityList(ConnectedEntity.newBuilder()
                     .setConnectedEntityId(volumeConnectedZoneId)
                     .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
@@ -325,13 +328,16 @@ public class VirtualVolumeAspectMapperTest {
             .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                     .setVirtualVolume(VirtualVolumeInfo.newBuilder()
                             .setStorageAccessCapacity(storageAccessCapacity)
-                            .setStorageAmountCapacity(storageAmountCapacity)
+                            .setStorageAmountCapacity(storageAmountCapacityInMB)
                             .setSnapshotId(snapshotId)
                             .build()))
             .build();
 
+    /**
+     * Test mapOnVolume for Cloud Volume.
+     */
     @Test
-    public void testMapVolume() {
+    public void testMapVolumeCloud() {
         storageTierSEApiDTO.setUuid(storageTierId1.toString());
         storageTierSEApiDTO.setDisplayName(storageDisplayName);
 
@@ -354,8 +360,8 @@ public class VirtualVolumeAspectMapperTest {
         RepositoryApi.MultiEntityRequest storageTierRequest = ApiTestUtils.mockMultiSEReq(Lists.newArrayList(storageTierSEApiDTO));
         when(repositoryApi.entitiesRequest(Sets.newHashSet(storageTierId1))).thenReturn(storageTierRequest);
 
-        VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO) volumeAspectMapper.mapEntitiesToAspect(
-                Lists.newArrayList(virtualVolume1));
+        VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper.mapEntitiesToAspect(
+                Lists.newArrayList(getVirtualVolume.apply(EnvironmentType.CLOUD)));
 
         assertEquals(1, aspect.getVirtualDisks().size());
 
@@ -379,7 +385,69 @@ public class VirtualVolumeAspectMapperTest {
         java.util.Optional<StatApiDTO> statApiDTOStorageAccess = stats.stream().filter(stat -> stat.getName() == "StorageAccess").findFirst();
         assertEquals(statApiDTOStorageAccess.get().getCapacity().getAvg().longValue(), storageAccessCapacity);
         java.util.Optional<StatApiDTO> statApiDTOStorageAmount = stats.stream().filter(stat -> stat.getName() == "StorageAmount").findFirst();
-        assertEquals(statApiDTOStorageAmount.get().getCapacity().getAvg().longValue(), storageAmountCapacity);
+        assertEquals(storageAmountCapacityInMB / 1024F, statApiDTOStorageAmount.get().getCapacity().getAvg().longValue(), 0.00001);
+        assertEquals(VirtualVolumeAspectMapper.CLOUD_STORAGE_AMOUNT_UNIT, statApiDTOStorageAmount.get().getUnits());
+
+        assertEquals(volumeAspect.getSnapshotId(), snapshotId);
+        assertEquals(virtualVolumeDisplayName, volumeAspect.getDisplayName());
+
+        assertEquals(String.valueOf(vmId1), volumeAspect.getAttachedVirtualMachine().getUuid());
+    }
+
+    /**
+     * test MapOnVolume method for on-perm volume.
+     */
+    @Test
+    public void testMapVolumeOnPerm() {
+        storageTierSEApiDTO.setUuid(storageTierId1.toString());
+        storageTierSEApiDTO.setDisplayName(storageDisplayName);
+
+        volumeConnectedBusinessAccount.setUuid(volumeConnectedBusinessAccountId.toString());
+        volumeConnectedBusinessAccount.setDisplayName(volumeConnectedBusinessAccountDisplayName);
+
+        doAnswer(invocation -> {
+            SearchParameters param = invocation.getArgumentAt(0, SearchParameters.class);
+            if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_MACHINE))) {
+                return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(vm1));
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeConnectedZoneId, TraversalDirection.CONNECTED_FROM, UIEntityType.REGION))) {
+                return ApiTestUtils.mockSearchReq(Lists.newArrayList(volumeConnectedZone));
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.CONNECTED_FROM, UIEntityType.BUSINESS_ACCOUNT))) {
+                return ApiTestUtils.mockSearchSEReq(Lists.newArrayList(volumeConnectedBusinessAccount));
+            } else {
+                throw new IllegalArgumentException(param.toString());
+            }
+        }).when(repositoryApi).newSearchRequest(any(SearchParameters.class));
+
+        RepositoryApi.MultiEntityRequest storageTierRequest = ApiTestUtils.mockMultiSEReq(Lists.newArrayList(storageTierSEApiDTO));
+        when(repositoryApi.entitiesRequest(Sets.newHashSet(storageTierId1))).thenReturn(storageTierRequest);
+
+        VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO) volumeAspectMapper.mapEntitiesToAspect(
+            Lists.newArrayList(getVirtualVolume.apply(EnvironmentType.ON_PREM)));
+
+        assertEquals(1, aspect.getVirtualDisks().size());
+
+        // check the virtual disks for each file on the wasted storage
+        VirtualDiskApiDTO volumeAspect = null;
+        for (VirtualDiskApiDTO virtualDiskApiDTO : aspect.getVirtualDisks()) {
+            if (virtualDiskApiDTO.getDisplayName().equals(virtualVolumeDisplayName)) {
+                volumeAspect = virtualDiskApiDTO;
+            }
+        }
+
+        assertNotNull(volumeAspect);
+        assertEquals(String.valueOf(virtualVolumeId), volumeAspect.getUuid());
+        assertEquals(String.valueOf(storageTierId1), volumeAspect.getProvider().getUuid());
+        assertEquals(String.valueOf(volumeConnectedZoneId), volumeAspect.getDataCenter().getUuid());
+        assertEquals(String.valueOf(volumeConnectedBusinessAccountId), volumeAspect.getBusinessAccount().getUuid());
+
+        // check stats for volume
+        java.util.List<StatApiDTO> stats = volumeAspect.getStats();
+        assertEquals(2, stats.size());
+        java.util.Optional<StatApiDTO> statApiDTOStorageAccess = stats.stream().filter(stat -> stat.getName() == "StorageAccess").findFirst();
+        assertEquals(statApiDTOStorageAccess.get().getCapacity().getAvg().longValue(), storageAccessCapacity);
+        java.util.Optional<StatApiDTO> statApiDTOStorageAmount = stats.stream().filter(stat -> stat.getName() == "StorageAmount").findFirst();
+        assertEquals(storageAmountCapacityInMB, statApiDTOStorageAmount.get().getCapacity().getAvg().longValue());
+        assertEquals(CommodityTypeUnits.STORAGE_AMOUNT.getUnits(), statApiDTOStorageAmount.get().getUnits());
 
         assertEquals(volumeAspect.getSnapshotId(), snapshotId);
         assertEquals(virtualVolumeDisplayName, volumeAspect.getDisplayName());

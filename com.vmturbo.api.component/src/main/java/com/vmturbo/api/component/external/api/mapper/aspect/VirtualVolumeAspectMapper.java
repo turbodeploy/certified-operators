@@ -36,6 +36,7 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord.StatValue;
@@ -54,6 +55,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -65,6 +67,16 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
     private static final Logger logger = LogManager.getLogger();
     // use for storage tier value for non cloud entities
     private static final String UNKNOWN = "unknown";
+
+    /**
+     * Unit used for Cloud Storage.
+     */
+    protected static final String CLOUD_STORAGE_AMOUNT_UNIT = "GiB";
+
+    /**
+     * Unit value used for Cloud Storage.
+     */
+    protected static final float CLOUD_STORAGE_AMOUNT_UNIT_IN_BYTE = Units.GBYTE;
 
     private final String COSTCOMPONENT = "costComponent";
 
@@ -616,9 +628,17 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
             statDTOs.addAll(volumeCostStatById.get(volume.getOid()));
         }
         // storage amount stats
-        statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
+        // Note: Different units are used for ON-PERM and CLOUD.  But for api requires
+        //       the same commodity type.
+        if (EnvironmentTypeEnum.EnvironmentType.CLOUD.equals(volume.getEnvironmentType())) {
+            statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
+                CLOUD_STORAGE_AMOUNT_UNIT, convertStorageAmountToCloudStorageAmount(storageAmountUsed),
+                convertStorageAmountToCloudStorageAmount(storageAmountCapacity), storageTier, volume.getDisplayName()));
+        } else {
+            statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
                 CommodityTypeUnits.STORAGE_AMOUNT.getUnits(), storageAmountUsed,
                 storageAmountCapacity, storageTier, volume.getDisplayName()));
+        }
         // storage access stats
         statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_ACCESS.getMixedCase(),
                 CommodityTypeUnits.STORAGE_ACCESS.getUnits(), storageAccessUsed,
@@ -626,6 +646,28 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
         virtualDiskApiDTO.setStats(statDTOs);
 
         return virtualDiskApiDTO;
+    }
+
+    /**
+     * Helper method to convert Storage Amount to the preferred unit value for Cloud.
+     *
+     * @param storageAmount Original storage Amount in the unit of {@link CommodityTypeUnits}.STORAGE_AMOUNT
+     * @return the converted amount in unit of Cloud Storage
+     */
+    private static float convertStorageAmountToCloudStorageAmount(float storageAmount) {
+        switch (CommodityTypeUnits.STORAGE_AMOUNT.getUnits()) {
+            case "MB":
+                return storageAmount * (Units.MBYTE / CLOUD_STORAGE_AMOUNT_UNIT_IN_BYTE);
+            case "KB":
+                return storageAmount * (Units.KBYTE / CLOUD_STORAGE_AMOUNT_UNIT_IN_BYTE);
+            case "GB":
+                return storageAmount * (Units.GBYTE / CLOUD_STORAGE_AMOUNT_UNIT_IN_BYTE);
+            case "TB":
+                return storageAmount * (Units.TBYTE / CLOUD_STORAGE_AMOUNT_UNIT_IN_BYTE);
+            default:
+                logger.error("Undefined Storage Amount Units {}.", CommodityTypeUnits.STORAGE_AMOUNT.getUnits());
+                return storageAmount;
+        }
     }
 
     /**
