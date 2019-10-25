@@ -49,6 +49,7 @@ import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.user.ActiveDirectoryApiDTO;
 import com.vmturbo.api.dto.user.ActiveDirectoryGroupApiDTO;
 import com.vmturbo.api.dto.user.ChangePasswordApiDTO;
+import com.vmturbo.api.dto.user.PropertyValueApiDTO;
 import com.vmturbo.api.dto.user.SAMLIdpApiDTO;
 import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
@@ -866,6 +867,47 @@ public class UsersService implements IUsersService {
     @Override
     public List<BaseApiDTO> deleteFavoriteScopesByUser(String uuid, String scopeUuid)
             throws Exception {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Get user preference properties by userUuid.
+     * Unsupported for XL.
+     *
+     * @param userUuid The UUID.
+     * @return List of PropertyValueApiDTO.
+     * @throws Exception - UnsupportedOperationException always.
+     */
+    @Override
+    public List<PropertyValueApiDTO> getPreferencePropertiesByUser(String userUuid) throws Exception {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Set a user preference property by userUuid.
+     * Unsupported for XL.
+     *
+     * @param userUuid      The UUID.
+     * @param property property key.
+     * @param value property value
+     * @return PropertyValueApiDTO Containing the property that was updated
+     * @throws Exception - UnsupportedOperationException always.
+     */
+    @Override
+    public PropertyValueApiDTO setPreferencePropertyByUser(String userUuid, String property, String value) throws Exception {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Delete a user preference property by userUuid.
+     * Unsupported for XL.
+     *
+     * @param userUuid      The UUID.
+     * @param property property key.
+     * @throws Exception - UnsupportedOperationException always.
+     */
+    @Override
+    public void deletePreferencePropertyByUser(String userUuid, String property) throws Exception {
         throw new UnsupportedOperationException();
     }
 
