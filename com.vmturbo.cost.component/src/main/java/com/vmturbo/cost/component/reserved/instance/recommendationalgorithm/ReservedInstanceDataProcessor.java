@@ -396,9 +396,7 @@ public class ReservedInstanceDataProcessor {
 
     /**
      * Apply zonal RI's with the demand. The instance type in the context may be different than the
-     * instance type in the cluster if instance size flexible. Then we combine the results with
-     * combineDemand. We Also remove the negative unpopulated data points before return the array
-     * of demands.
+     * instance type in the cluster if instance size flexible.
      *
      * @param zonalContextDemands a map of from zonal context to demand. This method may modify the
      *                            demand portion of this parameter.
@@ -419,14 +417,13 @@ public class ReservedInstanceDataProcessor {
     /**
      * Apply zonal RI with the demand. The instance type in the context may be different than the
      * instance type in the cluster(mapping from regional context to a list of zonal contexts) if
-     * instance size flexible. Then we combine the results with combineDemand. We Also remove the
-     * negative unpopulated data points before return the array of demands.
+     * instance size flexible.
      *
      * @param demand                the normalized demand for the zonal context. This method may modify
      *                              the demand portion of this parameter.
-     * @param zonalContext  the zonal context.
-     * @param buyComputeTier The compute tier of the zonal context.
-     * @param priceAndRIProvider Facade to access the rate and reserved instances.
+     * @param zonalContext          the zonal context.
+     * @param buyComputeTier        The compute tier of the zonal context.
+     * @param priceAndRIProvider    Facade to access the rate and reserved instances.
      */
     void applyZonalRIs(@Nullable float[] demand,
                           @Nonnull ReservedInstanceZonalContext zonalContext,

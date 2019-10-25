@@ -462,7 +462,7 @@ public class ReservedInstanceAnalyzer {
             clustersAnalyzed++;
             RecommendationKernelAlgorithmResult kernelResult;
             kernelResult = RecommendationKernelAlgorithm.computation(rates.getOnDemandRate(),
-                rates.getReservedInstanceRate(), riBuyDemand, regionalContext.toString(), logTag);
+                rates.getReservedInstanceRate(), removeNegativeDataPoints(riBuyDemand), regionalContext.toString(), logTag);
             if (kernelResult == null) {
                 continue;
             }
@@ -672,6 +672,37 @@ public class ReservedInstanceAnalyzer {
                                                            type.getPaymentOption());
 
         }
+    }
+
+    /**
+     * Given an array of floats, remove the negative values.
+     *
+     * @param demand data that may contain "-1".
+     * @return demand with "-1" removed.
+     */
+    @Nullable
+    protected float[] removeNegativeDataPoints(float[] demand) {
+        if (demand == null || demand.length == 0) {
+            return null;
+        }
+        // remove all "-1" from data
+        ArrayList<Float> resultList = new ArrayList<>();
+        for (int i = 0; i < demand.length; i++) {
+            if (demand[i] >= 0) {
+                resultList.add(demand[i]);
+            }
+        }
+        if (resultList.size() == 0) {
+            return null;
+        }
+
+        // convert to float array.
+        float[] results = new float[resultList.size()];
+        int i = 0;
+        for (Float f: resultList) {
+            results[i++] = (f != null ? f : 0f);
+        }
+        return results;
     }
 
     /**
