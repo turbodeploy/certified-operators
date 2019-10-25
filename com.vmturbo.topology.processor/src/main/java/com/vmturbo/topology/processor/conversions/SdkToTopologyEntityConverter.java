@@ -117,6 +117,12 @@ public class SdkToTopologyEntityConverter {
     // All probes using tags should be modified
     public static final String TAG_NAMESPACE = "VCTAGS";
 
+    /**
+     * Property to use for sending the discovering target id.  This is used by
+     * BusinessAccountInfoMapper to set the discovering target id for some business accounts.
+     */
+    public static final String DISCOVERING_TARGET_ID = "discoveringTargetId";
+
     private SdkToTopologyEntityConverter() {}
 
     private static int type(CommonDTO.EntityDTOOrBuilder dto) {
@@ -266,6 +272,10 @@ public class SdkToTopologyEntityConverter {
         if (dto.hasStorageData()) {
             // set local attribute to true for local storages
             entityPropertyMap.put("local", String.valueOf(isLocalStorage(entity)));
+        }
+
+        if (dto.hasBusinessAccountData()) {
+            entityPropertyMap.put(DISCOVERING_TARGET_ID, String.valueOf(entity.getTargetId()));
         }
 
         TypeSpecificInfo info = mapToTypeSpecificInfo(dto, entityPropertyMap);

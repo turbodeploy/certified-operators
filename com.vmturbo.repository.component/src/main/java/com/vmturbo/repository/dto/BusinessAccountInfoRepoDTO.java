@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
@@ -19,7 +20,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
 @JsonInclude(Include.NON_EMPTY)
 public class BusinessAccountInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
-    private Boolean hasAssociatedTarget;
+    private Long associatedTargetId;
     private String accountId;
     private List<PricingIdentifierRepoDTO> pricingIdentifiers;
 
@@ -30,7 +31,9 @@ public class BusinessAccountInfoRepoDTO implements TypeSpecificInfoRepoDTO {
             return;
         }
         BusinessAccountInfo businessAccountInfo = typeSpecificInfo.getBusinessAccount();
-        setHasAssociatedTarget(businessAccountInfo.getHasAssociatedTarget());
+        if (businessAccountInfo.hasAssociatedTargetId()) {
+            setAssociatedTargetId(businessAccountInfo.getAssociatedTargetId());
+        }
         final List<PricingIdentifierRepoDTO> pricingIds = Lists.newArrayList();
         setAccountId(businessAccountInfo.getAccountId());
         businessAccountInfo.getPricingIdentifiersList()
@@ -46,8 +49,8 @@ public class BusinessAccountInfoRepoDTO implements TypeSpecificInfoRepoDTO {
     @Nonnull
     public TypeSpecificInfo createTypeSpecificInfo() {
         final BusinessAccountInfo.Builder businessAccountInfo = BusinessAccountInfo.newBuilder();
-        if (hasAssociatedTarget != null) {
-            businessAccountInfo.setHasAssociatedTarget(hasAssociatedTarget);
+        if (associatedTargetId != null) {
+            businessAccountInfo.setAssociatedTargetId(associatedTargetId);
         }
         if (accountId != null) {
             businessAccountInfo.setAccountId(accountId);
@@ -64,23 +67,24 @@ public class BusinessAccountInfoRepoDTO implements TypeSpecificInfoRepoDTO {
     }
 
     /**
-     * Sets value for hasAssociatedTarget indicating whether this business account was discovered
-     * by a dedicated target (true) or only by the master (false).
+     * Sets value for associatedTargetId indicating the id of the target that discovered this
+     * business account's entities or null if there is no such target.
      *
-     * @param hasAssociatedTarget {@link Boolean} indicating new value for hasAssociatedTarget.
+     * @param associatedTargetId {@link Long} indicating new value for associatedTargetId.
      */
-    public void setHasAssociatedTarget(final Boolean hasAssociatedTarget) {
-        this.hasAssociatedTarget = hasAssociatedTarget;
+    public void setAssociatedTargetId(@Nullable Long associatedTargetId) {
+        this.associatedTargetId = associatedTargetId;
     }
 
     /**
-     * Gets value for hasAssociatedTarget indicating whether this business account was discovered
-     * by a dedicated target (true) or only by the master (false).
+     * Gets value for associatedTargetId giving the targetId that discovered this business account's
+     * entities or null if no such target exists.
      *
      * @return {@link Boolean} indicating the current value of hasAssociatedTarget.
      */
-    public Boolean getHasAssociatedTarget() {
-        return hasAssociatedTarget;
+    @Nullable
+    public Long getAssociatedTargetId() {
+        return associatedTargetId;
     }
 
     /**
@@ -131,20 +135,20 @@ public class BusinessAccountInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
         final BusinessAccountInfoRepoDTO that = (BusinessAccountInfoRepoDTO) o;
 
-        return Objects.equals(hasAssociatedTarget, that.getHasAssociatedTarget()) &&
+        return Objects.equals(associatedTargetId, that.getAssociatedTargetId()) &&
             Objects.equals(accountId, that.getAccountId()) &&
             Objects.equals(pricingIdentifiers, that.getPricingIdentifiers());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(hasAssociatedTarget, accountId, pricingIdentifiers);
+        return Objects.hash(associatedTargetId, accountId, pricingIdentifiers);
     }
 
     @Override
     public String toString() {
         return "BusinessAccountInfoRepoDTO{" +
-                "hasAssociatedTarget=" + hasAssociatedTarget +
+                "associationTargetId=" + associatedTargetId +
                 ", accountId=" + accountId +
                 ", pricingIdentifiers=" + pricingIdentifiers +
                 '}';

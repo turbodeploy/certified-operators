@@ -93,7 +93,13 @@ message TypeSpecificInfo {
         // the target for master BA), but sub BAs are not added as targets. So we need this field to
         // indicate whether there is an associated target for this BA (equivalent to that whether
         // entities for this BA are discovered or not)
-        optional bool has_associated_target = 1 [default = false];
+        // THIS FIELD HAS BEEN DEPRECATED IN FAVOR OF associated_target_id
+        optional bool obsolete_has_associated_target = 1 [deprecated = true];
+
+        // The OID of the target that discovered the entities in this BusinessAccount if one exists.
+        // This is filled in by the topology processor as the probe does not know the target
+        // information.
+        optional int64 associated_target_id = 5;
 
         // The account id used by the third party provider.  For example, for Azure this would be
         // the subscription ID.

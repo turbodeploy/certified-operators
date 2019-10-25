@@ -24,7 +24,7 @@ public class BusinessAccountInfoRepoDTOTest {
     private static final String SUBSCRIPTION_ID = "sub_id";
     private static final String OFFER_ID = "offer_id";
     private static final String ENROLLMENT_NUMBER = "enrollment num";
-    private static final Boolean ASSOCIATED_TARGET_FLAG = true;
+    private static final Long ASSOCIATED_TARGET_ID = 1L;
 
     /**
      * Test filling a RepoDTO from a TypeSpecificInfo with data fields populated.
@@ -35,7 +35,7 @@ public class BusinessAccountInfoRepoDTOTest {
         final TypeSpecificInfo testInfo = TypeSpecificInfo.newBuilder()
             .setBusinessAccount(
                 BusinessAccountInfo.newBuilder()
-                    .setHasAssociatedTarget(ASSOCIATED_TARGET_FLAG)
+                    .setAssociatedTargetId(ASSOCIATED_TARGET_ID)
                     .setAccountId(SUBSCRIPTION_ID)
                     .addPricingIdentifiers(PricingIdentifier.newBuilder()
                         .setIdentifierName(PricingIdentifierName.OFFER_ID)
@@ -64,7 +64,7 @@ public class BusinessAccountInfoRepoDTOTest {
             .map(PricingIdentifierRepoDTO::getIdentifierValue)
             .findFirst()
             .get());
-        assertEquals(ASSOCIATED_TARGET_FLAG, testBusinessAccountRepoDTO.getHasAssociatedTarget());
+        assertEquals(ASSOCIATED_TARGET_ID, testBusinessAccountRepoDTO.getAssociatedTargetId());
     }
 
     /**
@@ -83,6 +83,7 @@ public class BusinessAccountInfoRepoDTOTest {
         // assert
         assertNull(testBusinessAccountRepoDTO.getAccountId());
         assertNull(testBusinessAccountRepoDTO.getPricingIdentifiers());
+        assertNull(testBusinessAccountRepoDTO.getAssociatedTargetId());
     }
 
     /**
@@ -98,10 +99,10 @@ public class BusinessAccountInfoRepoDTOTest {
         pricingIdList.add(new PricingIdentifierRepoDTO(PricingIdentifierName.OFFER_ID, OFFER_ID));
         pricingIdList.add(new PricingIdentifierRepoDTO(PricingIdentifierName.ENROLLMENT_NUMBER,
             ENROLLMENT_NUMBER));
-        testBusinessAccountRepoDTO.setHasAssociatedTarget(ASSOCIATED_TARGET_FLAG);
+        testBusinessAccountRepoDTO.setAssociatedTargetId(ASSOCIATED_TARGET_ID);
         testBusinessAccountRepoDTO.setPricingIdentifiers(pricingIdList);
         BusinessAccountInfo expected = BusinessAccountInfo.newBuilder()
-            .setHasAssociatedTarget(ASSOCIATED_TARGET_FLAG)
+            .setAssociatedTargetId(ASSOCIATED_TARGET_ID)
             .setAccountId(SUBSCRIPTION_ID)
             .addPricingIdentifiers(PricingIdentifier.newBuilder()
                 .setIdentifierName(PricingIdentifierName.OFFER_ID)

@@ -8,6 +8,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.BusinessAccountData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
+import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
 
 /**
  * Populate the {@link TypeSpecificInfo} unique to a BusinessAccount - i.e. {@link BusinessAccountInfo}
@@ -22,8 +23,11 @@ public class BusinessAccountInfoMapper extends TypeSpecificInfoMapper {
             return TypeSpecificInfo.getDefaultInstance();
         }
         final BusinessAccountData baData = sdkEntity.getBusinessAccountData();
-        BusinessAccountInfo.Builder baInfoBuilder = BusinessAccountInfo.newBuilder()
-            .setHasAssociatedTarget(baData.getDataDiscovered());
+        BusinessAccountInfo.Builder baInfoBuilder = BusinessAccountInfo.newBuilder();
+        if (baData.getDataDiscovered()) {
+            baInfoBuilder.setAssociatedTargetId(Long.parseLong(
+                entityPropertyMap.get(SdkToTopologyEntityConverter.DISCOVERING_TARGET_ID)));
+        }
         if (baData.hasAccountId()) {
             baInfoBuilder.setAccountId(baData.getAccountId());
         }

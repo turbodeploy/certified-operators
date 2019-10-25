@@ -47,9 +47,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartial
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
 
 /**
  * Mapping between Cost domain DTO {@link Discount} and API DTOs
@@ -118,7 +120,7 @@ public class BusinessUnitMapper {
         // It seems it's always NOT master in legacy for new business discount unit.
         businessUnitApiDTO.setMaster(false);
         // It seems it always doesn't have related target in legacy for new business discount unit.
-        businessUnitApiDTO.setHasRelatedTarget(false);
+        businessUnitApiDTO.setAssociatedTargetId(null);
 
         businessUnitApiDTO.setBusinessUnitType(BusinessUnitType.DISCOUNT);
         final String targetType = getTargetType(discount.getAssociatedAccountId())
@@ -435,8 +437,22 @@ public class BusinessUnitMapper {
                 .collect(Collectors.toList()));
         businessUnitApiDTO.setCloudType(cloudType);
         businessUnitApiDTO.setDisplayName(topologyEntityDTO.getDisplayName());
-        businessUnitApiDTO.setHasRelatedTarget(
-            topologyEntityDTO.getTypeSpecificInfo().getBusinessAccount().getHasAssociatedTarget());
+        if (topologyEntityDTO.hasTypeSpecificInfo()
+            && topologyEntityDTO.getTypeSpecificInfo().hasBusinessAccount()) {
+            BusinessAccountInfo bizInfo =
+                topologyEntityDTO.getTypeSpecificInfo().getBusinessAccount();
+            if (bizInfo.hasAccountId()) {
+                businessUnitApiDTO.setAccountId(bizInfo.getAccountId());
+            }
+            if (bizInfo.hasAssociatedTargetId()) {
+                businessUnitApiDTO.setAssociatedTargetId(
+                    bizInfo.getAssociatedTargetId());
+            }
+            businessUnitApiDTO.setPricingIdentifiers(bizInfo.getPricingIdentifiersList()
+                .stream()
+                .collect(Collectors.toMap(pricingId -> pricingId.getIdentifierName().name(),
+                    PricingIdentifier::getIdentifierValue)));
+        }
         businessUnitApiDTO.setMaster(accounts.size() > 0);
         if (accounts.size() > 0) {
             final List<TargetApiDTO> targetApiDTOS = topologyEntityDTO
