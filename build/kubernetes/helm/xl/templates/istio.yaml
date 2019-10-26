@@ -244,6 +244,11 @@ spec:
     app.kubernetes.io/name: {{ .Chart.Name }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     istio: t8c-ingressgateway-{{ .Release.Name }}
+{{- if .Values.global }}
+  {{- if .Values.global.externalIP }}
+  externalIPs:
+  - {{ .Values.global.externalIP }}
+{{ end }}
   ports:
     - name: status-port
       port: 15020
