@@ -8,6 +8,9 @@ import java.util.List;
 
 import javax.ws.rs.core.MediaType;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import org.apache.commons.io.IOUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHeaders;
@@ -19,11 +22,8 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
-
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 
 /**
  * Class to test that generated swagger file is valid.
@@ -54,6 +54,7 @@ public class SwaggerValidationTest extends Assert {
         swaggerText = IOUtils.toString(swaggerIn, Charset.forName("UTF-8"));
     }
 
+    @Ignore
     @Test
     public void testSwaggerIsValid() {
         validateSwagger(swaggerText);
