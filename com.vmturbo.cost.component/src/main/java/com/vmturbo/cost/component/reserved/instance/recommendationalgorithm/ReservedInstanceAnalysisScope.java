@@ -19,6 +19,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
@@ -71,6 +72,10 @@ public class ReservedInstanceAnalysisScope {
     private final RIPurchaseProfile riPurchaseProfile;
 
     /**
+     * The topology on which this analysis is going to be performed.
+     */
+    private final TopologyInfo topologyInfo;
+    /**
      * Create an object describing the scope of analysis to be performed.
      *
      * @param platforms             the set of platforms to analyze. If null, all platforms.
@@ -87,8 +92,9 @@ public class ReservedInstanceAnalysisScope {
      * @param overrideRICoverage    The coverage can be overriden by a percentage. false override
      *                              coverage means default maximum savings and true override
      *                              coverage means specific coverage
-     * @param profile     The type of RI to be bought which includes offering class,
+     * @param profile               The type of RI to be bought which includes offering class,
      *                              payment option, term, purchase date.
+     * @param topologyInfo          The topology for the analysis.
      */
     @VisibleForTesting
     protected ReservedInstanceAnalysisScope(@Nullable Collection<OSType> platforms,
@@ -97,7 +103,8 @@ public class ReservedInstanceAnalysisScope {
                                             @Nullable Collection<Long> accounts,
                                             float preferredCoverage,
                                             boolean overrideRICoverage,
-                                            @Nullable RIPurchaseProfile profile) {
+                                            @Nullable RIPurchaseProfile profile,
+                                            @Nonnull TopologyInfo topologyInfo) {
         if (CollectionUtils.isNotEmpty(platforms) && platforms.contains(OSType.UNKNOWN_OS)) {
             logger.warn("ReservedInstanceAnalysisScope platform contains illegal UNKNOWN_OS, removing it");
             // because platforms may be immutable, create a copy.
@@ -134,6 +141,7 @@ public class ReservedInstanceAnalysisScope {
         this.preferredCoverage = preferredCoverage;
         this.overrideRICoverage = overrideRICoverage;
         this.riPurchaseProfile = profile;
+        this.topologyInfo = topologyInfo;
     }
 
     /**
@@ -149,7 +157,8 @@ public class ReservedInstanceAnalysisScope {
                 startAnalysisRequest.getRegionsList(),
                 startAnalysisRequest.getTenanciesList(),
                 startAnalysisRequest.getAccountsList(), -1, false,
-                startAnalysisRequest.getPurchaseProfile());
+                startAnalysisRequest.getPurchaseProfile(),
+                startAnalysisRequest.getTopologyInfo());
     }
 
     /**
@@ -201,5 +210,9 @@ public class ReservedInstanceAnalysisScope {
 
     public RIPurchaseProfile getRiPurchaseProfile() {
         return riPurchaseProfile;
+    }
+
+    public TopologyInfo getTopologyInfo() {
+        return topologyInfo;
     }
 }

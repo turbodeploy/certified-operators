@@ -22,8 +22,10 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -146,7 +148,8 @@ public class ReservedInstanceAnalysisRecommendation {
                                                   int activeHours,
                                                   int riNormalizedCouponsCoupons,
                                                   float riNormalizedCouponsUsed,
-                                                  @Nonnull ReservedInstanceSpec riSpec) {
+                                                  @Nonnull ReservedInstanceSpec riSpec,
+                                                  TopologyInfo topologyInfo) {
         this.logTag = Objects.requireNonNull(logTag);
         this.actionGoal = Objects.requireNonNull(actionGoal);
         this.context = Objects.requireNonNull(context);
@@ -162,7 +165,7 @@ public class ReservedInstanceAnalysisRecommendation {
         this.riNormalizedCoupons = riNormalizedCouponsCoupons;
         this.riNormalizedCouponsUsed = riNormalizedCouponsUsed;
         this.riSpec = Objects.requireNonNull(riSpec);
-        this.riBoughtInfo = createRiBoughtInfo();
+        this.riBoughtInfo = createRiBoughtInfo(Objects.requireNonNull(topologyInfo));
     }
 
     /**
@@ -368,19 +371,35 @@ public class ReservedInstanceAnalysisRecommendation {
 
     /**
      * Creates the RI Bought object from the buy RI recommendation.
-     * 
+     *
+     * @param topologyInfo The topology for which this RI Bought is going to be created.
      * @return The reserved instance bought info representing this Buy RI recommendation.
      */
-    public ReservedInstanceBoughtInfo createRiBoughtInfo() {
+    public ReservedInstanceBoughtInfo createRiBoughtInfo(@Nonnull TopologyInfo topologyInfo) {
         // TODO: Set the costs once it is ready
         ReservedInstanceBoughtCost.Builder riBoughtCost = ReservedInstanceBoughtCost.newBuilder()
             .setFixedCost(CurrencyAmount.newBuilder().setAmount(0f).build())
             .setRecurringCostPerHour(CurrencyAmount.newBuilder().setAmount(riHourlyCost).build())
             .setUsageCostPerHour(CurrencyAmount.newBuilder().setAmount(0f).build());
-        // TODO: The numberOfCoupons needs to be = (number of instances bought * number of
-        // coupons per instance). Check if riNormalizedCoupons is returning that.
+        final int numOfCoupons = context.getComputeTier().getTypeSpecificInfo().getComputeTier()
+                .getNumCoupons();
         ReservedInstanceBoughtCoupons.Builder riBoughtCoupons = ReservedInstanceBoughtCoupons.newBuilder()
-            .setNumberOfCoupons(riNormalizedCoupons);
+            .setNumberOfCoupons(riNormalizedCoupons * numOfCoupons);
+        /*
+         * In case of Cloud optimized plans with Purchase RI and Optimize Workloads we need to set
+         * the number of coupons used to zero. The reason being when the RI is created for the Buy
+         * RI action, the market attempts to resize VMs to the bought RIs; however, if the bought RIs
+         * have used coupons set, the resize will fail. In all other cases we set the actual used number.
+         * In all other cases (real time and plans other than Purchase RI and Optimize Workloads) we end
+         * up in the else block.
+         */
+        if (topologyInfo.getPlanInfo() != null && topologyInfo.getPlanInfo().getPlanSubType()
+                .equals(StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_AND_OPTIMIZE_SERVICES)) {
+            riBoughtCoupons.setNumberOfCouponsUsed(0);
+        } else {
+            riBoughtCoupons.setNumberOfCouponsUsed(riNormalizedCouponsUsed * numOfCoupons);
+        }
+
         ReservedInstanceBoughtInfo.Builder riBoughtInfoBuilder = ReservedInstanceBoughtInfo.newBuilder()
             .setBusinessAccountId(context.getMasterAccountId())
             .setNumBought(getCount())

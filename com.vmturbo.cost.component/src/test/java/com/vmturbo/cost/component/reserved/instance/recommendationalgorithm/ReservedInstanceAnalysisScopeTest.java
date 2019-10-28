@@ -173,7 +173,7 @@ public class ReservedInstanceAnalysisScopeTest {
     @Test
     public void testConstructorWithNullOSType() {
         ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(null, null,
-            null, null, 1.0f, false, null);
+            null, null, 1.0f, false, null, null);
         assertFalse(scope.getPlatforms().contains(OSType.UNKNOWN_OS));
         assertTrue(osTypeListAllButUnknown(scope.getPlatforms()));
     }
@@ -184,7 +184,7 @@ public class ReservedInstanceAnalysisScopeTest {
     @Test
     public void testConstructorWithNullTenancy() {
         ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(null, null,
-            null, null, 1.0f, false, null);
+            null, null, 1.0f, false, null, null);
         assertFalse(scope.getTenancies().contains(Tenancy.HOST));
         assertTrue(tenancyListAllButHost(scope.getTenancies()));
     }
@@ -195,7 +195,7 @@ public class ReservedInstanceAnalysisScopeTest {
     @Test
     public void testConstructorWithIllegalTenancy() {
         ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(null, null,
-            new ArrayList(Arrays.asList(Tenancy.values())), null, 1.0f, false, null);
+            new ArrayList(Arrays.asList(Tenancy.values())), null, 1.0f, false, null, null);
         assertFalse(scope.getTenancies().contains(Tenancy.HOST));
         assertTrue(tenancyListAllButHost(scope.getTenancies()));
     }
@@ -207,7 +207,7 @@ public class ReservedInstanceAnalysisScopeTest {
     public void testConstructorWithIllegalOSType() {
         ReservedInstanceAnalysisScope scope =
             new ReservedInstanceAnalysisScope(new ArrayList(Arrays.asList(OSType.values())),
-            null, null, null, 1.0f, false, null);
+            null, null, null, 1.0f, false, null, null);
         assertFalse(scope.getPlatforms().contains(OSType.UNKNOWN_OS));
         assertTrue(osTypeListAllButUnknown(scope.getPlatforms()));
     }

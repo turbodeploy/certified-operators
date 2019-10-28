@@ -52,7 +52,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
          */
         ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(null, null,
             null, Arrays.asList(ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_1_OID)
-            , 0f, true, null);
+            , 0f, true, null, null);
         // Create input parameter: tierFamilies
         Map<String, List<TopologyEntityDTO>> tierFamilies = createTierFamilies();
         // Create input parameter: cloudTopology
@@ -108,7 +108,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
             Arrays.asList(ReservedInstanceAnalyzerConstantsTest.REGION_AWS_OHIO_OID),
             Arrays.asList(Tenancy.DEFAULT),
             Arrays.asList(ReservedInstanceAnalyzerConstantsTest.BUSINESS_ACCOUNT_11_OID,
-                ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_1_OID), 0f, true, null);
+                ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_1_OID), 0f, true, null, null);
         Mockito.doReturn(recordSet.stream()).when(store).getAllDemandStats();
         result = new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).computeAnalysisClusters(scope,
             tierFamilies,
@@ -136,7 +136,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
             Arrays.asList(ReservedInstanceAnalyzerConstantsTest.BUSINESS_ACCOUNT_11_OID,
                           ReservedInstanceAnalyzerConstantsTest.BUSINESS_ACCOUNT_12_OID,
                             ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_1_OID),
-            0f, true, null);
+            0f, true, null, null);
         Mockito.doReturn(recordSet.stream()).when(store).getAllDemandStats();
         result = new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).computeAnalysisClusters(scope,
             tierFamilies,
@@ -163,7 +163,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(Arrays.asList(OSType.WINDOWS),
             Arrays.asList(ReservedInstanceAnalyzerConstantsTest.REGION_AWS_OHIO_OID),
             Arrays.asList(Tenancy.DEFAULT),
-            Arrays.asList(ReservedInstanceAnalyzerConstantsTest.BUSINESS_ACCOUNT_11_OID), 0f, true, null);
+            Arrays.asList(ReservedInstanceAnalyzerConstantsTest.BUSINESS_ACCOUNT_11_OID), 0f, true, null, null);
         // Create input parameter tierFamilies
         Map<String, List<TopologyEntityDTO>> tierFamilies = createTierFamilies();
         // Create input parameter: cloudTopology
@@ -184,7 +184,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         scope = new ReservedInstanceAnalysisScope(Arrays.asList(OSType.WINDOWS, OSType.SUSE),
             Arrays.asList(ReservedInstanceAnalyzerConstantsTest.REGION_AWS_OHIO_OID),
             Arrays.asList(Tenancy.DEFAULT),
-            Arrays.asList(ReservedInstanceAnalyzerConstantsTest.BUSINESS_ACCOUNT_11_OID), 0f, true, null);
+            Arrays.asList(ReservedInstanceAnalyzerConstantsTest.BUSINESS_ACCOUNT_11_OID), 0f, true, null, null);
         Mockito.doReturn(recordSet.stream()).when(store).getAllDemandStats();
         result = new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).computeAnalysisClusters(scope,
             tierFamilies,
@@ -202,7 +202,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(null,
             Arrays.asList(ReservedInstanceAnalyzerConstantsTest.REGION_AWS_OHIO_OID),
             Arrays.asList(Tenancy.DEDICATED),
-            Arrays.asList(ReservedInstanceAnalyzerConstantsTest.BUSINESS_ACCOUNT_11_OID), 0f, true, null);
+            Arrays.asList(ReservedInstanceAnalyzerConstantsTest.BUSINESS_ACCOUNT_11_OID), 0f, true, null, null);
         // Create input parameter tierFamilies
         Map<String, List<TopologyEntityDTO>> tierFamilies = createTierFamilies();
         // Create input parameter: cloudTopology
@@ -229,7 +229,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(null,
             Arrays.asList(ReservedInstanceAnalyzerConstantsTest.REGION_AWS_OREGON_OID),
             null,
-            null, 0f, true, null);
+            null, 0f, true, null, null);
         // Create input parameter tierFamilies
         Map<String, List<TopologyEntityDTO>> tierFamilies = createTierFamilies();
         // Create input parameter: cloudTopology
@@ -256,7 +256,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
     public void testComputeAnalysisClustersAccountScoping() {
         // Create input parameter: scope.
         ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(null, null,
-            null, Arrays.asList(ReservedInstanceAnalyzerConstantsTest.BUSINESS_ACCOUNT_12_OID), 0f, true, null);
+            null, Arrays.asList(ReservedInstanceAnalyzerConstantsTest.BUSINESS_ACCOUNT_12_OID), 0f, true, null, null);
         // Create input parameter tierFamilies
         Map<String, List<TopologyEntityDTO>> tierFamilies = createTierFamilies();
         // Create input parameter: cloudTopology
@@ -279,7 +279,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         scope = new ReservedInstanceAnalysisScope(null, null,
             null,
             Arrays.asList(ReservedInstanceAnalyzerConstantsTest.BUSINESS_ACCOUNT_12_OID,
-                ReservedInstanceAnalyzerConstantsTest.BUSINESS_ACCOUNT_21_OID), 0f, true, null);
+                ReservedInstanceAnalyzerConstantsTest.BUSINESS_ACCOUNT_21_OID), 0f, true, null, null);
         Mockito.doReturn(recordSet.stream()).when(store).getAllDemandStats();
 
         result = new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).computeAnalysisClusters(scope,
@@ -318,7 +318,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
          */
         ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(null, null,
             null, Arrays.asList(ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_1_OID,
-            ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_2_OID), 0f, true, null);
+            ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_2_OID), 0f, true, null, null);
         // Create input parameter: tierFamilies
         Map<String, List<TopologyEntityDTO>> tierFamilies = createTierFamilies();
         // Create input parameter: cloudTopology
@@ -377,7 +377,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
         scope = new ReservedInstanceAnalysisScope(null,
             Arrays.asList(ReservedInstanceAnalyzerConstantsTest.REGION_AWS_OHIO_OID),
             Arrays.asList(Tenancy.DEFAULT),
-            Arrays.asList(ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_1_OID), 0f, true, null);
+            Arrays.asList(ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_1_OID), 0f, true, null, null);
         Mockito.doReturn(recordSet.stream()).when(store).getAllDemandStats();
         result = new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).computeAnalysisClusters(scope,
             tierFamilies,
@@ -398,7 +398,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
                 ReservedInstanceAnalyzerConstantsTest.REGION_AWS_OREGON_OID),
             Arrays.asList(Tenancy.DEFAULT, Tenancy.DEDICATED),
             Arrays.asList(ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_1_OID,
-                ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_2_OID), 0f, true, null);
+                ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_2_OID), 0f, true, null, null);
         Mockito.doReturn(recordSet.stream()).when(store).getAllDemandStats();
         result = new ReservedInstanceAnalyzerHistoricalData(store, riMinimumDataPoints).computeAnalysisClusters(scope,
             tierFamilies,
@@ -419,7 +419,7 @@ public class ReservedInstanceAnalyzerHistoricalDataTest {
          * Broken.
          */
         ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(null, null,
-            null, Arrays.asList(ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_2_OID), 0f, true, null);
+            null, Arrays.asList(ReservedInstanceAnalyzerConstantsTest.MASTER_ACCOUNT_2_OID), 0f, true, null, null);
         // Create input parameter: tierFamilies
         Map<String, List<TopologyEntityDTO>> tierFamilies = createTierFamilies();
         // Create input parameter: cloudTopology

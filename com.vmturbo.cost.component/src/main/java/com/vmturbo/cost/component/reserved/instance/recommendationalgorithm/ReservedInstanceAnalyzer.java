@@ -611,7 +611,7 @@ public class ReservedInstanceAnalyzer {
                 activeHours,
                 riPotentialInCoupons,
                 riUsedInCoupons,
-                riSpec);
+                riSpec, scope.getTopologyInfo());
 
         return recommendation;
     }
