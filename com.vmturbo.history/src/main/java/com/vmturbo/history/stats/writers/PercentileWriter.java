@@ -118,14 +118,13 @@ public class PercentileWriter implements StreamObserver<PercentileChunk> {
         incomingData.connect(dataToWrite);
         final long startTimestampMs = percentileChunk.getStartTimestamp();
         this.startTimestamp.set(startTimestampMs);
-        final Timestamp start = new Timestamp(startTimestampMs);
         final byte[] data = percentileChunk.getContent().toByteArray();
         context = historydbIO.JooqBuilder();
         try (PreparedStatement deleteExistingRecord = this.connection.prepareStatement(
                         context.deleteFrom(PERCENTILE_BLOBS_TABLE)
-                                        .where(PERCENTILE_BLOBS_TABLE.START_TIMESTAMP.eq(start))
+                                        .where(PERCENTILE_BLOBS_TABLE.START_TIMESTAMP.eq(startTimestampMs))
                                         .getSQL())) {
-            deleteExistingRecord.setTimestamp(1, start);
+            deleteExistingRecord.setLong(1, startTimestampMs);
             deleteExistingRecord.execute();
         }
         insertNewValues = this.connection.prepareStatement(
@@ -133,8 +132,8 @@ public class PercentileWriter implements StreamObserver<PercentileChunk> {
                                         .columns(PERCENTILE_BLOBS_TABLE.START_TIMESTAMP,
                                                         PERCENTILE_BLOBS_TABLE.AGGREGATION_WINDOW_LENGTH,
                                                         PERCENTILE_BLOBS_TABLE.DATA)
-                                        .values(start, percentileChunk.getPeriod(), data).getSQL());
-        insertNewValues.setTimestamp(1, start);
+                                        .values(startTimestampMs, percentileChunk.getPeriod(), data).getSQL());
+        insertNewValues.setLong(1, startTimestampMs);
         insertNewValues.setLong(2, percentileChunk.getPeriod());
         insertNewValues.setBinaryStream(3, dataToWrite);
         dataWritingPromise = statsWriterExecutorService.submit(() -> {
