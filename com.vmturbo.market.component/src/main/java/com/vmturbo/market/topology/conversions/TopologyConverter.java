@@ -1359,7 +1359,7 @@ public class TopologyConverter {
                         calculateResizedQuantity(histUsage, histUsage,
                                 commoditySoldDTO.getUsed(), commoditySoldDTO.getPeak(),
                                 commoditySoldDTO.getCapacity(),
-                                commoditySoldDTO.getResizeTargetUtilization());
+                                commoditySoldDTO.getResizeTargetUtilization(), true);
                 cert.logCommodityResize(topologyDTO.getOid(), commoditySoldDTO.getCommodityType(),
                         resizedQuantity[0] - commoditySoldDTO.getCapacity());
                 logger.debug(
@@ -1388,7 +1388,7 @@ public class TopologyConverter {
                     final double[] resizedQuantity = calculateResizedQuantity(histUsed, histUsed,
                             commBought.getUsed(), histPeak,
                             commoditySoldDTO.get().getCapacity(),
-                            commBought.getResizeTargetUtilization());
+                            commBought.getResizeTargetUtilization(), false);
                     cert.logCommodityResize(topologyDTO.getOid(), commBought.getCommodityType(),
                             resizedQuantity[0] - commoditySoldDTO.get().getCapacity());
                     logger.debug("Using a peak used of {} for commodity type {} for entity {}.",
@@ -1461,7 +1461,7 @@ public class TopologyConverter {
     }
 
     private double[] calculateResizedQuantity(double resizeUpDemand, double resizeDownDemand,
-            double used, double peak, double capacity, double targetUtil) {
+            double used, double peak, double capacity, double targetUtil, boolean isSoldCommodity) {
         if (targetUtil <= 0.0) {
             targetUtil = EntitySettingSpecs.UtilTarget.getSettingSpec()
                     .getNumericSettingValueType()
@@ -1471,13 +1471,15 @@ public class TopologyConverter {
         // For cloud entities / cloud migration plans, we do not use the peakQuantity.
         // We only use the quantity values inside M2
         final double peakQuantity = Math.max(used, peak) / targetUtil;
-        final double quantity;
+        double quantity = used;
         if (Math.ceil(resizeUpDemand / targetUtil) > capacity) {
             quantity = resizeUpDemand / targetUtil;
         } else if (resizeDownDemand > 0 && Math.ceil(resizeDownDemand / targetUtil) < capacity) {
             quantity = resizeDownDemand / targetUtil;
-        } else {
-            // do not resize
+        } else if (isSoldCommodity) {
+            /* Sold commodities like vMem may sometimes have a zero usage
+            when the probe does not send in metrics. But, this is not applicable for
+            the bought commodities like the throughput commodities. */
             quantity = capacity;
         }
         return new double[]{quantity, peakQuantity};

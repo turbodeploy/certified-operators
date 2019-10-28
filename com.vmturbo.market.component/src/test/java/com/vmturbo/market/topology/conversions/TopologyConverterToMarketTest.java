@@ -982,11 +982,13 @@ public class TopologyConverterToMarketTest {
      */
     @Test
     public void testGetResizedCapacityForCloudResizeDownThroughput() {
+        // pass negative values for boughtHistUsed and boughtUsedPeak to prevent hist utilization
+        // from being set.
         final double[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
                 CommodityDTO.CommodityType.NET_THROUGHPUT_VALUE, /*commodityBoughtUsed*/
                 70, /*commodityBoughtPeak*/80, /*commodityBoughtMax*/
                 90, /*commodityBoughtResizeTargetUtilization*/0.9, /*commoditySoldCapacity*/200,
-                0, 0);
+                -1, -1);
         // new used = used/targetUtil since histUsed is not available
         Assert.assertEquals(70 / 0.9, quantities[0], 0.01f);
         // new peak = max(peak, used) / rtu
@@ -1027,7 +1029,7 @@ public class TopologyConverterToMarketTest {
     }
 
     /**
-     * Test no resize capacity for cloud throughput commodities.
+     * Test no resize capacity for cloud throughput commodities since boughtused/targetUtil == capacity.
      */
     @Test
     public void testGetResizedCapacityForCloudNoResizeThroughput() {
@@ -1038,10 +1040,28 @@ public class TopologyConverterToMarketTest {
                 /*commoditySoldCapacity*/100,
                 50, 80);
         // new used = capacity
-        Assert.assertEquals(100, quantities[0], 0.01f);
+        Assert.assertEquals(70, quantities[0], 0.01f);
         // new peak = max(peak, used) / rtu
         Assert.assertEquals(160, quantities[1], 0.01f);
     }
+
+    /**
+     * Test no resize capacity for cloud throughput commodities when hist bought used is 0.
+     */
+    @Test
+    public void testGetResizedCapacityForZeroHistUsed() {
+        final double[] quantities = getResizedCapacityForCloud(EntityType.VIRTUAL_MACHINE_VALUE,
+                CommodityDTO.CommodityType.NET_THROUGHPUT_VALUE, /*commodityBoughtUsed*/
+                70, /*commodityBoughtPeak*/75, /*commodityBoughtMax*/
+                85, /*commodityBoughtResizeTargetUtilization*/0.5,
+                /*commoditySoldCapacity*/100,
+                0, 0);
+        // new used = capacity
+        Assert.assertEquals(70, quantities[0], 0.01f);
+        // new peak = max(peak, used) / rtu
+        Assert.assertEquals(140, quantities[1], 0.01f);
+    }
+
 
     /**
      * Test that the region_id field is set for a VM's startContext object if the VM is connected
@@ -1144,11 +1164,11 @@ public class TopologyConverterToMarketTest {
                 .setUsed(commodityBoughtUsed)
                 .setPeak(commodityBoughtPeak)
                 .setResizeTargetUtilization(commodityBoughtResizeTargetUtilization);
-        if (boughtHistUsed > 0) {
+        if (boughtHistUsed >= 0) {
             commBoughtBuilder.setHistoricalUsed(HistoricalValues.newBuilder()
                     .setHistUtilization(boughtHistUsed).build());
         }
-        if (boughtHistPeak > 0) {
+        if (boughtHistPeak >= 0) {
             commBoughtBuilder.setHistoricalPeak(HistoricalValues.newBuilder()
                     .setHistUtilization(boughtHistPeak).build());
         }
