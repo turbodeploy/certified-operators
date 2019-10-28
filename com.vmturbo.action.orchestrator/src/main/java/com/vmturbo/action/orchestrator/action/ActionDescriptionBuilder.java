@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
@@ -87,6 +88,7 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_MOVE_WITHOUT_SOURCE("Start {0} on {1}"),
         ACTION_DESCRIPTION_MOVE("{0} {1}{2} from {3} to {4}"),
         ACTION_DESCRIPTION_BUYRI("Buy {0} {1} RIs for {2} in {3}"),
+        SIMPLE_MHZ("{0} MHz"),
         SIMPLE_GB("{0} GB"),
         SIMPLE("{0}");
 
@@ -169,27 +171,24 @@ public class ActionDescriptionBuilder {
         final CommodityDTO.CommodityType commodityType = CommodityDTO.CommodityType
                 .forNumber(resize.getCommodityType().getType());
         // Construct the description based on the attribute type
-        switch (resize.getCommodityAttribute()) {
-            case LIMIT:
-                return ActionMessageFormat.ACTION_DESCRIPTION_RESIZE_REMOVE_LIMIT.format(
-                        beautifyCommodityType(resize.getCommodityType()),
-                        beautifyEntityTypeAndName(entity));
-            case RESERVED:
-                return ActionMessageFormat.ACTION_DESCRIPTION_RESIZE_RESERVATION.format(
-                        resize.getNewCapacity() > resize.getOldCapacity() ? UP : DOWN,
-                        beautifyCommodityType(resize.getCommodityType()),
-                        beautifyEntityTypeAndName(entity),
-                        formatResizeActionCommodityValue(commodityType, resize.getOldCapacity()),
-                        formatResizeActionCommodityValue(commodityType, resize.getNewCapacity()));
-            default:
-                // Regular case: CAPACITY
-                return ActionMessageFormat.ACTION_DESCRIPTION_RESIZE.format(
-                        resize.getNewCapacity() > resize.getOldCapacity() ? UP : DOWN,
-                        beautifyCommodityType(resize.getCommodityType()),
-                        beautifyEntityTypeAndName(entity),
-                        formatResizeActionCommodityValue(commodityType, resize.getOldCapacity()),
-                        formatResizeActionCommodityValue(commodityType, resize.getNewCapacity()));
+        if (resize.getCommodityAttribute() == CommodityAttribute.LIMIT) {
+            return ActionMessageFormat.ACTION_DESCRIPTION_RESIZE_REMOVE_LIMIT.format(
+                beautifyCommodityType(resize.getCommodityType()),
+                beautifyEntityTypeAndName(entity));
         }
+
+        ActionMessageFormat messageFormat =
+            resize.getCommodityAttribute() == CommodityAttribute.CAPACITY ?
+                ActionMessageFormat.ACTION_DESCRIPTION_RESIZE :
+                ActionMessageFormat.ACTION_DESCRIPTION_RESIZE_RESERVATION;
+        return messageFormat.format(
+            resize.getNewCapacity() > resize.getOldCapacity() ? UP : DOWN,
+            beautifyCommodityType(resize.getCommodityType()),
+            beautifyEntityTypeAndName(entity),
+            formatResizeActionCommodityValue(
+                commodityType, entity.getEntityType(), resize.getOldCapacity()),
+            formatResizeActionCommodityValue(
+                commodityType, entity.getEntityType(), resize.getNewCapacity()));
     }
 
     /**
@@ -490,15 +489,19 @@ public class ActionDescriptionBuilder {
      * Format resize actions commodity capacity value to more readable format.
      *
      * @param commodityType commodity type.
+     * @param entityType the entity type to be checked
      * @param capacity commodity capacity which needs to format.
      * @return a string after format.
      */
-    private static String formatResizeActionCommodityValue(@Nonnull final CommodityDTO.CommodityType commodityType,
-                                                    final double capacity) {
+    private static String formatResizeActionCommodityValue(
+            @Nonnull final CommodityDTO.CommodityType commodityType,
+            final int entityType, final double capacity) {
         // Currently all items in this map are converted from default units to GB.
         if (commodityTypeToDefaultUnits.containsKey(commodityType)) {
             return ActionMessageFormat.SIMPLE_GB.format(
                 capacity / (Units.GBYTE / commodityTypeToDefaultUnits.get(commodityType)));
+        } else if (entityType == EntityType.CONTAINER_VALUE) {
+            return ActionMessageFormat.SIMPLE_MHZ.format(capacity);
         } else {
             return ActionMessageFormat.SIMPLE.format(capacity);
         }

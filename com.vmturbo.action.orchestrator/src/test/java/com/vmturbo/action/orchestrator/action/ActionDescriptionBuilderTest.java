@@ -55,6 +55,10 @@ public class ActionDescriptionBuilderTest {
     private ActionDTO.Action resizeRecommendation;
     private ActionDTO.Action resizeMemRecommendation;
     private ActionDTO.Action resizeMemReservationRecommendation;
+    private ActionDTO.Action resizeVcpuRecommendationForVM;
+    private ActionDTO.Action resizeVcpuReservationRecommendationForVM;
+    private ActionDTO.Action resizeVcpuRecommendationForContainer;
+    private ActionDTO.Action resizeVcpuReservationRecommendationForContainer;
     private ActionDTO.Action deactivateRecommendation;
     private ActionDTO.Action activateRecommendation;
     private ActionDTO.Action reconfigureReasonCommoditiesRecommendation;
@@ -89,6 +93,8 @@ public class ActionDescriptionBuilderTest {
     private final String MASTER_ACCOUNT_DISPLAY_NAME = "my.super.account";
     private final Long REGION_ID = 102L;
     private final String REGION_DISPLAY_NAME = "Manhattan";
+    private final Long CONTAINER1_ID = 11L;
+    private final String CONTAINER1_DISPLAY_NAME = "container1_test";
 
     private EntitiesAndSettingsSnapshot entitySettingsCache = mock(EntitiesAndSettingsSnapshot.class);
 
@@ -108,6 +114,12 @@ public class ActionDescriptionBuilderTest {
         resizeMemRecommendation = makeRec(makeResizeMemInfo(VM1_ID), SupportLevel.SUPPORTED).build();
         resizeMemReservationRecommendation =
                 makeRec(makeResizeReservationMemInfo(VM1_ID), SupportLevel.SUPPORTED).build();
+        resizeVcpuRecommendationForVM = makeRec(makeResizeVcpuInfo(VM1_ID), SupportLevel.SUPPORTED).build();
+        resizeVcpuReservationRecommendationForVM =
+            makeRec(makeResizeReservationVcpuInfo(CONTAINER1_ID), SupportLevel.SUPPORTED).build();
+        resizeVcpuRecommendationForContainer = makeRec(makeResizeVcpuInfo(VM1_ID), SupportLevel.SUPPORTED).build();
+        resizeVcpuReservationRecommendationForContainer =
+            makeRec(makeResizeReservationVcpuInfo(CONTAINER1_ID), SupportLevel.SUPPORTED).build();
 
         deactivateRecommendation =
                 makeRec(makeDeactivateInfo(VM1_ID), SupportLevel.SUPPORTED).build();
@@ -222,6 +234,28 @@ public class ActionDescriptionBuilderTest {
      */
     private ActionInfo.Builder makeResizeReservationMemInfo(long targetId) {
         ActionInfo.Builder builder = makeResizeInfo(targetId, 21, 16 * Units.MBYTE, 8 * Units.MBYTE);
+        builder.getResizeBuilder().setCommodityAttribute(CommodityAttribute.RESERVED);
+        return builder;
+    }
+
+    /**
+     * Create a resize action for mem commodity.
+     *
+     * @param targetId the target entity id
+     * @return {@link ActionInfo.Builder}
+     */
+    private ActionInfo.Builder makeResizeVcpuInfo(long targetId) {
+        return makeResizeInfo(targetId, CommodityDTO.CommodityType.VCPU_VALUE, 16, 8);
+    }
+
+    /**
+     * Create a resize action for mem commodity and on reserved attribute.
+     *
+     * @param targetId the target entity id
+     * @return {@link ActionInfo.Builder}
+     */
+    private ActionInfo.Builder makeResizeReservationVcpuInfo(long targetId) {
+        ActionInfo.Builder builder = makeResizeInfo(targetId, CommodityDTO.CommodityType.VCPU_VALUE, 16, 8);
         builder.getResizeBuilder().setCommodityAttribute(CommodityAttribute.RESERVED);
         return builder;
     }
@@ -536,6 +570,74 @@ public class ActionDescriptionBuilderTest {
 
         Assert.assertEquals(description,
                 "Resize down Mem reservation for Virtual Machine vm1_test from 16 GB to 8 GB");
+    }
+
+    /**
+     * Test resize Vcpu action description for VM.
+     */
+    @Test
+    public void testBuildResizeVcpuActionDescriptionForVM() {
+        when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
+            .thenReturn((createEntity(VM1_ID,
+                EntityType.VIRTUAL_MACHINE.getNumber(),
+                VM1_DISPLAY_NAME)));
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+            entitySettingsCache, resizeVcpuRecommendationForVM);
+
+        Assert.assertEquals(description,
+            "Resize down VCPU for Virtual Machine vm1_test from 16 to 8");
+    }
+
+    /**
+     * Test resize Vcpu reservation action description for VM.
+     */
+    @Test
+    public void testBuildResizeVcpuReservationActionDescriptionForVM() {
+        when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
+            .thenReturn((createEntity(VM1_ID,
+                EntityType.VIRTUAL_MACHINE.getNumber(),
+                VM1_DISPLAY_NAME)));
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+            entitySettingsCache, resizeVcpuReservationRecommendationForVM);
+
+        Assert.assertEquals(description,
+            "Resize down VCPU reservation for Virtual Machine vm1_test from 16 to 8");
+    }
+
+    /**
+     * Test resize Vcpu action description for container.
+     */
+    @Test
+    public void testBuildResizeVcpuActionDescriptionForContainer() {
+        when(entitySettingsCache.getEntityFromOid(eq(CONTAINER1_ID)))
+            .thenReturn((createEntity(CONTAINER1_ID,
+                EntityType.CONTAINER.getNumber(),
+                CONTAINER1_DISPLAY_NAME)));
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+            entitySettingsCache, resizeVcpuRecommendationForContainer);
+
+        Assert.assertEquals(description,
+            "Resize down VCPU for Container container1_test from 16 MHz to 8 MHz");
+    }
+
+    /**
+     * Test resize Vcpu reservation action description for container.
+     */
+    @Test
+    public void testBuildResizeVcpuReservationActionDescriptionForContainer() {
+        when(entitySettingsCache.getEntityFromOid(eq(CONTAINER1_ID)))
+            .thenReturn((createEntity(CONTAINER1_ID,
+                EntityType.CONTAINER.getNumber(),
+                CONTAINER1_DISPLAY_NAME)));
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+            entitySettingsCache, resizeVcpuReservationRecommendationForContainer);
+
+        Assert.assertEquals(description,
+            "Resize down VCPU reservation for Container container1_test from 16 MHz to 8 MHz");
     }
 
     /**
