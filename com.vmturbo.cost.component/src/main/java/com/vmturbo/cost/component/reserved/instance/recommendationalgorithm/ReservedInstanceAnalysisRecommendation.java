@@ -17,6 +17,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.BuyRIExplanation;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
@@ -419,12 +420,17 @@ public class ReservedInstanceAnalysisRecommendation {
             .setBuyRiId(buyRiId)
             .setComputeTier(ActionEntity.newBuilder()
                 .setId(getComputeTier().getOid())
-                .setType(getComputeTier().getEntityType()))
+                .setType(getComputeTier().getEntityType())
+                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD))
             .setCount(getCount())
             .setRegion(ActionEntity.newBuilder().setId(getRegion())
-                    .setType(EntityType.REGION_VALUE).build())
+                    .setType(EntityType.REGION_VALUE)
+                    .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
+                    .build())
             .setMasterAccount(ActionEntity.newBuilder().setId(context.getMasterAccountId())
-                    .setType(EntityType.BUSINESS_ACCOUNT_VALUE).build())
+                    .setType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                    .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
+                    .build())
             .build();
 
         final ComputeTierInfo computeTier = context.getComputeTier().getTypeSpecificInfo().getComputeTier();
