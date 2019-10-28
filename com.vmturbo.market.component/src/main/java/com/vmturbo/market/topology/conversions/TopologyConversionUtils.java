@@ -147,7 +147,6 @@ public class TopologyConversionUtils {
      * @return true if the entity type should be converted to trader, false otherwise
      */
     public static boolean shouldConvertToTrader(int entityType) {
-        return !(TopologyConversionConstants.STATIC_INFRASTRUCTURE.contains(entityType)
-                || EntityType.VIRTUAL_VOLUME_VALUE == entityType);
+        return !TopologyConversionConstants.ENTITY_TYPES_TO_SKIP_TRADER_CREATION.contains(entityType);
     }
 }

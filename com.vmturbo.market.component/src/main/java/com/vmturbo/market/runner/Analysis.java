@@ -480,7 +480,7 @@ public class Analysis {
     private void copySkippedEntitiesToProjectedTopology() {
         Set<ProjectedTopologyEntity> projectedEntitiesFromOriginalTopo =
             originalCloudTopology.getAllEntitesOfTypes(
-                TopologyConversionConstants.STATIC_INFRASTRUCTURE).stream()
+                TopologyConversionConstants.ENTITY_TYPES_TO_SKIP_TRADER_CREATION).stream()
                 .map(p -> ProjectedTopologyEntity.newBuilder()
                     .setEntity(p).build())
                 .collect(Collectors.toSet());
