@@ -43,6 +43,7 @@ public class PercentilePersistenceTask extends
                 AbstractStatsLoadingTask<PercentileHistoricalEditorConfig, PercentileRecord> {
     private static final Logger logger = LogManager.getLogger();
     private static final long waitForChannelReadinessIntervalMs = 50;
+    private static final long TOTAL_START_TIMESTAMP = 0L;
     private final StatsHistoryServiceStub statsHistoryClient;
     private long startTimestamp;
 
@@ -52,7 +53,7 @@ public class PercentilePersistenceTask extends
      * @param statsHistoryClient persistent store grpc interface
      */
     public PercentilePersistenceTask(StatsHistoryServiceStub statsHistoryClient) {
-        this(statsHistoryClient, 0);
+        this(statsHistoryClient, TOTAL_START_TIMESTAMP);
     }
 
     public long getStartTimestamp() {
@@ -219,7 +220,7 @@ public class PercentilePersistenceTask extends
         }
 
         private void checkTimeout() throws HistoryCalculationException {
-            if (System.currentTimeMillis() - startMs > timeoutSec * 1000) {
+            if (System.currentTimeMillis() - startMs > TimeUnit.SECONDS.toMillis(timeoutSec)) {
                 throw new HistoryCalculationException("Percentile I/O operation timeout exceeded");
             }
         }
