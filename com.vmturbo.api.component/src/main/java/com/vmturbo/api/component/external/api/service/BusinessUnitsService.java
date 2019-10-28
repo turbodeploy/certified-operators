@@ -91,7 +91,7 @@ public class BusinessUnitsService implements IBusinessUnitsService {
 
     @Override
     public BusinessUnitApiDTO getBusinessUnitByUuid(final String uuid) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+        return mapper.getBusinessUnitByOID(targetsService, uuid);
     }
 
     /**

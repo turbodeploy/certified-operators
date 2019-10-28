@@ -15,10 +15,11 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
@@ -43,6 +44,7 @@ import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.ServiceLevelDiscount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.ServiceLevelDiscount.Builder;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.TierLevelDiscount;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -55,7 +57,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
 
 /**
  * Mapping between Cost domain DTO {@link Discount} and API DTOs
- * {@link BusinessUnitApiDTO} and {@link BusinessUnitPriceAdjustmentApiDTO}.
+ * {@link BusinessUnitApiDTO} and {@link BusinessUnitPriceAdjustmentApiDTO}. To get the topology information,
+ * this class will rely on the Repository API calls.
  * Note: XL currently only support discount type, and seems account abstraction is not yet needed.
  *
  * @Todo: consider adding business unit abstraction to handle CRUD operations, when supporting other business unit types.
@@ -388,6 +391,33 @@ public class BusinessUnitMapper {
         } else {
             return Collections.emptyList();
         }
+    }
+
+    /**
+     * Get the Business Unit for the input OID.
+     *
+     * @param targetsService The target service to find the cloud type(AWS or Azure).
+     * @param oid The input OID value.
+     *
+     * @return The Business Unit DTO for the input OID.
+     * @throws UnsupportedOperationException if the Business Unit cannot be found or is invalid.
+     */
+    public BusinessUnitApiDTO getBusinessUnitByOID(ITargetsService targetsService, String oid) {
+        TopologyEntityDTO outputDTO = repositoryApi.newSearchRequest(
+                        SearchProtoUtil.makeSearchParameters(SearchProtoUtil.stringPropertyFilterExact(SearchableProperties.OID, ImmutableList.of(oid) ))
+                        .build())
+                        .getFullEntities()
+                        .collect(Collectors.toList())
+                        .stream()
+                        .findAny()
+                        .orElseThrow(() -> new UnsupportedOperationException("Cannot find Business Unit with OID: " + oid));
+
+        final CloudType type = normalize(getTargetType(Long.parseLong(oid))
+                        .map(TargetApiDTO::getType)
+                        .orElse("UNKNOWN"));
+
+        return buildDiscoveredBusinessUnitApiDTO(outputDTO, type, targetsService)
+                        .orElseThrow(() -> new UnsupportedOperationException("Invalid Business Unit for OID: " + oid));
     }
 
     // From UI perspective, AWS is one Cloud type, but in implementation, we have AWS, AWS billing

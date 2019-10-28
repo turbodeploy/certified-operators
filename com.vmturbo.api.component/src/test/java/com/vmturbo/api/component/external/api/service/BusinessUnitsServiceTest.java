@@ -109,6 +109,22 @@ public class BusinessUnitsServiceTest {
     }
 
     @Test
+    public void testGetBusinessUnitByUuid() throws Exception {
+        BusinessUnitApiDTO apiDTO = new BusinessUnitApiDTO();
+        apiDTO.setDisplayName(TEST_DISPLAY_NAME);
+        apiDTO.setUuid(UUID_STRING);
+        apiDTO.setBusinessUnitType(BusinessUnitType.DISCOVERED);
+
+        when(mapper.getBusinessUnitByOID(targetsService, UUID_STRING)).thenReturn(apiDTO);
+
+        BusinessUnitApiDTO businessUnitApiDTO = businessUnitsService.getBusinessUnitByUuid(UUID_STRING);
+
+        assertEquals(TEST_DISPLAY_NAME, businessUnitApiDTO.getDisplayName());
+        assertEquals(UUID_STRING, businessUnitApiDTO.getUuid());
+        assertEquals(BusinessUnitType.DISCOVERED, businessUnitApiDTO.getBusinessUnitType());
+    }
+
+    @Test
     public void testCreateBusinessUnit() throws Exception {
         BusinessUnitApiInputDTO businessUnitApiInputDTO = getBusinessUnitApiInputDTO();
         BusinessUnitApiDTO apiDTO = getBusinessUnitApiDTO();

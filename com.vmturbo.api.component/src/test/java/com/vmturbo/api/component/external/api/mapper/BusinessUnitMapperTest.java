@@ -334,4 +334,39 @@ public class BusinessUnitMapperTest {
         assertNull(businessUnitApiDTOs.get(0).getAccountId());
         assertFalse(businessUnitApiDTOs.get(0).isHasRelatedTarget());
     }
+
+    @Test
+    public void testGetBusinessUnitByOID() throws Exception {
+        TopologyEntityDTO entity = TopologyEntityDTO.newBuilder()
+                .setOid(ENTITY_OID)
+                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(
+                    DiscoveryOrigin.newBuilder().addDiscoveringTargetIds(id)))
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setBusinessAccount(
+                    BusinessAccountInfo.newBuilder()))
+                .build();
+
+        final SearchRequest request = ApiTestUtils.mockSearchFullReq(Collections.singletonList(entity));
+        when(repositoryApi.newSearchRequest(any())).thenReturn(request);
+
+
+        TargetApiDTO targetApiDTO = new TargetApiDTO();
+        targetApiDTO.setUuid(TARGET_UUID);
+        targetApiDTO.setType("AWS Billing");
+        targetApiDTO.setDisplayName("engineering.billing.aws.amazon.com");
+        when(targetsService.getTarget(anyString())).thenReturn(targetApiDTO);
+
+        final ServiceEntityApiDTO associatedEntity = new ServiceEntityApiDTO();
+        associatedEntity.setDiscoveredBy(targetApiDTO);
+        associatedEntity.getDiscoveredBy().setType(AWS);
+
+        SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(associatedEntity);
+        when(repositoryApi.entityRequest(ENTITY_OID)).thenReturn(req);
+
+        BusinessUnitApiDTO businessUnitApiDTO = businessUnitMapper.getBusinessUnitByOID(targetsService, String.valueOf(ENTITY_OID));
+        assertEquals(String.valueOf(ENTITY_OID), businessUnitApiDTO.getUuid());
+        assertEquals(BusinessUnitType.DISCOVERED, businessUnitApiDTO.getBusinessUnitType());
+        assertEquals(CloudType.AWS, businessUnitApiDTO.getCloudType());
+        assertEquals(WORKLOAD, businessUnitApiDTO.getMemberType());
+    }
 }
