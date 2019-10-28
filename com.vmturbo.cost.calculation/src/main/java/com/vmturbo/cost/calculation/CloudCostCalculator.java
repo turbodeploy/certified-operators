@@ -446,19 +446,28 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                                 CostJournal.Builder<ENTITY_CLASS> journal) {
         entityInfoExtractor.getNetworkConfig(entity).ifPresent(networkConfigBought -> {
             Optional<ENTITY_CLASS> service = cloudTopology.getConnectedService(
-                entityInfoExtractor.getId(computeTier));
-            // There can be only 1 entry in the priceList in the current implementation
-            onDemandPriceTable.getIpPrices().getIpPriceList().stream()
-                .findFirst()
-                .ifPresent(ipPriceList -> {
-                    // Excess of Elastic IPs needed beyond the freeIPs available in the region
-                    long numElasticIps = networkConfigBought.getNumElasticIps()
-                        - ipPriceList.getFreeIpCount();
-                    recordPriceRangeEntries(numElasticIps,
-                        ipPriceList.getPricesList(),
-                        (price, amountBought) -> journal.recordOnDemandCost(CostCategory.IP,
-                            service.get(), price, amountBought));
-                });
+                    entityInfoExtractor.getId(computeTier));
+            // Checks if the connected service of the entity exists.
+            if (service.isPresent()) {
+                // There can be only 1 entry in the priceList in the current implementation
+                onDemandPriceTable.getIpPrices().getIpPriceList().stream()
+                        .findFirst()
+                        .ifPresent(ipPriceList -> {
+                            // Excess of Elastic IPs needed beyond the freeIPs available in the region
+                            long numElasticIps = networkConfigBought.getNumElasticIps()
+                                    - ipPriceList.getFreeIpCount();
+                            recordPriceRangeEntries(numElasticIps,
+                                    ipPriceList.getPricesList(),
+                                    (price, amountBought) -> journal.recordOnDemandCost(CostCategory.IP,
+                                            service.get(), price, amountBought));
+                        });
+            } else {
+                logger.error("Connected service is not available to calculate IP price for" +
+                                " {} with ID {} with compute tier {} with ID {}",
+                        entityInfoExtractor.getName(entity), entityInfoExtractor.getId(entity),
+                        entityInfoExtractor.getName(computeTier),
+                        entityInfoExtractor.getId(computeTier));
+            }
         });
     }
 
