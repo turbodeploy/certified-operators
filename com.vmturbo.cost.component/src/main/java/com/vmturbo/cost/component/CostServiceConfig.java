@@ -5,19 +5,15 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.common.protobuf.cost.CostDebugREST.CostDebugServiceController;
 import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
-import com.vmturbo.cost.component.rpc.CostDebugRpcService;
 import com.vmturbo.cost.component.rpc.RIAndExpenseUploadRpcService;
-import com.vmturbo.cost.component.topology.TopologyListenerConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
 @Import({CostConfig.class,
-        ReservedInstanceConfig.class,
-        SQLDatabaseConfig.class,
-        TopologyListenerConfig.class
+    ReservedInstanceConfig.class,
+    SQLDatabaseConfig.class,
 })
 public class CostServiceConfig {
     @Autowired
@@ -29,9 +25,6 @@ public class CostServiceConfig {
     @Autowired
     private CostConfig costConfig;
 
-    @Autowired
-    private TopologyListenerConfig topologyListenerConfig;
-
     @Bean
     public RIAndExpenseUploadRpcService riAndExpenseUploadRpcService() {
         return new RIAndExpenseUploadRpcService(databaseConfig.dsl(),
@@ -39,16 +32,5 @@ public class CostServiceConfig {
                 reservedInstanceConfig.reservedInstanceSpecStore(),
                 reservedInstanceConfig.reservedInstanceBoughtStore(),
                 reservedInstanceConfig.reservedInstanceCoverageUpload());
-    }
-
-    @Bean
-    public CostDebugRpcService costDebugRpcService() {
-        return new CostDebugRpcService(topologyListenerConfig.costJournalRecorder(),
-                        reservedInstanceConfig.entityReservedInstanceMappingStore());
-    }
-
-    @Bean
-    public CostDebugServiceController costDebugServiceController() {
-        return new CostDebugServiceController(costDebugRpcService());
     }
 }

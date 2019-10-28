@@ -1138,6 +1138,10 @@ public class ActionSpecMapper {
             actionApiDTO.setReservedInstance(riApiDTO);
             actionApiDTO.setTarget(
                     ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(buyRI.getRegion().getId())));
+            // For less brittle UI integration, we set the current entity to an empty object.
+            // The UI sometimes checks the validity of the "currentEntity.uuid" field,
+            // which throws an error if current entity is unset.
+            actionApiDTO.setCurrentEntity(new ServiceEntityApiDTO());
         } catch (NotFoundMatchPaymentOptionException e) {
             logger.error("Payment Option not found for RI : {}", buyRI.getBuyRiId(),  e);
         } catch (NotFoundMatchTenancyException e) {

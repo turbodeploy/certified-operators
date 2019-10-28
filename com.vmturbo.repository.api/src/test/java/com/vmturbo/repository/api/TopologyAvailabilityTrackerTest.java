@@ -44,6 +44,25 @@ public class TopologyAvailabilityTrackerTest {
     }
 
     /**
+     * Test waiting for any realtime topology.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test
+    public void testWaitForAnyRealtimeTopologySuccess() throws Exception {
+        final long topologyId = 10;
+        // Get the request first.
+        QueuedTopologyRequest topologyRequest =
+            availabilityTracker.queueAnyTopologyRequest(REALTIME_CONTEXT);
+
+        // Topology is now available...
+        availabilityTracker.onSourceTopologyAvailable(topologyId, REALTIME_CONTEXT);
+
+        // This should complete immediately. No errors.
+        topologyRequest.waitForTopology(1, TimeUnit.MILLISECONDS);
+    }
+
+    /**
      * Test that waiters complete when receiving a "later" topology in realtime.
      *
      * @throws Exception To satisfy compiler.
@@ -62,6 +81,7 @@ public class TopologyAvailabilityTrackerTest {
         topologyRequest.waitForTopology(1, TimeUnit.MILLISECONDS);
     }
 
+
     /**
      * Test appropriate exception when receiving a failure notification for the realtime
      * topology.
@@ -74,6 +94,28 @@ public class TopologyAvailabilityTrackerTest {
         // Get the request first.
         QueuedTopologyRequest topologyRequest =
             availabilityTracker.queueTopologyRequest(REALTIME_CONTEXT, topologyId);
+
+        // Topology is now available... BUT IT FAILED
+        final String errMsg = "Failed";
+        availabilityTracker.onSourceTopologyFailure(topologyId, REALTIME_CONTEXT, errMsg);
+
+        // This should fail immediately.
+        expectedException.expectMessage(errMsg);
+        topologyRequest.waitForTopology(1, TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * Test appropriate exception when receiving a failure notification for the realtime
+     * topology, in the case that we look for "any" topology.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test
+    public void testWaitForAnyRealtimeTopologyFailure() throws Exception {
+        final long topologyId = 10;
+        // Get the request first.
+        QueuedTopologyRequest topologyRequest =
+            availabilityTracker.queueAnyTopologyRequest(REALTIME_CONTEXT);
 
         // Topology is now available... BUT IT FAILED
         final String errMsg = "Failed";

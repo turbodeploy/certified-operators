@@ -65,9 +65,8 @@ public class TopologyAvailabilityTracker implements RepositoryListener {
     }
 
     /**
-     * Wait for a topology to become available in the repository. This is a blocking call.
-     * It will return once the tracker received a notification from the repository component
-     * saying the topology is available, or after the provided time limit goes by.
+     * Create a request object that you can use to wait for a topology to become available in the
+     * repository.
      *
      * @param topologyContextId The context ID of the topology to wait for.
      * @param topologyId The topology ID to wait for. Note that if the context ID is the realtime
@@ -80,6 +79,26 @@ public class TopologyAvailabilityTracker implements RepositoryListener {
     @Nonnull
     public QueuedTopologyRequest queueTopologyRequest(final long topologyContextId,
                                                       final long topologyId) {
+        return internalTopologyRequest(topologyContextId, Optional.of(topologyId));
+    }
+
+    /**
+     * Create a request object that you can use to wait for the latest topology to become available
+     * in the repository.
+     *
+     * @param topologyContextId The context ID of the topology to wait for.
+     *        Note: The returned object will look for any success OR failure in the provided context.
+     * @return A {@link QueuedTopologyRequest} representing this request. Users can call
+     * {@link QueuedTopologyRequest#waitForTopology(long, TimeUnit)} to wait for a topology
+     * in the context to become available.
+     */
+    @Nonnull
+    public QueuedTopologyRequest queueAnyTopologyRequest(final long topologyContextId) {
+        return internalTopologyRequest(topologyContextId, Optional.empty());
+    }
+
+    private QueuedTopologyRequest internalTopologyRequest(final long topologyContextId,
+                                                          @Nonnull final Optional<Long> topologyId) {
         QueuedTopologyRequest topologyRequest = null;
         synchronized (availabilityLock) {
             final TopologyAvailabilityStatus existingResult = latestTopologyByContext.get(topologyContextId);
@@ -205,12 +224,18 @@ public class TopologyAvailabilityTracker implements RepositoryListener {
             this.failureDescription = failureDescription;
         }
 
-        private boolean matches(final boolean isPlan, final long inputTopologyId) {
-            if (isPlan) {
-                return this.topologyId == inputTopologyId || projectedTopology;
-            } else {
-                return this.topologyId >= inputTopologyId;
-            }
+        private boolean matches(final boolean isPlan, final Optional<Long> inputTopologyIdOpt) {
+            return inputTopologyIdOpt
+                .map(inputTopologyId -> {
+                    if (isPlan) {
+                        return this.topologyId == inputTopologyId || projectedTopology;
+                    } else {
+                        return this.topologyId >= inputTopologyId;
+                    }
+                })
+                // If there was no explicit input topology, then any topology within the
+                // requested context matches.
+                .orElse(true);
         }
     }
 
@@ -219,11 +244,13 @@ public class TopologyAvailabilityTracker implements RepositoryListener {
      */
     public static class QueuedTopologyRequest {
         protected final long topologyContextId;
-        protected final long topologyId;
+
+        protected final Optional<Long> topologyId;
+
         private final CompletableFuture<QueuedTopologyRequest> completableFuture = new CompletableFuture<>();
 
         private QueuedTopologyRequest(final long topologyContextId,
-                                      final long topologyId) {
+                                      final Optional<Long> topologyId) {
             this.topologyContextId = topologyContextId;
             this.topologyId = topologyId;
         }
@@ -265,7 +292,7 @@ public class TopologyAvailabilityTracker implements RepositoryListener {
 
         private CompleteTopologyRequest(final long topologyContextId,
                                         final TopologyAvailabilityStatus availabilityStatus) {
-            super(topologyContextId, availabilityStatus.topologyId);
+            super(topologyContextId, Optional.of(availabilityStatus.topologyId));
             this.availabilityStatus = availabilityStatus;
         }
 
@@ -279,7 +306,7 @@ public class TopologyAvailabilityTracker implements RepositoryListener {
                 // If we already processed the notification, but the notification is a failure,
                 // throw an exception.
                 throw TopologyUnavailableException.failed(topologyContextId,
-                    topologyId, availabilityStatus.failureDescription.get());
+                    availabilityStatus.topologyId, availabilityStatus.failureDescription.get());
             }
         }
     }
@@ -303,7 +330,7 @@ public class TopologyAvailabilityTracker implements RepositoryListener {
         }
 
         static TopologyUnavailableException timeout(final long topologyContextId,
-                                                    final long topologyId,
+                                                    final Optional<Long> topologyId,
                                                     final long minWaited) {
             return new TopologyUnavailableException("Topology "
                 + topologyId + " in context: " + topologyContextId +

@@ -177,16 +177,35 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
      */
     @Nonnull
     public EntitiesAndSettingsSnapshot newSnapshot(@Nonnull final Set<Long> entities,
-                                                   @Nonnull final Long topologyContextId,
-                                                   @Nullable final Long topologyId) {
+                                                   final long topologyContextId,
+                                                   final long topologyId) {
+        return internalNewSnapshot(entities, topologyContextId, topologyId);
+    }
+
+    /**
+     * Create a new snapshot using the most recent available realtime settings and entities.
+     * This call involves making remote calls to other components, and can take a while. If there
+     * is no realtime topology available in the repository, this will block until one is available.
+     *
+     * @param entities The set of entity IDs to get settings and entities for. This set should
+     *                 contain the IDs of all entities involved in all actions we expose to the
+     *                 user.
+     * @return A {@link EntitiesAndSettingsSnapshot} containing the new action-related settings
+     *         and entities.
+     */
+    @Nonnull
+    public EntitiesAndSettingsSnapshot lastestRealtimeSnapshot(@Nonnull final Set<Long> entities) {
+        return internalNewSnapshot(entities, realtimeTopologyContextId, null);
+    }
+
+    @Nonnull
+    private EntitiesAndSettingsSnapshot internalNewSnapshot(@Nonnull final Set<Long> entities,
+                                                            final long topologyContextId,
+                                                            @Nullable final Long topologyId) {
         final Map<Long, Map<String, Setting>> newSettings = retrieveEntityToSettingListMap(entities,
             topologyContextId, topologyId);
-        final Map<Long, ActionPartialEntity> entityMap;
-        if (topologyId != null) {
-            entityMap = retrieveOidToEntityMap(entities, topologyContextId, topologyId);
-        } else {
-            entityMap = Collections.emptyMap();
-        }
+        final Map<Long, ActionPartialEntity> entityMap =
+            retrieveOidToEntityMap(entities, topologyContextId, topologyId);
         return new EntitiesAndSettingsSnapshot(newSettings, entityMap, topologyContextId, searchService);
     }
 
@@ -206,19 +225,27 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
      *
      * @param entities to fetch from repository.
      * @param topologyContextId of topology.
-     * @param topologyId of topology.
+     * @param topologyId of topology, if we are looking for a particular topology. Null if we just
+     *                   want whatever is the current latest topology (e.g. for RI Buy Actions).
      * @return mapping with oid as key and {@link ActionPartialEntity} as value.
      */
     private Map<Long, ActionPartialEntity> retrieveOidToEntityMap(Set<Long> entities,
-                    long topologyContextId, long topologyId) {
+                    long topologyContextId, @Nullable final Long topologyId) {
         if (entities.isEmpty()) {
             return Collections.emptyMap();
         }
 
         try {
 
-            topologyAvailabilityTracker.queueTopologyRequest(topologyContextId, topologyId)
-                .waitForTopology(timeToWaitForTopology, timeToWaitUnit);
+            // If we want a specific topology, wait for that topology to become available.
+            // If not, wait for SOME topology to be available in the context.
+            if (topologyId != null) {
+                topologyAvailabilityTracker.queueTopologyRequest(topologyContextId, topologyId)
+                    .waitForTopology(timeToWaitForTopology, timeToWaitUnit);
+            } else {
+                topologyAvailabilityTracker.queueAnyTopologyRequest(topologyContextId)
+                    .waitForTopology(timeToWaitForTopology, timeToWaitUnit);
+            }
 
             final RetrieveTopologyEntitiesRequest.Builder getEntitiesRequestBuilder =
                 RetrieveTopologyEntitiesRequest.newBuilder()

@@ -76,6 +76,12 @@ message LogRIEntityMappingResponse {
 
 }
 
+message TriggerBuyRIAlgorithmRequest {
+}
+
+message TriggerBuyRIAlgorithmResponse {
+}
+
 // A service for debugging-related information in the cost component.
 // This shouldn't be called from the core "application" code - it's helper
 // methods to help diagnose errors.
@@ -110,4 +116,9 @@ service CostDebugService {
     // On demand logger to log mapping for RI -> Entity Mapping by providing a list of RI OIDs.
     // For empty lists, all RI -> Entity coverages will be logged.
     rpc LogRIEntityMapping (LogRIEntityMappingRequest) returns (LogRIEntityMappingResponse);
+
+    // Trigger the regular buyRI algorithm.
+    // This is a way to get around the fact that we run it at regular intervals - for debugging
+    // we may want to force it.
+    rpc TriggerBuyRIAlgorithm(TriggerBuyRIAlgorithmRequest) returns (TriggerBuyRIAlgorithmResponse);
 }
