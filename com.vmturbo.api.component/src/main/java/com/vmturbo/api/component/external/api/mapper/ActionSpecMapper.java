@@ -87,6 +87,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
@@ -880,6 +881,18 @@ public class ActionSpecMapper {
         wrapperDto.addCompoundActions(actions);
 
         wrapperDto.getRisk().setReasonCommodity(getReasonCommodities(moveExplanation));
+
+        // set current location, new location and cloud aspects for cloud resize actions
+        if (move.getTarget().getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.CLOUD) {
+            // set location, which is the region
+            setCurrentAndNewLocation(move.getTarget().getId(), context, wrapperDto);
+
+            // set cloud aspects to target entity
+            final Map<String, EntityAspect> aspects = new HashMap<>();
+            context.getCloudAspect(move.getTarget().getId()).map(cloudAspect -> aspects.put(
+                    StringConstants.CLOUD_ASPECT_NAME, cloudAspect));
+            wrapperDto.getTarget().setAspects(aspects);
+        }
     }
 
     private String getReasonCommodities(MoveExplanation moveExplanation) {
@@ -1069,6 +1082,35 @@ public class ActionSpecMapper {
         }
         actionApiDTO.setCurrentValue(Float.toString(resize.getOldCapacity()));
         actionApiDTO.setResizeToValue(Float.toString(resize.getNewCapacity()));
+
+        // set current location, new location and cloud aspects for cloud resize actions
+        if (resize.getTarget().getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.CLOUD) {
+            // set location, which is the region
+            setCurrentAndNewLocation(resize.getTarget().getId(), context, actionApiDTO);
+            // set cloud aspects to target entity
+            final Map<String, EntityAspect> aspects = new HashMap<>();
+            context.getCloudAspect(resize.getTarget().getId()).map(cloudAspect -> aspects.put(
+                    StringConstants.CLOUD_ASPECT_NAME, cloudAspect));
+            actionApiDTO.getTarget().setAspects(aspects);
+        }
+    }
+
+    /**
+     * Set current and new location of target entity in cloud scale actions.
+     * @param targetUuid - uuid of action target
+     * @param context - ActionSpecMappingContext for given action
+     * @param actionApiDTO - result actionApiDTO
+     * @throws UnknownObjectException
+     */
+    private void setCurrentAndNewLocation(long targetUuid, ActionSpecMappingContext context, ActionApiDTO actionApiDTO)
+        throws UnknownObjectException {
+        ApiPartialEntity region = context.getRegionForVM(targetUuid);
+        if (region != null) {
+            BaseApiDTO regionDTO = serviceEntityMapper.toServiceEntityApiDTO(region);
+            regionDTO.setDisplayName(region.getDisplayName());
+            actionApiDTO.setCurrentLocation(regionDTO);
+            actionApiDTO.setNewLocation(regionDTO);
+        }
     }
 
     /**

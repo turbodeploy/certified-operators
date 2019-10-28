@@ -239,7 +239,8 @@ public class MapperConfig {
 
     @Bean
     public CloudAspectMapper cloudAspectMapper() {
-        return new CloudAspectMapper(serviceConfig.statsQueryExecutor(), mapperConfig.uuidMapper());
+        return new CloudAspectMapper(serviceConfig.statsQueryExecutor(), mapperConfig.uuidMapper(),
+                communicationConfig.searchServiceBlockingStub());
     }
 
     @Bean

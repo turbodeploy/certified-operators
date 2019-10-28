@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper.aspect;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -13,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.service.ReservedInstancesService;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entityaspect.CloudAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
@@ -22,6 +24,12 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.search.Search;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -32,12 +40,16 @@ public class CloudAspectMapper implements IAspectMapper {
 
     private final StatsQueryExecutor statsQueryExecutor;
 
+    private final SearchServiceBlockingStub searchService;
+
     private final UuidMapper uuidMapper;
 
     public CloudAspectMapper(@Nonnull final StatsQueryExecutor statsQueryExecutor,
-                             @Nonnull final UuidMapper uuidMapper) {
+                             @Nonnull final UuidMapper uuidMapper,
+                             @Nonnull final SearchServiceBlockingStub searchService) {
         this.statsQueryExecutor = statsQueryExecutor;
         this.uuidMapper = uuidMapper;
+        this.searchService = searchService;
     }
 
     @Override
@@ -51,6 +63,9 @@ public class CloudAspectMapper implements IAspectMapper {
         if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
             // get latest RI coverage
             setRiCoverage(entity.getOid(), aspect);
+            // get/set business account
+            Optional<TopologyEntityDTO> businessAccount = getBusinessAccount(entity.getOid());
+            businessAccount.ifPresent(topologyEntityDTO -> createBusinessAccountBaseApiDTO(topologyEntityDTO, aspect));
         }
         return aspect;
     }
@@ -65,8 +80,41 @@ public class CloudAspectMapper implements IAspectMapper {
         if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
             // get latest RI coverage
             setRiCoverage(entity.getOid(), aspect);
+            // get/set business account
+            Optional<TopologyEntityDTO> businessAccount = getBusinessAccount(entity.getOid());
+            businessAccount.ifPresent(topologyEntityDTO -> createBusinessAccountBaseApiDTO(topologyEntityDTO, aspect));
         }
         return aspect;
+    }
+
+    /**
+     * Create base api dto for business account for Cloud Aspect dto
+     * @param businessAccount
+     * @param aspect
+     */
+    private void createBusinessAccountBaseApiDTO(TopologyEntityDTO businessAccount, CloudAspectApiDTO aspect) {
+        BaseApiDTO businessAccountBaseApiDTO = new BaseApiDTO();
+        businessAccountBaseApiDTO.setDisplayName(businessAccount.getDisplayName());
+        businessAccountBaseApiDTO.setUuid((Long.toString(businessAccount.getOid())));
+        businessAccountBaseApiDTO.setClassName(StringConstants.BUSINESS_ACCOUNT);
+        aspect.setBusinessAccount(businessAccountBaseApiDTO);
+    }
+
+    /**
+     * Get associated business account for a given entity.
+     * @param entityId - uuid of the entity
+     * @return business account TopologyEntityDTO
+     */
+    private Optional<TopologyEntityDTO> getBusinessAccount(final long entityId) {
+        Search.SearchParameters params = SearchProtoUtil.neighborsOfType(entityId,
+                Search.TraversalFilter.TraversalDirection.CONNECTED_FROM,
+                UIEntityType.BUSINESS_ACCOUNT);
+
+        Search.SearchEntitiesRequest request = Search.SearchEntitiesRequest.newBuilder().addSearchParameters(params).build();
+
+        return RepositoryDTOUtil.topologyEntityStream(searchService.searchEntitiesStream(request))
+                .map(TopologyDTO.PartialEntity::getFullEntity)
+                .collect(Collectors.toList()).stream().findFirst();
     }
 
     /**

@@ -196,32 +196,40 @@ public class ActionSpecMappingContextFactory {
 
         final Map<Long, ApiPartialEntity> datacenterById =
             getDatacentersByEntity(entitiesById.keySet(), topologyContextId);
-        if (topologyContextId == realtimeTopologyContextId) {
-            return new ActionSpecMappingContext(entitiesById, policies.get(), Collections.emptyMap(),
-                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-                buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, false);
-        }
 
-        // fetch more info for plan actions
         // fetch related regions and create a map from zone id to region
         final List<ApiPartialEntity> regions = repositoryApi.entitiesRequest(
                 collectRegionIds(entitiesById.values()))
-            .contextId(topologyContextId)
-            .getEntities()
-            .collect(Collectors.toList());
+                .contextId(topologyContextId)
+                .getEntities()
+                .collect(Collectors.toList());
         // Add the regions to the entities map.
         regions.forEach(region -> entitiesById.put(region.getOid(), region));
 
         final Map<Long, ApiPartialEntity> zoneIdToRegion = regions.stream()
-            .flatMap(region -> region.getConnectedToList().stream()
-                .filter(c -> c.getEntityType() == UIEntityType.AVAILABILITY_ZONE.typeNumber())
-                .map(zone -> new SimpleEntry<>(zone.getOid(), region)))
-            .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+                .flatMap(region -> region.getConnectedToList().stream()
+                        .filter(c -> c.getEntityType() == UIEntityType.AVAILABILITY_ZONE.typeNumber())
+                        .map(zone -> new SimpleEntry<>(zone.getOid(), region)))
+                .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
 
+        final Map<Long, EntityAspect> cloudAspects = new HashMap<>();
+        for (ApiPartialEntity topologyEntityDTO : entitiesById.values()) {
+            final EntityAspect cloudAspect = cloudAspectMapper.mapEntityToAspect(topologyEntityDTO);
+            if (cloudAspect != null) {
+                cloudAspects.put(topologyEntityDTO.getOid(), cloudAspectMapper.mapEntityToAspect(topologyEntityDTO));
+            }
+        }
+
+        if (topologyContextId == realtimeTopologyContextId) {
+            return new ActionSpecMappingContext(entitiesById, policies.get(), zoneIdToRegion,
+                Collections.emptyMap(), cloudAspects, Collections.emptyMap(),
+                buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, false);
+        }
+
+        // fetch more info for plan actions
         // fetch all volume aspects together first rather than fetch one by one to improve performance
         Map<Long, List<VirtualDiskApiDTO>> volumesAspectsByVM = fetchVolumeAspects(actions, topologyContextId);
         // fetch cloud aspects and vm aspects
-        final Map<Long, EntityAspect> cloudAspects = new HashMap<>();
         final Map<Long, EntityAspect> vmAspects = new HashMap<>();
 
         final Set<Long> cloudVmIds = entitiesById.values().stream()
@@ -237,12 +245,6 @@ public class ActionSpecMappingContextFactory {
                 vmAspects.put(cloudVmFullEntity.getOid(), vmAspect);
             });
 
-        for (ApiPartialEntity topologyEntityDTO : entitiesById.values()) {
-            final EntityAspect cloudAspect = cloudAspectMapper.mapEntityToAspect(topologyEntityDTO);
-            if (cloudAspect != null) {
-                cloudAspects.put(topologyEntityDTO.getOid(), cloudAspectMapper.mapEntityToAspect(topologyEntityDTO));
-            }
-        }
         return new ActionSpecMappingContext(entitiesById, policies.get(), zoneIdToRegion,
             volumesAspectsByVM, cloudAspects, vmAspects, buyRIIdToRIBoughtandRISpec, datacenterById,
             serviceEntityMapper, true);
@@ -400,7 +402,6 @@ public class ActionSpecMappingContextFactory {
             .filter(connectedEntity -> connectedEntity.getEntityType() == EntityType.REGION_VALUE)
             .map(RelatedEntity::getOid)
             .collect(Collectors.toSet());
-
     }
 
     /**
