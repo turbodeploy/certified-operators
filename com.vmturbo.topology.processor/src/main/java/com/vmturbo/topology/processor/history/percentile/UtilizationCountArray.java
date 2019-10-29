@@ -160,12 +160,11 @@ public class UtilizationCountArray {
         if (fieldRef.getProviderOid() != null) {
             builder.setProviderOid(fieldRef.getProviderOid());
         }
-        String key = fieldRef.getCommodityType().getKey();
-        if (key != null) {
-            builder.setKey(key);
+        if (fieldRef.getCommodityType().hasKey()) {
+            builder.setKey(fieldRef.getCommodityType().getKey());
         }
-        for (int i = 0; i < counts.length; ++i) {
-            builder.addUtilization(counts[i]);
+        for (int count : counts) {
+            builder.addUtilization(count);
         }
         return builder;
     }
@@ -191,5 +190,10 @@ public class UtilizationCountArray {
                     this.counts.length, other.counts.length));
         }
         System.arraycopy(other.counts, 0, this.counts, 0, other.counts.length);
+    }
+
+    @Override
+    public String toString() {
+        return UtilizationCountArray.class.getSimpleName() + "{capacity=" + capacity + '}';
     }
 }

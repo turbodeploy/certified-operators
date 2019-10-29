@@ -23,6 +23,9 @@ public class UtilizationCountArrayTest {
             new EntityCommodityFieldReference(134L,
                     CommodityType.newBuilder().setKey("efds").setType(12).build(), 4857L,
                     CommodityField.USED);
+    private static final EntityCommodityFieldReference COMMODITY_WITHOUT_KEY_REF =
+            new EntityCommodityFieldReference(1L, CommodityType.newBuilder().setType(2).build(), 3L,
+                    CommodityField.USED);
 
     /**
      * Expected exception.
@@ -179,6 +182,18 @@ public class UtilizationCountArrayTest {
         Assert.assertEquals(REF.getCommodityType().getType(), record.getCommodityType());
         Assert.assertEquals(REF.getCommodityType().getKey(), record.getKey());
         Assert.assertEquals(REF.getProviderOid().longValue(), record.getProviderOid());
+    }
+
+    /**
+     * Test the serialization of array in protobuf. Case when the commodity without key.
+     *
+     * @throws HistoryCalculationException when failed
+     */
+    @Test
+    public void testSerializeCommodityWithoutKey() {
+        final UtilizationCountArray utilizationCountArray =
+                new UtilizationCountArray(new PercentileBuckets());
+        Assert.assertFalse(utilizationCountArray.serialize(COMMODITY_WITHOUT_KEY_REF).hasKey());
     }
 
     /**

@@ -91,7 +91,10 @@ public class PercentileCommodityData
             // calculate and store the utilization into commodity's history value
             int aggressiveness = config.getAggressiveness(field.getEntityOid());
             int percentile = utilizationCounts.getPercentile(aggressiveness);
-            logger.trace("Percentile score for {}: {}", field::toString, () -> percentile);
+            if (logger.isTraceEnabled()) {
+                logger.trace("Calculated percentile score for {} for rank {}: {}",
+                        utilizationCounts, aggressiveness, percentile);
+            }
             commodityFieldsAccessor.updateHistoryValue(field,
                                                        hv -> hv.setPercentile(percentile / 100d),
                                                        PercentileEditor.class.getSimpleName());

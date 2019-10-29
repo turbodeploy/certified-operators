@@ -185,4 +185,11 @@ public class UtilizationCountStore {
     public void copyCountsFromLatestToFull() throws HistoryCalculationException {
         full.copyCountsFrom(latest);
     }
+
+    @Override
+    public String toString() {
+        return UtilizationCountStore.class.getSimpleName() + "{fieldReference=" + fieldReference +
+                ", full=" + full + ", latestStoredTimestamp=" + latestStoredTimestamp +
+                ", periodDays=" + periodDays + '}';
+    }
 }
