@@ -1049,14 +1049,11 @@ message HistoricalValues {
     // The latest point is the most significant one.
     optional double hist_utilization = 2;
 
-    // How much 'load' exists in the system for cluster headroom planning.
-    optional double system_load = 3;
-
     // Values averaged across equal time periods within a day for specified observation window.
-    repeated double time_slot = 4;
+    repeated double time_slot = 3;
 
     // Nth percentile of utilizations across specified observation window.
-    optional double percentile = 5;
+    optional double percentile = 4;
 }
 
 // Represents a collection of utilization data points.

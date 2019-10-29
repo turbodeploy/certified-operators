@@ -186,14 +186,6 @@ public class HistoricalEditorTest {
             vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().get(0)
                 .getCommodityBoughtList().get(0).getHistoricalPeak().getHistUtilization(),
             FLOATING_POINT_DELTA);
-        Assert.assertEquals(0,
-            vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().get(0)
-                .getCommodityBoughtList().get(0).getHistoricalUsed().getSystemLoad(),
-            FLOATING_POINT_DELTA);
-        Assert.assertEquals(0,
-            vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().get(0)
-                .getCommodityBoughtList().get(0).getHistoricalPeak().getSystemLoad(),
-            FLOATING_POINT_DELTA);
 
         Assert.assertEquals(20, pm.getTopologyEntityDtoBuilder()
             .getCommoditySoldList(0).getUsed(), FLOATING_POINT_DELTA);
@@ -203,9 +195,5 @@ public class HistoricalEditorTest {
             .getCommoditySoldList(0).getHistoricalUsed().getHistUtilization(), FLOATING_POINT_DELTA);
         Assert.assertEquals(0, pm.getTopologyEntityDtoBuilder()
             .getCommoditySoldList(0).getHistoricalPeak().getHistUtilization(), FLOATING_POINT_DELTA);
-        Assert.assertEquals(0, pm.getTopologyEntityDtoBuilder()
-            .getCommoditySoldList(0).getHistoricalUsed().getSystemLoad(), FLOATING_POINT_DELTA);
-        Assert.assertEquals(0, pm.getTopologyEntityDtoBuilder()
-            .getCommoditySoldList(0).getHistoricalPeak().getSystemLoad(), FLOATING_POINT_DELTA);
     }
 }
