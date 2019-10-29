@@ -228,6 +228,8 @@ public class SystemLoadReader {
         calendar.add(Calendar.DATE, -1);
         Date startTime = calendar.getTime();
 
+        logger.debug("System load chosen for the date {}.", startTime.toString());
+
         // Query to not return values where uuid is null and we will not get records with vmId = 0. We are only interested in records
         // which have a VM associated with them but some records, for example, represent cluster info like total capacity or system load
         // which are not required by the caller.

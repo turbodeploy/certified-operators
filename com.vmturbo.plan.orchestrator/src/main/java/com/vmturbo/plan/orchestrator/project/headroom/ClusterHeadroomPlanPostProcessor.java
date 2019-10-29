@@ -68,6 +68,7 @@ import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.project.ProjectPlanPostProcessor;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -540,8 +541,6 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
             return CommodityHeadroom.getDefaultInstance();
         }
 
-        Map<Integer, Double> commHeadroomAvailable = new HashMap<Integer, Double>();
-        Map<Integer, Double> commHeadroomCapacity = new HashMap<Integer, Double>();
         // Number of VMs that can be accommodated in cluster considering its curr ent utilization.
         long totalHeadroomAvailable = 0;
         // Number of VMs that can be accommodated in cluster when cluster is empty.
@@ -557,6 +556,10 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                 }
                 continue;
             }
+            double headroomAvailableForCurrentEntity = Double.MAX_VALUE;
+            double headroomCapacityForCurrentEntity = Double.MAX_VALUE;
+            int minAvailableCommodity = -1;
+            int minCapacityCommodity = -1;
             for (CommoditySoldDTO comm : entity.getCommoditySoldListList()) {
                 int commType = comm.getCommodityType().getType();
                 double headroomAvailable = 0d;
@@ -568,22 +571,35 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                 // Set effective capacity
                 double capacity = (comm.getEffectiveCapacityPercentage() / 100) * comm.getCapacity();
                 double availableAmount =  capacity - comm.getUsed();
+
                 headroomAvailable = availableAmount > 0 ?
                                 Math.floor(availableAmount / templateCommodityUsed) : 0;
+                if (headroomAvailable < headroomAvailableForCurrentEntity) {
+                    headroomAvailableForCurrentEntity = headroomAvailable;
+                    minAvailableCommodity = commType;
+                }
+
                 headroomCapacity = Math.floor(capacity / templateCommodityUsed);
-                commHeadroomAvailable.put(commType, headroomAvailable);
-                commHeadroomCapacity.put(commType, headroomCapacity);
+                if (headroomCapacity < headroomCapacityForCurrentEntity) {
+                    headroomCapacityForCurrentEntity = headroomCapacity;
+                    minCapacityCommodity = commType;
+                }
             }
 
-            if (CollectionUtils.isEmpty(commHeadroomAvailable) ||
-                            CollectionUtils.isEmpty(commHeadroomCapacity)) {
+            if (minAvailableCommodity == -1 || minCapacityCommodity == -1) {
                 logger.error("Template has used value 0 for some commodities in cluster : " +
                     cluster.getCluster().getDisplayName() +" and id "+ cluster.getId());
                 return CommodityHeadroom.getDefaultInstance();
             }
 
-            final double headroomAvailableForCurrentEntity = commHeadroomAvailable.values().stream().min(Double::compare).get();
-            final double headroomCapacityForCurrentEntity = commHeadroomCapacity.values().stream().min(Double::compare).get();
+            final String minAvailableCommodityName = CommodityDTO.CommodityType.forNumber(minAvailableCommodity).name();
+            logger.trace("Available headroom for entity {} regarding the commodity type {} is {}",
+                    entity.getDisplayName(), minAvailableCommodityName, headroomAvailableForCurrentEntity);
+
+            final String minCapacityCommodityName = CommodityDTO.CommodityType.forNumber(minCapacityCommodity).name();
+            logger.trace("Empty headroom for entity {} regarding the commodity type {} is {}",
+                    entity.getDisplayName(), minCapacityCommodityName, headroomCapacityForCurrentEntity);
+
 
             // prevent overflow here, Integer.MAX_VALUE means that there is no limit, e.g.
             // VMs do not consume storage, so storage headroom is unlimited
