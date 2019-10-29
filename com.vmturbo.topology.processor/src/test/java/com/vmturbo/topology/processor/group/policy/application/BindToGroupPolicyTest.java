@@ -26,6 +26,7 @@ import org.junit.rules.ExpectedException;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
@@ -55,10 +56,10 @@ public class BindToGroupPolicyTest {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
-    private final Group consumerGroup = PolicyGroupingHelper.policyGrouping(
+    private final Grouping consumerGroup = PolicyGroupingHelper.policyGrouping(
         searchParametersCollection(), EntityType.VIRTUAL_MACHINE_VALUE, 1234L);
 
-    private final Group providerGroup = PolicyGroupingHelper.policyGrouping(
+    private final Grouping providerGroup = PolicyGroupingHelper.policyGrouping(
         searchParametersCollection(), EntityType.PHYSICAL_MACHINE_VALUE, 5678L);
 
     private final long consumerID = 1234L;
@@ -229,7 +230,7 @@ public class BindToGroupPolicyTest {
      */
     @Test
     public void testApplyVmToStorageAffinity() throws GroupResolutionException, PolicyApplicationException {
-        final Group providerGroup = PolicyGroupingHelper.policyGrouping(
+        final Grouping providerGroup = PolicyGroupingHelper.policyGrouping(
             searchParametersCollection(), EntityType.STORAGE_VALUE, 5678L);
 
         final PolicyInfo.BindToGroupPolicy bindToGroup = PolicyInfo.BindToGroupPolicy.newBuilder()
@@ -256,9 +257,9 @@ public class BindToGroupPolicyTest {
 
     @Test
     public void testApplyVolumeToStorageTierAffinity() throws GroupResolutionException, PolicyApplicationException {
-        final Group virtualVolumeGroup = PolicyGroupingHelper.policyGrouping(
+        final Grouping virtualVolumeGroup = PolicyGroupingHelper.policyGrouping(
             searchParametersCollection(), EntityType.VIRTUAL_VOLUME_VALUE, 1212L);
-        final Group storageTierGroup = PolicyGroupingHelper.policyGrouping(
+        final Grouping storageTierGroup = PolicyGroupingHelper.policyGrouping(
             searchParametersCollection(), EntityType.STORAGE_TIER_VALUE, 1213L);
 
         when(groupResolver.resolve(eq(virtualVolumeGroup), eq(topologyGraph)))

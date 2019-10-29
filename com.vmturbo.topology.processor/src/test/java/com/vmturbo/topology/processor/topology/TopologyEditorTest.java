@@ -36,8 +36,8 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.gson.Gson;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
@@ -385,8 +385,8 @@ public class TopologyEditorTest {
         final long pmId = 2L;
         final long vmId = 3L;
         final long pmCloneId = 200L;
-        final Group group = Group.newBuilder()
-            .setGroup(GroupInfo.getDefaultInstance())
+        final Grouping group = Grouping.newBuilder()
+            .setDefinition(GroupDefinition.getDefaultInstance())
             .setId(groupId)
             .build();
         final TopologyEntity.Builder pmEntity = TopologyEntityUtils
@@ -422,8 +422,8 @@ public class TopologyEditorTest {
         final long groupId = 1L;
         final long pmId = 2L;
         final long vmId = 3L;
-        final Group group = Group.newBuilder()
-            .setGroup(GroupInfo.getDefaultInstance())
+        final Grouping group = Grouping.newBuilder()
+            .setDefinition(GroupDefinition.getDefaultInstance())
             .setId(groupId)
             .build();
         final TopologyEntity.Builder pmEntity = TopologyEntityUtils
@@ -455,8 +455,8 @@ public class TopologyEditorTest {
         final long stId = 2L;
         final long vmId = 3L;
         final long stCloneId = 200L;
-        final Group group = Group.newBuilder()
-            .setGroup(GroupInfo.getDefaultInstance())
+        final Grouping group = Grouping.newBuilder()
+            .setDefinition(GroupDefinition.getDefaultInstance())
             .setId(groupId)
             .build();
         final TopologyEntity.Builder stEntity = TopologyEntityUtils
@@ -492,8 +492,8 @@ public class TopologyEditorTest {
         final long groupId = 1L;
         final long stId = 2L;
         final long vmId = 3L;
-        final Group group = Group.newBuilder()
-            .setGroup(GroupInfo.getDefaultInstance())
+        final Grouping group = Grouping.newBuilder()
+            .setDefinition(GroupDefinition.getDefaultInstance())
             .setId(groupId)
             .build();
         final TopologyEntity.Builder stEntity = TopologyEntityUtils
@@ -525,8 +525,8 @@ public class TopologyEditorTest {
         final long vmId = 2L;
         final long hostId = 3L;
         final long vmCloneId = 100L;
-        final Group group = Group.newBuilder()
-            .setGroup(GroupInfo.getDefaultInstance())
+        final Grouping group = Grouping.newBuilder()
+            .setDefinition(GroupDefinition.getDefaultInstance())
             .setId(groupId)
             .build();
         final TopologyEntity.Builder hostEntity = TopologyEntityUtils
@@ -563,8 +563,8 @@ public class TopologyEditorTest {
         final long groupId = 1L;
         final long vmId = 2L;
         final long hostId = 3L;
-        final Group group = Group.newBuilder()
-            .setGroup(GroupInfo.getDefaultInstance())
+        final Grouping group = Grouping.newBuilder()
+            .setDefinition(GroupDefinition.getDefaultInstance())
             .setId(groupId)
             .build();
         final TopologyEntity.Builder hostEntity = TopologyEntityUtils
@@ -594,8 +594,8 @@ public class TopologyEditorTest {
         final long groupId = 7L;
         final long vmId = 1L;
         final long vmCloneId = 182;
-        final Group group = Group.newBuilder()
-                .setGroup(GroupInfo.getDefaultInstance())
+        final Grouping group = Grouping.newBuilder()
+                .setDefinition(GroupDefinition.getDefaultInstance())
                 .setId(groupId)
                 .build();
         final TopologyEntity.Builder vmEntity = TopologyEntityUtils.topologyEntityBuilder(

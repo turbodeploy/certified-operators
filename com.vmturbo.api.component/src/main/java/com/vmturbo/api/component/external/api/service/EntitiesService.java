@@ -73,18 +73,17 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IEntitiesService;
-import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesResponse;
-import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
@@ -96,6 +95,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.GroupDTO.ConstraintType;
 
 public class EntitiesService implements IEntitiesService {
@@ -616,14 +616,21 @@ public class EntitiesService implements IEntitiesService {
      * @return The group DTO with a cluster constraint.
      */
     private Optional<ServiceEntityApiDTO> getClusterApiDTO(long oidToQuery) {
-        GetClusterForEntityResponse response =
-                groupServiceClient.getClusterForEntity(GetClusterForEntityRequest.newBuilder()
+        GetGroupForEntityResponse response =
+                groupServiceClient.getGroupForEntity(GetGroupForEntityRequest.newBuilder()
                         .setEntityId(oidToQuery)
                         .build());
-        if (response.hasCluster()) {
+
+        Optional<GroupDTO.Grouping> cluster = response.getGroupList()
+                        .stream()
+                        .filter(group -> group.getDefinition().getType()
+                                        == GroupType.COMPUTE_HOST_CLUSTER)
+                        .findAny();
+
+        if (cluster.isPresent()) {
             final ServiceEntityApiDTO serviceEntityApiDTO = new ServiceEntityApiDTO();
-            serviceEntityApiDTO.setDisplayName(GroupProtoUtil.getGroupDisplayName(response.getCluster()));
-            serviceEntityApiDTO.setUuid(Long.toString(response.getCluster().getId()));
+            serviceEntityApiDTO.setDisplayName(cluster.get().getDefinition().getDisplayName());
+            serviceEntityApiDTO.setUuid(Long.toString(cluster.get().getId()));
             serviceEntityApiDTO.setClassName(ConstraintType.CLUSTER.name());
             // Insert the clusterRecord before the Entity record.
             return Optional.of(serviceEntityApiDTO);

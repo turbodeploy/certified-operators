@@ -59,10 +59,8 @@ public class GroupConfig {
     }
 
     @Bean
-    public GroupStore groupStore() {
-        return new GroupStore(databaseConfig.dsl(),
-                policyConfig.policyStore(),
-                identityProviderConfig.identityProvider(),
-                entityToClusterMapping());
+    public GroupDAO groupStore() {
+        return new GroupDAO(databaseConfig.dsl(),
+                        identityProviderConfig.identityProvider());
     }
 }

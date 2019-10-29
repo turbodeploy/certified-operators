@@ -172,7 +172,7 @@ public class RIStatsSubQueryTest {
     @Test
     public void testCreateUtilizationRequestGlobalScope() throws OperationFailedException {
         when(context.getTimeWindow()).thenReturn(Optional.of(TIME_WINDOW));
-        when(scope.getScopeType()).thenReturn(Optional.empty());
+        when(scope.getScopeTypes()).thenReturn(Optional.empty());
         when(context.isGlobalScope()).thenReturn(true);
 
         final RIStatsMapper mapper = new RIStatsMapper();
@@ -184,7 +184,8 @@ public class RIStatsSubQueryTest {
     @Test
     public void testCreateUtilizationRequestRegionScope() throws OperationFailedException {
         when(context.getTimeWindow()).thenReturn(Optional.of(TIME_WINDOW));
-        when(scope.getScopeType()).thenReturn(Optional.of(UIEntityType.REGION));
+        when(scope.getScopeTypes()).thenReturn(Optional.of(
+                        Collections.singleton(UIEntityType.REGION)));
 
         final RIStatsMapper mapper = new RIStatsMapper();
         final GetReservedInstanceUtilizationStatsRequest req = mapper.createUtilizationRequest(context);
@@ -196,7 +197,8 @@ public class RIStatsSubQueryTest {
     @Test
     public void testCreateUtilizationRequestAzScope() throws OperationFailedException {
         when(context.getTimeWindow()).thenReturn(Optional.of(TIME_WINDOW));
-        when(scope.getScopeType()).thenReturn(Optional.of(UIEntityType.AVAILABILITY_ZONE));
+        when(scope.getScopeTypes()).thenReturn(Optional.of(
+                        Collections.singleton(UIEntityType.AVAILABILITY_ZONE)));
 
         final RIStatsMapper mapper = new RIStatsMapper();
         final GetReservedInstanceUtilizationStatsRequest req = mapper.createUtilizationRequest(context);
@@ -208,7 +210,8 @@ public class RIStatsSubQueryTest {
     @Test
     public void testCreateUtilizationRequestBaScope() throws OperationFailedException {
         when(context.getTimeWindow()).thenReturn(Optional.of(TIME_WINDOW));
-        when(scope.getScopeType()).thenReturn(Optional.of(UIEntityType.BUSINESS_ACCOUNT));
+        when(scope.getScopeTypes()).thenReturn(Optional.of(
+                        Collections.singleton(UIEntityType.BUSINESS_ACCOUNT)));
 
         final RIStatsMapper mapper = new RIStatsMapper();
         final GetReservedInstanceUtilizationStatsRequest req = mapper.createUtilizationRequest(context);
@@ -220,7 +223,7 @@ public class RIStatsSubQueryTest {
     @Test(expected = OperationFailedException.class)
     public void testUtilizationNoEntityTypeNonGlobalScope() throws OperationFailedException {
         when(context.getTimeWindow()).thenReturn(Optional.of(TIME_WINDOW));
-        when(scope.getScopeType()).thenReturn(Optional.empty());
+        when(scope.getScopeTypes()).thenReturn(Optional.empty());
         when(context.isGlobalScope()).thenReturn(false);
 
         new RIStatsMapper().createUtilizationRequest(context);
@@ -229,7 +232,8 @@ public class RIStatsSubQueryTest {
     @Test(expected = OperationFailedException.class)
     public void testUtilizationUnsupportedEntityType() throws OperationFailedException {
         when(context.getTimeWindow()).thenReturn(Optional.of(TIME_WINDOW));
-        when(scope.getScopeType()).thenReturn(Optional.of(UIEntityType.VIRTUAL_MACHINE));
+        when(scope.getScopeTypes()).thenReturn(Optional.of(
+                        Collections.singleton(UIEntityType.VIRTUAL_MACHINE)));
         when(context.isGlobalScope()).thenReturn(false);
 
         new RIStatsMapper().createUtilizationRequest(context);
@@ -239,7 +243,7 @@ public class RIStatsSubQueryTest {
     @Test
     public void testCreateCoverageRequestGlobalScope() throws OperationFailedException {
         when(context.getTimeWindow()).thenReturn(Optional.of(TIME_WINDOW));
-        when(scope.getScopeType()).thenReturn(Optional.empty());
+        when(scope.getScopeTypes()).thenReturn(Optional.empty());
         when(context.isGlobalScope()).thenReturn(true);
 
         final RIStatsMapper mapper = new RIStatsMapper();
@@ -251,7 +255,8 @@ public class RIStatsSubQueryTest {
     @Test
     public void testCreateCoverageRequestRegionScope() throws OperationFailedException {
         when(context.getTimeWindow()).thenReturn(Optional.of(TIME_WINDOW));
-        when(scope.getScopeType()).thenReturn(Optional.of(UIEntityType.REGION));
+        when(scope.getScopeTypes()).thenReturn(Optional.of(
+                        Collections.singleton(UIEntityType.REGION)));
 
         final RIStatsMapper mapper = new RIStatsMapper();
         final GetReservedInstanceCoverageStatsRequest req = mapper.createCoverageRequest(context);
@@ -263,7 +268,8 @@ public class RIStatsSubQueryTest {
     @Test
     public void testCreateCoverageRequestAzScope() throws OperationFailedException {
         when(context.getTimeWindow()).thenReturn(Optional.of(TIME_WINDOW));
-        when(scope.getScopeType()).thenReturn(Optional.of(UIEntityType.AVAILABILITY_ZONE));
+        when(scope.getScopeTypes()).thenReturn(Optional.of(
+                        Collections.singleton(UIEntityType.AVAILABILITY_ZONE)));
 
         final RIStatsMapper mapper = new RIStatsMapper();
         final GetReservedInstanceCoverageStatsRequest req = mapper.createCoverageRequest(context);
@@ -275,7 +281,8 @@ public class RIStatsSubQueryTest {
     @Test
     public void testCoverageOtherEntityType() throws OperationFailedException {
         when(context.getTimeWindow()).thenReturn(Optional.of(TIME_WINDOW));
-        when(scope.getScopeType()).thenReturn(Optional.of(UIEntityType.VIRTUAL_MACHINE));
+        when(scope.getScopeTypes()).thenReturn(Optional.of(
+                        Collections.singleton(UIEntityType.VIRTUAL_MACHINE)));
         when(context.isGlobalScope()).thenReturn(false);
 
         final RIStatsMapper mapper = new RIStatsMapper();
@@ -288,7 +295,8 @@ public class RIStatsSubQueryTest {
     @Test
     public void testCreateCoverageRequestBaScope() throws OperationFailedException {
         when(context.getTimeWindow()).thenReturn(Optional.of(TIME_WINDOW));
-        when(scope.getScopeType()).thenReturn(Optional.of(UIEntityType.BUSINESS_ACCOUNT));
+        when(scope.getScopeTypes()).thenReturn(Optional.of(
+                        Collections.singleton(UIEntityType.BUSINESS_ACCOUNT)));
 
         final RIStatsMapper mapper = new RIStatsMapper();
         final GetReservedInstanceCoverageStatsRequest req = mapper.createCoverageRequest(context);
@@ -300,7 +308,7 @@ public class RIStatsSubQueryTest {
     @Test(expected = OperationFailedException.class)
     public void testCoverageNoEntityTypeNonGlobalScope() throws OperationFailedException {
         when(context.getTimeWindow()).thenReturn(Optional.of(TIME_WINDOW));
-        when(scope.getScopeType()).thenReturn(Optional.empty());
+        when(scope.getScopeTypes()).thenReturn(Optional.empty());
         when(context.isGlobalScope()).thenReturn(false);
 
         new RIStatsMapper().createCoverageRequest(context);

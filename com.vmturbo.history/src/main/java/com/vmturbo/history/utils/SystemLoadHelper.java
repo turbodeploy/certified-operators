@@ -19,7 +19,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.auth.api.Pair;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -60,9 +61,11 @@ public class SystemLoadHelper {
 
     public void setSystemLoadWriter(SystemLoadWriter systemLoadWriter) { this   .systemLoadWriter = systemLoadWriter; }
 
-    private Map<String, Group> slice2groups = null;
+    private Map<String, Grouping> slice2groups = null;
 
-    public void setSliceToGroups(Map<String, Group> slice2groups) { this.slice2groups = slice2groups; }
+    public void setSliceToGroups(Map<String, Grouping> slice2groups) {
+        this.slice2groups = slice2groups;
+    }
 
     /**
      * The method finds the slices (host clusters) for a specific entity. It may be more
@@ -99,10 +102,10 @@ public class SystemLoadHelper {
         if (entities_oids.size() == 0) {
             return slices;
         } else {
-            for (Map.Entry<String, Group> entry : slice2groups.entrySet()) {
+            for (Map.Entry<String, Grouping> entry : slice2groups.entrySet()) {
                 String slice = entry.getKey();
-                Group group = entry.getValue();
-                List<Long> hosts = group.getCluster().getMembers().getStaticMemberOidsList();
+                Grouping group = entry.getValue();
+                List<Long> hosts = GroupProtoUtil.getStaticMembers(group);
                 for (long host : hosts) {
                     for (long entity_oid : entities_oids) {
                         if (host == entity_oid) {

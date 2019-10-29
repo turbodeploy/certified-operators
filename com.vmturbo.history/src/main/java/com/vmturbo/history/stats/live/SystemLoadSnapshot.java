@@ -21,8 +21,9 @@ import com.vmturbo.auth.api.Pair;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -34,6 +35,7 @@ import com.vmturbo.history.utils.HostsSumCapacities;
 import com.vmturbo.history.utils.StoragesSumCapacities;
 import com.vmturbo.history.utils.SystemLoadCommodities;
 import com.vmturbo.history.utils.SystemLoadHelper;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 /**
@@ -87,7 +89,7 @@ public class SystemLoadSnapshot extends AbstractStatsWriter implements IComplete
     protected int process(@Nonnull TopologyInfo topologyInfo,
                     @Nonnull Collection<TopologyEntityDTO> allTopologyDTOs) {
 
-        final Map<String, Group> slice2groups = new HashMap<>();
+        final Map<String, Grouping> slice2groups = new HashMap<>();
         boolean savedData = false;
 
         // Initialize the tables to keep statistics for system load
@@ -98,16 +100,14 @@ public class SystemLoadSnapshot extends AbstractStatsWriter implements IComplete
 
         // Getting information for the groups of the system
         GetGroupsRequest groupsRequest = GetGroupsRequest.newBuilder()
-            .addTypeFilter(Type.CLUSTER)
-            .setClusterFilter(ClusterFilter.newBuilder()
-                .setTypeFilter(ClusterInfo.Type.COMPUTE)
-                .build())
-            .build();
-        Iterator<Group> groupIterator = groupServiceClient.getGroups(groupsRequest);
+                        .setGroupFilter(GroupFilter.newBuilder()
+                                        .setGroupType(GroupType.COMPUTE_HOST_CLUSTER))
+                        .build();
+        Iterator<Grouping> groupIterator = groupServiceClient.getGroups(groupsRequest);
 
         // Saving host clusters info
         while (groupIterator.hasNext()) {
-            Group curGroup = groupIterator.next();
+            Grouping curGroup = groupIterator.next();
             long groupId = curGroup.getId();
             String slice = Long.toString(groupId);
             if (slice2groups.containsKey(slice)) {

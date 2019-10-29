@@ -49,7 +49,7 @@ public class AtMostNBoundPolicy extends PlacementPolicy {
         this.providerPolicyEntities = Objects.requireNonNull(providerPolicyEntities);
         this.consumerPolicyEntities = Objects.requireNonNull(consumerPolicyEntities);
         this.atMostNBound = policyDefinition.getPolicyInfo().getAtMostNbound();
-        GroupProtoUtil.checkEntityType(providerPolicyEntities.getGroup());
+        GroupProtoUtil.checkEntityTypeForPolicy(providerPolicyEntities.getGroup());
         Preconditions.checkArgument(this.atMostNBound.hasCapacity(),
             "Capacity required");
     }

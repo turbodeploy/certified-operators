@@ -69,6 +69,7 @@ import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
@@ -1348,8 +1349,10 @@ public class ScenarioMapper {
             final Set<Long> involvedGroups = PlanDTOUtil.getInvolvedGroups(changes);
             if (!involvedGroups.isEmpty()) {
                 groupRpcService.getGroups(GetGroupsRequest.newBuilder()
-                        .addAllId(involvedGroups)
-                        .build())
+                        .setGroupFilter(
+                                GroupFilter.newBuilder()
+                                    .addAllId(involvedGroups)
+                        ).build())
                     .forEachRemaining(group -> groupMap.put(group.getId(),
                             groupMapper.toGroupApiDto(group)));
             }

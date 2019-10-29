@@ -29,7 +29,8 @@ import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.widget.WidgetApiDTO;
 import com.vmturbo.api.dto.widget.WidgetsetApiDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -108,7 +109,7 @@ public class WidgetsetMapperTest {
         final BaseApiDTO groupScope = new BaseApiDTO();
         groupScope.setUuid("7");
         groupScope.setClassName(StringConstants.GROUP);
-        final Group group = Group.newBuilder()
+        final Grouping group = Grouping.newBuilder()
             .setId(7)
             .build();
         when(groupServiceBackend.getGroups(any())).thenReturn(Collections.singletonList(group));
@@ -128,7 +129,9 @@ public class WidgetsetMapperTest {
 
         // Assert
         verify(groupServiceBackend).getGroups(GetGroupsRequest.newBuilder()
-            .addId(7)
+                        .setGroupFilter(GroupFilter.newBuilder()
+                                        .addId(7)
+                                        )
             .build());
 
         assertThat(widgets.size(), is(2));
@@ -152,11 +155,11 @@ public class WidgetsetMapperTest {
         groupScope2.setUuid("8");
         groupScope2.setClassName(StringConstants.GROUP);
 
-        final Group group1 = Group.newBuilder()
+        final Grouping group1 = Grouping.newBuilder()
             .setId(7)
             .build();
 
-        final Group group2 = Group.newBuilder()
+        final Grouping group2 = Grouping.newBuilder()
             .setId(8)
             .build();
 
@@ -179,8 +182,10 @@ public class WidgetsetMapperTest {
 
         // Assert
         verify(groupServiceBackend).getGroups(GetGroupsRequest.newBuilder()
-            .addId(7)
-            .addId(8)
+                        .setGroupFilter(GroupFilter.newBuilder()
+                                        .addId(7)
+                                        .addId(8)
+                                        )
             .build());
 
         assertThat(widgets.size(), is(2));
@@ -218,7 +223,7 @@ public class WidgetsetMapperTest {
         final BaseApiDTO groupScope = new BaseApiDTO();
         groupScope.setUuid("7");
         groupScope.setClassName(StringConstants.CLUSTER);
-        final Group group = Group.newBuilder()
+        final Grouping group = Grouping.newBuilder()
             .setId(7)
             .build();
         when(groupServiceBackend.getGroups(any())).thenReturn(Collections.singletonList(group));
@@ -234,7 +239,9 @@ public class WidgetsetMapperTest {
 
         // Assert
         verify(groupServiceBackend).getGroups(GetGroupsRequest.newBuilder()
-            .addId(7)
+                        .setGroupFilter(GroupFilter.newBuilder()
+                                        .addId(7)
+                                        )
             .build());
 
         assertThat(widgets.size(), is(1));
@@ -248,7 +255,7 @@ public class WidgetsetMapperTest {
         final BaseApiDTO groupScope = new BaseApiDTO();
         groupScope.setUuid("7");
         groupScope.setClassName(StringConstants.STORAGE_CLUSTER);
-        final Group group = Group.newBuilder()
+        final Grouping group = Grouping.newBuilder()
             .setId(7)
             .build();
         when(groupServiceBackend.getGroups(any())).thenReturn(Collections.singletonList(group));
@@ -264,7 +271,9 @@ public class WidgetsetMapperTest {
 
         // Assert
         verify(groupServiceBackend).getGroups(GetGroupsRequest.newBuilder()
-            .addId(7)
+                        .setGroupFilter(GroupFilter.newBuilder()
+                                        .addId(7)
+                                        )
             .build());
 
         assertThat(widgets.size(), is(1));

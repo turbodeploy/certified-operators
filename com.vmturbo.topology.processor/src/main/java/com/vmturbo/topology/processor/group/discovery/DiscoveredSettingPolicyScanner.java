@@ -14,17 +14,21 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings.UploadedGroup;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -33,6 +37,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.MembersList;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.StitchingEntity;
@@ -104,7 +109,7 @@ public class DiscoveredSettingPolicyScanner {
 
             final Optional<String> targetDisplayName = targetStore.getTargetDisplayName(targetId);
             if (targetDisplayName.isPresent()) {
-                targetUtilizationThresholds.getSettingPolicyBuilders().stream()
+                targetUtilizationThresholds.getSettingPolicyBuilders()
                     .forEach(builder -> builder.addGroupsAndSettingPolicies(
                         groups, settingPolicies, targetDisplayName.get()));
                 groupUploader.addDiscoveredGroupsAndPolicies(targetId, groups, settingPolicies);
@@ -197,10 +202,10 @@ public class DiscoveredSettingPolicyScanner {
         public void scanVCenterHosts(@Nonnull final Stream<TopologyStitchingEntity> vcHosts) {
             vcHosts
                 // Find all hosts with at least one commodity sold requiring a utilization setting.
-                .filter(host -> host.getCommoditiesSold().filter(this::requiresUtilizationSetting).count() > 0)
+                .filter(host -> host.getCommoditiesSold().anyMatch(this::requiresUtilizationSetting))
                 .forEach(host -> {
-                    final Optional<ClusterInfo> clusterInfo =
-                                    clusterMemberCache.clusterInfoForHost(host);
+                    final Optional<UploadedGroup> clusterInfo =
+                            clusterMemberCache.clusterInfoForHost(host);
                     if (clusterInfo.isPresent()) {
                         setupSettingPolicy(host, clusterInfo, commoditiesSoldWithThreshold(host));
                     } else {
@@ -244,7 +249,7 @@ public class DiscoveredSettingPolicyScanner {
          *                                  threhsolds.
          */
         private void setupSettingPolicy(@Nonnull final TopologyStitchingEntity host,
-                                        @Nonnull final Optional<ClusterInfo> clusterInfo,
+                                        @Nonnull final Optional<UploadedGroup> clusterInfo,
                                         @Nonnull final List<CommodityDTO.Builder> commoditiesWithThresholds) {
             // Create the setting policy.
             final TargetSettingPolicies targetSettingPolicies =
@@ -294,7 +299,7 @@ public class DiscoveredSettingPolicyScanner {
          *      on the input commodities.
          */
         public DiscoveredSettingPolicyCreator builderFor(
-                        @Nonnull Optional<ClusterInfo> clusterInfo,
+                        @Nonnull Optional<UploadedGroup> clusterInfo,
                         @Nonnull final List<CommodityDTO.Builder> commoditiesSold,
                         @Nonnull Map<Long, String> dcNamesMap) {
             Preconditions.checkArgument(commoditiesSold.size() <= 2); // Max size is 2 (MEM + CPU)
@@ -347,9 +352,10 @@ public class DiscoveredSettingPolicyScanner {
     private static class UtilizationThresholdValues {
         private final Optional<Float> memUtilizationThresholdPercentage;
         private final Optional<Float> cpuUtilizationThresholdPercentage;
-        private final Optional<ClusterInfo> clusterInfo;
+        private final Optional<UploadedGroup> clusterInfo;
 
-        private static final Function<ClusterInfo, String> CLUSTER_NAME = ClusterInfo::getName;
+        private static final Function<UploadedGroup, String> CLUSTER_NAME =
+                UploadedGroup::getSourceIdentifier;
 
         /**
          * Create a new {@link UtilizationThresholdValues}. At least one of the mem or cpu utilization
@@ -362,7 +368,7 @@ public class DiscoveredSettingPolicyScanner {
         UtilizationThresholdValues(
             @Nonnull final Optional<Double> memUtilizationThresholdPercentage,
             @Nonnull final Optional<Double> cpuUtilizationThresholdPercentage,
-            @Nonnull Optional<ClusterInfo> clusterInfo) {
+            @Nonnull final Optional<UploadedGroup> clusterInfo) {
             // At least one of mem or CPU utilization threshold must be non-null.
             Preconditions.checkArgument(memUtilizationThresholdPercentage.isPresent() ||
                 cpuUtilizationThresholdPercentage.isPresent());
@@ -400,7 +406,7 @@ public class DiscoveredSettingPolicyScanner {
          * @return the cluster Info
          */
         @Nonnull
-        public Optional<ClusterInfo> getClusterInfo() {
+        public Optional<UploadedGroup> getClusterInfo() {
             return clusterInfo;
         }
 
@@ -475,12 +481,12 @@ public class DiscoveredSettingPolicyScanner {
          * this {@link DiscoveredSettingPolicyCreator} with the cluster with that name. If no such cluster
          * is provided, a new group will be created consisting of all the hosts added to this
          * {@link DiscoveredSettingPolicyCreator} when asked to
-         * {@link #addGroupsAndSettingPolicies(List, List, String)}.
+         * {@link #addGroupsAndSettingPolicies(List, List, String, long)}.
          *
          * @param hostOid The oid of the host.
          * @param clusterInfo The optional cluster containing this host.
          */
-        public void applyToHost(final long hostOid, @Nonnull final Optional<ClusterInfo> clusterInfo) {
+        public void applyToHost(final long hostOid, @Nonnull final Optional<UploadedGroup> clusterInfo) {
             if (!clusterInfo.isPresent()) {
                 hostOids.add(hostOid);
             }
@@ -509,10 +515,9 @@ public class DiscoveredSettingPolicyScanner {
                 String baseName = composeName(targetName);
                 final String groupName = GROUP_NAME_PREFIX + baseName;
                 final String groupDisplayName = composeDisplayName(targetName);
-                // Associate the policy with the group.
-                settingBuilder.addDiscoveredGroupNames(groupName);
 
                 final CommonDTO.GroupDTO groupDTO = CommonDTO.GroupDTO.newBuilder()
+                    .setGroupType(GroupType.REGULAR)
                     .setDisplayName(groupDisplayName)
                     .setGroupName(groupName)
                     .setEntityType(EntityType.PHYSICAL_MACHINE)
@@ -522,14 +527,18 @@ public class DiscoveredSettingPolicyScanner {
                                 .collect(Collectors.toList()))
                     ).build();
 
-                final GroupInfo.Builder groupInfo = GroupInfo.newBuilder()
-                    .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                    .setName(groupName)
-                    .setDisplayName(groupDisplayName)
-                    .setStaticGroupMembers(StaticGroupMembers.newBuilder()
-                    .addAllStaticMemberOids(hostOids));
+                final GroupDefinition.Builder groupDefinition = GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setDisplayName(groupDisplayName)
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType.newBuilder()
+                                        .setType(MemberType.newBuilder()
+                                                .setEntity(EntityType.PHYSICAL_MACHINE_VALUE))
+                                        .addAllMembers(hostOids)));
+                groups.add(new InterpretedGroup(groupDTO, Optional.of(groupDefinition)));
 
-                groups.add(new InterpretedGroup(groupDTO, Optional.of(groupInfo), Optional.empty()));
+                // Associate the policy with the group.
+                settingBuilder.addDiscoveredGroupNames(GroupProtoUtil.createIdentifyingKey(groupDTO));
                 // used as a unique id of the policy
                 settingBuilder
                     .setDisplayName("HA Settings for " + groupDisplayName)
@@ -538,16 +547,18 @@ public class DiscoveredSettingPolicyScanner {
                 // Clusters are defined on the target (e.g. VC probe)
                 utilizationThresholdValues.getClusterInfo()
                     .ifPresent(ci -> {
-                        String dcName = ci.getMembers().getStaticMemberOidsList().stream()
-                                        .findAny()
-                                        .map(dcNames::get)
-                                        .map(s -> s + "/")
-                                        .orElse("");
+                        String dcName = ci.getDefinition().getStaticGroupMembers().getMembersByTypeList().stream()
+                                .map(StaticMembersByType::getMembersList)
+                                .flatMap(List::stream)
+                                .findAny()
+                                .map(dcNames::get)
+                                .map(s -> s + "/")
+                                .orElse("");
                         settingBuilder
-                            .addDiscoveredGroupNames(ci.getName())
+                            .addDiscoveredGroupNames(GroupProtoUtil.createIdentifyingKey(ci))
                             .setDisplayName(String.format(IMPORTED_HA_SETTINGS_DISPLAY_NAME,
-                                    dcName + ci.getDisplayName(), targetName))
-                            .setName(HA_POLICY_NAME_PREFIX + ci.getName());
+                                    dcName + ci.getDefinition().getDisplayName(), targetName))
+                            .setName(HA_POLICY_NAME_PREFIX + ci.getSourceIdentifier());
                     });
             }
             utilizationThresholdValues.getMemUtilizationSetting().ifPresent(settingBuilder::addSettings);

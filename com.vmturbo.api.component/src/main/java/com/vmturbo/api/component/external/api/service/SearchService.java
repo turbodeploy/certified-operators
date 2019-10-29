@@ -1,9 +1,10 @@
 package com.vmturbo.api.component.external.api.service;
 
-import static com.vmturbo.api.component.external.api.mapper.GroupMapper.ACCOUNT_OID;
-import static com.vmturbo.api.component.external.api.mapper.GroupMapper.STATE;
+import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.ACCOUNT_OID;
+import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.STATE;
 import static com.vmturbo.components.common.utils.StringConstants.CLUSTER;
 import static com.vmturbo.components.common.utils.StringConstants.GROUP;
+import static com.vmturbo.components.common.utils.StringConstants.RESOURCE_GROUP;
 import static com.vmturbo.components.common.utils.StringConstants.STORAGE_CLUSTER;
 import static com.vmturbo.components.common.utils.StringConstants.VIRTUAL_MACHINE_CLUSTER;
 
@@ -40,6 +41,8 @@ import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.BusinessUnitMapper;
+import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
+import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
@@ -75,12 +78,10 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupPropertyFilterList;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
@@ -104,6 +105,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.repository.api.RepositoryClient;
 
 /**
@@ -154,6 +156,8 @@ public class SearchService implements ISearchService {
 
     private final ServiceEntityMapper serviceEntityMapper;
 
+    private final EntityFilterMapper entityFilterMapper;
+
     SearchService(@Nonnull final RepositoryApi repositoryApi,
                   @Nonnull final MarketsService marketsService,
                   @Nonnull final GroupsService groupsService,
@@ -174,7 +178,8 @@ public class SearchService implements ISearchService {
                   final long realtimeTopologyContextId,
                   @Nonnull final UserSessionContext userSessionContext,
                   @Nonnull final GroupServiceBlockingStub groupServiceRpc,
-                  @Nonnull final ServiceEntityMapper serviceEntityMapper) {
+                  @Nonnull final ServiceEntityMapper serviceEntityMapper,
+                  @Nonnull final EntityFilterMapper entityFilterMapper) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.marketsService = Objects.requireNonNull(marketsService);
         this.groupsService = Objects.requireNonNull(groupsService);
@@ -196,6 +201,7 @@ public class SearchService implements ISearchService {
         this.userSessionContext = userSessionContext;
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
         this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
+        this.entityFilterMapper = Objects.requireNonNull(entityFilterMapper);
     }
 
     @Override
@@ -291,16 +297,23 @@ public class SearchService implements ISearchService {
                 return paginationRequest.allResultsResponse(Lists.newArrayList(groups));
             } else if (types.contains(CLUSTER)) {
                 final Collection<GroupApiDTO> groups =
-                    groupsService.getClusters(ClusterInfo.Type.COMPUTE, scopes, Collections.emptyList());
+                    groupsService.getGroupsByType(GroupType.COMPUTE_HOST_CLUSTER,
+                                    scopes, Collections.emptyList());
                 return paginationRequest.allResultsResponse(Lists.newArrayList(groups));
             } else if (types.contains(STORAGE_CLUSTER)) {
                 final Collection<GroupApiDTO> groups =
-                    groupsService.getClusters(ClusterInfo.Type.STORAGE, scopes, Collections.emptyList());
+                    groupsService.getGroupsByType(GroupType.STORAGE_CLUSTER, scopes, Collections.emptyList());
                 return paginationRequest.allResultsResponse(Lists.newArrayList(groups));
             } else if (types.contains(VIRTUAL_MACHINE_CLUSTER)) {
                 final Collection<GroupApiDTO> groups =
-                    groupsService.getClusters(ClusterInfo.Type.COMPUTE_VIRTUAL_MACHINE, scopes, Collections.emptyList());
+                    groupsService.getGroupsByType(GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER,
+                                    scopes, Collections.emptyList());
                 return paginationRequest.allResultsResponse(Lists.newArrayList(groups));
+            } else if (types.contains(RESOURCE_GROUP)) {
+                final Collection<GroupApiDTO> groups =
+                                groupsService.getGroupsByType(GroupType.RESOURCE,
+                                                scopes, Collections.emptyList());
+                            return paginationRequest.allResultsResponse(Lists.newArrayList(groups));
             } else if (types.contains(MarketMapper.MARKET)) {
                 final Collection<MarketApiDTO> markets = marketsService.getMarkets(scopes);
                 return paginationRequest.allResultsResponse(Lists.newArrayList(markets));
@@ -406,35 +419,44 @@ public class SearchService implements ISearchService {
         switch (StringUtils.defaultIfEmpty(inputDTO.getClassName(),"")) {
             case GROUP:
                 return groupsService.getPaginatedGroupApiDTOS(
-                        addNameMatcher(query, inputDTO.getCriteriaList(), GroupMapper.GROUPS_FILTER_TYPE),
+                        addNameMatcher(query, inputDTO.getCriteriaList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
                         paginationRequest);
             case CLUSTER:
                 // this is a search for a compute Cluster of physical machines
                 return paginationRequest.allResultsResponse(
                         Collections.unmodifiableList(
-                            groupsService.getClusters(ClusterInfo.Type.COMPUTE,
+                            groupsService.getGroupsByType(GroupType.COMPUTE_HOST_CLUSTER,
                                 inputDTO.getScope(),
                                 addNameMatcher(query,
                                         inputDTO.getCriteriaList(),
-                                        GroupMapper.CLUSTERS_FILTER_TYPE))));
+                                        GroupFilterMapper.CLUSTERS_FILTER_TYPE))));
             case STORAGE_CLUSTER:
                 // this is a search for a storage Cluster
                 return paginationRequest.allResultsResponse(
                         Collections.unmodifiableList(
-                            groupsService.getClusters(Type.STORAGE,
+                            groupsService.getGroupsByType(GroupType.STORAGE_CLUSTER,
                                 inputDTO.getScope(),
                                 addNameMatcher(query,
                                         inputDTO.getCriteriaList(),
-                                        GroupMapper.STORAGE_CLUSTERS_FILTER_TYPE))));
+                                        GroupFilterMapper.STORAGE_CLUSTERS_FILTER_TYPE))));
             case VIRTUAL_MACHINE_CLUSTER:
                 // this is a search for a compute cluster of virtual machines
                 return paginationRequest.allResultsResponse(
                         Collections.unmodifiableList(
-                                groupsService.getClusters(ClusterInfo.Type.COMPUTE_VIRTUAL_MACHINE,
+                                groupsService.getGroupsByType(GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER,
                                         inputDTO.getScope(),
                                         addNameMatcher(query,
                                                 inputDTO.getCriteriaList(),
-                                                GroupMapper.VIRTUALMACHINE_CLUSTERS_FILTER_TYPE))));
+                                                GroupFilterMapper.VIRTUALMACHINE_CLUSTERS_FILTER_TYPE))));
+            case RESOURCE_GROUP:
+                // this is a search for a compute cluster of virtual machines
+                return paginationRequest.allResultsResponse(
+                        Collections.unmodifiableList(
+                                groupsService.getGroupsByType(GroupType.RESOURCE,
+                                        inputDTO.getScope(),
+                                        addNameMatcher(query,
+                                                inputDTO.getCriteriaList(),
+                                                GroupFilterMapper.RESOURCE_GROUP_BY_NAME_FILTER_TYPE))));
             default:
                 // this isn't a group search after all -- use a generic search method instead.
                 return searchEntitiesByParameters(inputDTO, query, paginationRequest);
@@ -460,7 +482,7 @@ public class SearchService implements ISearchService {
         // create a name filter for the 'query' and add it to the filters list.
         FilterApiDTO nameFilter = new FilterApiDTO();
         nameFilter.setExpVal(".*" + stringToMatch + ".*"); // turn it into a wildcard regex
-        nameFilter.setExpType(GroupMapper.REGEX_MATCH);
+        nameFilter.setExpType(EntityFilterMapper.REGEX_MATCH);
         nameFilter.setCaseSensitive(false);
         nameFilter.setFilterType(filterTypeToUse);
         List<FilterApiDTO> returnFilters = new ArrayList<>();
@@ -485,7 +507,8 @@ public class SearchService implements ISearchService {
                 throws OperationFailedException {
         final String updatedQuery = escapeSpecialCharactersInSearchQueryPattern(nameQuery);
         final List<SearchParameters> searchParameters =
-            groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName(), updatedQuery)
+                entityFilterMapper.convertToSearchParameters(
+                                inputDTO.getCriteriaList(), inputDTO.getClassName(), updatedQuery)
                 .stream()
                 // Convert any cluster membership filters to property filters.
                 .map(this::resolveClusterFilters)
@@ -704,9 +727,13 @@ public class SearchService implements ISearchService {
         return scopes.stream()
                 .anyMatch(scope -> {
                     final boolean isMarket = UuidMapper.isRealtimeMarket(scope);
-                    final Optional<Group> group = groupExpander.getGroup(scope);
-                    return isMarket || (group.isPresent() && group.get().hasTempGroup()
-                            && group.get().getTempGroup().getIsGlobalScopeGroup());
+                    final Optional<Grouping> group = groupExpander.getGroup(scope);
+                    return isMarket || (group.isPresent()
+                                    && group.get().getDefinition().getIsTemporary()
+                                    && group.get().getDefinition().hasOptimizationMetadata()
+                                    && group.get().getDefinition()
+                                        .getOptimizationMetadata()
+                                        .getIsGlobalScope());
                 });
     }
 
@@ -754,12 +781,10 @@ public class SearchService implements ISearchService {
         final Collection<String> oids =
             groupExpander.getGroupsWithMembers(
                     GetGroupsRequest.newBuilder()
-                        .setPropertyFilters(
-                            GroupPropertyFilterList.newBuilder()
-                                .addPropertyFilters(
-                                    inputFilter.getClusterMembershipFilter().getClusterSpecifier())
-                                .build())
-                        .addTypeFilter(Group.Type.CLUSTER)
+                        .setGroupFilter(GroupFilter.newBuilder()
+                            .setGroupType(GroupType.COMPUTE_HOST_CLUSTER)
+                            .addPropertyFilters(inputFilter
+                                            .getClusterMembershipFilter().getClusterSpecifier()))
                         .build())
                 .flatMap(groupAndMembers -> groupAndMembers.members().stream())
                 .distinct()

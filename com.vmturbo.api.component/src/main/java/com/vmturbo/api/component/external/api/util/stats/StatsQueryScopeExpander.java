@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.util.stats;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -145,7 +146,7 @@ public class StatsQueryScopeExpander {
         if (scope.isGlobalTempGroup()) {
             // If it's a global temp group group, we don't worry about fully expanding it.
             List<UIEntityType> entityTypes = relatedTypes.isEmpty() ?
-                Collections.singletonList(scope.getCachedGroupInfo().get().getEntityType()) :
+                new ArrayList<>(scope.getCachedGroupInfo().get().getEntityTypes()) :
                 relatedTypes;
             return StatsQueryScope.all(ImmutableGlobalScope.builder()
                 .entityTypes(entityTypes)

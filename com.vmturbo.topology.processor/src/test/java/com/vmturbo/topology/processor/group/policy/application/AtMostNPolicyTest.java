@@ -10,6 +10,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -24,7 +25,7 @@ import org.junit.rules.ExpectedException;
 
 import com.google.common.collect.Sets;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -51,11 +52,11 @@ public class AtMostNPolicyTest {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
-    private final Group consumerGroup = PolicyGroupingHelper.policyGrouping(
-        staticGroupMembers(4L, 5L), EntityType.VIRTUAL_MACHINE_VALUE, 1234L);
+    private final Grouping consumerGroup = PolicyGroupingHelper.policyGrouping(
+        Arrays.asList(4L, 5L), EntityType.VIRTUAL_MACHINE_VALUE, 1234L);
 
-    private final Group providerGroup = PolicyGroupingHelper.policyGrouping(
-        staticGroupMembers(1L), EntityType.PHYSICAL_MACHINE_VALUE, 5678L);
+    private final Grouping providerGroup = PolicyGroupingHelper.policyGrouping(
+        Arrays.asList(1L), EntityType.PHYSICAL_MACHINE_VALUE, 5678L);
 
     private final long consumerID = 1234L;
     private final long providerID = 5678L;
@@ -173,7 +174,7 @@ public class AtMostNPolicyTest {
      */
     @Test
     public void testApplyVmToStorageAffinity() throws GroupResolutionException, PolicyApplicationException {
-        final Group providerGroup = PolicyGroupingHelper.policyGrouping(
+        final Grouping providerGroup = PolicyGroupingHelper.policyGrouping(
             searchParametersCollection(), EntityType.STORAGE_VALUE, 5678L);
 
         final PolicyDTO.PolicyInfo.AtMostNPolicy atMostNPolicy =

@@ -20,15 +20,20 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.group.GroupDTO;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
@@ -40,6 +45,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.policy.application.BindToGroupPolicy;
@@ -83,8 +89,8 @@ public class ReservationPolicyFactory {
             @Nonnull final TopologyGraph<TopologyEntity> graph,
             @Nonnull final List<ReservationConstraintInfo> constraints,
             @Nonnull final Set<Long> consumers) {
-        final Group pmProviderGroup = generateProviderGroup(graph, constraints);
-        final Group consumerGroup = generateConsumerGroup(consumers);
+        final Grouping pmProviderGroup = generateProviderGroup(graph, constraints);
+        final Grouping consumerGroup = generateConsumerGroup(consumers);
         final Policy bindToGroupPolicyPM = generateBindToGroupPolicy(pmProviderGroup, consumerGroup);
         return new BindToGroupPolicy(bindToGroupPolicyPM, new PolicyEntities(
                 consumerGroup, Collections.emptySet()), new PolicyEntities(pmProviderGroup));
@@ -95,14 +101,14 @@ public class ReservationPolicyFactory {
             @Nonnull final List<ReservationConstraintInfo> constraints,
             @Nonnull final Reservation reservation) {
         // when we support different template types for reservation, we should generate generic provider group
-        final Group pmProviderGroup = generateProviderGroup(graph, constraints);
-        final Group consumerGroup = generateConsumerGroup(reservation);
+        final Grouping pmProviderGroup = generateProviderGroup(graph, constraints);
+        final Grouping consumerGroup = generateConsumerGroup(reservation);
         final Policy bindToGroupPolicyPM = generateBindToGroupPolicy(pmProviderGroup, consumerGroup);
         return new BindToGroupPolicy(bindToGroupPolicyPM, new PolicyEntities(
                 consumerGroup, Collections.emptySet()), new PolicyEntities(pmProviderGroup));
     }
 
-    private Group generateConsumerGroup(@Nonnull final Reservation reservation) {
+    private Grouping generateConsumerGroup(@Nonnull final Reservation reservation) {
         final Set<Long> consumerGroupIds = reservation.getReservationTemplateCollection()
                 .getReservationTemplateList().stream()
                 .map(ReservationTemplate::getReservationInstanceList)
@@ -112,11 +118,11 @@ public class ReservationPolicyFactory {
         return generateStaticGroup(consumerGroupIds, EntityType.VIRTUAL_MACHINE_VALUE);
     }
 
-    private Group generateConsumerGroup(@Nonnull final Set<Long> consumers) {
+    private Grouping generateConsumerGroup(@Nonnull final Set<Long> consumers) {
         return generateStaticGroup(consumers, EntityType.VIRTUAL_MACHINE_VALUE);
     }
 
-    private Group generateProviderGroup(@Nonnull final TopologyGraph<TopologyEntity> graph,
+    private Grouping generateProviderGroup(@Nonnull final TopologyGraph<TopologyEntity> graph,
                                         @Nonnull final List<ReservationConstraintInfo> constraints) {
         final Map<Integer, Set<TopologyEntity>> providersMap =
                 performIntersectionWithConstraints(graph, constraints);
@@ -283,20 +289,26 @@ public class ReservationPolicyFactory {
      * @param entityType entity type of group.
      * @return {@link Group}.
      */
-    private Group generateStaticGroup(@Nonnull final Set<Long> members, final int entityType) {
-        final Group staticGroup = Group.newBuilder()
+    private Grouping generateStaticGroup(@Nonnull final Set<Long> members, final int entityType) {
+        //TODO (mahdi) this group is super weird. It does not a saved in group component
+        final Grouping staticGroup = Grouping.newBuilder()
                 .setId(IdentityGenerator.next())
-                .setType(Type.GROUP)
-                .setGroup(GroupInfo.newBuilder()
-                        .setStaticGroupMembers(StaticGroupMembers.newBuilder()
-                                .addAllStaticMemberOids(members))
-                        .setEntityType(entityType))
+                .addExpectedTypes(MemberType.newBuilder().setEntity(entityType))
+                .setDefinition(GroupDefinition.newBuilder()
+                    .setType(GroupType.REGULAR)
+                    .setStaticGroupMembers(StaticMembers.newBuilder()
+                        .addMembersByType(StaticMembersByType.newBuilder()
+                            .setType(MemberType.newBuilder().setEntity(entityType))
+                            .addAllMembers(members))))
+                .setOrigin(GroupDTO.Origin.newBuilder().setSystem(
+                    GroupDTO.Origin.System.newBuilder()
+                        .setDescription("Reservation policy generated group")).build())
                 .build();
         return staticGroup;
     }
 
-    private Policy generateBindToGroupPolicy(@Nonnull final Group providerGroup,
-                                             @Nonnull final Group consumerGroup) {
+    private Policy generateBindToGroupPolicy(@Nonnull final Grouping providerGroup,
+                                             @Nonnull final Grouping consumerGroup) {
         final Policy bindToGroupPolicy = Policy.newBuilder()
                 .setId(IdentityGenerator.next())
                 .setPolicyInfo(PolicyInfo.newBuilder()

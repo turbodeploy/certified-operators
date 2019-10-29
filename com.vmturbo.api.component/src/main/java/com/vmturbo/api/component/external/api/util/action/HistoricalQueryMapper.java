@@ -19,7 +19,6 @@ import com.google.common.base.Preconditions;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
-import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor.ActionStatsQuery;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.utils.DateTimeUtil;
@@ -28,6 +27,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.A
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.MgmtUnitSubgroupFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.TimeRange;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 
 /**
@@ -150,7 +150,9 @@ class HistoricalQueryMapper {
                     if (query.getRelatedEntityTypes().isEmpty()) {
                         // The .get() is safe because we know it's a group (or else we wouldn't be
                         // in this block.
-                        mgmtSubgroupFilterBldr.addEntityType(scope.getScopeType().get().typeNumber());
+                        scope.getScopeTypes().get().stream()
+                            .map(UIEntityType::typeNumber)
+                            .forEach(mgmtSubgroupFilterBldr::addEntityType);
                     }
                 } else {
                     mgmtSubgroupFilterBldr.setMgmtUnitId(scope.oid());

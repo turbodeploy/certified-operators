@@ -103,7 +103,7 @@ public class ClusterRollupTaskTest {
         // there's one rollup requested immediately, since we have no previous rollup time.
         Assert.assertEquals(1, count);
         verify(statsHistoryService).computeClusterRollup(anyObject(), anyObject());
-        verify(groupServiceSpy).getGroups(any());
+        verify(groupServiceSpy, times(3)).getGroups(any());
         verify(keyValueStore).put(ClusterRollupTask.LAST_ROLLUP_TIME_KEY, clock.instant().toString());
 
         // Verify we scheduled with the right cron trigger.
@@ -119,7 +119,7 @@ public class ClusterRollupTaskTest {
         // Running the rollup.
         Assert.assertEquals(2, clusterRollupTask.getRollupCount());
         verify(statsHistoryService, times(2)).computeClusterRollup(anyObject(), anyObject());
-        verify(groupServiceSpy, times(2)).getGroups(any());
+        verify(groupServiceSpy, times(6)).getGroups(any());
 
         verify(keyValueStore).put(ClusterRollupTask.LAST_ROLLUP_TIME_KEY, clock.instant().toString());
     }
@@ -160,7 +160,7 @@ public class ClusterRollupTaskTest {
         // Running the rollup.
         Assert.assertEquals(1, clusterRollupTask.getRollupCount());
         verify(statsHistoryService).computeClusterRollup(anyObject(), anyObject());
-        verify(groupServiceSpy).getGroups(any());
+        verify(groupServiceSpy, times(3)).getGroups(any());
 
         verify(keyValueStore).put(ClusterRollupTask.LAST_ROLLUP_TIME_KEY, clock.instant().toString());
     }

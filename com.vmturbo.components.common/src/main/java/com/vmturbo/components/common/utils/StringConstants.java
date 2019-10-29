@@ -174,6 +174,10 @@ public class StringConstants {
      * Group types set.
      */
     public static final Set<String> GROUP_TYPES = ImmutableSet.of(GROUP, CLUSTER, STORAGE_CLUSTER);
+    /**
+     * The class name used in UI for resource group.
+     */
+    public static final String RESOURCE_GROUP = "ResourceGroup";
     public static final String VIRTUAL_MACHINE = "VirtualMachine";
     public static final String PHYSICAL_MACHINE = "PhysicalMachine";
     public static final String DATA_CENTER = "DataCenter";
@@ -205,6 +209,10 @@ public class StringConstants {
     public static final String DESKTOP_POOL = "DesktopPool";
     public static final String BUSINESS_USER = "BusinessUser";
     public static final String VIEW_POD = "ViewPod";
+    /**
+     * The class name used in UI for workloads.
+     */
+    public static final String WORKLOAD = "Workload";
 
     public static final String NUM_ENTITIES = "numEntities";
     public static final String NUM_HOSTS = "numHosts";

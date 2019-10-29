@@ -16,12 +16,11 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterFilter;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
  * This stats sub-query retrieves the number of clusters.
@@ -61,9 +60,8 @@ public class NumClustersStatsSubQuery implements StatsSubQuery {
     public Map<Long, List<StatApiDTO>> getAggregateStats(@Nonnull final Set<StatApiInputDTO> stats,
                                                          @Nonnull final StatsQueryContext context) throws OperationFailedException {
         final int numClusters = groupRpcService.countGroups(GetGroupsRequest.newBuilder()
-                .addTypeFilter(Type.CLUSTER)
-                .setClusterFilter(ClusterFilter.newBuilder()
-                    .setTypeFilter(ClusterInfo.Type.COMPUTE))
+                .setGroupFilter(GroupFilter.newBuilder()
+                                .setGroupType(GroupType.COMPUTE_HOST_CLUSTER))
                 .build())
             .getCount();
         final StatApiDTO statApiDTO = new StatApiDTO();

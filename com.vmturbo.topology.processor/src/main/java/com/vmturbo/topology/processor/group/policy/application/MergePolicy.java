@@ -43,7 +43,7 @@ public class MergePolicy extends PlacementPolicy {
         this.mergePolicyEntitiesList = Objects.requireNonNull(mergePolicyEntitiesList);
         this.mergePolicy = policyDefinition.getPolicyInfo().getMerge();
         mergePolicyEntitiesList
-                .forEach(mergePolicyEntities -> GroupProtoUtil.checkEntityType(mergePolicyEntities.getGroup()));
+                .forEach(mergePolicyEntities -> GroupProtoUtil.checkEntityTypeForPolicy(mergePolicyEntities.getGroup()));
     }
 
     @Nonnull

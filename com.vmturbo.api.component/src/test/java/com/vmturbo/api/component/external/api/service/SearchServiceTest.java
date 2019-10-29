@@ -1,7 +1,6 @@
 package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getSearchResults;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItems;
@@ -49,6 +48,8 @@ import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.BusinessUnitMapper;
+import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
+import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
@@ -83,10 +84,9 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityS
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -112,6 +112,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartial
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
@@ -138,6 +139,8 @@ public class SearchServiceTest {
     private final RepositoryClient repositoryClient = mock(RepositoryClient.class);
     private final BusinessUnitMapper businessUnitMapper = mock(BusinessUnitMapper.class);
     private final UserSessionContext userSessionContext = mock(UserSessionContext.class);
+    private final EntityFilterMapper entityFilterMapper = new EntityFilterMapper(groupUseCaseParser);
+    private final GroupFilterMapper groupFilterMapper = new GroupFilterMapper();
 
     private SearchServiceMole searchServiceSpy = Mockito.spy(new SearchServiceMole());
     private EntitySeverityServiceMole entitySeverityServiceSpy = Mockito.spy(new EntitySeverityServiceMole());
@@ -172,7 +175,9 @@ public class SearchServiceTest {
         final GroupServiceBlockingStub groupServiceBlockingStub =
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(userSessionContext.isUserScoped()).thenReturn(false);
-        groupMapper = new GroupMapper(groupUseCaseParser, supplyChainFetcherFactory, groupExpander, topologyProcessor, repositoryApi);
+        groupMapper = new GroupMapper(supplyChainFetcherFactory, groupExpander,
+                        topologyProcessor, repositoryApi, entityFilterMapper, groupFilterMapper);
+
         searchService = spy(new SearchService(
                 repositoryApi,
                 marketsService,
@@ -194,7 +199,8 @@ public class SearchServiceTest {
                 realTimeContextId,
                 userSessionContext,
                 groupServiceBlockingStub,
-                serviceEntityMapper));
+                serviceEntityMapper,
+                entityFilterMapper));
     }
 
     /**
@@ -390,7 +396,8 @@ public class SearchServiceTest {
         List<String> scopes = Lists.newArrayList(PM_OID);
         List<String> types = Lists.newArrayList("Cluster");
 
-        when(groupsService.getClusters(Type.COMPUTE, Collections.singletonList(PM_OID), Collections.emptyList()))
+        when(groupsService.getGroupsByType(GroupType.COMPUTE_HOST_CLUSTER,
+                        Collections.singletonList(PM_OID), Collections.emptyList()))
             .thenReturn(Collections.singletonList(groupApiDTO));
 
         // Act
@@ -416,11 +423,12 @@ public class SearchServiceTest {
             .build();
 
         final GroupAndMembers clusterAndMembers = ImmutableGroupAndMembers.builder()
-            .group(Group.newBuilder()
-                .setType(Group.Type.CLUSTER)
+            .group(Grouping.newBuilder()
                 .setId(1L)
-                .setCluster(ClusterInfo.newBuilder()
-                    .setName("Cluster1"))
+                .setDefinition(GroupDefinition.newBuilder()
+                                .setType(GroupType.COMPUTE_HOST_CLUSTER)
+                                .setDisplayName("Cluster1")
+                                )
                 .build())
             .members(ImmutableSet.of(1L, 2L))
             // Not needed for clusters
@@ -440,9 +448,9 @@ public class SearchServiceTest {
         final ArgumentCaptor<GetGroupsRequest> reqCaptor = ArgumentCaptor.forClass(GetGroupsRequest.class);
         verify(groupExpander).getGroupsWithMembers(reqCaptor.capture());
         GetGroupsRequest req = reqCaptor.getValue();
-        assertThat(req.getTypeFilterList(), contains(Group.Type.CLUSTER));
+        assertEquals(GroupType.COMPUTE_HOST_CLUSTER, req.getGroupFilter().getGroupType());
         assertThat(
-                req.getPropertyFilters().getPropertyFilters(0).getStringFilter(),
+                req.getGroupFilter().getPropertyFilters(0).getStringFilter(),
                 is(clusterSpecifier.getStringFilter()));
     }
 

@@ -14,7 +14,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.auth.api.authorization.jwt.JwtCallCredential;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 
 /**
  * Utility functions in support of the XL External API implementation
@@ -106,10 +106,13 @@ public class ApiUtils {
      * @return a boolean to represent if input scope is global market or not.
      */
     public static boolean isGlobalScope(@Nonnull final String scope,
-                                        @Nonnull final Optional<Group> groupOptional) {
+                                        @Nonnull final Optional<Grouping> groupOptional) {
         return Objects.isNull(scope) || UuidMapper.isRealtimeMarket(scope) ||
-                (groupOptional.isPresent() && groupOptional.get().hasTempGroup() &&
-                        groupOptional.get().getTempGroup().getIsGlobalScopeGroup());
+                (groupOptional.isPresent()
+                                && groupOptional.get().getDefinition().getIsTemporary()
+                                && groupOptional.get().getDefinition().hasOptimizationMetadata()
+                                && groupOptional.get().getDefinition().getOptimizationMetadata()
+                                    .getIsGlobalScope());
     }
 }
 

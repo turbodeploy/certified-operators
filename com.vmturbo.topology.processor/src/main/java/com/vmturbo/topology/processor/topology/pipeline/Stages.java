@@ -21,8 +21,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Preconditions;
-
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
@@ -618,8 +618,9 @@ public class Stages {
             if (groupsToResolve.size() > 0) {
                 // fetch the group definitions from the group service
                 GetGroupsRequest request = GetGroupsRequest.newBuilder()
-                    .addAllId(groupsToResolve)
-                    .setResolveClusterSearchFilters(true)
+                    .setGroupFilter(GroupFilter.newBuilder()
+                        .addAllId(groupsToResolve))
+                    .setReplaceGroupPropertyWithGroupMembershipFilter(true)
                     .build();
                 groupServiceClient.getGroups(request)
                     .forEachRemaining(

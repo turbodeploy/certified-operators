@@ -15,7 +15,8 @@ import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScope
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
@@ -86,9 +87,10 @@ public class ScenarioScopeAccessChecker {
         // the groupService.getGroups() will return an error if any groups in the request are out
         // of scope, so we don't need to check them individually.
         if (!scopeGroupIds.isEmpty()) {
-            Iterator<Group> groups = groupServiceClient.getGroups(GetGroupsRequest.newBuilder()
-                .addAllId(scopeGroupIds)
-                .build());
+            Iterator<Grouping> groups = groupServiceClient.getGroups(GetGroupsRequest.newBuilder()
+                            .setGroupFilter(GroupFilter.newBuilder()
+                                            .addAllId(scopeGroupIds))
+                            .build());
             final Set<Long> resultGroups = new HashSet<>(scopeGroupIds.size());
             while (groups.hasNext()) {
                 resultGroups.add(groups.next().getId());

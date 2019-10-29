@@ -83,7 +83,7 @@ public class EntitySettingQueryExecutorTest {
         final UIEntityType scopeType = UIEntityType.VIRTUAL_MACHINE;
         when(scope.isGroup()).thenReturn(false);
         when(scope.oid()).thenReturn(scopeId);
-        when(scope.getScopeType()).thenReturn(Optional.of(scopeType));
+        when(scope.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(scopeType)));
 
         // ACT
         final List<SettingsManagerApiDTO> retMgrs = executor.getEntitySettings(scope, false);
@@ -152,7 +152,7 @@ public class EntitySettingQueryExecutorTest {
         final UIEntityType scopeType = UIEntityType.VIRTUAL_MACHINE;
         when(scope.isGroup()).thenReturn(true);
         when(scope.oid()).thenReturn(scopeId);
-        when(scope.getScopeType()).thenReturn(Optional.of(scopeType));
+        when(scope.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(scopeType)));
 
         when(groupExpander.expandOids(any())).thenReturn(Collections.singleton(groupMember));
 

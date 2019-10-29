@@ -23,7 +23,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.FilterTypeCase;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -73,7 +74,7 @@ public class GroupResolver {
      * @return OIDs of the members of the input group.
      * @throws GroupResolutionException when a dynamic group cannot be resolved.
      */
-    public Set<Long> resolve(@Nonnull final Group group,
+    public Set<Long> resolve(@Nonnull final Grouping group,
                              @Nonnull final TopologyGraph<TopologyEntity> graph)
             throws GroupResolutionException {
 
@@ -96,62 +97,68 @@ public class GroupResolver {
      * @return OIDs of the members of the input group.
      * @throws GroupResolutionException when a dynamic group cannot be resolved.
      */
-    private Set<Long> resolveMembers(@Nonnull final Group group,
+    private Set<Long> resolveMembers(@Nonnull final Grouping group,
                                      @Nonnull final TopologyGraph<TopologyEntity> graph)
             throws GroupResolutionException {
 
-        Optional<Set<Long>> groupMembers = Optional.empty();
-        switch (group.getType()) {
-            case CLUSTER:
-                groupMembers = Optional.of(GroupProtoUtil.getClusterMembers(group));
-                break;
-            case GROUP:
-                switch (group.getGroup().getSelectionCriteriaCase()) {
-                    case STATIC_GROUP_MEMBERS:
-                        groupMembers = Optional.of(resolveStaticGroup(group));
-                        break;
-                    case SEARCH_PARAMETERS_COLLECTION:
-                        List<SearchParameters> searchParametersList =
-                                group.getGroup().getSearchParametersCollection().getSearchParametersList();
-                        for (SearchParameters searchParameters : searchParametersList) {
-                            final Set<Long> resolvedMembers = resolveDynamicGroup(group.getId(),
-                                    GroupProtoUtil.getEntityType(group), searchParameters, graph);
-                            // need to save the first resolve result in order to perform intersection
-                            groupMembers = groupMembers.isPresent() ? groupMembers.map(groupSet -> {
-                                groupSet.retainAll(resolvedMembers);
-                                return groupSet;
-                            }) : Optional.of(resolvedMembers);
-                        }
-                        break;
-                    default:
-                        throw new GroupResolutionException("Unknown selection criteria type: " +
-                                group.getGroup().getSelectionCriteriaCase());
+        Set<Long> result = Collections.emptySet();
+        switch (group.getDefinition().getSelectionCriteriaCase()) {
+            case STATIC_GROUP_MEMBERS:
+                if (GroupProtoUtil.isNestedGroup(group)) {
+                    GroupDTO.GetMembersResponse response = groupServiceClient
+                                    .getMembers(GroupDTO.GetMembersRequest.newBuilder()
+                                            .setExpandNestedGroups(true)
+                                            .setId(group.getId()).build());
+                    if (response.hasMembers()) {
+                        result = response.getMembers().getIdsList().stream().collect(Collectors.toSet());
+                    }
+                } else {
+                    result = GroupProtoUtil.getAllStaticMembers(group.getDefinition());
                 }
                 break;
-            case NESTED_GROUP:
+            case ENTITY_FILTERS:
+                result = group.getDefinition()
+                    .getEntityFilters()
+                    .getEntityFilterList()
+                    .stream()
+                    .map(filter -> getMembersBasedOnFilter(filter, group.getId(), graph))
+                    .flatMap(Set::stream)
+                    .collect(Collectors.toSet());
+
+                break;
+            case GROUP_FILTERS:
                 GroupDTO.GetMembersResponse response = groupServiceClient
                         .getMembers(GroupDTO.GetMembersRequest.newBuilder()
                                 .setExpandNestedGroups(true)
                                 .setId(group.getId()).build());
                 if (response.hasMembers()) {
-                    groupMembers = Optional.of(response.getMembers().getIdsList().stream().collect(Collectors.toSet()));
+                    result = response.getMembers().getIdsList().stream().collect(Collectors.toSet());
                 }
+                break;
+            default:
+                logger.error("Unsupported or unset group member selection criteria for `{}`", group);
                 break;
         }
 
-        return groupMembers.orElse(Collections.emptySet());
+        return result;
     }
 
-    /**
-     * Resolve the members of the static group.
-     *
-     * @param group Group whose static memebers have to be resolved
-     * @return A collection of OIDs of the members of the group
-     */
-    @Nonnull
-    @VisibleForTesting
-    Set<Long> resolveStaticGroup(final Group group) {
-        return new HashSet<>(group.getGroup().getStaticGroupMembers().getStaticMemberOidsList());
+    private Set<Long> getMembersBasedOnFilter(EntityFilter entityFilter, Long groupId,
+                    TopologyGraph<TopologyEntity> graph) {
+        List<SearchParameters> searchParametersList =
+                        entityFilter.getSearchParametersCollection().getSearchParametersList();
+        Set<Long> result = null;
+        for (SearchParameters searchParameters : searchParametersList) {
+            final Set<Long> resolvedMembers = resolveDynamicGroup(groupId,
+                            entityFilter.getEntityType(), searchParameters, graph);
+
+            if (result != null) {
+                result.retainAll(resolvedMembers);
+            } else {
+                result = new HashSet<>(resolvedMembers);
+            }
+        }
+        return result == null ? Collections.emptySet() : result;
     }
 
     /**

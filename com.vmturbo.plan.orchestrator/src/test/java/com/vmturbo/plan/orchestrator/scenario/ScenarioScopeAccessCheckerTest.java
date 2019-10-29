@@ -16,7 +16,7 @@ import org.junit.Test;
 
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -71,7 +71,7 @@ public class ScenarioScopeAccessCheckerTest {
         // verify that a regular non-scoped user should have access to a scoped scenario
         when(userSessionContext.isUserScoped()).thenReturn(false);
         when(groupServiceMole.getGroups(any())).thenReturn(Collections.singletonList(
-            Group.newBuilder().setId(1).build()));
+            Grouping.newBuilder().setId(1).build()));
         ScenarioInfo scenarioInfo = ScenarioInfo.newBuilder()
                 .setScope(PlanScope.newBuilder()
                         .addScopeEntries(PlanScopeEntry.newBuilder()

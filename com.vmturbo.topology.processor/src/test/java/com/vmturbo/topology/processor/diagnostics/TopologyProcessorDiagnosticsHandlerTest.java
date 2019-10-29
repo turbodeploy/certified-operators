@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.diagnostics;
 
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -18,8 +17,6 @@ import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -33,13 +30,6 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.ArgumentCaptor;
-
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -47,12 +37,22 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.gson.Gson;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+import org.mockito.ArgumentCaptor;
+
+import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings.UploadedGroup;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
-import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo.DeploymentProfileContextData;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo.Scope;
@@ -779,22 +779,24 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         TestTopology withDiscoveredGroupGroup() {
             this.discoveredGroupInfo = DiscoveredGroupInfo.newBuilder()
                 .setDiscoveredGroup(makeGroupDTO())
-                .setInterpretedGroup(GroupInfo.newBuilder()
-                    .setName("name")
-                    .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                    .setSearchParametersCollection(SearchParametersCollection.newBuilder()
-                        .addSearchParameters(SearchParameters.newBuilder()
-                            .setStartingFilter(PropertyFilter.newBuilder()
-                                .setPropertyName("propertyName")
-                                .setNumericFilter(NumericFilter.newBuilder()
-                                    .setComparisonOperator(ComparisonOperator.GT)
-                                    .setValue(123)))
-                            .addSearchFilter(SearchFilter.newBuilder()
-                                .setTraversalFilter(TraversalFilter.newBuilder()
-                                    .setTraversalDirection(TraversalDirection.CONSUMES)
-                                    .setStoppingCondition(StoppingCondition.newBuilder()
-                                        .setNumberHops(3))))))
-                    .build())
+                .setUploadedGroup(UploadedGroup.newBuilder()
+                        .setSourceIdentifier("name")
+                .setDefinition(GroupDefinition.newBuilder()
+                    .setEntityFilters(EntityFilters.newBuilder()
+                        .addEntityFilter(EntityFilter.newBuilder()
+                            .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                            .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+                                .addSearchParameters(SearchParameters.newBuilder()
+                                    .setStartingFilter(PropertyFilter.newBuilder()
+                                        .setPropertyName("propertyName")
+                                        .setNumericFilter(NumericFilter.newBuilder()
+                                            .setComparisonOperator(ComparisonOperator.GT)
+                                            .setValue(123)))
+                                    .addSearchFilter(SearchFilter.newBuilder()
+                                        .setTraversalFilter(TraversalFilter.newBuilder()
+                                            .setTraversalDirection(TraversalDirection.CONSUMES)
+                                            .setStoppingCondition(StoppingCondition.newBuilder()
+                                            .setNumberHops(3))))))))))
                 .build();
             return this;
         }
@@ -802,12 +804,14 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         TestTopology withDiscoveredClusterGroup() {
             this.discoveredGroupInfo = DiscoveredGroupInfo.newBuilder()
                 .setDiscoveredGroup(makeGroupDTO())
-                .setInterpretedCluster(ClusterInfo.newBuilder()
-                    .setName("name")
-                    .setClusterType(Type.COMPUTE)
-                    .setMembers(StaticGroupMembers.newBuilder()
-                        .addStaticMemberOids(4815162342108L))
-                    .build())
+                .setUploadedGroup(UploadedGroup.newBuilder()
+                        .setSourceIdentifier("name")
+                    .setDefinition(GroupDefinition.newBuilder()
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                            .addMembersByType(StaticMembersByType.newBuilder()
+                                .setType(MemberType.newBuilder()
+                                    .setEntity(EntityType.PHYSICAL_MACHINE_VALUE))
+                                    .addMembers(4815162342108L)))))
                 .build();
             return this;
         }

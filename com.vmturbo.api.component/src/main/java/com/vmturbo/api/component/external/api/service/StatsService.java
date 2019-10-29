@@ -55,13 +55,15 @@ import com.vmturbo.api.utils.EncodingUtil;
 import com.vmturbo.api.utils.UrlsHelp;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.Pagination;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -458,29 +460,30 @@ public class StatsService implements IStatsService {
                 (inputDto.getScopes().isEmpty() ? "empty" :  MarketMapper.MARKET));
         }
 
-        final Iterator<Group> groups = groupServiceRpc.getGroups(GetGroupsRequest.newBuilder()
-                .addAllId(inputDto.getScopes().stream()
-                        .map(Long::valueOf)
-                        .collect(Collectors.toList()))
-                .build());
+        final Iterator<Grouping> groups = groupServiceRpc.getGroups(GetGroupsRequest.newBuilder()
+                        .setGroupFilter(GroupFilter.newBuilder()
+                                        .addAllId(inputDto.getScopes().stream()
+                                                        .map(Long::valueOf)
+                                                        .collect(Collectors.toList())))
+                        .build());
 
         // request the cluster stats for each group
         // TODO: We are fetching the cluster stats one-at-a-time here. We should consider
         // batching the requests for better performance. See OM-33182.
         final List<EntityStatsApiDTO> results = new ArrayList<>();
         groups.forEachRemaining(group -> {
-            if (group.hasCluster()) {
+            if (GroupProtoUtil.CLUSTER_GROUP_TYPES.contains(group.getDefinition().getType())) {
                 // verify the user has access to the cluster members. If any are inaccessible, this
                 // method will propagate an AccessDeniedException.
-                if (userSessionContext.isUserScoped() && group.getCluster().hasMembers()) {
+                if (userSessionContext.isUserScoped() && group.getDefinition().hasStaticGroupMembers()) {
                     UserScopeUtils.checkAccess(userSessionContext.getUserAccessScope(),
-                            group.getCluster().getMembers().getStaticMemberOidsList());
+                            GroupProtoUtil.getAllStaticMembers(group.getDefinition()));
                 }
                 final EntityStatsApiDTO statsDTO = new EntityStatsApiDTO();
                 final String uuid = String.valueOf(group.getId());
                 statsDTO.setUuid(uuid);
                 statsDTO.setClassName(StringConstants.CLUSTER);
-                statsDTO.setDisplayName(group.getCluster().getDisplayName());
+                statsDTO.setDisplayName(group.getDefinition().getDisplayName());
                 statsDTO.setStats(new ArrayList<>());
 
                 // Call Stats service to retrieve cluster related stats.
@@ -814,8 +817,11 @@ public class StatsService implements IStatsService {
             }
             // this is not a group, but an entity (or market, which doesn't have entity type).
             // if the entity is a grouping entity, it should be handled by getAggregatedEntityStats
-            Optional<UIEntityType> scopeType = apiId.getScopeType();
-            if (scopeType.isPresent() && statsMapper.shouldNormalize(scopeType.get().apiStr())) {
+            Optional<Set<UIEntityType>> scopeTypes = apiId.getScopeTypes();
+
+            if (scopeTypes.isPresent() && scopeTypes.get().stream()
+                            .map(UIEntityType::apiStr)
+                            .anyMatch(statsMapper::shouldNormalize)) {
                 return true;
             }
         }
@@ -993,13 +999,17 @@ public class StatsService implements IStatsService {
      * @return return a optional of entity type, if input group is a temporary global scope group,
      *         otherwise return empty option.
      */
-    private Optional<Integer> getGlobalTempGroupEntityType(@Nonnull final Optional<Group> groupOptional) {
-        if (!groupOptional.isPresent() || !groupOptional.get().hasTempGroup()) {
+    private Optional<Integer> getGlobalTempGroupEntityType(@Nonnull final Optional<Grouping> groupOptional) {
+        if (!groupOptional.isPresent() || !groupOptional.get().getDefinition().getIsTemporary()
+                        || !groupOptional.get().getDefinition().hasStaticGroupMembers()
+                        || groupOptional.get().getDefinition()
+                                .getStaticGroupMembers().getMembersByTypeCount() != 1) {
             return Optional.empty();
         }
 
-        final TempGroupInfo tempGroup = groupOptional.get().getTempGroup();
-        final boolean isGlobalTempGroup = tempGroup.getIsGlobalScopeGroup()
+        final GroupDefinition tempGroup = groupOptional.get().getDefinition();
+        final boolean isGlobalTempGroup = tempGroup.hasOptimizationMetadata()
+                        && tempGroup.getOptimizationMetadata().getIsGlobalScope()
                 // TODO (roman, Nov 21 2018) OM-40569: Add proper support for environment type for
                 // the global scope optimization.
                 //
@@ -1008,16 +1018,23 @@ public class StatsService implements IStatsService {
                 // incorrect results for entity types that can appear in both cloud an on-prem
                 // environments (e.g. VMs). Since no customers of XL currently use the cloud
                 // capabilities, this is ok as a short-term fix.
-                && (!tempGroup.hasEnvironmentType() || tempGroup.getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.ON_PREM);
+                && (!tempGroup.getOptimizationMetadata().hasEnvironmentType()
+                            || tempGroup.getOptimizationMetadata().getEnvironmentType()
+                                    == EnvironmentTypeEnum.EnvironmentType.ON_PREM);
+
+        int entityType = tempGroup.getStaticGroupMembers()
+                        .getMembersByType(0)
+                        .getType()
+                        .getEntity();
 
         // if it is global temp group and need to expand, should return target expand entity type.
         if (isGlobalTempGroup && ENTITY_TYPES_TO_EXPAND.containsKey(
-                UIEntityType.fromType(tempGroup.getEntityType()))) {
+                UIEntityType.fromType(entityType))) {
             return Optional.of(ENTITY_TYPES_TO_EXPAND.get(
-                UIEntityType.fromType(tempGroup.getEntityType())).typeNumber());
+                UIEntityType.fromType(entityType)).typeNumber());
         } else if (isGlobalTempGroup) {
             // if it is global temp group and not need to expand.
-            return Optional.of(tempGroup.getEntityType());
+            return Optional.of(entityType);
         } else {
             return Optional.empty();
         }

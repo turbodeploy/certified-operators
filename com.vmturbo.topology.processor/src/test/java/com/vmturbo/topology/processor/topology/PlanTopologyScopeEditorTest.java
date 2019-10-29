@@ -21,15 +21,19 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
@@ -334,12 +338,23 @@ public class PlanTopologyScopeEditorTest {
     @Test
     public void testScopeOnpremTopologyOnCluster() throws PipelineStageException {
         TopologyInfo topologyInfo = TopologyInfo.getDefaultInstance();
-        Group g = Group.newBuilder().setCluster(ClusterInfo.newBuilder()
-                .setMembers(StaticGroupMembers.newBuilder().addStaticMemberOids(PM1_IN_DC1.getOid())
-                        .addStaticMemberOids(PM2_IN_DC1.getOid()))).build();
-        List<Group> groups = Arrays.asList(g);
-        when(groupServiceClient.getGroups(GetGroupsRequest.newBuilder().addId(90001L)
-                .setResolveClusterSearchFilters(true).build())).thenReturn(groups);
+        Grouping g = Grouping.newBuilder()
+                        .addExpectedTypes(MemberType.newBuilder().setEntity(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
+                        .setDefinition(GroupDefinition.newBuilder()
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                        .addMembersByType(StaticMembersByType.newBuilder()
+                                                        .setType(MemberType.newBuilder()
+                                                                        .setEntity(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
+                                                        .addMembers(PM1_IN_DC1.getOid())
+                                                        .addMembers(PM2_IN_DC1.getOid())
+                                                        )))
+                        .build();
+
+        List<Grouping> groups = Arrays.asList(g);
+        when(groupServiceClient.getGroups(GetGroupsRequest.newBuilder()
+            .setGroupFilter(GroupFilter.newBuilder().addId(90001L))
+            .setReplaceGroupPropertyWithGroupMembershipFilter(true)
+            .build())).thenReturn(groups);
         when(groupResolver.resolve(eq(g), eq(GRAPH))).thenReturn(new HashSet<>(Arrays.asList(PM1_IN_DC1.getOid(), PM2_IN_DC1.getOid())));
 
         final PlanScope planScope = PlanScope.newBuilder()

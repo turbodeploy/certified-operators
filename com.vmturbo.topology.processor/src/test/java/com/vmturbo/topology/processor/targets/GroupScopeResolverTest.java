@@ -11,22 +11,23 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
+
+import io.grpc.stub.StreamObserver;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.google.common.collect.ImmutableList;
-
-import io.grpc.stub.StreamObserver;
-
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
@@ -203,10 +204,12 @@ public class GroupScopeResolverTest {
 
     private final static GetGroupResponse getGetGroupResponse(int index) {
         return GetGroupResponse.newBuilder()
-                .setGroup(Group.newBuilder()
+                .setGroup(Grouping.newBuilder()
                         .setId(groupId[index])
-                        .setGroup(GroupInfo.newBuilder()
-                                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE))
+                        .addExpectedTypes(MemberType.newBuilder()
+                                        .setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
+                        .setDefinition(GroupDefinition.newBuilder()
+                                )
                         .build())
                 .build();
     }

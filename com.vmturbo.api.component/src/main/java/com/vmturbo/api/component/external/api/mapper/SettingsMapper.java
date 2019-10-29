@@ -59,7 +59,8 @@ import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
@@ -256,12 +257,21 @@ public class SettingsMapper {
         }
 
         // Get all groups referred to by the scopes of the input policy.
-        final Iterable<Group> groups = () -> groupService.getGroups(GetGroupsRequest.newBuilder()
-                .addAllId(groupIds)
-                .build());
-        final Map<Integer, List<Group>> groupsByEntityType =
-            StreamSupport.stream(groups.spliterator(), false)
-                .collect(Collectors.groupingBy(GroupProtoUtil::getEntityType));
+        final Iterable<Grouping> groups = () -> groupService.getGroups(
+                        GetGroupsRequest.newBuilder()
+                            .setGroupFilter(GroupFilter.newBuilder()
+                                            .addAllId(groupIds))
+                            .build());
+
+        final Map<Integer, List<Grouping>> groupsByEntityType = new HashMap<>();
+
+        StreamSupport.stream(groups.spliterator(), false)
+            .forEach(group -> {
+                GroupProtoUtil.getEntityTypes(group)
+                    .forEach(type -> groupsByEntityType.computeIfAbsent(type.typeNumber(),
+                            ArrayList::new).add(group));
+            });
+
         if (groupsByEntityType.isEmpty()) {
             // This can only happen if the groups are not found.
             throw new UnknownObjectException("Group IDs " + groupIds + " not found.");
@@ -562,10 +572,11 @@ public class SettingsMapper {
         final Map<Long, String> groupNames = new HashMap<>();
         if (!involvedGroups.isEmpty()) {
             groupService.getGroups(GetGroupsRequest.newBuilder()
-                    .addAllId(involvedGroups)
-                    .build())
+                            .setGroupFilter(GroupFilter.newBuilder()
+                                            .addAllId(involvedGroups))
+                            .build())
                     .forEachRemaining(group -> groupNames.put(group.getId(),
-                            GroupProtoUtil.getGroupDisplayName(group)));
+                            group.getDefinition().getDisplayName()));
         }
 
         Map<String, Setting> globalSettingNameToSettingMap = getRelevantGlobalSettings(settingPolicies);

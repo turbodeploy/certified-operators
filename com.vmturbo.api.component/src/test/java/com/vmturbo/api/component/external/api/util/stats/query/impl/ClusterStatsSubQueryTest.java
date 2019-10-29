@@ -30,13 +30,13 @@ import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 public class ClusterStatsSubQueryTest {
 
@@ -59,7 +59,7 @@ public class ClusterStatsSubQueryTest {
     @Test
     public void testApplicableToCluster() {
         final ApiId scope = mock(ApiId.class);
-        when(scope.getGroupType()).thenReturn(Optional.of(Type.CLUSTER));
+        when(scope.getGroupType()).thenReturn(Optional.of(GroupType.COMPUTE_HOST_CLUSTER));
         final StatsQueryContext context = mock(StatsQueryContext.class);
         when(context.getInputScope()).thenReturn(scope);
         StatApiInputDTO clusterStat = new StatApiInputDTO();
@@ -75,7 +75,7 @@ public class ClusterStatsSubQueryTest {
     @Test
     public void testNotApplicableToCluster() {
         final ApiId scope = mock(ApiId.class);
-        when(scope.getGroupType()).thenReturn(Optional.of(Type.CLUSTER));
+        when(scope.getGroupType()).thenReturn(Optional.of(GroupType.COMPUTE_HOST_CLUSTER));
         final StatsQueryContext context = mock(StatsQueryContext.class);
         when(context.getInputScope()).thenReturn(scope);
         assertThat(query.applicableInContext(context), is(false));
@@ -84,7 +84,7 @@ public class ClusterStatsSubQueryTest {
     @Test
     public void testNotApplicableToGroup() {
         final ApiId scope = mock(ApiId.class);
-        when(scope.getGroupType()).thenReturn(Optional.of(Type.GROUP));
+        when(scope.getGroupType()).thenReturn(Optional.of(GroupType.REGULAR));
 
         final StatsQueryContext context = mock(StatsQueryContext.class);
         when(context.getInputScope()).thenReturn(scope);

@@ -25,6 +25,7 @@ import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -81,14 +82,15 @@ public class ClusterActionAggregator extends ActionAggregator {
     public void start() {
         try (DataMetricTimer ignored = Metrics.CLUSTER_AGGREGATOR_INIT_TIME.startTimer()) {
             final Multimap<Long, Long> entitiesInCluster = HashMultimap.create();
-            groupService.getGroups(GetGroupsRequest.newBuilder()
-                .addTypeFilter(Type.CLUSTER)
-                .build())
-                .forEachRemaining(group ->
-                    GroupProtoUtil.getClusterMembers(group).forEach(memberId -> {
-                        entitiesInCluster.put(group.getId(), memberId);
-                        clustersOfEntity.put(memberId, group.getId());
-                    }));
+            GroupProtoUtil.CLUSTER_GROUP_TYPES
+                .forEach(type -> groupService.getGroups(GetGroupsRequest.newBuilder()
+                                .setGroupFilter(GroupFilter.newBuilder()
+                                        .setGroupType(type)).build())
+                                .forEachRemaining(group ->
+                                    GroupProtoUtil.getAllStaticMembers(group.getDefinition()).forEach(memberId -> {
+                                        entitiesInCluster.put(group.getId(), memberId);
+                                        clustersOfEntity.put(memberId, group.getId());
+                                    })));
 
             // Short-circuit if there are no clusters with members.
             if (entitiesInCluster.isEmpty()) {

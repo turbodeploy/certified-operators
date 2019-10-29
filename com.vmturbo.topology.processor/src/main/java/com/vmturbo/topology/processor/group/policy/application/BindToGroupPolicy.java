@@ -7,8 +7,6 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.base.Preconditions;
-
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
@@ -44,7 +42,7 @@ public class BindToGroupPolicy extends PlacementPolicy {
         this.policyInfo = policyDefinition.getPolicyInfo();
         this.consumerPolicyEntities = Objects.requireNonNull(consumerPolicyEntities);
         this.providerPolicyEntities = Objects.requireNonNull(providerPolicyEntities);
-        GroupProtoUtil.checkEntityType(providerPolicyEntities.getGroup());
+        GroupProtoUtil.checkEntityTypeForPolicy(providerPolicyEntities.getGroup());
     }
 
     @Nonnull

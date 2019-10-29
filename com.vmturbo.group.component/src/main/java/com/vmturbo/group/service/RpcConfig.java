@@ -17,9 +17,9 @@ import com.vmturbo.common.protobuf.setting.SettingProtoREST.SettingPolicyService
 import com.vmturbo.common.protobuf.setting.SettingProtoREST.SettingServiceController;
 import com.vmturbo.group.IdentityProviderConfig;
 import com.vmturbo.group.group.GroupConfig;
-import com.vmturbo.group.group.GroupStore;
 import com.vmturbo.group.policy.PolicyConfig;
 import com.vmturbo.group.setting.SettingConfig;
+import com.vmturbo.group.stitching.GroupStitchingManager;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
@@ -58,9 +58,6 @@ public class RpcConfig {
     @Autowired
     private UserSessionConfig userSessionConfig;
 
-    @Autowired
-    private GroupStore groupStore;
-
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
@@ -70,7 +67,7 @@ public class RpcConfig {
     @Bean
     public PolicyRpcService policyService() {
         return new PolicyRpcService(policyConfig.policyStore(), groupService(),
-            groupStore, userSessionConfig.userSessionContext());
+                groupConfig.groupStore(), userSessionConfig.userSessionContext());
     }
 
     @Bean
@@ -80,14 +77,26 @@ public class RpcConfig {
 
     @Bean
     public GroupRpcService groupService() {
-        return new GroupRpcService(groupConfig.groupStore(),
+        return new GroupRpcService(
                 groupConfig.temporaryGroupCache(),
                 repositoryClientConfig.searchServiceClient(),
                 groupConfig.entityToClusterMapping(),
                 databaseConfig.dsl(),
                 policyConfig.policyStore(),
                 settingConfig.settingStore(),
-                userSessionConfig.userSessionContext());
+                userSessionConfig.userSessionContext(),
+                groupConfig.groupStore(),
+                groupStitchingManager());
+    }
+
+    /**
+     * An instance of group stitching manager.
+     *
+     * @return {@link GroupStitchingManager} bean
+     */
+    @Bean
+    public GroupStitchingManager groupStitchingManager() {
+        return new GroupStitchingManager();
     }
 
     @Bean

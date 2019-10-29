@@ -22,7 +22,7 @@ import org.junit.rules.ExpectedException;
 
 import com.google.common.collect.Sets;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -47,7 +47,7 @@ public class MustRunTogetherPolicyTest {
     public ExpectedException expectedException = ExpectedException.none();
 
     // vm group (consumers)
-    private final Group group = PolicyGroupingHelper.policyGrouping(
+    private final Grouping group = PolicyGroupingHelper.policyGrouping(
         searchParametersCollection(), EntityType.VIRTUAL_MACHINE_VALUE, 1234L);
     private final long groupID = group.getId();
 

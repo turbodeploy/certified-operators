@@ -90,12 +90,19 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
-import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -596,11 +603,11 @@ public class MarketsService implements IMarketsService {
                     .filter(PolicyDTO.PolicyResponse::hasPolicy)
                     .flatMap(resp -> GroupProtoUtil.getPolicyGroupIds(resp.getPolicy()).stream())
                     .collect(Collectors.toSet());
-            final Map<Long, Group> groupings = new HashMap<>();
+            final Map<Long, Grouping> groupings = new HashMap<>();
             if (!groupingIDS.isEmpty()) {
                 groupRpcService.getGroups(GetGroupsRequest.newBuilder()
-                        .addAllId(groupingIDS)
-                        .build())
+                                .setGroupFilter(GroupFilter.newBuilder().addAllId(groupingIDS))
+                                .build())
                         .forEachRemaining(group -> groupings.put(group.getId(), group));
             }
             return policyRespList.stream()
@@ -1244,17 +1251,29 @@ public class MarketsService implements IMarketsService {
                     Strings.join(fetchDataCenterNamesByOids(policyApiInputDTO.getMergeUuids()),
                             ',')), MAX_GROUP_NAME_LENGTH);
             // New hidden group creation request
-            final GroupDTO.GroupInfo.Builder requestBuilder = GroupDTO.GroupInfo.newBuilder()
-                    .setName(groupName)
-                    .setEntityType(EntityType.DATACENTER.getNumber())
+            final GroupDefinition.Builder requestBuilder = GroupDefinition.newBuilder()
+                    .setDisplayName(groupName)
                     .setIsHidden(true);
 
-            requestBuilder.setStaticGroupMembers(
-                    GroupDTO.StaticGroupMembers.newBuilder().addAllStaticMemberOids(
-                            policyApiInputDTO.getMergeUuids().stream()
-                                    .map(Long::parseLong).collect(Collectors.toList())));
+            requestBuilder.setStaticGroupMembers(StaticMembers.newBuilder()
+                            .addMembersByType(StaticMembersByType.newBuilder()
+                                            .setType(MemberType.newBuilder().setEntity(
+                                                            EntityType.DATACENTER.getNumber()
+                                                            )
+                                            )
+                                            .addAllMembers(policyApiInputDTO.getMergeUuids().stream()
+                                                            .map(Long::parseLong).collect(Collectors.toList()))
+                                            )
+                            );
 
-            final GroupDTO.CreateGroupResponse response = groupRpcService.createGroup(requestBuilder.build());
+            final CreateGroupResponse response = groupRpcService.createGroup(
+                CreateGroupRequest.newBuilder()
+                    .setGroupDefinition(requestBuilder)
+                    .setOrigin(Origin.newBuilder().setSystem(Origin.System
+                        .newBuilder()
+                        .setDescription("Hidden group to support merging datacenters.")))
+                    .build()
+            );
 
             logger.debug("Created new hidden group {} for data centers {}.",
                     response.getGroup().getId(),
@@ -1305,16 +1324,25 @@ public class MarketsService implements IMarketsService {
                 }
 
                 // Update the hidden group if data centers in the policy have changed.
-                final GroupDTO.GroupInfo.Builder newInfo = GroupDTO.GroupInfo.newBuilder()
-                        .setName(groupName)
-                        .setEntityType(EntityType.DATACENTER.getNumber())
+                final GroupDefinition groupDefinition = GroupDefinition.newBuilder()
+                        .setDisplayName(groupName)
                         .setIsHidden(true)
-                        .setStaticGroupMembers(GroupDTO.StaticGroupMembers.newBuilder()
-                                .addAllStaticMemberOids(currPolicyMemberList));
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                            .addMembersByType(StaticMembersByType
+                                            .newBuilder()
+                                            .setType(MemberType.newBuilder().setEntity(
+                                                            EntityType.DATACENTER.getNumber()
+                                                            )
+                                                    )
+                                            .addAllMembers(currPolicyMemberList)
+                                            )
+                        )
+                        .build();
 
-                final UpdateGroupResponse response = groupRpcService.updateGroup(UpdateGroupRequest.newBuilder()
+                final UpdateGroupResponse response = groupRpcService.updateGroup(
+                                UpdateGroupRequest.newBuilder()
                         .setId(groupId)
-                        .setNewInfo(newInfo)
+                        .setNewDefinition(groupDefinition)
                         .build());
 
                 logger.debug("Updated hidden group {} for data centers {}.",

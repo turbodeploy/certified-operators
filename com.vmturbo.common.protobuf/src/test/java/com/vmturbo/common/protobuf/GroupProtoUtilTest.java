@@ -14,6 +14,8 @@ import junit.framework.TestCase;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
+import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings.UploadedGroup;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
@@ -21,8 +23,9 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.AtMostNPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
-import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 public class GroupProtoUtilTest {
 
@@ -129,18 +132,6 @@ public class GroupProtoUtilTest {
     }
 
     @Test
-    public void testGroupDTODiscoveredId() {
-        final CommonDTO.GroupDTO group = CommonDTO.GroupDTO.newBuilder()
-            .setGroupName("foo")
-            .setEntityType(EntityType.PHYSICAL_MACHINE)
-            .build();
-
-        long targetId = 111L;
-        Assert.assertEquals("foo-PHYSICAL_MACHINE" + "-" + String.valueOf(targetId),
-                GroupProtoUtil.discoveredIdFromName(group, targetId));
-    }
-
-    @Test
     public void testGroupInfoDiscoveredId() {
         final GroupInfo group = GroupInfo.newBuilder()
             .setName("foo")
@@ -162,5 +153,31 @@ public class GroupProtoUtilTest {
         long targetId = 111L;
         Assert.assertEquals("foo-PHYSICAL_MACHINE" + "-" + String.valueOf(targetId),
                 GroupProtoUtil.discoveredIdFromName(group, targetId));
+    }
+
+    /**
+     * Test that identifying key is created correctly for uploaded group.
+     */
+    @Test
+    public void testCreateIdentifyingKeyForUploadedGroup() {
+        UploadedGroup group = UploadedGroup.newBuilder()
+                .setSourceIdentifier("foo")
+                .setDefinition(GroupDefinition.newBuilder().setType(GroupType.REGULAR))
+                .build();
+        Assert.assertEquals(GroupType.REGULAR_VALUE + "-foo",
+                GroupProtoUtil.createIdentifyingKey(group));
+    }
+
+    /**
+     * Test that identifying key is created correctly for sdk group.
+     */
+    @Test
+    public void testCreateIdentifyingKeyForSdkGroup() {
+        GroupDTO group = GroupDTO.newBuilder()
+                .setGroupName("foo")
+                .setGroupType(GroupType.RESOURCE)
+                .build();
+        Assert.assertEquals(GroupType.RESOURCE_VALUE + "-foo",
+                GroupProtoUtil.createIdentifyingKey(group));
     }
 }

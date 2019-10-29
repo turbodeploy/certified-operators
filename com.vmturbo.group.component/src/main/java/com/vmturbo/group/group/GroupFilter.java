@@ -40,10 +40,10 @@ public class GroupFilter {
         if (!desiredIds.isEmpty()) {
             conditions.add(Tables.GROUPING.ID.in(desiredIds));
         }
-
-        if (!discoveredBy.isEmpty()) {
-            conditions.add(Tables.GROUPING.DISCOVERED_BY_ID.in(discoveredBy));
-        }
+// TODO
+//        if (!discoveredBy.isEmpty()) {
+//            conditions.add(Tables.GROUPING.DISCOVERED_BY_ID.in(discoveredBy));
+//        }
 
         this.conditions = Collections.unmodifiableList(conditions);
     }

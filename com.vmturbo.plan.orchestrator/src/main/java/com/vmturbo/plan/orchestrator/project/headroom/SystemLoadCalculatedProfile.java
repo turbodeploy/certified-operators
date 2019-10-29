@@ -11,13 +11,12 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Multimap;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
-import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadRecord;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -60,7 +59,7 @@ public class SystemLoadCalculatedProfile {
     private Multimap<String, SystemLoadRecord> virtualMachinesMap = ArrayListMultimap.create();
 
     private Operation operation = null;
-    private Group cluster = null;
+    private Grouping cluster = null;
     private String profileNamePostfix = null;
     private String profileDisplayNamePostfix = null;
     private String profileName = null;
@@ -84,7 +83,7 @@ public class SystemLoadCalculatedProfile {
      * @param profileDisplayNamePostfix used to generate profile name.
      */
     SystemLoadCalculatedProfile(
-            @Nonnull final Operation operation, @Nonnull final Group cluster,
+            @Nonnull final Operation operation, @Nonnull final Grouping cluster,
             @Nonnull final List<SystemLoadRecord> systemLoadRecordList,
             final String profileNamePostfix, final String profileDisplayNamePostfix) {
         this.operation = operation;

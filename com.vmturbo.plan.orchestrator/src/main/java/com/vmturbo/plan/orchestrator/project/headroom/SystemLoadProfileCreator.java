@@ -7,8 +7,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.Maps;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadRecord;
 import com.vmturbo.plan.orchestrator.project.headroom.SystemLoadCalculatedProfile.Operation;
 
@@ -17,7 +16,7 @@ import com.vmturbo.plan.orchestrator.project.headroom.SystemLoadCalculatedProfil
  */
 public class SystemLoadProfileCreator {
 
-    private Group cluster;
+    private Grouping cluster;
     private List<SystemLoadRecord> systemLoadRecordList;
     private String profileNamePostfix;
     private String profileDisplayNamePostfix;
@@ -29,14 +28,14 @@ public class SystemLoadProfileCreator {
      * @param systemLoadRecordList to process for profile creation.
      * @param loopbackDays for which history is considered for profile creation.
      */
-    public SystemLoadProfileCreator(@Nonnull final Group cluster,
+    public SystemLoadProfileCreator(@Nonnull final Grouping cluster,
                                     @Nonnull final List<SystemLoadRecord> systemLoadRecordList,
                                     final int loopbackDays) {
         this.cluster = cluster;
         this.systemLoadRecordList = systemLoadRecordList;
-        this.profileNamePostfix = String.format("%s_HEADROOM", cluster.getCluster().getDisplayName());
+        this.profileNamePostfix = String.format("%s_HEADROOM", cluster.getDefinition().getDisplayName());
         this.profileDisplayNamePostfix = String.format("%s for last %s days",
-            cluster.getCluster().getDisplayName(), loopbackDays);
+            cluster.getDefinition().getDisplayName(), loopbackDays);
     }
 
     /**

@@ -11,7 +11,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.Sets;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
@@ -48,7 +48,7 @@ public class MustRunTogetherPolicyApplication extends PlacementPolicyApplication
                     logger.debug("Applying MustRunTogether policy.");
 
                     // get group of entities that need to run together (consumers)
-                    final Group consumerGroup = policy.getPolicyEntities().getGroup();
+                    final Grouping consumerGroup = policy.getPolicyEntities().getGroup();
                     Set<Long> additionalEntities = policy.getPolicyEntities().getAdditionalEntities();
                     final Set<Long> consumers = Sets.union(groupResolver.resolve(consumerGroup, topologyGraph),
                         additionalEntities);

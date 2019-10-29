@@ -31,13 +31,14 @@ import com.vmturbo.topology.processor.group.policy.application.PolicyFactory;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.plan.PlanConfig;
+import com.vmturbo.topology.processor.targets.TargetConfig;
 
 /**
  * The configuration for dealing with groups.
  */
 @Configuration
 @Import({EntityConfig.class, GroupClientConfig.class, PlanConfig.class,
-        ActionOrchestratorClientConfig.class})
+        ActionOrchestratorClientConfig.class, TargetConfig.class})
 public class GroupConfig {
 
     @Autowired
@@ -51,6 +52,9 @@ public class GroupConfig {
 
     @Autowired
     private ActionOrchestratorClientConfig actionOrchestratorClientConfig;
+
+    @Autowired
+    private TargetConfig targetConfig;
 
     @Value("${discoveredGroupUploadIntervalSeconds}")
     private long discoveredGroupUploadIntervalSeconds;
@@ -146,8 +150,8 @@ public class GroupConfig {
 
     @Bean
     public DiscoveredGroupUploader discoveredGroupUploader() {
-        return new DiscoveredGroupUploader(groupServiceStub(),
-                entityConfig.entityStore(), discoveredClusterConstraintCache());
+        return new DiscoveredGroupUploader(groupServiceStub(), entityConfig.entityStore(),
+                discoveredClusterConstraintCache(), targetConfig.targetStore());
     }
 
     @Bean

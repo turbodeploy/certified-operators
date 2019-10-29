@@ -21,7 +21,7 @@ import io.grpc.stub.StreamObserver;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyCreateResponse;
@@ -35,7 +35,7 @@ import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceImplBase
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutablePolicyUpdateException;
 import com.vmturbo.group.common.ItemNotFoundException.PolicyNotFoundException;
-import com.vmturbo.group.group.GroupStore;
+import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.policy.PolicyStore;
 
 public class PolicyRpcService extends PolicyServiceImplBase {
@@ -46,13 +46,13 @@ public class PolicyRpcService extends PolicyServiceImplBase {
 
     private final GroupRpcService groupService;
 
-    private final GroupStore groupStore;
+    private final IGroupStore groupStore;
 
     private final UserSessionContext userSessionContext;
 
     public PolicyRpcService(final PolicyStore policyStoreArg,
                             final GroupRpcService groupService,
-                            final GroupStore groupStore,
+                            final IGroupStore groupStore,
                             UserSessionContext userSessionContext) {
         policyStore = Objects.requireNonNull(policyStoreArg);
         this.groupService = groupService;
@@ -67,7 +67,7 @@ public class PolicyRpcService extends PolicyServiceImplBase {
         // (the cache is to help speed up the case where the same groups are used in several policies)
         Map<Long, Boolean> groupAccessFlags = new HashMap<>();
         Predicate<Long> userHasAccessToGroupId = groupId
-                -> groupAccessFlags.computeIfAbsent(groupId, id -> groupService.userHasAccessToGroup(id));
+                -> groupAccessFlags.computeIfAbsent(groupId, id -> groupService.userHasAccessToGrouping(id));
         policyStore.getAll().stream()
                 .filter(policy -> isPolicyAccessible(policy, userHasAccessToGroupId))
                 .map(policy -> PolicyDTO.PolicyResponse.newBuilder()
@@ -261,9 +261,10 @@ public class PolicyRpcService extends PolicyServiceImplBase {
     }
 
     private String getClusterName(long clusterId, String defaultName) {
-        Optional<Group> clusterGroup = groupStore.get(clusterId);
-        return clusterGroup.isPresent() && clusterGroup.get().hasCluster()
-            ? clusterGroup.get().getCluster().getDisplayName()
+        Optional<GroupDTO.Grouping> clusterGroup = groupStore.getGroup(clusterId);
+        return clusterGroup.isPresent() && clusterGroup.get().hasDefinition()
+                        && clusterGroup.get().getDefinition().hasDisplayName()
+            ? clusterGroup.get().getDefinition().getDisplayName()
             : defaultName;
     }
 
@@ -276,7 +277,7 @@ public class PolicyRpcService extends PolicyServiceImplBase {
 
     // is the policy accessible to the current user?
     private boolean isPolicyAccessible(Policy policy) {
-        return isPolicyAccessible(policy, groupService::userHasAccessToGroup);
+        return isPolicyAccessible(policy, groupService::userHasAccessToGrouping);
     }
 
     // policy access check with injectible predicate

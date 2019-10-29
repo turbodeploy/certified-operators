@@ -10,7 +10,7 @@ import javax.annotation.Nonnull;
 
 import org.apache.commons.lang3.NotImplementedException;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.PolicyDetailCase;
@@ -69,7 +69,7 @@ public class PolicyFactory {
      * @return A new policy for application to a topology.
      */
     public PlacementPolicy newPolicy(@Nonnull final Policy policyDefinition,
-                                     @Nonnull final Map<Long, Group> groups,
+                                     @Nonnull final Map<Long, Grouping> groups,
                                      @Nonnull final Set<Long> additionalConsumers,
                                      @Nonnull final Set<Long> additionalProviders) {
         final PolicyDTO.PolicyInfo policyInfo = policyDefinition.getPolicyInfo();
@@ -129,7 +129,7 @@ public class PolicyFactory {
      * @return merge policy
      */
     private PlacementPolicy buildMergePolicy(@Nonnull final Policy policyDefinition,
-                                             @Nonnull final Map<Long, Group> groups) {
+                                             @Nonnull final Map<Long, Grouping> groups) {
         final List<Long> mergeGroupIdList =
                 policyDefinition.getPolicyInfo().getMerge().getMergeGroupIdsList();
         final List<PolicyEntities> policyEntitiesList = mergeGroupIdList.stream()
@@ -144,23 +144,36 @@ public class PolicyFactory {
      */
     public static class PolicyEntities {
         // the provider/consumer group referenced by Policy.
-        private final Group group;
+        private final Grouping group;
         // additional entities need to apply Policy, it should have no intersection with group members
         // It should be only populated in very special case, for example, in some plan configuration,
         // we want to have some entities to apply the policy without adding them to original group.
         private final Set<Long> additionalEntities;
 
-        public PolicyEntities(@Nonnull final Group group, @Nonnull final Set<Long> additionalEntities) {
+        /**
+         * Constructor for {@link PolicyEntities}.
+         * @param group the provider/consumer group referenced by Policy.
+         * @param additionalEntities additional entities need to apply Policy.
+         */
+        public PolicyEntities(@Nonnull final Grouping group, @Nonnull final Set<Long> additionalEntities) {
             this.group = group;
             this.additionalEntities = additionalEntities;
         }
 
-        public PolicyEntities(@Nonnull final Group group) {
+        /**
+         * Constructor for {@link PolicyEntities}.
+         * @param group the provider/consumer group referenced by Policy.
+         */
+        public PolicyEntities(@Nonnull final Grouping group) {
             this.group = group;
             this.additionalEntities = Collections.emptySet();
         }
 
-        public Group getGroup() {
+        /**
+         * Getter for the group.
+         * @return the group.
+         */
+        public Grouping getGroup() {
             return this.group;
         }
 

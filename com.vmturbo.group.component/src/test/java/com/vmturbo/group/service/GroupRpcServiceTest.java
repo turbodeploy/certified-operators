@@ -1,6 +1,9 @@
 package com.vmturbo.group.service;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Matchers.any;
@@ -16,12 +19,25 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
+
+import io.grpc.Status;
+import io.grpc.Status.Code;
+import io.grpc.StatusException;
+import io.grpc.StatusRuntimeException;
+import io.grpc.stub.StreamObserver;
 
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
@@ -31,74 +47,80 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
+import org.mockito.Mockito;
+import org.mockito.MockitoAnnotations;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
-import com.google.common.collect.ImmutableSet;
-
-import io.grpc.Status;
-import io.grpc.Status.Code;
-import io.grpc.StatusException;
-import io.grpc.stub.StreamObserver;
-
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.group.GroupDTO;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.CountGroupsResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings;
+import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings.UploadedGroup;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.GroupFilters;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.OptimizationMetadata;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupPropertyFilterList;
-import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin.User;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
-import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsPoliciesSettingsResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupResponse;
 import com.vmturbo.common.protobuf.search.Search;
-import com.vmturbo.common.protobuf.search.Search.ClusterMembershipFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
-import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
-import com.vmturbo.common.protobuf.search.SearchableProperties;
-import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
-import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
+import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.health.HealthStatus;
 import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.components.common.identity.OidSet;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutableGroupUpdateException;
 import com.vmturbo.group.common.ItemNotFoundException.GroupNotFoundException;
 import com.vmturbo.group.group.EntityToClusterMapping;
-import com.vmturbo.group.group.GroupStore;
+import com.vmturbo.group.group.IGroupStore;
+import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
+import com.vmturbo.group.group.InvalidGroupException;
 import com.vmturbo.group.group.TemporaryGroupCache;
 import com.vmturbo.group.group.TemporaryGroupCache.InvalidTempGroupException;
 import com.vmturbo.group.policy.PolicyStore;
 import com.vmturbo.group.policy.PolicyStore.PolicyDeleteException;
+import com.vmturbo.group.service.GroupRpcService.InvalidGroupDefinitionException;
 import com.vmturbo.group.setting.SettingStore;
+import com.vmturbo.group.stitching.GroupStitchingManager;
+import com.vmturbo.group.stitching.GroupTestUtils;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
+/**
+ * This class tests {@Link GroupRpcServiceTest}.
+ */
 @SuppressWarnings("unchecked")
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(
@@ -111,8 +133,6 @@ public class GroupRpcServiceTest {
     private AtomicReference<List<Long>> mockDataReference = new AtomicReference<>(Collections.emptyList());
 
     private SearchServiceHandler searchServiceHandler = new SearchServiceHandler(mockDataReference);
-
-    private GroupStore groupStore = mock(GroupStore.class);
 
     private TemporaryGroupCache temporaryGroupCache = mock(TemporaryGroupCache.class);
 
@@ -129,181 +149,378 @@ public class GroupRpcServiceTest {
 
     private UserSessionContext userSessionContext = mock(UserSessionContext.class);
 
+    private IGroupStore groupStoreDAO = mock(IGroupStore.class);
+
+    private GroupStitchingManager groupStitchingManager = spy(GroupStitchingManager.class);
+
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(searchServiceHandler);
 
-    private final Group group1 = Group.newBuilder()
-            .setId(1L)
-            .setGroup(GroupInfo.newBuilder()
-                    .setTags(Tags.newBuilder()
-                            .putTags("key", TagValuesDTO.newBuilder()
-                                    .addValues("value1")
-                                    .addValues("value2")
-                                    .build())))
-            .build();
-    private final Group group2 = Group.newBuilder()
-            .setId(2L)
-            .setGroup(GroupInfo.newBuilder()
-                    .setTags(Tags.newBuilder()
-                            .putTags("key", TagValuesDTO.newBuilder()
-                                    .addValues("value3")
-                                    .build())
-                            .putTags("otherkey", TagValuesDTO.newBuilder()
-                                    .addValues("value1")
-                                    .addValues("value3")
-                                    .build())))
-            .build();
+    private final GroupDefinition testGrouping = GroupDefinition.newBuilder()
+                    .setType(GroupType.REGULAR)
+                    .setDisplayName("TestGroup")
+                    .setStaticGroupMembers(StaticMembers
+                                    .newBuilder()
+                                    .addMembersByType(StaticMembersByType
+                                                    .newBuilder()
+                                                    .setType(MemberType
+                                                                .newBuilder()
+                                                                .setEntity(2)
+                                                            )
+                                                    .addAllMembers(Arrays.asList(101L, 102L))
+                                                    )
+                                    )
+                    .build();
+
+    final Origin origin = Origin
+                    .newBuilder()
+                    .setUser(User
+                                .newBuilder()
+                                .setUsername("administrator")
+                            )
+                    .build();
+
+    private static final MemberType VM_MEMBER_TYPE =
+            MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE).build();
+
+    @Captor
+    private ArgumentCaptor<Collection<DiscoveredGroup>> groupsCaptor;
 
     @Before
     public void setUp() throws Exception {
         SearchServiceBlockingStub searchServiceRpc = SearchServiceGrpc.newBlockingStub(testServer.getChannel());
-        groupRpcService = new GroupRpcService(groupStore, temporaryGroupCache,
+        groupRpcService = new GroupRpcService(temporaryGroupCache,
                 searchServiceRpc, entityToClusterMapping,
-                dbConfig.dsl(), policyStore, settingStore, userSessionContext);
-        when(temporaryGroupCache.get(anyLong())).thenReturn(Optional.empty());
-        when(temporaryGroupCache.delete(anyLong())).thenReturn(Optional.empty());
+                dbConfig.dsl(), policyStore, settingStore, userSessionContext, groupStoreDAO,
+                groupStitchingManager);
+        when(temporaryGroupCache.getGrouping(anyLong())).thenReturn(Optional.empty());
+        when(temporaryGroupCache.deleteGrouping(anyLong())).thenReturn(Optional.empty());
+        MockitoAnnotations.initMocks(this);
     }
 
+    /**
+     * Test {@link GroupRpcService#getGroups(GetGroupsRequest, StreamObserver)}.
+     */
     @Test
-    public void testCreate() throws Exception {
-        final long id = 1234L;
+    public void testGetGroups() {
+        final long groupId = 1234L;
+        final Grouping resultGroup = Grouping.newBuilder().setId(groupId).build();
 
-        final GroupDTO.Group group = GroupDTO.Group.newBuilder()
-                .setId(id)
-                .setGroup(GroupInfo.newBuilder()
-                        .setName("group-foo"))
+        final GetGroupsRequest genericGroupsRequest = GetGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder().addId(groupId).build())
                 .build();
-        final StreamObserver<GroupDTO.CreateGroupResponse> mockObserver =
-                mock(StreamObserver.class);
-
-        given(groupStore.newUserGroup(group.getGroup())).willReturn(group);
-
-        groupRpcService.createGroup(group.getGroup(), mockObserver);
-
-        verify(groupStore).newUserGroup(eq(group.getGroup()));
-        verify(mockObserver).onNext(GroupDTO.CreateGroupResponse.newBuilder()
-                .setGroup(group)
-                .build());
-        verify(mockObserver).onCompleted();
+        final StreamObserver<GroupDTO.Grouping> mockGroupingObserver =
+                Mockito.mock(StreamObserver.class);
+        Mockito.when(groupStoreDAO.getGroups(genericGroupsRequest.getGroupFilter()))
+                .thenReturn(Collections.singletonList(resultGroup));
+        groupRpcService.getGroups(genericGroupsRequest, mockGroupingObserver);
+        Mockito.verify(mockGroupingObserver).onNext(resultGroup);
+        Mockito.verify(mockGroupingObserver).onCompleted();
     }
 
+    /**
+     * Test {@link GroupRpcService#countGroups(GetGroupsRequest, StreamObserver)}
+     * when GetGroupsRequest doesn't contain data about GroupFilter.
+     */
     @Test
-    public void testCreateTempGroup() throws Exception {
-        final TempGroupInfo tempGroupInfo = TempGroupInfo.newBuilder()
-                .setName("foo")
+    public void testCountGenericGroups() {
+        final long groupId = 1234L;
+        final Grouping resultGroup = Grouping.newBuilder().setId(groupId).build();
+
+        final GetGroupsRequest genericGroupsRequest = GetGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder().addId(groupId).build())
                 .build();
-        when(temporaryGroupCache.create(tempGroupInfo)).thenReturn(Group.getDefaultInstance());
-
-        final StreamObserver<GroupDTO.CreateTempGroupResponse> mockObserver =
-                mock(StreamObserver.class);
-
-        groupRpcService.createTempGroup(CreateTempGroupRequest.newBuilder()
-                .setGroupInfo(tempGroupInfo)
-                .build(), mockObserver);
-
-        verify(temporaryGroupCache).create(tempGroupInfo);
-        verify(mockObserver).onNext(CreateTempGroupResponse.newBuilder()
-                .setGroup(Group.getDefaultInstance())
-                .build());
-        verify(mockObserver).onCompleted();
+        final StreamObserver<GroupDTO.CountGroupsResponse> mockCountGroupObserver =
+                Mockito.mock(StreamObserver.class);
+        Mockito.when(groupStoreDAO.getGroups(genericGroupsRequest.getGroupFilter()))
+                .thenReturn(Collections.singletonList(resultGroup));
+        groupRpcService.countGroups(genericGroupsRequest, mockCountGroupObserver);
+        Mockito.verify(mockCountGroupObserver).onCompleted();
+        Mockito.verify(mockCountGroupObserver)
+                .onNext(CountGroupsResponse.newBuilder().setCount(1).build());
     }
 
+    /**
+     * Test {@link GroupRpcService#countGenericGroups(GetGenericGroupsRequest, StreamObserver)}
+     * when GetGenericGroupsRequest doesn't contain data about GroupFilter.
+     */
     @Test
-    public void testCreateTempGroupNoInfo() throws Exception {
-        final StreamObserver<GroupDTO.CreateTempGroupResponse> mockObserver =
-                mock(StreamObserver.class);
-
-        groupRpcService.createTempGroup(CreateTempGroupRequest.newBuilder()
-                // No group info set.
-                .build(), mockObserver);
-
+    public void testCountGenericGroupsExceptionCase() {
         final ArgumentCaptor<StatusException> exceptionCaptor =
                 ArgumentCaptor.forClass(StatusException.class);
-        verify(mockObserver).onError(exceptionCaptor.capture());
+        final long groupId = 1234L;
+        final Grouping resultGroup = Grouping.newBuilder().setId(groupId).build();
 
+        // without GroupFilter
+        final GetGroupsRequest genericGroupsRequest = GetGroupsRequest
+                .newBuilder()
+                .build();
+
+        final StreamObserver<GroupDTO.CountGroupsResponse> mockCountGroupObserver =
+                Mockito.mock(StreamObserver.class);
+        Mockito.when(groupStoreDAO.getGroups(genericGroupsRequest.getGroupFilter()))
+                .thenReturn(Collections.singletonList(resultGroup));
+        groupRpcService.countGroups(genericGroupsRequest, mockCountGroupObserver);
+        verify(mockCountGroupObserver).onError(exceptionCaptor.capture());
         final StatusException exception = exceptionCaptor.getValue();
         assertThat(exception, GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
-                .descriptionContains("No group info"));
+                .descriptionContains("No group filter is present"));
     }
 
+    /**
+     * Test {@link GroupRpcService#getGroupForEntity(GetGroupForEntityRequest, StreamObserver)}.
+     */
     @Test
-    public void testCreateTempGroupException() throws Exception {
-        final StreamObserver<GroupDTO.CreateTempGroupResponse> mockObserver =
-                mock(StreamObserver.class);
+    public void testGetGroupForEntity() {
+        final long entityId = 1234L;
+        final GetGroupForEntityRequest groupForEntityRequest =
+                GetGroupForEntityRequest.newBuilder().setEntityId(entityId).build();
+        final StreamObserver<GroupDTO.GetGroupForEntityResponse> mockGroupForEntityObserver =
+                Mockito.mock(StreamObserver.class);
+        final Set<Grouping> listOfGroups =
+                new HashSet<>(Collections.singletonList(Grouping.getDefaultInstance()));
+        final GetGroupForEntityResponse entityResponse =
+                GetGroupForEntityResponse.newBuilder().addAllGroup(listOfGroups).build();
+        Mockito.when(groupStoreDAO.getStaticGroupsForEntity(entityId)).thenReturn(listOfGroups);
+        groupRpcService.getGroupForEntity(groupForEntityRequest, mockGroupForEntityObserver);
+        Mockito.verify(mockGroupForEntityObserver).onNext(entityResponse);
+        Mockito.verify(mockGroupForEntityObserver).onCompleted();
+    }
 
-        when(temporaryGroupCache.create(TempGroupInfo.getDefaultInstance()))
-                .thenThrow(new InvalidTempGroupException(Collections.singletonList("ERROR")));
-        groupRpcService.createTempGroup(CreateTempGroupRequest.newBuilder()
-                .setGroupInfo(TempGroupInfo.getDefaultInstance())
-                .build(), mockObserver);
-
+    /**
+     * Test {@link GroupRpcService#getGroupForEntity(GetGroupForEntityRequest, StreamObserver)}
+     * when GetGroupForEntityRequest doesn't contain entityId.
+     */
+    @Test
+    public void testGetGroupForEntityExceptionCase() {
         final ArgumentCaptor<StatusException> exceptionCaptor =
                 ArgumentCaptor.forClass(StatusException.class);
-        verify(mockObserver).onError(exceptionCaptor.capture());
-
+        // request without entityId
+        final GetGroupForEntityRequest groupForEntityRequest =
+                GetGroupForEntityRequest.getDefaultInstance();
+        final StreamObserver<GroupDTO.GetGroupForEntityResponse> mockGroupForEntityObserver =
+                Mockito.mock(StreamObserver.class);
+        groupRpcService.getGroupForEntity(groupForEntityRequest, mockGroupForEntityObserver);
+        verify(mockGroupForEntityObserver).onError(exceptionCaptor.capture());
         final StatusException exception = exceptionCaptor.getValue();
         assertThat(exception, GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
-                .descriptionContains("ERROR"));
+                .descriptionContains("EntityID is missing for the getGroupForEntityRequest"));
     }
 
-    @Test(expected = UserAccessScopeException.class)
-    public void testCreateTempGroupOutOfScope() throws Exception {
-        // a user with access only to entity 1 should not be able to create a group containing other entities.
-        when(userSessionContext.isUserScoped()).thenReturn(true);
-        EntityAccessScope scope = new EntityAccessScope(null, null,
-                new ArrayOidSet(Arrays.asList(1L)), null);
-        when(userSessionContext.getUserAccessScope()).thenReturn(scope);
-
-        final TempGroupInfo tempGroupInfo = TempGroupInfo.newBuilder()
-                .setName("foo")
-                .setIsGlobalScopeGroup(false)
-                .setMembers(StaticGroupMembers.newBuilder()
-                        .addStaticMemberOids(2L))
-                .build();
-
-        final StreamObserver<GroupDTO.CreateTempGroupResponse> mockObserver =
-                mock(StreamObserver.class);
-
-        groupRpcService.createTempGroup(CreateTempGroupRequest.newBuilder()
-                .setGroupInfo(tempGroupInfo)
-                .build(), mockObserver);
-    }
-
+    /**
+     * Test case when user have access to requested entity.
+     */
     @Test
-    public void testCreateGroupFail() throws Exception {
-        final long id = 1234L;
-        final GroupDTO.Group group = GroupDTO.Group.newBuilder()
-                .setId(id)
-                .setGroup(GroupInfo.newBuilder()
-                        .setName("group-foo"))
-                .build();
-        final StreamObserver<GroupDTO.CreateGroupResponse> mockObserver =
-                mock(StreamObserver.class);
-
-        given(groupStore.newUserGroup(group.getGroup())).willThrow(DataAccessException.class);
-
-        groupRpcService.createGroup(group.getGroup(), mockObserver);
-
-        verify(groupStore).newUserGroup(group.getGroup());
-        verify(mockObserver).onError(any(IllegalStateException.class));
+    public void testGetGroupForEntityWhenUserHaveAccess() {
+        final long entityId = 1234L;
+        final GetGroupForEntityRequest groupForEntityRequest =
+                GetGroupForEntityRequest.newBuilder().setEntityId(entityId).build();
+        final StreamObserver<GroupDTO.GetGroupForEntityResponse> mockGroupForEntityObserver =
+                Mockito.mock(StreamObserver.class);
+        final Set<Grouping> listOfGroups =
+                new HashSet<>(Collections.singletonList(Grouping.getDefaultInstance()));
+        final GetGroupForEntityResponse entityResponse =
+                GetGroupForEntityResponse.newBuilder().addAllGroup(listOfGroups).build();
+        Mockito.when(groupStoreDAO.getStaticGroupsForEntity(entityId)).thenReturn(listOfGroups);
+        final EntityAccessScope accessScope =
+                new EntityAccessScope(null, null, new ArrayOidSet(Collections.singletonList(entityId)),
+                        null);
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
+        groupRpcService.getGroupForEntity(groupForEntityRequest, mockGroupForEntityObserver);
+        Mockito.verify(mockGroupForEntityObserver).onNext(entityResponse);
+        Mockito.verify(mockGroupForEntityObserver).onCompleted();
     }
 
+    /**
+     * Test case when user have restrict access to entities.
+     */
     @Test(expected = UserAccessScopeException.class)
-    public void testCreateGroupOutOfScope() {
-        // a user with access only to entity 1 should not be able to create a group containing other enttiies.
+    public void testGetGroupForEntityWhenUserRestrict() {
+        final long requestedEntityId = 1L;
+        final long allowedEntityId = 2L;
+        final GetGroupForEntityRequest groupForEntityRequest =
+                GetGroupForEntityRequest.newBuilder().setEntityId(requestedEntityId).build();
+        final StreamObserver<GroupDTO.GetGroupForEntityResponse> mockGroupForEntityObserver =
+                Mockito.mock(StreamObserver.class);
+        final Set<Grouping> listOfGroups =
+                new HashSet<>(Collections.singletonList(Grouping.getDefaultInstance()));
+        final GetGroupForEntityResponse entityResponse =
+                GetGroupForEntityResponse.newBuilder().addAllGroup(listOfGroups).build();
+        Mockito.when(groupStoreDAO.getStaticGroupsForEntity(requestedEntityId)).thenReturn(listOfGroups);
+        final EntityAccessScope accessScope =
+                new EntityAccessScope(null, null, new ArrayOidSet(Collections.singletonList(allowedEntityId)),
+                        null);
         when(userSessionContext.isUserScoped()).thenReturn(true);
-        EntityAccessScope scope = new EntityAccessScope(null, null,
-                new ArrayOidSet(Arrays.asList(1L)), null);
-        when(userSessionContext.getUserAccessScope()).thenReturn(scope);
+        when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
+        groupRpcService.getGroupForEntity(groupForEntityRequest, mockGroupForEntityObserver);
+        Mockito.verify(mockGroupForEntityObserver).onNext(entityResponse);
+        Mockito.verify(mockGroupForEntityObserver).onCompleted();
+    }
 
-        final GroupInfo groupInfo = GroupInfo.newBuilder()
-                .setStaticGroupMembers(StaticGroupMembers.newBuilder()
-                        .addStaticMemberOids(2L))
+    /**
+     * Test {@link GroupRpcService#getGroupForEntity(GetGroupForEntityRequest, StreamObserver)}
+     * when user doesn't have access to all group members and accordingly does not have access to
+     * the group.
+     */
+    @Test(expected = UserAccessScopeException.class)
+    public void testGetGroupForEntityWhenGroupAccessDenied() {
+        final long groupId = 5L;
+        final long requestedEntityId = 1L;
+        final Collection<Long> allowedEntityId = Arrays.asList(1L, 2L, 3L);
+        final Collection<Long> groupMembers = Arrays.asList(1L, 2L, 3L, 4L);
+        final GetGroupForEntityRequest groupForEntityRequest =
+                GetGroupForEntityRequest.newBuilder().setEntityId(requestedEntityId).build();
+        final StreamObserver<GroupDTO.GetGroupForEntityResponse> mockGroupForEntityObserver =
+                Mockito.mock(StreamObserver.class);
+        final Set<Grouping> listOfGroups =
+                new HashSet<>(Collections.singletonList(createGrouping(groupId, groupMembers)));
+        final GetGroupForEntityResponse entityResponse =
+                GetGroupForEntityResponse.newBuilder().addAllGroup(listOfGroups).build();
+        Mockito.when(groupStoreDAO.getStaticGroupsForEntity(requestedEntityId))
+                .thenReturn(listOfGroups);
+        final EntityAccessScope accessScope =
+                new EntityAccessScope(null, null, new ArrayOidSet(allowedEntityId), null);
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
+        groupRpcService.getGroupForEntity(groupForEntityRequest, mockGroupForEntityObserver);
+        Mockito.verify(mockGroupForEntityObserver).onNext(entityResponse);
+        Mockito.verify(mockGroupForEntityObserver).onCompleted();
+    }
+
+    /**
+     * Test {@link GroupRpcService#storeDiscoveredGroupsPoliciesSettings(StreamObserver)} when
+     * DiscoveredGroupsPoliciesSettings hasn't targetId.
+     *
+     * @throws InvalidGroupException if groupDefinition is invalid
+     */
+    @Test
+    public void testStoreDiscoveredGroupsPoliciesSettingsExceptionCase()
+            throws InvalidGroupException {
+        final GroupDefinition groupDefinition = createGroupDefinition();
+        final UploadedGroup uploadedGroup = UploadedGroup.newBuilder()
+                .setDefinition(groupDefinition)
                 .build();
-        final StreamObserver<GroupDTO.CreateGroupResponse> mockObserver =
-                mock(StreamObserver.class);
+        final DiscoveredGroupsPoliciesSettings discoveredGroup =
+                DiscoveredGroupsPoliciesSettings.newBuilder()
+                        .addUploadedGroups(uploadedGroup)
+                        .build();
+        final StreamObserver<GroupDTO.StoreDiscoveredGroupsPoliciesSettingsResponse>
+                responseStreamObserver = Mockito.mock(StreamObserver.class);
+        final ArgumentCaptor<StatusException> exceptionCaptor =
+                ArgumentCaptor.forClass(StatusException.class);
 
-        groupRpcService.createGroup(groupInfo, mockObserver);
+        final StreamObserver<DiscoveredGroupsPoliciesSettings> requestObserver =
+                groupRpcService.storeDiscoveredGroupsPoliciesSettings(responseStreamObserver);
+        requestObserver.onNext(discoveredGroup);
+
+        Mockito.verify(groupStoreDAO, Mockito.never())
+                .updateDiscoveredGroups(Mockito.anyCollection());
+        Mockito.verify(responseStreamObserver).onError(exceptionCaptor.capture());
+        final StatusException exception = exceptionCaptor.getValue();
+        Assert.assertThat(exception, GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
+                .descriptionContains("Request must have a target ID"));
+    }
+
+    /**
+     * Test when user request "all" groups (without certain groupIds) but have access only to
+     * entities from one group. In this case will be filtered results and returned only
+     * accessible ones.
+     */
+    @Test
+    public void testGetGroupsWhenUserScoped() {
+        final long firstGroupId = 1L;
+        final long secondGroupId = 2L;
+        final long firstGroupMember = 11L;
+        final long secondGroupMember = 12L;
+        final Collection<Long>  firstGroupMembers =  Collections.singletonList(firstGroupMember);
+        final Collection<Long> secondGroupMembers = Collections.singletonList(secondGroupMember);
+
+        final Grouping firstGrouping = createGrouping(firstGroupId, firstGroupMembers);
+        final Grouping secondGrouping = createGrouping(secondGroupId, secondGroupMembers);
+        final List<Grouping> groups = Arrays.asList(firstGrouping, secondGrouping);
+
+        final EntityAccessScope accessScope =
+                new EntityAccessScope(null, null,
+                        new ArrayOidSet(Collections.singletonList(firstGroupMember)),
+                        null);
+        final StreamObserver<GroupDTO.Grouping> mockGroupingObserver =
+                Mockito.mock(StreamObserver.class);
+        final GetGroupsRequest genericGroupsRequest = GetGroupsRequest
+                .newBuilder()
+                .setGroupFilter(GroupFilter.getDefaultInstance())
+                .build();
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
+        Mockito.when(groupStoreDAO.getGroup(firstGroupId)).thenReturn(Optional.of(firstGrouping));
+        Mockito.when(groupStoreDAO.getGroup(secondGroupId)).thenReturn(Optional.of(secondGrouping));
+        Mockito.when(groupStoreDAO.getGroups(genericGroupsRequest.getGroupFilter()))
+                .thenReturn(groups);
+        groupRpcService.getGroups(genericGroupsRequest, mockGroupingObserver);
+        Mockito.verify(mockGroupingObserver).onNext(firstGrouping);
+        Mockito.verify(mockGroupingObserver, Mockito.never()).onNext(secondGrouping);
+        Mockito.verify(mockGroupingObserver).onCompleted();
+    }
+
+    /**
+     * Test when user request groups with certain groupIds but have access only to
+     * entities from one group. In this case will be throws {@link UserAccessScopeException}.
+     */
+    @Test(expected = UserAccessScopeException.class)
+    public void testGetGroupsWhenUserScopedExpectedException() {
+        final long firstGroupId = 1L;
+        final long secondGroupId = 2L;
+        final long firstGroupMember = 11L;
+        final long secondGroupMember = 12L;
+        final Collection<Long>  firstGroupMembers =  Collections.singletonList(firstGroupMember);
+        final Collection<Long> secondGroupMembers = Collections.singletonList(secondGroupMember);
+
+        final EntityAccessScope accessScope =
+                new EntityAccessScope(null, null,
+                        new ArrayOidSet(Collections.singletonList(firstGroupMember)),
+                        null);
+
+        final Grouping firstGrouping = createGrouping(firstGroupId, firstGroupMembers);
+        final Grouping secondGrouping = createGrouping(secondGroupId, secondGroupMembers);
+        final List<Grouping> groups = Arrays.asList(firstGrouping, secondGrouping);
+
+        final StreamObserver<GroupDTO.Grouping> mockGroupingObserver =
+                Mockito.mock(StreamObserver.class);
+        final GetGroupsRequest genericGroupsRequest = GetGroupsRequest
+                .newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder().addAllId(Arrays.asList(firstGroupId,
+                        secondGroupId)))
+                .build();
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
+        Mockito.when(groupStoreDAO.getGroup(firstGroupId)).thenReturn(Optional.of(firstGrouping));
+        Mockito.when(groupStoreDAO.getGroup(secondGroupId)).thenReturn(Optional.of(secondGrouping));
+        Mockito.when(groupStoreDAO.getGroups(genericGroupsRequest.getGroupFilter()))
+                .thenReturn(groups);
+        groupRpcService.getGroups(genericGroupsRequest, mockGroupingObserver);
+        Mockito.verify(mockGroupingObserver).onNext(firstGrouping);
+        Mockito.verify(mockGroupingObserver, Mockito.never()).onNext(secondGrouping);
+        Mockito.verify(mockGroupingObserver).onCompleted();
+    }
+
+    /**
+     * Test {@link GroupRpcService#getGroups(GetGroupsRequest, StreamObserver)}
+     * when request doesn't contain GroupFilter.
+     */
+    @Test
+    public void testGetGroupsExceptionCase() {
+        final ArgumentCaptor<StatusException> exceptionCaptor =
+                ArgumentCaptor.forClass(StatusException.class);
+        final StreamObserver<GroupDTO.Grouping> mockGroupingObserver =
+                Mockito.mock(StreamObserver.class);
+        // request without GroupFilter
+        final GetGroupsRequest genericGroupsRequest =
+                GetGroupsRequest.getDefaultInstance();
+        groupRpcService.getGroups(genericGroupsRequest, mockGroupingObserver);
+        Mockito.verify(mockGroupingObserver).onError(exceptionCaptor.capture());
+        final StatusException exception = exceptionCaptor.getValue();
+        assertThat(exception, GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
+                .descriptionContains("No group filter is present"));
     }
 
     @Test
@@ -332,8 +549,8 @@ public class GroupRpcServiceTest {
 
         groupRpcService.deleteGroup(gid, mockObserver);
 
-        verify(temporaryGroupCache).delete(groupIdToDelete);
-        verify(groupStore).deleteUserGroup(groupIdToDelete);
+        verify(temporaryGroupCache).deleteGrouping(groupIdToDelete);
+        verify(groupStoreDAO).deleteGroup(groupIdToDelete);
         verify(mockObserver).onNext(
                 GroupDTO.DeleteGroupResponse.newBuilder().setDeleted(true).build());
         verify(mockObserver).onCompleted();
@@ -343,47 +560,20 @@ public class GroupRpcServiceTest {
     @Test
     public void testDeleteTempGroup() throws Exception {
         final long id = 7;
-        when(temporaryGroupCache.delete(id)).thenReturn(Optional.of(Group.getDefaultInstance()));
+        when(temporaryGroupCache.deleteGrouping(id))
+            .thenReturn(Optional.of(Grouping.getDefaultInstance()));
 
         final StreamObserver<GroupDTO.DeleteGroupResponse> mockObserver =
                 mock(StreamObserver.class);
         groupRpcService.deleteGroup(GroupID.newBuilder().setId(id).build(), mockObserver);
 
-        verify(temporaryGroupCache).delete(id);
-        verify(groupStore, never()).deleteUserGroup(anyLong());
+        verify(temporaryGroupCache).deleteGrouping(id);
+        verify(groupStoreDAO, never()).deleteGroup(anyLong());
 
         verify(mockObserver).onNext(
                 GroupDTO.DeleteGroupResponse.newBuilder().setDeleted(true).build());
         verify(mockObserver).onCompleted();
         verify(mockObserver, never()).onError(any());
-    }
-
-    @Test
-    public void testDeleteGroupImmutableException() throws Exception {
-        final long idToDelete = 1234L;
-        final GroupDTO.GroupID gid = GroupDTO.GroupID.newBuilder()
-                .setId(idToDelete)
-                .build();
-
-        final StreamObserver<GroupDTO.DeleteGroupResponse> mockObserver =
-                mock(StreamObserver.class);
-        final String name = "foo";
-        when(groupStore.deleteUserGroup(idToDelete)).thenThrow(new ImmutableGroupUpdateException(Group.newBuilder()
-                .setId(idToDelete)
-                .setGroup(GroupInfo.newBuilder()
-                        .setName(name))
-                .build()));
-
-        groupRpcService.deleteGroup(gid, mockObserver);
-
-        verify(groupStore).deleteUserGroup(idToDelete);
-        verify(mockObserver, never()).onCompleted();
-        verify(mockObserver, never()).onNext(any());
-
-        final ArgumentCaptor<StatusException> exceptionCaptor = ArgumentCaptor.forClass(StatusException.class);
-        verify(mockObserver).onError(exceptionCaptor.capture());
-        assertThat(exceptionCaptor.getValue(),
-                GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT).descriptionContains(name));
     }
 
     @Test
@@ -395,11 +585,13 @@ public class GroupRpcServiceTest {
 
         final StreamObserver<GroupDTO.DeleteGroupResponse> mockObserver =
                 mock(StreamObserver.class);
-        when(groupStore.deleteUserGroup(idToDelete)).thenThrow(new GroupNotFoundException(idToDelete));
+
+        Mockito.doThrow(new GroupNotFoundException(idToDelete))
+            .when(groupStoreDAO).deleteGroup(idToDelete);
 
         groupRpcService.deleteGroup(gid, mockObserver);
 
-        verify(groupStore).deleteUserGroup(idToDelete);
+        verify(groupStoreDAO).deleteGroup(idToDelete);
         verify(mockObserver, never()).onCompleted();
         verify(mockObserver, never()).onNext(any());
 
@@ -419,11 +611,11 @@ public class GroupRpcServiceTest {
         final StreamObserver<GroupDTO.DeleteGroupResponse> mockObserver =
                 mock(StreamObserver.class);
         final String errorMsg = "Bad database access";
-        when(groupStore.deleteUserGroup(idToDelete)).thenThrow(new DataAccessException(errorMsg));
+        Mockito.doThrow(new DataAccessException(errorMsg)).when(groupStoreDAO).deleteGroup(idToDelete);
 
         groupRpcService.deleteGroup(gid, mockObserver);
 
-        verify(groupStore).deleteUserGroup(idToDelete);
+        verify(groupStoreDAO).deleteGroup(idToDelete);
         verify(mockObserver, never()).onCompleted();
         verify(mockObserver, never()).onNext(any());
 
@@ -431,31 +623,6 @@ public class GroupRpcServiceTest {
         verify(mockObserver).onError(exceptionCaptor.capture());
         assertThat(exceptionCaptor.getValue(), GrpcExceptionMatcher.hasCode(Code.INTERNAL)
                 .descriptionContains(errorMsg));
-    }
-
-    @Test
-    public void testDeleteGroupDeletePolicyException() throws Exception {
-        final long idToDelete = 1234L;
-        final long associatedPolicyId = 1L;
-        final GroupDTO.GroupID gid = GroupDTO.GroupID.newBuilder()
-                .setId(idToDelete)
-                .build();
-
-        final StreamObserver<GroupDTO.DeleteGroupResponse> mockObserver =
-                mock(StreamObserver.class);
-        when(groupStore.deleteUserGroup(idToDelete))
-                .thenThrow(new PolicyDeleteException(associatedPolicyId, idToDelete, null));
-
-        groupRpcService.deleteGroup(gid, mockObserver);
-
-        verify(groupStore).deleteUserGroup(idToDelete);
-        verify(mockObserver, never()).onCompleted();
-        verify(mockObserver, never()).onNext(any());
-
-        final ArgumentCaptor<StatusException> exceptionCaptor = ArgumentCaptor.forClass(StatusException.class);
-        verify(mockObserver).onError(exceptionCaptor.capture());
-        assertThat(exceptionCaptor.getValue(), GrpcExceptionMatcher.hasCode(Code.INTERNAL)
-                .descriptionContains(Long.toString(associatedPolicyId)));
     }
 
     @Test(expected = UserAccessScopeException.class)
@@ -467,7 +634,8 @@ public class GroupRpcServiceTest {
         EntityAccessScope scope = new EntityAccessScope(null, null,
                 OidSet.EMPTY_OID_SET, null);
         when(userSessionContext.getUserAccessScope()).thenReturn(scope);
-        given(groupStore.get(groupId)).willReturn(Optional.of(Group.getDefaultInstance()));
+        given(groupStoreDAO.getGroup(groupId))
+            .willReturn(Optional.of(Grouping.getDefaultInstance()));
 
         final StreamObserver<GroupDTO.DeleteGroupResponse> mockObserver =
                 mock(StreamObserver.class);
@@ -487,127 +655,6 @@ public class GroupRpcServiceTest {
 
         verify(mockObserver).onError(any(IllegalArgumentException.class));
         verify(mockObserver, never()).onCompleted();
-    }
-
-    @Test
-    public void testGet() throws Exception {
-        final long id = 1234L;
-
-        final GroupDTO.GroupID gid = GroupDTO.GroupID.newBuilder()
-                .setId(id)
-                .build();
-        final StreamObserver<GroupDTO.GetGroupResponse> mockObserver =
-                mock(StreamObserver.class);
-
-        final GroupDTO.Group group = GroupDTO.Group.newBuilder()
-                .setId(id)
-                .build();
-        given(groupStore.get(id)).willReturn(Optional.of(group));
-
-        groupRpcService.getGroup(gid, mockObserver);
-
-        verify(groupStore).get(id);
-        verify(mockObserver).onNext(GroupDTO.GetGroupResponse.newBuilder().setGroup(group).build());
-        verify(mockObserver).onCompleted();
-    }
-
-    @Test
-    public void testGetTempGroup() throws Exception {
-        final long id = 1234L;
-
-        final StreamObserver<GroupDTO.GetGroupResponse> mockObserver =
-                mock(StreamObserver.class);
-
-        given(temporaryGroupCache.get(id)).willReturn(Optional.of(Group.getDefaultInstance()));
-
-        groupRpcService.getGroup(GroupID.newBuilder().setId(id).build(), mockObserver);
-
-        verify(temporaryGroupCache).get(id);
-        verify(groupStore, never()).get(anyLong());
-        verify(mockObserver).onNext(GroupDTO.GetGroupResponse.newBuilder()
-                .setGroup(Group.getDefaultInstance())
-                .build());
-        verify(mockObserver).onCompleted();
-    }
-
-    @Test
-    public void testCountGroups() {
-        final long id1 = 1234L;
-        final long id2 = 5678L;
-
-        final GroupDTO.GetGroupsRequest getGroupsRequest =
-            GroupDTO.GetGroupsRequest.getDefaultInstance();
-        final StreamObserver<CountGroupsResponse> mockObserver =
-            mock(StreamObserver.class);
-
-        final GroupDTO.Group g1 = GroupDTO.Group.newBuilder()
-            .setId(id1)
-            .build();
-
-        final GroupDTO.Group g2 = GroupDTO.Group.newBuilder()
-            .setId(id2)
-            .build();
-
-        given(groupStore.getAll()).willReturn(Arrays.asList(g1, g2));
-
-        groupRpcService.countGroups(getGroupsRequest, mockObserver);
-
-        verify(groupStore).getAll();
-        verify(temporaryGroupCache, never()).getAll();
-        verify(mockObserver).onNext(CountGroupsResponse.newBuilder()
-            .setCount(2)
-            .build());
-        verify(mockObserver).onCompleted();
-    }
-
-    @Test
-    public void testGetAll() throws Exception {
-        final long id1 = 1234L;
-        final long id2 = 5678L;
-
-        final GroupDTO.GetGroupsRequest getGroupsRequest =
-                GroupDTO.GetGroupsRequest.getDefaultInstance();
-        final StreamObserver<GroupDTO.Group> mockObserver =
-                mock(StreamObserver.class);
-
-        final GroupDTO.Group g1 = GroupDTO.Group.newBuilder()
-                .setId(id1)
-                .build();
-
-        final GroupDTO.Group g2 = GroupDTO.Group.newBuilder()
-                .setId(id2)
-                .build();
-
-        given(groupStore.getAll()).willReturn(Arrays.asList(g1, g2));
-
-        groupRpcService.getGroups(getGroupsRequest, mockObserver);
-
-        verify(groupStore).getAll();
-        verify(temporaryGroupCache, never()).getAll();
-        verify(mockObserver).onNext(g1);
-        verify(mockObserver).onNext(g2);
-        verify(mockObserver).onCompleted();
-    }
-
-    @Test
-    public void testGetAllTempGroups() throws Exception {
-        final Group group = Group.newBuilder()
-                .setType(Type.TEMP_GROUP)
-                .build();
-
-        when(temporaryGroupCache.getAll())
-                .thenReturn(Collections.singletonList(group));
-        final StreamObserver<GroupDTO.Group> mockObserver =
-                mock(StreamObserver.class);
-
-        groupRpcService.getGroups(GetGroupsRequest.newBuilder()
-                .addTypeFilter(Type.TEMP_GROUP)
-                .build(), mockObserver);
-
-        verify(temporaryGroupCache).getAll();
-        verify(groupStore, never()).getAll();
-        verify(mockObserver).onNext(group);
-        verify(mockObserver).onCompleted();
     }
 
     @Test
@@ -635,126 +682,12 @@ public class GroupRpcServiceTest {
     }
 
     @Test
-    public void testUpdate() throws Exception {
-        final long id = 1234L;
-
-        final GroupDTO.Group group = GroupDTO.Group.newBuilder()
-                .setId(id)
-                .setGroup(GroupInfo.newBuilder()
-                        .setName("new"))
-                .build();
-        final StreamObserver<GroupDTO.UpdateGroupResponse> mockObserver =
-                mock(StreamObserver.class);
-
-        given(groupStore.updateUserGroup(eq(id), eq(group.getGroup()))).willReturn(group);
-
-        groupRpcService.updateGroup(UpdateGroupRequest.newBuilder()
-                .setId(id)
-                .setNewInfo(group.getGroup())
-                .build(), mockObserver);
-
-        verify(groupStore).updateUserGroup(eq(id), eq(group.getGroup()));
-        verify(mockObserver).onNext(GroupDTO.UpdateGroupResponse.newBuilder()
-                .setUpdatedGroup(group)
-                .build());
-        verify(mockObserver).onCompleted();
-    }
-
-    @Test
-    public void testUpdateGroupFail() throws Exception {
-        final long id = 1234L;
-
-        final GroupInfo newInfo = GroupInfo.newBuilder().setName("new").build();
-        final StreamObserver<GroupDTO.UpdateGroupResponse> mockObserver =
-                mock(StreamObserver.class);
-
-        given(groupStore.updateUserGroup(eq(id), eq(newInfo))).willThrow(DataAccessException.class);
-
-        groupRpcService.updateGroup(UpdateGroupRequest.newBuilder()
-                .setId(id)
-                .setNewInfo(newInfo)
-                .build(), mockObserver);
-
-        verify(groupStore).updateUserGroup(id, newInfo);
-        verify(mockObserver).onError(any(IllegalStateException.class));
-    }
-
-    @Test(expected = UserAccessScopeException.class)
-    public void testUpdateGroupOutOfScope() throws Exception {
-        // a scoped user should not be able to update a group containing entities out of their scope.
-        when(userSessionContext.isUserScoped()).thenReturn(true);
-        EntityAccessScope scope = new EntityAccessScope(null, null,
-                new ArrayOidSet(Arrays.asList(1L)), null);
-        when(userSessionContext.getUserAccessScope()).thenReturn(scope);
-
-        final GroupInfo groupInfo = GroupInfo.newBuilder()
-                .setStaticGroupMembers(StaticGroupMembers.newBuilder()
-                        .addStaticMemberOids(2L))
-                .build();
-
-        long groupId = 10L;
-        final GroupDTO.Group group = GroupDTO.Group.newBuilder()
-                .setId(groupId)
-                .setGroup(groupInfo)
-                .build();
-
-        given(groupStore.get(groupId)).willReturn(Optional.of(group));
-
-        final StreamObserver<GroupDTO.UpdateGroupResponse> mockObserver =
-                mock(StreamObserver.class);
-
-        // should fail when the old group is inaccessible
-        groupRpcService.updateGroup(UpdateGroupRequest.newBuilder()
-                .setId(groupId)
-                .setNewInfo(groupInfo)
-                .build(), mockObserver);
-    }
-
-    @Test(expected = UserAccessScopeException.class)
-    public void testUpdateGroupChangesOutOfScope() throws Exception {
-        // a scoped user should not be able to modify a group so that it would contain entities out
-        // of their scope.
-        when(userSessionContext.isUserScoped()).thenReturn(true);
-        EntityAccessScope scope = new EntityAccessScope(null, null,
-                new ArrayOidSet(Arrays.asList(1L)), null);
-        when(userSessionContext.getUserAccessScope()).thenReturn(scope);
-
-        final GroupInfo existingGroupInfo = GroupInfo.newBuilder()
-                .setStaticGroupMembers(StaticGroupMembers.newBuilder()
-                        .addStaticMemberOids(1L))
-                .build();
-
-        long groupId = 10L;
-        final GroupDTO.Group group = GroupDTO.Group.newBuilder()
-                .setId(groupId)
-                .setGroup(existingGroupInfo)
-                .build();
-
-        given(groupStore.get(groupId)).willReturn(Optional.of(group));
-
-        final StreamObserver<GroupDTO.UpdateGroupResponse> mockObserver =
-                mock(StreamObserver.class);
-
-        final GroupInfo modifiedGroupInfo = GroupInfo.newBuilder()
-                .setStaticGroupMembers(StaticGroupMembers.newBuilder()
-                        .addStaticMemberOids(1L)
-                        .addStaticMemberOids(2L))
-                .build();
-
-
-        // should fail because the changes are out of scope, even though the current group is accessible
-        groupRpcService.updateGroup(UpdateGroupRequest.newBuilder()
-                .setId(groupId)
-                .setNewInfo(modifiedGroupInfo)
-                .build(), mockObserver);
-    }
-
-    @Test
     public void testGetMembersMissingGroupId() {
-        final GroupDTO.GetMembersRequest missingGroupIdReq = GroupDTO.GetMembersRequest.getDefaultInstance();
+        final GroupDTO.GetMembersRequest missingGroupIdReq =
+                        GroupDTO.GetMembersRequest.getDefaultInstance();
 
         final StreamObserver<GroupDTO.GetMembersResponse> mockObserver =
-                (StreamObserver<GroupDTO.GetMembersResponse>) mock(StreamObserver.class);
+                mock(StreamObserver.class);
 
         groupRpcService.getMembers(missingGroupIdReq, mockObserver);
 
@@ -771,17 +704,33 @@ public class GroupRpcServiceTest {
                 .setId(groupId)
                 .build();
 
-        final GroupDTO.Group group1234 = GroupDTO.Group.newBuilder()
-                .setId(groupId)
-                .setGroup(GroupInfo.newBuilder()
-                        .setSearchParametersCollection(SearchParametersCollection.newBuilder()
-                                .addSearchParameters(SearchParameters.getDefaultInstance())))
-                .build();
+        final Grouping group = Grouping
+                        .newBuilder()
+                        .setDefinition(GroupDefinition
+                            .newBuilder()
+                            .setEntityFilters(
+                               EntityFilters
+                                  .newBuilder()
+                                  .addEntityFilter(
+                                      EntityFilter
+                                          .newBuilder()
+                                          .setSearchParametersCollection(
+                                                  SearchParametersCollection
+                                                  .newBuilder()
+                                                  .addSearchParameters(
+                                                                  SearchParameters
+                                                                  .getDefaultInstance()
+                                                                  )
+                                                  )
+                                          )
+                                  )
+                            )
+                        .build();
 
         final StreamObserver<GroupDTO.GetMembersResponse> mockObserver =
-                (StreamObserver<GroupDTO.GetMembersResponse>) mock(StreamObserver.class);
+                mock(StreamObserver.class);
 
-        given(groupStore.get(groupId)).willReturn(Optional.of(group1234));
+        given(groupStoreDAO.getGroup(groupId)).willReturn(Optional.of(group));
         givenSearchHanderWillReturn(mockSearchResults);
 
         groupRpcService.getMembers(req, mockObserver);
@@ -795,73 +744,6 @@ public class GroupRpcServiceTest {
         verify(mockObserver).onCompleted();
     }
 
-    /**
-     * Tests various cases of tag filtering.
-     *
-     * @throws Exception should not happen.
-     */
-    @Test
-    public void testGetWithTags1() throws Exception {
-        when(groupStore.getAll()).thenReturn(ImmutableSet.of(group1, group2));
-        final StreamObserver<Group> mockObserver = mock(StreamObserver.class);
-        final ArgumentCaptor<Group> captor = ArgumentCaptor.forClass(Group.class);
-        groupRpcService.getGroups(GetGroupsRequest.newBuilder()
-                .setPropertyFilters(GroupPropertyFilterList.newBuilder()
-                    .addPropertyFilters(PropertyFilter.newBuilder()
-                        .setPropertyName(StringConstants.TAGS_ATTR)
-                        .setMapFilter(
-                            MapFilter.newBuilder()
-                                .setKey("key")
-                                .addValues("value4")
-                                .addValues("value1"))))
-                .build(),
-            mockObserver);
-        verify(mockObserver).onNext(captor.capture());
-        verify(mockObserver).onCompleted();
-        Assert.assertEquals(group1, captor.getValue());
-    }
-
-    @Test
-    public void testGetWithTags2() throws Exception {
-        when(groupStore.getAll()).thenReturn(ImmutableSet.of(group1, group2));
-        final StreamObserver<Group> mockObserver = mock(StreamObserver.class);
-        final ArgumentCaptor<Group> captor = ArgumentCaptor.forClass(Group.class);
-        groupRpcService.getGroups(GetGroupsRequest.newBuilder()
-                .setPropertyFilters(GroupPropertyFilterList.newBuilder()
-                    .addPropertyFilters(PropertyFilter.newBuilder()
-                        .setPropertyName(StringConstants.TAGS_ATTR)
-                        .setMapFilter(
-                            MapFilter.newBuilder()
-                                .setKey("key")
-                                .setRegex(".*2"))))
-                .build(),
-            mockObserver);
-        verify(mockObserver).onNext(captor.capture());
-        verify(mockObserver).onCompleted();
-        Assert.assertEquals(group1, captor.getValue());
-    }
-
-    @Test
-    public void testGetWithTags3() throws Exception {
-        when(groupStore.getAll()).thenReturn(ImmutableSet.of(group1, group2));
-        final StreamObserver<Group> mockObserver = mock(StreamObserver.class);
-        final ArgumentCaptor<Group> captor = ArgumentCaptor.forClass(Group.class);
-        groupRpcService.getGroups(GetGroupsRequest.newBuilder()
-                .setPropertyFilters(GroupPropertyFilterList.newBuilder()
-                    .addPropertyFilters(PropertyFilter.newBuilder()
-                        .setPropertyName(StringConstants.TAGS_ATTR)
-                        .setMapFilter(
-                            MapFilter.newBuilder()
-                                .setKey("otherkey")
-                                .setRegex(".*")
-                                .setPositiveMatch(false))))
-                .build(),
-            mockObserver);
-        verify(mockObserver).onNext(captor.capture());
-        verify(mockObserver).onCompleted();
-        Assert.assertEquals(group1, captor.getValue());
-    }
-
     @Test
     public void testStaticGetMembers() throws Exception {
         final long groupId = 1234L;
@@ -871,17 +753,30 @@ public class GroupRpcServiceTest {
                 .setId(groupId)
                 .build();
 
-        final GroupDTO.Group group1234 = GroupDTO.Group.newBuilder()
-                .setId(groupId)
-                .setGroup(GroupInfo.newBuilder()
-                    .setStaticGroupMembers(GroupDTO.StaticGroupMembers.newBuilder()
-                        .addAllStaticMemberOids(staticGroupMembers)))
-                .build();
+
+        final Grouping grouping = Grouping
+                        .newBuilder()
+                        .setId(groupId)
+                        .setDefinition(GroupDefinition
+                                        .newBuilder()
+                                        .setStaticGroupMembers(StaticMembers
+                                                        .newBuilder()
+                                                        .addMembersByType(StaticMembersByType
+                                                            .newBuilder()
+                                                            .setType(MemberType
+                                                                .newBuilder()
+                                                                .setEntity(5)
+                                                                )
+                                                            .addAllMembers(staticGroupMembers)
+                                                                        )
+                                                        )
+                                        )
+                        .build();
 
         final StreamObserver<GroupDTO.GetMembersResponse> mockObserver =
-                (StreamObserver<GroupDTO.GetMembersResponse>) mock(StreamObserver.class);
+                mock(StreamObserver.class);
 
-        given(groupStore.get(groupId)).willReturn(Optional.of(group1234));
+        given(groupStoreDAO.getGroup(groupId)).willReturn(Optional.of(grouping));
 
         groupRpcService.getMembers(req, mockObserver);
 
@@ -898,47 +793,85 @@ public class GroupRpcServiceTest {
     public void testGetMembersExpansion() {
         final long groupId = 1234L;
         final List<Long> clusterGroupMembers = Arrays.asList(1L, 2L);
-        final List<Long> cluster1Members = Arrays.asList(10L,11L);
-        final List<Long> cluster2Members = Arrays.asList(20L,21L);
+        final List<Long> cluster1Members = Arrays.asList(10L, 11L);
+        final List<Long> cluster2Members = Arrays.asList(20L, 21L);
 
-        // group 1234 will be a group of clusters
-        final GroupDTO.Group group1234 = Group.newBuilder()
-                .setId(groupId)
-                .setType(Type.NESTED_GROUP)
-                .setNestedGroup(NestedGroupInfo.newBuilder()
-                        .setCluster(ClusterInfo.Type.COMPUTE)
-                        .setStaticGroupMembers(StaticGroupMembers.newBuilder()
-                                .addAllStaticMemberOids(clusterGroupMembers)))
-                .build();
+        final Grouping groupOfClusters = Grouping
+                        .newBuilder()
+                        .setId(groupId)
+                        .setDefinition(GroupDefinition
+                            .newBuilder()
+                            .setType(GroupType.REGULAR)
+                            .setStaticGroupMembers(StaticMembers
+                                .newBuilder()
+                                .addMembersByType(StaticMembersByType
+                                    .newBuilder()
+                                    .setType(MemberType
+                                        .newBuilder()
+                                        .setGroup(GroupType.COMPUTE_HOST_CLUSTER)
+                                        )
+                                    .addAllMembers(clusterGroupMembers)
+                                )
+                            )
+                        ).build();
 
-        final GroupDTO.Group cluster1 = Group.newBuilder()
-                .setId(1L)
-                .setType(Type.CLUSTER)
-                .setCluster(ClusterInfo.newBuilder()
-                        .setClusterType(ClusterInfo.Type.COMPUTE)
-                        .setMembers(GroupDTO.StaticGroupMembers.newBuilder()
-                                .addAllStaticMemberOids(cluster1Members)))
-                .build();
+        final Grouping cluster1 = Grouping
+                        .newBuilder()
+                        .setId(1L)
+                        .setDefinition(GroupDefinition
+                            .newBuilder()
+                            .setType(GroupType.COMPUTE_HOST_CLUSTER)
+                            .setStaticGroupMembers(StaticMembers
+                                .newBuilder()
+                                .addMembersByType(StaticMembersByType
+                                    .newBuilder()
+                                    .setType(MemberType
+                                        .newBuilder()
+                                        .setEntity(5)
+                                        )
+                                    .addAllMembers(cluster1Members)
+                                )
+                            )
+                        ).build();
 
-        final GroupDTO.Group cluster2 = Group.newBuilder()
-                .setId(2L)
-                .setType(Type.CLUSTER)
-                .setCluster(ClusterInfo.newBuilder()
-                        .setClusterType(ClusterInfo.Type.COMPUTE)
-                        .setMembers(GroupDTO.StaticGroupMembers.newBuilder()
-                                .addAllStaticMemberOids(cluster2Members)))
-                .build();
+        final Grouping cluster2 = Grouping
+                        .newBuilder()
+                        .setId(2L)
+                        .setDefinition(GroupDefinition
+                            .newBuilder()
+                            .setType(GroupType.COMPUTE_HOST_CLUSTER)
+                            .setStaticGroupMembers(StaticMembers
+                                .newBuilder()
+                                .addMembersByType(StaticMembersByType
+                                    .newBuilder()
+                                    .setType(MemberType
+                                        .newBuilder()
+                                        .setEntity(5)
+                                        )
+                                    .addAllMembers(cluster2Members)
+                                )
+                            )
+                        ).build();
 
-        given(groupStore.get(groupId)).willReturn(Optional.of(group1234));
-        given(groupStore.get(1L)).willReturn(Optional.of(cluster1));
-        given(groupStore.get(2L)).willReturn(Optional.of(cluster2));
-        Map<Long,Optional<Group>> clustersById = new HashMap<>(2);
-        clustersById.put(cluster1.getId(), Optional.of(cluster1));
-        clustersById.put(cluster2.getId(), Optional.of(cluster2));
-        given(groupStore.getGroups(clusterGroupMembers)).willReturn(clustersById);
+        given(groupStoreDAO.getGroup(groupId)).willReturn(Optional.of(groupOfClusters));
+        given(groupStoreDAO.getGroup(1L)).willReturn(Optional.of(cluster1));
+        given(groupStoreDAO.getGroup(2L)).willReturn(Optional.of(cluster2));
+
+        final GetGroupsRequest clusterGroupMemberRequest = GetGroupsRequest
+                        .newBuilder()
+                        .setGroupFilter(
+                            GroupFilter
+                                .newBuilder()
+                                .addAllId(clusterGroupMembers)
+                                .build()
+                        ).build();
+
+
+        given(groupStoreDAO.getGroups(clusterGroupMemberRequest.getGroupFilter())).willReturn(
+                        Arrays.asList(cluster1, cluster2));
 
         final StreamObserver<GroupDTO.GetMembersResponse> mockObserver =
-                (StreamObserver<GroupDTO.GetMembersResponse>) mock(StreamObserver.class);
+                mock(StreamObserver.class);
 
         // a request without expansion should get the list of clusters
         final GroupDTO.GetMembersRequest reqNoExpansion = GroupDTO.GetMembersRequest.newBuilder()
@@ -960,7 +893,7 @@ public class GroupRpcServiceTest {
                 .build();
 
         final GroupDTO.GetMembersResponse expectedExpandedResponse = GetMembersResponse.newBuilder()
-                .setMembers(Members.newBuilder().addAllIds(cluster1Members).addAllIds(cluster2Members))
+                .setMembers(Members.newBuilder().addAllIds(cluster2Members).addAllIds(cluster1Members))
                 .build();
 
         groupRpcService.getMembers(requestExpanded, mockObserver);
@@ -971,54 +904,82 @@ public class GroupRpcServiceTest {
     @Test
     public void testGetMembersExpansionDynamic() {
         final long groupId = 1234L;
-        final List<Long> cluster1Members = Arrays.asList(10L,11L);
-        final List<Long> cluster2Members = Arrays.asList(20L,21L);
+        final List<Long> cluster1Members = Arrays.asList(10L, 11L);
+        final List<Long> cluster2Members = Arrays.asList(20L, 21L);
 
-        // group 1234 will be a dynamic group that matches "Cluster1" but not "Cluster2"
-        final GroupDTO.Group group1234 = Group.newBuilder()
-                .setId(groupId)
-                .setType(Type.NESTED_GROUP)
-                .setNestedGroup(NestedGroupInfo.newBuilder()
-                        .setCluster(ClusterInfo.Type.COMPUTE)
-                        .setPropertyFilterList(GroupPropertyFilterList.newBuilder()
-                                .addPropertyFilters(PropertyFilter.newBuilder()
-                                        .setPropertyName(SearchableProperties.DISPLAY_NAME)
-                                        .setStringFilter(StringFilter.newBuilder()
-                                                .setStringPropertyRegex("Cluster1.*")))))
-                .build();
+        final GroupFilter groupFilter = GroupFilter
+                        .newBuilder()
+                        .addDirectMemberTypes(MemberType.newBuilder()
+                                        .setGroup(GroupType.COMPUTE_HOST_CLUSTER)
+                                            )
+                        .build();
 
-        final GroupDTO.Group cluster1 = Group.newBuilder()
-                .setId(1L)
-                .setType(Type.CLUSTER)
-                .setCluster(ClusterInfo.newBuilder()
-                        .setName("Cluster1")
-                        .setDisplayName("Cluster1")
-                        .setClusterType(ClusterInfo.Type.COMPUTE)
-                        .setMembers(GroupDTO.StaticGroupMembers.newBuilder()
-                                .addAllStaticMemberOids(cluster1Members)))
-                .build();
+        final Grouping dynamicGroupOfClusters = Grouping
+                        .newBuilder()
+                        .setId(groupId)
+                        .setDefinition(
+                            GroupDefinition
+                            .newBuilder()
+                            .setType(GroupType.REGULAR)
+                            .setGroupFilters(GroupFilters
+                                .newBuilder()
+                                .addGroupFilter(groupFilter)
+                                            )
+                            ).build();
 
-        final GroupDTO.Group cluster2 = Group.newBuilder()
-                .setId(2L)
-                .setType(Type.CLUSTER)
-                .setCluster(ClusterInfo.newBuilder()
-                        .setName("Cluster2")
-                        .setDisplayName("Cluster2")
-                        .setClusterType(ClusterInfo.Type.COMPUTE)
-                        .setMembers(GroupDTO.StaticGroupMembers.newBuilder()
-                                .addAllStaticMemberOids(cluster2Members)))
-                .build();
 
-        given(groupStore.get(groupId)).willReturn(Optional.of(group1234));
-        given(groupStore.get(1L)).willReturn(Optional.of(cluster1));
-        given(groupStore.get(2L)).willReturn(Optional.of(cluster2));
-        Map<Long,Optional<Group>> clustersById = new HashMap<>(2);
-        clustersById.put(cluster1.getId(), Optional.of(cluster1));
-        clustersById.put(cluster2.getId(), Optional.of(cluster2));
-        given(groupStore.getAll()).willReturn(Arrays.asList(group1234, cluster1, cluster2));
+        final Grouping cluster1 = Grouping
+                        .newBuilder()
+                        .setId(1L)
+                        .setDefinition(GroupDefinition
+                            .newBuilder()
+                            .setType(GroupType.COMPUTE_HOST_CLUSTER)
+                            .setStaticGroupMembers(StaticMembers
+                                .newBuilder()
+                                .addMembersByType(StaticMembersByType
+                                    .newBuilder()
+                                    .setType(MemberType
+                                        .newBuilder()
+                                        .setEntity(5)
+                                        )
+                                    .addAllMembers(cluster1Members)
+                                )
+                            )
+                        ).build();
+
+        final Grouping cluster2 = Grouping
+                        .newBuilder()
+                        .setId(2L)
+                        .setDefinition(GroupDefinition
+                            .newBuilder()
+                            .setType(GroupType.COMPUTE_HOST_CLUSTER)
+                            .setStaticGroupMembers(StaticMembers
+                                .newBuilder()
+                                .addMembersByType(StaticMembersByType
+                                    .newBuilder()
+                                    .setType(MemberType
+                                        .newBuilder()
+                                        .setEntity(5)
+                                        )
+                                    .addAllMembers(cluster2Members)
+                                )
+                            )
+                        ).build();
+
+        given(groupStoreDAO.getGroup(groupId)).willReturn(Optional.of(dynamicGroupOfClusters));
+        given(groupStoreDAO.getGroup(1L)).willReturn(Optional.of(cluster1));
+        given(groupStoreDAO.getGroup(2L)).willReturn(Optional.of(cluster2));
+
+        GetGroupsRequest request = GetGroupsRequest
+                        .newBuilder()
+                        .setGroupFilter(groupFilter)
+                        .build();
+
+        given(groupStoreDAO.getGroups(request.getGroupFilter())).willReturn(Arrays.asList(cluster1));
+
 
         final StreamObserver<GroupDTO.GetMembersResponse> mockObserver =
-                (StreamObserver<GroupDTO.GetMembersResponse>) mock(StreamObserver.class);
+                mock(StreamObserver.class);
 
         // a request without expansion should get the list of clusters
         final GroupDTO.GetMembersRequest reqNoExpansion = GroupDTO.GetMembersRequest.newBuilder()
@@ -1057,9 +1018,9 @@ public class GroupRpcServiceTest {
                 .build();
 
         final StreamObserver<GroupDTO.GetMembersResponse> mockObserver =
-                (StreamObserver<GroupDTO.GetMembersResponse>) mock(StreamObserver.class);
+                mock(StreamObserver.class);
 
-        given(groupStore.get(groupId)).willReturn(Optional.empty());
+        given(groupStoreDAO.getGroup(groupId)).willReturn(Optional.empty());
 
         groupRpcService.getMembers(req, mockObserver);
 
@@ -1070,78 +1031,9 @@ public class GroupRpcServiceTest {
 
 
     @Test
-    public void testGetGroupWithClusterFilterResolution() throws Exception {
-        final GroupDTO.Group cluster1 = GroupDTO.Group.newBuilder()
-                .setType(Type.CLUSTER)
-                .setId(1)
-                .setCluster(ClusterInfo.newBuilder()
-                        .setName("Cluster1")
-                        .setMembers(StaticGroupMembers.newBuilder()
-                                .addStaticMemberOids(1)
-                                .addStaticMemberOids(2)))
-                .build();
-
-        // create a dynamic group based on Cluster1
-        final GroupDTO.Group clusterGroup = GroupDTO.Group.newBuilder()
-                .setType(Type.GROUP)
-                .setId(2)
-                .setGroup(GroupInfo.newBuilder()
-                        .setName("clusterGroup")
-                        .setSearchParametersCollection(SearchParametersCollection.newBuilder()
-                                .addSearchParameters(SearchParameters.newBuilder()
-                                    .addSearchFilter(SearchFilter.newBuilder()
-                                        .setClusterMembershipFilter(ClusterMembershipFilter.newBuilder()
-                                            .setClusterSpecifier(PropertyFilter.newBuilder()
-                                                .setPropertyName("displayName")
-                                                .setStringFilter(StringFilter.newBuilder()
-                                                    .setStringPropertyRegex("Cluster1"))))))))
-                .build();
-        given(groupStore.getAll()).willReturn(Arrays.asList(cluster1,clusterGroup));
-
-        final StreamObserver<GroupDTO.Group> mockObserver =
-                mock(StreamObserver.class);
-
-        ArgumentCaptor<Group> groupCaptor = ArgumentCaptor.forClass(Group.class);
-
-        groupRpcService.getGroups(GetGroupsRequest.newBuilder()
-                .setResolveClusterSearchFilters(true)
-                .addId(2)
-                .build(), mockObserver);
-
-        verify(mockObserver).onNext(groupCaptor.capture());
-        // there should be one string filter in the group now
-        GroupInfo info = groupCaptor.getValue().getGroup();
-        StringFilter stringFilter = info.getSearchParametersCollection()
-                .getSearchParameters(0).getSearchFilter(0)
-                .getPropertyFilter().getStringFilter();
-        assertEquals("^1$|^2$", stringFilter.getStringPropertyRegex());
-    }
-
-    @Test
-    public void testUpdateClusterHeadroomTemplate() throws Exception {
-        long groupId = 1111L;
-        long templateId = 2222L;
-
-        given(groupStore.updateClusterHeadroomTemplate(groupId, templateId))
-                .willReturn(Group.getDefaultInstance());
-
-        UpdateClusterHeadroomTemplateRequest request = UpdateClusterHeadroomTemplateRequest.newBuilder()
-                .setGroupId(groupId)
-                .setClusterHeadroomTemplateId(templateId)
-                .build();
-        StreamObserver<UpdateClusterHeadroomTemplateResponse> observer =
-                (StreamObserver<UpdateClusterHeadroomTemplateResponse>)mock(StreamObserver.class);
-        groupRpcService.updateClusterHeadroomTemplate(request, observer);
-
-        verify(observer).onNext(any(UpdateClusterHeadroomTemplateResponse.class));
-        verify(observer).onCompleted();
-    }
-
-
-    @Test
     public void testNoTargetId() {
         StreamObserver<StoreDiscoveredGroupsPoliciesSettingsResponse> responseObserver =
-                (StreamObserver<StoreDiscoveredGroupsPoliciesSettingsResponse>) mock(StreamObserver.class);
+                mock(StreamObserver.class);
         StreamObserver<DiscoveredGroupsPoliciesSettings>  requestObserver =
                 spy(groupRpcService.storeDiscoveredGroupsPoliciesSettings(responseObserver));
         requestObserver.onNext(DiscoveredGroupsPoliciesSettings.getDefaultInstance());
@@ -1150,27 +1042,48 @@ public class GroupRpcServiceTest {
         verify(responseObserver, times(1)).onError(any(IllegalArgumentException.class));
     }
 
+    /**
+     * Test that cluster groups/policies are invoked successfully in rpc call method.
+     *
+     * @throws InvalidGroupException exception thrown if group is invalid
+     */
     @Test
-    public void testUpdateClusters() {
-        final HealthStatus status = mock(HealthStatus.class);
-        when(status.isHealthy()).thenReturn(true);
-
+    public void testUpdateClusters() throws InvalidGroupException {
         StreamObserver<StoreDiscoveredGroupsPoliciesSettingsResponse> responseObserver =
-                (StreamObserver<StoreDiscoveredGroupsPoliciesSettingsResponse>) mock(StreamObserver.class);
-        StreamObserver<DiscoveredGroupsPoliciesSettings>  requestObserver =
+                mock(StreamObserver.class);
+        StreamObserver<DiscoveredGroupsPoliciesSettings> requestObserver =
                 spy(groupRpcService.storeDiscoveredGroupsPoliciesSettings(responseObserver));
 
         requestObserver.onNext(DiscoveredGroupsPoliciesSettings.newBuilder().setTargetId(10L)
-                    .addDiscoveredGroup(GroupInfo.getDefaultInstance())
-                    .addDiscoveredCluster(ClusterInfo.getDefaultInstance())
+                    .addUploadedGroups(GroupTestUtils.createUploadedGroup(
+                            GroupType.COMPUTE_HOST_CLUSTER, "cluster", ImmutableMap.of(
+                                    EntityType.PHYSICAL_MACHINE_VALUE, Sets.newHashSet(111L))))
                     .build());
         requestObserver.onCompleted();
 
         verify(responseObserver).onCompleted();
         verify(responseObserver).onNext(StoreDiscoveredGroupsPoliciesSettingsResponse.getDefaultInstance());
-        verify(groupStore).updateTargetGroups(isA(DSLContext.class), eq(10L),
-                eq(Collections.singletonList(GroupInfo.getDefaultInstance())),
-                eq(Collections.singletonList(ClusterInfo.getDefaultInstance())));
+        // capture the group used to save to db
+        final ArgumentCaptor<Collection> captor = ArgumentCaptor.forClass(Collection.class);
+        verify(groupStoreDAO).updateDiscoveredGroups(captor.capture());
+        Collection groups = captor.getValue();
+        assertEquals(1, groups.size());
+        DiscoveredGroup group = (DiscoveredGroup)groups.iterator().next();
+        assertThat(group.getDefinition(), is(GroupDefinition.newBuilder()
+                .setType(GroupType.COMPUTE_HOST_CLUSTER)
+                .setDisplayName("cluster")
+                .setStaticGroupMembers(StaticMembers.newBuilder()
+                        .addMembersByType(StaticMembersByType.newBuilder()
+                                .setType(MemberType.newBuilder()
+                                        .setEntity(EntityType.PHYSICAL_MACHINE_VALUE))
+                                .addMembers(111L)))
+                .build()));
+        assertThat(group.getSourceIdentifier(), is("cluster"));
+        assertThat(group.getTargetIds(), contains(10L));
+        assertThat(group.getExpectedMembers(), contains(MemberType.newBuilder()
+                .setEntity(EntityType.PHYSICAL_MACHINE_VALUE)
+                .build()));
+        assertThat(group.isReverseLookupSupported(), is(true));
 
         verify(policyStore).updateTargetPolicies(isA(DSLContext.class),
                 eq(10L), eq(Collections.emptyList()), anyMap());
@@ -1179,18 +1092,63 @@ public class GroupRpcServiceTest {
     }
 
     /**
-     * Test successful retrieval of tags.
+     * Test that resource groups are uploaded and stitched successfully in rpc call method.
+     *
+     * @throws InvalidGroupException exception thrown if group is invalid
      */
     @Test
-    public void testGetTags() {
-        final Tags tags = Tags.newBuilder().build();
-        when(groupStore.getTags()).thenReturn(tags);
-        final StreamObserver<GetTagsResponse> mockObserver = mock(StreamObserver.class);
-        final ArgumentCaptor<GetTagsResponse> captor = ArgumentCaptor.forClass(GetTagsResponse.class);
-        groupRpcService.getTags(GroupDTO.GetTagsRequest.newBuilder().build(), mockObserver);
-        verify(mockObserver).onNext(captor.capture());
-        verify(mockObserver).onCompleted();
-        Assert.assertEquals(tags, captor.getValue().getTags());
+    public void testUpdateResourceGroupsAndStitching() throws InvalidGroupException {
+        StreamObserver<StoreDiscoveredGroupsPoliciesSettingsResponse> responseObserver =
+                mock(StreamObserver.class);
+        StreamObserver<DiscoveredGroupsPoliciesSettings> requestObserver =
+                spy(groupRpcService.storeDiscoveredGroupsPoliciesSettings(responseObserver));
+
+        // create two resource groups from two different probes
+        UploadedGroup rg1 = GroupTestUtils.createUploadedGroup(GroupType.RESOURCE, "rg",
+                ImmutableMap.of(EntityType.VIRTUAL_MACHINE_VALUE, Sets.newHashSet(11L),
+                        EntityType.DATABASE_VALUE, Sets.newHashSet(21L)));
+        UploadedGroup rg2 = GroupTestUtils.createUploadedGroup(GroupType.RESOURCE, "rg",
+                ImmutableMap.of(EntityType.VIRTUAL_VOLUME_VALUE, Sets.newHashSet(31L),
+                        EntityType.DATABASE_VALUE, Sets.newHashSet(22L)));
+
+        requestObserver.onNext(DiscoveredGroupsPoliciesSettings.newBuilder()
+                .setTargetId(110L)
+                .setProbeType(SDKProbeType.AZURE.toString())
+                .addUploadedGroups(rg1)
+                .build());
+        requestObserver.onNext(DiscoveredGroupsPoliciesSettings.newBuilder()
+                .setTargetId(111L)
+                .setProbeType(SDKProbeType.APPINSIGHTS.toString())
+                .addUploadedGroups(rg2)
+                .build());
+        requestObserver.onCompleted();
+
+        // verify response
+        verify(responseObserver).onCompleted();
+        verify(responseObserver).onNext(StoreDiscoveredGroupsPoliciesSettingsResponse.getDefaultInstance());
+
+        // capture the group used to save to db
+        final ArgumentCaptor<Collection> captor = ArgumentCaptor.forClass(Collection.class);
+        verify(groupStoreDAO).updateDiscoveredGroups(captor.capture());
+        Collection groups = captor.getValue();
+
+        assertEquals(1, groups.size());
+        DiscoveredGroup group = (DiscoveredGroup)groups.iterator().next();
+        GroupDefinition groupDefinition = group.getDefinition();
+
+        assertEquals(GroupType.RESOURCE, groupDefinition.getType());
+        Map<Integer, List<Long>> membersByType = groupDefinition.getStaticGroupMembers()
+                .getMembersByTypeList()
+                .stream()
+                .collect(Collectors.toMap(k -> k.getType().getEntity(),
+                        StaticMembersByType::getMembersList));
+        // check members are merged
+        assertEquals(3, groupDefinition.getStaticGroupMembers().getMembersByTypeCount());
+        assertThat(membersByType.get(EntityType.VIRTUAL_MACHINE_VALUE), containsInAnyOrder(11L));
+        assertThat(membersByType.get(EntityType.VIRTUAL_VOLUME_VALUE), containsInAnyOrder(31L));
+        assertThat(membersByType.get(EntityType.DATABASE_VALUE), containsInAnyOrder(21L, 22L));
+        // check that target ids are also merged
+        assertThat(group.getTargetIds(), containsInAnyOrder(110L, 111L));
     }
 
     /**
@@ -1199,7 +1157,7 @@ public class GroupRpcServiceTest {
     @Test
     public void testGetTagsFailed() {
         final String errorMessage = "boom";
-        when(groupStore.getTags()).thenThrow(new DataAccessException(errorMessage));
+        when(groupStoreDAO.getTags()).thenThrow(new DataAccessException(errorMessage));
         final StreamObserver<GetTagsResponse> mockObserver = mock(StreamObserver.class);
         final ArgumentCaptor<Throwable> captor = ArgumentCaptor.forClass(Throwable.class);
         groupRpcService.getTags(GroupDTO.GetTagsRequest.newBuilder().build(), mockObserver);
@@ -1211,10 +1169,899 @@ public class GroupRpcServiceTest {
         Assert.assertEquals(Status.INTERNAL.getCode() + ": " + errorMessage, statusException.getMessage());
     }
 
+    /**
+     * Tests the case a user group is created successfully.
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testGroupCreateUserGroup() throws Exception {
+        GroupDefinition group = testGrouping;
+
+        CreateGroupRequest groupRequest = CreateGroupRequest
+                        .newBuilder()
+                        .setGroupDefinition(group)
+                        .setOrigin(origin)
+                        .build();
+
+        final StreamObserver<GroupDTO.CreateGroupResponse> mockObserver =
+                        mock(StreamObserver.class);
+
+        long groupingOid = 5;
+        given(groupStoreDAO
+                        .createGroup(eq(origin), eq(group), any(),
+                                        eq(true))).willReturn(groupingOid);
+
+        groupRpcService.createGroup(groupRequest, mockObserver);
+        verify(groupStoreDAO).createGroup(eq(origin), eq(group), any(),
+                        eq(true));
+        verify(mockObserver).onNext(CreateGroupResponse.newBuilder()
+                .setGroup(Grouping
+                        .newBuilder()
+                        .setId(groupingOid)
+                        .setDefinition(group)
+                        .addExpectedTypes(MemberType
+                                        .newBuilder()
+                                        .setEntity(2))
+                        .setSupportsMemberReverseLookup(true)
+                        .build())
+                .build());
+        verify(mockObserver).onCompleted();
+    }
+
+    /**
+     * Tests the case a temp group is created successfully.
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testCreateTempGroup() throws Exception {
+        GroupDefinition group = GroupDefinition
+                        .newBuilder(testGrouping)
+                        .setIsTemporary(true)
+                        .build();
+
+        final Set<MemberType> expectedTypes =  new HashSet<>();
+
+        expectedTypes.add(MemberType
+                        .newBuilder()
+                        .setEntity(2)
+                        .build());
+
+        final Grouping grouping = Grouping
+                        .newBuilder()
+                        .setId(8L)
+                        .setDefinition(group)
+                        .addAllExpectedTypes(expectedTypes)
+                        .setSupportsMemberReverseLookup(false)
+                        .build();
+
+        when(temporaryGroupCache.create(group, origin, expectedTypes))
+                                .thenReturn(grouping);
+
+        final StreamObserver<GroupDTO.CreateGroupResponse> mockObserver =
+                mock(StreamObserver.class);
+
+        CreateGroupRequest groupRequest = CreateGroupRequest
+                        .newBuilder()
+                        .setGroupDefinition(group)
+                        .setOrigin(origin)
+                        .build();
+
+        groupRpcService.createGroup(groupRequest, mockObserver);
+
+        verify(temporaryGroupCache).create(group, origin, expectedTypes);
+        verify(mockObserver).onNext(CreateGroupResponse.newBuilder()
+                .setGroup(grouping)
+                .build());
+        verify(mockObserver).onCompleted();
+    }
+
+    /**
+     * Tests the case a user group is tried to be created but it misses group definition.
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testCreateGroupMissingGroupDefinition() throws Exception {
+
+        final StreamObserver<GroupDTO.CreateGroupResponse> mockObserver =
+                        mock(StreamObserver.class);
+
+        CreateGroupRequest groupRequest = CreateGroupRequest
+                        .newBuilder()
+                        .setOrigin(origin)
+                        .build();
+
+        groupRpcService.createGroup(groupRequest, mockObserver);
+
+        //Verify the group was not created
+        verify(groupStoreDAO, never())
+            .createGroup(Mockito.anyObject(), Mockito.anyObject(),
+                            Mockito.anyObject(), Mockito.anyBoolean());
+
+        //Verify we send the error response
+        final ArgumentCaptor<StatusException> exceptionCaptor =
+                        ArgumentCaptor.forClass(StatusException.class);
+        verify(mockObserver).onError(exceptionCaptor.capture());
+
+        final StatusException exception = exceptionCaptor.getValue();
+        assertThat(exception, GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
+                .descriptionContains("No group definition"));
+    }
+
+    /**
+     * Tests the case a user group is tried to be created but it misses group definition.
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testCreateGroupMissingOrigin() throws Exception {
+
+        final StreamObserver<GroupDTO.CreateGroupResponse> mockObserver =
+                        mock(StreamObserver.class);
+
+        CreateGroupRequest groupRequest = CreateGroupRequest
+                        .newBuilder()
+                        .setGroupDefinition(testGrouping)
+                        .build();
+
+        groupRpcService.createGroup(groupRequest, mockObserver);
+
+        //Verify the group was not created
+        verify(groupStoreDAO, never())
+            .createGroup(Mockito.anyObject(), Mockito.anyObject(),
+                            Mockito.anyObject(), Mockito.anyBoolean());
+        //Verify we send the error response
+        final ArgumentCaptor<StatusException> exceptionCaptor =
+                        ArgumentCaptor.forClass(StatusException.class);
+        verify(mockObserver).onError(exceptionCaptor.capture());
+
+        final StatusException exception = exceptionCaptor.getValue();
+        assertThat(exception, GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
+                .descriptionContains("No origin"));
+    }
+
+    /**
+     * Tests the case a user group is tried to be created but it misses origin.
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testCreateGroupMissingDisplayName() throws Exception {
+        GroupDefinition group = GroupDefinition
+                        .newBuilder(testGrouping)
+                        .clearDisplayName()
+                        .build();
+        final StreamObserver<GroupDTO.CreateGroupResponse> mockObserver =
+                        mock(StreamObserver.class);
+
+        CreateGroupRequest groupRequest = CreateGroupRequest
+                        .newBuilder()
+                        .setGroupDefinition(group)
+                        .setOrigin(origin)
+                        .build();
+
+        groupRpcService.createGroup(groupRequest, mockObserver);
+
+        //Verify the group was not created
+        verify(groupStoreDAO, never())
+                .createGroup(Mockito.anyObject(), Mockito.anyObject(),
+                                Mockito.anyObject(), Mockito.anyBoolean());
+
+        //Verify we send the error response
+        final ArgumentCaptor<StatusException> exceptionCaptor =
+                        ArgumentCaptor.forClass(StatusException.class);
+        verify(mockObserver).onError(exceptionCaptor.capture());
+
+        final StatusException exception = exceptionCaptor.getValue();
+        assertThat(exception, GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
+                .descriptionContains("Group display name is blank or not set."));
+    }
+
+    /**
+     * Tests the case a scoped user group creates a group which is in their scope.
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testCreateTemporaryGroupInScope() throws Exception {
+        when(userSessionContext.isUserScoped()).thenReturn(false);
+
+        GroupDefinition group = GroupDefinition
+                        .newBuilder(testGrouping)
+                        .setIsTemporary(true)
+                        .setOptimizationMetadata(OptimizationMetadata
+                                        .newBuilder()
+                                        .setIsGlobalScope(false))
+                        .build();
+
+
+        final Set<MemberType> expectedTypes =  new HashSet<>();
+
+        expectedTypes.add(MemberType
+                        .newBuilder()
+                        .setEntity(2)
+                        .build());
+
+        final Grouping grouping = Grouping
+                        .newBuilder()
+                        .setId(8L)
+                        .setDefinition(group)
+                        .addAllExpectedTypes(expectedTypes)
+                        .setSupportsMemberReverseLookup(false)
+                        .build();
+
+        when(temporaryGroupCache.create(group, origin, expectedTypes))
+                                .thenReturn(grouping);
+
+        final StreamObserver<CreateGroupResponse> mockObserver =
+                mock(StreamObserver.class);
+
+        groupRpcService.createGroup(CreateGroupRequest.newBuilder()
+                .setGroupDefinition(group)
+                .setOrigin(origin)
+                .build(), mockObserver);
+
+        verify(temporaryGroupCache).create(group, origin, expectedTypes);
+        verify(mockObserver).onNext(CreateGroupResponse.newBuilder()
+                .setGroup(grouping)
+                .build());
+        verify(mockObserver).onCompleted();
+    }
+
+    /**
+     * Tests the case a scoped user group tries to create a group which is outside their scope.
+     * @throws Exception if something goes wrong.
+     */
+    @Test(expected = UserAccessScopeException.class)
+    public void testCreateTemporaryGroupOutOfScope() throws Exception {
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        EntityAccessScope scope = new EntityAccessScope(null, null,
+                new ArrayOidSet(Arrays.asList(1L)), null);
+        when(userSessionContext.getUserAccessScope()).thenReturn(scope);
+
+        GroupDefinition group = GroupDefinition
+                        .newBuilder(testGrouping)
+                        .setIsTemporary(true)
+                        .setOptimizationMetadata(OptimizationMetadata
+                                        .newBuilder()
+                                        .setIsGlobalScope(false))
+                        .build();
+
+        final StreamObserver<CreateGroupResponse> mockObserver =
+                mock(StreamObserver.class);
+
+        groupRpcService.createGroup(CreateGroupRequest.newBuilder()
+                .setGroupDefinition(group)
+                .setOrigin(origin)
+                .build(), mockObserver);
+    }
+
+    /**
+     * Tests the case a scoped user group tries to create a group which has invalid definition.
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testCreateInvalidTempGroup() throws Exception {
+        GroupDefinition group = GroupDefinition
+                        .newBuilder(testGrouping)
+                        .setIsTemporary(true)
+                        .build();
+
+        final Set<MemberType> expectedTypes =  new HashSet<>();
+
+        expectedTypes.add(MemberType
+                        .newBuilder()
+                        .setEntity(2)
+                        .build());
+
+        when(temporaryGroupCache.create(group, origin, expectedTypes))
+                                .thenThrow(new InvalidTempGroupException(Collections
+                                                .singletonList("ERR1")));
+
+        final StreamObserver<GroupDTO.CreateGroupResponse> mockObserver =
+                mock(StreamObserver.class);
+
+        CreateGroupRequest groupRequest = CreateGroupRequest
+                        .newBuilder()
+                        .setGroupDefinition(group)
+                        .setOrigin(origin)
+                        .build();
+
+        groupRpcService.createGroup(groupRequest, mockObserver);
+
+        //Verify we send the error response
+        final ArgumentCaptor<StatusRuntimeException> exceptionCaptor =
+                        ArgumentCaptor.forClass(StatusRuntimeException.class);
+        verify(mockObserver).onError(exceptionCaptor.capture());
+
+        final StatusRuntimeException exception = exceptionCaptor.getValue();
+        assertThat(exception, GrpcRuntimeExceptionMatcher.hasCode(Code.ABORTED)
+                .descriptionContains("ERR1"));
+    }
+
+    /**
+     * Tests the cases when we DAO object of group service throws different exception when
+     * creating group.
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testGroupCreateDifferentExceptions() throws Exception {
+        testCreateGroupException(new DataAccessException("ERR1"), "data access exception");
+        testCreateGroupException(new DuplicateNameException(0, "ERR1"), "same name exists");
+        testCreateGroupException(new InvalidGroupException("ERR1"), "group is invalid");
+    }
+
+    private void testCreateGroupException(Exception inputException, String messageToCheck)
+                    throws Exception {
+        GroupDefinition group = testGrouping;
+
+        CreateGroupRequest groupRequest = CreateGroupRequest
+                        .newBuilder()
+                        .setGroupDefinition(group)
+                        .setOrigin(origin)
+                        .build();
+
+        final StreamObserver<GroupDTO.CreateGroupResponse> mockObserver =
+                        mock(StreamObserver.class);
+
+        Mockito.doThrow(inputException)
+            .when(groupStoreDAO).createGroup(Mockito.anyObject(), Mockito.anyObject(),
+                            Mockito.anyObject(),
+                            Mockito.anyBoolean());
+
+        groupRpcService.createGroup(groupRequest, mockObserver);
+
+
+        //Verify we send the error response
+        final ArgumentCaptor<StatusRuntimeException> exceptionCaptor =
+                        ArgumentCaptor.forClass(StatusRuntimeException.class);
+        verify(mockObserver).onError(exceptionCaptor.capture());
+
+        final StatusRuntimeException exception = exceptionCaptor.getValue();
+        assertThat(exception, GrpcRuntimeExceptionMatcher.hasCode(Code.ABORTED)
+                .descriptionContains("ERR1"));
+        assertThat(exception, GrpcRuntimeExceptionMatcher.hasCode(Code.ABORTED)
+                        .descriptionContains(messageToCheck));
+    }
+
+    /**
+     * Tests the case when a user successfully updates a group.
+     * @throws Exception is thrown when something goes wrong.
+     */
+    @Test
+    public void testGroupUpdateUserGroup() throws Exception {
+        GroupDefinition group = testGrouping;
+
+        final long groupingOid = 5;
+
+        Set<MemberType> expectedTypes = new HashSet<>();
+        expectedTypes.add(MemberType
+                            .newBuilder()
+                            .setEntity(2)
+                            .build());
+
+        Grouping grouping = Grouping
+                        .newBuilder()
+                        .setId(groupingOid)
+                        .setDefinition(group)
+                        .addAllExpectedTypes(expectedTypes)
+                        .setSupportsMemberReverseLookup(true)
+                        .build();
+
+        UpdateGroupRequest groupRequest = UpdateGroupRequest
+                        .newBuilder()
+                        .setId(groupingOid)
+                        .setNewDefinition(group)
+                        .build();
+
+        final StreamObserver<UpdateGroupResponse> mockObserver =
+                        mock(StreamObserver.class);
+
+        given(groupStoreDAO
+                        .updateGroup(eq(groupingOid), eq(group), eq(expectedTypes),
+                                        eq(true))).willReturn(grouping);
+
+        groupRpcService.updateGroup(groupRequest, mockObserver);
+        verify(groupStoreDAO).updateGroup(eq(groupingOid), eq(group), eq(expectedTypes),
+                        eq(true));
+
+        verify(mockObserver).onNext(UpdateGroupResponse.newBuilder()
+                .setUpdatedGroup(grouping)
+                .build());
+        verify(mockObserver).onCompleted();
+    }
+
+    /**
+     * Tests the case update group service is called but the request does not have group definition.
+     * @throws Exception is thrown when something goes wrong.
+     */
+    @Test
+    public void testUpdateGroupMissingGroupDefinition() throws Exception {
+
+        final StreamObserver<GroupDTO.UpdateGroupResponse> mockObserver =
+                        mock(StreamObserver.class);
+
+        UpdateGroupRequest groupRequest = UpdateGroupRequest
+                        .newBuilder()
+                        .setId(1L)
+                        .build();
+
+        groupRpcService.updateGroup(groupRequest, mockObserver);
+
+        //Verify the group was not created
+        verify(groupStoreDAO, never())
+            .updateGroup(Mockito.anyLong(), Mockito.anyObject(),
+                            Mockito.anyObject(), Mockito.anyBoolean());
+
+        //Verify we send the error response
+        final ArgumentCaptor<StatusException> exceptionCaptor =
+                        ArgumentCaptor.forClass(StatusException.class);
+        verify(mockObserver).onError(exceptionCaptor.capture());
+
+        final StatusException exception = exceptionCaptor.getValue();
+        assertThat(exception, GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
+                .descriptionContains("No group definition"));
+    }
+
+    /**
+     * Tests the case update group service is called but the request does not have the id.
+     * @throws Exception is thrown when something goes wrong.
+     */
+    @Test
+    public void testUpdateGroupMissingId() throws Exception {
+
+        final StreamObserver<GroupDTO.UpdateGroupResponse> mockObserver =
+                        mock(StreamObserver.class);
+
+        UpdateGroupRequest groupRequest = UpdateGroupRequest
+                        .newBuilder()
+                        .setNewDefinition(testGrouping)
+                        .build();
+
+
+        groupRpcService.updateGroup(groupRequest, mockObserver);
+
+        //Verify the group was not created
+        verify(groupStoreDAO, never())
+            .updateGroup(Mockito.anyLong(), Mockito.anyObject(),
+                            Mockito.anyObject(), Mockito.anyBoolean());
+
+        //Verify we send the error response
+        final ArgumentCaptor<StatusException> exceptionCaptor =
+                        ArgumentCaptor.forClass(StatusException.class);
+        verify(mockObserver).onError(exceptionCaptor.capture());
+
+        final StatusException exception = exceptionCaptor.getValue();
+        assertThat(exception, GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
+                .descriptionContains("No group ID specified"));
+    }
+
+    /**
+     * Tests the case update group service is called but the new group does not have
+     * the updated group type.
+     * @throws Exception is thrown when something goes wrong.
+     */
+    @Test
+    public void testUpdateGroupMissingGroupType() throws Exception {
+        GroupDefinition group = GroupDefinition
+                        .newBuilder(testGrouping)
+                        .clearType()
+                        .build();
+        final StreamObserver<GroupDTO.UpdateGroupResponse> mockObserver =
+                        mock(StreamObserver.class);
+
+        UpdateGroupRequest groupRequest = UpdateGroupRequest
+                        .newBuilder()
+                        .setId(1L)
+                        .setNewDefinition(group)
+                        .build();
+
+        groupRpcService.updateGroup(groupRequest, mockObserver);
+
+        //Verify the group was not created
+        verify(groupStoreDAO, never())
+            .updateGroup(Mockito.anyLong(), Mockito.anyObject(),
+                            Mockito.anyObject(), Mockito.anyBoolean());
+
+        //Verify we send the error response
+        final ArgumentCaptor<StatusException> exceptionCaptor =
+                        ArgumentCaptor.forClass(StatusException.class);
+        verify(mockObserver).onError(exceptionCaptor.capture());
+
+        final StatusException exception = exceptionCaptor.getValue();
+        assertThat(exception, GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
+                .descriptionContains("Group type is not set"));
+    }
+
+    /**
+     * Test multiple cases where the DAO object in group service throws an
+     * exception for different reason.
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testGroupUpdateDifferentExceptions() throws Exception {
+        testUpdateGroupException(new ImmutableGroupUpdateException("ERR1"), false,
+                        Code.INVALID_ARGUMENT, "immutable group", "ERR1");
+        testUpdateGroupException(new DataAccessException("ERR1"), true, Code.INTERNAL,
+                        "data access exception", "ERR1");
+        testUpdateGroupException(new DuplicateNameException(0, "ERR1"), false,
+                        Code.INVALID_ARGUMENT, "same name exists", "ERR1");
+        testUpdateGroupException(new InvalidGroupException("ERR1"), false, Code.INVALID_ARGUMENT,
+                        "group is invalid", "ERR1");
+        testUpdateGroupException(new GroupNotFoundException(1), false, Code.NOT_FOUND,
+                        "not found");
+    }
+
+    private void testUpdateGroupException(Exception inputException, boolean runtime,
+                    Code code,
+                    String... messageToCheck)
+                    throws Exception {
+        GroupDefinition group = testGrouping;
+
+        UpdateGroupRequest groupRequest = UpdateGroupRequest
+                        .newBuilder()
+                        .setId(1L)
+                        .setNewDefinition(group)
+                        .build();
+
+        final StreamObserver<GroupDTO.UpdateGroupResponse> mockObserver =
+                        mock(StreamObserver.class);
+
+        Mockito.doThrow(inputException)
+            .when(groupStoreDAO).updateGroup(Mockito.anyLong(), Mockito.anyObject(),
+                            Mockito.anyObject(),
+                            Mockito.anyBoolean());
+
+        groupRpcService.updateGroup(groupRequest, mockObserver);
+
+
+        //Verify we send the error response
+        if (runtime) {
+            final ArgumentCaptor<StatusRuntimeException> exceptionCaptor =
+                            ArgumentCaptor.forClass(StatusRuntimeException.class);
+            verify(mockObserver).onError(exceptionCaptor.capture());
+
+            final StatusRuntimeException exception = exceptionCaptor.getValue();
+
+            for (String message : messageToCheck) {
+                assertThat(exception, GrpcRuntimeExceptionMatcher.hasCode(code)
+                                .descriptionContains(message));
+            }
+        } else {
+            final ArgumentCaptor<StatusException> exceptionCaptor =
+                            ArgumentCaptor.forClass(StatusException.class);
+            verify(mockObserver).onError(exceptionCaptor.capture());
+
+            final StatusException exception = exceptionCaptor.getValue();
+
+            for (String message : messageToCheck) {
+                assertThat(exception, GrpcExceptionMatcher.hasCode(code)
+                                .descriptionContains(message));
+            }
+        }
+
+    }
+
+    /**
+     * Tests the findExpectedTypes method in group service when we are dealing with
+     * static group of groups.
+     */
+    @Test
+    public void testFindExpectedTypesGroupOfGroups() {
+        final MemberType resourceGroupType = MemberType
+                        .newBuilder()
+                        .setGroup(GroupType.RESOURCE)
+                        .build();
+
+        final MemberType entityType1 = MemberType
+                        .newBuilder()
+                        .setEntity(1)
+                        .build();
+
+        final MemberType entityType2 = MemberType
+                        .newBuilder()
+                        .setEntity(2)
+                        .build();
+
+        final MemberType entityType3 = MemberType
+                        .newBuilder()
+                        .setEntity(3)
+                        .build();
+
+        GroupDefinition groupDefinition = GroupDefinition
+                        .newBuilder()
+                        .setStaticGroupMembers(StaticMembers
+                            .newBuilder()
+                            .addMembersByType(StaticMembersByType
+                                .newBuilder()
+                                .setType(resourceGroupType)
+                                .addAllMembers(Arrays.asList(101L, 102L))
+                                            )
+                                              )
+                        .build();
+
+
+        Grouping subGroup1 = Grouping
+                        .newBuilder()
+                        .setId(101L)
+                        .addExpectedTypes(entityType1)
+                        .addExpectedTypes(entityType2)
+                        .build();
+
+        Grouping subGroup2 = Grouping
+                        .newBuilder()
+                        .setId(102L)
+                        .addExpectedTypes(entityType2)
+                        .addExpectedTypes(entityType3)
+                        .build();
+
+        given(groupStoreDAO.getGroups(
+                            GroupFilter
+                                .newBuilder()
+                                .addAllId(Arrays.asList(101L, 102L))
+                                .build()))
+            .willReturn(Arrays.asList(subGroup1, subGroup2));
+
+        Set<MemberType> memberTypes = groupRpcService.findGroupExpectedTypes(groupDefinition);
+
+        assertEquals(ImmutableSet.of(resourceGroupType,
+                        entityType1,
+                        entityType2,
+                        entityType3), memberTypes);
+
+    }
+
+    /**
+     * Tests the findExpectedTypes method in group service when we are dealing with
+     * dynamic group of entities.
+     */
+    @Test
+    public void testFindExpectedTypeDynamicGroup() {
+        GroupDefinition groupDefinition = GroupDefinition
+                        .newBuilder()
+                        .setEntityFilters(EntityFilters
+                            .newBuilder()
+                            .addEntityFilter(EntityFilter
+                                .newBuilder()
+                                .setEntityType(2)
+                                )
+                            .addEntityFilter(EntityFilter
+                                            .newBuilder()
+                                            .setEntityType(3)
+                                            )
+                            )
+                        .build();
+
+        Set<MemberType> memberTypes = groupRpcService.findGroupExpectedTypes(groupDefinition);
+
+        assertEquals(ImmutableSet.of(
+                        MemberType
+                            .newBuilder()
+                            .setEntity(2)
+                            .build(),
+                        MemberType
+                            .newBuilder()
+                            .setEntity(3)
+                            .build()
+                        ), memberTypes);
+    }
+
+    /**
+     * Tests the case that getting a generic group succeeds.
+     */
+    @Test
+    public void testGetGroup() {
+        GroupID groupId = GroupID
+                        .newBuilder()
+                        .setId(11L)
+                        .build();
+
+        Grouping grouping = Grouping
+                        .newBuilder()
+                        .setId(11L)
+                        .setDefinition(testGrouping)
+                        .build();
+
+        given(temporaryGroupCache.getGrouping(11L))
+            .willReturn(Optional.of(grouping));
+
+        final StreamObserver<GetGroupResponse> mockObserver =
+                        mock(StreamObserver.class);
+
+        groupRpcService.getGroup(groupId, mockObserver);
+
+        verify(temporaryGroupCache).getGrouping(11L);
+        verify(mockObserver).onNext(GetGroupResponse.newBuilder()
+                .setGroup(grouping)
+                .build());
+        verify(mockObserver).onCompleted();
+    }
+
+    /**
+     * Tests the case where a user requested for for a group but they did not
+     * provide the id for the group.
+     * @throws Exception when something goes wrong.
+     */
+    @Test
+    public void testGetGroupMissingId() throws Exception {
+        final StreamObserver<GetGroupResponse> mockObserver =
+                        mock(StreamObserver.class);
+
+        GroupID groupId = GroupID
+                        .newBuilder()
+                        .build();
+
+        groupRpcService.getGroup(groupId, mockObserver);
+
+        verify(temporaryGroupCache, never())
+            .getGrouping(Mockito.anyLong());
+
+        final ArgumentCaptor<StatusException> exceptionCaptor =
+                        ArgumentCaptor.forClass(StatusException.class);
+        verify(mockObserver).onError(exceptionCaptor.capture());
+
+        final StatusException exception = exceptionCaptor.getValue();
+        assertThat(exception, GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
+                .descriptionContains("No group ID specified"));
+    }
+
+    /**
+     * Tests the case where a user requested for for a group but DAO operation fails.
+     * @throws Exception when something goes wrong.
+     */
+    @Test
+    public void testGetGroupDataAccessException() throws Exception {
+        final StreamObserver<GetGroupResponse> mockObserver =
+                        mock(StreamObserver.class);
+
+        GroupID groupId = GroupID
+                        .newBuilder()
+                        .setId(11L)
+                        .build();
+
+        Mockito.doThrow(new DataAccessException("ERR1"))
+            .when(groupStoreDAO).getGroup(Mockito.anyLong());
+
+        groupRpcService.getGroup(groupId, mockObserver);
+
+        final ArgumentCaptor<StatusRuntimeException> exceptionCaptor =
+                        ArgumentCaptor.forClass(StatusRuntimeException.class);
+        verify(mockObserver).onError(exceptionCaptor.capture());
+
+        final StatusRuntimeException exception = exceptionCaptor.getValue();
+        assertThat(exception, GrpcRuntimeExceptionMatcher.hasCode(Code.INTERNAL)
+                .descriptionContains("data access error"));
+        assertThat(exception, GrpcRuntimeExceptionMatcher.hasCode(Code.INTERNAL)
+                        .descriptionContains("ERR1"));
+    }
+
+    /**
+     * Tests validate group method when no selection criteria is set for group.
+     * @throws InvalidGroupDefinitionException when the group definition is invalid.
+     */
+    @Test(expected = InvalidGroupDefinitionException.class)
+    public void testValidateGroupNoSelectionCriteria()
+                    throws InvalidGroupDefinitionException {
+        GroupDefinition groupDef = GroupDefinition
+                        .newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setDisplayName("Test")
+                        .build();
+
+        groupRpcService.validateGroupDefinition(groupDef);
+    }
+
+    /**
+     * Tests validate group method when the group is static but no members has been set.
+     * @throws InvalidGroupDefinitionException when the group definition is invalid.
+     */
+    @Test(expected = InvalidGroupDefinitionException.class)
+    public void testValidateGroupStaticMembers()
+                    throws InvalidGroupDefinitionException {
+        GroupDefinition groupDef = GroupDefinition
+                        .newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setDisplayName("Test")
+                        .setStaticGroupMembers(StaticMembers.newBuilder())
+                        .build();
+
+        groupRpcService.validateGroupDefinition(groupDef);
+    }
+
+    /**
+     * Tests validate group method when the group is dynamic but no filter has been set.
+     * @throws InvalidGroupDefinitionException when the group definition is invalid.
+     */
+    @Test(expected = InvalidGroupDefinitionException.class)
+    public void testValidateGroupDynamicMembers()
+                    throws InvalidGroupDefinitionException {
+        GroupDefinition groupDef = GroupDefinition
+                        .newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setDisplayName("Test")
+                        .setEntityFilters(EntityFilters.newBuilder())
+                        .build();
+
+        groupRpcService.validateGroupDefinition(groupDef);
+
+    }
+
+    /**
+     * Tests validate group method when the group is dynamic but the filter has no search parameter.
+     * @throws InvalidGroupDefinitionException when the group definition is invalid.
+     */
+    @Test(expected = InvalidGroupDefinitionException.class)
+    public void testValidateGroupDynamicMembersNoSearchParam()
+                    throws InvalidGroupDefinitionException {
+        GroupDefinition groupDef = GroupDefinition
+                        .newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setDisplayName("Test")
+                        .setEntityFilters(EntityFilters
+                                        .newBuilder()
+                                        .addEntityFilter(EntityFilter.newBuilder()))
+                        .build();
+
+        groupRpcService.validateGroupDefinition(groupDef);
+
+    }
+
+    /**
+     * Tests validate group method when the group is dynamic group of groups but no filters has
+     * been set.
+     * @throws InvalidGroupDefinitionException when the group definition is invalid.
+     */
+    @Test(expected = InvalidGroupDefinitionException.class)
+    public void testValidateGroupDynamicGroupofGroup()
+                    throws InvalidGroupDefinitionException {
+        GroupDefinition groupDef = GroupDefinition
+                        .newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setDisplayName("Test")
+                        .setGroupFilters(GroupFilters.newBuilder())
+                        .build();
+
+        groupRpcService.validateGroupDefinition(groupDef);
+
+    }
+
+    private static GroupDefinition createGroupDefinition() {
+        return GroupDefinition.newBuilder().setDisplayName("test-group")
+                .setStaticGroupMembers(StaticMembers
+                        .newBuilder()
+                        .addMembersByType(
+                                StaticMembersByType
+                                        .newBuilder()
+                                        .addMembers(1L)
+                                        .setType(VM_MEMBER_TYPE)
+                                        .build())
+                        .build())
+                .build();
+    }
+
+    private static Grouping createGrouping(long groupId, Collection<Long> groupMemberIds) {
+        return Grouping.newBuilder()
+                .setId(groupId)
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setStaticGroupMembers(createStaticMembers(groupMemberIds))
+                        .build())
+                .build();
+    }
+
+    private static StaticMembers createStaticMembers(Collection<Long> groupMemberIds) {
+        final StaticMembersByType staticMembersByType = StaticMembersByType.newBuilder()
+                .addAllMembers(groupMemberIds)
+                .setType(
+                        MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE).build())
+                .build();
+
+        return StaticMembers.newBuilder().addMembersByType(staticMembersByType).build();
+    }
+
+
     private void givenSearchHanderWillReturn(final List<Long> oids) {
         mockDataReference.set(oids);
     }
 
+    /**
+     * Mock search service handler.
+     */
     class SearchServiceHandler extends SearchServiceGrpc.SearchServiceImplBase {
 
         private final AtomicReference<List<Long>> mockDataReference;

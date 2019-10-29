@@ -44,7 +44,9 @@ import com.vmturbo.api.enums.ReservationAction;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
@@ -80,6 +82,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEnt
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
  * Test cases for {@link ReservationMapper}.
@@ -241,8 +244,11 @@ public class ReservationMapperTest {
                 .setId(123L)
                 .build()))
                 .thenReturn(GetGroupResponse.newBuilder()
-                        .setGroup(Group.newBuilder()
-                                .setType(Group.Type.CLUSTER))
+                        .setGroup(Grouping.newBuilder()
+                                        .setDefinition(GroupDefinition
+                                                        .newBuilder()
+                                                        .setType(GroupType.COMPUTE_HOST_CLUSTER))
+                                )
                         .build());
         when(policyServiceMole.getPolicy(PolicyRequest.newBuilder()
                 .setPolicyId(456L).build()))

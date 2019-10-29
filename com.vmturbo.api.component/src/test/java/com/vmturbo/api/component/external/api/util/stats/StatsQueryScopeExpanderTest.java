@@ -128,7 +128,7 @@ public class StatsQueryScopeExpanderTest {
 
         final CachedGroupInfo groupInfo = mock(CachedGroupInfo.class);
         when(groupInfo.isGlobalTempGroup()).thenReturn(true);
-        when(groupInfo.getEntityType()).thenReturn(UIEntityType.VIRTUAL_MACHINE);
+        when(groupInfo.getEntityTypes()).thenReturn(Collections.singleton(UIEntityType.VIRTUAL_MACHINE));
         when(groupInfo.getGlobalEnvType()).thenReturn(Optional.of(EnvironmentType.CLOUD));
 
         when(scope.getCachedGroupInfo()).thenReturn(Optional.of(groupInfo));

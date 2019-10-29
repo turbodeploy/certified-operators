@@ -29,6 +29,7 @@ import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
@@ -214,9 +215,10 @@ public class ClusterHeadroomPostProcessorTest {
      * @param setValidValues whether to set valid values or not
      * @param setHostActive whether to set host active or not
      */
+
     private void prepareForHeadroomCalculation(boolean setValidValues, boolean setHostActive) {
         when(groupRpcServiceMole.getGroups(any()))
-            .thenReturn(Collections.singletonList(Group.newBuilder().setId(CLUSTER_ID).build()));
+            .thenReturn(Collections.singletonList(Grouping.newBuilder().setId(CLUSTER_ID).build()));
 
         final ClusterHeadroomPlanPostProcessor processor =
             spy(new ClusterHeadroomPlanPostProcessor(PLAN_ID, Collections.singleton(CLUSTER.getId()),

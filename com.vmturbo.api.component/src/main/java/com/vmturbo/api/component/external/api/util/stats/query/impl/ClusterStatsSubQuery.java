@@ -18,7 +18,7 @@ import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -53,7 +53,7 @@ public class ClusterStatsSubQuery implements StatsSubQuery {
         // the request there is at least one cluster commodity. If not, we assume the request is
         // for Physical Machines commodities.
         return context.getInputScope().getGroupType()
-            .filter(type -> type == Type.CLUSTER)
+            .filter(GroupProtoUtil.CLUSTER_GROUP_TYPES::contains)
             .isPresent() &&
             context.getRequestedStats().stream()
                 .map(StatApiInputDTO::getName)

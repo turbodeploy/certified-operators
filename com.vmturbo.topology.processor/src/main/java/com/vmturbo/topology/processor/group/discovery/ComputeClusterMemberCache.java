@@ -1,7 +1,6 @@
 package com.vmturbo.topology.processor.group.discovery;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -11,9 +10,10 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings.UploadedGroup;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
 /**
@@ -37,9 +37,10 @@ public class ComputeClusterMemberCache {
 
         // Populate the cache
         groupInfoByTarget.forEach((targetId, groups) -> cache.put(targetId, groups.stream()
-            .filter(DiscoveredGroupInfo::hasInterpretedCluster)
-            .filter(group -> group.getInterpretedCluster().getClusterType() == Type.COMPUTE)
-            .map(group -> new ClusterMembers(group.getInterpretedCluster()))
+            .filter(DiscoveredGroupInfo::hasUploadedGroup)
+            .filter(group -> GroupType.COMPUTE_HOST_CLUSTER ==
+                    group.getUploadedGroup().getDefinition().getType())
+            .map(group -> new ClusterMembers(group.getUploadedGroup()))
             .collect(Collectors.toList())));
     }
 
@@ -50,7 +51,7 @@ public class ComputeClusterMemberCache {
      * @return Info DTO of the compute cluster membership that the host belongs to.
      *         If no compute cluster is found, returns {@link Optional#empty()}
      */
-    public Optional<ClusterInfo> clusterInfoForHost(@Nonnull final TopologyStitchingEntity host) {
+    public Optional<UploadedGroup> clusterInfoForHost(@Nonnull final TopologyStitchingEntity host) {
         return Optional.ofNullable(cache.get(host.getTargetId()))
             .flatMap(clusterMembersList -> clusterMembersList.stream()
                 .filter(clusterMembers -> clusterMembers.hasMember(host.getOid()))
@@ -63,11 +64,11 @@ public class ComputeClusterMemberCache {
      */
     private static class ClusterMembers {
         private final Set<Long> memberOids;
-        private final ClusterInfo clusterInfo;
+        private final UploadedGroup cluster;
 
-        ClusterMembers(@Nonnull final ClusterInfo clusterInfo) {
-            this.clusterInfo = Objects.requireNonNull(clusterInfo);
-            this.memberOids = new HashSet<>(clusterInfo.getMembers().getStaticMemberOidsList());
+        ClusterMembers(@Nonnull final UploadedGroup cluster) {
+            this.cluster = Objects.requireNonNull(cluster);
+            this.memberOids = GroupProtoUtil.getAllStaticMembers(cluster.getDefinition());
         }
 
         /**
@@ -85,8 +86,8 @@ public class ComputeClusterMemberCache {
          *
          * @return The cluster info for the cluster.
          */
-        public ClusterInfo getClusterInfo() {
-            return clusterInfo;
+        public UploadedGroup getClusterInfo() {
+            return cluster;
         }
     }
 }

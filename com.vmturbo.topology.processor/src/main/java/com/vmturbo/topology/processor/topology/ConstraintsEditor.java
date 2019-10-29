@@ -22,6 +22,7 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.api.enums.ConstraintType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.ConstraintGroup;
@@ -129,9 +130,10 @@ public class ConstraintsEditor {
                 .map(ConstraintGroup::getGroupUuid)
                 .collect(Collectors.toSet());
         groupService.getGroups(GetGroupsRequest.newBuilder()
-                .addAllId(groups)
-                .setResolveClusterSearchFilters(true)
-                .build())
+                        .setGroupFilter(GroupFilter.newBuilder()
+                                        .addAllId(groups))
+                        .setReplaceGroupPropertyWithGroupMembershipFilter(true)
+                        .build())
                 .forEachRemaining(group -> {
                     try {
                         Set<Long> groupMembersOids = groupResolver.resolve(group, graph);

@@ -13,14 +13,14 @@ public class GroupGeneratorTest {
 
     @Test
     public void testEntityWithName() {
-        final GroupInfo groupInfo = groupGen.entityWithName(EntityType.PHYSICAL_MACHINE, "foo");
-        assertEquals(EntityType.PHYSICAL_MACHINE_VALUE, groupInfo.getEntityType());
-        assertEquals(EntityType.PHYSICAL_MACHINE_VALUE, groupInfo.getSearchParametersCollection()
+        final GroupInfo groupDefinition = groupGen.entityWithName(EntityType.PHYSICAL_MACHINE, "foo");
+        assertEquals(EntityType.PHYSICAL_MACHINE_VALUE, groupDefinition.getEntityType());
+        assertEquals(EntityType.PHYSICAL_MACHINE_VALUE, groupDefinition.getSearchParametersCollection()
             .getSearchParameters(0)
             .getStartingFilter()
             .getNumericFilter()
             .getValue());
-        assertEquals("foo", groupInfo.getSearchParametersCollection()
+        assertEquals("foo", groupDefinition.getSearchParametersCollection()
             .getSearchParameters(0)
             .getSearchFilter(0)
             .getPropertyFilter()
@@ -30,14 +30,14 @@ public class GroupGeneratorTest {
 
     @Test
     public void testStorageWithName() {
-        final GroupInfo groupInfo = groupGen.entityWithName(EntityType.STORAGE, "foo");
-        assertEquals(EntityType.STORAGE_VALUE, groupInfo.getEntityType());
-        assertEquals(EntityType.STORAGE_VALUE, groupInfo.getSearchParametersCollection()
+        final GroupInfo groupDefinition = groupGen.entityWithName(EntityType.STORAGE, "foo");
+        assertEquals(EntityType.STORAGE_VALUE, groupDefinition.getEntityType());
+        assertEquals(EntityType.STORAGE_VALUE, groupDefinition.getSearchParametersCollection()
             .getSearchParameters(0)
             .getStartingFilter()
             .getNumericFilter()
             .getValue());
-        assertEquals("foo", groupInfo.getSearchParametersCollection()
+        assertEquals("foo", groupDefinition.getSearchParametersCollection()
             .getSearchParameters(0)
             .getSearchFilter(0)
             .getPropertyFilter()
@@ -47,20 +47,20 @@ public class GroupGeneratorTest {
 
     @Test
     public void testVmsOnHost() {
-        final GroupInfo groupInfo = groupGen.vmsOnHost("foo");
-        assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, groupInfo.getEntityType());
-        assertEquals(EntityType.PHYSICAL_MACHINE_VALUE, groupInfo.getSearchParametersCollection()
+        final GroupInfo groupDefinition = groupGen.vmsOnHost("foo");
+        assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, groupDefinition.getEntityType());
+        assertEquals(EntityType.PHYSICAL_MACHINE_VALUE, groupDefinition.getSearchParametersCollection()
             .getSearchParameters(0)
             .getStartingFilter()
             .getNumericFilter()
             .getValue());
-        assertEquals("foo", groupInfo.getSearchParametersCollection()
+        assertEquals("foo", groupDefinition.getSearchParametersCollection()
             .getSearchParameters(0)
             .getSearchFilter(0)
             .getPropertyFilter()
             .getStringFilter()
             .getStringPropertyRegex());
-        assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, groupInfo.getSearchParametersCollection()
+        assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, groupDefinition.getSearchParametersCollection()
             .getSearchParameters(0)
             .getSearchFilter(1)
             .getTraversalFilter()
@@ -72,21 +72,21 @@ public class GroupGeneratorTest {
 
     @Test
     public void testVmsOnStorage() {
-        final GroupInfo groupInfo = groupGen.vmsOnStorage("foo");
-        assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, groupInfo.getEntityType());
-        assertEquals(EntityType.STORAGE_VALUE, groupInfo.getSearchParametersCollection()
+        final GroupInfo groupDefinition = groupGen.vmsOnStorage("foo");
+        assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, groupDefinition.getEntityType());
+        assertEquals(EntityType.STORAGE_VALUE, groupDefinition.getSearchParametersCollection()
             .getSearchParameters(0)
             .getStartingFilter()
             .getNumericFilter()
             .getValue());
-        assertEquals("foo", groupInfo.getSearchParametersCollection()
+        assertEquals("foo", groupDefinition.getSearchParametersCollection()
             .getSearchParameters(0)
             .getSearchFilter(0)
             .getPropertyFilter()
             .getStringFilter()
             .getStringPropertyRegex());
 
-        assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, groupInfo.getSearchParametersCollection()
+        assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, groupDefinition.getSearchParametersCollection()
             .getSearchParameters(0)
             .getSearchFilter(1)
             .getTraversalFilter()
@@ -98,20 +98,20 @@ public class GroupGeneratorTest {
 
     @Test
     public void testHostsOnDatacenter() {
-        final GroupInfo groupInfo = groupGen.hostsOnDatacenter("foo");
-        assertEquals(EntityType.PHYSICAL_MACHINE_VALUE, groupInfo.getEntityType());
-        assertEquals(EntityType.DATACENTER_VALUE, groupInfo.getSearchParametersCollection()
+        final GroupInfo groupDefinition = groupGen.hostsOnDatacenter("foo");
+        assertEquals(EntityType.PHYSICAL_MACHINE_VALUE, groupDefinition.getEntityType());
+        assertEquals(EntityType.DATACENTER_VALUE, groupDefinition.getSearchParametersCollection()
             .getSearchParameters(0)
             .getStartingFilter()
             .getNumericFilter()
             .getValue());
-        assertEquals("foo", groupInfo.getSearchParametersCollection()
+        assertEquals("foo", groupDefinition.getSearchParametersCollection()
             .getSearchParameters(0)
             .getSearchFilter(0)
             .getPropertyFilter()
             .getStringFilter()
             .getStringPropertyRegex());
-        assertEquals(EntityType.PHYSICAL_MACHINE_VALUE, groupInfo.getSearchParametersCollection()
+        assertEquals(EntityType.PHYSICAL_MACHINE_VALUE, groupDefinition.getSearchParametersCollection()
             .getSearchParameters(0)
             .getSearchFilter(1)
             .getTraversalFilter()

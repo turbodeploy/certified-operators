@@ -39,7 +39,7 @@ import javaslang.Tuple2;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.reports.component.FailedToInsertGroupException;
 import com.vmturbo.reports.component.data.ReportDataUtils.MetaGroup;
@@ -85,30 +85,31 @@ public class ReportDBDataWriter {
      * @return primary key for the special "VMs" group. And group -> primary key map.
      * @throws DbException if exception is thrown
      */
-    public EntitiesTableGeneratedId insertGroupIntoEntitiesTable(@Nonnull final List<Group> groups, @Nonnull final MetaGroup metaGroup) throws DbException {
+    public EntitiesTableGeneratedId insertGroupIntoEntitiesTable(@Nonnull final List<Grouping> groups, @Nonnull final MetaGroup metaGroup) throws DbException {
         cleanGroup(metaGroup);
         final long defaultGroupPk = insertStaticMetaGroups(metaGroup)._1;
-        final Map<Group, Long> groupToPK = insertGroupsInternal(groups, metaGroup)._1;
+        final Map<Grouping, Long> groupToPK = insertGroupsInternal(groups, metaGroup)._1;
         return new EntitiesTableGeneratedId(defaultGroupPk, groupToPK);
     }
 
     // Tuple (group -> group PK, group uuid)
     // Caller must clean the existing group before calling this method, e.g. calling this::cleanGroup
-    private Tuple2<Map<Group, Long>, List<String>> insertGroupsInternal(@Nonnull final List<Group> groups
+    private Tuple2<Map<Grouping, Long>, List<String>> insertGroupsInternal(@Nonnull final List<Grouping> groups
         , @Nonnull final MetaGroup metaGroup) throws DbException {
         logger.info("Populating groups to entities tables. Groups: " + groups);
         // group -> group primary key in entities table
-        final Map<Group, Long> groupToPk = Maps.newHashMap();
+        final Map<Grouping, Long> groupToPk = Maps.newHashMap();
         final List<String> uuidList = Lists.newArrayList();
         try {
             groups.forEach(group -> {
                 final String groupUuid = String.valueOf(IdentityGenerator.next());
-                String name = GroupProtoUtil.getGroupName(group);
+                String name = GroupProtoUtil.getGroupSourceIdentifier(group).orElse(group.getDefinition()
+                    .getDisplayName());
                 // During debugging, I encountered some empty cases.
                 if (StringUtils.isEmpty(name)) {
                     name = GROUP;
                 }
-                String displayName = GroupProtoUtil.getGroupDisplayName(group);
+                String displayName = group.getDefinition().getDisplayName();
                 // same as above.
                 if (StringUtils.isEmpty(displayName)) {
                     displayName = GROUP;
@@ -128,8 +129,6 @@ public class ReportDBDataWriter {
 
     private Tuple2<Long, String> insertStaticMetaGroups(final @Nonnull MetaGroup metaGroup) throws DbException {
         logger.info("Populating default group to entities tables. Groups: " + metaGroup.getGroupName());
-        // group -> group primary key in entities table
-        final Map<Group, Tuple2<Long, String>> groupToPKUuid = Maps.newHashMap();
         try {
             // Special group representing all VMs/PMs/STs
             final String defaultGroupUuId = String.valueOf(IdentityGenerator.next());
@@ -149,12 +148,12 @@ public class ReportDBDataWriter {
      * @return {@link EntitiesTableGeneratedId} and newly created group UUID
      * @throws DbException if exception is thrown
      */
-    public Tuple2<EntitiesTableGeneratedId, Optional<String>> insertGroup(@Nonnull final Group group,
+    public Tuple2<EntitiesTableGeneratedId, Optional<String>> insertGroup(@Nonnull final Grouping group,
                                                                           @Nonnull final MetaGroup metaGroup) throws DbException {
         cleanGroup(metaGroup);
         final long defaultGroupPk = insertStaticMetaGroups(metaGroup)._1;
-        final Tuple2<Map<Group, Long>, List<String>> tuple = insertGroupsInternal(Collections.singletonList(group), metaGroup);
-        final Map<Group, Long> groupToPK = tuple._1;
+        final Tuple2<Map<Grouping, Long>, List<String>> tuple = insertGroupsInternal(Collections.singletonList(group), metaGroup);
+        final Map<Grouping, Long> groupToPK = tuple._1;
         return Tuple.of(new EntitiesTableGeneratedId(defaultGroupPk, groupToPK), tuple._2.stream().findFirst());
     }
 
@@ -203,7 +202,7 @@ public class ReportDBDataWriter {
      */
     public EntitiesTableGeneratedId insertEntityAssns(final EntitiesTableGeneratedId results) throws DbException {
         // group -> group primary key in entities table
-        final Map<Group, Long> newGroupToPK = Maps.newHashMap();
+        final Map<Grouping, Long> newGroupToPK = Maps.newHashMap();
 
         final long newDefaultGroupPK = insertEntityAssnsInternal(results.getDefaultGroupPK());
         results.getGroupToPK().entrySet().forEach(entry ->

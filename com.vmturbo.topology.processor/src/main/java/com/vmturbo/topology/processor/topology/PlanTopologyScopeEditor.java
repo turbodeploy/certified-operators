@@ -23,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
@@ -641,12 +642,15 @@ public class PlanTopologyScopeEditor {
                 .filter(s -> StringConstants.GROUP_TYPES.contains(s.getClassName()))
                 .map(PlanScopeEntry::getScopeObjectOid)
                 .collect(Collectors.toSet());
-        groupServiceClient.getGroups(GetGroupsRequest.newBuilder().addAllId(groupIds)
-                .setResolveClusterSearchFilters(true).build())
-                .forEachRemaining(g -> {
-                    Set<Long> groupMembers = groupResolver.resolve(g, graph);
-                    seedEntityIdSet.addAll(groupMembers);
-                });
+        groupServiceClient.getGroups(GetGroupsRequest.newBuilder()
+            .setGroupFilter(GroupFilter.newBuilder()
+                .addAllId(groupIds))
+            .setReplaceGroupPropertyWithGroupMembershipFilter(true)
+            .build())
+            .forEachRemaining(g -> {
+                Set<Long> groupMembers = groupResolver.resolve(g, graph);
+                seedEntityIdSet.addAll(groupMembers);
+            });
         logger.debug("Seed entity ids : {}", seedEntityIdSet);
         Map<EntityType, Set<TopologyEntity>> seedByEntityType = graph.getEntities(seedEntityIdSet)
                 .collect(Collectors.groupingBy(entity -> EntityType.forNumber(entity.getEntityType()),

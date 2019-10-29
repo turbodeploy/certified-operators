@@ -61,8 +61,13 @@ import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
@@ -105,6 +110,7 @@ import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 public class SettingsMapperTest {
     private final String mgrId1 = "mgr1";
@@ -1183,17 +1189,20 @@ public class SettingsMapperTest {
                     .setScope(Scope.newBuilder()
                         .addGroups(groupId)))
                 .build();
-        final Group group = Group.newBuilder()
+        final Grouping group = Grouping.newBuilder()
                 .setId(groupId)
-                .setType(Group.Type.GROUP)
-                .setGroup(GroupInfo.newBuilder()
-                    .setName(groupName))
+                .setDefinition(
+                        GroupDefinition.newBuilder()
+                            .setType(GroupType.REGULAR)
+                            .setDisplayName(groupName)
+                                )
                 .build();
 
         final SettingsPolicyApiDTO retDto = new SettingsPolicyApiDTO();
         when(policyMapper.convertSettingPolicy(policy, ImmutableMap.of(groupId, groupName), new HashMap<>()))
                 .thenReturn(retDto);
-        when(groupBackend.getGroups(GetGroupsRequest.newBuilder().addId(groupId).build()))
+        when(groupBackend.getGroups(GetGroupsRequest.newBuilder()
+                        .setGroupFilter(GroupFilter.newBuilder().addId(groupId)).build()))
             .thenReturn(Collections.singletonList(group));
 
         final List<SettingsPolicyApiDTO> result =
@@ -1213,18 +1222,25 @@ public class SettingsMapperTest {
         final GroupApiDTO groupDTO = new GroupApiDTO();
         groupDTO.setUuid(Long.toString(groupId));
 
-        final Group group = Group.newBuilder()
+        final Grouping group = Grouping.newBuilder()
                 .setId(groupId)
-                .setGroup(GroupInfo.newBuilder()
-                        .setEntityType(entityType))
+                .addExpectedTypes(MemberType.newBuilder().setEntity(entityType))
+                .setDefinition(GroupDefinition
+                                .newBuilder()
+                                .setStaticGroupMembers(StaticMembers.newBuilder()
+                                    .addMembersByType(StaticMembersByType.newBuilder()
+                                                .setType(MemberType.newBuilder().setEntity(entityType))
+                                                )
+                                    ))
                 .build();
 
         final SettingsPolicyApiDTO apiDTO = new SettingsPolicyApiDTO();
         apiDTO.setScopes(Collections.singletonList(groupDTO));
 
         when(groupBackend.getGroups(GetGroupsRequest.newBuilder()
-                .addId(groupId)
-                .build()))
+                       .setGroupFilter(GroupFilter.newBuilder()
+                                       .addId(groupId))
+                       .build()))
             .thenReturn(Collections.singletonList(group));
 
         assertThat(mapper.resolveEntityType(apiDTO), is(entityType));
@@ -1286,17 +1302,29 @@ public class SettingsMapperTest {
         final GroupApiDTO groupDTO2 = new GroupApiDTO();
         groupDTO2.setUuid(Long.toString(groupId2));
 
-        final Group group1 = Group.newBuilder()
-                .setId(groupId1)
-                .setGroup(GroupInfo.newBuilder()
-                        .setEntityType(1))
-                .build();
+        final Grouping group1 = Grouping.newBuilder()
+                        .setId(groupId1)
+                        .addExpectedTypes(MemberType.newBuilder().setEntity(1))
+                        .setDefinition(GroupDefinition
+                                        .newBuilder()
+                                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                            .addMembersByType(StaticMembersByType.newBuilder()
+                                                        .setType(MemberType.newBuilder().setEntity(1))
+                                                        )
+                                            ))
+                        .build();
 
-        final Group group2 = Group.newBuilder()
-                .setId(groupId2)
-                .setGroup(GroupInfo.newBuilder()
-                        .setEntityType(2))
-                .build();
+        final Grouping group2 = Grouping.newBuilder()
+                        .setId(groupId2)
+                        .addExpectedTypes(MemberType.newBuilder().setEntity(2))
+                        .setDefinition(GroupDefinition
+                                        .newBuilder()
+                                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                            .addMembersByType(StaticMembersByType.newBuilder()
+                                                        .setType(MemberType.newBuilder().setEntity(2))
+                                                        )
+                                            ))
+                        .build();
 
         final SettingsPolicyApiDTO apiDTO = new SettingsPolicyApiDTO();
         apiDTO.setScopes(Arrays.asList(groupDTO1, groupDTO2));

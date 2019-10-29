@@ -1,36 +1,58 @@
 package com.vmturbo.common.protobuf;
 
+import java.util.Collections;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
-
+import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings.UploadedGroup;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinitionOrBuilder;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupOrBuilder;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupingOrBuilder;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo.TypeCase;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin.CreationOriginCase;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
  * Miscellaneous utilities for messages defined in group/GroupDTO.proto.
  */
 public class GroupProtoUtil {
+
+    private static final Logger logger = LogManager.getLogger();
 
     public final static String GROUP_KEY_SEP = "-";
 
@@ -56,6 +78,28 @@ public class GroupProtoUtil {
     );
 
     /**
+     * The mapping from cluster entity type to new group type. For example: for host cluster, the
+     * entity type is PhysicalMachine, but in new group proto we use the
+     * {@link GroupType#COMPUTE_HOST_CLUSTER} to represent host cluster.
+     * Todo: this should be removed once all probes are changed to set new GroupType
+     */
+    private static final Map<EntityType, GroupType> CLUSTER_ENTITY_TYPE_TO_GROUP_TYPE_MAPPING =
+            ImmutableMap.of(
+                    EntityType.PHYSICAL_MACHINE, GroupType.COMPUTE_HOST_CLUSTER,
+                    EntityType.STORAGE, GroupType.STORAGE_CLUSTER,
+                    EntityType.VIRTUAL_MACHINE, GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER
+            );
+
+
+    /**
+     * The types of group that are considered clusters.
+     */
+    public static final Set<GroupType> CLUSTER_GROUP_TYPES = ImmutableSet.of(
+                    GroupType.COMPUTE_HOST_CLUSTER,
+                    GroupType.STORAGE_CLUSTER,
+                    GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER);
+
+    /**
      * Match the name with filter. If the filter has case sensitive set to true,
      * matching is case sensitive; otherwise matching is case insensitive.
      * @param name The name to compare with the filter.
@@ -77,7 +121,7 @@ public class GroupProtoUtil {
      * @param group The {@link Group}.
      * @throws IllegalArgumentException If the {@link Group} does not have a valid entity type.
      */
-    public static void checkEntityType(@Nonnull final GroupOrBuilder group) {
+    public static void checkEntityTypeForPolicy(@Nonnull final GroupOrBuilder group) {
         if (group.getType() == Type.NESTED_GROUP) {
             // Nested groups don't have an explicitly-specified type. We currently support
             // just one type of nested group - a group of clusters - in which case we can infer
@@ -92,6 +136,18 @@ public class GroupProtoUtil {
     }
 
     /**
+     * Check that the input {@link Grouping} has a valid entity type for a policy. For now a valid
+     * entity type for a policy is a group with a single type.
+     *
+     * @param group The {@link Grouping}.
+     * @throws IllegalArgumentException If the {@link Group} does not have a valid entity type.
+     */
+    public static void checkEntityTypeForPolicy(@Nonnull final GroupingOrBuilder group) {
+        Preconditions.checkArgument(GroupProtoUtil.getEntityTypes(group).size() == 1,
+            "Policies can be defined only for groups with a single entity type");
+    }
+
+    /**
      * Get the entity type of entities in a {@link Group}.
      *
      * @param group The {@link Group}.
@@ -99,7 +155,7 @@ public class GroupProtoUtil {
      * @throws IllegalArgumentException If the {@link Group} does not have a valid entity type.
      */
     public static int getEntityType(@Nonnull final GroupOrBuilder group) {
-        checkEntityType(group);
+        checkEntityTypeForPolicy(group);
         switch (group.getType()) {
             case GROUP:
                 return group.getGroup().getEntityType();
@@ -137,6 +193,22 @@ public class GroupProtoUtil {
             default:
                 throw new IllegalArgumentException("Unknown group type: " + group.getType());
         }
+    }
+
+    /**
+     * Returns a set of entity types of expected members of the specified group.
+     *
+     * @param group group to analyze
+     * @return set of entity types.
+     */
+    public static Set<UIEntityType> getEntityTypes(GroupingOrBuilder group) {
+        return group.getExpectedTypesList()
+                        .stream()
+                        .filter(MemberType::hasEntity)
+                        .map(MemberType::getEntity)
+                        .map(UIEntityType::fromType)
+                        .collect(Collectors.toSet());
+
     }
 
     /**
@@ -211,6 +283,22 @@ public class GroupProtoUtil {
     }
 
     /**
+     * Get the source identifier  of a {@link Grouping}.
+     *
+     * @param group The {@link Grouping}.
+     * @return The source identifier of the {@link Grouping} if present.
+     * @throws IllegalArgumentException If the {@link Grouping} is not properly formatted.
+     */
+    @Nonnull
+    public static Optional<String> getGroupSourceIdentifier(@Nonnull final Grouping group) {
+        String name = group.getDefinition().getDisplayName();
+        if (group.getOrigin().getCreationOriginCase() == CreationOriginCase.DISCOVERED) {
+            Optional.ofNullable(group.getOrigin().getDiscovered().getSourceIdentifier());
+        }
+        return Optional.empty();
+    }
+
+    /**
      * Given a {@link CommonDTO.GroupDTO}, extract its id properly. "group_name" is preferred if
      * if it is available. If not, then it falls back to "constraint_id". For some special
      * placement constraint types, there may be two groups (buyer group and seller group) with
@@ -276,28 +364,12 @@ public class GroupProtoUtil {
      * (ie we may discover two groups named "foo" one for storage, one for hosts), and they need
      * to be distinguished from each other.
      *
-     * This method operates on the SDK groups (ie as discovered by probes)
-     *
-     * @param group The group whose id should be constructed from its name.
-     * @return The id of the discovered group as used by the group component.
-     */
-    @Nonnull
-    public static String discoveredIdFromName(@Nonnull final CommonDTO.GroupDTO group,
-                                              @Nonnull final long targetId) {
-        return createGroupCompoundKey(extractId(group), group.getEntityType(), targetId);
-    }
-
-    /**
-     * For groups, the identifiers used by the group component are built from the name and entity
-     * type of groups. This is done to distinguish groups of the same name but different entity types
-     * (ie we may discover two groups named "foo" one for storage, one for hosts), and they need
-     * to be distinguished from each other.
-     *
      * This method operates on XL-internal groups.
      *
      * @param group The group whose id should be constructed from its name.
      * @return The id of the discovered group as used by the group component.
      */
+    // todo: remove once TargetClusterUpdate is removed (OM-51757)
     @Nonnull
     public static String discoveredIdFromName(@Nonnull final GroupInfo group,
                                               @Nonnull final long targetId) {
@@ -314,6 +386,7 @@ public class GroupProtoUtil {
      * @param clusterInfo The cluster whose id should be constructed from its name.
      * @return The id of the discovered cluster as used by the group component.
      */
+    // todo: remove once TargetClusterUpdate is removed (OM-51757)
     @Nonnull
     public static String discoveredIdFromName(@Nonnull final ClusterInfo clusterInfo,
                                               @Nonnull final long targetId) {
@@ -350,11 +423,72 @@ public class GroupProtoUtil {
      * @param targetId Id of the target that discovered the group.
      * @return
      */
+    // todo: remove once TargetClusterUpdate is removed (OM-51757)
     public static String createGroupCompoundKey(@Nonnull final String groupName,
                                                  @Nonnull final EntityType entityType,
                                                  @Nonnull final long targetId) {
         return String.join(GROUP_KEY_SEP, groupName,
                 String.valueOf(entityType), String.valueOf(targetId));
+    }
+
+    /**
+     * Create the identifying key for the given group, which is used to uniquely identify a group.
+     * Currently it's a combination of source identifier and group type. This is used to set the
+     * reference group "id" on the policy, so in group component it can find the correct oid for
+     * this unique string "id".
+     *
+     * @param sdkDTO the original sdk group dto coming from the probe
+     * @return unique identifying key for the group
+     */
+    public static String createIdentifyingKey(@Nonnull final GroupDTO sdkDTO) {
+        return createIdentifyingKey(getGroupType(sdkDTO), extractId(sdkDTO));
+    }
+
+    /**
+     * Create the identifying key for the given group, which is used to uniquely identify a group.
+     * Currently it's a combination of source identifier and group type. This is used to set the
+     * reference group "id" on the policy, so in group component it can find the correct oid for
+     * this unique string "id".
+     *
+     * @param uploadedGroup the group uploaded to group component
+     * @return unique identifying key for the group
+     */
+    public static String createIdentifyingKey(@Nonnull final UploadedGroup uploadedGroup) {
+        return createIdentifyingKey(uploadedGroup.getDefinition().getType(),
+                uploadedGroup.getSourceIdentifier());
+    }
+
+    /**
+     * Create the identifying key for the given group, which is used to uniquely identify a group.
+     * Currently it's a combination of source identifier and group type.
+     *
+     * @param groupType type of the group
+     * @param sourceId original identifier coming from the probe
+     * @return unique identifying key for the group
+     */
+    public static String createIdentifyingKey(@Nonnull GroupType groupType,
+                                              @Nonnull String sourceId) {
+        return String.join(GROUP_KEY_SEP, String.valueOf(groupType.getNumber()), sourceId);
+    }
+
+    /**
+     * Get the group type of the given sdk dto.
+     * Todo: this should be removed once all probes are changed to set new GroupType
+     *
+     * @param sdkDTO the group dto coming from probe
+     * @return {@link GroupType}
+     */
+    public static GroupType getGroupType(@Nonnull GroupDTO sdkDTO) {
+        if (sdkDTO.hasConstraintInfo() &&
+                sdkDTO.getConstraintInfo().getConstraintType().equals(ConstraintType.CLUSTER)) {
+            if (CLUSTER_ENTITY_TYPE_TO_GROUP_TYPE_MAPPING.containsKey(sdkDTO.getEntityType())) {
+                return CLUSTER_ENTITY_TYPE_TO_GROUP_TYPE_MAPPING.get(sdkDTO.getEntityType());
+            } else {
+                logger.warn("New cluster type found, no GroupType mapping type for group {}, " +
+                        "using {}", sdkDTO, sdkDTO.getGroupType());
+            }
+        }
+        return sdkDTO.getGroupType();
     }
 
     /**
@@ -407,6 +541,37 @@ public class GroupProtoUtil {
                 throw new IllegalArgumentException("Unhandled group type: " + group.getType());
         }
         return Optional.ofNullable(retGroup);
+    }
+
+    /**
+     * If the group is a static group of entities, get the list of immediate members.
+     *
+     * @param group The {@link Grouping} object.
+     * @return If the group is a static group (of any type), return an {@link Optional} containing
+     *         the immediate static members. If the group is a dynamic group, return an empty optional.
+     */
+    public static List<Long> getStaticMembers(@Nonnull final Grouping group) {
+        if (!group.getDefinition().hasStaticGroupMembers()) {
+            return Collections.emptyList();
+        }
+        return group.getDefinition()
+                        .getStaticGroupMembers()
+                        .getMembersByTypeList()
+                        .stream()
+                        .map(StaticMembersByType::getMembersList)
+                        .flatMap(List::stream)
+                        .collect(Collectors.toList());
+    }
+
+    /**
+     * Returns true if the input is a group of groups.
+     * @param group input group.
+     * @return true if it is nested group and false otherwise.
+     */
+    public static boolean isNestedGroup(@Nonnull final Grouping group) {
+        return group.getDefinition().hasGroupFilters()
+                || (group.getDefinition().hasStaticGroupMembers()
+                        && group.getExpectedTypesList().stream().anyMatch(MemberType::hasGroup));
     }
 
     /**
@@ -469,5 +634,34 @@ public class GroupProtoUtil {
                 break;
         }
         return result;
+    }
+
+    /**
+     * Get all the static member oids in the given group definition.
+     *
+     * @param groupDefinition the group to get static member oids for
+     * @return set of member oids
+     */
+    public static Set<Long> getAllStaticMembers(@Nonnull GroupDefinitionOrBuilder groupDefinition) {
+        return groupDefinition.getStaticGroupMembers().getMembersByTypeList().stream()
+                .map(StaticMembersByType::getMembersList)
+                .flatMap(List::stream)
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * Creates group filter to retrieve groups by the specified IDs.
+     *
+     * @param ids OIDs to query groups by
+     * @return a valid {@link GroupFilter}
+     */
+    @Nonnull
+    public static GroupFilter createGroupFilterByIds(@Nonnull Collection<Long> ids) {
+        final Set<String> options = ids.stream().map(String::valueOf).collect(Collectors.toSet());
+        return GroupFilter.newBuilder()
+                .addPropertyFilters(
+                        SearchProtoUtil.stringPropertyFilterExact(SearchableProperties.OID,
+                                options))
+                .build();
     }
 }

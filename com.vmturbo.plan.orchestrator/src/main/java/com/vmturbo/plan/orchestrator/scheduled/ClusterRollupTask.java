@@ -3,11 +3,14 @@ package com.vmturbo.plan.orchestrator.scheduled;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Date;
-import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -15,11 +18,10 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.scheduling.support.CronTrigger;
 import org.springframework.scheduling.support.SimpleTriggerContext;
 
-import com.google.common.annotations.VisibleForTesting;
-
-import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
@@ -111,12 +113,22 @@ public class ClusterRollupTask {
         rollupCount.incrementAndGet();
         logger.info("Request Cluster Roll-Up #{}", getRollupCount());
         try {
-            final Iterator<GroupDTO.Group> allClusters = groupRpcService.getGroups(
-                GetGroupsRequest.newBuilder()
-                    .addTypeFilter(Type.CLUSTER)
-                    .build());
+            final List<Grouping> allClusters = new ArrayList<>();
+
+            GroupProtoUtil.CLUSTER_GROUP_TYPES
+                .stream()
+                .map(type ->
+                    groupRpcService.getGroups(
+                                    GetGroupsRequest.newBuilder()
+                                    .setGroupFilter(GroupFilter.newBuilder()
+                                                    .setGroupType(type))
+                                    .build())
+                ).forEach(it -> {
+                    it.forEachRemaining(allClusters::add);
+                });
+
             statsServiceRpc.computeClusterRollup(Stats.ClusterRollupRequest.newBuilder()
-                .addAllClustersToRollup(() -> allClusters)
+                .addAllClustersToRollup(allClusters)
                 .build());
             keyValueStore.put(LAST_ROLLUP_TIME_KEY, clock.instant().toString());
         } catch (RuntimeException e) {

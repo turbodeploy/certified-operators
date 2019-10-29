@@ -30,15 +30,14 @@ import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
 
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterFilter;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisType;
@@ -77,6 +76,7 @@ import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
@@ -516,8 +516,8 @@ public class Analysis {
         // or a storage cluster serve as market sellers
         Set<TopologyEntityDTO> fakeEntityDTOs = new HashSet<>();
         try {
-            Set<TopologyEntityDTO> pmEntityDTOs = getEntityDTOsInCluster(ClusterInfo.Type.COMPUTE);
-            Set<TopologyEntityDTO> dsEntityDTOs = getEntityDTOsInCluster(ClusterInfo.Type.STORAGE);
+            Set<TopologyEntityDTO> pmEntityDTOs = getEntityDTOsInCluster(GroupType.COMPUTE_HOST_CLUSTER);
+            Set<TopologyEntityDTO> dsEntityDTOs = getEntityDTOsInCluster(GroupType.STORAGE_CLUSTER);
             Set<String> clusterCommKeySet = new HashSet<>();
             Set<String> dsClusterCommKeySet = new HashSet<>();
             pmEntityDTOs.forEach(dto -> {
@@ -572,15 +572,14 @@ public class Analysis {
                .build();
     }
 
-    protected Set<TopologyEntityDTO> getEntityDTOsInCluster(ClusterInfo.Type clusterInfo) {
+    protected Set<TopologyEntityDTO> getEntityDTOsInCluster(GroupType groupType) {
         Set<TopologyEntityDTO> entityDTOs = new HashSet<>();
         groupServiceClient.getGroups(GetGroupsRequest.newBuilder()
-            .addTypeFilter(Type.CLUSTER)
-            .setClusterFilter(ClusterFilter.newBuilder()
-                .setTypeFilter(clusterInfo).build())
-            .build())
+                        .setGroupFilter(GroupFilter.newBuilder()
+                                        .setGroupType(groupType))
+                        .build())
             .forEachRemaining(grp -> {
-                for (long i : grp.getCluster().getMembers().getStaticMemberOidsList()) {
+                for (long i : GroupProtoUtil.getAllStaticMembers(grp.getDefinition())) {
                     if (topologyDTOs.containsKey(i)) {
                         entityDTOs.add(topologyDTOs.get(i));
                     }

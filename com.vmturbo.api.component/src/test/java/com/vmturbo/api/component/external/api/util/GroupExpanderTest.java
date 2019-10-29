@@ -13,26 +13,28 @@ import static org.mockito.Mockito.when;
 import java.util.Optional;
 import java.util.Set;
 
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 public class GroupExpanderTest {
 
@@ -54,23 +56,23 @@ public class GroupExpanderTest {
     public void testGetGroup() {
         when(groupServiceSpy.getGroup(GroupID.newBuilder().setId(123).build()))
             .thenReturn(GetGroupResponse.newBuilder()
-                .setGroup(Group.getDefaultInstance())
+                .setGroup(Grouping.getDefaultInstance())
                 .build());
-        Optional<Group> ret = groupExpander.getGroup("123");
-        assertThat(ret.get(), is(Group.getDefaultInstance()));
+        Optional<Grouping> ret = groupExpander.getGroup("123");
+        assertThat(ret.get(), is(Grouping.getDefaultInstance()));
     }
 
     @Test
     public void testGetGroupNotFound() {
         when(groupServiceSpy.getGroup(GroupID.newBuilder().setId(123).build()))
                 .thenReturn(GetGroupResponse.getDefaultInstance());
-        Optional<Group> ret = groupExpander.getGroup("123");
+        Optional<Grouping> ret = groupExpander.getGroup("123");
         assertFalse(ret.isPresent());
     }
 
     @Test
     public void testGetGroupNotNumeric() {
-        Optional<Group> ret = groupExpander.getGroup("foo");
+        Optional<Grouping> ret = groupExpander.getGroup("foo");
         assertFalse(ret.isPresent());
     }
 
@@ -114,13 +116,19 @@ public class GroupExpanderTest {
     @Test
     public void testExpandGroupUuid() throws Exception {
         doReturn(GetGroupResponse.newBuilder()
-            .setGroup(Group.newBuilder()
-                .setType(Type.GROUP)
+            .setGroup(Grouping.newBuilder()
                 .setId(1234)
-                .setGroup(GroupInfo.newBuilder()
-                    .setName("foo")
-                    .setSearchParametersCollection(SearchParametersCollection.getDefaultInstance())))
-            .build()).when(groupServiceSpy).getGroup(GroupID.newBuilder().setId(1234).build());
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setDisplayName("foo")
+                        .setEntityFilters(EntityFilters.newBuilder()
+                                        .addEntityFilter(EntityFilter.newBuilder()
+                                            .setSearchParametersCollection(
+                                                            SearchParametersCollection.getDefaultInstance()
+                                                            )
+                                            )
+                                )
+            .build())).build()).when(groupServiceSpy).getGroup(GroupID.newBuilder().setId(1234).build());
 
         doReturn(GetMembersResponse.newBuilder().setMembers(Members.newBuilder()
             .addIds(10)

@@ -285,7 +285,7 @@ public class ReportingTestConfig {
     public Flyway localFlyway() {
         return new FlywayMigrator(Duration.ofMinutes(1), Duration.ofSeconds(5), () -> {
             final Flyway flyway = new Flyway();
-            flyway.setDataSource(dbConfig.dataSource());
+            flyway.setDataSource(dbConfig.flyway().getDataSource());
             flyway.setSchemas(REPORTING_SCHEMA);
             flyway.setLocations(ReportingDbConfig.MIGRATIONS_LOCATION);
             return flyway;

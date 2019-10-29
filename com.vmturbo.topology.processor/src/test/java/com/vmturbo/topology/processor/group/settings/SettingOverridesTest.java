@@ -15,8 +15,7 @@ import org.junit.Test;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.MaxUtilizationLevel;
@@ -33,9 +32,10 @@ public class SettingOverridesTest {
     private final GroupResolver groupResolver = mock(GroupResolver.class);
     private TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
     private static final long groupId = 123L;
-    private static final Group storageGroup = Group.newBuilder()
+    private static final GroupDTO.Grouping storageGroup = GroupDTO.Grouping.newBuilder()
         .setId(groupId)
-        .setGroup(GroupInfo.newBuilder().setName("Storage Group").setEntityType(EntityType.STORAGE.getValue()))
+        .addExpectedTypes(GroupDTO.MemberType.newBuilder().setEntity(EntityType.STORAGE.getValue()))
+        .setDefinition(GroupDTO.GroupDefinition.newBuilder().setDisplayName("Storage Group"))
         .build();
     private static final TopologyEntityDTO.Builder entity1 = TopologyEntityDTO
             .newBuilder()
@@ -83,7 +83,7 @@ public class SettingOverridesTest {
 
     @Test
     public void testResolveGroupOverridesWithGroupMaxUtil() {
-        Map<Long, Group> groupsById = new HashMap<>();
+        Map<Long, GroupDTO.Grouping> groupsById = new HashMap<>();
         groupsById.put(groupId, storageGroup);
         List<ScenarioChange> changes = Lists.newArrayList(ScenarioChange.newBuilder()
             .setPlanChanges(PlanChanges.newBuilder()

@@ -130,13 +130,15 @@ public class HistoricalQueryMapperTest {
     @Test
     public void testExtractRealtimeGlobalGroupFilter() {
         final CachedGroupInfo globalVmGroup = mock(CachedGroupInfo.class);
-        when(globalVmGroup.getEntityType()).thenReturn(UIEntityType.VIRTUAL_MACHINE);
+        when(globalVmGroup.getEntityTypes()).thenReturn(Collections.singleton(
+                        UIEntityType.VIRTUAL_MACHINE));
         when(globalVmGroup.isGlobalTempGroup()).thenReturn(true);
 
         final ApiId mktScope = mock(ApiId.class);
         when(mktScope.isRealtimeMarket()).thenReturn(false);
         when(mktScope.isGlobalTempGroup()).thenReturn(true);
-        when(mktScope.getScopeType()).thenReturn(Optional.of(UIEntityType.VIRTUAL_MACHINE));
+        when(mktScope.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(
+                        UIEntityType.VIRTUAL_MACHINE)));
 
         ActionStatsQuery query = ImmutableActionStatsQuery.builder()
             .addScopes(mktScope)

@@ -20,7 +20,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.commons.Units;
@@ -202,16 +202,16 @@ public class ReportDataUtils {
 
     // wrapper class to return default VM group (PK, UUID) and VM groups' (PK, UUID)
     static class GroupResults {
-        private Map<Group, Tuple2<Long, String>> groupToPK;
+        private Map<Grouping, Tuple2<Long, String>> groupToPK;
         private Tuple2<Long, String> defaultGroupPK;
 
         public GroupResults(@Nonnull Tuple2<Long, String> defaultVmGroupPK,
-                       @Nonnull Map<Group, Tuple2<Long, String>> groupToPK) {
+                       @Nonnull Map<Grouping, Tuple2<Long, String>> groupToPK) {
             this.groupToPK = groupToPK;
             this.defaultGroupPK = defaultVmGroupPK;
         }
 
-        public Map<Group, Tuple2<Long, String>> getGroupToPK() {
+        public Map<Grouping, Tuple2<Long, String>> getGroupToPK() {
             return groupToPK;
         }
 
@@ -225,17 +225,17 @@ public class ReportDataUtils {
      */
     static class EntitiesTableGeneratedId {
         // Group -> new generated group id in entities table.
-        private Map<Group, Long> groupToPK;
+        private Map<Grouping, Long> groupToPK;
         // default group, e.g. all VM on-premise
         private Long defaultGroupPK;
 
         public EntitiesTableGeneratedId(@Nonnull final Long defaultVmGroupPK,
-                                        @Nonnull final Map<Group, Long> groupToPK) {
+                                        @Nonnull final Map<Grouping, Long> groupToPK) {
             this.groupToPK = groupToPK;
             this.defaultGroupPK = defaultVmGroupPK;
         }
 
-        public Map<Group, Long> getGroupToPK() {
+        public Map<Grouping, Long> getGroupToPK() {
             return groupToPK;
         }
 

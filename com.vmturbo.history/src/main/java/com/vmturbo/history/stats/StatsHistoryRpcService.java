@@ -41,10 +41,10 @@ import org.jooq.Record;
 import org.jooq.exception.DataAccessException;
 import org.springframework.util.CollectionUtils;
 
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsRequest;
@@ -718,8 +718,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         try {
             // Filter by type as an extra precaution.
             clusterStatsWriter.rollupClusterStats(request.getClustersToRollupList().stream()
-                .filter(group -> group.getType().equals(Type.CLUSTER))
-                .collect(Collectors.toMap(Group::getId, Group::getCluster)));
+                .filter(group -> GroupProtoUtil.CLUSTER_GROUP_TYPES.contains(group.getDefinition().getType()))
+                .collect(Collectors.toMap(Grouping::getId, g -> g)));
             responseObserver.onNext(Stats.ClusterRollupResponse.newBuilder().build());
             responseObserver.onCompleted();
         } catch (Exception e) {

@@ -289,7 +289,7 @@ public class MarketPerformanceTest {
     public class GetGroupsStub extends GroupServiceImplBase {
         @Override
         public void getGroups(GroupDTO.GetGroupsRequest request,
-                              StreamObserver<GroupDTO.Group> responseObserver) {
+                              StreamObserver<GroupDTO.Grouping> responseObserver) {
             responseObserver.onCompleted(); // Don't return any groups
         }
     }

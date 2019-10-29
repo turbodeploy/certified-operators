@@ -25,10 +25,11 @@ import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
@@ -46,6 +47,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.search.SearchResolver;
@@ -68,11 +70,16 @@ public class ConstraintsEditorTest {
         constraintsEditor = new ConstraintsEditor(groupResolver, groupService);
     }
 
-    private static Group buildGroup(long id, List<Long> entities) {
-        final GroupInfo groupInfo = GroupInfo.newBuilder()
-                .setStaticGroupMembers(StaticGroupMembers.newBuilder()
-                        .addAllStaticMemberOids(entities).build()).build();
-        return Group.newBuilder().setId(id).setGroup(groupInfo).build();
+    private static Grouping buildGroup(long id, List<Long> entities) {
+        final GroupDefinition groupInfo =
+                        GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                        .addMembersByType(StaticMembersByType.newBuilder()
+                                                        .addAllMembers(entities)))
+                        .build();
+
+        return Grouping.newBuilder().setId(id).setDefinition(groupInfo).build();
     }
 
     @Nonnull
@@ -110,22 +117,22 @@ public class ConstraintsEditorTest {
 
     @Test
     public void testIgnoreConstraint() throws IOException {
-        final List<Group> groups = ImmutableList.of(buildGroup(1l, ImmutableList.of(1l, 2l)));
+        final List<Grouping> groups = ImmutableList.of(buildGroup(1L, ImmutableList.of(1L, 2L)));
         final GroupTestService testService = new GroupTestService(groups);
         GrpcTestServer testServer = GrpcTestServer.newServer(testService);
         testServer.start();
         groupService = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
         constraintsEditor = new ConstraintsEditor(groupResolver, groupService);
         final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
-        topology.put(1l, buildTopologyEntity(1l, CommodityDTO.CommodityType.CLUSTER.getNumber()));
-        topology.put(2l, buildTopologyEntity(2l, CommodityDTO.CommodityType.CLUSTER.getNumber()));
-        topology.put(3l, buildTopologyEntity(3l, CommodityDTO.CommodityType.NETWORK.getNumber()));
+        topology.put(1L, buildTopologyEntity(1L, CommodityDTO.CommodityType.CLUSTER.getNumber()));
+        topology.put(2L, buildTopologyEntity(2L, CommodityDTO.CommodityType.CLUSTER.getNumber()));
+        topology.put(3L, buildTopologyEntity(3L, CommodityDTO.CommodityType.NETWORK.getNumber()));
         List<ScenarioChange> changes = ImmutableList.of(ScenarioChange.newBuilder()
                 .setPlanChanges(PlanChanges.newBuilder().addIgnoreConstraints(
                         IgnoreConstraint.newBuilder().setIgnoreGroup(
                                 ConstraintGroup.newBuilder()
                                     .setCommodityType("ClusterCommodity")
-                                    .setGroupUuid(1l).build())
+                                    .setGroupUuid(1L).build())
                                 .build()))
                 .build());
         final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
@@ -136,9 +143,9 @@ public class ConstraintsEditorTest {
 
     @Test
     public void testIgnoreConstraintTwoGroups() throws IOException {
-        final List<Group> groups = ImmutableList.of(
-                buildGroup(1l, ImmutableList.of(1l, 2l)),
-                buildGroup(2l, ImmutableList.of(3l, 4l))
+        final List<Grouping> groups = ImmutableList.of(
+                buildGroup(1L, ImmutableList.of(1L, 2L)),
+                buildGroup(2L, ImmutableList.of(3L, 4L))
                 );
         final GroupTestService testService = new GroupTestService(groups);
         GrpcTestServer testServer = GrpcTestServer.newServer(testService);
@@ -146,13 +153,13 @@ public class ConstraintsEditorTest {
         groupService = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
         constraintsEditor = new ConstraintsEditor(groupResolver, groupService);
         final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
-        topology.put(1l, buildTopologyEntity(1l, CommodityDTO.CommodityType.CLUSTER.getNumber()));
-        topology.put(2l, buildTopologyEntity(2l, CommodityDTO.CommodityType.CLUSTER.getNumber()));
-        topology.put(3l, buildTopologyEntity(3l, CommodityDTO.CommodityType.NETWORK.getNumber()));
-        topology.put(4l, buildTopologyEntity(4l, CommodityDTO.CommodityType.NETWORK.getNumber()));
+        topology.put(1L, buildTopologyEntity(1L, CommodityDTO.CommodityType.CLUSTER.getNumber()));
+        topology.put(2L, buildTopologyEntity(2L, CommodityDTO.CommodityType.CLUSTER.getNumber()));
+        topology.put(3L, buildTopologyEntity(3L, CommodityDTO.CommodityType.NETWORK.getNumber()));
+        topology.put(4L, buildTopologyEntity(4L, CommodityDTO.CommodityType.NETWORK.getNumber()));
         List<ScenarioChange> changes = ImmutableList.of(
-                buildScenarioChange("ClusterCommodity", 1l),
-                buildScenarioChange("NetworkCommodity", 2l));
+                buildScenarioChange("ClusterCommodity", 1L),
+                buildScenarioChange("NetworkCommodity", 2L));
         final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
         Assert.assertEquals(4, getActiveCommodities(graph).count());
         constraintsEditor.editConstraints(graph, changes, false);
@@ -161,18 +168,18 @@ public class ConstraintsEditorTest {
 
     @Test
     public void testIgnoreConstraintAllEntities() throws IOException {
-        final List<Group> groups = ImmutableList.of(buildGroup(1l, ImmutableList.of(1l, 2l)));
+        final List<Grouping> groups = ImmutableList.of(buildGroup(1L, ImmutableList.of(1L, 2L)));
         final GroupTestService testService = new GroupTestService(groups);
         GrpcTestServer testServer = GrpcTestServer.newServer(testService);
         testServer.start();
         groupService = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
         constraintsEditor = new ConstraintsEditor(groupResolver, groupService);
         final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
-        topology.put(1l, buildTopologyEntity(1l, EntityType.PHYSICAL_MACHINE,
+        topology.put(1L, buildTopologyEntity(1L, EntityType.PHYSICAL_MACHINE,
                 CommodityDTO.CommodityType.CLUSTER.getNumber(), null));
-        topology.put(2l, buildTopologyEntity(2l, EntityType.VIRTUAL_MACHINE,
+        topology.put(2L, buildTopologyEntity(2L, EntityType.VIRTUAL_MACHINE,
                 CommodityDTO.CommodityType.CPU.getNumber(), "cpu"));
-        topology.put(3l, buildTopologyEntity(3l, EntityType.VIRTUAL_MACHINE,
+        topology.put(3L, buildTopologyEntity(3L, EntityType.VIRTUAL_MACHINE,
                 CommodityDTO.CommodityType.STORAGE.getNumber(), "storage"));
         List<ScenarioChange> changes = ImmutableList.of(ScenarioChange.newBuilder()
                 .setPlanChanges(PlanChanges.newBuilder().addIgnoreConstraints(
@@ -189,22 +196,22 @@ public class ConstraintsEditorTest {
     }
     @Test
     public void testIgnoreConstraintAllVMEntities() throws IOException {
-        final List<Group> groups = ImmutableList.of(buildGroup(1l, ImmutableList.of(1l, 2l)));
+        final List<Grouping> groups = ImmutableList.of(buildGroup(1L, ImmutableList.of(1L, 2L)));
         final GroupTestService testService = new GroupTestService(groups);
         GrpcTestServer testServer = GrpcTestServer.newServer(testService);
         testServer.start();
         groupService = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
         constraintsEditor = new ConstraintsEditor(groupResolver, groupService);
         final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
-        topology.put(1l, buildTopologyEntity(1l, EntityType.PHYSICAL_MACHINE,
+        topology.put(1L, buildTopologyEntity(1L, EntityType.PHYSICAL_MACHINE,
                 CommodityDTO.CommodityType.CLUSTER.getNumber(), null));
-        topology.put(2l, buildTopologyEntity(2l, EntityType.VIRTUAL_MACHINE,
+        topology.put(2L, buildTopologyEntity(2L, EntityType.VIRTUAL_MACHINE,
                 CommodityDTO.CommodityType.CPU.getNumber(), "cpu"));
-        topology.put(3l, buildTopologyEntity(3l, EntityType.VIRTUAL_MACHINE,
+        topology.put(3L, buildTopologyEntity(3L, EntityType.VIRTUAL_MACHINE,
                 CommodityDTO.CommodityType.DATASTORE.getNumber(), "datastore"));
-        topology.put(4l, buildTopologyEntity(4l, EntityType.VIRTUAL_MACHINE,
+        topology.put(4L, buildTopologyEntity(4L, EntityType.VIRTUAL_MACHINE,
                 CommodityDTO.CommodityType.STORAGE.getNumber(), null));
-        topology.put(5l, buildTopologyEntity(5l, EntityType.APPLICATION,
+        topology.put(5L, buildTopologyEntity(5L, EntityType.APPLICATION,
                 CommodityDTO.CommodityType.VCPU.getNumber(), "vcpu"));
         List<ScenarioChange> changes = ImmutableList.of(ScenarioChange.newBuilder()
                 .setPlanChanges(PlanChanges.newBuilder().addIgnoreConstraints(
@@ -225,7 +232,7 @@ public class ConstraintsEditorTest {
 
     @Test
     public void testEditConstraintsForAlleviatePressurePlan() throws IOException {
-        final List<Group> groups = ImmutableList.of(buildGroup(1L, ImmutableList.of(1L, 3L, 4L, 5L, 6L)));
+        final List<Grouping> groups = ImmutableList.of(buildGroup(1L, ImmutableList.of(1L, 3L, 4L, 5L, 6L)));
         final GroupTestService testService = new GroupTestService(groups);
         GrpcTestServer testServer = GrpcTestServer.newServer(testService);
         testServer.start();
@@ -255,7 +262,7 @@ public class ConstraintsEditorTest {
                         IgnoreConstraint.newBuilder().setIgnoreGroup(
                                 ConstraintGroup.newBuilder()
                                         .setCommodityType("ClusterCommodity")
-                                        .setGroupUuid(1l).build())
+                                        .setGroupUuid(1L).build())
                                 .build()))
                 .build());
         final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
@@ -312,9 +319,9 @@ public class ConstraintsEditorTest {
      */
     private static class GroupTestService extends GroupServiceImplBase {
 
-        private final List<Group> groups;
+        private final List<Grouping> groups;
 
-        private GroupTestService(List<Group> groups) {
+        private GroupTestService(List<Grouping> groups) {
             this.groups = groups;
         }
 
@@ -331,7 +338,7 @@ public class ConstraintsEditorTest {
         }
 
         @Override
-        public void getGroups(final GetGroupsRequest request, final StreamObserver<Group> responseObserver) {
+        public void getGroups(final GetGroupsRequest request, final StreamObserver<Grouping> responseObserver) {
             groups.forEach(responseObserver::onNext);
             responseObserver.onCompleted();
         }
@@ -347,8 +354,10 @@ public class ConstraintsEditorTest {
         }
 
         @Override
-        public Set<Long> resolve(Group group, TopologyGraph<TopologyEntity> topologyGraph) {
-            return new HashSet<>(group.getGroup().getStaticGroupMembers().getStaticMemberOidsList());
+        public Set<Long> resolve(Grouping group, TopologyGraph<TopologyEntity> topologyGraph) {
+            return new HashSet<>(group.getDefinition().getStaticGroupMembers()
+                            .getMembersByType(0)
+                            .getMembersList());
         }
     }
 }

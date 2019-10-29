@@ -66,6 +66,7 @@ import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
  * Unit tests for {@link Analysis}.
@@ -392,9 +393,9 @@ public class AnalysisTest {
         Analysis analysis = Mockito.spy(getAnalysis(analysisConfig, topologySet));
 
         Mockito.doReturn(topologySet).when(analysis)
-                .getEntityDTOsInCluster(eq(ClusterInfo.Type.STORAGE));
+                .getEntityDTOsInCluster(eq(GroupType.STORAGE_CLUSTER));
         Mockito.doReturn(new HashSet<>()).when(analysis)
-        .getEntityDTOsInCluster(eq(ClusterInfo.Type.COMPUTE));
+        .getEntityDTOsInCluster(eq(GroupType.COMPUTE_HOST_CLUSTER));
         Map<Long, TopologyEntityDTO> fakeEntity = analysis.createFakeTopologyEntityDTOsForSuspensionThrottling();
         assertTrue(fakeEntity.size() == 1);
         TopologyEntityDTO fakeEntityDTO = fakeEntity.values().iterator().next();

@@ -9,18 +9,17 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import javax.annotation.Nonnull;
 import javax.validation.constraints.Max;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Multimap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.MaxUtilizationLevel;
@@ -32,6 +31,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -144,7 +144,7 @@ public class SettingOverrides {
      * @param groupResolver the group resolver to use
      * @param topologyGraph the topology graph used for finding group members
      */
-    public void resolveGroupOverrides(@Nonnull Map<Long, Group> groupsById,
+    public void resolveGroupOverrides(@Nonnull Map<Long, Grouping> groupsById,
                                       @Nonnull GroupResolver groupResolver, TopologyGraph<TopologyEntity> topologyGraph) {
         Map<Setting, Set<Long>> entitiesToApplySetting = new HashMap<>();
         for (MaxUtilizationLevel u : maxUtilizationLevels) {
@@ -154,17 +154,19 @@ public class SettingOverrides {
                         .map(TopologyGraphEntity::getOid)
                         .collect(Collectors.toSet());
                 MAX_UTILIZATION_SETTING_SPECS.values().stream()
-                        // use selected entity type of full scope to filter setting spec
-                        .filter(spec -> isSettingSpecForEntityType(spec, u.getSelectedEntityType()))
-                        .forEach(spec -> entitiesToApplySetting.put(createSetting(spec, u), entitiesOid));
+                    // use selected entity type of full scope to filter setting spec
+                    .filter(spec -> isSettingSpecForEntityType(spec,
+                    Collections.singletonList(UIEntityType.fromType(u.getSelectedEntityType()))))
+                    .forEach(spec -> entitiesToApplySetting.put(createSetting(spec, u), entitiesOid));
             } else {
                 // get the group members to apply this setting to
-                Group group = groupsById.get(u.getGroupOid());
+                Grouping group = groupsById.get(u.getGroupOid());
                 System.out.println("Group is " + group.getId());
                 Set<Long> groupMemberOids = groupResolver.resolve(group, topologyGraph);
                 MAX_UTILIZATION_SETTING_SPECS.values().stream()
                     // use group entity type to filter setting spec
-                        .filter(spec -> isSettingSpecForEntityType(spec, group.getGroup().getEntityType()))
+                       .filter(spec -> isSettingSpecForEntityType(spec,
+                           GroupProtoUtil.getEntityTypes(group)))
                         .forEach(spec -> entitiesToApplySetting.put(createSetting(spec, u), groupMemberOids));
             }
         }
@@ -217,7 +219,7 @@ public class SettingOverrides {
 
     // does the setting spec apply to the entity type? Yes, if the entity type is in the scope of
     // setting spec.
-    private boolean isSettingSpecForEntityType(SettingSpec settingSpec, int entityType) {
+    private boolean isSettingSpecForEntityType(SettingSpec settingSpec, Collection<UIEntityType> entityTypes) {
         EntitySettingScope scope = settingSpec.getEntitySettingSpec().getEntitySettingScope();
         // if scope is "all entity type" then we are true
         if (scope.hasAllEntityType()) return true;
@@ -225,7 +227,9 @@ public class SettingOverrides {
         // otherwise scope may be a set of entity types.
         if (scope.hasEntityTypeSet()) {
             // return true if the entity type is in the entity type set.
-            return scope.getEntityTypeSet().getEntityTypeList().contains(entityType);
+            return scope.getEntityTypeSet().getEntityTypeList().stream()
+                            .map(UIEntityType::fromType)
+                            .anyMatch(entityTypes::contains);
         }
         // default = no
         return false;

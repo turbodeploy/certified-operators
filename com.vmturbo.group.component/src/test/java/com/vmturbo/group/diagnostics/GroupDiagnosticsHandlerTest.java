@@ -21,6 +21,8 @@ import java.util.List;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
+import io.prometheus.client.CollectorRegistry;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -28,14 +30,12 @@ import org.mockito.InOrder;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 
-import io.prometheus.client.CollectorRegistry;
-
 import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.Diags;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
-import com.vmturbo.group.group.GroupStore;
+import com.vmturbo.group.group.GroupDAO;
 import com.vmturbo.group.policy.PolicyStore;
 import com.vmturbo.group.setting.SettingStore;
 
@@ -48,7 +48,7 @@ public class GroupDiagnosticsHandlerTest {
 
     private DiagnosticsWriter diagnosticsWriter = mock(DiagnosticsWriter.class);
 
-    private GroupStore groupStore;
+    private GroupDAO groupStore;
 
     private PolicyStore policyStore;
 
@@ -60,7 +60,7 @@ public class GroupDiagnosticsHandlerTest {
 
     @Before
     public void setUp() throws Exception {
-        groupStore = mock(GroupStore.class);
+        groupStore = mock(GroupDAO.class);
         policyStore = mock(PolicyStore.class);
         settingStore = mock(SettingStore.class);
     }

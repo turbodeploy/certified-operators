@@ -257,7 +257,8 @@ public class ServiceConfig {
                 communicationConfig.settingPolicyRpcService(),
                 mapperConfig.settingsMapper(),
                 communicationConfig.thinTargetCache(),
-            entitySettingQueryExecutor());
+                entitySettingQueryExecutor(),
+                mapperConfig.groupFilterMapper());
     }
 
     @Bean
@@ -408,7 +409,8 @@ public class ServiceConfig {
                 communicationConfig.getRealtimeTopologyContextId(),
                 userSessionContext(),
                 communicationConfig.groupRpcService(),
-                communicationConfig.serviceEntityMapper());
+                communicationConfig.serviceEntityMapper(),
+                mapperConfig.entityFilterMapper());
     }
 
     @Bean

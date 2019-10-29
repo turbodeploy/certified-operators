@@ -17,7 +17,8 @@ import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScope
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.DeleteScenarioResponse;
@@ -64,15 +65,17 @@ public class ScenarioRpcService extends ScenarioServiceImplBase {
         // scope groups. Otherwise, we'll make sure they have access to the plan scope.
         if (userSessionContext.isUserScoped() && !info.hasScope()) {
             // set the scenario scope to the user's scope groups
-            Iterator<Group> groups = groupServiceStub.getGroups(GetGroupsRequest.newBuilder()
-                    .addAllId(userSessionContext.getUserAccessScope().getScopeGroupIds())
-                    .build());
+            Iterator<Grouping> groups = groupServiceStub.getGroups(
+                            GetGroupsRequest.newBuilder()
+                            .setGroupFilter(GroupFilter.newBuilder()
+                                            .addAllId(userSessionContext.getUserAccessScope().getScopeGroupIds()))
+                            .build());
             PlanScope.Builder planScopeBuilder = PlanScope.newBuilder();
             groups.forEachRemaining(group -> {
                 planScopeBuilder.addScopeEntries(PlanScopeEntry.newBuilder()
                         .setScopeObjectOid(group.getId())
                         .setClassName("Group")
-                        .setDisplayName(GroupProtoUtil.getGroupDisplayName(group))
+                        .setDisplayName(group.getDefinition().getDisplayName())
                         .build());
             });
             logger.info("Setting plan scope to {} groups in user scope.",

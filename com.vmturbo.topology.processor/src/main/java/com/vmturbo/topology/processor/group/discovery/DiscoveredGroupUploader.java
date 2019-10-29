@@ -16,10 +16,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
@@ -29,19 +25,26 @@ import com.google.common.collect.Multimap;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
-import com.vmturbo.common.protobuf.group.GroupDTO;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsPoliciesSettingsResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceStub;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
  * The {@link DiscoveredGroupUploader} is the interface for the discovery operation to upload
@@ -72,25 +75,19 @@ public class DiscoveredGroupUploader {
 
     private final Logger logger = LogManager.getLogger();
 
-    /**
-     * Having this keyword in the group_name field of a GroupDTO coming from VCenter means
-     * that the group is a folder.
-     * <p>
-     * We care about this because we DON'T want to support mapping folders for now (2017).
-     */
-    static String VC_FOLDER_KEYWORD = "Folder";
-
     private final GroupServiceStub groupServiceStub;
 
     private final DiscoveredGroupInterpreter discoveredGroupInterpreter;
 
     private final DiscoveredClusterConstraintCache discoveredClusterConstraintCache;
 
+    private final TargetStore targetStore;
+
     /**
      * A map from targetId to the list of the most recent {@link DiscoveredGroupInfo} for that
      * target.
-     * <p>
-     * This is for debugging purposes only - to support easily viewing the latest discovered
+     *
+     * <p>This is for debugging purposes only - to support easily viewing the latest discovered
      * groups.
      */
     private final Map<Long, List<InterpretedGroup>> latestGroupByTarget = new HashMap<>();
@@ -99,19 +96,24 @@ public class DiscoveredGroupUploader {
         HashMultimap.create();
 
     @VisibleForTesting
-    DiscoveredGroupUploader(@Nonnull final GroupServiceStub groupServiceStub,
-                            @Nonnull final DiscoveredGroupInterpreter discoveredGroupInterpreter,
-                            @Nonnull final DiscoveredClusterConstraintCache discoveredClusterConstraintCache) {
+    DiscoveredGroupUploader(
+            @Nonnull final GroupServiceStub groupServiceStub,
+            @Nonnull final DiscoveredGroupInterpreter discoveredGroupInterpreter,
+            @Nonnull final DiscoveredClusterConstraintCache discoveredClusterConstraintCache,
+            @Nonnull final TargetStore targetStore) {
         this.groupServiceStub = Objects.requireNonNull(groupServiceStub);
         this.discoveredGroupInterpreter = Objects.requireNonNull(discoveredGroupInterpreter);
-        this.discoveredClusterConstraintCache = discoveredClusterConstraintCache;
+        this.discoveredClusterConstraintCache =  Objects.requireNonNull(discoveredClusterConstraintCache);
+        this.targetStore = Objects.requireNonNull(targetStore);
     }
 
     public DiscoveredGroupUploader(
             @Nonnull final GroupServiceStub groupServiceStub,
             @Nonnull final EntityStore entityStore,
-            @Nonnull final DiscoveredClusterConstraintCache discoveredClusterConstraintCache) {
-        this(groupServiceStub, new DiscoveredGroupInterpreter(entityStore), discoveredClusterConstraintCache);
+            @Nonnull final DiscoveredClusterConstraintCache discoveredClusterConstraintCache,
+            @Nonnull final TargetStore targetStore) {
+        this(groupServiceStub, new DiscoveredGroupInterpreter(entityStore),
+                discoveredClusterConstraintCache, targetStore);
     }
 
     /**
@@ -139,7 +141,7 @@ public class DiscoveredGroupUploader {
 
     /**
      * Set the discovered setting policies for a target. This overwrites any existing discovered
-     * setting policies for that target.
+     * setting policies for that target. Note: this is only used for restoring diags.
      *
      * @param targetId the id of the target whose settings policies were discovered
      * @param settings the discovered setting policies for the target
@@ -150,33 +152,37 @@ public class DiscoveredGroupUploader {
             latestSettingPoliciesByTarget.get(targetId).clear();
             latestSettingPoliciesByTarget.putAll(targetId, settings);
         }
-
     }
 
     /**
-     * Insert discovered groups and setting policies for a target in an additive manner. Does not
-     * overwrite previous discovered groups and setting policies, instead it appends the provided
-     * {@link InterpretedGroup}s and {@link DiscoveredSettingPolicyInfo}s to the existing ones.
+     * Insert discovered groups for a target in an additive manner (it does not overwrite previous
+     * discovered groups, but appends the provided {@link InterpretedGroup}s to existing ones) and
+     * set setting policies for a target by replacing existing ones.
      *
      * @param targetId The id of the target that discovered these groups and setting policies.
      * @param interpretedGroups The discovered groups to be added to the existing collection for this target.
-     * @param settingPolicies The discovered setting policies to be added to the existing collection
-     *                        for this target.
+     * @param settingPolicies The discovered setting policies to be set for this target.
      */
     public void addDiscoveredGroupsAndPolicies(final long targetId,
                                                @Nonnull final List<InterpretedGroup> interpretedGroups,
                                                @Nonnull final List<DiscoveredSettingPolicyInfo> settingPolicies) {
         synchronized (latestGroupByTarget) {
-            final List<InterpretedGroup> targetGroups =
-                latestGroupByTarget.computeIfAbsent(targetId, id -> new ArrayList<>());
-            targetGroups.addAll(interpretedGroups);
-
+            latestGroupByTarget.computeIfAbsent(targetId, id -> new ArrayList<>())
+                    .addAll(interpretedGroups);
+            // these setting policies are created fresh in each broadcast from the discovered
+            // groups of each target in the stage ScanDiscoveredSettingPoliciesStage, if we use
+            // real targets, this will be cleared when a target is discovered, so there is no issue;
+            // but if we load diags, this map is populated by diags, which contains old setting
+            // policies created based on old DiscoveredSettingPolicyScanner, there will not be any
+            // real target discovery, so it's never cleared, we should clear old invalid ones
+            latestSettingPoliciesByTarget.get(targetId).clear();
             latestSettingPoliciesByTarget.putAll(targetId, settingPolicies);
         }
     }
 
     /**
-     * Get the latest {@link DiscoveredGroupInfo} for each target ID.
+     * Get the latest {@link DiscoveredGroupInfo} for each target ID. One of the use cases is
+     * dumping groups to diags.
      *
      * @return A map, with the ID of the target as the key.
      */
@@ -278,30 +284,31 @@ public class DiscoveredGroupUploader {
             // this is because we cannot easily associate a storage cluster to a datacenter
             groupsToUploadByTarget.values().stream()
                     .flatMap(List::stream)
-                    .map(InterpretedGroup::getDtoAsCluster)
+                    .map(InterpretedGroup::getGroupDefinition)
                     .filter(Optional::isPresent)
                     .map(Optional::get)
-                    .filter(cluster -> Type.COMPUTE == cluster.getClusterType())
+                    .filter(group -> GroupType.COMPUTE_HOST_CLUSTER == group.getType())
                     .forEach(cluster -> addDatacenterPrefixToComputeClusterName(input, cluster));
 
             // create the upload requests
+            // 1. upload all groups first since policies/settings refer to groups
             groupsToUploadByTarget.forEach((targetId, groups) -> {
+                final Optional<SDKProbeType> probeType = targetStore.getProbeTypeForTarget(targetId);
+                if (!probeType.isPresent()) {
+                    logger.error("Probe type for target {} not found, skipping uploading " +
+                            "groups/policies for it", targetId);
+                    return;
+                }
                 final DiscoveredGroupsPoliciesSettings.Builder req =
-                    DiscoveredGroupsPoliciesSettings.newBuilder()
-                        .setTargetId(targetId);
-                groups.forEach(interpretedDto -> {
-                    interpretedDto.getDtoAsCluster().ifPresent(req::addDiscoveredCluster);
-                    interpretedDto.getDtoAsGroup().ifPresent(req::addDiscoveredGroup);
-                });
-                List<DiscoveredPolicyInfo> policiesByTarget = latestPoliciesByTarget.get(targetId);
-                if (policiesByTarget != null) {
-                    req.addAllDiscoveredPolicyInfos(policiesByTarget);
-                }
-                Collection<DiscoveredSettingPolicyInfo> settingPolicies = latestSettingPoliciesByTarget.get(targetId);
-                if (settingPolicies != null) {
-                    req.addAllDiscoveredSettingPolicies(settingPolicies);
-                }
-
+                        DiscoveredGroupsPoliciesSettings.newBuilder()
+                                .setTargetId(targetId)
+                                .setProbeType(probeType.get().toString());
+                groups.forEach(interpretedDto -> interpretedDto.convertToUploadedGroup()
+                        .ifPresent(req::addUploadedGroups));
+                Optional.ofNullable(latestPoliciesByTarget.get(targetId))
+                        .map(req::addAllDiscoveredPolicyInfos);
+                Optional.ofNullable(latestSettingPoliciesByTarget.get(targetId))
+                        .map(req::addAllDiscoveredSettingPolicies);
                 requests.add(req.build());
             });
         }
@@ -359,23 +366,29 @@ public class DiscoveredGroupUploader {
      * @param topologyMap to search host and datacenter entity
      * @param cluster to change name of it
      */
-    private void addDatacenterPrefixToComputeClusterName(@Nonnull Map<Long, TopologyEntity.Builder> topologyMap,
-                                                         @Nonnull GroupDTO.ClusterInfo.Builder cluster) {
-        final List<Long> memberOidsList = cluster.getMembers().getStaticMemberOidsList();
-        if (CollectionUtils.isEmpty(memberOidsList)) {
+    private void addDatacenterPrefixToComputeClusterName(
+            @Nonnull Map<Long, TopologyEntity.Builder> topologyMap,
+            @Nonnull GroupDefinition.Builder cluster) {
+        final Optional<StaticMembersByType> hosts = cluster.getStaticGroupMembers()
+                .getMembersByTypeList().stream()
+                .filter(staticMembersByType -> EntityType.PHYSICAL_MACHINE_VALUE ==
+                        staticMembersByType.getType().getEntity())
+                .findAny();
+
+        if (!hosts.isPresent() || hosts.get().getMembersList().isEmpty()) {
             logger.warn("Cannot add the datacenter prefix to the cluster. Empty cluster provided {}",
-                    cluster.getName());
+                    cluster.getDisplayName());
             return;
         }
         // here the assumption is that all the cluster members are hosts.
         // cluster members from the SDK can be also VDC sometimes, but those are filtered before
         // reaching this point
-        final TopologyEntity.Builder host = topologyMap.get(memberOidsList.get(0));
+        final TopologyEntity.Builder host = topologyMap.get(hosts.get().getMembers(0));
         if (host == null) {
-            logger.error("Topology map doesn't contain host {}", memberOidsList.get(0));
+            logger.error("Topology map doesn't contain host {}", hosts.get().getMembers(0));
             return;
         }
-        final Optional<TopologyEntityDTO.CommoditiesBoughtFromProvider> datacenterCommodity =
+        final Optional<CommoditiesBoughtFromProvider> datacenterCommodity =
                 getDatacenterCommodityOfHost(host);
         if (!datacenterCommodity.isPresent()) {
             final Optional<TopologyEntityDTO.CommoditiesBoughtFromProvider> chassisCommodity =

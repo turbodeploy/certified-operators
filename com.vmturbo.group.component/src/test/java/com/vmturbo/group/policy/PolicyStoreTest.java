@@ -31,11 +31,9 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
-import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToGroupPolicy;
@@ -50,7 +48,7 @@ import com.vmturbo.group.db.tables.records.GroupingRecord;
 import com.vmturbo.group.db.tables.records.PolicyRecord;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.policy.PolicyStore.PolicyDeleteException;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 @RunWith(SpringJUnit4ClassRunner.class)
@@ -345,11 +343,11 @@ public class PolicyStoreTest {
     private void injectGroup(final long id) {
         final GroupingRecord record = dbConfig.dsl().newRecord(Tables.GROUPING);
         record.setId(id);
-        record.setName("Fuel Injected " + id);
-        record.setType(GroupDTO.Group.Type.GROUP_VALUE);
-        record.setOrigin(GroupDTO.Group.Origin.USER_VALUE);
-        record.setEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
-        record.setGroupData(GroupInfo.getDefaultInstance().toByteArray());
+        record.setDisplayName("Fuel Injected " + id);
+        record.setGroupType(GroupType.REGULAR);
+        record.setOriginUserCreator("super-user");
+        record.setSupportsMemberReverseLookup(true);
+        record.setIsHidden(false);
         record.store();
     }
 

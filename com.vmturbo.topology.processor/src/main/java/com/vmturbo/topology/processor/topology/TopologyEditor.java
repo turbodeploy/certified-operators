@@ -26,7 +26,8 @@ import com.google.gson.Gson;
 
 import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.UtilizationLevel;
@@ -127,7 +128,7 @@ public class TopologyEditor {
         // Map key is template id, and value is the replaced topologyEntity.
         final Multimap<Long, Long> templateToReplacedEntity =
             ArrayListMultimap.create();
-        final Map<Long, Group> groupIdToGroupMap = getGroups(changes);
+        final Map<Long, Grouping> groupIdToGroupMap = getGroups(changes);
         final TopologyGraph<TopologyEntity> topologyGraph =
             TopologyEntityTopologyGraphCreator.newGraph(topology);
 
@@ -602,15 +603,16 @@ public class TopologyEditor {
     }
 
 
-    private Map<Long, Group> getGroups(List<ScenarioChange> changes) {
+    private Map<Long, Grouping> getGroups(List<ScenarioChange> changes) {
         final Set<Long> groupIds = PlanDTOUtil.getInvolvedGroups(changes);
-        final Map<Long, Group> groupIdToGroupMap = new HashMap<>();
+        final Map<Long, Grouping> groupIdToGroupMap = new HashMap<>();
 
         if (!groupIds.isEmpty()) {
             final GetGroupsRequest request =
-                    GetGroupsRequest.newBuilder()
-                            .addAllId(groupIds)
-                            .setResolveClusterSearchFilters(true)
+                            GetGroupsRequest.newBuilder()
+                            .setGroupFilter(GroupFilter.newBuilder()
+                                            .addAllId(groupIds))
+                            .setReplaceGroupPropertyWithGroupMembershipFilter(true)
                             .build();
 
             groupServiceClient.getGroups(request)

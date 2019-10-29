@@ -180,7 +180,7 @@ public class DiscoveredPolicyInfoParser {
     private DiscoveredPolicyInfo parsePolicy(@Nonnull CommonDTO.GroupDTO buyers,
                                              @Nonnull CommonDTO.GroupDTO sellers) {
         return parsePolicyInternal(buyers)
-                .setSellersGroupStringId(GroupProtoUtil.discoveredIdFromName(sellers, targetId))
+                .setSellersGroupStringId(GroupProtoUtil.createIdentifyingKey(sellers))
                 .build();
     }
 
@@ -208,7 +208,7 @@ public class DiscoveredPolicyInfoParser {
                         : constraintInfo.getConstraintDisplayName();
         return DiscoveredPolicyInfo.newBuilder()
                 .setPolicyName(constraintName)
-                .setBuyersGroupStringId(GroupProtoUtil.discoveredIdFromName(buyers, targetId))
+                .setBuyersGroupStringId(GroupProtoUtil.createIdentifyingKey(buyers))
                 .setConstraintType(buyers.getConstraintInfo().getConstraintType().getNumber());
     }
 }

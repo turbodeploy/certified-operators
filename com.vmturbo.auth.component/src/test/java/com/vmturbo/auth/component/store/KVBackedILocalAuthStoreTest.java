@@ -36,16 +36,17 @@ import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 /**
@@ -166,31 +167,46 @@ public class KVBackedILocalAuthStoreTest {
         AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient);
 
         // group 1 will be valid, but group 2 will not
-        Mockito.doReturn(Arrays.asList(Group.newBuilder()
-                .setType(Type.GROUP)
-                .setGroup(GroupInfo.newBuilder()
-                        .setEntityType(EntityType.VIRTUAL_MACHINE.getValue()))
+        Mockito.doReturn(Arrays.asList(Grouping.newBuilder()
+                .addExpectedTypes(MemberType.newBuilder()
+                                .setEntity(EntityType.VIRTUAL_MACHINE.getValue()))
+                .setDefinition(GroupDefinition.newBuilder()
+                                .setType(GroupType.REGULAR))
                 .build()))
-                .when(groupService).getGroups(GetGroupsRequest.newBuilder().addId(1L).build());
+                .when(groupService).getGroups(GetGroupsRequest.newBuilder()
+                                .setGroupFilter(GroupFilter
+                                                .newBuilder()
+                                                .addId(1L))
+                                .build());
 
-        Mockito.doReturn(Arrays.asList(Group.newBuilder()
-                .setType(Type.GROUP)
-                .setGroup(GroupInfo.newBuilder()
-                        .setEntityType(EntityType.PHYSICAL_MACHINE.getValue()))
-                .build()))
-                .when(groupService).getGroups(GetGroupsRequest.newBuilder().addId(2L).build());
+        Mockito.doReturn(Arrays.asList(Grouping.newBuilder()
+                        .addExpectedTypes(MemberType.newBuilder()
+                                        .setEntity(EntityType.PHYSICAL_MACHINE.getValue()))
+                        .setDefinition(GroupDefinition.newBuilder()
+                                        .setType(GroupType.REGULAR))
+                        .build()))
+                .when(groupService).getGroups(GetGroupsRequest.newBuilder()
+                                .setGroupFilter(GroupFilter
+                                                .newBuilder()
+                                                .addId(2L))
+                                .build());
 
         // shared advisor should be allowed w/group 1
         boolean result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
                 ImmutableList.of("SHARED_ADVISOR"), ImmutableList.of(1L));
         Assert.assertTrue(result);
 
-        Mockito.doReturn(Arrays.asList(Group.newBuilder()
-                .setType(Type.GROUP)
-                .setGroup(GroupInfo.newBuilder()
-                        .setEntityType(EntityType.PHYSICAL_MACHINE.getValue()))
-                .build()))
-                .when(groupService).getGroups(GetGroupsRequest.newBuilder().addId(2L).build());
+        Mockito.doReturn(Arrays.asList(Grouping.newBuilder()
+                        .addExpectedTypes(MemberType.newBuilder()
+                                        .setEntity(EntityType.PHYSICAL_MACHINE.getValue()))
+                        .setDefinition(GroupDefinition.newBuilder()
+                                        .setType(GroupType.REGULAR))
+                        .build()))
+                .when(groupService).getGroups(GetGroupsRequest.newBuilder()
+                                .setGroupFilter(GroupFilter
+                                                .newBuilder()
+                                                .addId(2L))
+                                .build());
 
         // regular advisor should be allowed w/group 2
         Assert.assertTrue(store.add(AuthUserDTO.PROVIDER.LOCAL, "user1", "password0",
@@ -203,12 +219,17 @@ public class KVBackedILocalAuthStoreTest {
         AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient);
 
         // group of PM's should not be allowed for shared user scope
-        Mockito.doReturn(Arrays.asList(Group.newBuilder()
-                .setType(Type.GROUP)
-                .setGroup(GroupInfo.newBuilder()
-                        .setEntityType(EntityType.PHYSICAL_MACHINE.getValue()))
-                .build()))
-                .when(groupService).getGroups(GetGroupsRequest.newBuilder().addId(2L).build());
+        Mockito.doReturn(Arrays.asList(Grouping.newBuilder()
+                        .addExpectedTypes(MemberType.newBuilder()
+                                        .setEntity(EntityType.PHYSICAL_MACHINE.getValue()))
+                        .setDefinition(GroupDefinition.newBuilder()
+                                        .setType(GroupType.REGULAR))
+                        .build()))
+                .when(groupService).getGroups(GetGroupsRequest.newBuilder()
+                                .setGroupFilter(GroupFilter
+                                                .newBuilder()
+                                                .addId(2L))
+                                .build());
 
         // shared advisor should be rejected.
         store.add(AuthUserDTO.PROVIDER.LOCAL, "user2", "password0",
@@ -401,19 +422,29 @@ public class KVBackedILocalAuthStoreTest {
         AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient);
 
         // group 1 will be valid, but group 2 will not
-        Mockito.doReturn(Arrays.asList(Group.newBuilder()
-                .setType(Type.GROUP)
-                .setGroup(GroupInfo.newBuilder()
-                        .setEntityType(EntityType.VIRTUAL_MACHINE.getValue()))
-                .build()))
-                .when(groupService).getGroups(GetGroupsRequest.newBuilder().addId(1L).build());
+        Mockito.doReturn(Arrays.asList(Grouping.newBuilder()
+                        .addExpectedTypes(MemberType.newBuilder()
+                                        .setEntity(EntityType.VIRTUAL_MACHINE.getValue()))
+                        .setDefinition(GroupDefinition.newBuilder()
+                                        .setType(GroupType.REGULAR))
+                        .build()))
+                .when(groupService).getGroups(GetGroupsRequest.newBuilder()
+                                .setGroupFilter(GroupFilter
+                                                .newBuilder()
+                                                .addId(1L))
+                                .build());
 
-        Mockito.doReturn(Arrays.asList(Group.newBuilder()
-                .setType(Type.GROUP)
-                .setGroup(GroupInfo.newBuilder()
-                        .setEntityType(EntityType.PHYSICAL_MACHINE.getValue()))
-                .build()))
-                .when(groupService).getGroups(GetGroupsRequest.newBuilder().addId(2L).build());
+        Mockito.doReturn(Arrays.asList(Grouping.newBuilder()
+                        .addExpectedTypes(MemberType.newBuilder()
+                                        .setEntity(EntityType.PHYSICAL_MACHINE.getValue()))
+                        .setDefinition(GroupDefinition.newBuilder()
+                                        .setType(GroupType.REGULAR))
+                        .build()))
+                .when(groupService).getGroups(GetGroupsRequest.newBuilder()
+                                .setGroupFilter(GroupFilter
+                                                .newBuilder()
+                                                .addId(2L))
+                                .build());
 
         boolean result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
                 ImmutableList.of("SHARED_ADVISOR", "USER"), ImmutableList.of(1L));

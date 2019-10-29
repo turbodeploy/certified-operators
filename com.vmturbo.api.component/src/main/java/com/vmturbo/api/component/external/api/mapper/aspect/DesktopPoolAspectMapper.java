@@ -11,9 +11,8 @@ import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.enums.DesktopPoolAssignmentType;
 import com.vmturbo.api.enums.DesktopPoolCloneType;
 import com.vmturbo.api.enums.DesktopPoolProvisionType;
-import com.vmturbo.common.protobuf.GroupProtoUtil;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
@@ -27,6 +26,7 @@ import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 
 /**
@@ -110,14 +110,20 @@ public class DesktopPoolAspectMapper implements IAspectMapper {
                                                 UIEntityType.PHYSICAL_MACHINE.apiStr())))
                         .build()).getMinimalEntities().findFirst();
         if (physicalMachine.isPresent()) {
-            final GetClusterForEntityResponse response =
-                    groupServiceBlockingStub.getClusterForEntity(
-                            GetClusterForEntityRequest.newBuilder()
+            final GetGroupForEntityResponse response =
+                    groupServiceBlockingStub.getGroupForEntity(
+                            GetGroupForEntityRequest.newBuilder()
                                     .setEntityId(physicalMachine.get().getOid())
                                     .build());
-            if (response.hasCluster()) {
-                aspect.setvCenterClusterName(
-                        GroupProtoUtil.getGroupDisplayName(response.getCluster()));
+            Optional<String> clusterName = response.getGroupList()
+                            .stream()
+                            .filter(group -> group.getDefinition().getType()
+                                            == GroupType.COMPUTE_HOST_CLUSTER)
+                            .findAny()
+                            .map(group -> group.getDefinition().getDisplayName());
+
+            if (clusterName.isPresent()) {
+                aspect.setvCenterClusterName(clusterName.get());
             }
         }
         return aspect;

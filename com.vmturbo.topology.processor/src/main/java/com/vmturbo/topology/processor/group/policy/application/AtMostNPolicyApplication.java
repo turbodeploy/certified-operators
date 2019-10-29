@@ -10,7 +10,7 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
@@ -38,10 +38,11 @@ public class AtMostNPolicyApplication extends PlacementPolicyApplication {
             .forEach(policy -> {
                 try {
                     logger.debug("Applying AtMostN policy with capacity of {}.", policy.getDetails().getCapacity());
-                    final Group providerGroup = policy.getProviderPolicyEntities().getGroup();
-                    final Group consumerGroup = policy.getConsumerPolicyEntities().getGroup();
-                    // Resolve the relevant groups
-                    final int providerEntityType = GroupProtoUtil.getEntityType(providerGroup);
+                    final Grouping providerGroup = policy.getProviderPolicyEntities().getGroup();
+                    final Grouping consumerGroup = policy.getConsumerPolicyEntities().getGroup();
+                    GroupProtoUtil.checkEntityTypeForPolicy(providerGroup);
+                    //Above check makes sure that the group only has only one entity type here
+                    final int providerEntityType = GroupProtoUtil.getEntityTypes(providerGroup).iterator().next().typeNumber();
                     final Set<Long> providers = Sets.union(groupResolver.resolve(providerGroup, topologyGraph),
                         policy.getProviderPolicyEntities().getAdditionalEntities());
                     final Set<Long> consumers = Sets.union(groupResolver.resolve(consumerGroup, topologyGraph),

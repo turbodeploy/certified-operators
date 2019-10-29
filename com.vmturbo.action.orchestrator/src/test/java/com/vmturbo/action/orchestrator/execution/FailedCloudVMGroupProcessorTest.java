@@ -20,14 +20,14 @@ import java.util.HashSet;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import io.grpc.StatusRuntimeException;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-
-import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
@@ -40,11 +40,14 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
@@ -226,7 +229,19 @@ public class FailedCloudVMGroupProcessorTest {
      */
     @Test
     public void updateMultipleEntitiesTest() {
-        Group group = Group.newBuilder().setGroup(GroupInfo.newBuilder().setName("TestGroup").setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).build()).build();
+        GroupDefinition groupDefinition = GroupDefinition
+                        .newBuilder()
+                        .setDisplayName("TestGroup")
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                        .addMembersByType(StaticMembersByType.newBuilder()
+                                                        .setType(MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
+                                                        ))
+                        .build();
+        Grouping group = Grouping
+                        .newBuilder()
+                        .addExpectedTypes(MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
+                        .setDefinition(groupDefinition).build();
+
         when(testGroupService.getGroups(any(GetGroupsRequest.class))).thenReturn(Collections.singletonList(group));
         failedCloudVMGroupProcessor.recordVmActionWithLock(1L, true);
         failedCloudVMGroupProcessor.recordVmActionWithLock(2L, true);
@@ -236,13 +251,19 @@ public class FailedCloudVMGroupProcessorTest {
         scheduledRunnableCaptor.getValue().run();
 
         HashSet<Long> set = new HashSet<>(Arrays.asList(2L, 3L));
-        GroupInfo newInfo = GroupInfo.newBuilder()
-                .setStaticGroupMembers(StaticGroupMembers.newBuilder().addAllStaticMemberOids(set))
-                .setName("TestGroup")
-                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).build();
+        GroupDefinition newInfo = GroupDefinition
+            .newBuilder()
+            .setDisplayName("TestGroup")
+            .setStaticGroupMembers(StaticMembers.newBuilder()
+                .addMembersByType(StaticMembersByType.newBuilder()
+                    .setType(MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
+                    .addAllMembers(set)
+                    ))
+            .build();
+
         UpdateGroupRequest updateGroupRequest = UpdateGroupRequest.newBuilder()
                 .setId(group.getId())
-                .setNewInfo(newInfo).build();
+                .setNewDefinition(newInfo).build();
         verify(testGroupService, atLeast(1)).getGroups(any());
         verify(testGroupService, times(1)).updateGroup(eq(updateGroupRequest));
         verify(testGroupService, never()).createGroup(any());
@@ -254,9 +275,24 @@ public class FailedCloudVMGroupProcessorTest {
      */
     @Test
     public void failedGroupCreatedIffNotExist() {
-        Group group = Group.newBuilder().setGroup(GroupInfo.newBuilder().setName("TestGroup").setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).build()).build();
-        when(testGroupService.getGroups(any(GetGroupsRequest.class))).thenReturn(Collections.singletonList(group));
-        when(testGroupService.createGroup(any(GroupInfo.class)))
+        GroupDefinition groupDefinition = GroupDefinition
+                        .newBuilder()
+                        .setDisplayName("TestGroup")
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                            .addMembersByType(StaticMembersByType.newBuilder()
+                                            .setType(MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
+                                            .addAllMembers(Arrays.asList(1L, 2L))
+                                            ))
+                        .build();
+        Grouping group = Grouping
+                        .newBuilder().setDefinition(groupDefinition)
+                        .addExpectedTypes(MemberType.newBuilder()
+                                        .setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
+                        .build();
+
+        when(testGroupService.getGroups(any(GetGroupsRequest.class)))
+            .thenReturn(Collections.singletonList(group));
+        when(testGroupService.createGroup(any(CreateGroupRequest.class)))
                 .thenReturn(CreateGroupResponse.newBuilder().setGroup(group).build());
 
         failedCloudVMGroupProcessor.recordVmActionWithLock(1L, true);
@@ -278,9 +314,20 @@ public class FailedCloudVMGroupProcessorTest {
      */
     @Test
     public void noNewVMToProcessTest() {
-        Group group = Group.newBuilder().setGroup(GroupInfo.newBuilder()
-                .setStaticGroupMembers(StaticGroupMembers.newBuilder().addAllStaticMemberOids(Arrays.asList(1L, 2L)))
-                .setName("TestGroup").setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).build()).build();
+        GroupDefinition groupDefinition = GroupDefinition
+                        .newBuilder()
+                        .setDisplayName("TestGroup")
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                            .addMembersByType(StaticMembersByType.newBuilder()
+                                            .setType(MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
+                                            .addAllMembers(Arrays.asList(1L, 2L))
+                                            ))
+                        .build();
+        Grouping group = Grouping
+                        .newBuilder()
+                        .addExpectedTypes(MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
+                        .setDefinition(groupDefinition).build();
+
         when(testGroupService.getGroups(any(GetGroupsRequest.class))).thenReturn(Collections.singletonList(group));
         failedCloudVMGroupProcessor.recordVmActionWithLock(1L, true);
         failedCloudVMGroupProcessor.recordVmActionWithLock(2L, true);
@@ -295,9 +342,19 @@ public class FailedCloudVMGroupProcessorTest {
      */
     @Test
     public void failureDuringUpdateTest() {
-        Group group = Group.newBuilder().setGroup(GroupInfo.newBuilder()
-                .setStaticGroupMembers(StaticGroupMembers.newBuilder().addAllStaticMemberOids(Collections.emptyList()))
-                .setName("TestGroup").setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).build()).build();
+        GroupDefinition groupDefinition = GroupDefinition
+                        .newBuilder()
+                        .setDisplayName("TestGroup")
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                            .addMembersByType(StaticMembersByType.newBuilder()
+                                            .setType(MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
+                                            ))
+                        .build();
+        Grouping group = Grouping
+                        .newBuilder()
+                        .addExpectedTypes(MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
+                        .setDefinition(groupDefinition).build();
+
         when(testGroupService.getGroups(any(GetGroupsRequest.class))).thenReturn(Collections.singletonList(group));
         when(testGroupService.updateGroup(any(UpdateGroupRequest.class))).thenThrow(StatusRuntimeException.class);
         failedCloudVMGroupProcessor.recordVmActionWithLock(1L, true);
@@ -314,9 +371,20 @@ public class FailedCloudVMGroupProcessorTest {
      */
     @Test
     public void successfulGroupUpdateTest() {
-        Group group = Group.newBuilder().setGroup(GroupInfo.newBuilder()
-                .setStaticGroupMembers(StaticGroupMembers.newBuilder().addAllStaticMemberOids(Arrays.asList(3L)))
-                .setName("TestGroup").setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).build()).build();
+        GroupDefinition groupDefinition = GroupDefinition
+                        .newBuilder()
+                        .setDisplayName("TestGroup")
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                            .addMembersByType(StaticMembersByType.newBuilder()
+                                            .setType(MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
+                                            .addAllMembers(Arrays.asList(3L))
+                                            ))
+                        .build();
+        Grouping group = Grouping
+                        .newBuilder()
+                        .addExpectedTypes(MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
+                        .setDefinition(groupDefinition).build();
+
         when(testGroupService.getGroups(any(GetGroupsRequest.class))).thenReturn(Collections.singletonList(group));
         failedCloudVMGroupProcessor.recordVmActionWithLock(1L, true);
         failedCloudVMGroupProcessor.recordVmActionWithLock(2L, true);

@@ -46,7 +46,7 @@ public class AtMostNPolicy extends PlacementPolicy {
         this.consumerPolicyEntities = Objects.requireNonNull(consumerPolicyEntities);
         this.providerPolicyEntities = Objects.requireNonNull(providerPolicyEntities);
         this.atMostN = policyDefinition.getPolicyInfo().getAtMostN();
-        GroupProtoUtil.checkEntityType(providerPolicyEntities.getGroup());
+        GroupProtoUtil.checkEntityTypeForPolicy(providerPolicyEntities.getGroup());
         Preconditions.checkArgument(this.atMostN.hasCapacity(),
             "Capacity required");
     }

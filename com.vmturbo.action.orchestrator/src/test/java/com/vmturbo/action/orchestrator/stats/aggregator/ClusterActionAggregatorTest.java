@@ -46,11 +46,13 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
-import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
@@ -62,6 +64,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainS
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 
 public class ClusterActionAggregatorTest {
@@ -117,22 +120,30 @@ public class ClusterActionAggregatorTest {
             .setType(EntityType.VIRTUAL_MACHINE_VALUE)
             .build();
 
-    private static final Group CLUSTER_1 = Group.newBuilder()
+    private static final Grouping CLUSTER_1 = Grouping.newBuilder()
         .setId(123)
-        .setType(Type.CLUSTER)
-        .setCluster(ClusterInfo.newBuilder()
-            .setMembers(StaticGroupMembers.newBuilder()
-                .addStaticMemberOids(CLUSTER_1_PM_1.getId())
-                .addStaticMemberOids(CLUSTER_1_PM_2.getId())))
+        .addExpectedTypes(MemberType.newBuilder().setEntity(EntityType.PHYSICAL_MACHINE_VALUE))
+        .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.COMPUTE_HOST_CLUSTER)
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                            .addMembersByType(StaticMembersByType.newBuilder()
+                                .setType(MemberType.newBuilder().setEntity(EntityType.PHYSICAL_MACHINE_VALUE))
+                                .addMembers(CLUSTER_1_PM_1.getId())
+                                .addMembers(CLUSTER_1_PM_2.getId())))
+                        )
         .build();
 
-    private static final Group CLUSTER_2 = Group.newBuilder()
-        .setId(456)
-        .setType(Type.CLUSTER)
-        .setCluster(ClusterInfo.newBuilder()
-            .setMembers(StaticGroupMembers.newBuilder()
-                .addStaticMemberOids(CLUSTER_2_PM.getId())))
-        .build();
+    private static final Grouping CLUSTER_2 = Grouping.newBuilder()
+                    .setId(456)
+                    .addExpectedTypes(MemberType.newBuilder().setEntity(EntityType.PHYSICAL_MACHINE_VALUE))
+                    .setDefinition(GroupDefinition.newBuilder()
+                                    .setType(GroupType.COMPUTE_HOST_CLUSTER)
+                                    .setStaticGroupMembers(StaticMembers.newBuilder()
+                                        .addMembersByType(StaticMembersByType.newBuilder()
+                                            .setType(MemberType.newBuilder().setEntity(EntityType.PHYSICAL_MACHINE_VALUE))
+                                            .addMembers(CLUSTER_2_PM.getId())))
+                                    )
+                    .build();
 
     private static final MgmtUnitSubgroup CLUSTER_1_GLOBAL_SUBGROUP = ImmutableMgmtUnitSubgroup.builder()
         .id(12345)
@@ -209,7 +220,8 @@ public class ClusterActionAggregatorTest {
     public void testAggregateClusterEntities() {
         final ClusterActionAggregator clusterActionAggregator = aggregatorFactory.newAggregator(TIME);
         final GetGroupsRequest expectedRequest = GetGroupsRequest.newBuilder()
-                .addTypeFilter(Type.CLUSTER)
+                .setGroupFilter(GroupFilter.newBuilder()
+                                .setGroupType(GroupType.COMPUTE_HOST_CLUSTER))
                 .build();
         when(groupServiceMole.getGroups(expectedRequest))
             .thenReturn(Arrays.asList(CLUSTER_1, CLUSTER_2));
@@ -266,8 +278,9 @@ public class ClusterActionAggregatorTest {
     public void testAggregateClusterSupplyChainMissingEntities() {
         final ClusterActionAggregator clusterActionAggregator = aggregatorFactory.newAggregator(TIME);
         final GetGroupsRequest expectedRequest = GetGroupsRequest.newBuilder()
-            .addTypeFilter(Type.CLUSTER)
-            .build();
+                        .setGroupFilter(GroupFilter.newBuilder()
+                                        .setGroupType(GroupType.COMPUTE_HOST_CLUSTER))
+                        .build();
         when(groupServiceMole.getGroups(expectedRequest))
             .thenReturn(Arrays.asList(CLUSTER_1));
 
@@ -293,8 +306,9 @@ public class ClusterActionAggregatorTest {
     public void testAggregateClusterSupplyChainError() {
         final ClusterActionAggregator clusterActionAggregator = aggregatorFactory.newAggregator(TIME);
         final GetGroupsRequest expectedRequest = GetGroupsRequest.newBuilder()
-            .addTypeFilter(Type.CLUSTER)
-            .build();
+                        .setGroupFilter(GroupFilter.newBuilder()
+                                        .setGroupType(GroupType.COMPUTE_HOST_CLUSTER))
+                        .build();
         when(groupServiceMole.getGroups(expectedRequest))
             .thenReturn(Arrays.asList(CLUSTER_1));
 
@@ -319,8 +333,9 @@ public class ClusterActionAggregatorTest {
     public void testAggregateClusterSupplyChainFailure() {
         final ClusterActionAggregator clusterActionAggregator = aggregatorFactory.newAggregator(TIME);
         final GetGroupsRequest expectedRequest = GetGroupsRequest.newBuilder()
-            .addTypeFilter(Type.CLUSTER)
-            .build();
+                        .setGroupFilter(GroupFilter.newBuilder()
+                                        .setGroupType(GroupType.COMPUTE_HOST_CLUSTER))
+                        .build();
         when(groupServiceMole.getGroups(expectedRequest))
             .thenReturn(Arrays.asList(CLUSTER_1, CLUSTER_2));
 
@@ -379,8 +394,9 @@ public class ClusterActionAggregatorTest {
     public void testAggregateClusterNoRelatedActionsNoRecord() {
         final ClusterActionAggregator clusterActionAggregator = aggregatorFactory.newAggregator(TIME);
         final GetGroupsRequest expectedRequest = GetGroupsRequest.newBuilder()
-                .addTypeFilter(Type.CLUSTER)
-                .build();
+                        .setGroupFilter(GroupFilter.newBuilder()
+                                        .setGroupType(GroupType.COMPUTE_HOST_CLUSTER))
+                        .build();
         when(groupServiceMole.getGroups(expectedRequest))
                 .thenReturn(Arrays.asList(CLUSTER_1, CLUSTER_2));
 
@@ -402,8 +418,9 @@ public class ClusterActionAggregatorTest {
     public void testAggregateClusterRelatedVMs() {
         final ClusterActionAggregator clusterActionAggregator = aggregatorFactory.newAggregator(TIME);
         final GetGroupsRequest expectedRequest = GetGroupsRequest.newBuilder()
-                .addTypeFilter(Type.CLUSTER)
-                .build();
+                        .setGroupFilter(GroupFilter.newBuilder()
+                                        .setGroupType(GroupType.COMPUTE_HOST_CLUSTER))
+                        .build();
         when(groupServiceMole.getGroups(expectedRequest))
                 .thenReturn(Arrays.asList(CLUSTER_1, CLUSTER_2));
 

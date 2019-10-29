@@ -22,12 +22,13 @@ import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
-import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
-import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
@@ -57,17 +58,27 @@ public class MagicScopeGatewayTest {
 
     }
 
-    private void setupMapperAndBackend(long oid) throws InvalidOperationException, OperationFailedException {
-        TempGroupInfo tgi = TempGroupInfo.newBuilder()
-            .setName(Long.toString(oid))
-            .build();
-        when(groupsMapper.toTempGroupProto(any())).thenReturn(tgi);
+    private void setupMapperAndBackend(long oid) throws OperationFailedException {
+        GroupDefinition groupDefinition  = GroupDefinition
+                        .newBuilder()
+                        .setDisplayName(Long.toString(oid))
+                        .setIsTemporary(true)
+                        .build();
 
-        doReturn(CreateTempGroupResponse.newBuilder()
-            .setGroup(Group.newBuilder()
+        when(groupsMapper.toGroupDefinition(any())).thenReturn(groupDefinition);
+
+        doReturn(CreateGroupResponse.newBuilder()
+            .setGroup(Grouping.newBuilder()
                 .setId(oid))
-            .build()).when(groupBackendMole).createTempGroup(CreateTempGroupRequest.newBuilder()
-                .setGroupInfo(tgi)
+            .build()).when(groupBackendMole).createGroup(CreateGroupRequest.newBuilder()
+                .setGroupDefinition(groupDefinition)
+                .setOrigin(Origin.newBuilder()
+                                .setSystem(Origin
+                                        .System
+                                        .newBuilder()
+                                        .setDescription("Magic Group: " + MagicScopeGateway.ALL_ON_PREM_HOSTS)
+                                        )
+                                )
                 .build());
     }
 
@@ -80,7 +91,7 @@ public class MagicScopeGatewayTest {
 
         final String mappedUuid = gateway.enter(MagicScopeGateway.ALL_ON_PREM_HOSTS);
 
-        verify(groupsMapper).toTempGroupProto(groupCreateRequestCaptor.capture());
+        verify(groupsMapper).toGroupDefinition(groupCreateRequestCaptor.capture());
 
         assertThat(mappedUuid, is(TEMP_GROUP_UUID));
 
@@ -109,7 +120,7 @@ public class MagicScopeGatewayTest {
                 .build();
         // Return a group
         doReturn(GetGroupResponse.newBuilder()
-            .setGroup(Group.getDefaultInstance())
+            .setGroup(Grouping.getDefaultInstance())
             .build()).when(groupBackendMole).getGroup(tempGroupId);
 
         final String mappedUuid2 = gateway.enter(MagicScopeGateway.ALL_ON_PREM_HOSTS);
@@ -157,7 +168,7 @@ public class MagicScopeGatewayTest {
 
         // Return a group for the cache check.
         doReturn(GetGroupResponse.newBuilder()
-                .setGroup(Group.getDefaultInstance())
+                .setGroup(Grouping.getDefaultInstance())
                 .build())
             .when(groupBackendMole).getGroup(GroupID.newBuilder()
                 .setId(TEMP_GROUP_ID)

@@ -41,8 +41,8 @@ import com.vmturbo.api.dto.template.ResourceApiDTO;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
@@ -429,7 +429,8 @@ public class ReservationMapper {
         // call to find out constraint type.
         // TODO: After UI changes to send constraint type, we can avoid these api calls.
         final GetGroupResponse getGroupResponse = groupServiceBlockingStub.getGroup(groupID);
-        if (getGroupResponse.hasGroup() && getGroupResponse.getGroup().getType() == Group.Type.CLUSTER) {
+        if (getGroupResponse.hasGroup() && GroupProtoUtil.CLUSTER_GROUP_TYPES.contains(getGroupResponse
+                        .getGroup().getDefinition().getType())) {
             return Optional.of(constraint.setType(ReservationConstraintInfo.Type.CLUSTER).build());
         }
         // TODO: (OM-30821) implement validation check for policy constraint. For example: if reservation

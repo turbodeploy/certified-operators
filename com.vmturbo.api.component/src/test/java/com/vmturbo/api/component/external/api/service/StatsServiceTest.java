@@ -46,7 +46,6 @@ import org.mockito.runners.MockitoJUnitRunner;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
@@ -60,7 +59,6 @@ import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.stats.StatsTestUtil;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -72,19 +70,20 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
-import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
-import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.OptimizationMetadata;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -123,6 +122,8 @@ import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.components.common.identity.OidSet;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 @RunWith(MockitoJUnitRunner.class)
 public class StatsServiceTest {
@@ -217,17 +218,19 @@ public class StatsServiceTest {
         when(uuidMapper.fromUuid(oid1)).thenReturn(apiId1);
         when(apiId1.uuid()).thenReturn(oid1);
         when(apiId1.oid()).thenReturn(Long.parseLong(oid1));
-        when(apiId1.getScopeType()).thenReturn(Optional.of(UIEntityType.PHYSICAL_MACHINE));
+        when(apiId1.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(
+                        UIEntityType.PHYSICAL_MACHINE)));
         when(apiId1.isGroup()).thenReturn(false);
 
         when(uuidMapper.fromUuid(oid2)).thenReturn(apiId2);
         when(apiId2.uuid()).thenReturn(oid2);
         when(apiId2.oid()).thenReturn(Long.parseLong(oid2));
-        when(apiId2.getScopeType()).thenReturn(Optional.of(UIEntityType.PHYSICAL_MACHINE));
+        when(apiId2.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(
+                        UIEntityType.PHYSICAL_MACHINE)));
         when(apiId2.isGroup()).thenReturn(false);
 
         when(uuidMapper.fromUuid(marketUuid)).thenReturn(marketApiId);
-        when(marketApiId.getScopeType()).thenReturn(Optional.empty());
+        when(marketApiId.getScopeTypes()).thenReturn(Optional.empty());
         when(marketApiId.isGroup()).thenReturn(false);
 
         se1.setUuid(apiId1.uuid());
@@ -344,11 +347,18 @@ public class StatsServiceTest {
         inputDto.setPeriod(period);
 
         final Set<Long> expandedUids = Sets.newHashSet(1L);
-        when(groupExpander.getGroup("1")).thenReturn(Optional.of(Group.newBuilder()
-            .setTempGroup(TempGroupInfo.newBuilder()
-                    .setEntityType(UIEntityType.PHYSICAL_MACHINE.typeNumber())
-                    .setIsGlobalScopeGroup(true))
-            .build()));
+        when(groupExpander.getGroup("1")).thenReturn(Optional.of(Grouping.newBuilder()
+                        .setDefinition(GroupDefinition.newBuilder().setIsTemporary(true)
+                                        .setOptimizationMetadata(OptimizationMetadata.newBuilder()
+                                                        .setIsGlobalScope(true))
+                                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                                        .addMembersByType(StaticMembersByType
+                                                                        .newBuilder()
+                                                                        .setType(MemberType
+                                                                                        .newBuilder()
+                                                                                        .setEntity(UIEntityType.PHYSICAL_MACHINE
+                                                                                                        .typeNumber())))))
+                        .build()));
 
         final EntityStatsPaginationRequest paginationRequest =
                 spy(new EntityStatsPaginationRequest("foo", 1, true, "order"));
@@ -476,14 +486,14 @@ public class StatsServiceTest {
         inputDto.setScopes(Collections.singletonList("7"));
         inputDto.setPeriod(periodApiInputDTO);
 
-        final ClusterInfo clusterInfo = ClusterInfo.newBuilder()
-                .setName("Winter woede")
+        final GroupDefinition clusterInfo = GroupDefinition.newBuilder()
+                .setType(GroupType.COMPUTE_HOST_CLUSTER)
+                .setDisplayName("Winter woede")
                 .build();
-        when(groupServiceSpy.getGroups(GetGroupsRequest.newBuilder().addId(7).build()))
-                .thenReturn(Collections.singletonList(Group.newBuilder()
-                        .setId(7)
-                        .setCluster(clusterInfo)
-                        .build()));
+        when(groupServiceSpy.getGroups(GetGroupsRequest.newBuilder()
+                        .setGroupFilter(GroupFilter.newBuilder().addId(7)).build())).thenReturn(
+                                        Collections.singletonList(Grouping.newBuilder().setId(7)
+                                                        .setDefinition(clusterInfo).build()));
 
         final ClusterStatsRequest clusterStatsRequest = ClusterStatsRequest.getDefaultInstance();
         when(statsMapper.toClusterStatsRequest("7", periodApiInputDTO))
@@ -497,7 +507,8 @@ public class StatsServiceTest {
         final EntityStatsPaginationResponse response =
                 statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
 
-        verify(groupServiceSpy).getGroups(GetGroupsRequest.newBuilder().addId(7).build());
+        verify(groupServiceSpy).getGroups(GetGroupsRequest.newBuilder()
+                        .setGroupFilter(GroupFilter.newBuilder().addId(7)).build());
         verify(statsMapper).toClusterStatsRequest("7", periodApiInputDTO);
         verify(statsHistoryServiceSpy).getClusterStats(clusterStatsRequest);
         verify(statsMapper).toStatSnapshotApiDTO(STAT_SNAPSHOT);
@@ -732,12 +743,25 @@ public class StatsServiceTest {
 
         // not a temp group and has an entity that's out of scope
         when(groupExpander.getGroup(eq("2"))).thenReturn(
-                Optional.of(Group.newBuilder()
-                    .setGroup(GroupInfo.newBuilder()
-                    .setStaticGroupMembers(StaticGroupMembers.newBuilder()
-                        .addStaticMemberOids(2L)
-                        .addStaticMemberOids(1L)))
-                    .build()));
+                Optional.of(Grouping.newBuilder()
+                                .setDefinition(
+                                GroupDefinition.newBuilder().setType(GroupType.REGULAR)
+                                .setIsTemporary(true)
+                                .setOptimizationMetadata(OptimizationMetadata.newBuilder()
+                                                .setIsGlobalScope(true))
+                                .setStaticGroupMembers(StaticMembers.newBuilder()
+                                        .addMembersByType(StaticMembersByType
+                                                        .newBuilder()
+                                                        .setType(MemberType
+                                                            .newBuilder()
+                                                            .setEntity(UIEntityType.VIRTUAL_MACHINE
+                                                                            .typeNumber()))
+                                                        .addMembers(2L)
+                                                        .addMembers(1L)
+                                                        ))
+
+                                ).build()
+                                  ));
 
         Set<Long> groupMembers = new HashSet<>(Arrays.asList(2L));
         when(groupExpander.expandUuids(eq(new HashSet<>(Arrays.asList("2"))))).thenReturn(
@@ -767,16 +791,24 @@ public class StatsServiceTest {
 
         // not a temp group and has an entity that's out of scope
         final String tempGroupUuid = "temp";
-        when(groupExpander.getGroup(eq(tempGroupUuid))).thenReturn(
-                Optional.of(Group.newBuilder()
-                        .setTempGroup(TempGroupInfo.newBuilder()
-                                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                                .setIsGlobalScopeGroup(true))
+        when(groupExpander.getGroup(eq(tempGroupUuid))).thenReturn(Optional.of(Grouping.newBuilder()
+                .setDefinition(GroupDefinition.newBuilder().setType(GroupType.REGULAR)
+                        .setIsTemporary(true)
+                        .setOptimizationMetadata(OptimizationMetadata.newBuilder()
+                                        .setIsGlobalScope(true))
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType
+                                                .newBuilder()
+                                                .setType(MemberType
+                                                                .newBuilder()
+                                                                .setEntity(UIEntityType.VIRTUAL_MACHINE
+                                                                                .typeNumber())))))
                         .build()));
 
         ApiId tempGroupApiId = mock(ApiId.class);
         when(uuidMapper.fromUuid(tempGroupUuid)).thenReturn(tempGroupApiId);
-        when(tempGroupApiId.getScopeType()).thenReturn(Optional.of(UIEntityType.VIRTUAL_MACHINE));
+        when(tempGroupApiId.getScopeTypes()).thenReturn(Optional.of(
+                        Collections.singleton(UIEntityType.VIRTUAL_MACHINE)));
         when(tempGroupApiId.isGroup()).thenReturn(true);
 
         // the temp group will have oids 1 and 2
@@ -819,7 +851,8 @@ public class StatsServiceTest {
         // mock
         ApiId dcGroupApiId = mock(ApiId.class);
         when(uuidMapper.fromUuid(dcGroupOid)).thenReturn(dcGroupApiId);
-        when(dcGroupApiId.getScopeType()).thenReturn(Optional.of(UIEntityType.DATACENTER));
+        when(dcGroupApiId.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(
+                        UIEntityType.DATACENTER)));
         when(dcGroupApiId.isGroup()).thenReturn(true);
 
         StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();

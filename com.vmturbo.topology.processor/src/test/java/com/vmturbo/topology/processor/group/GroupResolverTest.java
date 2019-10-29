@@ -9,7 +9,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
-import static org.mockito.Mockito.eq;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -22,21 +22,23 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
-import com.google.common.collect.ImmutableMap;
-
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
-import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
@@ -47,7 +49,9 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.search.SearchResolver;
@@ -99,12 +103,13 @@ public class GroupResolverTest {
 
     @Test
     public void testResolveStaticGroup() throws Exception {
-        Group staticGroup = Group.newBuilder()
-            .setId(1234L)
-            .setGroup(GroupInfo.newBuilder()
-                .setStaticGroupMembers(StaticGroupMembers.newBuilder()
-                    .addAllStaticMemberOids(Arrays.asList(1L, 2L))))
-            .build();
+        Grouping staticGroup = Grouping.newBuilder()
+                .setDefinition(GroupDefinition.newBuilder()
+                .setType(GroupType.REGULAR)
+                .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType.newBuilder()
+                                                .addAllMembers(Arrays.asList(1L, 2L)))))
+                .setId(1234L).build();
 
         final GroupResolver resolver = new GroupResolver(Mockito.mock(SearchResolver.class),
                 Mockito.mock(GroupConfig.class).groupServiceBlockingStub());
@@ -113,13 +118,17 @@ public class GroupResolverTest {
 
     @Test
     public void testResolveCluster() throws Exception {
-        Group cluster = Group.newBuilder()
-                .setId(1234L)
-                .setType(Type.CLUSTER)
-                .setCluster(ClusterInfo.newBuilder()
-                        .setMembers(StaticGroupMembers.newBuilder()
-                                .addAllStaticMemberOids(Arrays.asList(1L, 2L))))
-                .build();
+        Grouping cluster = Grouping.newBuilder()
+                        .addExpectedTypes(MemberType.newBuilder().setEntity(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
+                        .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.COMPUTE_HOST_CLUSTER)
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                        .addMembersByType(StaticMembersByType.newBuilder()
+                                                        .setType(MemberType.newBuilder()
+                                                                        .setEntity(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
+                                                        .addAllMembers(Arrays.asList(1L, 2L)))))
+                        .setId(1234L).build();
+
         final GroupResolver resolver = new GroupResolver(Mockito.mock(SearchResolver.class),
                 Mockito.mock(GroupConfig.class).groupServiceBlockingStub());
         assertThat(resolver.resolve(cluster, topologyGraph), containsInAnyOrder(1L, 2L));
@@ -131,14 +140,18 @@ public class GroupResolverTest {
         when(filterFactory.filterFor(any(SearchFilter.class))).thenThrow(new RuntimeException("error!"));
         expectedException.expect(GroupResolutionException.class);
 
-        final Group dynamicGroup = Group.newBuilder()
-            .setId(1234L)
-            .setGroup(GroupInfo.newBuilder()
-                .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
-                .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+
+        Grouping dynamicGroup = Grouping.newBuilder()
+                        .addExpectedTypes(MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE.getNumber()))
+                        .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setEntityFilters(EntityFilters.newBuilder()
+                                        .addEntityFilter(EntityFilter.newBuilder()
+                                                        .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+                                                        .setSearchParametersCollection(SearchParametersCollection.newBuilder()
                         .addSearchParameters(SearchParameters.newBuilder()
-                                .setStartingFilter(Search.PropertyFilter.getDefaultInstance()))))
-            .build();
+                                .setStartingFilter(Search.PropertyFilter.getDefaultInstance()))))))
+                        .setId(1234L).build();
 
         final GroupResolver resolver = new GroupResolver(Mockito.mock(SearchResolver.class),
                                     Mockito.mock(GroupConfig.class).groupServiceBlockingStub());
@@ -147,18 +160,21 @@ public class GroupResolverTest {
 
     @Test
     public void testResolveDynamicGroupStartingFilterOnly() throws Exception {
-        final Group dynamicGroup = Group.newBuilder()
-            .setId(1234L)
-            .setGroup(GroupInfo.newBuilder()
-                .setEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
-                .setSearchParametersCollection(SearchParametersCollection.newBuilder()
-                        .addSearchParameters(SearchParameters.newBuilder()
-                            .setStartingFilter(Search.PropertyFilter.newBuilder()
-                                .setPropertyName("entityType")
-                                .setNumericFilter(NumericFilter.newBuilder()
-                                    .setComparisonOperator(ComparisonOperator.EQ)
-                                    .setValue(EntityType.PHYSICAL_MACHINE.getNumber()))))))
-            .build();
+        Grouping dynamicGroup = Grouping.newBuilder()
+                        .addExpectedTypes(MemberType.newBuilder().setEntity(EntityType.PHYSICAL_MACHINE.getNumber()))
+                        .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setEntityFilters(EntityFilters.newBuilder()
+                            .addEntityFilter(EntityFilter.newBuilder()
+                                .setEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
+                                .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+                                                .addSearchParameters(SearchParameters.newBuilder()
+                                                                .setStartingFilter(Search.PropertyFilter.newBuilder()
+                                                                    .setPropertyName("entityType")
+                                                                    .setNumericFilter(NumericFilter.newBuilder()
+                                                                        .setComparisonOperator(ComparisonOperator.EQ)
+                                                                        .setValue(EntityType.PHYSICAL_MACHINE.getNumber()))))))))
+                        .setId(1234L).build();
 
         final GroupResolver resolver = new GroupResolver(new SearchResolver<TopologyEntity>(new TopologyFilterFactory<>()),
                 Mockito.mock(GroupConfig.class).groupServiceBlockingStub());
@@ -167,18 +183,21 @@ public class GroupResolverTest {
 
     @Test
     public void testResolveDynamicGroupStartingFilterNotEquals() throws Exception {
-        final Group dynamicGroup = Group.newBuilder()
-            .setId(1234L)
-            .setGroup(GroupInfo.newBuilder()
-                .setEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
-                .setSearchParametersCollection(SearchParametersCollection.newBuilder()
-                    .addSearchParameters(SearchParameters.newBuilder()
-                        .setStartingFilter(Search.PropertyFilter.newBuilder()
-                            .setPropertyName("entityType")
-                            .setNumericFilter(NumericFilter.newBuilder()
-                                .setComparisonOperator(ComparisonOperator.NE)
-                                .setValue(EntityType.PHYSICAL_MACHINE.getNumber()))))))
-            .build();
+        Grouping dynamicGroup = Grouping.newBuilder()
+                        .addExpectedTypes(MemberType.newBuilder().setEntity(EntityType.PHYSICAL_MACHINE.getNumber()))
+                        .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setEntityFilters(EntityFilters.newBuilder()
+                            .addEntityFilter(EntityFilter.newBuilder()
+                                .setEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
+                                .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+                                                .addSearchParameters(SearchParameters.newBuilder()
+                                                                .setStartingFilter(Search.PropertyFilter.newBuilder()
+                                                                    .setPropertyName("entityType")
+                                                                    .setNumericFilter(NumericFilter.newBuilder()
+                                                                        .setComparisonOperator(ComparisonOperator.NE)
+                                                                        .setValue(EntityType.PHYSICAL_MACHINE.getNumber()))))))))
+                        .setId(1234L).build();
 
         final GroupResolver resolver = new GroupResolver(new SearchResolver<TopologyEntity>(new TopologyFilterFactory<>()),
                                             Mockito.mock(GroupConfig.class).groupServiceBlockingStub());
@@ -214,13 +233,17 @@ public class GroupResolverTest {
                                 ).build()
                         )
                     ).build();
-        final Group dynamicGroup =
-                Group.newBuilder()
-                        .setId(goid).setGroup(
-                            GroupInfo.newBuilder()
-                                .setEntityType(EntityType.STORAGE.getNumber())
-                                .setSearchParametersCollection(searchParameters)
-                ).build();
+
+        final Grouping dynamicGroup = Grouping.newBuilder()
+                        .addExpectedTypes(MemberType.newBuilder().setEntity(EntityType.STORAGE.getNumber()))
+                        .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setEntityFilters(EntityFilters.newBuilder()
+                                        .addEntityFilter(EntityFilter.newBuilder()
+                                                        .setEntityType(EntityType.STORAGE.getNumber())
+                                                        .setSearchParametersCollection(searchParameters))))
+                        .setId(goid).build();
+
         final Set<Long> groupMembers = new GroupResolver(new SearchResolver<TopologyEntity>(
             new TopologyFilterFactory<>()), Mockito.mock(GroupConfig.class).groupServiceBlockingStub())
                 .resolve(dynamicGroup, topologyGraph);
@@ -231,29 +254,34 @@ public class GroupResolverTest {
     @Test
     public void testResolveDynamicGroupWithMultipleFilters() throws Exception {
         // Find all virtual machines consuming from physical machines.
-        final Group dynamicGroup = Group.newBuilder()
-                .setId(1234L)
-                .setGroup(GroupInfo.newBuilder()
-                    .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
-                    .setSearchParametersCollection(SearchParametersCollection.newBuilder()
-                        .addSearchParameters(SearchParameters.newBuilder()
-                            .setStartingFilter(Search.PropertyFilter.newBuilder()
-                                .setPropertyName("entityType")
-                                .setNumericFilter(NumericFilter.newBuilder()
-                                    .setComparisonOperator(ComparisonOperator.EQ)
-                                    .setValue(EntityType.PHYSICAL_MACHINE.getNumber()))
-                            ).addSearchFilter(SearchFilter.newBuilder()
-                                .setTraversalFilter(TraversalFilter.newBuilder()
-                                    .setTraversalDirection(TraversalDirection.PRODUCES)
-                                    .setStoppingCondition(StoppingCondition.newBuilder()
-                                        .setStoppingPropertyFilter(Search.PropertyFilter.newBuilder()
-                                            .setPropertyName("entityType")
-                                            .setNumericFilter(NumericFilter.newBuilder()
-                                                .setComparisonOperator(ComparisonOperator.EQ)
-                                                .setValue(EntityType.VIRTUAL_MACHINE.getNumber()))
-                                        ))
-                                    )))))
-                .build();
+        Grouping dynamicGroup = Grouping.newBuilder()
+                        .addExpectedTypes(MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE.getNumber()))
+                        .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setEntityFilters(EntityFilters.newBuilder()
+                                .addEntityFilter(EntityFilter.newBuilder()
+                                    .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+                                    .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+                                        .addSearchParameters(SearchParameters.newBuilder()
+                                                        .setStartingFilter(Search.PropertyFilter.newBuilder()
+                                                            .setPropertyName("entityType")
+                                                            .setNumericFilter(NumericFilter.newBuilder()
+                                                                .setComparisonOperator(ComparisonOperator.EQ)
+                                                                .setValue(EntityType.PHYSICAL_MACHINE.getNumber()))
+                                                        ).addSearchFilter(SearchFilter.newBuilder()
+                                                            .setTraversalFilter(TraversalFilter.newBuilder()
+                                                                .setTraversalDirection(TraversalDirection.PRODUCES)
+                                                                .setStoppingCondition(StoppingCondition.newBuilder()
+                                                                    .setStoppingPropertyFilter(Search.PropertyFilter.newBuilder()
+                                                                        .setPropertyName("entityType")
+                                                                        .setNumericFilter(NumericFilter.newBuilder()
+                                                                            .setComparisonOperator(ComparisonOperator.EQ)
+                                                                            .setValue(EntityType.VIRTUAL_MACHINE.getNumber()))
+                                                                    ))
+                                                                )))))))
+                        .setId(1234L).build();
+
+
 
         final GroupResolver resolver = new GroupResolver(new SearchResolver<TopologyEntity>(new TopologyFilterFactory<>()),
                 Mockito.mock(GroupConfig.class).groupServiceBlockingStub());
@@ -268,42 +296,45 @@ public class GroupResolverTest {
     @Test
     public void testResolveDynamicGroupWithMultipleSearchParameters() throws Exception {
         // Find all virtual machines consuming from physical machines and display name matches VM#10
-        final Group dynamicGroup = Group.newBuilder()
-                .setId(1234L)
-                .setGroup(GroupInfo.newBuilder()
-                        .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
-                        .setSearchParametersCollection(SearchParametersCollection.newBuilder()
-                                .addSearchParameters(SearchParameters.newBuilder()
-                                        .setStartingFilter(Search.PropertyFilter.newBuilder()
-                                                .setPropertyName("entityType")
-                                                .setNumericFilter(NumericFilter.newBuilder()
-                                                        .setComparisonOperator(ComparisonOperator.EQ)
-                                                        .setValue(EntityType.PHYSICAL_MACHINE.getNumber()))
-                                        ).addSearchFilter(SearchFilter.newBuilder()
-                                                .setTraversalFilter(TraversalFilter.newBuilder()
-                                                        .setTraversalDirection(TraversalDirection.PRODUCES)
-                                                        .setStoppingCondition(StoppingCondition.newBuilder()
-                                                                .setStoppingPropertyFilter(Search.PropertyFilter.newBuilder()
-                                                                        .setPropertyName("entityType")
-                                                                        .setNumericFilter(NumericFilter.newBuilder()
-                                                                                .setComparisonOperator(ComparisonOperator.EQ)
-                                                                                .setValue(EntityType.VIRTUAL_MACHINE.getNumber()))
-                                                                ))
-                                                )))
-                                .addSearchParameters(SearchParameters.newBuilder()
-                                        .setStartingFilter(Search.PropertyFilter.newBuilder()
-                                                .setPropertyName("entityType")
-                                                .setNumericFilter(NumericFilter.newBuilder()
-                                                        .setComparisonOperator(ComparisonOperator.EQ)
-                                                        .setValue(EntityType.VIRTUAL_MACHINE.getNumber()))
-                                        ).addSearchFilter((SearchFilter.newBuilder()
-                                                .setPropertyFilter(Search.PropertyFilter.newBuilder()
-                                                        .setPropertyName("displayName")
-                                                        .setStringFilter(Search.PropertyFilter.StringFilter.newBuilder()
-                                                                .setStringPropertyRegex("VM#10")))
-                                                )))
-                        ))
-                .build();
+        Grouping dynamicGroup = Grouping.newBuilder()
+                        .addExpectedTypes(MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE.getNumber()))
+                        .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setEntityFilters(EntityFilters.newBuilder()
+                            .addEntityFilter(EntityFilter.newBuilder()
+                                .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+                                .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+                                    .addSearchParameters(SearchParameters.newBuilder()
+                                                    .setStartingFilter(Search.PropertyFilter.newBuilder()
+                                                            .setPropertyName("entityType")
+                                                            .setNumericFilter(NumericFilter.newBuilder()
+                                                                    .setComparisonOperator(ComparisonOperator.EQ)
+                                                                    .setValue(EntityType.PHYSICAL_MACHINE.getNumber()))
+                                                    ).addSearchFilter(SearchFilter.newBuilder()
+                                                            .setTraversalFilter(TraversalFilter.newBuilder()
+                                                                    .setTraversalDirection(TraversalDirection.PRODUCES)
+                                                                    .setStoppingCondition(StoppingCondition.newBuilder()
+                                                                            .setStoppingPropertyFilter(Search.PropertyFilter.newBuilder()
+                                                                                    .setPropertyName("entityType")
+                                                                                    .setNumericFilter(NumericFilter.newBuilder()
+                                                                                            .setComparisonOperator(ComparisonOperator.EQ)
+                                                                                            .setValue(EntityType.VIRTUAL_MACHINE.getNumber()))
+                                                                            ))
+                                                            )))
+                                            .addSearchParameters(SearchParameters.newBuilder()
+                                                    .setStartingFilter(Search.PropertyFilter.newBuilder()
+                                                            .setPropertyName("entityType")
+                                                            .setNumericFilter(NumericFilter.newBuilder()
+                                                                    .setComparisonOperator(ComparisonOperator.EQ)
+                                                                    .setValue(EntityType.VIRTUAL_MACHINE.getNumber()))
+                                                    ).addSearchFilter((SearchFilter.newBuilder()
+                                                            .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                                                                    .setPropertyName("displayName")
+                                                                    .setStringFilter(Search.PropertyFilter.StringFilter.newBuilder()
+                                                                            .setStringPropertyRegex("VM#10")))
+                                                            )))
+                                        ))))
+                        .setId(1234L).build();
 
         final GroupResolver resolver = new GroupResolver(new SearchResolver<TopologyEntity>(new TopologyFilterFactory<>()),
                 Mockito.mock(GroupConfig.class).groupServiceBlockingStub());
@@ -321,38 +352,40 @@ public class GroupResolverTest {
 
         final long groupId = 9999L;
         // Group members of type PM or VM
-        final Group dynamicGroup = Group.newBuilder()
-                .setId(groupId)
-                .setType(Type.GROUP)
-                .setOrigin(Origin.USER)
-                .setGroup(GroupInfo.newBuilder()
-                    .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                    .setSearchParametersCollection(SearchParametersCollection.newBuilder()
-                        .addSearchParameters(SearchParameters.newBuilder()
-                            .setStartingFilter(Search.PropertyFilter.newBuilder()
-                                .setPropertyName("entityType")
-                                .setNumericFilter(NumericFilter.newBuilder()
-                                    .setComparisonOperator(ComparisonOperator.EQ)
-                                    .setValue(EntityType.PHYSICAL_MACHINE_VALUE)
-                                    )
-                                )
-                                .addSearchFilter(SearchFilter.newBuilder()
-                                    .setTraversalFilter(TraversalFilter.newBuilder()
-                                        .setTraversalDirection(TraversalDirection.PRODUCES)
-                                        .setStoppingCondition(StoppingCondition.newBuilder()
-                                            .setStoppingPropertyFilter(Search.PropertyFilter.newBuilder()
-                                                .setPropertyName("entityType")
-                                                .setNumericFilter(NumericFilter.newBuilder()
-                                                    .setComparisonOperator(ComparisonOperator.EQ)
-                                                    .setValue(EntityType.VIRTUAL_MACHINE_VALUE))
+        Grouping dynamicGroup = Grouping.newBuilder()
+                        .addExpectedTypes(MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE.getNumber()))
+                        .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setEntityFilters(EntityFilters.newBuilder()
+                            .addEntityFilter(EntityFilter.newBuilder()
+                                .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+                                .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+                                    .addSearchParameters(SearchParameters.newBuilder()
+                                        .setStartingFilter(Search.PropertyFilter.newBuilder()
+                                            .setPropertyName("entityType")
+                                            .setNumericFilter(NumericFilter.newBuilder()
+                                                .setComparisonOperator(ComparisonOperator.EQ)
+                                                .setValue(EntityType.PHYSICAL_MACHINE_VALUE)
+                                                )
                                             )
-                                        )
-                                    )
-                                )
-                            )
-                        )
-                    )
-                .build();
+                                            .addSearchFilter(SearchFilter.newBuilder()
+                                                .setTraversalFilter(TraversalFilter.newBuilder()
+                                                    .setTraversalDirection(TraversalDirection.PRODUCES)
+                                                    .setStoppingCondition(StoppingCondition.newBuilder()
+                                                        .setStoppingPropertyFilter(Search.PropertyFilter.newBuilder()
+                                                            .setPropertyName("entityType")
+                                                            .setNumericFilter(NumericFilter.newBuilder()
+                                                                .setComparisonOperator(ComparisonOperator.EQ)
+                                                                .setValue(EntityType.VIRTUAL_MACHINE_VALUE))
+                                                        )
+                                                    )
+                                                )
+                                            )
+                                        )))))
+                        .setId(groupId)
+                        .setOrigin(GroupDTO.Origin.newBuilder().setUser(GroupDTO.Origin.User.newBuilder()))
+                        .build();
+
 
         final GroupResolver resolver = spy(new GroupResolver(new SearchResolver<TopologyEntity>(new TopologyFilterFactory<>()),
                 Mockito.mock(GroupConfig.class).groupServiceBlockingStub()));
@@ -366,37 +399,6 @@ public class GroupResolverTest {
     }
 
     /**
-     * Test group resolver cache for static groups.
-     *
-     * @throws GroupResolutionException when a group cannot be resolved
-     *
-     */
-    @Test
-    public void testGroupResolverCacheStaticGroups() throws GroupResolutionException {
-
-        final long groupId = 9999L;
-        final Group staticGroup =
-            Group.newBuilder()
-                .setId(groupId)
-                .setType(Type.GROUP)
-                .setOrigin(Origin.USER)
-                .setGroup(GroupInfo.newBuilder()
-                    .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                    .setStaticGroupMembers(StaticGroupMembers.newBuilder()
-                        .addAllStaticMemberOids(Arrays.asList(1L, 2L))))
-                .build();
-
-        final GroupResolver resolver = spy(new GroupResolver(new SearchResolver<TopologyEntity>(new TopologyFilterFactory<>()),
-                Mockito.mock(GroupConfig.class).groupServiceBlockingStub()));
-        resolver.resolve(staticGroup, topologyGraph);
-        resolver.resolve(staticGroup, topologyGraph);
-        resolver.resolve(staticGroup, topologyGraph);
-        // resolveStaticGroup should be called only once as subsequent calls will
-        // return from the cache
-        verify(resolver, times(1)).resolveStaticGroup(staticGroup);
-    }
-
-    /**
      * Test when the groupId is missing.
      *
      * @throws GroupResolutionException when a group cannot be resolved
@@ -405,7 +407,7 @@ public class GroupResolverTest {
     @Test(expected = IllegalArgumentException.class)
     public void testResolveWithMissingGroupId() throws GroupResolutionException {
 
-        final Group group = Group.newBuilder().build();
+        final Grouping group = Grouping.newBuilder().build();
         final GroupResolver resolver = new GroupResolver(new SearchResolver<TopologyEntity>(new TopologyFilterFactory<>()),
                 Mockito.mock(GroupConfig.class).groupServiceBlockingStub());
         resolver.resolve(group, topologyGraph);

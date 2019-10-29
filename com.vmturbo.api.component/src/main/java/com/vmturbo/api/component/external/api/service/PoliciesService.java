@@ -15,7 +15,8 @@ import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.serviceinterfaces.IPoliciesService;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
@@ -69,10 +70,11 @@ public class PoliciesService implements IPoliciesService {
      */
     public PolicyApiDTO toPolicyApiDTO(PolicyDTO.Policy policy) {
         final Set<Long> groupingIDS = GroupProtoUtil.getPolicyGroupIds(policy);
-        final Map<Long, Group> involvedGroups = new HashMap<>(groupingIDS.size());
+        final Map<Long, Grouping> involvedGroups = new HashMap<>(groupingIDS.size());
         if (!groupingIDS.isEmpty()) {
             groupService.getGroups(GetGroupsRequest.newBuilder()
-                    .addAllId(groupingIDS)
+                    .setGroupFilter(GroupFilter.newBuilder()
+                    .addAllId(groupingIDS))
                     .build())
                     .forEachRemaining(group -> involvedGroups.put(group.getId(), group));
         }

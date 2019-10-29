@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.util.stats.query.impl;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -25,15 +26,13 @@ import com.vmturbo.api.component.external.api.util.stats.query.SubQuerySupported
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterFilter;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.CountGroupsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 public class NumClustersStatsSubQueryTest {
 
@@ -130,10 +129,7 @@ public class NumClustersStatsSubQueryTest {
         verify(groupServiceMole).countGroups(requestCaptor.capture());
 
         GetGroupsRequest req = requestCaptor.getValue();
-        assertThat(req.getTypeFilterList(), containsInAnyOrder(Type.CLUSTER));
-        assertThat(req.getClusterFilter(), is(ClusterFilter.newBuilder()
-            .setTypeFilter(ClusterInfo.Type.COMPUTE)
-            .build()));
+        assertEquals(GroupType.COMPUTE_HOST_CLUSTER, req.getGroupFilter().getGroupType());
 
         assertThat(retStats.keySet(), containsInAnyOrder(curTime));
         assertThat(retStats.get(curTime).size(), is(1));

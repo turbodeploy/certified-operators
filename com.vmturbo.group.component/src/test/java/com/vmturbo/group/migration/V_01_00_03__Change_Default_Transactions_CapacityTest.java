@@ -4,12 +4,12 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import com.google.common.collect.ImmutableMap;
 
 import org.jooq.DSLContext;
 import org.junit.After;
@@ -20,10 +20,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-
-import com.google.common.collect.ImmutableMap;
-
-import reactor.core.publisher.Flux;
 
 import com.vmturbo.common.protobuf.common.Migration.MigrationProgressInfo;
 import com.vmturbo.common.protobuf.common.Migration.MigrationStatus;
@@ -36,7 +32,7 @@ import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.group.db.Tables;
 import com.vmturbo.group.db.enums.SettingPolicyPolicyType;
 import com.vmturbo.group.db.tables.records.SettingPolicyRecord;
-import com.vmturbo.group.group.GroupStore;
+import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.setting.FileBasedSettingsSpecStore;
 import com.vmturbo.group.setting.SettingPolicyFilter;
@@ -67,7 +63,7 @@ public class V_01_00_03__Change_Default_Transactions_CapacityTest {
 
     private IdentityProvider identityProviderSpy = spy(new IdentityProvider(0));
 
-    private GroupStore groupStore = mock(GroupStore.class);
+    private IGroupStore groupStore = mock(IGroupStore.class);
 
     private V_01_00_03__Change_Default_Transactions_Capacity migration;
 
@@ -81,9 +77,6 @@ public class V_01_00_03__Change_Default_Transactions_CapacityTest {
     public void setup() {
         dslContext = dbConfig.prepareDatabase();
         settingSpecStore = new FileBasedSettingsSpecStore(SETTING_TEST_JSON_SETTING_SPEC_JSON);
-
-        // not going to be testing flux events here
-        when(groupStore.getUpdateEventStream()).thenReturn(Flux.fromIterable(Collections.emptyList()));
 
         settingStore = new SettingStore(settingSpecStore, dslContext, identityProviderSpy,
             settingPolicyValidator, groupStore, settingsUpdatesSender);

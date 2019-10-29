@@ -16,7 +16,7 @@ import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiInputDTO;
 import com.vmturbo.api.enums.MergePolicyType;
 import com.vmturbo.api.enums.PolicyType;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
@@ -49,7 +49,7 @@ public class PolicyMapper {
      * @return The converted policy
      */
     public PolicyApiDTO policyToApiDto(final PolicyDTO.Policy policyProto,
-                                       final Map<Long, Group> groupsByID) {
+                                       final Map<Long, Grouping> groupsByID) {
         final PolicyApiDTO policyApiDTO = new PolicyApiDTO();
 
         final PolicyInfo policyInfo = policyProto.getPolicyInfo();
@@ -72,8 +72,8 @@ public class PolicyMapper {
             policyApiDTO.setCommodityType(DRS_SEGMENTATION_COMMODITY);
         }
 
-        Group consumerGrouping;
-        Group providerGrouping;
+        Grouping consumerGrouping;
+        Grouping providerGrouping;
         switch (policyInfo.getPolicyDetailCase()) {
             case AT_MOST_N:
                 final PolicyDTO.PolicyInfo.AtMostNPolicy atMostN = policyInfo.getAtMostN();
@@ -130,7 +130,7 @@ public class PolicyMapper {
                 break;
             case MERGE:
                 final PolicyDTO.PolicyInfo.MergePolicy merge = policyInfo.getMerge();
-                final List<Group> mergeGroupings = merge.getMergeGroupIdsList().stream()
+                final List<Grouping> mergeGroupings = merge.getMergeGroupIdsList().stream()
                         .map(groupsByID::get).collect(Collectors.toList());
                 policyApiDTO.setType(PolicyType.MERGE);
                 switch (merge.getMergeType()) {

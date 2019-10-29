@@ -68,7 +68,9 @@ import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
@@ -1017,8 +1019,8 @@ public class ScenarioMapperTest {
 
     @Test
     public void testAdditionFromGroup() {
-        final Group group = Group.newBuilder().setId(1)
-                .setGroup(GroupInfo.getDefaultInstance())
+        final Grouping group = Grouping.newBuilder().setId(1)
+                .setDefinition(GroupDefinition.getDefaultInstance())
                 .build();
         when(groupServiceMole.getGroup(GroupID.newBuilder().setId(1L).build()))
             .thenReturn(GetGroupResponse.newBuilder()
@@ -1047,7 +1049,7 @@ public class ScenarioMapperTest {
     @Test
     public void testMappingContextGroup() {
         final long groupId = 10L;
-        final Group group = Group.newBuilder()
+        final Grouping group = Grouping.newBuilder()
                 .setId(groupId)
                 .build();
         final GroupApiDTO groupApiDTO = new GroupApiDTO();
@@ -1055,8 +1057,9 @@ public class ScenarioMapperTest {
                 .setTopologyAddition(TopologyAddition.newBuilder()
                         .setGroupId(groupId))
                 .build());
-        when(groupServiceMole.getGroups(GetGroupsRequest.newBuilder()
-                .addId(groupId)
+        when(groupServiceMole.getGroups(GetGroupsRequest.newBuilder().setGroupFilter(GroupFilter
+                        .newBuilder()
+                        .addId(groupId))
                 .build()))
             .thenReturn(Collections.singletonList(group));
         when(groupMapper.toGroupApiDto(group)).thenReturn(groupApiDTO);

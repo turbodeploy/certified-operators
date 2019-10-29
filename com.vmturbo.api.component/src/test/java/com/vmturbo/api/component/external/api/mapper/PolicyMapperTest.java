@@ -21,7 +21,7 @@ import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiInputDTO;
 import com.vmturbo.api.enums.MergePolicyType;
 import com.vmturbo.api.enums.PolicyType;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 
@@ -34,7 +34,7 @@ public class PolicyMapperTest {
     private Policy.Builder rawPolicyBuilder;
     private PolicyInfo.MergePolicy.Builder rawMergeBuilder;
 
-    private Map<Long, Group> policyGroupingMap = new HashMap<>();
+    private Map<Long, Grouping> policyGroupingMap = new HashMap<>();
 
     private GroupApiDTO consumerDTO;
     private GroupApiDTO providerDTO;
@@ -49,8 +49,8 @@ public class PolicyMapperTest {
 
     @Before
     public void setup() {
-        final Group consumerGroup = Group.newBuilder().setId(testConsumerId).build();
-        final Group providerGroup = Group.newBuilder().setId(testProviderId).build();
+        final Grouping consumerGroup = Grouping.newBuilder().setId(testConsumerId).build();
+        final Grouping providerGroup = Grouping.newBuilder().setId(testProviderId).build();
 
         policyGroupingMap.put(testProviderId, providerGroup);
         policyGroupingMap.put(testConsumerId, consumerGroup);

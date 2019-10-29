@@ -25,20 +25,18 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.MockitoAnnotations;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
@@ -47,6 +45,7 @@ import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.builders.PhysicalMachineBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.MembersList;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.utilities.CommoditiesBought;
@@ -55,6 +54,7 @@ import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
+import com.vmturbo.topology.processor.util.GroupTestUtils;
 
 /**
  * Unit tests for {@link DiscoveredSettingPolicyScanner}.
@@ -344,14 +344,10 @@ public class DiscoveredSettingPolicyScannerTest {
 
     private void givenComputeCluster(final long targetId, final Long... clusterMembers) {
         final DiscoveredGroupInfo computeCluster = DiscoveredGroupInfo.newBuilder()
-            .setInterpretedCluster(ClusterInfo.newBuilder()
-                .setName(COMPUTE_CLUSTER_NAME)
-                .setDisplayName(CLUSTER_DISPLAY_NAME)
-                .setClusterType(Type.COMPUTE)
-                .setMembers(StaticGroupMembers.newBuilder()
-                    .addAllStaticMemberOids(Arrays.asList(clusterMembers))))
+            .setUploadedGroup(GroupTestUtils.createUploadedCluster(COMPUTE_CLUSTER_NAME,
+                    CLUSTER_DISPLAY_NAME, GroupType.COMPUTE_HOST_CLUSTER,
+                    Arrays.asList(clusterMembers)))
             .build();
-
         when(groupUploader.getDiscoveredGroupInfoByTarget()).thenReturn(
             ImmutableMap.of(targetId, Collections.singletonList(computeCluster)));
     }
@@ -418,7 +414,10 @@ public class DiscoveredSettingPolicyScannerTest {
     private static DiscoveredSettingPolicyInfo.Builder settingPolicy(@Nonnull String... groupNames) {
         return DiscoveredSettingPolicyInfo.newBuilder()
             .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-            .addAllDiscoveredGroupNames(Arrays.asList(groupNames));
+            .addAllDiscoveredGroupNames(Arrays.stream(groupNames)
+                    .map(name -> GroupProtoUtil.createIdentifyingKey(
+                            GroupType.COMPUTE_HOST_CLUSTER, name))
+                    .collect(Collectors.toList()));
     }
 
     private InterpretedGroup setupHostGroup(
@@ -431,7 +430,8 @@ public class DiscoveredSettingPolicyScannerTest {
         final String groupName = "GROUP-" + composeSettingPolicyName(VMM_TARGET_ID, mem, cpu);
         final String groupDisplayName = String.format(
             "PMs with Mem threshold %s and CPU threshold %s on VMM", mem.get(), cpu.get());
-        settingPolicy.addDiscoveredGroupNames(groupName);
+        settingPolicy.addDiscoveredGroupNames(GroupProtoUtil.createIdentifyingKey(
+                GroupType.REGULAR, groupName));
         settingPolicy.setDisplayName("HA Settings for " + groupDisplayName);
 
         return interpretedGroupFor(hosts, groupName, groupDisplayName);
@@ -461,6 +461,7 @@ public class DiscoveredSettingPolicyScannerTest {
                     @Nonnull final String groupName,
                     @Nonnull final String groupDisplayName) {
         final CommonDTO.GroupDTO groupDTO = CommonDTO.GroupDTO.newBuilder()
+            .setGroupType(GroupType.REGULAR)
             .setDisplayName(groupDisplayName)
             .setGroupName(groupName)
             .setEntityType(EntityType.PHYSICAL_MACHINE)
@@ -471,16 +472,13 @@ public class DiscoveredSettingPolicyScannerTest {
                         .collect(Collectors.toList()))
             ).build();
 
-        final GroupInfo.Builder groupInfo = GroupInfo.newBuilder()
-            .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-            .setName(groupName)
-            .setDisplayName(groupDisplayName)
-            .setStaticGroupMembers(StaticGroupMembers.newBuilder()
-                .addAllStaticMemberOids(hosts.stream()
-                    .map(TopologyStitchingEntity::getOid)
-                    .collect(Collectors.toList())));
+        final GroupDefinition.Builder groupDef = GroupTestUtils.createStaticGroupDef(
+                groupDisplayName, EntityType.PHYSICAL_MACHINE_VALUE,
+                hosts.stream()
+                        .map(TopologyStitchingEntity::getOid)
+                        .collect(Collectors.toList()));
 
-        return new InterpretedGroup(groupDTO, Optional.of(groupInfo), Optional.empty());
+        return new InterpretedGroup(groupDTO, Optional.of(groupDef));
     }
 
     /**

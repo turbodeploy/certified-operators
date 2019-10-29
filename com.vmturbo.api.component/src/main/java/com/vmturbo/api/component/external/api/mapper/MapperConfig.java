@@ -108,12 +108,24 @@ public class MapperConfig {
     }
 
     @Bean
+    public EntityFilterMapper entityFilterMapper() {
+        return new EntityFilterMapper(groupUseCaseParser());
+    }
+
+    @Bean
+    public GroupFilterMapper groupFilterMapper() {
+        return new GroupFilterMapper();
+    }
+
+    @Bean
     public GroupMapper groupMapper() {
-        return new GroupMapper(groupUseCaseParser(),
+        return new GroupMapper(
             communicationConfig.supplyChainFetcher(),
             communicationConfig.groupExpander(),
             communicationConfig.topologyProcessor(),
-            communicationConfig.repositoryApi());
+            communicationConfig.repositoryApi(),
+            entityFilterMapper(),
+            groupFilterMapper());
     }
 
     @Bean

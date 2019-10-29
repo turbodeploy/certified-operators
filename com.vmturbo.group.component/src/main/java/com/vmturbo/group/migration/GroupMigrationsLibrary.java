@@ -5,12 +5,11 @@ import java.util.SortedMap;
 
 import javax.annotation.Nonnull;
 
-import org.jooq.DSLContext;
-
 import com.google.common.collect.ImmutableSortedMap;
 
+import org.jooq.DSLContext;
+
 import com.vmturbo.components.common.migration.Migration;
-import com.vmturbo.group.group.GroupStore;
 import com.vmturbo.group.setting.SettingStore;
 
 /**
@@ -20,15 +19,11 @@ public class GroupMigrationsLibrary {
 
     private final DSLContext dslContext;
 
-    private final GroupStore groupStore;
-
     private final SettingStore settingStore;
 
     public GroupMigrationsLibrary(@Nonnull final DSLContext dslContext,
-                                  @Nonnull final GroupStore groupStore,
                                   @Nonnull final SettingStore settingStore) {
         this.dslContext = Objects.requireNonNull(dslContext);
-        this.groupStore = Objects.requireNonNull(groupStore);
         this.settingStore = Objects.requireNonNull(settingStore);
     }
 
@@ -39,18 +34,10 @@ public class GroupMigrationsLibrary {
      */
     public SortedMap<String, Migration> getMigrationsList(){
         return ImmutableSortedMap.<String, Migration>naturalOrder()
-            .put(V_01_00_00__Group_Table_Add_Entity_Type.class.getSimpleName(),
-                 new V_01_00_00__Group_Table_Add_Entity_Type(dslContext))
-            .put(V_01_00_01__Drop_Discovered_Groups_Policies.class.getSimpleName(),
-                new V_01_00_01__Drop_Discovered_Groups_Policies(dslContext))
-            .put(V_01_00_02__String_Filters_Replace_Contains_With_Full_Match.class.getSimpleName(),
-                new V_01_00_02__String_Filters_Replace_Contains_With_Full_Match(groupStore))
             .put(V_01_00_03__Change_Default_Transactions_Capacity.class.getSimpleName(),
                 new V_01_00_03__Change_Default_Transactions_Capacity(settingStore))
-            .put(V_01_00_04__Change_Nested_Groups_Filters_Protobuf_Representation.class.getSimpleName(),
-                 new V_01_00_04__Change_Nested_Groups_Filters_Protobuf_Representation(dslContext))
-            .put(V_01_00_05__Change_Dynamic_Groups_Api_Filters_Protobuf_Representation.class.getSimpleName(),
-                 new V_01_00_05__Change_Dynamic_Groups_Api_Filters_Protobuf_Representation(dslContext))
             .build();
+        // Note, that migrations up to V_01_00_05 has been previously removed. The next migration
+        // MUST be no less then V_01_00_06 in order to avoid collisions at customers' side
     }
 }

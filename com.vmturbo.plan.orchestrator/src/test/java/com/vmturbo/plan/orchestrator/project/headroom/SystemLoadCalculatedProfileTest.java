@@ -10,13 +10,16 @@ import javax.annotation.Nonnull;
 
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadRecord;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.plan.orchestrator.project.headroom.SystemLoadCalculatedProfile.Operation;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
  *Class to test SystemLoadCalculatedProfile.
@@ -279,16 +282,19 @@ public class SystemLoadCalculatedProfileTest {
     }
 
     private SystemLoadCalculatedProfile getSystemLoadCalculatedProfile(
-            @Nonnull final Operation operation, @Nonnull final Group cluster,
+            @Nonnull final Operation operation, @Nonnull final Grouping cluster,
             @Nonnull final List<SystemLoadRecord> systemLoadRecordList) {
         return new SystemLoadCalculatedProfile(operation, cluster, systemLoadRecordList,
-                        cluster.getCluster().getName(), "");
+                        cluster.getDefinition().getDisplayName(), "");
     }
 
-    private Group getClusterWithId(long clusterId) {
-        return Group.newBuilder()
+    private Grouping getClusterWithId(long clusterId) {
+        return Grouping.newBuilder()
             .setId(clusterId)
-            .setCluster(ClusterInfo.newBuilder().setName("Cluster1"))
+            .addExpectedTypes(MemberType.newBuilder().setEntity(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
+            .setDefinition(GroupDefinition.newBuilder()
+                            .setDisplayName("Cluster1")
+                            .setType(GroupType.COMPUTE_HOST_CLUSTER))
             .build();
     }
 

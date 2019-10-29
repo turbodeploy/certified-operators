@@ -26,7 +26,8 @@ import com.google.common.collect.Maps;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.PolicyDetailCase;
@@ -129,7 +130,7 @@ public class PolicyManager {
                     policyService.getAllPolicies(PolicyRequest.newBuilder().build());
             final ImmutableList<PolicyResponse> policyResponses = ImmutableList.copyOf(policyIter);
             List<Policy> planOnlyPolicies = planOnlyPolicies(changes);
-            final Map<Long, Group> groupsById = groupsById(policyResponses, planOnlyPolicies);
+            final Map<Long, Grouping> groupsById = groupsById(policyResponses, planOnlyPolicies);
             final Map<PolicyDetailCase, Integer> policyTypeCounts = Maps.newEnumMap(PolicyDetailCase.class);
 
             final List<PlacementPolicy> policiesToApply = new ArrayList<>();
@@ -249,18 +250,19 @@ public class PolicyManager {
                 .collect(Collectors.toSet());
     }
 
-    private Map<Long, Group> policyGroupsById(Collection<Policy> policies) {
+    private Map<Long, Grouping> policyGroupsById(Collection<Policy> policies) {
         Set<Long> groupIds = policies.stream()
                         .map(GroupProtoUtil::getPolicyGroupIds)
                         .flatMap(Set::stream)
                         .collect(Collectors.toSet());
 
-        final Map<Long, Group> groupsById = new HashMap<>(groupIds.size());
+        final Map<Long, Grouping> groupsById = new HashMap<>(groupIds.size());
         if (!groupIds.isEmpty()) {
             groupServiceBlockingStub.getGroups(GetGroupsRequest.newBuilder()
-                .addAllId(groupIds)
-                .setResolveClusterSearchFilters(true) // precalculate cluster filters for us
-                .build())
+                            .setGroupFilter(GroupFilter.newBuilder()
+                                            .addAllId(groupIds))
+                            .setReplaceGroupPropertyWithGroupMembershipFilter(true)
+                            .build())
             .forEachRemaining(group -> groupsById.put(group.getId(), group));
 
             if (groupsById.size() != groupIds.size()) {
@@ -282,7 +284,7 @@ public class PolicyManager {
      * persisted in the policy service.
      * @return mapping from group oid to group
      */
-    private Map<Long, Group> groupsById(List<PolicyResponse> policyResponses, List<Policy> otherPolicies) {
+    private Map<Long, Grouping> groupsById(List<PolicyResponse> policyResponses, List<Policy> otherPolicies) {
         Set<Policy> policies = policyResponses.stream()
                         .filter(PolicyResponse::hasPolicy)
                         .map(PolicyResponse::getPolicy)
@@ -294,7 +296,7 @@ public class PolicyManager {
     private Stream<PlacementPolicy> getServerPolicies(
                     @Nonnull List<ScenarioChange> changes,
                     @Nonnull List<PolicyResponse> policyResponses,
-                    @Nonnull Map<Long, Group> groupsById,
+                    @Nonnull Map<Long, Grouping> groupsById,
                     @Nonnull Map<Long, Set<Long>> policyConstraintMap) {
         // Map from policy ID to whether it is enabled or disabled in the plan
         Map<Long, Boolean> policyOverrides = changes.stream()
@@ -332,7 +334,7 @@ public class PolicyManager {
 
     private Stream<PlacementPolicy> getPlanOnlyPolicies(
                     @Nonnull List<Policy> planOnlyPolicies,
-                    @Nonnull Map<Long, Group> groupsById) {
+                    @Nonnull Map<Long, Grouping> groupsById) {
         return planOnlyPolicies.stream()
             .map(policyDefinition -> {
                 // Policy definition needs an ID, but plan-only policies don't have one

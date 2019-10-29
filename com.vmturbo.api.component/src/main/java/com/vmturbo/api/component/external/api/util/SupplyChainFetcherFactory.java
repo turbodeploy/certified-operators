@@ -48,7 +48,7 @@ import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
@@ -581,16 +581,19 @@ public class SupplyChainFetcherFactory {
                     final Optional<GroupAndMembers> groupWithMembers =
                         groupExpander.getGroupWithMembers(groupUuid);
                     if (groupWithMembers.isPresent()) {
-                        final Group group = groupWithMembers.get().group();
-                        final String groupType = UIEntityType.fromType(
-                                GroupProtoUtil.getEntityType(group)).apiStr();
+                        final Grouping group = groupWithMembers.get().group();
+                        final List<String> groupTypes =  GroupProtoUtil
+                                        .getEntityTypes(group)
+                                        .stream()
+                                        .map(UIEntityType::apiStr)
+                                        .collect(Collectors.toList());
 
-                        if (groupType.equals(desiredEntityType)) {
+                        if (groupTypes.contains(desiredEntityType)) {
                             if (groupWithMembers.get().members().isEmpty()) {
                                 return Collections.emptyList();
                             }
                             return Collections.singletonList(SupplyChainNode.newBuilder()
-                                .setEntityType(groupType)
+                                .setEntityType(desiredEntityType)
                                 .putMembersByState(EntityState.POWERED_ON_VALUE,
                                     MemberList.newBuilder()
                                         .addAllMemberOids(groupExpander.expandUuid(groupUuid))
@@ -673,6 +676,7 @@ public class SupplyChainFetcherFactory {
                     environmentType, supplyChainRpcService, groupExpander, enforceUserScope);
         }
 
+        @Override
         @Nonnull
         public Map<String, SupplyChainNode> processSupplyChain(
                 @Nonnull final List<SupplyChainNode> supplyChainNodes) {

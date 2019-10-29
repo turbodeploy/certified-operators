@@ -50,7 +50,7 @@ public class GroupUseCaseParserTest {
         final Set<String> groupTypes = ImmutableSet.of("Group", "Cluster", "StorageCluster",
                 "VirtualMachineCluster");
         groupTypes.forEach(type -> {
-            Assert.assertEquals(type + GroupMapper.ELEMENTS_DELIMITER + "displayName",
+            Assert.assertEquals(type + EntityFilterMapper.ELEMENTS_DELIMITER + "displayName",
                             useCases.get(type).getCriteria().get(0).getElements());
             useCases.remove(type);
         });

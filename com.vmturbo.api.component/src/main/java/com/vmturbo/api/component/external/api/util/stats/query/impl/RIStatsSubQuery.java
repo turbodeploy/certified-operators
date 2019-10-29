@@ -131,8 +131,10 @@ public class RIStatsSubQuery implements StatsSubQuery {
                 reqBuilder.setEndDate(timeWindow.endTime());
             });
 
-            if (context.getInputScope().getScopeType().isPresent()) {
-                final UIEntityType type = context.getInputScope().getScopeType().get();
+            if (context.getInputScope().getScopeTypes().isPresent()) {
+                //TODO (mahdi)
+                final UIEntityType type = context.getInputScope().getScopeTypes().get()
+                                .iterator().next();
                 final Set<Long> scopeEntities = context.getQueryScope().getEntities();
                 if (type == UIEntityType.REGION) {
                     reqBuilder.setRegionFilter(RegionFilter.newBuilder()
@@ -163,8 +165,15 @@ public class RIStatsSubQuery implements StatsSubQuery {
                 reqBuilder.setEndDate(timeWindow.endTime());
             });
 
-            if (context.getInputScope().getScopeType().isPresent()) {
-                final UIEntityType type = context.getInputScope().getScopeType().get();
+            if (context.getInputScope().getScopeTypes().isPresent()
+                            && !context.getInputScope().getScopeTypes().get().isEmpty()) {
+
+                if (context.getInputScope().getScopeTypes().get().size() != 1) {
+                    //TODO (mahdi) Change the logic to support scopes with more than one type
+                    throw new IllegalStateException("Scopes with more than one type is not supported.");
+                }
+
+                final UIEntityType type = context.getInputScope().getScopeTypes().get().iterator().next();
                 final Set<Long> scopeEntities = context.getQueryScope().getEntities();
                 if (type == UIEntityType.REGION) {
                     reqBuilder.setRegionFilter(RegionFilter.newBuilder()

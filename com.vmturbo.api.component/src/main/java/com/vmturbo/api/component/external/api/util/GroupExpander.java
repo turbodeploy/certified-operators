@@ -26,9 +26,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 
 /**
@@ -56,9 +55,11 @@ public class GroupExpander {
     @Value.Immutable
     public interface GroupAndMembers {
         /**
-         * The {@link Group} definition retrieved from the group component.
+         * The {@link Grouping} definition retrieved from the group component.
+         *
+         * @return the group.
          */
-        Group group();
+        Grouping group();
 
         /**
          * The members of the group.
@@ -80,7 +81,7 @@ public class GroupExpander {
      *             (e.g. Market).
      * @return The {@link Group} associated with the UUID, if any.
      */
-    public Optional<Group> getGroup(@Nonnull final String uuid) {
+    public Optional<Grouping> getGroup(@Nonnull final String uuid) {
         if (StringUtils.isNumeric(uuid)) {
             final GetGroupResponse response = groupServiceGrpc.getGroup(GroupID.newBuilder()
                     .setId(Long.parseLong(uuid))
@@ -126,17 +127,20 @@ public class GroupExpander {
      * @return  The {@link GroupAndMembers} describing the group and its members.
      */
     @Nonnull
-    public GroupAndMembers getMembersForGroup(@Nonnull final Group group) {
+    public GroupAndMembers getMembersForGroup(@Nonnull final Grouping group) {
         ImmutableGroupAndMembers.Builder retBuilder = ImmutableGroupAndMembers.builder()
             .group(group);
-        final List<Long> members = GroupProtoUtil.getStaticMembers(group).orElseGet(() -> {
+        final List<Long> members;
+        if (group.getDefinition().hasStaticGroupMembers()) {
+            members = GroupProtoUtil.getStaticMembers(group);
+        } else {
             final GetMembersResponse groupMembersResp =
-                groupServiceGrpc.getMembers(GetMembersRequest.newBuilder()
-                    .setId(group.getId())
-                    .setExpectPresent(true)
-                    .build());
-            return groupMembersResp.getMembers().getIdsList();
-        });
+                            groupServiceGrpc.getMembers(GetMembersRequest.newBuilder()
+                                .setId(group.getId())
+                                .setExpectPresent(true)
+                                .build());
+            members = groupMembersResp.getMembers().getIdsList();
+        }
 
         // now get the entities in the group. If this is a group-of-groups, the "members" in the group
         // will be the group id's, while the "entities" in the group will be all the service entities
@@ -145,7 +149,7 @@ public class GroupExpander {
         final Collection<Long> entities;
         // If the group is nested, make a 2nd call with the "expand nested groups" flag to fetch
         // the leaf entities in the nested groups.
-        if (group.getType() == Type.NESTED_GROUP) {
+        if (GroupProtoUtil.isNestedGroup(group)) {
             entities = groupServiceGrpc.getMembers(GetMembersRequest.newBuilder()
                             .setId(group.getId())
                             .setExpectPresent(true)
@@ -168,8 +172,9 @@ public class GroupExpander {
      * @return A stream of {@link GroupAndMembers} describing the groups that matched the request
      *         and the members of those groups.
      */
-    public Stream<GroupAndMembers> getGroupsWithMembers(@Nonnull final GetGroupsRequest getGroupsRequest) {
-        final Iterable<Group> retIt = () -> groupServiceGrpc.getGroups(getGroupsRequest);
+    public Stream<GroupAndMembers> getGroupsWithMembers(
+                    @Nonnull final GetGroupsRequest getGroupsRequest) {
+        final Iterable<Grouping> retIt = () -> groupServiceGrpc.getGroups(getGroupsRequest);
         return StreamSupport.stream(retIt.spliterator(), false)
             // In the future we could support a group API call here.
             .map(this::getMembersForGroup);

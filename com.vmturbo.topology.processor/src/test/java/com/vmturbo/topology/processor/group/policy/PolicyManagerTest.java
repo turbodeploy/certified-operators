@@ -28,6 +28,8 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -87,19 +89,19 @@ public class PolicyManagerTest {
     private final long id4 = 4L;
     private final long id5 = 5L;
 
-    private final Group group1 = PolicyGroupingHelper.policyGrouping(
+    private final Grouping group1 = PolicyGroupingHelper.policyGrouping(
         "Group 1", EntityType.PHYSICAL_MACHINE_VALUE, id1);
 
-    private final Group group2 = PolicyGroupingHelper.policyGrouping(
+    private final Grouping group2 = PolicyGroupingHelper.policyGrouping(
         "Group 2", EntityType.STORAGE_VALUE, id2);
 
-    private final Group group3 = PolicyGroupingHelper.policyGrouping(
+    private final Grouping group3 = PolicyGroupingHelper.policyGrouping(
         "Group 3", EntityType.VIRTUAL_MACHINE_VALUE, id3);
 
-    private final Group group4 = PolicyGroupingHelper.policyGrouping(
+    private final Grouping group4 = PolicyGroupingHelper.policyGrouping(
         "Group 4", EntityType.APPLICATION_SERVER_VALUE, id4);
 
-    private final Group group5 = PolicyGroupingHelper.policyGrouping(
+    private final Grouping group5 = PolicyGroupingHelper.policyGrouping(
         "Group 5", EntityType.APPLICATION_SERVER_VALUE, id5);
 
     private final Policy policy12 = bindToGroup(id1, id2, 12L);
@@ -115,12 +117,14 @@ public class PolicyManagerTest {
     @Before
     public void setup() throws Exception {
         when(groupServiceMole.getGroups(GetGroupsRequest.newBuilder()
-            .addAllId(Arrays.asList(id1, id2, id3, id4))
-            .setResolveClusterSearchFilters(true)
+            .setGroupFilter(GroupFilter.newBuilder()
+            .addAllId(Arrays.asList(id1, id2, id3, id4)))
+            .setReplaceGroupPropertyWithGroupMembershipFilter(true)
             .build())).thenReturn(Arrays.asList(group1, group2, group3, group4));
         when(groupServiceMole.getGroups(GetGroupsRequest.newBuilder()
-            .addAllId(Arrays.asList(id1, id2, id3, id4, id5))
-            .setResolveClusterSearchFilters(true)
+            .setGroupFilter(GroupFilter.newBuilder()
+            .addAllId(Arrays.asList(id1, id2, id3, id4, id5)))
+            .setReplaceGroupPropertyWithGroupMembershipFilter(true)
             .build())).thenReturn(Arrays.asList(group1, group2, group3, group4, group5));
         when(policyServiceMole.getAllPolicies(any()))
             .thenReturn(Stream.of(policy12, policy34)

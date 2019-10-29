@@ -109,7 +109,7 @@ public class HistoricalCommodityStatsSubQueryTest {
 
         when(context.newPeriodInputDto(any())).thenReturn(NEW_PERIOD_INPUT_DTO);
 
-        when(vmGroupScope.getScopeType()).thenReturn(Optional.of(UIEntityType.VIRTUAL_MACHINE));
+        when(vmGroupScope.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(UIEntityType.VIRTUAL_MACHINE)));
     }
 
     @Test

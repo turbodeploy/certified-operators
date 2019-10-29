@@ -22,29 +22,22 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.immutables.value.Value;
-import org.springframework.util.CollectionUtils;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.immutables.value.Value;
+import org.springframework.util.CollectionUtils;
+
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
-import com.vmturbo.common.protobuf.group.GroupDTO;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
-import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
-import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
-import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
-import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
-import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
@@ -54,16 +47,25 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequ
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.CommodityHeadroom;
 import com.vmturbo.common.protobuf.stats.Stats.SaveClusterHeadroomRequest;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.project.ProjectPlanPostProcessor;
@@ -85,7 +87,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
     /**
      * The clusters for which we're trying to calculate headroom.
      */
-    private final List<Group> clusters;
+    private final List<Grouping> clusters;
 
     private final RepositoryServiceBlockingStub repositoryService;
 
@@ -178,8 +180,10 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         this.planDao = Objects.requireNonNull(planDao);
         this.templatesDao = Objects.requireNonNull(templatesDao);
         this.clusters = new ArrayList<>(clusterIds.size());
-        groupRpcService.getGroups(
-                GroupDTO.GetGroupsRequest.newBuilder().addAllId(clusterIds).build())
+        groupRpcService.getGroups(GetGroupsRequest.newBuilder()
+                        .setGroupFilter(GroupFilter.newBuilder()
+                                        .addAllId(clusterIds))
+                        .build())
             .forEachRemaining(this.clusters::add);
     }
 
@@ -235,7 +239,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         // In the future, we should be able to issue a delete to an in-progress plan and
         // have no orphaned data.
         String displayName = clusters.size() == 1 ?
-            clusters.get(0).getCluster().getDisplayName() : "All";
+            clusters.get(0).getDefinition().getDisplayName() : "All";
         if (plan.getStatus() == PlanStatus.SUCCEEDED || plan.getStatus() == PlanStatus.FAILED
                 || plan.getStatus() == PlanStatus.STOPPED) {
             if (plan.getStatus() == PlanStatus.FAILED) {
@@ -283,7 +287,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         final GetMultiSupplyChainsRequest.Builder requestBuilder = GetMultiSupplyChainsRequest.newBuilder();
         clusters.forEach(cluster -> requestBuilder.addSeeds(SupplyChainSeed.newBuilder()
             .setSeedOid(cluster.getId())
-            .addAllStartingEntityOid(cluster.getCluster().getMembers().getStaticMemberOidsList())
+            .addAllStartingEntityOid(GroupProtoUtil.getAllStaticMembers(cluster.getDefinition()))
             .addAllEntityTypesToInclude(HEADROOM_ENTITY_TYPES)));
 
         // Make a supply chain rpc call to fetch supply chain information, which is used to
@@ -423,17 +427,19 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      * @param vmDailyGrowth the averaged number of daily added VMs since past lookBackDays
      */
     private void calculateHeadroomPerCluster(
-        @Nonnull final Group cluster,
+        @Nonnull final Grouping cluster,
         @Nonnull final Map<Integer, List<TopologyEntityDTO>> headroomEntities,
         @Nonnull final ImmutableEntityCountData entityCounts,
         final float vmDailyGrowth) {
 
         Optional<Template> template = templatesDao
-            .getTemplate(cluster.getCluster().getClusterHeadroomTemplateId());
+        //TODO (mahdi) The head room template id should no longer be kept in group component. This
+        // has been tracked in OM-51613
+            .getTemplate(0);
 
         if (!template.isPresent()) {
-            logger.error("Template not found for : " + cluster.getCluster().getDisplayName() +
-                " with template id : " + cluster.getCluster().getClusterHeadroomTemplateId());
+            logger.error("Template not found for : " + cluster.getDefinition().getDisplayName() +
+                " with template id : " + 0);
             return;
         } else {
             logger.info("Template name is " + template.get().getTemplateInfo().getName());
@@ -532,7 +538,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
      * @return computed headroom data
      */
     private CommodityHeadroom calculateHeadroom(
-        @Nonnull final Group cluster,
+        @Nonnull final Grouping cluster,
         @Nonnull final Collection<TopologyEntityDTO> entities,
         @Nonnull final Map<Integer, Double> headroomCommodities,
         final float vmDailyGrowth) {
@@ -588,7 +594,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
 
             if (minAvailableCommodity == -1 || minCapacityCommodity == -1) {
                 logger.error("Template has used value 0 for some commodities in cluster : " +
-                    cluster.getCluster().getDisplayName() +" and id "+ cluster.getId());
+                    cluster.getDefinition().getDisplayName() + " and id " + cluster.getId());
                 return CommodityHeadroom.getDefaultInstance();
             }
 
@@ -636,7 +642,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                 || vmDailyGrowth == 0) {
             return MORE_THAN_A_YEAR;
         }
-        return (long) Math.floor((float)headroomAvailable / vmDailyGrowth);
+        return (long)Math.floor(headroomAvailable / vmDailyGrowth);
     }
 
     /**

@@ -4,11 +4,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -17,14 +19,14 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.commons.lang3.StringUtils;
-import org.jooq.exception.DataAccessException;
-
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Ordering;
 
+import org.apache.commons.lang3.StringUtils;
+import org.jooq.exception.DataAccessException;
+
 import com.vmturbo.common.protobuf.GroupProtoUtil;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
@@ -39,8 +41,9 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.SettingValueTypeCase;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.group.common.InvalidItemException;
-import com.vmturbo.group.group.GroupStore;
+import com.vmturbo.group.group.IGroupStore;
 
 /**
  * The default implementation of {@link SettingPolicyValidator}. This should be the
@@ -52,10 +55,10 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
     private final Map<SettingValueTypeCase, BiFunction<Setting, SettingSpec, Collection<String>>>
             settingProcessors;
     private final SettingSpecStore settingSpecStore;
-    private final GroupStore groupStore;
+    private final IGroupStore groupStore;
 
     public DefaultSettingPolicyValidator(@Nonnull final SettingSpecStore settingSpecStore,
-            @Nonnull final GroupStore groupStore) {
+            @Nonnull final IGroupStore groupStore) {
         this.settingSpecStore = Objects.requireNonNull(settingSpecStore);
         this.groupStore = Objects.requireNonNull(groupStore);
 
@@ -127,22 +130,27 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
             } else {
                 // Make sure the groups exist, and are compatible with the policy info.
                 try {
-                    final Map<Long, Optional<Group>> groupMap =
-                            groupStore.getGroups(settingPolicyInfo.getScope().getGroupsList());
-                    groupMap.forEach((groupId, groupOpt) -> {
-                        if (groupOpt.isPresent()) {
-                            final Group group = groupOpt.get();
-                            final int policyEntityType = settingPolicyInfo.getEntityType();
-                            final int groupEntityType = GroupProtoUtil.getEntityType(group);
-                            if (groupEntityType != policyEntityType) {
-                                errors.add("Group " + group.getId() + " with entity type " +
-                                        groupEntityType + " does not match entity type " +
-                                        policyEntityType + " of the setting policy");
-                            }
-                        } else {
-                            errors.add("Group " + groupId + "for setting policy not found.");
+                    final Set<Long> policyGroups =
+                            new HashSet<>(settingPolicyInfo.getScope().getGroupsList());
+                    final Collection<Grouping> groups = groupStore.getGroups(
+                            GroupProtoUtil.createGroupFilterByIds(policyGroups));
+                    groups.stream().map(Grouping::getId).forEach(policyGroups::remove);
+                    if (!policyGroups.isEmpty()) {
+                        errors.add("Groups " + policyGroups + " for setting policy not found");
+                    }
+                    for (Grouping group: groups) {
+                        final int policyEntityType = settingPolicyInfo.getEntityType();
+                        final Collection<Integer> groupExpectedMemberTypes =
+                                GroupProtoUtil.getEntityTypes(group)
+                                        .stream()
+                                        .map(UIEntityType::typeNumber)
+                                        .collect(Collectors.toSet());
+                        if (!groupExpectedMemberTypes.contains(policyEntityType)) {
+                            errors.add("Group " + group.getId() + " with entity type " +
+                                    groupExpectedMemberTypes + " does not match entity type " +
+                                    policyEntityType + " of the setting policy");
                         }
-                    });
+                    }
                 } catch (DataAccessException e) {
                     errors.add("Unable to fetch groups for setting policy due to exception: " +
                             e.getMessage());

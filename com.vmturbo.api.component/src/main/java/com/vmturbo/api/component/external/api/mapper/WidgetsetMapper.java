@@ -1,11 +1,8 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -26,10 +23,10 @@ import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.widget.WidgetApiDTO;
 import com.vmturbo.api.dto.widget.WidgetsetApiDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.widgets.Widgets;
 import com.vmturbo.common.protobuf.widgets.Widgets.Widgetset;
-
 /**
  * Mappings between external REST API {@link WidgetsetApiDTO} and protobuf {@link Widgetset}.
  **/
@@ -213,8 +210,11 @@ public class WidgetsetMapper {
             try {
                 // Get all groups referenced by the widgets.
                 groupRpcService.getGroups(GetGroupsRequest.newBuilder()
-                    .addAllId(groupScopedWidgets.keySet())
-                    .build())
+                                .setGroupFilter(GroupFilter.newBuilder()
+                                        .addAllId(groupScopedWidgets.keySet())
+                                        )
+                                .build()
+                    )
                     .forEachRemaining(group -> {
                         final GroupApiDTO groupApiDTO = groupMapper.toGroupApiDto(group);
                         // For each widget scoped to this group, replace the base scope DTO with the

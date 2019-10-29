@@ -10,7 +10,7 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
@@ -38,8 +38,9 @@ public class BindToGroupPolicyApplication extends PlacementPolicyApplication {
             .forEach(policy -> {
                 try {
                     logger.debug("Applying bindToGroup policy.");
-                    final Group providerGroup = policy.getProviderPolicyEntities().getGroup();
-                    final Group consumerGroup = policy.getConsumerPolicyEntities().getGroup();
+                    final Grouping providerGroup = policy.getProviderPolicyEntities().getGroup();
+                    final Grouping consumerGroup = policy.getConsumerPolicyEntities().getGroup();
+                    GroupProtoUtil.checkEntityTypeForPolicy(providerGroup);
                     // Resolve the relevant groups
                     final Set<Long> providers = Sets.union(groupResolver.resolve(providerGroup, topologyGraph),
                         policy.getProviderPolicyEntities().getAdditionalEntities());
@@ -48,7 +49,8 @@ public class BindToGroupPolicyApplication extends PlacementPolicyApplication {
 
                     // Add the commodity to the appropriate entities.
                     addCommoditySold(providers, commoditySold(policy));
-                    addCommodityBought(consumers, GroupProtoUtil.getEntityType(providerGroup),
+                    //checkEntityType logic makes sure that the group only has only one entity type here
+                    addCommodityBought(consumers, GroupProtoUtil.getEntityTypes(providerGroup).iterator().next().typeNumber(),
                         commodityBought(policy));
                 } catch (GroupResolutionException e) {
                     errors.put(policy, new PolicyApplicationException(e));

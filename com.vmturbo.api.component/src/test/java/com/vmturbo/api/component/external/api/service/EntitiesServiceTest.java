@@ -464,7 +464,7 @@ public class EntitiesServiceTest {
 
         ApiId apiId = mock(ApiId.class);
         when(apiId.oid()).thenReturn(VM_ID);
-        when(apiId.getScopeType()).thenReturn(Optional.of(UIEntityType.VIRTUAL_MACHINE));
+        when(apiId.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(UIEntityType.VIRTUAL_MACHINE)));
         when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
 
         RepositoryApi.MultiEntityRequest minimalEntityVMRequest = ApiTestUtils.mockMultiMinEntityReq(Lists.newArrayList(minimalEntityVM));
@@ -485,7 +485,7 @@ public class EntitiesServiceTest {
         Long regionId = 2L;
         ApiId regionApiId = mock(ApiId.class);
         when(regionApiId.oid()).thenReturn(regionId);
-        when(regionApiId.getScopeType()).thenReturn(Optional.of(UIEntityType.REGION));
+        when(regionApiId.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(UIEntityType.REGION)));
         when(uuidMapper.fromUuid(Long.toString(regionId))).thenReturn(regionApiId);
 
         final MinimalEntity minimalEntityRegion = MinimalEntity.newBuilder()

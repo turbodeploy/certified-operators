@@ -13,17 +13,21 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import org.junit.Test;
-
 import com.google.common.collect.ImmutableMap;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
+import org.junit.Test;
+
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupMemberCache.DiscoveredGroupMembers;
+import com.vmturbo.topology.processor.util.GroupTestUtils;
 
 public class DiscoveredGroupMemberCacheTest {
+
+    private static final long TARGET_ID = 1L;
+
     @Test
     public void testHasMemberGroup() {
         final DiscoveredGroupMembers groupMembers = new DiscoveredGroupMembers(
@@ -58,12 +62,11 @@ public class DiscoveredGroupMemberCacheTest {
 
     @Test
     public void testSwapAlreadyContained() {
-        final GroupInfo.Builder groupInfo = GroupInfo.newBuilder()
-            .setStaticGroupMembers(StaticGroupMembers.newBuilder()
-                .addAllStaticMemberOids(Arrays.asList(1L, 2L, 3L)));
-        final InterpretedGroup interpretedGroup =
-            new InterpretedGroup(DiscoveredGroupConstants.STATIC_MEMBER_DTO,
-                Optional.of(groupInfo), Optional.empty());
+        final GroupDefinition.Builder groupDef = GroupTestUtils.createStaticGroupDef("name",
+                EntityType.VIRTUAL_MACHINE_VALUE, Arrays.asList(1L, 2L, 3L));
+
+        final InterpretedGroup interpretedGroup = new InterpretedGroup(
+                DiscoveredGroupConstants.STATIC_MEMBER_DTO, Optional.of(groupDef));
 
         final DiscoveredGroupMembers groupMembers = new DiscoveredGroupMembers(interpretedGroup);
 
@@ -103,13 +106,11 @@ public class DiscoveredGroupMemberCacheTest {
 
     @Test
     public void testGroupsContainingMultiple() {
-        final GroupInfo.Builder groupInfo = GroupInfo.newBuilder()
-            .setStaticGroupMembers(StaticGroupMembers.newBuilder()
-                .addAllStaticMemberOids(
-                    Arrays.asList(1L, 2L, 3L, DiscoveredGroupConstants.PLACEHOLDER_CLUSTER_MEMBER)));
-        final InterpretedGroup multiMemberGroup =
-            new InterpretedGroup(DiscoveredGroupConstants.STATIC_MEMBER_DTO,
-                Optional.of(groupInfo), Optional.empty());
+        final GroupDefinition.Builder groupDef = GroupTestUtils.createStaticGroupDef("name",
+                EntityType.VIRTUAL_MACHINE_VALUE, Arrays.asList(1L, 2L, 3L,
+                        DiscoveredGroupConstants.PLACEHOLDER_CLUSTER_MEMBER));
+        final InterpretedGroup multiMemberGroup = new InterpretedGroup(
+                DiscoveredGroupConstants.STATIC_MEMBER_DTO, Optional.of(groupDef));
 
         final Map<Long, List<InterpretedGroup>> groups = ImmutableMap.of(
             456L, Arrays.asList(multiMemberGroup, DiscoveredGroupConstants.PLACEHOLDER_INTERPRETED_CLUSTER));

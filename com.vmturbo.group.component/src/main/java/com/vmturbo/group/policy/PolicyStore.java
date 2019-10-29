@@ -520,7 +520,7 @@ public class PolicyStore implements Diagnosable {
 
     /**
      * Check if there is a duplicate group.
-     * A duplicate group has the same name as the groupInfo but a different id.
+     * A duplicate group has the same name as the group definition but a different id.
      *
      * @param context The {@link DSLContext} for the current transaction.
      * @param id The id of the new group.

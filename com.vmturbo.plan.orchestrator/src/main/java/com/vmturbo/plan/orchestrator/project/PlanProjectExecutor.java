@@ -21,10 +21,9 @@ import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
-import com.vmturbo.common.protobuf.group.GroupDTO;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterFilter;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -64,6 +63,7 @@ import com.vmturbo.plan.orchestrator.project.headroom.SystemLoadProfileCreator;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 import com.vmturbo.plan.orchestrator.templates.exceptions.DuplicateTemplateException;
 import com.vmturbo.plan.orchestrator.templates.exceptions.IllegalTemplateOperationException;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
  * This class executes a plan project
@@ -171,7 +171,7 @@ public class PlanProjectExecutor {
      * @param planProject a plan project
      */
     private void runPlanInstancePerClusters(@Nonnull final PlanProject planProject) {
-        Set<Group> clusters = getAllComputeClusters();
+        Set<Grouping> clusters = getAllComputeClusters();
         // Limit the number of clusters for each run.
         clusters = restrictNumberOfClusters(clusters);
         logger.info("Running plan project {} on {} clusters. " +
@@ -190,7 +190,7 @@ public class PlanProjectExecutor {
      * @param planProject a plan project
      */
     private void runPlanInstanceAllCluster(@Nonnull final PlanProject planProject) {
-        Set<Group> clusters = getAllComputeClusters();
+        Set<Grouping> clusters = getAllComputeClusters();
         logger.info("Running plan project {} on {} clusters. " +
                 "(one plan instance for all clusters per scenario)",
             planProject.getPlanProjectInfo().getName(), clusters.size());
@@ -203,16 +203,14 @@ public class PlanProjectExecutor {
      *
      * @return a set of compute clusters
      */
-    private Set<Group> getAllComputeClusters() {
-        Set<Group> clusters = new HashSet<>();
+    private Set<Grouping> getAllComputeClusters() {
+        Set<Grouping> clusters = new HashSet<>();
 
         groupRpcService.getGroups(
-            GroupDTO.GetGroupsRequest.newBuilder()
-                .addTypeFilter(GroupDTO.Group.Type.CLUSTER)
-                .setClusterFilter(ClusterFilter.newBuilder()
-                    .setTypeFilter(ClusterInfo.Type.COMPUTE)
-                    .build())
-                .build()).forEachRemaining(clusters::add);
+                        GetGroupsRequest.newBuilder()
+                        .setGroupFilter(GroupFilter.newBuilder()
+                                        .setGroupType(GroupType.COMPUTE_HOST_CLUSTER))
+                        .build()).forEachRemaining(clusters::add);
 
         return clusters;
     }
@@ -224,7 +222,7 @@ public class PlanProjectExecutor {
      * @param clusters the clusters where this plan is applied
      */
     private void createClusterPlanInstanceAndRun(@Nonnull final PlanProject planProject,
-                                                 @Nonnull final Set<Group> clusters) {
+                                                 @Nonnull final Set<Grouping> clusters) {
         for (PlanProjectScenario scenario : planProject.getPlanProjectInfo().getScenariosList()) {
             // Create plan instance
             PlanInstance planInstance;
@@ -241,7 +239,7 @@ public class PlanProjectExecutor {
             ProjectPlanPostProcessor planProjectPostProcessor = null;
             if (planProject.getPlanProjectInfo().getType().equals(PlanProjectType.CLUSTER_HEADROOM)) {
                 planProjectPostProcessor = new ClusterHeadroomPlanPostProcessor(planInstance.getPlanId(),
-                    clusters.stream().map(Group::getId).collect(Collectors.toSet()),
+                    clusters.stream().map(Grouping::getId).collect(Collectors.toSet()),
                     repositoryChannel, historyChannel, planDao, groupChannel, templatesDao);
             }
             if (planProjectPostProcessor != null) {
@@ -278,7 +276,7 @@ public class PlanProjectExecutor {
      * @return the restricted clusters where this plan is applied
      */
     @VisibleForTesting
-    Set<Group> restrictNumberOfClusters(Set<Group> clusters) {
+    Set<Grouping> restrictNumberOfClusters(Set<Grouping> clusters) {
         final GetGlobalSettingResponse response = settingService.getGlobalSetting(
                 GetSingleGlobalSettingRequest.newBuilder()
                         .setSettingSpecName(GlobalSettingSpecs.MaxPlanInstancesPerPlan
@@ -297,7 +295,7 @@ public class PlanProjectExecutor {
             return clusters;
         }
 
-        List<Group> clustersAsList = new ArrayList<>(clusters);
+        List<Grouping> clustersAsList = new ArrayList<>(clusters);
         Collections.shuffle(clustersAsList);
         clustersAsList = clustersAsList.subList(0, maxPlanInstancesPerPlan.intValue());
         return new HashSet<>(clustersAsList);
@@ -313,13 +311,13 @@ public class PlanProjectExecutor {
      * @throws IntegrityException if some integrity constraints violated
      */
     @VisibleForTesting
-    PlanInstance createClusterPlanInstance(@Nonnull final Set<Group> clusters,
+    PlanInstance createClusterPlanInstance(@Nonnull final Set<Grouping> clusters,
                                            @Nonnull final PlanProjectScenario planProjectScenario,
                                            @Nonnull final PlanProjectType type)
                                            throws IntegrityException {
         final PlanScope.Builder planScopeBuilder = PlanScope.newBuilder();
 
-        for (Group cluster : clusters) {
+        for (Grouping cluster : clusters) {
             boolean addScopeEntry = true;
 
             // The failure for a single cluster should not fail the entire plan.
@@ -331,11 +329,11 @@ public class PlanProjectExecutor {
                     addScopeEntry = false;
                     if (logger.isTraceEnabled()) {
                         logger.trace("Failed to update headroom template for cluster name {}, id {}: {}",
-                            cluster.getCluster().getDisplayName(), cluster.getId(), e.getMessage());
+                            cluster.getDefinition().getDisplayName(), cluster.getId(), e.getMessage());
                     }
                 } catch (StatusRuntimeException e) {
                     logger.error("Failed to retrieve system load of cluster name {}, id {}: {}",
-                        cluster.getCluster().getDisplayName(), cluster.getId(), e.getMessage());
+                        cluster.getDefinition().getDisplayName(), cluster.getId(), e.getMessage());
                 }
             }
 
@@ -381,7 +379,7 @@ public class PlanProjectExecutor {
      * @throws IllegalTemplateOperationException if the operation is not allowed created template
      * @throws DuplicateTemplateException if there are errors when a user tries to create templates
      */
-    private void updateClusterHeadroomTemplate(@Nonnull Group cluster)
+    private void updateClusterHeadroomTemplate(@Nonnull Grouping cluster)
                 throws NoSuchObjectException, IllegalTemplateOperationException,
                        DuplicateTemplateException {
         List<SystemLoadRecord> systemLoadRecordList = new ArrayList<>();
@@ -391,7 +389,7 @@ public class PlanProjectExecutor {
 
         if (systemLoadRecordList.isEmpty()) {
             throw new NoSuchObjectException("No system load records found for cluster : "
-                + cluster.getCluster().getDisplayName());
+                + cluster.getDefinition().getDisplayName());
         }
 
         SystemLoadProfileCreator profiles = new SystemLoadProfileCreator(
@@ -406,10 +404,11 @@ public class PlanProjectExecutor {
         Template usedTemplate = null;
         long clusterHRoomTemplateId = 0L;
 
-        if (cluster.hasCluster()) {
-            clusterHRoomTemplateId = cluster.getCluster().getClusterHeadroomTemplateId();
-        }
-        Optional<Template> clusterHRoomTemplate = templatesDao.getTemplate(clusterHRoomTemplateId);
+        //TODO (mahdi) The head room template id should no longer be kept in group component. This
+        // has been tracked in OM-51613
+        clusterHRoomTemplateId = 0;
+
+        Optional<Template> clusterHRoomTemplate = Optional.empty();
 
         // Case 1: When user has not selected anything and no data in DB to calculate average
         // Case 2: When user has not selected anything and we have data in DB to calculate average
@@ -420,7 +419,7 @@ public class PlanProjectExecutor {
             if (isHeadroomVmOrAverageTemplate(calculatedAvgProfileForToday.getProfileName(), clusterHRoomTemplate)) {
                 if (clusterHRoomTemplate.get().getTemplateInfo().getName().equals(StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME)) {
                     // Set usedTemplate to default template when the user has selected the default template
-                    logger.debug("Updating template for : " + cluster.getCluster().getDisplayName() +
+                    logger.debug("Updating template for : " + cluster.getDefinition().getDisplayName() +
                             " with default headroom template");
                     usedTemplate = templatesDao.getFilteredTemplates(TemplatesFilter.newBuilder()
                             .addTemplateName(StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME)
@@ -431,7 +430,7 @@ public class PlanProjectExecutor {
                 } else {
                     if (calculatedAvgTemplateInfo.isPresent()) {
                         // The user has selected the average template
-                        logger.debug("Updating template for : " + cluster.getCluster().getDisplayName() +
+                        logger.debug("Updating template for : " + cluster.getDefinition().getDisplayName() +
                                 " with template id : " + clusterHRoomTemplateId);
                         // if template Id already exists, update template with new values
                         templatesDao.editTemplate(clusterHRoomTemplateId, calculatedAvgTemplateInfo.get());
@@ -442,14 +441,14 @@ public class PlanProjectExecutor {
             if (calculatedAvgTemplateInfo.isPresent()) {
                 // The user has not selected a template and average template is calculated
                 // Create template using template info and set it as headroomTemplate
-                logger.debug("Creating template for : " + cluster.getCluster().getDisplayName() +
+                logger.debug("Creating template for : " + cluster.getDefinition().getDisplayName() +
                         " with the calculated average template");
                 usedTemplate = templatesDao.createTemplate(calculatedAvgTemplateInfo.get());
 
             } else {
                 // The user has not selected a template and average template does not exist
                 // Set headroomTemplate  to default template
-                logger.debug("Updating template for : " + cluster.getCluster().getDisplayName() +
+                logger.debug("Updating template for : " + cluster.getDefinition().getDisplayName() +
                         " with default headroom template");
                 usedTemplate = templatesDao.getFilteredTemplates(TemplatesFilter.newBuilder()
                         .addTemplateName(StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME)
@@ -461,11 +460,8 @@ public class PlanProjectExecutor {
         }
         if (usedTemplate != null) {
             // Update template with current headroomTemplate
-            groupRpcService.updateClusterHeadroomTemplate(
-                    UpdateClusterHeadroomTemplateRequest.newBuilder()
-                            .setGroupId(cluster.getId())
-                            .setClusterHeadroomTemplateId(usedTemplate.getId())
-                            .build());
+            //TODO (mahdi) Previously, we updated the headroom template here in group store.
+            // We need update the headroom template in the new place stored here. JIRA (OM-51613)
         }
     }
 

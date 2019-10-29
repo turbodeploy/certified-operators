@@ -23,6 +23,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.protobuf.ProtocolStringList;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
@@ -36,16 +39,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.protobuf.ProtocolStringList;
-
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.FluxSink;
-
-import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
@@ -68,10 +62,8 @@ import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutableSettingPolicyUpdateException;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundException;
-import com.vmturbo.group.group.GroupStore;
-import com.vmturbo.group.group.GroupStore.GroupStoreUpdateEvent;
+import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.identity.IdentityProvider;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 @RunWith(SpringJUnit4ClassRunner.class)
@@ -86,7 +78,7 @@ public class SettingStoreTest {
 
     private SettingStore settingStore;
     private SettingSpecStore settingSpecStore;
-    private GroupStore groupStore = mock(GroupStore.class);
+    private IGroupStore groupStore = mock(IGroupStore.class);
 
     private final SettingPolicyInfo info = SettingPolicyInfo.newBuilder()
             .setName("test")
@@ -103,15 +95,10 @@ public class SettingStoreTest {
 
     private IdentityProvider identityProviderSpy = spy(new IdentityProvider(0));
 
-    private FluxSink<GroupStoreUpdateEvent> updateEventEmitter;
-
     private SettingsUpdatesSender settingsUpdatesSender = mock(SettingsUpdatesSender.class);
 
     @Before
     public void setUp() {
-        final Flux<GroupStoreUpdateEvent> flux = Flux.fromIterable(Collections.emptyList());
-        when(groupStore.getUpdateEventStream()).thenReturn(Flux.create(emitter -> updateEventEmitter = emitter));
-
         final DSLContext dslContext = dbConfig.prepareDatabase();
         settingSpecStore = new FileBasedSettingsSpecStore(SETTING_TEST_JSON_SETTING_SPEC_JSON);
         settingStore = new SettingStore(settingSpecStore, dslContext, identityProviderSpy,
@@ -470,14 +457,10 @@ public class SettingStoreTest {
         final DiscoveredSettingPolicyInfo spInfo = DiscoveredSettingPolicyInfo.newBuilder()
                 .setEntityType(1)
                 .setName("a")
-                .addDiscoveredGroupNames("group-a")
+                .addDiscoveredGroupNames("0-group-a")
                 .build();
 
-        final Map<String, Long> groupOids = ImmutableMap.of(
-                GroupProtoUtil.createGroupCompoundKey(
-                        spInfo.getDiscoveredGroupNames(0),
-                        EntityType.forNumber(spInfo.getEntityType()),
-                        targetId), 1L);
+        final Map<String, Long> groupOids = ImmutableMap.of(spInfo.getDiscoveredGroupNames(0), 1L);
 
         // Create a discovered setting policies, a and b.
         settingStore.updateTargetSettingPolicies(dbConfig.dsl(), targetId,
@@ -507,36 +490,27 @@ public class SettingStoreTest {
             .setEntityType(1)
             .setName("a")
             .addSettings(setting)
-            .addDiscoveredGroupNames("group-a")
+            .addDiscoveredGroupNames("0-group-a")
             .build();
 
         final DiscoveredSettingPolicyInfo settingPolicyB = DiscoveredSettingPolicyInfo.newBuilder()
             .setEntityType(2)
             .setName("b")
             .addSettings(setting)
-            .addDiscoveredGroupNames("group-b")
+            .addDiscoveredGroupNames("0-group-b")
             .build();
 
         final DiscoveredSettingPolicyInfo settingPolicyC = DiscoveredSettingPolicyInfo.newBuilder()
             .setEntityType(1)
             .setName("c")
             .addSettings(setting)
-            .addDiscoveredGroupNames("group-c")
+            .addDiscoveredGroupNames("0-group-c")
             .build();
 
         final Map<String, Long> groupOids = ImmutableMap.of(
-                GroupProtoUtil.createGroupCompoundKey(
-                        settingPolicyA.getDiscoveredGroupNames(0),
-                        EntityType.forNumber(settingPolicyA.getEntityType()),
-                        targetId), 1L,
-                GroupProtoUtil.createGroupCompoundKey(
-                        settingPolicyB.getDiscoveredGroupNames(0),
-                        EntityType.forNumber(settingPolicyB.getEntityType()),
-                        targetId), 2L,
-                GroupProtoUtil.createGroupCompoundKey(
-                        settingPolicyC.getDiscoveredGroupNames(0),
-                        EntityType.forNumber(settingPolicyC.getEntityType()),
-                        targetId), 3L);
+                settingPolicyA.getDiscoveredGroupNames(0), 1L,
+                settingPolicyB.getDiscoveredGroupNames(0), 2L,
+                settingPolicyC.getDiscoveredGroupNames(0), 3L);
 
         // Create 2 discovered setting policies, a and b.
         settingStore.updateTargetSettingPolicies(dbConfig.dsl(), targetId,
@@ -595,13 +569,6 @@ public class SettingStoreTest {
                 .setScope(Scope.newBuilder().addGroups(2L))
                 .build());
 
-        // if a non-user group is deleted, we should see no policy updates applied even if there
-        // are references to the group
-        assertEquals(0, settingStore.onGroupDeleted(Group.newBuilder()
-                .setId(1L)
-                .setOrigin(Origin.DISCOVERED)
-                .build()));
-
         // verify that policy1 should still have one scope group
         final SettingPolicy policy1FromDB = settingStore.getSettingPolicy("policy1").get();
         assertEquals(1, policy1FromDB.getInfo().getScope().getGroupsList().size());
@@ -612,10 +579,7 @@ public class SettingStoreTest {
 
         // when we remove group 1 and it's a user-created group, we should see two policies updated
         // -- policy1 and policy12
-        assertEquals(2, settingStore.onGroupDeleted(Group.newBuilder()
-                .setId(1L)
-                .setOrigin(Origin.USER)
-                .build()));
+        assertEquals(2, settingStore.onGroupDeleted(1L));
 
         // verify that policy1 no longer has any scope groups
         final SettingPolicy policy1AfterUpdate = settingStore.getSettingPolicy("policy1").get();

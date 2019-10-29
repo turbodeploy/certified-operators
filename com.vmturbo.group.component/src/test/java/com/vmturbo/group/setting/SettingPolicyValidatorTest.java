@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Optional;
 
 import org.jooq.exception.DataAccessException;
@@ -15,11 +16,10 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.mockito.Mockito;
 
-import com.google.common.collect.ImmutableMap;
-
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
@@ -47,7 +47,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingVal
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
 import com.vmturbo.group.common.InvalidItemException;
-import com.vmturbo.group.group.GroupStore;
+import com.vmturbo.group.group.IGroupStore;
 
 /**
  * Tests for {@link DefaultSettingPolicyValidator}.
@@ -65,10 +65,9 @@ public class SettingPolicyValidatorTest {
 
     private final SettingSpecStore specStore = mock(SettingSpecStore.class);
 
-    private final GroupStore groupStore = mock(GroupStore.class);
+    private IGroupStore groupStore;
 
-    private final DefaultSettingPolicyValidator validator =
-            new DefaultSettingPolicyValidator(specStore, groupStore);
+    private DefaultSettingPolicyValidator validator;
 
     /**
      * Expected exception.
@@ -78,12 +77,17 @@ public class SettingPolicyValidatorTest {
 
     @Before
     public void setup() throws Exception {
-        when(groupStore.get(eq(GROUP_ID)))
-            .thenReturn(Optional.of(Group.newBuilder()
-                .setGroup(GroupInfo.newBuilder()
-                        .setEntityType(ENTITY_TYPE))
+        groupStore = mock(IGroupStore.class);
+        validator = new DefaultSettingPolicyValidator(specStore, groupStore);
+        when(groupStore.getGroup(eq(GROUP_ID))).thenReturn(Optional.of(Grouping.newBuilder()
+                .addExpectedTypes(MemberType.newBuilder().setEntity(ENTITY_TYPE))
                 .build()));
         when(specStore.getSettingSpec(any())).thenReturn(Optional.empty());
+        Mockito.when(groupStore.getGroups(Mockito.any()))
+                .thenReturn(Collections.singleton(Grouping.newBuilder()
+                        .setId(GROUP_ID)
+                        .addExpectedTypes(MemberType.newBuilder().setEntity(ENTITY_TYPE))
+                        .build()));
     }
 
     @Test(expected = InvalidItemException.class)
@@ -347,7 +351,7 @@ public class SettingPolicyValidatorTest {
         when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setStringSettingValueType(StringSettingValueType.getDefaultInstance())
                 .build()));
-        when(groupStore.getGroups(any())).thenReturn(ImmutableMap.of(7L, Optional.empty()));
+        Mockito.when(groupStore.getGroups(Mockito.any())).thenReturn(Collections.emptyList());
         validator.validateSettingPolicy(newInfo()
                 .setScope(Scope.newBuilder()
                         .addGroups(7L))
@@ -359,11 +363,11 @@ public class SettingPolicyValidatorTest {
         when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setStringSettingValueType(StringSettingValueType.getDefaultInstance())
                 .build()));
-        when(groupStore.getGroups(any())).thenReturn(ImmutableMap.of(7L, Optional.of(Group.newBuilder()
-                .setId(7L)
-                .setGroup(GroupInfo.newBuilder()
-                        .setEntityType(ENTITY_TYPE + 1))
-                .build())));
+        Mockito.when(groupStore.getGroups(Mockito.any()))
+                .thenReturn(Collections.singleton(Grouping.newBuilder()
+                        .setId(7L)
+                        .addExpectedTypes(MemberType.newBuilder().setEntity(ENTITY_TYPE + 1))
+                        .build()));
         validator.validateSettingPolicy(newInfo()
                 .setScope(Scope.newBuilder()
                         .addGroups(7L))

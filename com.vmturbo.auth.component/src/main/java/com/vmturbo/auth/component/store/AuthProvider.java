@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -64,7 +66,8 @@ import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
 import com.vmturbo.auth.component.store.sso.SsoUtil;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -737,12 +740,18 @@ public class AuthProvider {
                 throw new SecurityException("Cannot validate Shared user group -- validation is disabled.");
             }
             GroupServiceBlockingStub groupClient = groupServiceClient.get();
-            Iterator<Group> groups = groupClient.getGroups(GetGroupsRequest.newBuilder()
-                    .addAllId(scopeGroups)
-                    .build());
+            Iterator<Grouping> groups = groupClient.getGroups(GetGroupsRequest.newBuilder()
+                            .setGroupFilter(GroupFilter.newBuilder()
+                                            .addAllId(scopeGroups).build())
+                            .build());
+
             while (groups.hasNext()) {
-                int entityType = GroupProtoUtil.getEntityType(groups.next());
-                if (! UserScopeUtils.SHARED_USER_ENTITY_TYPES.contains(UIEntityType.fromType(entityType).apiStr())) {
+                Collection<UIEntityType> entityTypes = GroupProtoUtil.getEntityTypes(groups.next());
+                final Set<String> groupEntityTypes = entityTypes
+                                .stream()
+                                .map(UIEntityType::apiStr)
+                                .collect(Collectors.toSet());
+                if (entityTypes.size() == 0 || !UserScopeUtils.SHARED_USER_ENTITY_TYPES.containsAll(groupEntityTypes)) {
                     // invalid group assignment
                     throw new IllegalArgumentException("Shared users can only be scoped to groups of VM's or Applications!");
                 }

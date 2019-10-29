@@ -9,7 +9,7 @@ import java.util.Map;
 
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
@@ -20,18 +20,18 @@ public class PolicyFactoryTest {
 
     private static final long POLICY_ID = 9999L;
 
-    private final Group groupA = PolicyGroupingHelper.policyGrouping(
+    private final Grouping groupA = PolicyGroupingHelper.policyGrouping(
         SearchParametersCollection.getDefaultInstance(), EntityType.VIRTUAL_MACHINE_VALUE, 1234L);
 
-    private final Group groupB = PolicyGroupingHelper.policyGrouping(
+    private final Grouping groupB = PolicyGroupingHelper.policyGrouping(
         SearchParametersCollection.getDefaultInstance(), EntityType.PHYSICAL_MACHINE_VALUE, 5678L);
 
     private final long groupIdA = 1234L;
 
     private final long groupIdB = 5678L;
 
-    private final Map<Long, Group> groupingMap =
-            new HashMap<Long, Group>(){{
+    private final Map<Long, Grouping> groupingMap =
+            new HashMap<Long, Grouping>() {{
                 put(groupIdA, groupA);
                 put(groupIdB, groupB);
             }};

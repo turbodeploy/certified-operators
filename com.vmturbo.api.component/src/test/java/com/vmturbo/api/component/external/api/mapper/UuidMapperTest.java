@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -17,11 +18,11 @@ import static org.mockito.Mockito.when;
 import java.util.Collections;
 import java.util.Optional;
 
+import io.grpc.Status;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-
-import io.grpc.Status;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -34,11 +35,12 @@ import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
@@ -50,7 +52,9 @@ import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
+
 
 public class UuidMapperTest {
 
@@ -240,17 +244,24 @@ public class UuidMapperTest {
     @Test
     public void testGroupId() throws OperationFailedException {
         when(groupExpander.getMembersForGroup(any())).thenReturn(
-            ImmutableGroupAndMembers.builder().group(Group.newBuilder().build())
+            ImmutableGroupAndMembers.builder().group(Grouping.newBuilder().build())
                 .members(Collections.emptyList()).entities(Collections.emptyList()).build());
         final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReqEmpty();
         when(repositoryApi.entitiesRequest(any())).thenReturn(req);
 
         doReturn(GetGroupResponse.newBuilder()
-            .setGroup(Group.newBuilder()
-                .setId(123)
-                .setGroup(GroupInfo.newBuilder()
-                    .setName("foo")
-                    .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+            .setGroup(Grouping.newBuilder()
+                        .setId(123)
+                        .addExpectedTypes(MemberType.newBuilder()
+                                        .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+                        .setDefinition(GroupDefinition.newBuilder()
+                            .setType(GroupType.REGULAR)
+                            .setDisplayName("foo")
+                            .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType.newBuilder()
+                                    .setType(MemberType.newBuilder()
+                                        .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()))))
+                            )
                 .build())
             .build()).when(groupServiceBackend).getGroup(GroupID.newBuilder()
                 .setId(123)
@@ -264,10 +275,10 @@ public class UuidMapperTest {
         assertTrue(id.isGroup());
         verify(groupServiceBackend, times(1)).getGroup(any());
 
-        assertThat(id.getCachedGroupInfo().get().getEntityType(), is(UIEntityType.VIRTUAL_MACHINE));
+        assertThat(id.getCachedGroupInfo().get().getEntityTypes(), contains(UIEntityType.VIRTUAL_MACHINE));
         assertThat(id.getCachedGroupInfo().get().isGlobalTempGroup(), is(false));
         assertThat(id.getDisplayName(), is("foo"));
-        assertThat(id.getScopeType().get(), is(UIEntityType.VIRTUAL_MACHINE));
+        assertThat(id.getScopeTypes().get(), contains(UIEntityType.VIRTUAL_MACHINE));
 
         assertFalse(id.isRealtimeMarket());
         assertFalse(id.isPlan());
@@ -281,19 +292,21 @@ public class UuidMapperTest {
     @Test
     public void testIsCloudGroup() throws OperationFailedException {
         when(groupExpander.getMembersForGroup(any())).thenReturn(
-            ImmutableGroupAndMembers.builder().group(Group.newBuilder().build())
+            ImmutableGroupAndMembers.builder().group(Grouping.newBuilder().build())
                 .members(Collections.emptyList()).entities(Collections.emptyList()).build());
         final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReqEmpty();
         when(repositoryApi.entitiesRequest(any())).thenReturn(req);
 
         doReturn(GetGroupResponse.newBuilder()
-            .setGroup(Group.newBuilder()
+            .setGroup(Grouping.newBuilder()
                 .setId(123)
-                .setType(Type.TEMP_GROUP)
-                .setTempGroup(TempGroupInfo.newBuilder()
-                    .setName("foo")
-                    .setEntityType(UIEntityType.VIRTUAL_VOLUME.typeNumber())
-                    .setEnvironmentType(EnvironmentType.CLOUD)
+                .addExpectedTypes(MemberType.newBuilder()
+                    .setEntity(UIEntityType.VIRTUAL_VOLUME.typeNumber()))
+                .setDefinition(GroupDefinition.newBuilder()
+                    .setIsTemporary(true)
+                    .setDisplayName("foo")
+                    .setOptimizationMetadata(GroupDefinition.OptimizationMetadata.newBuilder()
+                        .setEnvironmentType(EnvironmentType.CLOUD))
                 )
                 .build())
             .build()).when(groupServiceBackend).getGroup(GroupID.newBuilder()
@@ -322,7 +335,7 @@ public class UuidMapperTest {
     @Test
     public void testIsCloud() throws OperationFailedException {
         when(groupExpander.getMembersForGroup(any())).thenReturn(
-            ImmutableGroupAndMembers.builder().group(Group.newBuilder().build())
+            ImmutableGroupAndMembers.builder().group(Grouping.newBuilder().build())
                 .members(Collections.emptyList()).entities(Collections.emptyList()).build());
         final MultiEntityRequest req0 = ApiTestUtils.mockMultiEntityReqEmpty();
         when(repositoryApi.entitiesRequest(any())).thenReturn(req0);
@@ -349,13 +362,15 @@ public class UuidMapperTest {
         assertTrue(apiId2.isCloud());
 
         doReturn(GetGroupResponse.newBuilder()
-            .setGroup(Group.newBuilder()
+            .setGroup(Grouping.newBuilder()
                 .setId(789)
-                .setType(Type.TEMP_GROUP)
-                .setTempGroup(TempGroupInfo.newBuilder()
-                    .setName("foo")
-                    .setEntityType(UIEntityType.VIRTUAL_VOLUME.typeNumber())
-                    .setEnvironmentType(EnvironmentType.CLOUD)
+                .addExpectedTypes(MemberType.newBuilder()
+                    .setEntity(UIEntityType.VIRTUAL_VOLUME.typeNumber()))
+                .setDefinition(GroupDefinition.newBuilder()
+                    .setIsTemporary(true)
+                    .setDisplayName("foo")
+                    .setOptimizationMetadata(GroupDefinition.OptimizationMetadata.newBuilder()
+                        .setEnvironmentType(EnvironmentType.CLOUD))
                 )
                 .build())
             .build()).when(groupServiceBackend).getGroup(GroupID.newBuilder()
@@ -368,13 +383,16 @@ public class UuidMapperTest {
         assertTrue(apiId3.isCloud());
 
         doReturn(GetGroupResponse.newBuilder()
-            .setGroup(Group.newBuilder()
-                .setId(13579)
-                .setGroup(GroupInfo.newBuilder()
-                    .setName("bar")
-                    .setEntityType(UIEntityType.VIRTUAL_VOLUME.typeNumber())
-                )
-                .build())
+            .setGroup(Grouping.newBuilder()
+                    .setId(13579)
+                    .addExpectedTypes(MemberType.newBuilder()
+                        .setEntity(UIEntityType.VIRTUAL_VOLUME.typeNumber()))
+                    .setDefinition(GroupDefinition.newBuilder()
+                        .setDisplayName("bar")
+                        .setOptimizationMetadata(GroupDefinition.OptimizationMetadata.newBuilder()
+                            .setEnvironmentType(EnvironmentType.CLOUD))
+                    )
+                    .build())
             .build()).when(groupServiceBackend).getGroup(GroupID.newBuilder()
             .setId(13579)
             .build());
@@ -405,7 +423,7 @@ public class UuidMapperTest {
     @Test
     public void testGroupIdError() throws OperationFailedException {
         when(groupExpander.getMembersForGroup(any())).thenReturn(
-            ImmutableGroupAndMembers.builder().group(Group.newBuilder().build())
+            ImmutableGroupAndMembers.builder().group(Grouping.newBuilder().build())
                 .members(Collections.emptyList()).entities(Collections.emptyList()).build());
         final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReqEmpty();
         when(repositoryApi.entitiesRequest(any())).thenReturn(req);
@@ -424,19 +442,26 @@ public class UuidMapperTest {
         doReturn(Optional.empty())
             .when(groupServiceBackend).getGroupError(groupID);
         doReturn(GetGroupResponse.newBuilder()
-            .setGroup(Group.newBuilder()
-                .setId(123)
-                .setGroup(GroupInfo.newBuilder()
-                    .setName("foo")
-                    .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
-                .build())
+            .setGroup(Grouping.newBuilder()
+                            .setId(123)
+                            .addExpectedTypes(MemberType.newBuilder()
+                                            .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+                            .setDefinition(GroupDefinition.newBuilder()
+                                .setType(GroupType.REGULAR)
+                                .setDisplayName("foo")
+                                .setStaticGroupMembers(StaticMembers.newBuilder()
+                                    .addMembersByType(StaticMembersByType.newBuilder()
+                                        .setType(MemberType.newBuilder()
+                                            .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()))))
+                                )
+                    .build())
             .build()).when(groupServiceBackend).getGroup(groupID);
 
         // Test no caching of error.
         assertTrue(id.isGroup());
         verify(groupServiceBackend, times(2)).getGroup(any(), any());
 
-        assertThat(id.getCachedGroupInfo().get().getEntityType(), is(UIEntityType.VIRTUAL_MACHINE));
+        assertThat(id.getCachedGroupInfo().get().getEntityTypes(), contains(UIEntityType.VIRTUAL_MACHINE));
         assertThat(id.getCachedGroupInfo().get().isGlobalTempGroup(), is(false));
         assertThat(id.getDisplayName(), is("foo"));
 

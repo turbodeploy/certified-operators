@@ -34,7 +34,8 @@ import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceStub;
@@ -156,7 +157,7 @@ public class EntitySettingsResolver {
         // groups used for applying entity/group-specific settings
         final Set<Long> overrideGroups = settingOverrides.getInvolvedGroups();
 
-        final Map<Long, Group> groups =
+        final Map<Long, Grouping> groups =
             getGroupInfo(groupServiceClient, Sets.union(groupSettingPoliciesMap.keySet(), overrideGroups));
 
         // let the setting overrides handle any max utilization settings
@@ -177,7 +178,7 @@ public class EntitySettingsResolver {
             // Resolving a bunch of groups at once(ORing of the group search parameters)
             // would probably be more efficient.
             try {
-                final Group group = groups.get(groupId);
+                final Grouping group = groups.get(groupId);
                 if (group != null ) {
                     final Set<Long> allEntitiesInGroup = groupResolver.resolve(group, topologyGraph);
                     resolveAllEntitySettings(allEntitiesInGroup, settingPolicies, scheduleResolver,
@@ -480,18 +481,19 @@ public class EntitySettingsResolver {
      * @param groupIds List of groupIds whose Group definitions has to be fetched
      * @return Map of groupId and its Group object
      */
-    private Map<Long, Group> getGroupInfo(GroupServiceBlockingStub groupServiceClient,
+    private Map<Long, Grouping> getGroupInfo(GroupServiceBlockingStub groupServiceClient,
                                           Collection<Long> groupIds) {
 
-        final Map<Long, Group> groups = new HashMap<>();
+        final Map<Long, Grouping> groups = new HashMap<>();
 
         if (groupIds.isEmpty()) {
             return groups;
         }
 
         groupServiceClient.getGroups(GetGroupsRequest.newBuilder()
-            .addAllId(groupIds)
-            .setResolveClusterSearchFilters(true) // precalculate any cluster filters for us
+            .setGroupFilter(GroupFilter.newBuilder()
+                .addAllId(groupIds))
+            .setReplaceGroupPropertyWithGroupMembershipFilter(true)
             .build())
             .forEachRemaining(group -> {
                 if (group.hasId()) {

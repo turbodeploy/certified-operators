@@ -22,11 +22,10 @@ import com.vmturbo.api.dto.entityaspect.DesktopPoolEntityAspectApiDTO;
 import com.vmturbo.api.enums.DesktopPoolAssignmentType;
 import com.vmturbo.api.enums.DesktopPoolCloneType;
 import com.vmturbo.api.enums.DesktopPoolProvisionType;
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetClusterForEntityResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -43,6 +42,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DesktopPoolData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 
 /**
@@ -91,13 +91,14 @@ public class DesktopPoolAspectMapperTest extends BaseAspectMapperTest {
                         .setEntityType(UIEntityType.PHYSICAL_MACHINE.typeNumber())
                         .setOid(PHYSICAL_MACHINE_OID)
                         .build()));
-        final Group cluster = Group.newBuilder()
-                .setType(Type.CLUSTER)
-                .setCluster(ClusterInfo.newBuilder().setDisplayName(CLUSTER_NAME))
+        final Grouping cluster = Grouping.newBuilder()
+                .setDefinition(GroupDefinition.newBuilder()
+                                .setType(GroupType.COMPUTE_HOST_CLUSTER)
+                                .setDisplayName(CLUSTER_NAME))
                 .build();
-        Mockito.when(groupServiceMole.getClusterForEntity(
-                GetClusterForEntityRequest.newBuilder().setEntityId(PHYSICAL_MACHINE_OID).build()))
-                .thenReturn(GetClusterForEntityResponse.newBuilder().setCluster(cluster).build());
+        Mockito.when(groupServiceMole.getGroupForEntity(
+                GetGroupForEntityRequest.newBuilder().setEntityId(PHYSICAL_MACHINE_OID).build()))
+                .thenReturn(GetGroupForEntityResponse.newBuilder().addGroup(cluster).build());
         Mockito.when(repositoryApi.newSearchRequest(Mockito.any())).thenReturn(searchRequest);
         desktopPool = topologyEntityDTOBuilder(EntityType.DESKTOP_POOL,
                 typeSpecificInfo).putEntityPropertyMap(SDKUtil.VENDOR_ID, VENDOR_ID).build();

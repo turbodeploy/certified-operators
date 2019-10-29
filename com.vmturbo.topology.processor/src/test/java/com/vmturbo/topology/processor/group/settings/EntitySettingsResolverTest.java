@@ -44,8 +44,8 @@ import com.google.common.collect.Sets;
 
 import io.grpc.stub.StreamObserver;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -125,9 +125,9 @@ public class EntitySettingsResolverTest {
 
     private static final Long groupId = 5001L;
     private static final String groupName = "groupName";
-    private static final Group group = Group.newBuilder()
+    private static final Grouping group = Grouping.newBuilder()
             .setId(groupId)
-            .setGroup(GroupInfo.newBuilder().setName(groupName))
+            .setDefinition(GroupDefinition.newBuilder().setDisplayName(groupName))
             .build();
 
     private static final String SPEC_1 = "settingSpec1";
@@ -225,7 +225,7 @@ public class EntitySettingsResolverTest {
      */
     @Test
     public void testApplyUserSettings() {
-        ArgumentCaptor<Group> groupArguments = ArgumentCaptor.forClass(Group.class);
+        ArgumentCaptor<Grouping> groupArguments = ArgumentCaptor.forClass(Grouping.class);
         when(groupResolver.resolve(group, topologyGraph)).thenReturn(entities);
         // returns only entities 1 and 2 even though group contains 3 entities
         when(topologyGraph.entities()).thenReturn(Stream.of(topologyEntity1, topologyEntity2));
@@ -251,7 +251,7 @@ public class EntitySettingsResolverTest {
      */
     @Test
     public void testApplyDefaultSettings() {
-        ArgumentCaptor<Group> groupArguments = ArgumentCaptor.forClass(Group.class);
+        ArgumentCaptor<Grouping> groupArguments = ArgumentCaptor.forClass(Grouping.class);
         when(groupResolver.resolve(group, topologyGraph)).thenReturn(entities);
         when(topologyGraph.entities()).thenReturn(Stream.of(topologyEntity1, topologyEntity2));
         // Only default setting policy used
@@ -275,7 +275,7 @@ public class EntitySettingsResolverTest {
      */
     @Test
     public void testApplyUserSettingsOverridesDefault() {
-        ArgumentCaptor<Group> groupArguments = ArgumentCaptor.forClass(Group.class);
+        ArgumentCaptor<Grouping> groupArguments = ArgumentCaptor.forClass(Grouping.class);
         when(groupResolver.resolve(group, topologyGraph)).thenReturn(entities);
         when(topologyGraph.entities()).thenReturn(Stream.of(topologyEntity1, topologyEntity2));
         when(testSettingPolicyService.listSettingPolicies(any()))
@@ -767,7 +767,7 @@ public class EntitySettingsResolverTest {
             .setTopologyType(TopologyType.REALTIME)
             .build();
         StreamObserver<UploadEntitySettingsRequest> requestObserver =
-            (StreamObserver<UploadEntitySettingsRequest>)mock(StreamObserver.class);
+            mock(StreamObserver.class);
 
         entitySettingsResolver.streamEntitySettingsRequest(info, Arrays.asList(
             createEntitySettings(entityOid1, Arrays.asList(setting2, setting1), 444444L),

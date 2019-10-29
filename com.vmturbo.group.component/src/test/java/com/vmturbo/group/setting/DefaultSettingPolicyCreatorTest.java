@@ -38,7 +38,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
-import com.vmturbo.group.group.GroupStore;
+import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 /**
@@ -249,7 +249,7 @@ public class DefaultSettingPolicyCreatorTest {
         // Make sure the produced setting policy infos pass validation.
         // Technically this means if there's a bug in the validator this test
         // can also fail, but the benefit is worth the test inter-dependency.
-        GroupStore groupStore = Mockito.mock(GroupStore.class);
+        final IGroupStore groupStore = Mockito.mock(IGroupStore.class);
         SettingSpecStore settingSpecStore = Mockito.mock(SettingSpecStore.class);
         when(settingSpecStore.getSettingSpec(spec1.getName())).thenReturn(Optional.of(spec1));
         when(settingSpecStore.getSettingSpec(spec2.getName())).thenReturn(Optional.of(spec2));
@@ -332,7 +332,7 @@ public class DefaultSettingPolicyCreatorTest {
         // Make sure the produced setting policy infos pass validation.
         // Technically this means if there's a bug in the validator this test
         // can also fail, but the benefit is worth the test inter-dependency.
-        GroupStore groupStore = Mockito.mock(GroupStore.class);
+        final IGroupStore groupStore = Mockito.mock(IGroupStore.class);
         SettingSpecStore settingSpecStore = Mockito.mock(SettingSpecStore.class);
         when(settingSpecStore.getSettingSpec(spec1.getName())).thenReturn(Optional.of(spec1));
         DefaultSettingPolicyValidator validator =

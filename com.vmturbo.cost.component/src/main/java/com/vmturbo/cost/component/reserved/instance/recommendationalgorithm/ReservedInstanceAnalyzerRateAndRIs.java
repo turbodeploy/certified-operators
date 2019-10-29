@@ -231,7 +231,7 @@ public class ReservedInstanceAnalyzerRateAndRIs {
                 type, context);
             return rate;
         }
-         rate = new Double(amount / (float)divisor).floatValue();
+         rate = new Double(amount / divisor).floatValue();
         logger.debug("computeOnDemandRate() type={} hourly rate={} divisor={} for context={}",
             type, rate, divisor, context);
         return rate;
@@ -289,7 +289,7 @@ public class ReservedInstanceAnalyzerRateAndRIs {
         float upFrontAmortizedCost = 0f;
         if (upFrontAmount > 0) {
             upFrontAmortizedCost = new Double(upFrontAmount).floatValue() /
-                (float)(constraints.getTermInYears() * 12 * HOURS_IN_A_MONTH);
+                (constraints.getTermInYears() * 12 * HOURS_IN_A_MONTH);
         }
         float riRate = upFrontAmortizedCost + new Double(hourlyAmount).floatValue();
         logger.debug("lookupReservedInstanceRate() riRate={} = hourlyAmount={} + upFrontAmortized{} (upFront={}) for specId={} context={} constraints={}",

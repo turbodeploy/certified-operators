@@ -61,9 +61,11 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
@@ -77,6 +79,7 @@ import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 public class SupplyChainFetcherFactoryTest {
     private static final String VM = "VirtualMachine";
@@ -349,7 +352,18 @@ public class SupplyChainFetcherFactoryTest {
     @Test
     public void testEmptyGroupNodeFetcher() throws Exception {
         GroupAndMembers groupAndMembers = mock(GroupAndMembers.class);
-        when(groupAndMembers.group()).thenReturn(Group.newBuilder().setId(1).setType(Type.GROUP).setGroup(GroupInfo.newBuilder().setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber()).build()).build());
+        when(groupAndMembers.group()).thenReturn(Grouping.newBuilder()
+                        .setId(1)
+                        .setDefinition(GroupDefinition.newBuilder()
+                                        .setType(GroupType.REGULAR)
+                                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                                        .addMembersByType(StaticMembersByType
+                                                                        .newBuilder()
+                                                                        .setType(MemberType
+                                                                                        .newBuilder()
+                                                                                        .setEntity(UIEntityType.VIRTUAL_MACHINE
+                                                                                                        .typeNumber()))))
+                                        ).build());
         when(groupAndMembers.members()).thenReturn(Arrays.asList());
         when(groupExpander.getGroupWithMembers("group1")).thenReturn(Optional.of(groupAndMembers));
 

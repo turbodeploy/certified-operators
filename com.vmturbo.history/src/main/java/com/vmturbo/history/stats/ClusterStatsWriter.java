@@ -18,6 +18,9 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -29,16 +32,15 @@ import org.jooq.Result;
 import org.jooq.Select;
 import org.jooq.Table;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.BasedbIO.Style;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRecord;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
  * DB Methods to write Cluster Stats.
@@ -61,9 +63,9 @@ class ClusterStatsWriter {
     /**
      *  for each type of Cluster, specify which DB table to gather from to calculate CLUSTER stats
      */
-    private static Map<ClusterInfo.Type, Table> dbTablesToQuery =
-            ImmutableMap.<ClusterInfo.Type, Table>builder()
-                    .put(ClusterInfo.Type.COMPUTE, PM_STATS_BY_DAY)
+    private static Map<GroupType, Table> dbTablesToQuery =
+            ImmutableMap.<GroupType, Table>builder()
+                    .put(GroupType.COMPUTE_HOST_CLUSTER, PM_STATS_BY_DAY)
 //                    .put(ClusterInfo.Type.STORAGE, DS_STATS_BY_DAY) TODO: handle DS stats in OM-23047
                     .build();
 
@@ -100,7 +102,7 @@ class ClusterStatsWriter {
      *
      * @param clusters a list of Cluster objects, each of which will have stats rollup performed.
      */
-    void rollupClusterStats(@Nonnull final Map<Long, ClusterInfo> clusters) {
+    void rollupClusterStats(@Nonnull final Map<Long, Grouping> clusters) {
 
         // Calculate the date for "today" and convert to a SQL DB-style date
         LocalDate today = LocalDate.now(Clock.systemUTC());
@@ -108,20 +110,19 @@ class ClusterStatsWriter {
         Date dbTomorrow = Date.valueOf(today.plus(1, ChronoUnit.DAYS));
 
         // roll up each cluster, one at a time
-        clusters.forEach((clusterOID, clusterInfo) -> {
-            // note that we're using the OID for the unique name for clusters - the display_name
-            // is not currently unique
-            final String clusterName = clusterInfo.getName();
+        clusters.forEach((clusterOID, group) -> {
+            final String clusterName = group.getDefinition().getDisplayName();
 
-            Table dbTableToQuery = dbTablesToQuery.get(clusterInfo.getClusterType());
+            GroupType clusterType = group.getDefinition().getType();
+            Table dbTableToQuery = dbTablesToQuery.get(clusterType);
             if (dbTableToQuery == null) {
-                logger.debug("Unhandled Cluster Type: {}", clusterInfo.getClusterType());
+                logger.debug("Unhandled Cluster Type: {}", clusterType);
                 // "return" in forEach == "continue" in a regular "for" loop.
                 return;
             }
 
             // determine the list of elements in the Cluster to aggregate stats over
-            List<String> memberOidStrings = clusterInfo.getMembers().getStaticMemberOidsList()
+            List<String> memberOidStrings = GroupProtoUtil.getAllStaticMembers(group.getDefinition())
                     .stream()
                     .map(l -> Long.toString(l))
                     .collect(Collectors.toList());
@@ -152,8 +153,7 @@ class ClusterStatsWriter {
                         }
                     }
                     // calculate the number of hosts in the cluster
-                    final int numHostsInCluster = clusterInfo.getMembers()
-                            .getStaticMemberOidsCount();
+                    final int numHostsInCluster = GroupProtoUtil.getAllStaticMembers(group.getDefinition()).size();
                     // add a statement to the list to persist it to the CLUSTER_STATS table
                     InsertSetMoreStep<?> insertStmt = getBaseClusterStatInsert(dbToday, clusterOID);
                     clusterStatsInserts.add(new NumEntityTransform()

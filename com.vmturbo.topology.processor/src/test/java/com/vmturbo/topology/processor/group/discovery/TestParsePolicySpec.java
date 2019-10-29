@@ -71,8 +71,7 @@ public class TestParsePolicySpec {
         Assert.assertEquals(2, policies.size());
 
         Map<String, CommonDTO.GroupDTO> stringIdToGroup = groups.stream()
-            .collect(Collectors.toMap(group ->
-                    GroupProtoUtil.discoveredIdFromName(group, targetId), Function.identity()));
+            .collect(Collectors.toMap(GroupProtoUtil::createIdentifyingKey, Function.identity()));
 
         for (DiscoveredPolicyInfo policyInfo : policies) {
             CommonDTO.GroupDTO buyers = stringIdToGroup.get(policyInfo.getBuyersGroupStringId());
@@ -119,10 +118,8 @@ public class TestParsePolicySpec {
         // The third is a deleted group so no policy gets created.
         Assert.assertEquals(2, policies.size());
 
-
         Map<String, CommonDTO.GroupDTO> stringIdToGroup = groups.stream()
-                .collect(Collectors.toMap(group ->
-                        GroupProtoUtil.discoveredIdFromName(group, targetId), Function.identity()));
+                .collect(Collectors.toMap(GroupProtoUtil::createIdentifyingKey, Function.identity()));
         for (DiscoveredPolicyInfo policyInfo : policies) {
             CommonDTO.GroupDTO buyers = stringIdToGroup.get(policyInfo.getBuyersGroupStringId());
             Assert.assertEquals(policyInfo.getPolicyName(),

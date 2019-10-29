@@ -4,7 +4,6 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyMap;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -24,11 +23,10 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import javaslang.Tuple;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
@@ -39,6 +37,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainS
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.reports.component.data.ReportDataUtils.EntitiesTableGeneratedId;
 import com.vmturbo.sql.utils.DbException;
 
@@ -70,8 +69,8 @@ public class GroupGeneratorDelegateTest {
         context = mock(ReportsDataContext.class);
         Mockito.when(groupServiceMole.getGroup(any()))
             .thenReturn(GetGroupResponse.newBuilder()
-                .setGroup(Group.newBuilder()
-                    .setType(Group.Type.CLUSTER))
+                .setGroup(Grouping.newBuilder()
+                    .setDefinition(GroupDefinition.newBuilder().setType(GroupType.COMPUTE_HOST_CLUSTER)))
                 .build());
 
         Mockito.when(supplyChainServiceMole.getSupplyChain(any()))
@@ -85,11 +84,11 @@ public class GroupGeneratorDelegateTest {
         when(reportDBDataWriter.insertEntityAssns(results)).thenReturn(newResults);
 
         when(context.getSupplyChainRpcService()).thenReturn(SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()));
-        Group group = Group.newBuilder().build();
-        Map<Group, Long> groupToPK = ImmutableMap.of(group, 1L);
+        Grouping group = Grouping.newBuilder().build();
+        Map<Grouping, Long> groupToPK = ImmutableMap.of(group, 1L);
         when(newResults.getGroupToPK()).thenReturn(groupToPK);
-        Mockito.when(groupServiceMole.createTempGroup(any()))
-            .thenReturn(CreateTempGroupResponse.newBuilder().setGroup(group).build());
+        Mockito.when(groupServiceMole.createGroup(any()))
+            .thenReturn(CreateGroupResponse.newBuilder().setGroup(group).build());
     }
 
     @After

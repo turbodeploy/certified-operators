@@ -21,7 +21,7 @@ import org.junit.rules.ExpectedException;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -49,8 +49,8 @@ public class MergePolicyTestBase {
     protected final GroupResolver groupResolver = mock(GroupResolver.class);
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
-    protected Group group1;
-    protected Group group2;
+    protected Grouping group1;
+    protected Grouping group2;
     protected List<PolicyEntities> mergePolicyEntities;
     protected TopologyGraph<TopologyEntity> topologyGraph;
     protected PolicyMatcher policyMatcher;

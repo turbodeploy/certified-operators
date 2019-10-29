@@ -3,7 +3,9 @@ package com.vmturbo.api.component.external.api.service;
 import static com.vmturbo.api.component.external.api.util.ApiUtils.isGlobalScope;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +22,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -41,11 +44,8 @@ import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IReservedInstancesService;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
-import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceSpecByIdsRequest;
-import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
@@ -53,7 +53,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.ReservedInstanceSpecServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
@@ -107,7 +107,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
 
     @Override
     public List<ReservedInstanceApiDTO> getReservedInstances(@Nullable String scope) throws Exception {
-        final List<ReservedInstanceBought> reservedInstancesBought = getReservedInstancesBought(scope);
+        final Collection<ReservedInstanceBought> reservedInstancesBought = getReservedInstancesBought(scope);
         final Set<Long> reservedInstanceSpecIds = reservedInstancesBought.stream()
                 .map(ReservedInstanceBought::getReservedInstanceBoughtInfo)
                 .map(ReservedInstanceBoughtInfo::getReservedInstanceSpec)
@@ -166,20 +166,30 @@ public class ReservedInstancesService implements IReservedInstancesService {
      * @return a list of {@link ReservedInstanceBought}.
      * @throws UnknownObjectException if the input scope type is not supported.
      */
-    private List<ReservedInstanceBought> getReservedInstancesBought(@Nullable final String scope)
+    private Collection<ReservedInstanceBought> getReservedInstancesBought(@Nullable final String scope)
             throws UnknownObjectException {
-        final Optional<Group> groupOptional = groupExpander.getGroup(scope);
+        final Optional<Grouping> groupOptional = groupExpander.getGroup(scope);
         if (isGlobalScope(scope, groupOptional)) {
             return reservedInstanceService.getReservedInstanceBoughtByFilter(
                     GetReservedInstanceBoughtByFilterRequest.newBuilder().build())
                     .getReservedInstanceBoughtsList();
         } else if (groupOptional.isPresent()) {
-            final int groupEntityType = GroupProtoUtil.getEntityType(groupOptional.get());
+            final Collection<UIEntityType> groupEntityType =
+                    GroupProtoUtil.getEntityTypes(groupOptional.get());
             final Set<Long> expandedOidsList = groupExpander.expandUuid(scope);
-            final GetReservedInstanceBoughtByFilterRequest request =
-                    createGetReservedInstanceBoughtByFilterRequest(expandedOidsList, groupEntityType);
-            return reservedInstanceService.getReservedInstanceBoughtByFilter(request)
-                    .getReservedInstanceBoughtsList();
+            Map<Long, ReservedInstanceBought> result = new HashMap<>();
+            groupEntityType.retainAll(SUPPORTED_RI_FILTER_TYPES);
+
+            for (UIEntityType entityType : groupEntityType) {
+                final GetReservedInstanceBoughtByFilterRequest request =
+                                createGetReservedInstanceBoughtByFilterRequest(
+                                                expandedOidsList, entityType.typeNumber());
+                reservedInstanceService.getReservedInstanceBoughtByFilter(request)
+                    .getReservedInstanceBoughtsList()
+                    .forEach(ri -> result.put(ri.getId(), ri));
+            }
+
+            return result.values();
         } else {
             // if cloud plan, use plan scope ids for the RI request
             final Optional<PlanInstance> optPlan = fetchPlanInstance(scope);
@@ -205,7 +215,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
      * @param reservedInstanceSpecMap a Map which key is spec id, value is {@link ReservedInstanceSpec}.
      * @return a list of entity ids.
      */
-    private Set<Long> getRelatedEntityIds(@Nonnull final List<ReservedInstanceBought> reservedInstanceBoughts,
+    private Set<Long> getRelatedEntityIds(@Nonnull final Collection<ReservedInstanceBought> reservedInstanceBoughts,
                                           @Nonnull final Map<Long, ReservedInstanceSpec> reservedInstanceSpecMap) {
         final Set<Long> relateEntityIds = new HashSet<>();
         for (ReservedInstanceBought reservedInstanceBought : reservedInstanceBoughts) {

@@ -130,8 +130,11 @@ public class ActionSearchUtil {
             final Set<Long> toExpand = new HashSet<>();
             scopeIds.forEach(scopeId -> {
                 final long oid = scopeId.oid();
-                final Optional<UIEntityType> scopeType = scopeId.getScopeType();
-                if (scopeType.isPresent() && shouldGetSupplyChainNodeActions(scopeType.get().typeNumber())) {
+                final Optional<Set<UIEntityType>> scopeType = scopeId.getScopeTypes();
+                if (scopeType.isPresent() && scopeType.get()
+                                .stream()
+                                .map(UIEntityType::typeNumber)
+                                .anyMatch(this::shouldGetSupplyChainNodeActions)) {
                     toExpand.add(oid);
                 } else {
                     toNotExpand.add(oid);

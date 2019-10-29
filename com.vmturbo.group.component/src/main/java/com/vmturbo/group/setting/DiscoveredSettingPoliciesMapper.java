@@ -11,11 +11,9 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Map discovered setting policies to instances of {@link com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo}.
@@ -24,8 +22,8 @@ public class DiscoveredSettingPoliciesMapper {
     private final Logger logger = LogManager.getLogger();
 
     /**
-     * Discovered setting policies reference groups by their names. We need to map
-     * from this name to the group OID. The groupOids map holds this mapping.
+     * Discovered setting policies reference groups by their identifying key. We need to map
+     * from this identifying key to the group OID. The groupOids map holds this mapping.
      */
     private final Map<String, Long> groupNamesToOids;
 
@@ -52,11 +50,10 @@ public class DiscoveredSettingPoliciesMapper {
         }
 
         final List<Long> groupOids = new ArrayList<>(info.getDiscoveredGroupNamesCount());
-        for (String groupName : info.getDiscoveredGroupNamesList()) {
-            final Long oid = groupNamesToOids.get(GroupProtoUtil.createGroupCompoundKey(groupName,
-                    EntityType.forNumber(info.getEntityType()), targetId));
+        for (String groupIdentifyingKey : info.getDiscoveredGroupNamesList()) {
+            final Long oid = groupNamesToOids.get(groupIdentifyingKey);
             if (oid == null) {
-                logger.warn("Invalid setting policy {}. Invalid groupName {}.", info, groupName);
+                logger.warn("Invalid setting policy {}. Group {} not found.", info, groupIdentifyingKey);
                 // Valid group names could be large, they are 300+ in BoA environment. Stop printing them
                 // out by default
                 logger.debug("Valid group names are: {}", groupNamesToOids.keySet());

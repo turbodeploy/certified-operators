@@ -7,21 +7,20 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.jooq.exception.DataAccessException;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Sets;
 import com.google.protobuf.MessageOrBuilder;
 import com.google.protobuf.TextFormat;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
@@ -92,9 +91,9 @@ public abstract class TargetCollectionUpdate<InstanceType extends MessageOrBuild
         groupsToRemove = new HashSet<>();
         final Map<SpecKey, InstanceType> existingByKey = existingCollections.stream()
                 .collect(Collectors.toMap(instance -> {
-                    SpecType spec = infoGetter().apply(instance);
-                    return new SpecKey(infoNameGetter().apply(spec),
-                            memberTypeGetter().apply(spec), targetId);
+                    SpecType spec = getInfo(instance);
+                    return new SpecKey(getNameFromInfo(spec),
+                            getMemberType(spec), targetId);
                 },
                 Function.identity(),
                 // In case of conflicts, print a warning and just pick one.
@@ -105,8 +104,8 @@ public abstract class TargetCollectionUpdate<InstanceType extends MessageOrBuild
                         TextFormat.shortDebugString(one), TextFormat.shortDebugString(other));
                     // We want to make an effort to clean up if there are existing duplicates.
                     // If there are two duplicate instances, keep the one with the higher key.
-                    final long oneId = idGetter().apply(one);
-                    final long otherId = idGetter().apply(other);
+                    final long oneId = getId(one);
+                    final long otherId = getId(other);
                     groupsToRemove.add(oneId > otherId ? other : one);
                     return oneId > otherId ? one : other;
                 }));
@@ -122,7 +121,7 @@ public abstract class TargetCollectionUpdate<InstanceType extends MessageOrBuild
         }
 
         existingByKey.entrySet().stream().forEach(e ->
-            oidMap.put(e.getKey().toString(), idGetter().apply(e.getValue())));
+            oidMap.put(e.getKey().toString(), getId(e.getValue())));
 
         // Here we iterate over the same thing three times. It's not ideal from a performance
         // standpoint, but the number of groups is relatively small and each iteration is quick,
@@ -140,8 +139,8 @@ public abstract class TargetCollectionUpdate<InstanceType extends MessageOrBuild
         // existing group.
         groupUpdates = Sets.intersection(newByKey.keySet(), existingByKey.keySet()).stream()
                 .collect(Collectors.toMap(
-                        key -> idGetter().apply(existingByKey.get(key)),
-                        key -> transitAttribution().apply(existingByKey.get(key), newByKey.get(key))));
+                        key -> getId(existingByKey.get(key)),
+                        key -> transitAttribution(existingByKey.get(key), newByKey.get(key))));
 
         // Calculate groups to remove.
         // All entities that are NOT contained in the new discovered groups, but ARE contained
@@ -152,8 +151,8 @@ public abstract class TargetCollectionUpdate<InstanceType extends MessageOrBuild
     }
 
     private SpecKey getSpecKey(SpecType instance) {
-        return new SpecKey(infoNameGetter().apply(instance),
-            memberTypeGetter().apply(instance), targetId);
+        return new SpecKey(getNameFromInfo(instance),
+            getMemberType(instance), targetId);
     }
 
     private SpecType handleDuplicateSpecKey(SpecType one, SpecType other, AtomicInteger dupeKeys) {
@@ -164,38 +163,60 @@ public abstract class TargetCollectionUpdate<InstanceType extends MessageOrBuild
         }
         return one;
     }
-    /**
-     * @return A function to get the ID of an instance.
-     */
-    protected abstract Function<InstanceType, Long> idGetter();
 
     /**
-     * @return A function to get the spec of an instance.
+     * Returns id from an instance.
+     *
+     * @param src instance to get id from
+     * @return ID of an instance.
      */
-    protected abstract Function<InstanceType, SpecType> infoGetter();
+    protected abstract long getId(@Nonnull InstanceType src);
 
     /**
-     * @return A function to get the name from a specification.
+     * Returns specs of an instance.
+     *
+     * @param src to get spec from
+     * @return the spec of an instance.
      */
-    protected abstract Function<SpecType, String> infoNameGetter();
+    protected abstract SpecType getInfo(@Nonnull InstanceType src);
+
+    /**
+     * Returns name from a specification.
+     *
+     * @param src spec to get name from
+     * @return the name from a specification.
+     */
+    @Nonnull
+    protected abstract String getNameFromInfo(@Nonnull SpecType src);
 
     /**
      * This is a workaround for bug OM-22036 - VM and PM groups have the same name.
+     *
+     * @param src spec
+     * @param id id from an instance
      * @return an identifier of the spec for the purpose of mapping group to OID
      */
-    protected abstract BiFunction<SpecType, Long, String> infoIdGetter();
+    @Nonnull
+    protected abstract String getInfoForId(@Nonnull SpecType src, long id);
 
     /**
-     * @return A function to get the entity type of a specification.
+     * Returns the entity type of a specification.
+     *
+     * @param src spec to get member type from
+     * @return the entity type of a specification.
      */
-    protected abstract Function<SpecType, Integer> memberTypeGetter();
+    protected abstract int getMemberType(SpecType src);
 
     protected abstract InstanceType createInstance(final long id, final SpecType spec);
 
     /**
+     * Performes attributes transition from an instance to a specification.
+     *
+     * @param instance instance to transmit attributes from
+     * @param src spect to transmit attributes from
      * @return A function to transit attributions from an instance to a specification.
      */
-    protected abstract BiFunction<InstanceType, SpecType, SpecType> transitAttribution();
+    protected abstract SpecType transitAttribution(InstanceType instance, SpecType src);
 
     @FunctionalInterface
     public interface StoreInstance<InstanceType> {
@@ -237,10 +258,10 @@ public abstract class TargetCollectionUpdate<InstanceType extends MessageOrBuild
             try {
                 long oid = identityProvider.next();
                 storeFn.storeInstance(createInstance(oid, groupInfo));
-                oidMap.put(infoIdGetter().apply(groupInfo, targetId), oid);
+                oidMap.put(getInfoForId(groupInfo, targetId), oid);
             } catch (InvalidItemException | DataAccessException | DuplicateNameException e) {
                 logger.warn("Encountered exception trying to save group {}. Message: {}",
-                        infoNameGetter().apply(groupInfo), e.getLocalizedMessage());
+                        getNameFromInfo(groupInfo), e.getLocalizedMessage());
                 // Ignore the exception - let the process continue.
             }
         });
@@ -249,23 +270,23 @@ public abstract class TargetCollectionUpdate<InstanceType extends MessageOrBuild
             try {
                 final InstanceType newInstance = createInstance(groupId, newGroupInfo);
                 updateFn.updateInstance(newInstance);
-                oidMap.forcePut(infoIdGetter().apply(newGroupInfo, targetId),
-                        idGetter().apply(newInstance));
+                oidMap.forcePut(getInfoForId(newGroupInfo, targetId),
+                        getId(newInstance));
             } catch (InvalidItemException | ImmutableUpdateException | ItemNotFoundException | DuplicateNameException e) {
                 // Ignore the exception - let the process continue.
                 logger.warn("Encountered exception trying to update group {}. Message: {}",
-                        infoNameGetter().apply(newGroupInfo), e.getLocalizedMessage());
+                        getNameFromInfo(newGroupInfo), e.getLocalizedMessage());
             }
         });
 
         groupsToRemove.forEach(group -> {
             try {
                 deleteFn.removeInstance(group);
-                oidMap.inverse().remove(idGetter().apply(group));
+                oidMap.inverse().remove(getId(group));
             } catch (ImmutableUpdateException | ItemNotFoundException e) {
                 // Ignore the exception - let the process continue.
                 logger.warn("Encountered exception trying to delete group {}. Message: {}",
-                    idGetter().apply(group), e.getLocalizedMessage());
+                    getId(group), e.getLocalizedMessage());
             }
         });
 
@@ -285,29 +306,37 @@ public abstract class TargetCollectionUpdate<InstanceType extends MessageOrBuild
         }
 
         @Override
-        protected Function<Group, Long> idGetter() {
-            return Group::getId;
+        protected long getId(@Nonnull Group src) {
+            return src.getId();
         }
 
         @Override
-        protected Function<Group, GroupInfo> infoGetter() {
-            return Group::getGroup;
+        protected GroupInfo getInfo(@Nonnull Group src) {
+            return src.getGroup();
+        }
+
+        @Nonnull
+        @Override
+        protected String getNameFromInfo(@Nonnull GroupInfo src) {
+            return src.getName();
+        }
+
+        @Nonnull
+        @Override
+        protected String getInfoForId(@Nonnull GroupInfo info, long id) {
+            return GroupProtoUtil.discoveredIdFromName(info, id);
         }
 
         @Override
-        protected Function<GroupInfo, String> infoNameGetter() {
-            return GroupInfo::getName;
+        protected int getMemberType(GroupInfo src) {
+            return src.getEntityType();
         }
 
         @Override
-        protected BiFunction<GroupInfo, Long, String> infoIdGetter() {
-            return (info, id) -> GroupProtoUtil.discoveredIdFromName(info, id);
+        protected GroupInfo transitAttribution(Group instance, GroupInfo src) {
+            return src;
         }
 
-        @Override
-        protected Function<GroupInfo, Integer> memberTypeGetter() {
-            return GroupInfo::getEntityType;
-        }
 
         @Override
         protected Group createInstance(final long id, final GroupInfo info) {
@@ -318,11 +347,6 @@ public abstract class TargetCollectionUpdate<InstanceType extends MessageOrBuild
                     .setOrigin(Origin.DISCOVERED)
                     .setGroup(info)
                     .build();
-        }
-
-        @Override
-        protected BiFunction<Group, GroupInfo, GroupInfo> transitAttribution() {
-            return (existingGroup, newGroupInfo) -> newGroupInfo;
         }
     }
 
@@ -339,30 +363,44 @@ public abstract class TargetCollectionUpdate<InstanceType extends MessageOrBuild
         }
 
         @Override
-        protected Function<Group, Long> idGetter() {
-            return Group::getId;
+        protected long getId(@Nonnull Group src) {
+            return src.getId();
+        }
+
+        @Nonnull
+        @Override
+        protected String getNameFromInfo(@Nonnull ClusterInfo src) {
+            return src.getName();
+        }
+
+        @Nonnull
+        @Override
+        protected String getInfoForId(@Nonnull ClusterInfo src, long id) {
+            return GroupProtoUtil.discoveredIdFromName(src, id);
         }
 
         @Override
-        protected Function<Group, ClusterInfo> infoGetter() {
-            return Group::getCluster;
-        }
-
-        @Override
-        protected Function<ClusterInfo, String> infoNameGetter() {
-            return ClusterInfo::getName;
-        }
-
-        @Override
-        protected BiFunction<ClusterInfo, Long, String> infoIdGetter() {
-            return (info, id) -> GroupProtoUtil.discoveredIdFromName(info, id);
-        }
-
-        @Override
-        protected Function<ClusterInfo, Integer> memberTypeGetter() {
+        protected int getMemberType(ClusterInfo info) {
             // Technically this is not the the type of the entity associated with the cluster,
             // but it works to distinguish clusters that have different member types.
-            return info -> info.getClusterType().getNumber();
+            return info.getClusterType().getNumber();
+        }
+
+        @Override
+        protected ClusterInfo transitAttribution(Group existingCluster, ClusterInfo newCluster) {
+            // If the cluster has a specified headroom template, make sure to keep it.
+            if (existingCluster.getCluster().hasClusterHeadroomTemplateId()) {
+                return newCluster.toBuilder()
+                        .setClusterHeadroomTemplateId(existingCluster.getCluster().getClusterHeadroomTemplateId())
+                        .build();
+            } else {
+                return newCluster;
+            }
+        }
+
+        @Override
+        protected ClusterInfo getInfo(@Nonnull Group src) {
+            return src.getCluster();
         }
 
         @Override
@@ -376,19 +414,6 @@ public abstract class TargetCollectionUpdate<InstanceType extends MessageOrBuild
                     .build();
         }
 
-        @Override
-        protected BiFunction<Group, ClusterInfo, ClusterInfo> transitAttribution() {
-            return (existingCluster, newCluster) -> {
-                // If the cluster has a specified headroom template, make sure to keep it.
-                if (existingCluster.getCluster().hasClusterHeadroomTemplateId()) {
-                    return newCluster.toBuilder()
-                        .setClusterHeadroomTemplateId(existingCluster.getCluster().getClusterHeadroomTemplateId())
-                        .build();
-                } else {
-                    return newCluster;
-                }
-            };
-        }
     }
 
     /**
@@ -405,30 +430,33 @@ public abstract class TargetCollectionUpdate<InstanceType extends MessageOrBuild
         }
 
         @Override
-        protected Function<Policy, Long> idGetter() {
-            return Policy::getId;
+        protected long getId(@Nonnull Policy src) {
+            return src.getId();
         }
 
         @Override
-        protected Function<Policy, PolicyInfo> infoGetter() {
-            return Policy::getPolicyInfo;
+        protected PolicyInfo getInfo(@Nonnull Policy src) {
+            return src.getPolicyInfo();
         }
 
+        @Nonnull
         @Override
-        protected Function<PolicyInfo, String> infoNameGetter() {
-            return PolicyInfo::getName;
+        protected String getNameFromInfo(@Nonnull PolicyInfo src) {
+            return src.getName();
         }
 
+        @Nonnull
         @Override
-        protected BiFunction<PolicyInfo, Long, String> infoIdGetter() {
-            return (info, targetId) -> String.join(GroupProtoUtil.GROUP_KEY_SEP,
+        protected String getInfoForId(@Nonnull PolicyInfo info, long id) {
+            return String.join(GroupProtoUtil.GROUP_KEY_SEP,
                     info.getName(), String.valueOf(targetId));
         }
 
         @Override
-        protected Function<PolicyInfo, Integer> memberTypeGetter() {
-            return policy -> policy.getPolicyDetailCase().getNumber();
+        protected int getMemberType(PolicyInfo policy) {
+            return policy.getPolicyDetailCase().getNumber();
         }
+
 
         @Override
         protected Policy createInstance(final long id, final PolicyInfo spec) {
@@ -446,8 +474,8 @@ public abstract class TargetCollectionUpdate<InstanceType extends MessageOrBuild
          * @return
          */
         @Override
-        protected BiFunction<Policy, PolicyInfo, PolicyInfo> transitAttribution() {
-            return (existingPolicy, newPolicyInfo) -> newPolicyInfo.toBuilder()
+        protected PolicyInfo transitAttribution(Policy existingPolicy, PolicyInfo newPolicyInfo) {
+            return newPolicyInfo.toBuilder()
                     .setEnabled(existingPolicy.getPolicyInfo().getEnabled())
                     .build();
         }
@@ -465,30 +493,33 @@ public abstract class TargetCollectionUpdate<InstanceType extends MessageOrBuild
         }
 
         @Override
-        protected Function<SettingPolicy, Long> idGetter() {
-            return SettingPolicy::getId;
+        protected long getId(@Nonnull SettingPolicy src) {
+            return src.getId();
         }
 
         @Override
-        protected Function<SettingPolicy, SettingPolicyInfo> infoGetter() {
-            return SettingPolicy::getInfo;
+        protected SettingPolicyInfo getInfo(@Nonnull SettingPolicy src) {
+            return src.getInfo();
         }
 
+        @Nonnull
         @Override
-        protected Function<SettingPolicyInfo, String> infoNameGetter() {
-            return SettingPolicyInfo::getName;
+        protected String getNameFromInfo(@Nonnull SettingPolicyInfo src) {
+            return src.getName();
         }
 
+        @Nonnull
         @Override
-        protected BiFunction<SettingPolicyInfo, Long, String> infoIdGetter() {
-            return (info, id) -> String.join(GroupProtoUtil.GROUP_KEY_SEP, info.getName(),
+        protected String getInfoForId(@Nonnull SettingPolicyInfo info, long id) {
+            return String.join(GroupProtoUtil.GROUP_KEY_SEP, info.getName(),
                     String.valueOf(info.getEntityType()), String.valueOf(id));
         }
 
         @Override
-        protected Function<SettingPolicyInfo, Integer> memberTypeGetter() {
-            return SettingPolicyInfo::getEntityType;
+        protected int getMemberType(SettingPolicyInfo src) {
+            return src.getEntityType();
         }
+
 
         @Override
         protected SettingPolicy createInstance(final long id, final SettingPolicyInfo settingPolicyInfo) {
@@ -500,8 +531,9 @@ public abstract class TargetCollectionUpdate<InstanceType extends MessageOrBuild
         }
 
         @Override
-        protected BiFunction<SettingPolicy, SettingPolicyInfo, SettingPolicyInfo> transitAttribution() {
-            return (existingSettingPolicy, newSettingPolicyInfo) -> newSettingPolicyInfo;
+        protected SettingPolicyInfo transitAttribution(SettingPolicy existingSettingPolicy,
+                SettingPolicyInfo newSettingPolicyInfo) {
+            return newSettingPolicyInfo;
         }
 
         /**

@@ -9,21 +9,19 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Functions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
@@ -44,6 +42,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -186,13 +185,16 @@ public class GroupScopeResolver {
                 groupId, membersResponse.getMembers());
             // need to check if entityType of group is same as entityType of accountDef
             GetGroupResponse groupResponse =
-                groupService.getGroup(GroupID.newBuilder().setId(Long.parseLong(groupId)).build());
-            if (customAcctDef.getGroupScope().getEntityType().getNumber() !=
-                groupResponse.getGroup().getGroup().getEntityType()) {
+                groupService.getGroup(
+                                GroupID.newBuilder().setId(Long.parseLong(groupId)).build());
+            if (!GroupProtoUtil.getEntityTypes(groupResponse.getGroup()).contains(
+                            UIEntityType.fromType(customAcctDef
+                                .getGroupScope().getEntityType().getNumber()))) {
                 logger.error("Group {} contains the wrong entity type for group scope.  "
                         + "Expected type {}, but got type {}",
                     customAcctDef.getGroupScope().getEntityType(),
-                    groupResponse.getGroup().getGroup().getEntityType());
+                    GroupProtoUtil.getEntityTypes(groupResponse.getGroup()).stream()
+                        .map(UIEntityType::apiStr).collect(Collectors.joining(",")));
                 return Collections.emptySet();
             }
             logger.trace("Group type matches group scope type.");

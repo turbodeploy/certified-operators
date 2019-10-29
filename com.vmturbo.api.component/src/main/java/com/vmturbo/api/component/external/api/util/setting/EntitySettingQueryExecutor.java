@@ -106,7 +106,9 @@ public class EntitySettingQueryExecutor {
     @Nonnull
     public List<SettingsManagerApiDTO> getEntitySettings(@Nonnull final ApiId scope,
                                                          final boolean includePolicyBreakdown) {
-        final Optional<UIEntityType> type = scope.getScopeType();
+
+        final Set<UIEntityType> types = scope.getScopeTypes().isPresent() ?
+                        scope.getScopeTypes().get() : Collections.emptySet();
         final Set<Long> oids;
         if (scope.isGroup()) {
             oids = groupExpander.expandOids(Collections.singleton(scope.oid()));
@@ -145,17 +147,28 @@ public class EntitySettingQueryExecutor {
                 return;
             }
 
-            final Optional<SettingApiDTO<String>> setting = entitySettingGroupMapper.toSettingApiDto(
-                settingGroups, settingSpec, type, includePolicyBreakdown);
-            if (!setting.isPresent()) {
+            final List<SettingApiDTO<String>> settingRet = new ArrayList<>();
+
+            for (UIEntityType type : types) {
+                final Optional<SettingApiDTO<String>> setting = entitySettingGroupMapper.toSettingApiDto(
+                    settingGroups, settingSpec, Optional.of(type), includePolicyBreakdown);
+                if (!setting.isPresent()) {
+                    continue;
+                }
+
+                settingRet.add(setting.get());
+            }
+
+            if (settingRet.isEmpty()) {
                 logger.warn("Failed to map {} setting groups for setting {} to API DTO.",
-                    settingGroups.size(), specName);
-                return;
+                                settingGroups.size(), specName);
+                            return;
             }
 
             final List<SettingApiDTO<String>> settingsForManager =
-                settingsByMgrUuid.computeIfAbsent(mgrUuid.get(), k -> new ArrayList<>());
-            settingsForManager.add(setting.get());
+                            settingsByMgrUuid.computeIfAbsent(mgrUuid.get(), k -> new ArrayList<>());
+            settingsForManager.addAll(settingRet);
+
         });
 
         // Create the setting manager objects.

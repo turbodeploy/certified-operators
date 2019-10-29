@@ -17,7 +17,7 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -282,7 +282,7 @@ public class MustNotRunTogetherPolicyApplication extends PlacementPolicyApplicat
     private Set<Long> resolveConsumers(@Nonnull final MustNotRunTogetherPolicy policy,
                                        @Nonnull final Map<PlacementPolicy, PolicyApplicationException> errs) {
         // get group of entities that need to not run together (consumers)
-        final Group consumerGroup = policy.getPolicyEntities().getGroup();
+        final Grouping consumerGroup = policy.getPolicyEntities().getGroup();
         Set<Long> additionalEntities = policy.getPolicyEntities().getAdditionalEntities();
         try {
             return Sets.union(groupResolver.resolve(consumerGroup, topologyGraph),

@@ -64,6 +64,7 @@ import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.auth.api.usermgmt.AuthUserModifyDTO;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 
 /**
  * Users management service implementation.
@@ -599,7 +600,8 @@ public class UsersService implements IUsersService {
             // with some more minimal call.
             List<GroupApiDTO> groupApiDTOS = groupsService.getGroupApiDTOS(
                     GetGroupsRequest.newBuilder()
-                            .addAllId(groupOids)
+                            .setGroupFilter(GroupFilter.newBuilder()
+                                            .addAllId(groupOids))
                             .build(), false);
             if (groupApiDTOS.size() > 0) {
                 groupApiDTOS.forEach(

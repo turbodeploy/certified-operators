@@ -30,9 +30,8 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
@@ -42,6 +41,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEnt
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.SetOnce;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
@@ -207,9 +207,9 @@ public class UuidMapper {
 
         private final EnvironmentType globalTempGroupEnv;
 
-        private final Type groupType;
+        private final GroupType groupType;
 
-        private final UIEntityType entityType;
+        private final Set<UIEntityType> entityTypes;
 
         private final String name;
 
@@ -220,17 +220,25 @@ public class UuidMapper {
          *                          EnvironmentType.UNKNOWN_ENV if it could not be determined. It
          *                          is used if the group's environment type is not already provided.
          */
-        private CachedGroupInfo(Group group, final Set<Long> discoveringTargetIds,
+        private CachedGroupInfo(Grouping group, final Set<Long> discoveringTargetIds,
                 EnvironmentType envTypeFromMember) {
-            this.entityType = UIEntityType.fromType(GroupProtoUtil.getEntityType(group));
+            this.entityTypes = GroupProtoUtil.getEntityTypes(group)
+                            .stream()
+                            .collect(Collectors.toSet());
+
             // Will be set to false if it's not a temp group, because it's false in the default
             // instance.
-            this.globalTempGroup = group.getTempGroup().getIsGlobalScopeGroup();
-            this.groupType = group.getType();
-            this.name = GroupProtoUtil.getGroupName(group);
+            this.globalTempGroup = group.getDefinition().getIsTemporary()
+                            && group.getDefinition().hasOptimizationMetadata()
+                            && group.getDefinition().getOptimizationMetadata().getIsGlobalScope();
+            this.groupType = group.getDefinition().getType();
+            this.name = group.getDefinition().getDisplayName();
             this.discoveringTargetIds = discoveringTargetIds;
-            this.globalTempGroupEnv = group.getTempGroup().hasEnvironmentType() ?
-                group.getTempGroup().getEnvironmentType() : envTypeFromMember;
+            this.globalTempGroupEnv = (group.getDefinition().getIsTemporary()
+                    && group.getDefinition().hasOptimizationMetadata()
+                    && group.getDefinition().getOptimizationMetadata().hasEnvironmentType()) ?
+                group.getDefinition().getOptimizationMetadata().getEnvironmentType()
+                : envTypeFromMember;
         }
 
         public boolean isGlobalTempGroup() {
@@ -238,8 +246,8 @@ public class UuidMapper {
         }
 
         @Nonnull
-        public UIEntityType getEntityType() {
-            return entityType;
+        public Set<UIEntityType> getEntityTypes() {
+            return entityTypes;
         }
 
         @Nonnull
@@ -247,7 +255,7 @@ public class UuidMapper {
             return Optional.of(globalTempGroupEnv).filter(type -> type != EnvironmentType.UNKNOWN_ENV);
         }
 
-        public Type getGroupType() {
+        public GroupType getGroupType() {
             return groupType;
         }
 
@@ -327,18 +335,25 @@ public class UuidMapper {
             return oid;
         }
 
+        /**
+         * Returns types in the scope. If the the scope is heterogeneous group it will more than one type.
+         * @return types in the scope.
+         */
         @Nonnull
-        public Optional<UIEntityType> getScopeType() {
+        public Optional<Set<UIEntityType>> getScopeTypes() {
             if (isRealtimeMarket()) {
                 return Optional.empty();
             }
 
-            final Optional<UIEntityType> groupType = getCachedGroupInfo().map(CachedGroupInfo::getEntityType);
-            if (groupType.isPresent()) {
-                return groupType;
+            final Optional<Set<UIEntityType>> groupTypes = getCachedGroupInfo()
+                            .map(CachedGroupInfo::getEntityTypes);
+
+            if (groupTypes.isPresent()) {
+                return groupTypes;
             }
 
-            return getCachedEntityInfo().map(CachedEntityInfo::getEntityType);
+            return getCachedEntityInfo().map(CachedEntityInfo::getEntityType)
+                .map(Collections::singleton);
         }
 
         @Nonnull
@@ -439,7 +454,7 @@ public class UuidMapper {
             return isCloudEntity() || isCloudGroup();
         }
 
-        public Optional<Group.Type> getGroupType() {
+        public Optional<GroupType> getGroupType() {
             return getCachedGroupInfo().map(CachedGroupInfo::getGroupType);
         }
 

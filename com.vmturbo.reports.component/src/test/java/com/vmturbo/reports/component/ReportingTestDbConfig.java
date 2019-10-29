@@ -32,7 +32,7 @@ public class ReportingTestDbConfig extends TestSQLDatabaseConfig {
     public Flyway localFlyway() {
         return new FlywayMigrator(Duration.ofMinutes(1), Duration.ofSeconds(5), () -> {
             final Flyway flyway = new Flyway();
-            flyway.setDataSource(dataSource());
+            flyway.setDataSource(flyway().getDataSource());
             flyway.setSchemas(REPORTING_TEST_SCHEMA);
             flyway.setLocations(ReportingDbConfig.MIGRATIONS_LOCATION);
             return flyway;
@@ -43,7 +43,7 @@ public class ReportingTestDbConfig extends TestSQLDatabaseConfig {
     public DataSource reportingDatasource() {
         final MariaDbDataSource dataSource = new MariaDbDataSource();
         try {
-            dataSource.setUrl(getDbUrl() + '/' + testSchemaName());
+            dataSource.setUrl(dbConfiguration().getDbUrl() + '/' + dbConfiguration().getTestSchemaName());
             dataSource.setUser("root");
             dataSource.setPassword("vmturbo");
             return dataSource;
@@ -53,8 +53,8 @@ public class ReportingTestDbConfig extends TestSQLDatabaseConfig {
     }
 
     @Bean
-    public DefaultConfiguration configuration() {
-        final DefaultConfiguration jooqConfiguration = super.configuration();
+    public org.jooq.Configuration configuration() {
+        final org.jooq.Configuration jooqConfiguration = dbConfiguration().getConfiguration();
 
         jooqConfiguration.settings()
                 .getRenderMapping()

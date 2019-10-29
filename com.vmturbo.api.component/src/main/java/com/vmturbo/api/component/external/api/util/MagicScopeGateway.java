@@ -12,23 +12,24 @@ import java.util.function.Supplier;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.immutables.value.Value;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.immutables.value.Value;
 
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
-import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
-import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
@@ -193,10 +194,18 @@ public class MagicScopeGateway implements RepositoryListener  {
             allOnPremHostGroup.setDisplayName("Magic Group: " + ALL_ON_PREM_HOSTS);
             try {
                 logger.debug("Creating temp group for magic \"all on-prem hosts\" scope");
-                final TempGroupInfo tempGroupInfo = groupMapper.toTempGroupProto(allOnPremHostGroup);
-                final CreateTempGroupResponse resp = groupRpcService.createTempGroup(
-                    CreateTempGroupRequest.newBuilder()
-                        .setGroupInfo(tempGroupInfo)
+                final GroupDefinition tempGroup = groupMapper.toGroupDefinition(allOnPremHostGroup);
+
+                final CreateGroupResponse resp = groupRpcService.createGroup(
+                    CreateGroupRequest.newBuilder()
+                        .setGroupDefinition(tempGroup)
+                        .setOrigin(Origin.newBuilder()
+                            .setSystem(Origin
+                                    .System
+                                    .newBuilder()
+                                    .setDescription("Magic Group: " + ALL_ON_PREM_HOSTS)
+                                    )
+                            )
                         .build());
                 final long groupOid = resp.getGroup().getId();
                 logger.info("Created temp group {} for magic \"all on-prem hosts\" UUID", groupOid);

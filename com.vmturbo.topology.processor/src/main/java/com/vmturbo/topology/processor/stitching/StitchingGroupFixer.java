@@ -1,13 +1,14 @@
 package com.vmturbo.topology.processor.stitching;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo.Builder;
-import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupMemberCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupMemberCache.DiscoveredGroupMembers;
@@ -59,8 +60,8 @@ public class StitchingGroupFixer {
             .forEach(entity -> fixupGroupsFor(entity, groupCache, modifiedGroups));
 
         // Replace the group members based on the cache modifications.
-        modifiedGroups.forEach(modifiedGroup ->
-            replaceGroupMembers(modifiedGroup.getAssociatedGroup(), modifiedGroup.getMemberOids()));
+        modifiedGroups.forEach(modifiedGroup -> replaceGroupMembers(
+                modifiedGroup.getAssociatedGroup(), modifiedGroup.getMembers()));
         return modifiedGroups.size();
     }
 
@@ -86,15 +87,12 @@ public class StitchingGroupFixer {
     }
 
     private void replaceGroupMembers(@Nonnull final InterpretedGroup interpretedGroup,
-                                     @Nonnull final Set<Long> newMembers) {
-        final StaticGroupMembers.Builder memberBuilder = interpretedGroup.getDtoAsGroup()
-            .map(Builder::getStaticGroupMembersBuilder)
-            .orElseGet(() -> interpretedGroup.getDtoAsCluster()
-                .map(ClusterInfo.Builder::getMembersBuilder)
-                .orElseThrow(() ->
-                    new IllegalStateException("Interpreted group must contain either a group or cluster.")));
-
+                                     @Nonnull final List<StaticMembersByType> newMembersByType) {
+        final StaticMembers.Builder memberBuilder = interpretedGroup.getGroupDefinition()
+                .map(GroupDefinition.Builder::getStaticGroupMembersBuilder)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Interpreted group must contain interpreted group definition."));
         memberBuilder.clear();
-        memberBuilder.addAllStaticMemberOids(newMembers);
+        memberBuilder.addAllMembersByType(newMembersByType);
     }
 }

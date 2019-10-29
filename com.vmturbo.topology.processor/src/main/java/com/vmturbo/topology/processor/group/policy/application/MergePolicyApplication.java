@@ -11,7 +11,8 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.Lists;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -47,7 +48,7 @@ public class MergePolicyApplication extends PlacementPolicyApplication {
             .forEach(policy -> {
                 try {
                     logger.debug("Applying mergePolicy policy.");
-                    List<Group> groups = policy.getMergePolicyEntitiesList()
+                    List<Grouping> groups = policy.getMergePolicyEntitiesList()
                         .stream()
                         .map(PolicyEntities::getGroup)
                         .collect(Collectors.toList());
@@ -220,14 +221,14 @@ public class MergePolicyApplication extends PlacementPolicyApplication {
      */
     private List<Long> getListOfOids(@Nonnull final GroupResolver groupResolver,
                                      @Nonnull final TopologyGraph<TopologyEntity> topologyGraph,
-                                     @Nonnull final List<Group> groups) throws GroupResolutionException {
+                                     @Nonnull final List<Grouping> groups) throws GroupResolutionException {
         // Not using lambda here, for loop is easier to throw GroupResolutionException to caller
         List<Set<Long>> listOfOids = Lists.newArrayList();
-        for (Group group : groups) {
+        for (Grouping group : groups) {
             Set<Long> entityOids = groupResolver.resolve(group, topologyGraph);
             // If the group is data center group, then retrieve the physical machine OIDs by data
             // center OIDs.
-            if (group.getGroup().getEntityType() == EntityType.DATACENTER_VALUE) {
+            if (GroupProtoUtil.getEntityTypes(group).contains(EntityType.DATACENTER_VALUE)) {
                 entityOids = getConsumedPMOids(entityOids, topologyGraph);
             }
             listOfOids.add(entityOids);

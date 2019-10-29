@@ -12,12 +12,12 @@ import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 
 import io.prometheus.client.CollectorRegistry;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
@@ -25,7 +25,6 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.Diags;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
-import com.vmturbo.group.group.GroupStore;
 import com.vmturbo.group.policy.PolicyStore;
 import com.vmturbo.group.setting.SettingStore;
 
@@ -34,7 +33,7 @@ public class GroupDiagnosticsHandler {
     private final Logger logger = LogManager.getLogger();
 
     /**
-     * The file name for the groups dump collected from the {@link GroupStore}.
+     * The file name for the groups dump collected from the {@link com.vmturbo.group.group.IGroupStore}.
      * It's a string file, so the "diags" extension is required for compatibility
      * with {@link DiagsZipReader}.
      */
@@ -60,7 +59,7 @@ public class GroupDiagnosticsHandler {
     @VisibleForTesting
     static final String ERRORS_FILE = "dump_errors";
 
-    private final GroupStore groupStore;
+    private final Diagnosable groupStore;
 
     private final PolicyStore policyStore;
 
@@ -70,7 +69,16 @@ public class GroupDiagnosticsHandler {
 
     private final DiagsZipReaderFactory zipReaderFactory;
 
-    public GroupDiagnosticsHandler(@Nonnull final GroupStore groupStore,
+    /**
+     * Constructs diagnostics handler of group component from various stores.
+     *
+     * @param groupStore group store
+     * @param policyStore policy store
+     * @param settingStore setting store
+     * @param zipReaderFactory zip reader factory
+     * @param diagnosticsWriter writer
+     */
+    public GroupDiagnosticsHandler(@Nonnull final Diagnosable groupStore,
                                    @Nonnull final PolicyStore policyStore,
                                    @Nonnull final SettingStore settingStore,
                                    @Nonnull final DiagsZipReaderFactory zipReaderFactory,

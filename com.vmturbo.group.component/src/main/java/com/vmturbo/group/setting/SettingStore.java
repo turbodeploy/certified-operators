@@ -20,6 +20,12 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import com.google.protobuf.InvalidProtocolBufferException;
+
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -31,15 +37,7 @@ import org.jooq.impl.DSL;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
-import com.google.protobuf.InvalidProtocolBufferException;
-
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
@@ -58,9 +56,7 @@ import com.vmturbo.group.common.TargetCollectionUpdate.TargetSettingPolicyUpdate
 import com.vmturbo.group.db.enums.SettingPolicyPolicyType;
 import com.vmturbo.group.db.tables.pojos.SettingPolicy;
 import com.vmturbo.group.db.tables.records.SettingPolicyRecord;
-import com.vmturbo.group.group.GroupStore;
-import com.vmturbo.group.group.GroupStore.GroupStoreUpdateEvent;
-import com.vmturbo.group.group.GroupStore.GroupStoreUpdateEvent.GroupChangeType;
+import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.identity.IdentityProvider;
 
 /**
@@ -100,7 +96,7 @@ public class SettingStore implements Diagnosable {
             @Nonnull final DSLContext dslContext,
             @Nonnull final IdentityProvider identityProvider,
             @Nonnull final SettingPolicyValidator settingPolicyValidator,
-            @Nonnull final GroupStore groupStore,
+            @Nonnull final IGroupStore groupStore,
             @Nonnull final SettingsUpdatesSender settingsUpdatesSender) {
         this.settingSpecStore = Objects.requireNonNull(settingSpecStore);
         this.dslContext = Objects.requireNonNull(dslContext);
@@ -117,10 +113,7 @@ public class SettingStore implements Diagnosable {
                                 SettingPolicyFilter.newBuilder().build()));
         // subscribe to group delete events. We will remove SettingPolicy references to deleted
         // (user) groups when this happens.
-        groupStore.getUpdateEventStream()
-                .filter(event -> event.getType() == GroupChangeType.REMOVED)
-                .map(GroupStoreUpdateEvent::getGroup)
-                .subscribe(this::onGroupDeleted);
+        groupStore.subscribeUserGroupRemoved(this::onGroupDeleted);
     }
 
     /**
@@ -893,23 +886,10 @@ public class SettingStore implements Diagnosable {
      * Handle the event of a group being deleted. When a user-created group is removed, we'll remove
      * references to the group being removed from all user-created {@link SettingPolicy} instances.
      *
-     * @param deletedGroup the group that was removed.
+     * @param deletedGroupId the group that was removed.
      * @return the number of setting policies affected by the change.
      */
-    protected int onGroupDeleted(Group deletedGroup) {
-        // if the group is a discovered group, we won't be making any adjustments. This is because
-        // the group/policy discovery process owns all updates to discovered groups and policies.
-        // We will also NOT remove references to discovered groups in user-created policies, due to
-        // the chance that these groups may only be missing due to discovery errors and may
-        // re-appear in future discoveries. This may result in dangling references when a discovered
-        // group is actually deleted "for real", but the system is designed to tolerate them and treat
-        // them as null references so hopefully they wouldn't become an issue.
-        logger.info("Handling group {} deletion", deletedGroup.getId());
-        if (deletedGroup.hasOrigin() && deletedGroup.getOrigin().equals(Origin.DISCOVERED)) {
-            return 0;
-        }
-
-        long deletedGroupId = deletedGroup.getId();
+    protected int onGroupDeleted(@Nonnull Long deletedGroupId) {
         // get the set of setting policies that included the specified group id.
         final Map<Long, List<SettingProto.SettingPolicy>> policiesForGroup =
                 getSettingPoliciesForGroups(Collections.singleton(deletedGroupId));
