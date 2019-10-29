@@ -197,7 +197,7 @@ public class RepositoryComponent extends BaseVmtComponent {
     // range in a quick anecdotal test, and this would put the message chunk size at 25 - 125k range.
     // This overlaps reasonably with the rumored optimal message size seems to be 16-64k as per
     // https://github.com/grpc/grpc.github.io/issues/371
-    @Value("${repositoryMaxEntitiesPerChunk:25}")
+    @Value("${repositoryMaxEntitiesPerChunk:10}")
     private int maxEntitiesPerChunk;
 
     private ArangoDB arangoDB;

@@ -93,6 +93,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanEntityStats;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanEntityStatsChunk;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
@@ -609,9 +610,9 @@ public class StatsServiceTest {
                 .build();
 
         when(repositoryServiceSpy.getPlanTopologyStats(any()))
-                .thenReturn(PlanTopologyStatsResponse.newBuilder()
-                        .addEntityStats(retStats)
-                        .build());
+                .thenReturn(Collections.singletonList(PlanTopologyStatsResponse.newBuilder()
+                    .setEntityStats(PlanEntityStatsChunk.newBuilder().addEntityStats(retStats).build())
+                    .build()));
 
         final StatSnapshotApiDTO retDto = new StatSnapshotApiDTO();
         retDto.setStatistics(Collections.emptyList());

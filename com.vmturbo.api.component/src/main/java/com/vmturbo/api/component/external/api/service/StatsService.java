@@ -9,8 +9,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
@@ -60,6 +62,7 @@ import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.Pagination;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
@@ -68,8 +71,10 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanEntityStats;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse.TypeCase;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
@@ -85,6 +90,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 
@@ -404,38 +410,48 @@ public class StatsService implements IStatsService {
         // definitely a plan instance; fetch the plan stats from the Repository client.
         final PlanTopologyStatsRequest planStatsRequest = statsMapper.toPlanTopologyStatsRequest(
                 planInstance, inputDto, paginationRequest);
-        final PlanTopologyStatsResponse response =
+        final Iterable<PlanTopologyStatsResponse> response = () ->
                 repositoryRpcService.getPlanTopologyStats(planStatsRequest);
 
         // It's important to respect the order of entities in the returned stats, because
         // they're arranged according to the pagination request.
-        final List<EntityStatsApiDTO> entityStatsList = response.getEntityStatsList().stream()
-            .map(entityStats -> {
-                final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
-                final TopologyDTO.TopologyEntityDTO planEntity = entityStats.getPlanEntity();
-                final ServiceEntityApiDTO serviceEntityApiDTO =
-                        serviceEntityMapper.toServiceEntityApiDTO(planEntity);
-                entityStatsApiDTO.setUuid(Long.toString(planEntity.getOid()));
-                entityStatsApiDTO.setDisplayName(planEntity.getDisplayName());
-                entityStatsApiDTO.setClassName(UIEntityType.fromType(planEntity.getEntityType()).apiStr());
-                entityStatsApiDTO.setRealtimeMarketReference(serviceEntityApiDTO);
-                final List<StatSnapshotApiDTO> statSnapshotsList = entityStats.getPlanEntityStats()
-                        .getStatSnapshotsList()
-                        .stream()
-                        .map(statsMapper::toStatSnapshotApiDTO)
-                        .collect(Collectors.toList());
-                entityStatsApiDTO.setStats(statSnapshotsList);
-                return entityStatsApiDTO;
-            })
-            .collect(Collectors.toList());
+        final List<EntityStatsApiDTO> entityStatsList = new ArrayList<>();
+        final AtomicReference<Optional<PaginationResponse>> paginationResponseReference =
+            new AtomicReference<>(Optional.ofNullable(null));
 
-        if (response.hasPaginationResponse()) {
-            return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
-                    .map(nextCursor -> paginationRequest.nextPageResponse(entityStatsList, nextCursor))
-                    .orElseGet(() -> paginationRequest.finalPageResponse(entityStatsList));
+        StreamSupport.stream(response.spliterator(), false)
+                .forEach(chunk -> {
+                    if (chunk.getTypeCase() == TypeCase.PAGINATIONRESPONSE) {
+                        paginationResponseReference.set(Optional.of(chunk.getPaginationResponse()));
+                    } else {
+                        chunk.getEntityStats().getEntityStatsList().stream()
+                            .forEach(entityStats -> {
+                                final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
+                                final TopologyDTO.TopologyEntityDTO planEntity = entityStats.getPlanEntity();
+                                final ServiceEntityApiDTO serviceEntityApiDTO =
+                                    serviceEntityMapper.toServiceEntityApiDTO(planEntity);
+                                entityStatsApiDTO.setUuid(Long.toString(planEntity.getOid()));
+                                entityStatsApiDTO.setDisplayName(planEntity.getDisplayName());
+                                entityStatsApiDTO.setClassName(UIEntityType.fromType(planEntity.getEntityType()).apiStr());
+                                entityStatsApiDTO.setRealtimeMarketReference(serviceEntityApiDTO);
+                                final List<StatSnapshotApiDTO> statSnapshotsList = entityStats.getPlanEntityStats()
+                                    .getStatSnapshotsList()
+                                    .stream()
+                                    .map(statsMapper::toStatSnapshotApiDTO)
+                                    .collect(Collectors.toList());
+                                entityStatsApiDTO.setStats(statSnapshotsList);
+                                entityStatsList.add( entityStatsApiDTO);
+                            });
+                    }
+                });
+        if (paginationResponseReference.get().isPresent()) {
+            return PaginationProtoUtil.getNextCursor(paginationResponseReference.get().get())
+                .map(nextCursor -> paginationRequest.nextPageResponse(entityStatsList, nextCursor))
+                .orElseGet(() -> paginationRequest.finalPageResponse(entityStatsList));
         } else {
             return paginationRequest.allResultsResponse(entityStatsList);
         }
+
     }
 
     /**

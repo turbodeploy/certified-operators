@@ -108,10 +108,17 @@ message PlanTopologyStatsResponse {
     // Stats for the retrieved entities.
     // The stats are arranged in the order requested in the pagination parameters in
     // the request.
-    repeated PlanEntityStats entity_stats = 1;
+    oneof type {
+        // A chunk of entity stats to stream
+        PlanEntityStatsChunk entity_stats = 1;
 
-    // The response containing the cursor to retrieve the next page of results.
-    optional common.PaginationResponse paginationResponse = 10;
+        // The response containing the cursor to retrieve the next page of results.
+        common.PaginationResponse paginationResponse = 10;
+    }
+}
+message PlanEntityStatsChunk {
+    // The collection of entity stats
+    repeated PlanEntityStats entity_stats = 1;
 }
 
 // Return the plan stats for an entity. Includes the {@link TopologyEntityDTO} if requested.
@@ -157,7 +164,7 @@ service RepositoryService {
     //
     // @param PlanStatsRequest the specification of the plan ID and StatsFilter for this query
     // @returns a sequence of StatSnapshot, including the Plan Topology
-    rpc GetPlanTopologyStats(PlanTopologyStatsRequest) returns (PlanTopologyStatsResponse);
+    rpc GetPlanTopologyStats(PlanTopologyStatsRequest) returns (stream PlanTopologyStatsResponse);
 }
 
 

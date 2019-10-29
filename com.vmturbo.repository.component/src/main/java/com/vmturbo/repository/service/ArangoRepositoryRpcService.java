@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import io.grpc.Status;
@@ -33,6 +34,7 @@ import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.DeleteTopologyRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanEntityStats;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanEntityStatsChunk;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
@@ -182,12 +184,14 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
                         topologyRequest.hasEntityFilter() ?
                                 Optional.of(topologyRequest.getEntityFilter()) : Optional.empty());
             while (reader.hasNext()) {
-                List<ProjectedTopologyEntity> chunk = reader.nextChunk();
-                final RepositoryDTO.RetrieveTopologyResponse responseChunk =
-                                RepositoryDTO.RetrieveTopologyResponse.newBuilder()
-                                        .addAllEntities(Collections2.transform(chunk, ProjectedTopologyEntity::getEntity))
-                                        .build();
-                responseObserver.onNext(responseChunk);
+                for (List<ProjectedTopologyEntity> chunk :
+                    Lists.partition(reader.nextChunk(), maxEntitiesPerChunk)) {
+                    final RepositoryDTO.RetrieveTopologyResponse responseChunk =
+                        RepositoryDTO.RetrieveTopologyResponse.newBuilder()
+                            .addAllEntities(Collections2.transform(chunk, ProjectedTopologyEntity::getEntity))
+                            .build();
+                    responseObserver.onNext(responseChunk);
+                }
             }
             responseObserver.onCompleted();
         } catch (NoSuchElementException nse) {
@@ -353,19 +357,29 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
         final PaginatedStats paginatedStats =
                 entityStatsPaginator.paginate(entities.keySet(), sortCommodityValueGetter, paginationParams);
 
-        final PlanTopologyStatsResponse.Builder responseBuilder = PlanTopologyStatsResponse.newBuilder()
+        final PlanTopologyStatsResponse.Builder paginationResponseBuilder =
+            PlanTopologyStatsResponse.newBuilder()
                 .setPaginationResponse(paginatedStats.getPaginationResponse());
+        responseObserver.onNext(paginationResponseBuilder.build());
 
         // It's important to preserve the order in the paginated stats page.
-        paginatedStats.getNextPageIds().stream()
-            .map(entityId -> {
-                final EntityAndStats entityAndStats = Objects.requireNonNull(entities.get(entityId));
-                return PlanEntityStats.newBuilder()
+        for (List<Long> idsChunk :
+            Lists.partition(paginatedStats.getNextPageIds(), maxEntitiesPerChunk)) {
+            final PlanTopologyStatsResponse.Builder entityStatsResponseBuilder =
+                PlanTopologyStatsResponse.newBuilder();
+            final PlanEntityStatsChunk.Builder planEntityStatsChunkBuilder =
+                PlanEntityStatsChunk.newBuilder();
+            idsChunk.stream()
+                .forEach(entityId -> {
+                    final EntityAndStats entityAndStats = Objects.requireNonNull(entities.get(entityId));
+                    final PlanEntityStats planEntityStat = PlanEntityStats.newBuilder()
                         .setPlanEntity(entityAndStats.entity.getEntity())
-                        .setPlanEntityStats(entityAndStats.stats);
-            })
-            .forEach(responseBuilder::addEntityStats);
-        responseObserver.onNext(responseBuilder.build());
+                        .setPlanEntityStats(entityAndStats.stats).build();
+                    planEntityStatsChunkBuilder.addEntityStats(planEntityStat);
+                });
+            entityStatsResponseBuilder.setEntityStats(planEntityStatsChunkBuilder);
+            responseObserver.onNext(entityStatsResponseBuilder.build());
+        }
         responseObserver.onCompleted();
     }
 
