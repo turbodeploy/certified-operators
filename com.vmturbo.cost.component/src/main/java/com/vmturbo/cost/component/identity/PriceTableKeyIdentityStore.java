@@ -38,20 +38,21 @@ import com.vmturbo.identity.attributes.AttributeExtractor;
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
 import com.vmturbo.identity.attributes.SimpleMatchingAttributes;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
+import com.vmturbo.sql.utils.DbException;
 
 /**
  * Persistence for price table key oids for {@link Tables.PRICE_TABLE}.
  */
 public class PriceTableKeyIdentityStore implements Diagnosable {
 
-    private static final Logger logger = LogManager.getLogger();
-    private final DSLContext dsl;
-    private final IdentityProvider identityProvider;
-
     /**
      * String representing the Price Table key identifiers.
      */
     public static final String PRICE_TABLE_KEY_IDENTIFIERS = "price_table_key_identifiers";
+
+    private static final Logger logger = LogManager.getLogger();
+    private final DSLContext dsl;
+    private final IdentityProvider identityProvider;
 
     /**
      * Constructor for the PriceTableKeyIdentityStore.
@@ -68,16 +69,16 @@ public class PriceTableKeyIdentityStore implements Diagnosable {
     /**
      * Fetch all the price Table OIDs, priceTableKey rows.
      *
-     * @return Map of genearted {@link SimpleMatchingAttributes} to OIDs
+     * @return Map of generated {@link SimpleMatchingAttributes} to OIDs
      * from {@link Tables.PRICE_TABLE_KEY_OID}.
-     * @throws IdentityStoreException if DB access fails.
+     * @throws DbException if DB access fails.
      */
     @Nonnull
-    public Map<IdentityMatchingAttributes, Long> fetchAllOidMappings() throws IdentityStoreException {
+    public Map<IdentityMatchingAttributes, Long> fetchAllOidMappings() throws DbException {
         try {
             return fetchAllOidMappings(dsl);
         } catch (DataAccessException e) {
-            throw new IdentityStoreException("Error fetching all OID mappings", e);
+            throw new DbException("Error fetching all OID mappings", e);
         }
     }
 
@@ -101,34 +102,19 @@ public class PriceTableKeyIdentityStore implements Diagnosable {
     /**
      * Assigns/fetches an OID for a given priceTableKey. This OID is used in PriceTable as well.
      *
-     * @param priceTableKey pricetablekey received in request.
+     * @param newPriceTableKey pricetablekey received in request.
      * @return OID which is either newly assigned or fetched if
      * {@link IdentityMatchingAttributes } matches the given priceTableKey.
      * @throws IdentityStoreException If unable to fetch rows or generate a new OID.
      */
-    public long fetchOrAssignOid(@Nonnull final PriceTableKey priceTableKey) throws
+    public long fetchOrAssignOid(@Nonnull final PriceTableKey newPriceTableKey) throws
             IdentityStoreException {
-        final PriceTableKeyExtractor priceTableKeyExtractor = new PriceTableKeyExtractor();
-        final IdentityMatchingAttributes identityMatchingAttributes =
-                priceTableKeyExtractor.extractAttributes(priceTableKey);
-
         try {
             return dsl.transactionResult(configuration -> {
                 DSLContext transactionDsl = DSL.using(configuration);
-                final Map<IdentityMatchingAttributes, Long> identityMatchingAttributesLongMap =
+                final Map<IdentityMatchingAttributes, Long> currentPriceKeys =
                         fetchAllOidMappings(transactionDsl);
-                if (identityMatchingAttributesLongMap.containsKey(identityMatchingAttributes)) {
-                    //use old oid.
-                    return identityMatchingAttributesLongMap.get(identityMatchingAttributes);
-                } else {
-                    //generate new oid..
-                    long newOid;
-                    final Set<Long> previousPriceTableKeyValues =
-                            new HashSet<>(identityMatchingAttributesLongMap.values());
-                    newOid = generateNewOid(previousPriceTableKeyValues);
-                    saveNewOid(transactionDsl, identityMatchingAttributes, newOid);
-                    return newOid;
-                }
+                return assignPriceTableKeyOid(transactionDsl, newPriceTableKey, currentPriceKeys);
             });
         } catch (DataAccessException e) {
             throw new IdentityStoreException("Exception while fetching new OID", e);
@@ -136,13 +122,14 @@ public class PriceTableKeyIdentityStore implements Diagnosable {
     }
 
     /**
-     * Generates a new OID using {@link IdentityProvider}.
+     * Generates a new and unique OID using {@link IdentityProvider}.
      *
      * @param previousPriceTableKeyValues current values in DB.
      * @return new {@link long} oid.
      * @throws IdentityStoreException if fails to fetch from DB.
      */
-    private long generateNewOid(@Nonnull final Set<Long> previousPriceTableKeyValues) throws IdentityStoreException {
+    private long generateNewOid(@Nonnull final Set<Long> previousPriceTableKeyValues)
+            throws IdentityStoreException {
         final AtomicLong newPriceTableKeyOid = new AtomicLong(identityProvider.next());
         ExecutorService executorService = Executors.newSingleThreadExecutor();
         try {
@@ -167,15 +154,27 @@ public class PriceTableKeyIdentityStore implements Diagnosable {
         return newPriceTableKeyOid.longValue();
     }
 
+    /**
+     * Removes oid mapping to price table keys.
+     * Also cascade deletes row from {@link Tables.PRICE_TABLE}.
+     *
+     * @param oidsToRemove set of oids to remove.
+     * @throws DbException if unable to remove OID from DB.
+     */
+    public void removeOidMappings(@Nonnull final Set<Long> oidsToRemove) throws DbException {
+        removeOidMappings(dsl, oidsToRemove);
+    }
 
     /**
      * Removes oid mapping to price table keys.
      * Also cascade deletes row from {@link Tables.PRICE_TABLE}.
      *
      * @param oidsToRemove set of oids to remove.
-     * @throws IdentityStoreException if unable to remove OID from DB.
+     * @param dsl transaction dsl context.
+     * @throws DbException if unable to remove OID from DB.
      */
-    public void removeOidMappings(@Nonnull final Set<Long> oidsToRemove) throws IdentityStoreException {
+    public void removeOidMappings(@Nonnull final DSLContext dsl, @Nonnull final Set<Long> oidsToRemove)
+            throws DbException {
         try {
             dsl.transaction(configuration -> {
                 DSLContext transactionDsl = DSL.using(configuration);
@@ -184,7 +183,7 @@ public class PriceTableKeyIdentityStore implements Diagnosable {
                         .execute();
             });
         } catch (DataAccessException e) {
-            throw new IdentityStoreException("Error deleting Oid Mappings", e);
+            throw new DbException("Error deleting Oid Mappings", e);
         }
     }
 
@@ -236,7 +235,7 @@ public class PriceTableKeyIdentityStore implements Diagnosable {
                     .filter(Objects::nonNull)
                     .map(priceTableKeyOid -> gson.toJson(priceTableKeyOid, PriceTableKeyOid.class))
                     .collect(Collectors.toList());
-        } catch (IdentityStoreException e) {
+        } catch (DbException e) {
             throw new DiagnosticsException(String.format("Retrieving workflow identifiers from database "
                     + "failed. %s", e));
         }
@@ -294,6 +293,38 @@ public class PriceTableKeyIdentityStore implements Diagnosable {
                 .addAttribute(PRICE_TABLE_KEY_IDENTIFIERS,
                         priceTableKey)
                 .build();
+    }
+
+    /**
+     * Assigns a new OID for a given PriceTableKey; if not found in {@param currentPriceTableKeys}.
+     *
+     * @param context          DSL context.
+     * @param newPriceTableKey    new priceTableKey which is being looked up.
+     * @param currentPriceTableKeys Map of current PriceTableKeys and their OIDs.
+     * @return OID for {@param priceTableKey}.
+     * @throws IdentityStoreException if IdentityStore was unable generate a new OID.
+     */
+    public long assignPriceTableKeyOid(@Nonnull final DSLContext context,
+                                       @Nonnull final PriceTableKey newPriceTableKey,
+                                       @Nonnull final Map<IdentityMatchingAttributes, Long> currentPriceTableKeys)
+            throws IdentityStoreException {
+        final PriceTableKeyExtractor priceTableKeyExtractor = new PriceTableKeyExtractor();
+        final IdentityMatchingAttributes identityMatchingAttributes =
+                priceTableKeyExtractor.extractAttributes(newPriceTableKey);
+        if (currentPriceTableKeys.containsKey(identityMatchingAttributes)) {
+            //use old oid.
+            logger.debug("matching priceTableKey found.");
+            return currentPriceTableKeys.get(identityMatchingAttributes);
+        } else {
+            //generate new oid..
+            logger.debug("matching priceTableKey not found. Generating a new OID.");
+            long newOid;
+            final Set<Long> currentPriceTableKeyValues =
+                    new HashSet<>(currentPriceTableKeys.values());
+            newOid = generateNewOid(currentPriceTableKeyValues);
+            saveNewOid(context, identityMatchingAttributes, newOid);
+            return newOid;
+        }
     }
 
     /**

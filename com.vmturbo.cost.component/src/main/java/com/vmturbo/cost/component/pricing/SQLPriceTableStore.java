@@ -14,7 +14,6 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.protobuf.InvalidProtocolBufferException;
 
-import org.apache.commons.lang.NotImplementedException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
@@ -155,16 +154,6 @@ public class SQLPriceTableStore implements PriceTableStore {
             }
         });
         return priceTableKeyLongMap;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-
-    @Override
-    public Collection<PriceTableKey> deletePriceTables(@Nonnull final Collection<Long> oids) {
-        // todo roop OM-50595
-        throw new NotImplementedException();
     }
 
     /**

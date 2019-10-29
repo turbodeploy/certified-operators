@@ -64,7 +64,7 @@ import com.vmturbo.cost.component.discount.DuplicateAccountIdException;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.entity.cost.ProjectedEntityCostStore;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
-import com.vmturbo.cost.component.utils.BusinessAccountHelper;
+import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.sql.utils.DbException;
@@ -219,7 +219,7 @@ public class CostRpcServiceTest {
 
     @Before
     public void setUp() {
-        businessAccountHelper.storeTargetMapping(2, 2);
+        businessAccountHelper.storeTargetMapping(2, ImmutableList.of(2L));
         costRpcService = new CostRpcService(discountStore, accountExpenseStore, entityCostStore,
                 projectedEntityCostStore, timeFrameCalculator, businessAccountHelper, clock);
     }

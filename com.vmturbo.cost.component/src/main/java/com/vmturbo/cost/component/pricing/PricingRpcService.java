@@ -12,6 +12,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Sets;
 
 import io.grpc.stub.StreamObserver;
 
@@ -21,6 +22,8 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.common.protobuf.cost.Pricing.GetAccountPriceTableRequest;
+import com.vmturbo.common.protobuf.cost.Pricing.GetAccountPriceTableResponse;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableChecksumRequest;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableChecksumResponse;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableChecksumResponse.Builder;
@@ -37,6 +40,8 @@ import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTableSegment.ProbePric
 import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTableSegment.ProbeRISpecPriceChunk;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstanceSpecPrice;
+import com.vmturbo.common.protobuf.cost.Pricing.UploadAccountPriceTableKeyRequest;
+import com.vmturbo.common.protobuf.cost.Pricing.UploadAccountPriceTableKeysResponse;
 import com.vmturbo.common.protobuf.cost.Pricing.UploadPriceTablesResponse;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceImplBase;
 import com.vmturbo.cost.component.pricing.PriceTableStore.PriceTables;
@@ -51,18 +56,21 @@ public class PricingRpcService extends PricingServiceImplBase {
     private static final Logger logger = LogManager.getLogger();
 
     private final PriceTableStore priceTableStore;
-
     private final ReservedInstanceSpecStore reservedInstanceSpecStore;
+    private final BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore;
 
     /**
      * Constructor.
-     * @param priceTableStore price table store
-     * @param riSpecStore reserved instance spec store
+     * @param priceTableStore price table store.
+     * @param riSpecStore reserved instance spec store.
+     * @param businessAccountPriceTableKeyStore business account to price table key store.
      */
     public PricingRpcService(@Nonnull final PriceTableStore priceTableStore,
-                             @Nonnull final ReservedInstanceSpecStore riSpecStore) {
+                             @Nonnull final ReservedInstanceSpecStore riSpecStore,
+                             @Nonnull final BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore) {
         this.priceTableStore = Objects.requireNonNull(priceTableStore);
         this.reservedInstanceSpecStore = Objects.requireNonNull(riSpecStore);
+        this.businessAccountPriceTableKeyStore = Objects.requireNonNull(businessAccountPriceTableKeyStore);
     }
 
     @Override
@@ -164,6 +172,30 @@ public class PricingRpcService extends PricingServiceImplBase {
                 responseObserver.onCompleted();
             }
         };
+    }
+
+    @Override
+    public void uploadAccountPriceTableKeys(
+            final UploadAccountPriceTableKeyRequest request, final StreamObserver<UploadAccountPriceTableKeysResponse> responseObserver) {
+        UploadAccountPriceTableKeysResponse.Builder builder = UploadAccountPriceTableKeysResponse.newBuilder();
+
+        businessAccountPriceTableKeyStore.uploadBusinessAccount(request.getBusinessAccountPriceTableKey());
+        responseObserver.onNext(builder.build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void getAccountPriceTable(final GetAccountPriceTableRequest request,
+                                         final StreamObserver<GetAccountPriceTableResponse> responseStreamObserver) {
+        GetAccountPriceTableResponse.Builder builder = GetAccountPriceTableResponse.newBuilder();
+
+        Map<Long, Long> priceTableKeyMap = businessAccountPriceTableKeyStore
+                .fetchPriceTableKeyOidsByBusinessAccount(Sets.newHashSet(request.getBusinessAccountOidList()));
+
+        builder.putAllBusinessAccountPriceTableKey(priceTableKeyMap);
+
+        responseStreamObserver.onNext(builder.build());
+        responseStreamObserver.onCompleted();
     }
 
     /**

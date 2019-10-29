@@ -11,7 +11,6 @@ import java.util.Collections;
 
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
@@ -20,8 +19,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsWriter;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceCoverageUpdate;
-import com.vmturbo.cost.component.utils.BusinessAccountHelper;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.cost.component.util.BusinessAccountHelper;
 
 public class LiveTopologyEntitiesListenerTest {
 

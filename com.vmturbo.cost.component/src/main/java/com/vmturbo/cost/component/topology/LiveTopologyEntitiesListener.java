@@ -1,8 +1,8 @@
 package com.vmturbo.cost.component.topology;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
@@ -20,7 +20,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsWriter;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceCoverageUpdate;
-import com.vmturbo.cost.component.utils.BusinessAccountHelper;
+import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbException;
 import com.vmturbo.topology.processor.api.EntitiesListener;
@@ -78,6 +78,8 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
             return;
         }
         logger.info("Received live topology with topologyId: {}", topologyInfo.getTopologyId());
+        businessAccountHelper.resetBusinessAccountToTargetIdMap();
+
         final CloudTopology<TopologyEntityDTO> cloudTopology =
                 cloudTopologyFactory.newCloudTopology(topologyContextId, entityIterator);
 
@@ -107,29 +109,27 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
             }
         } else {
             logger.info("live topology with topologyId: {}  doesn't have Cloud entity, skip processing",
-                topologyInfo.getTopologyId());
+                    topologyInfo.getTopologyId());
         }
     }
 
-   // store the mapping between business account id to discovered target id
-    private void storeBusinessAccountIdToTargetIdMapping(final Map<Long,TopologyEntityDTO> cloudEntities) {
+    // store the mapping between business account id to discovered target id
+    private void storeBusinessAccountIdToTargetIdMapping(@Nonnull final Map<Long, TopologyEntityDTO> cloudEntities) {
         for (TopologyEntityDTO entityDTO : cloudEntities.values()) {
             // If the entity is a business account, store the discovered target id.
             if (entityDTO.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE) {
-                getTargetId(entityDTO).ifPresent(targetId -> businessAccountHelper
-                        .storeTargetMapping(entityDTO.getOid(), targetId));
+                        businessAccountHelper
+                                .storeTargetMapping(entityDTO.getOid(), getTargetId(entityDTO));
             }
-       }
+        }
     }
 
     // get target Id, it should have only one target for a business account
-    private Optional<Long> getTargetId(final TopologyEntityDTO entityDTO) {
+    private Collection<Long> getTargetId(final TopologyEntityDTO entityDTO) {
         return entityDTO
                 .getOrigin()
                 .getDiscoveryOrigin()
-                .getDiscoveringTargetIdsList()
-                .stream()
-                .findFirst();
+                .getDiscoveringTargetIdsList();
     }
 }
 

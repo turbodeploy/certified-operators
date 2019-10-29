@@ -82,15 +82,6 @@ public interface PriceTableStore {
     Map<PriceTableKey, Long> getChecksumByPriceTableKeys(@Nonnull Collection<PriceTableKey> priceTableKeyList);
 
     /**
-     * todo OM-50595.
-     *
-     * @param oids The oids of the price tables to delete.
-     *
-     * @return A collection of price table keys
-     */
-    Collection<PriceTableKey> deletePriceTables(@Nonnull Collection<Long> oids);
-
-    /**
      * Holds the {@link PriceTable}, {@link ReservedInstancePriceTable} and {@link Long}
      * checksum value for uploading to DB.
      */

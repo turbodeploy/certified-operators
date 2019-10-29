@@ -1,6 +1,5 @@
 package com.vmturbo.cost.component.topology;
 
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -85,12 +84,27 @@ public class TopologyListenerConfig {
                         costConfig.businessAccountHelper(),
                         costJournalRecorder());
         if (enabled) {
-            logger.info("Enabling topology listener.");
+            logger.info("Enabling topology listener for liveTopologies.");
             topologyProcessor().addLiveTopologyListener(entitiesListener);
         } else {
-            logger.info("Not adding topology listener.");
+            logger.info("Not adding topology listener for liveTopologies.");
         }
         return entitiesListener;
+    }
+
+    @Bean
+    public TopologyProcessorNotificationListener topologyProcessorNotificationListener() {
+        final TopologyProcessorNotificationListener targetListener =
+                new TopologyProcessorNotificationListener(
+                costConfig.businessAccountHelper(),
+                pricingConfig.businessAccountPriceTableKeyStore());
+        if (enabled) {
+            logger.info("Enabling topology listener for notifications");
+            topologyProcessor().addTargetListener(targetListener);
+        } else {
+            logger.info("Not adding topology listener for notifications.");
+        }
+        return targetListener;
     }
 
     @Bean
@@ -98,7 +112,8 @@ public class TopologyListenerConfig {
         // only add the live topology topic listener if we plan on processing them.
         if (enabled) {
             return topologyClientConfig.topologyProcessor(
-                    TopologyProcessorSubscription.forTopic(Topic.LiveTopologies));
+                    TopologyProcessorSubscription.forTopic(Topic.LiveTopologies),
+                    TopologyProcessorSubscription.forTopic(Topic.Notifications));
         } else {
             return topologyClientConfig.topologyProcessor();
         }

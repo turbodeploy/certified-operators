@@ -41,6 +41,17 @@ public class PricingConfig {
     }
 
     @Bean
+    public BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore() {
+        return new BusinessAccountPriceTableKeyStore(databaseConfig.dsl(),
+                priceTableKeyIdentityStore());
+    }
+
+    /**
+     * Bean for PriceTableKeyIdentityStore.
+     *
+     * @return {@link PriceTableKeyIdentityStore }
+     */
+    @Bean
     public PriceTableKeyIdentityStore priceTableKeyIdentityStore() {
         return new PriceTableKeyIdentityStore(
                 databaseConfig.dsl(),
@@ -54,7 +65,8 @@ public class PricingConfig {
      */
     @Bean
     public PricingRpcService pricingRpcService() {
-        return new PricingRpcService(priceTableStore(), reservedInstanceConfig.reservedInstanceSpecStore());
+        return new PricingRpcService(priceTableStore(), reservedInstanceConfig.reservedInstanceSpecStore(),
+                businessAccountPriceTableKeyStore());
     }
 
     @Bean

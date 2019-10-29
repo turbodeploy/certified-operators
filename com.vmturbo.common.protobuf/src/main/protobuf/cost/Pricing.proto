@@ -62,6 +62,11 @@ message PriceTableChecksum {
     optional int64 check_sum = 2;
 }
 
+// Map of business account OID to priceTableKey
+message BusinessAccountPriceTableKey {
+    map<int64, PriceTableKey> business_account_price_table_key = 1;
+}
+
 // The pricing information for reserved instances.
 //
 // This is kept separate from the main pricing table, because reserved instance pricing is only
@@ -189,6 +194,26 @@ message GetPriceTableChecksumResponse {
     repeated PriceTableChecksum pricetable_to_checksum = 1;
 }
 
+// Request for upload map of businessAccount to PriceTable in cost DB.
+message UploadAccountPriceTableKeyRequest {
+    optional BusinessAccountPriceTableKey business_account_price_table_key = 1;
+}
+
+// Response for UploadAccountPriceTableKeyRequest.
+message UploadAccountPriceTableKeysResponse {
+
+}
+
+// Request to fetch map of BA OIDs to Price table key.
+message GetAccountPriceTableRequest {
+    repeated int64 business_account_oid  = 1;
+}
+
+// Response for GetAccountPriceTableKeys. Returns map of BA OIDs to PriceTableKey OIDs.
+message GetAccountPriceTableResponse {
+    map<int64, int64> business_account_price_table_key = 1;
+}
+
 // The pricing service is the interface to upload and retrieve pricing data from the cost
 // component.
 service PricingService {
@@ -204,7 +229,19 @@ service PricingService {
     rpc GetPriceTableChecksum (GetPriceTableChecksumRequest) returns (GetPriceTableChecksumResponse);
 
     // Upload the most recent price table discovered by a particular cost probe.
-    //
     // Returns INVALID_ARGUMENT if the request is missing fields.
+    // Captures priceTableKey -> priceTable data. Its working is closely related to information
+    // captured by UploadAccountPriceTableKeys. Which captures BA OID - > priceTableKey information.
     rpc UpdatePriceTables (stream ProbePriceTableSegment) returns (UploadPriceTablesResponse);
+
+    // Upload map of businessAccounts id to priceTableKeys discovered.
+    // This is closely related to UpdatePriceTables which provides priceTableKeys to priceTable information.
+    // BA -> priceTable data can be looked up only after both these rpc call completes.
+    rpc UploadAccountPriceTableKeys (UploadAccountPriceTableKeyRequest)
+    returns (UploadAccountPriceTableKeysResponse);
+
+    //Request to fetch BA OIDs to price table key mapping.
+    //If no BA OIDs are provided, all mappings are returned.
+    rpc GetAccountPriceTable(GetAccountPriceTableRequest)
+    returns (GetAccountPriceTableResponse);
 }

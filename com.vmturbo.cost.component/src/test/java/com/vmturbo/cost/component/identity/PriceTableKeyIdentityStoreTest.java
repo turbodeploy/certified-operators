@@ -6,8 +6,6 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Mockito.mock;
 
-import javax.annotation.Nonnull;
-
 import java.lang.reflect.Type;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -16,6 +14,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.gson.Gson;
@@ -50,6 +50,7 @@ import com.vmturbo.identity.attributes.IdentityMatchingAttribute;
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
+import com.vmturbo.sql.utils.DbException;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 /**
@@ -66,7 +67,8 @@ public class PriceTableKeyIdentityStoreTest {
     private final Type type = new TypeToken<Map<String, String>>() {
     }.getType();
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
-    private MutableFixedClock clock = new MutableFixedClock(Instant.ofEpochMilli(1_000_000_000), ZoneId.systemDefault());
+    private MutableFixedClock clock = new MutableFixedClock(Instant.ofEpochMilli(1_000_000_000),
+            ZoneId.systemDefault());
 
     @Autowired
     protected TestSQLDatabaseConfig dbConfig;
@@ -103,10 +105,10 @@ public class PriceTableKeyIdentityStoreTest {
     /**
      * Test Empty set of oids.
      *
-     * @throws IdentityStoreException An IdentityStoreException.
+     * @throws DbException An IdentityStoreException.
      */
     @Test
-    public void testEmptySetOfOids() throws IdentityStoreException {
+    public void testEmptySetOfOids() throws DbException {
         Map<IdentityMatchingAttributes, Long> test = testIdentityStore.fetchAllOidMappings();
         assertThat(test.isEmpty(), is(true));
     }
@@ -114,14 +116,16 @@ public class PriceTableKeyIdentityStoreTest {
     /**
      * Testing Oid Identifiers.
      *
-     * @throws IdentityStoreException An IdentityStore Exception.
+     * @throws IdentityStoreException if unable to assign new ID.
+     * @throws DbException if unable to fetch DB rows.
      */
     @Test
-    public void testOidWithIdentifiers() throws IdentityStoreException {
+    public void testOidWithIdentifiers() throws IdentityStoreException, DbException {
         PriceTableKey priceTableKey = mockPriceTableKey("aws");
 
         testIdentityStore.fetchOrAssignOid(priceTableKey);
-        Map<IdentityMatchingAttributes, Long> matchingAttributesLongMap = testIdentityStore.fetchAllOidMappings();
+        Map<IdentityMatchingAttributes, Long> matchingAttributesLongMap = testIdentityStore
+                .fetchAllOidMappings();
         assertThat(matchingAttributesLongMap.size(), is(1));
 
         Set<IdentityMatchingAttributes> identityMatchingAttributes = matchingAttributesLongMap.keySet();
@@ -140,14 +144,16 @@ public class PriceTableKeyIdentityStoreTest {
     /**
      * Testing oids with the same identifier.
      *
-     * @throws IdentityStoreException An IdentityStore Exception.
+     * @throws IdentityStoreException if unable to assign new ID.
+     * @throws DbException if unable to fetch DB rows.
      */
     @Test
-    public void testOidWithSameIdentifier() throws IdentityStoreException {
+    public void testOidWithSameIdentifier() throws IdentityStoreException, DbException {
         PriceTableKey priceTableKey = mockPriceTableKey("aws");
         testIdentityStore.fetchOrAssignOid(priceTableKey);
         testIdentityStore.fetchOrAssignOid(priceTableKey);
-        Map<IdentityMatchingAttributes, Long> matchingAttributesLongMap = testIdentityStore.fetchAllOidMappings();
+        Map<IdentityMatchingAttributes, Long> matchingAttributesLongMap = testIdentityStore
+                .fetchAllOidMappings();
         assertThat(matchingAttributesLongMap.size(), is(1));
     }
 
@@ -155,17 +161,18 @@ public class PriceTableKeyIdentityStoreTest {
     /**
      * Testing oids with unique identifiers.
      *
-     * @throws IdentityStoreException An IdentityStore Exception.
+     * @throws IdentityStoreException if unable to assign new ID.
+     * @throws DbException if unable to fetch DB rows.
      */
     @Test
-    public void testOidWithUniqueIdentifiers() throws IdentityStoreException {
+    public void testOidWithUniqueIdentifiers() throws IdentityStoreException, DbException {
         PriceTableKey priceTableKey = mockPriceTableKey("azure");
         testIdentityStore.fetchOrAssignOid(priceTableKey);
 
         priceTableKey = priceTableKey.newBuilderForType().setProbeType("aws").build();
         testIdentityStore.fetchOrAssignOid(priceTableKey);
 
-        Map<IdentityMatchingAttributes, Long> matchingAttributesLongMap = testIdentityStore.fetchAllOidMappings();
+        Map<IdentityMatchingAttributes, Long> matchingAttributesLongMap = testIdentityStore.fetchAllOidMappings(dsl);
         assertThat(matchingAttributesLongMap.size(), is(2));
     }
 
@@ -173,22 +180,25 @@ public class PriceTableKeyIdentityStoreTest {
     /**
      * Testing deletion of price table keys.
      *
-     * @throws IdentityStoreException An IdentityStore Exception.
+     * @throws IdentityStoreException if unable to assign new ID.
+     * @throws DbException if unable to fetch DB rows.
      */
     @Test
-    public void testCascadeDeleteOnPriceTableKeyOidDelete() throws IdentityStoreException {
+    public void testCascadeDeleteOnPriceTableKeyOidDelete() throws IdentityStoreException, DbException {
         PriceTableKey priceTableKey = mockPriceTableKey("azure");
         final long oid = testIdentityStore.fetchOrAssignOid(priceTableKey);
 
         final PriceTableMergeFactory mergeFactory = mock(PriceTableMergeFactory.class);
 
-        SQLPriceTableStore sqlPriceTableStore = new SQLPriceTableStore(clock, dsl, new PriceTableKeyIdentityStore(dsl,
+        SQLPriceTableStore sqlPriceTableStore = new SQLPriceTableStore(clock, dsl,
+                new PriceTableKeyIdentityStore(dsl,
                 new IdentityProvider(0)), mergeFactory);
 
         final ReservedInstancePriceTable fooPriceTable = ReservedInstancePriceTable.newBuilder()
                 .putRiPricesBySpecId(1L, ReservedInstancePrice.getDefaultInstance())
                 .build();
-        sqlPriceTableStore.putProbePriceTables(ImmutableMap.of(priceTableKey, new PriceTables(null, fooPriceTable, 111L)));
+        sqlPriceTableStore.putProbePriceTables(ImmutableMap.of(priceTableKey,
+                new PriceTables(null, fooPriceTable, 111L)));
 
 
         assertThat(getRowCount(), is(1));
@@ -245,14 +255,15 @@ public class PriceTableKeyIdentityStoreTest {
      * @throws IdentityStoreException An IdentityStore Exception.
      */
     @Test
-    public void testCollectDiags() throws DiagnosticsException, IdentityStoreException {
+    public void testCollectDiags() throws DiagnosticsException, DbException {
         insertAzurePriceTable();
         //collecting diags
         List<String> listOfString = testIdentityStore.collectDiags();
         final PriceTableKeyOid priceTableKeyOid =
                 GSON.fromJson(listOfString.iterator().next(), PriceTableKeyOid.class);
         final IdentityMatchingAttributes attrs = getMatchingAttributes(priceTableKeyOid.priceTableKeyIdentifiers);
-        Map<IdentityMatchingAttributes, Long> identityMatchingAttributesLongMap = testIdentityStore.fetchAllOidMappings();
+        Map<IdentityMatchingAttributes, Long> identityMatchingAttributesLongMap = testIdentityStore
+                .fetchAllOidMappings();
         assertThat(identityMatchingAttributesLongMap.size(), is(1));
         final IdentityMatchingAttributes attributes =
                 identityMatchingAttributesLongMap.entrySet().iterator().next().getKey();
@@ -266,7 +277,7 @@ public class PriceTableKeyIdentityStoreTest {
      * @throws IdentityStoreException An IdentityStore Exception.
      */
     @Test
-    public void testRestoreDiags() throws DiagnosticsException, IdentityStoreException {
+    public void testRestoreDiags() throws DiagnosticsException, DbException {
         insertAzurePriceTable();
         //collecting diags
         final List<String> restoreList = testIdentityStore.collectDiags();
@@ -288,7 +299,7 @@ public class PriceTableKeyIdentityStoreTest {
      * @throws DiagnosticsException   exception during collecting or restoring diags.
      */
     @Test
-    public void testCollectAndRestoreDiags() throws IdentityStoreException, DiagnosticsException {
+    public void testCollectAndRestoreDiags() throws DbException, DiagnosticsException {
         insertAzurePriceTable();
 
         Map<IdentityMatchingAttributes, Long> originalMap = testIdentityStore

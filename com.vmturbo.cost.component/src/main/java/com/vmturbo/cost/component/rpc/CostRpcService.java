@@ -67,9 +67,9 @@ import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.entity.cost.ProjectedEntityCostStore;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
 import com.vmturbo.cost.component.util.AccountExpensesFilter;
+import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.cost.component.util.CostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter;
-import com.vmturbo.cost.component.utils.BusinessAccountHelper;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.sql.utils.DbException;
@@ -324,47 +324,52 @@ public class CostRpcService extends CostServiceImplBase {
                 boolean isCloudServiceRequest = request.getGroupBy().equals(GroupByType.CLOUD_SERVICE);
                 boolean isGroupByTargetRequest  = request.getGroupBy().equals(GroupByType.TARGET);
                 snapshotToExpenseMap.forEach((snapshotTime, accountIdToExpensesMap) -> {
-                            final CloudCostStatRecord.Builder snapshotBuilder = CloudCostStatRecord.newBuilder();
-                            snapshotBuilder.setSnapshotDate(snapshotTime);
-                            final List<AccountExpenseStat> accountExpenseStats = Lists.newArrayList();
-                            accountIdToExpensesMap.values().forEach(accountExpenses -> {
-                                accountExpenses.getAccountExpensesInfo().getServiceExpensesList().forEach(serviceExpenses -> {
-                                    final double amount =  serviceExpenses.getExpenses().getAmount();
-                                    // build the record for this stat (commodity type)
-                                    final AccountExpenseStat accountExpenseStat = new AccountExpenseStat(
-                                            isCloudServiceRequest ?
-                                                    serviceExpenses.getAssociatedServiceId() : businessAccountHelper
-                                                    .resolveTargetId(accountExpenses.getAssociatedAccountId()),
-                                            amount);
-                                    // add this record to the snapshot for this timestamp
-                                    accountExpenseStats.add(accountExpenseStat);
-                                    historicData.computeIfAbsent(accountExpenseStat.getAssociatedEntityId(),
-                                            k -> new TreeMap<>()).put(snapshotTime, (float) amount);
-                                    accountIdToEntitiesMap.computeIfAbsent(accountExpenseStat.getAssociatedEntityId(),
-                                            k -> new HashSet<>()).add(serviceExpenses.getAssociatedServiceId());
-                                });
+                    final CloudCostStatRecord.Builder snapshotBuilder = CloudCostStatRecord.newBuilder();
+                    snapshotBuilder.setSnapshotDate(snapshotTime);
+                    final List<AccountExpenseStat> accountExpenseStats = Lists.newArrayList();
+                    accountIdToExpensesMap.values().forEach(accountExpenses -> {
+                        accountExpenses.getAccountExpensesInfo().getServiceExpensesList().forEach(serviceExpenses -> {
+                            final double amount = serviceExpenses.getExpenses().getAmount();
+                            // build the record for this stat (commodity type)
+                            if (isCloudServiceRequest) {
+                                updateAccountExpenses(accountExpenseStats,
+                                        historicData,
+                                        accountIdToEntitiesMap,
+                                        snapshotTime,
+                                        serviceExpenses.getAssociatedServiceId(), amount);
+                            } else {
+                                businessAccountHelper
+                                        .resolveTargetId(accountExpenses.getAssociatedAccountId())
+                                        .forEach(associatedServiceId -> updateAccountExpenses(accountExpenseStats,
+                                                historicData,
+                                                accountIdToEntitiesMap,
+                                                snapshotTime,
+                                                associatedServiceId, amount));
+                            }
+                        });
 
-                                if (isGroupByTargetRequest) {
-                                    accountExpenses.getAccountExpensesInfo().getTierExpensesList().forEach(tierExpenses -> {
-                                        long accountId = businessAccountHelper.resolveTargetId(accountExpenses.getAssociatedAccountId());
-                                        double existingStatAmount = 0.0f;
-                                        if (historicData.containsKey(accountId)) {
-                                            existingStatAmount = historicData.get(accountId).getOrDefault(snapshotTime, 0.0f);
-                                        }
-
-                                        final double amount = tierExpenses.getExpenses().getAmount() + existingStatAmount;
-                                        // build the record for this stat (commodity type)
-                                        final AccountExpenseStat accountExpenseStat =
-                                                new AccountExpenseStat(accountId, amount);
-                                        // add this record to the snapshot for this timestamp
-                                        accountExpenseStats.add(accountExpenseStat);
-                                        historicData.computeIfAbsent(accountExpenseStat.getAssociatedEntityId(),
-                                                k -> new TreeMap<>()).put(snapshotTime, (float) amount);
-                                        accountIdToEntitiesMap.computeIfAbsent(accountExpenseStat.getAssociatedEntityId(),
-                                                k -> new HashSet<>()).add(tierExpenses.getAssociatedTierId());
-                                    });
-                                }
+                        if (isGroupByTargetRequest) {
+                            accountExpenses.getAccountExpensesInfo()
+                                    .getTierExpensesList().forEach(tierExpenses -> {
+                                businessAccountHelper
+                                        .resolveTargetId(accountExpenses.getAssociatedAccountId())
+                                        .forEach(associatedServiceId -> {
+                                            double existingStatAmount = 0.0f;
+                                            if (historicData.containsKey(associatedServiceId)) {
+                                                existingStatAmount = historicData.get(associatedServiceId)
+                                                        .getOrDefault(snapshotTime, 0.0f);
+                                            }
+                                            final double amount = tierExpenses.getExpenses()
+                                                    .getAmount() + existingStatAmount;
+                                            updateAccountExpenses(accountExpenseStats,
+                                                    historicData,
+                                                    accountIdToEntitiesMap,
+                                                    snapshotTime,
+                                                    associatedServiceId, amount);
+                                        });
                             });
+                        }
+                    });
 
 
                     snapshotBuilder.addAllStatRecords(aggregateStatRecords(accountExpenseStats));
@@ -434,6 +439,21 @@ public class CostRpcService extends CostServiceImplBase {
         }
 
 
+    }
+
+    private void updateAccountExpenses(@Nonnull final List<AccountExpenseStat> accountExpenseStats,
+                                       @Nonnull final Map<Long, Map<Long, Float>> historicData,
+                                       @Nonnull final Map<Long, Set<Long>> accountIdToEntitiesMap,
+                                       @Nonnull final Long snapshotTime,
+                                       final long associatedServiceId,
+                                       final double amount) {
+        final AccountExpenseStat accountExpenseStat = new AccountExpenseStat(associatedServiceId, amount);
+        // add this record to the snapshot for this timestamp
+        accountExpenseStats.add(accountExpenseStat);
+        historicData.computeIfAbsent(accountExpenseStat.getAssociatedEntityId(),
+                k -> new TreeMap<>()).put(snapshotTime, (float)amount);
+        accountIdToEntitiesMap.computeIfAbsent(accountExpenseStat.getAssociatedEntityId(),
+                k -> new HashSet<>()).add(associatedServiceId);
     }
 
     // aggregate account expense stats based to either targetId, or serviceId

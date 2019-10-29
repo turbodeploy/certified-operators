@@ -4,14 +4,21 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -21,6 +28,9 @@ import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.common.protobuf.cost.Pricing.BusinessAccountPriceTableKey;
+import com.vmturbo.common.protobuf.cost.Pricing.GetAccountPriceTableRequest;
+import com.vmturbo.common.protobuf.cost.Pricing.GetAccountPriceTableResponse;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableChecksumRequest;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableChecksumResponse;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableRequest;
@@ -30,6 +40,7 @@ import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTableKey;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstanceSpecPrice;
+import com.vmturbo.common.protobuf.cost.Pricing.UploadAccountPriceTableKeyRequest;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceStub;
@@ -66,7 +77,9 @@ public class PricingRpcServiceTest {
 
     private ReservedInstanceSpecStore riSpecStore = mock(ReservedInstanceSpecStore.class);
 
-    private PricingRpcService backend = new PricingRpcService(priceTableStore, riSpecStore);
+    private BusinessAccountPriceTableKeyStore businessAccountPriceTableKeyStore = mock(BusinessAccountPriceTableKeyStore.class);
+
+    private PricingRpcService backend = new PricingRpcService(priceTableStore, riSpecStore, businessAccountPriceTableKeyStore);
 
     /**
      * Create a grpc instance of the pricing rpc service.
@@ -231,7 +244,8 @@ public class PricingRpcServiceTest {
 
         // generate the PriceTableStore
         PriceTableStore priceTableStore = Mockito.spy(PriceTableStore.class);
-        PricingRpcService service = new PricingRpcService(priceTableStore, riSpecstore);
+        PricingRpcService service = new PricingRpcService(priceTableStore, riSpecstore,
+                businessAccountPriceTableKeyStore);
         ReservedInstancePriceTable riPriceTable = service.updateRISpecsAndBuildRIPriceTable(specPriceList);
 
         // get the map from ReservedInstanceSpec OID to ReservedInstancePrice
@@ -243,5 +257,35 @@ public class PricingRpcServiceTest {
         Assert.assertTrue(riPrices.get(RESERVED_INSTANCE_SPEC_ID_2).equals(riPrice1));
         Assert.assertTrue(riPrices.get(RESERVED_INSTANCE_SPEC_ID_3) != null);
         Assert.assertTrue(riPrices.get(RESERVED_INSTANCE_SPEC_ID_3).equals(riPrice2));
+    }
+
+    /**
+     * Test upload of BA oid to {@link PriceTableKey} mappings to DB.
+     */
+    @Test
+    public void testUploadBusinessAccountPriceTableKey() {
+        BusinessAccountPriceTableKey businessAccountPriceTableKey = BusinessAccountPriceTableKey
+                .newBuilder().putBusinessAccountPriceTableKey(123, PRICE_TABLE_KEY).build();
+        UploadAccountPriceTableKeyRequest uploadAccountPriceTableKeyRequest = UploadAccountPriceTableKeyRequest.newBuilder()
+                .setBusinessAccountPriceTableKey(businessAccountPriceTableKey).build();
+        pricingServiceBlockingStub.uploadAccountPriceTableKeys(uploadAccountPriceTableKeyRequest);
+        verify(businessAccountPriceTableKeyStore).uploadBusinessAccount(any());
+    }
+
+    /**
+     * Test fetch of BA oid to {@link PriceTableKey} mapping indexed by BA OIDs.
+     * See {@link BusinessAccountPriceTableKey }.
+     */
+    @Test
+    public void fetchBusinessAccountPriceTableKey() {
+        Map<Long, Long> expected = Maps.newHashMap(ImmutableMap.of(123L, 456L));
+        when(businessAccountPriceTableKeyStore.fetchPriceTableKeyOidsByBusinessAccount(Collections.emptySet()))
+                .thenReturn(expected);
+        GetAccountPriceTableResponse getAccountPriceTableKeyResponse = pricingServiceBlockingStub
+                .getAccountPriceTable(GetAccountPriceTableRequest.newBuilder().build());
+        verify(businessAccountPriceTableKeyStore, times(1)).fetchPriceTableKeyOidsByBusinessAccount(any());
+        assertEquals("BA oid to priceTableKey fetch mismatch",
+                getAccountPriceTableKeyResponse.getBusinessAccountPriceTableKeyMap(),
+                expected);
     }
 }
