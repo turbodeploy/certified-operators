@@ -5,6 +5,7 @@ package com.vmturbo.platform.analysis.testUtilities;
 
 import java.util.*;
 
+import com.google.common.collect.Lists;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.google.common.collect.ImmutableList;
@@ -60,6 +61,7 @@ public class TestUtils {
     public static final int DBS_TYPE = 9;
     public static final int APP_SERVER_TYPE = 10;
     public static final int DB_TYPE = 11;
+    public static final int DC_TYPE = 12;
 
     public static final double FLOATING_POINT_DELTA = 1e-7;
     public static final double FlOATING_POINT_DELTA2 = 1e-15;
@@ -104,6 +106,9 @@ public class TestUtils {
     public static final CommoditySpecification SEGMENTATION_COMMODITY = createNewCommSpec();
     public static final CommoditySpecification RESPONSE_TIME = createNewCommSpec();
     public static final CommoditySpecification STORAGE = createNewCommSpec();
+    public static final CommoditySpecification POWER = createNewCommSpec();
+    public static final CommoditySpecification SPACE = createNewCommSpec();
+    public static final CommoditySpecification COOLING = createNewCommSpec();
 
     public static final CommoditySpecificationTO iopsTO =
                     CommoditySpecificationTO.newBuilder().setBaseType(TestUtils.IOPS.getBaseType())
@@ -179,6 +184,20 @@ public class TestUtils {
     public static Trader createPM(Economy economy, List<Long> cliques, double cpuCapacity, double memCapacity, boolean isCloneable) {
         Trader pm = createTrader(economy, PM_TYPE, cliques, Arrays.asList(CPU, MEM), new double[]{cpuCapacity, memCapacity}, isCloneable, false);
         return pm;
+    }
+
+    /**
+     * This generates a non-clonable DC that sells Power, Space and Cooling
+     *
+     * @param economy - Economy where you want to create a DC.
+     * @param name - Name of the DC
+     * @return Trader i.e DC
+     */
+    public static Trader createDC(Economy economy, String name) {
+        Trader dc = createTrader(economy, DC_TYPE, Lists.newArrayList(), Arrays.asList(POWER, SPACE, COOLING),
+                new double[]{100, 100, 100}, false, false);
+        dc.setDebugInfoNeverUseInCode(name);
+        return dc;
     }
 
     /**

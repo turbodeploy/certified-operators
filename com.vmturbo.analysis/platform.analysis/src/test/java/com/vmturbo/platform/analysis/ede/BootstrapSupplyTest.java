@@ -1085,6 +1085,7 @@ public class BootstrapSupplyTest {
         Trader pm2 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, true,"PM2");
         Trader st2 = TestUtils.createStorage(economy, Arrays.asList(0l), 600, false,"DS2");
         Trader vm1 = TestUtils.createVM(economy,"VM1");
+        Trader dc1 = TestUtils.createDC(economy, "DC1");
         ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
                 Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{60, 0}, pm1);
         ShoppingList sl2 = TestUtils.createAndPlaceShoppingList(economy,
@@ -1105,6 +1106,10 @@ public class BootstrapSupplyTest {
                 Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm4, new double[]{160, 0}, pm1);
         ShoppingList sl8 = TestUtils.createAndPlaceShoppingList(economy,
                 Arrays.asList(TestUtils.ST_AMT), vm4, new double[]{100}, st1);
+        ShoppingList sl9 = TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.POWER, TestUtils.SPACE, TestUtils.COOLING), pm1, new double[]{1, 1, 1}, dc1);
+        ShoppingList sl10 = TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.POWER, TestUtils.SPACE, TestUtils.COOLING), pm2, new double[]{1, 1, 1}, dc1);
         economy.getModifiableShopTogetherTraders().add(vm1);
         economy.getModifiableShopTogetherTraders().add(vm2);
         economy.getModifiableShopTogetherTraders().add(vm3);
@@ -1112,16 +1117,23 @@ public class BootstrapSupplyTest {
         economy.populateMarketsWithSellers();
         List<Action> bootStrapActionList =
                 BootstrapSupply.shopTogetherBootstrap(economy);
-        assertTrue(bootStrapActionList.stream().filter(action -> action instanceof
-                ProvisionByDemand).collect(Collectors.toList()).size() == 1);
-        assertTrue(bootStrapActionList.stream().filter(action -> action instanceof
-                ProvisionBySupply).collect(Collectors.toList()).size() == 1);
+        assertEquals(bootStrapActionList.stream().filter(action -> action instanceof
+                ProvisionByDemand).collect(Collectors.toList()).size(), 1);
+        assertEquals(bootStrapActionList.stream().filter(action -> action instanceof
+                ProvisionBySupply).collect(Collectors.toList()).size(), 1);
         assertTrue(bootStrapActionList.stream().filter(action -> action instanceof
                 ProvisionByDemand).collect(Collectors.toList())
                 .get(0).getActionTarget().getDebugInfoNeverUseInCode().contains("PM2"));
         assertTrue(bootStrapActionList.stream().filter(action -> action instanceof
                 ProvisionBySupply).collect(Collectors.toList())
                 .get(0).getActionTarget().getDebugInfoNeverUseInCode().contains("PM2"));
+        // assert that the PM cloned by ProvisionByDemand got placed on the DC
+        assertEquals(bootStrapActionList.stream().filter(a -> a instanceof Move)
+                .filter(a -> a.getActionTarget().getDebugInfoNeverUseInCode().contains("PM2")).count(), 1);
+        // assert that the PM cloned by ProvisionBySupply got placed on the DC
+        ProvisionBySupply pbs = ((ProvisionBySupply)bootStrapActionList.stream().filter(action -> action instanceof
+                ProvisionBySupply).findFirst().get());
+        assertTrue(pbs.getActionTarget().getDebugInfoNeverUseInCode().contains("PM2"));
     }
 
     /**

@@ -173,12 +173,6 @@ public class ProvisionBySupply extends ProvisionBase implements Action {
                                       provisionedSellerSl.getSupplier(),
                                       FunctionalOperatorUtil.ADD_COMM);
                 unPlacedClones.add(clonedMandatorySupplier);
-            } else if (!shoppingList.isMovable()) {
-                // place the provisionedSeller on the same supplier as modelSeller
-                provisionedSellerSl.move(shoppingList.getSupplier());
-                Move.updateQuantities(getEconomy(), provisionedSellerSl,
-                                      provisionedSellerSl.getSupplier(),
-                                      FunctionalOperatorUtil.ADD_COMM);
             } else {
                 // If the new clone does not need its provider to clone and it is movable,
                 // add it to unPlacedClones set and run bootstrap to place it.

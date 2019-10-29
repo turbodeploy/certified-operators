@@ -1049,13 +1049,9 @@ public class BootstrapSupply {
                             provisionRelatedActionList.addAll(checkAndApplyProvision(economy,
                                             sl, entry.getValue(), slsThatNeedProvBySupply));
                         } else {
-                            // place the shopping list of the new clone to the best supplier
-                            // this is equivalent as Start in legacy market
-                            if (!sl.isMovable()) {
-                                sl.move(minimizer.getBestSeller());
-                                Move.updateQuantities(economy, sl, minimizer.getBestSeller(),
-                                                      FunctionalOperatorUtil.ADD_COMM);
-                            }
+                            // place the sl of the clone on the seller that is able to hold it
+                            provisionRelatedActionList.add((new Move(economy, sl, minimizer.getBestSeller()))
+                                    .take());
                         }
             });
             // When the current seller can't accept new customers the active sellers are not empty
