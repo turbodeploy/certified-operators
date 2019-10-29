@@ -50,7 +50,6 @@ import com.vmturbo.topology.graph.TopologyGraph;
  * Test editing of commodities.
  */
 public class CommoditiesEditorTest {
-    private static final double DELTA = 0.0001D;
 
     private StatsHistoryServiceMole statsHistoryService = Mockito.spy(new StatsHistoryServiceMole());
 
@@ -102,15 +101,15 @@ public class CommoditiesEditorTest {
         // Check values before calling CommoditiesEditor.
         // Compare used
         Assert.assertEquals(70, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getUsed(), DELTA);
+                        .get(0).getUsed(), 0.0001);
         Assert.assertEquals(10, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
+                        .get(0).getCommodityBoughtList().get(0).getUsed(), 0.0001);
 
         // Compare peak
         Assert.assertEquals(80, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getPeak(), DELTA);
+                        .get(0).getPeak(), 0.0001);
         Assert.assertEquals(20, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
+                        .get(0).getCommodityBoughtList().get(0).getPeak(), 0.0001);
 
         // Get scenario change
         Long baselineDate = 123456789L;
@@ -133,17 +132,17 @@ public class CommoditiesEditorTest {
         // Expected value used for PM : used - currUsedForVM + usedFromDB : 70 - 10 + 50
         // Expected value used for VM : as fetched from database : 50
         Assert.assertEquals(70 - 10 + 50, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getUsed(), DELTA);
+                        .get(0).getUsed(), 0.0001);
         Assert.assertEquals(50, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
+                        .get(0).getCommodityBoughtList().get(0).getUsed(), 0.0001);
 
         // Compare peak
         // Expected value peak for PM : peak - currPeakForVM + peakFromDB : 80 - 20 + 100
         // Expected value peak for VM : as fetched from database : 100
         Assert.assertEquals(80 - 20 + 100, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getPeak(), DELTA);
+                        .get(0).getPeak(), 0.0001);
         Assert.assertEquals(100, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
+                        .get(0).getCommodityBoughtList().get(0).getPeak(), 0.0001);
     }
 
     @Test
@@ -159,15 +158,15 @@ public class CommoditiesEditorTest {
         // Check values before calling CommoditiesEditor.
         // Compare used
         Assert.assertEquals(70, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getUsed(), DELTA);
+                        .get(0).getUsed(), 0.0001);
         Assert.assertEquals(10, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
+                        .get(0).getCommodityBoughtList().get(0).getUsed(), 0.0001);
 
         // Compare peak
         Assert.assertEquals(80, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getPeak(), DELTA);
+                        .get(0).getPeak(), 0.0001);
         Assert.assertEquals(20, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
+                        .get(0).getCommodityBoughtList().get(0).getPeak(), 0.0001);
 
         // Get scenario change
         Long baselineDate = 123456789L;
@@ -190,17 +189,17 @@ public class CommoditiesEditorTest {
         // Expected value used for PM : used - currUsedForVM + usedFromDB : 70 - 10 + 50
         // Expected value used for VM : as fetched from database : 50
         Assert.assertEquals(70 - 10 + 50, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getUsed(), DELTA);
+                        .get(0).getUsed(), 0.0001);
         Assert.assertEquals(50, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
+                        .get(0).getCommodityBoughtList().get(0).getUsed(), 0.0001);
 
         // Compare peak
         // Expected value peak for PM : peak - currPeakForVM + peakFromDB : 80 - 20 + 100
         // Expected value peak for VM : as fetched from database : 100
         Assert.assertEquals(80 - 20 + 100, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getPeak(), DELTA);
+                        .get(0).getPeak(), 0.0001);
         Assert.assertEquals(100, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
+                        .get(0).getCommodityBoughtList().get(0).getPeak(), 0.0001);
     }
 
     @Test
@@ -241,19 +240,19 @@ public class CommoditiesEditorTest {
         // Check values before calling CommoditiesEditor.
         // Compare used
         Assert.assertEquals(70, st1.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getUsed(), DELTA);
+                        .get(0).getUsed(), 0.0001);
         Assert.assertEquals(70, st2.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getUsed(), DELTA);
+                        .get(0).getUsed(), 0.0001);
         Assert.assertEquals(10, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
+                        .get(0).getCommodityBoughtList().get(0).getUsed(), 0.0001);
 
         // Compare peak
         Assert.assertEquals(80, st1.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getPeak(), DELTA);
+                        .get(0).getPeak(), 0.0001);
         Assert.assertEquals(80, st2.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getPeak(), DELTA);
+                        .get(0).getPeak(), 0.0001);
         Assert.assertEquals(20, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
+                        .get(0).getCommodityBoughtList().get(0).getPeak(), 0.0001);
 
         // Get scenario change
         Long baselineDate = 123456789L;
@@ -280,13 +279,13 @@ public class CommoditiesEditorTest {
         // Expected value used for VM form first commodity: as fetched from database : 50
         // Expected value used for VM form second commodity: as fetched from database : 30
         Assert.assertEquals(70 - 10 + 50, st1.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getUsed(), DELTA);
+                        .get(0).getUsed(), 0.0001);
         Assert.assertEquals(70 - 10 + 30, st2.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getUsed(), DELTA);
+                        .get(0).getUsed(), 0.0001);
         Assert.assertEquals(50, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
+                        .get(0).getCommodityBoughtList().get(0).getUsed(), 0.0001);
         Assert.assertEquals(30, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(1).getCommodityBoughtList().get(0).getUsed(), DELTA);
+                        .get(1).getCommodityBoughtList().get(0).getUsed(), 0.0001);
 
         // Compare peak
         // Expected value peak for Storage1 : peak - currPeakForVM + peakFromDB : 80 - 20 + 100
@@ -294,13 +293,13 @@ public class CommoditiesEditorTest {
         // Expected value peak for VM : as fetched from database : 100
         // Expected value peak for VM form second commodity: as fetched from database : 30
         Assert.assertEquals(80 - 20 + 100, st1.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getPeak(), DELTA);
+                        .get(0).getPeak(), 0.0001);
         Assert.assertEquals(80 - 20 + 40, st2.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getPeak(), DELTA);
+                        .get(0).getPeak(), 0.0001);
         Assert.assertEquals(100, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
+                        .get(0).getCommodityBoughtList().get(0).getPeak(), 0.0001);
         Assert.assertEquals(40, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(1).getCommodityBoughtList().get(0).getPeak(), DELTA);
+                        .get(1).getCommodityBoughtList().get(0).getPeak(), 0.0001);
     }
 
     @Test
@@ -316,15 +315,15 @@ public class CommoditiesEditorTest {
         // Check values before calling CommoditiesEditor.
         // Compare used
         Assert.assertEquals(70, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getUsed(), DELTA);
+                        .get(0).getUsed(), 0.0001);
         Assert.assertEquals(10, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
+                        .get(0).getCommodityBoughtList().get(0).getUsed(), 0.0001);
 
         // Compare peak
         Assert.assertEquals(80, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getPeak(), DELTA);
+                        .get(0).getPeak(), 0.0001);
         Assert.assertEquals(20, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
+                        .get(0).getCommodityBoughtList().get(0).getPeak(), 0.0001);
 
         // Get scenario change
         Long baselineDate = 123456789L;
@@ -346,15 +345,15 @@ public class CommoditiesEditorTest {
         // Expected : Before and after values should be same because commodity is an access commodity.
         // Compare used
         Assert.assertEquals(70, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getUsed(), DELTA);
+                        .get(0).getUsed(), 0.0001);
         Assert.assertEquals(10, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
+                        .get(0).getCommodityBoughtList().get(0).getUsed(), 0.0001);
 
         // Compare peak
         Assert.assertEquals(80, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getPeak(), DELTA);
+                        .get(0).getPeak(), 0.0001);
         Assert.assertEquals(20, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
+                        .get(0).getCommodityBoughtList().get(0).getPeak(), 0.0001);
     }
 
     @Test
@@ -376,15 +375,15 @@ public class CommoditiesEditorTest {
         // Check values before calling CommoditiesEditor.
         // Compare used
         Assert.assertEquals(70, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getUsed(), DELTA);
+                        .get(0).getUsed(), 0.0001);
         Assert.assertEquals(90, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
+                        .get(0).getCommodityBoughtList().get(0).getUsed(), 0.0001);
 
         // Compare peak
         Assert.assertEquals(80, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getPeak(), DELTA);
+                        .get(0).getPeak(), 0.0001);
         Assert.assertEquals(200, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
+                        .get(0).getCommodityBoughtList().get(0).getPeak(), 0.0001);
 
         // Get scenario change
         Long baselineDate = 123456789L;
@@ -407,17 +406,17 @@ public class CommoditiesEditorTest {
         // Expected value used for PM : used - currUsedForVM < 0 , hence used = 50 (asfetchedFromDb)
         // Expected value used for VM : as fetched from database : 50
         Assert.assertEquals(50, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getUsed(), DELTA);
+                        .get(0).getUsed(), 0.0001);
         Assert.assertEquals(50, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
+                        .get(0).getCommodityBoughtList().get(0).getUsed(), 0.0001);
 
         // Compare peak
         // Expected value peak for PM : peak - currPeakForVM < 0, hence peak = 100 (asfetchedFromDb)
         // Expected value peak for VM : as fetched from database : 100
         Assert.assertEquals(100, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getPeak(), DELTA);
+                        .get(0).getPeak(), 0.0001);
         Assert.assertEquals(100, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
+                        .get(0).getCommodityBoughtList().get(0).getPeak(), 0.0001);
     }
 
     @Test
@@ -433,15 +432,15 @@ public class CommoditiesEditorTest {
         // Check values before calling CommoditiesEditor.
         // Compare used
         Assert.assertEquals(70, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getUsed(), DELTA);
+                        .get(0).getUsed(), 0.0001);
         Assert.assertEquals(10, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
+                        .get(0).getCommodityBoughtList().get(0).getUsed(), 0.0001);
 
         // Compare peak
         Assert.assertEquals(80, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getPeak(), DELTA);
+                        .get(0).getPeak(), 0.0001);
         Assert.assertEquals(20, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
+                        .get(0).getCommodityBoughtList().get(0).getPeak(), 0.0001);
 
         List<SystemLoadInfoResponse> response = Collections.singletonList(
             SystemLoadInfoResponse.newBuilder()
@@ -474,17 +473,17 @@ public class CommoditiesEditorTest {
         // Expected value used for PM : used - currUsedForVM + usedFromSystemLoad : 70 - 10 + 50
         // Expected value used for VM : as fetched from SystemLoad : 50
         Assert.assertEquals(70 - 10 + 50, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getUsed(), DELTA);
+                        .get(0).getHistoricalUsed().getSystemLoad(), 0.0001);
         Assert.assertEquals(50, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getUsed(), DELTA);
+                        .get(0).getCommodityBoughtList().get(0).getHistoricalUsed().getSystemLoad(), 0.0001);
 
         // Compare peak
         // Expected value peak for PM : peak - currPeakForVM + peakFromSystemLoad : 80 - 20 + 100
         // Expected value peak for VM : as fetched from SystemLoad : 100
         Assert.assertEquals(80 - 20 + 100, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getPeak(), DELTA);
+                        .get(0).getHistoricalPeak().getSystemLoad(), 0.0001);
         Assert.assertEquals(100, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
-                        .get(0).getCommodityBoughtList().get(0).getPeak(), DELTA);
+                        .get(0).getCommodityBoughtList().get(0).getHistoricalPeak().getSystemLoad(), 0.0001);
     }
 
     @Test
@@ -499,9 +498,9 @@ public class CommoditiesEditorTest {
         // Compare used
         TopologyEntity vm = g.getEntity(1L).get();
         Assert.assertEquals(70, vm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getUsed(), DELTA);
+                        .get(0).getUsed(), 0.0001);
         Assert.assertEquals(80, vm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getPeak(), DELTA);
+                        .get(0).getPeak(), 0.0001);
 
         List<SystemLoadInfoResponse> response = Collections.singletonList(
             SystemLoadInfoResponse.newBuilder()
@@ -533,9 +532,9 @@ public class CommoditiesEditorTest {
         // Compare used and peak
         // Expected value used for VM : as fetched from SystemLoad : 50
         Assert.assertEquals(50, vm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getUsed(), DELTA);
+                        .get(0).getHistoricalUsed().getSystemLoad(), 0.0001);
         Assert.assertEquals(100, vm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
-                        .get(0).getPeak(), DELTA);
+                        .get(0).getHistoricalPeak().getSystemLoad(), 0.0001);
     }
 
 }

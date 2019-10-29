@@ -338,7 +338,9 @@ public class TopologyEntityUtils {
                     .setUsed(used)
                     .setPeak(peak)
                     .setHistoricalUsed(HistoricalValues.newBuilder().setHistUtilization(historicalUsed))
-                    .setHistoricalPeak(HistoricalValues.newBuilder().setHistUtilization(historicalPeak)))
+                    .setHistoricalPeak(HistoricalValues.newBuilder().setHistUtilization(historicalPeak))
+                    .setHistoricalUsed(HistoricalValues.newBuilder().setSystemLoad(historicalUsed))
+                    .setHistoricalPeak(HistoricalValues.newBuilder().setSystemLoad(historicalPeak)))
                 .setProviderId(provider);
 
         return TopologyEntityUtils.topologyEntityBuilder(TopologyEntityDTO.newBuilder().setOid(oid)
@@ -367,6 +369,8 @@ public class TopologyEntityUtils {
             .setPeak(peak)
             .setHistoricalUsed(HistoricalValues.newBuilder().setHistUtilization(historicalUsed))
             .setHistoricalPeak(HistoricalValues.newBuilder().setHistUtilization(historicalPeak))
+            .setHistoricalUsed(HistoricalValues.newBuilder().setSystemLoad(historicalUsed))
+            .setHistoricalPeak(HistoricalValues.newBuilder().setSystemLoad(historicalPeak))
             .build());
 
         return TopologyEntityUtils.topologyEntityBuilder(TopologyEntityDTO.newBuilder().setOid(oid)

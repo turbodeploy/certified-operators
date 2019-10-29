@@ -22,20 +22,14 @@ import org.powermock.api.mockito.PowerMockito;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.HistoricalBaseline;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.Units;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -140,39 +134,6 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                 TopologyEntityDTO.newBuilder().setOid(entityOid).setEntityType(entityType)));
         entitySettings.put(entityOid,
                 createPercentileObservationWindowSetting(entityOid, value, entitySettingSpecs));
-    }
-
-    /**
-     * Test the generic applicability of percentile calculation.
-     */
-    @Test
-    public void testIsApplicable() {
-        PercentileEditor editor = new PercentileEditor(PERCENTILE_HISTORICAL_EDITOR_CONFIG, null, null);
-        Assert.assertTrue(editor.isApplicable(Collections.emptyList(),
-                                              TopologyInfo.newBuilder().build(),
-                                              null));
-        Assert.assertTrue(editor.isApplicable(Collections.emptyList(),
-                                              TopologyInfo.newBuilder().setPlanInfo(PlanTopologyInfo
-                                                      .newBuilder()
-                                                      .setPlanProjectType(PlanProjectType.USER))
-                                                      .build(),
-                                              null));
-        Assert.assertFalse(editor.isApplicable(Collections.emptyList(),
-                                              TopologyInfo.newBuilder().setPlanInfo(PlanTopologyInfo
-                                                      .newBuilder()
-                                                      .setPlanProjectType(PlanProjectType.CLUSTER_HEADROOM))
-                                                      .build(),
-                                              null));
-        Assert.assertTrue(editor.isApplicable(Collections.singletonList(ScenarioChange.newBuilder().build()),
-                                              TopologyInfo.newBuilder().build(),
-                                              null));
-        Assert.assertFalse(editor.isApplicable(Collections.singletonList(ScenarioChange.newBuilder()
-                        .setPlanChanges(PlanChanges.newBuilder()
-                                        .setHistoricalBaseline(HistoricalBaseline.newBuilder()
-                                                       .setBaselineDate(0).build()))
-                        .build()),
-                                               TopologyInfo.newBuilder().build(),
-                                               null));
     }
 
     /**

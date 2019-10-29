@@ -147,7 +147,7 @@ public class CommoditiesEditor {
                             final CommodityType commType = ClassicEnumMapper.COMMODITY_TYPE_MAPPINGS
                                 .get(statRecord.getName());
                             updateCommodityValuesForVmAndProvider(vm, commType, graph, providerIdsByCommodityType,
-                                statRecord.getPeak().getAvg(), statRecord.getUsed().getAvg());
+                                statRecord.getPeak().getAvg(), statRecord.getUsed().getAvg(), false);
                         });
                     });
                 });
@@ -187,12 +187,14 @@ public class CommoditiesEditor {
      * @param providerIdsByCommodityType provides relationship between commodity type and its providers for commodities bought by VM.
      * @param peak value as fetched from database for this VM's commodity.
      * @param used value as fetched from database for this VM's commodity.
+     * @param addHistorical when true, add to history values as SystemLoad, otherwise replace real-time used/peak
      */
     private void updateCommodityValuesForVmAndProvider(TopologyEntity vm, CommodityType commType,
                     final TopologyGraph<TopologyEntity> graph,
                     final Map<Integer, Queue<Long>> providerIdsByCommodityType,
                     final double peak,
-                    final double used) {
+                    final double used,
+                    boolean addHistorical) {
         // We skip access commodities
         if (commType == null || ACCESS_COMMODITIES.contains(commType)) {
             return;
@@ -212,8 +214,13 @@ public class CommoditiesEditor {
                         peak, commoditySold.get().getCommodityType(), vm.getDisplayName());
             }
 
-            commBuilder.setUsed(used);
-            commBuilder.setPeak(peak);
+            if (addHistorical) {
+                commBuilder.getHistoricalUsedBuilder().setSystemLoad(used);
+                commBuilder.getHistoricalPeakBuilder().setSystemLoad(peak);
+            } else {
+                commBuilder.setUsed(used);
+                commBuilder.setPeak(peak);
+            }
         // Otherwise, handle commodity bought by VM
         } else if (providerIdsByCommodityType.containsKey(commType.getNumber())) {
             // Get first provider and add it to the end because we want
@@ -255,8 +262,13 @@ public class CommoditiesEditor {
                                     , newPeak, commSold.getCommodityType(), provider.getDisplayName());
                         }
                         double newUsed = Math.max(commSold.getUsed() - commodityBought.getUsed(), 0) + used;
-                        commSold.setUsed(newUsed);
-                        commSold.setPeak(newPeak);
+                        if (addHistorical) {
+                            commSold.getHistoricalUsedBuilder().setSystemLoad(newUsed);
+                            commSold.getHistoricalPeakBuilder().setSystemLoad(newPeak);
+                        } else {
+                            commSold.setUsed(newUsed);
+                            commSold.setPeak(newPeak);
+                        }
                     }
 
                     // Set value for consumer.
@@ -264,8 +276,13 @@ public class CommoditiesEditor {
                     // we will set value for commodity bought from last record. It is not a problem because
                     // price in market is calculated by providers based on commodity sold. Mismatch in commodity
                     // bought and sold values will be reflected as overhead.
-                    commodityBought.setUsed(used);
-                    commodityBought.setPeak(peak);
+                    if (addHistorical) {
+                        commodityBought.getHistoricalUsedBuilder().setSystemLoad(used);
+                        commodityBought.getHistoricalPeakBuilder().setSystemLoad(peak);
+                    } else {
+                        commodityBought.setUsed(used);
+                        commodityBought.setPeak(peak);
+                    }
                 });
             });
         }
@@ -369,7 +386,7 @@ public class CommoditiesEditor {
                             // Update commodity value for this entity
                             CommodityType commType = CommodityType.valueOf(record.getPropertyType());
                             updateCommodityValuesForVmAndProvider(vm, commType, graph,
-                                providerIdsByCommodityType, peak, used);
+                                providerIdsByCommodityType, peak, used, true);
                         });
                     });
                 });

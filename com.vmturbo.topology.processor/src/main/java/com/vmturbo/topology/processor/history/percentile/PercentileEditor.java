@@ -17,16 +17,13 @@ import javax.annotation.Nonnull;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
 
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.forecasting.TimeInMillisConstants;
@@ -119,17 +116,7 @@ public class PercentileEditor extends
     @Override
     public boolean isApplicable(List<ScenarioChange> changes, TopologyInfo topologyInfo,
                                 PlanScope scope) {
-        // percentile should not be set for baseline and cluster headroom plans
-        if (TopologyDTOUtil.isPlanType(PlanProjectType.CLUSTER_HEADROOM, topologyInfo)) {
-            return false;
-        }
-        if (CollectionUtils.isEmpty(changes)) {
-            return true;
-        }
-        return !changes.stream()
-                        .filter(ScenarioChange::hasPlanChanges)
-                        .filter(change -> change.getPlanChanges().hasHistoricalBaseline())
-                        .findAny().isPresent();
+        return true;
     }
 
     @Override
