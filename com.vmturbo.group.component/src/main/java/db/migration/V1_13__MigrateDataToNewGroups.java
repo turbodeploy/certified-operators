@@ -23,16 +23,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.flywaydb.core.api.migration.jdbc.JdbcMigration;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.GroupFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupPropertyFilterList;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupPropertyFilterList.GroupPropertyFilter;
-import com.vmturbo.common.protobuf.group.GroupDTO.NestedGroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
@@ -46,6 +40,12 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditi
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition.StoppingConditionTypeCase;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.components.api.SetOnce;
+import com.vmturbo.group.migration.v1_13.V113Migration.ClusterInfo;
+import com.vmturbo.group.migration.v1_13.V113Migration.Group.Type;
+import com.vmturbo.group.migration.v1_13.V113Migration.GroupInfo;
+import com.vmturbo.group.migration.v1_13.V113Migration.GroupPropertyFilterList;
+import com.vmturbo.group.migration.v1_13.V113Migration.GroupPropertyFilterList.GroupPropertyFilter;
+import com.vmturbo.group.migration.v1_13.V113Migration.NestedGroupInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
