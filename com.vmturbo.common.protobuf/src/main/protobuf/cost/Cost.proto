@@ -111,6 +111,9 @@ message ReservedInstanceBought {
 
             // Hourly cost for reserved instance, regardless of usageCost.
             optional common_dto.CurrencyAmount recurring_cost_per_hour = 3;
+
+            // The equivalent hourly on demand cost for the Reserved Instance.
+            optional common_dto.CurrencyAmount ondemand_cost_per_hour = 4;
         }
 
         // Coupons is a our internal way compare different instance types in a family. For example,

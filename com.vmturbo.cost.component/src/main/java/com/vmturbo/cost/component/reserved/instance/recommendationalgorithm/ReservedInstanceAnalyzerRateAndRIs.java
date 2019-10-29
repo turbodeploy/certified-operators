@@ -20,6 +20,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Table;
 
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
@@ -259,24 +260,25 @@ public class ReservedInstanceAnalyzerRateAndRIs {
      *
      * @param regionalContext regional context
      * @param constraints purchase constraints
-     * @return reserved instance rate or Float.MAX_VALUE if can't be found.
+     * @return Returns a pair of values. The first one is the upfront hourly cost. The second one is
+     *          the recurring cost. If the price is not found it returns a pair which sums to
+     *          FLOAT.MAX_VALUE.
      */
-    public float lookupReservedInstanceRate(@Nonnull ReservedInstanceRegionalContext regionalContext,
-                                            @Nonnull ReservedInstancePurchaseConstraints constraints) {
+    public Pair<Float, Float> lookupReservedInstanceRate(@Nonnull ReservedInstanceRegionalContext regionalContext,
+                                                         @Nonnull ReservedInstancePurchaseConstraints constraints) {
         ReservedInstanceSpecKey key = new ReservedInstanceSpecKey(regionalContext, constraints);
         ReservedInstanceSpec spec = reservedInstanceSpecKeyMap.get(key);
         if (spec == null) {
             logger.warn("lookupReservedInstanceRate() can't find ReservedInstanceSpec for key={}",
                 key);
-
-            return Float.MAX_VALUE;
+            return Pair.of(Float.MAX_VALUE, 0f);
         }
         long specId = spec.getId();
         ReservedInstancePrice riPrice = reservedInstanceRateMap.get(specId);
         if (riPrice == null) {
             logger.warn("lookupReservedInstanceRate() can't find rate for ReservedInstanceSpecId={} for key={}",
                 specId, key);
-            return Float.MAX_VALUE;
+            return Pair.of(Float.MAX_VALUE, 0f);
         }
         Price upFrontPrice = riPrice.getUpfrontPrice();
         Price hourlyPrice = riPrice.getRecurringPrice();
@@ -292,7 +294,8 @@ public class ReservedInstanceAnalyzerRateAndRIs {
         float riRate = upFrontAmortizedCost + new Double(hourlyAmount).floatValue();
         logger.debug("lookupReservedInstanceRate() riRate={} = hourlyAmount={} + upFrontAmortized{} (upFront={}) for specId={} context={} constraints={}",
             riRate, hourlyAmount, upFrontAmortizedCost, upFrontAmount, specId, regionalContext, constraints);
-        return riRate;
+        final Pair pair = Pair.of(upFrontAmortizedCost, new Double(hourlyAmount).floatValue());
+        return pair;
     }
 
     /**
@@ -523,6 +526,10 @@ public class ReservedInstanceAnalyzerRateAndRIs {
         // The hourly on-demand price for an instance of some type.
         private final float onDemandRate;
 
+        // The first value in the pair contains the hourly upfront cost. The second value contains
+        // the recurring hourly cost.
+        private Pair<Float, Float> riBreakDownRates;
+
         // The effective hourly price (actual hourly + amortized up-front) cost.
         private final float reservedInstanceRate;
 
@@ -530,11 +537,12 @@ public class ReservedInstanceAnalyzerRateAndRIs {
          * Provide the on-demand and reserved instance rates.
          *
          * @param onDemandRate on-demand rate
-         * @param riRate  reserved instance rate
+         * @param riBreakDownRates comprises of RI's hourly upfront cost and recurring cost.
          */
-        public PricingProviderResult(float onDemandRate, float riRate) {
+        public PricingProviderResult(float onDemandRate, Pair<Float, Float> riBreakDownRates) {
             this.onDemandRate = onDemandRate;
-            this.reservedInstanceRate = riRate;
+            this.riBreakDownRates = riBreakDownRates;
+            this.reservedInstanceRate = riBreakDownRates.getKey() + riBreakDownRates.getValue();
         }
 
         public float getOnDemandRate() {
@@ -543,6 +551,24 @@ public class ReservedInstanceAnalyzerRateAndRIs {
 
         public float getReservedInstanceRate() {
             return reservedInstanceRate;
+        }
+
+        /**
+         * Returns hourly upfront cost for this instance type RI.
+         *
+         * @return hourly upfront cost for this instance type RI.
+         */
+        public float getReservedInstanceUpfrontRate() {
+            return riBreakDownRates.getKey();
+        }
+
+        /**
+         * Returns recurring hourly cost for this instance type RI.
+         *
+         * @return recurring hourly cost for this instance type RI.
+         */
+        public float getReservedInstanceRecurringRate() {
+            return riBreakDownRates.getValue();
         }
     }
 

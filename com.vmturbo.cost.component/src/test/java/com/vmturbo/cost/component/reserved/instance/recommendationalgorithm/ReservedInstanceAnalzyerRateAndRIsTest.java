@@ -8,6 +8,7 @@ import java.util.Map;
 
 import com.google.common.collect.Table;
 
+import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -501,23 +502,33 @@ public class ReservedInstanceAnalzyerRateAndRIsTest {
          * lookup
          */
         // RESERVED_INSTANCE_SPEC_ID_1
-        float riRate =
+        Pair<Float, Float> riRate =
             rateAndRIsProvider.lookupReservedInstanceRate(ReservedInstanceAnalyzerConstantsTest.REGIONAL_CONTEXT_1,
                 ReservedInstanceAnalyzerConstantsTest.PURCHASE_CONSTRAINTS_1);
-        Assert.assertTrue(riRate != Float.MAX_VALUE);
-        Assert.assertEquals(riRate, 1.011415D, 0.0001D);
+        Assert.assertTrue(riRate.getKey() != Float.MAX_VALUE);
+        Assert.assertTrue(riRate.getValue() != Float.MAX_VALUE);
+        // test for upfront cost.
+        Assert.assertEquals(riRate.getKey(), 0.011415f, 0.0001f);
+        // test for recurring cost.
+        Assert.assertEquals(riRate.getValue(), 1f, 0.0001f);
+
         // RESERVED_INSTANCE_SPEC_ID_2
         riRate =
             rateAndRIsProvider.lookupReservedInstanceRate(ReservedInstanceAnalyzerConstantsTest.REGIONAL_CONTEXT_1,
                 ReservedInstanceAnalyzerConstantsTest.PURCHASE_CONSTRAINTS_2);
-        Assert.assertTrue(riRate != Float.MAX_VALUE);
-        Assert.assertEquals(riRate, 2.00761, 0.0001D);
+        Assert.assertTrue(riRate.getKey() != Float.MAX_VALUE);
+        Assert.assertTrue(riRate.getValue() != Float.MAX_VALUE);
+        Assert.assertEquals(riRate.getKey(), 0.00761D, 0.0001f);
+        Assert.assertEquals(riRate.getValue(), 2D, 0.0001f);
+
         // RESERVED_INSTANCE_SPEC_ID_3
         riRate =
             rateAndRIsProvider.lookupReservedInstanceRate(ReservedInstanceAnalyzerConstantsTest.REGIONAL_CONTEXT_2,
                 ReservedInstanceAnalyzerConstantsTest.PURCHASE_CONSTRAINTS_1);
-        Assert.assertTrue(riRate != Float.MAX_VALUE);
-        Assert.assertEquals(riRate, 2.0114155, 0.0001D);
+        Assert.assertTrue(riRate.getKey() != Float.MAX_VALUE);
+        Assert.assertTrue(riRate.getValue() != Float.MAX_VALUE);
+        Assert.assertEquals(riRate.getKey(), 0.0114155f, 0.0001f);
+        Assert.assertEquals(riRate.getValue(), 2f, 0.0001f);
     }
 
     /**

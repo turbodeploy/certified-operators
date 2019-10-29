@@ -106,21 +106,37 @@ public class ReservedInstanceMapper {
                 reservedInstanceSpec.getReservedInstanceSpecInfo().getType().getOfferingClass()));
         reservedInstanceApiDTO.setInstanceCount(reservedInstanceBoughtInfo.getNumBought());
         // TODO: Apply discount to RI cost
+
+        // Set the recurring hourly cost for an RI.
         reservedInstanceApiDTO.setActualHourlyCost(reservedInstanceBoughtInfo
                 .getReservedInstanceBoughtCost()
                 .getRecurringCostPerHour()
                 .getAmount());
-        reservedInstanceApiDTO.setCostPrice(createStatApiDTO(StringConstants.DOLLARS_PER_HOUR,
-                Optional.empty(), (float)getTotalHourlyCost(reservedInstanceBoughtInfo,
-                        reservedInstanceSpec)));
+
+        // Set the upfront hourly cost for an RI.
         reservedInstanceApiDTO.setUpFrontCost(reservedInstanceBoughtInfo
                 .getReservedInstanceBoughtCost()
                 .getFixedCost()
                 .getAmount());
-        reservedInstanceApiDTO.setEffectiveHourlyCost(getTotalHourlyCost(reservedInstanceBoughtInfo,
-                reservedInstanceSpec));
-        // TODO: need to get on demand price of reserved instance from price table.
-        reservedInstanceApiDTO.setOnDemandPrice(createStatApiDTO(StringConstants.DOLLARS_PER_HOUR, Optional.empty(), 0));
+
+        // Set the effective hourly cost for an RI.(Recurring + UpFront)
+        reservedInstanceApiDTO.setEffectiveHourlyCost(reservedInstanceBoughtInfo
+                .getReservedInstanceBoughtCost()
+                .getUsageCostPerHour()
+                .getAmount());
+
+        reservedInstanceApiDTO.setCostPrice(createStatApiDTO(StringConstants.DOLLARS_PER_HOUR,
+                Optional.empty(), (float)reservedInstanceBoughtInfo
+                        .getReservedInstanceBoughtCost()
+                        .getUsageCostPerHour()
+                        .getAmount()));
+
+        reservedInstanceApiDTO.setOnDemandPrice(createStatApiDTO(StringConstants.DOLLARS_PER_HOUR,
+                Optional.empty(), (float)reservedInstanceBoughtInfo
+                .getReservedInstanceBoughtCost()
+                .getOndemandCostPerHour()
+                .getAmount()));
+
         reservedInstanceApiDTO.setCoupons(createStatApiDTO(StringConstants.RI_COUPON_UNITS,
                 Optional.of((float)reservedInstanceBought.getReservedInstanceBoughtInfo()
                         .getReservedInstanceBoughtCoupons().getNumberOfCoupons()),
@@ -231,10 +247,9 @@ public class ReservedInstanceMapper {
      */
     private double getTotalHourlyCost(@Nonnull final ReservedInstanceBoughtInfo reservedInstanceBoughtInfo,
                                       @Nonnull final ReservedInstanceSpec reservedInstanceSpec) {
-        final long hours = reservedInstanceSpec.getReservedInstanceSpecInfo()
-                .getType().getTermYears() * NUM_OF_HOURS_OF_YEAR;
+
         final ReservedInstanceBoughtCost riBoughtCost = reservedInstanceBoughtInfo.getReservedInstanceBoughtCost();
-        return (riBoughtCost.getFixedCost().getAmount() / hours) + riBoughtCost.getUsageCostPerHour().getAmount() +
+        return (riBoughtCost.getFixedCost().getAmount()) + riBoughtCost.getUsageCostPerHour().getAmount() +
                 riBoughtCost.getRecurringCostPerHour().getAmount();
     }
 

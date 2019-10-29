@@ -27,6 +27,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalyzerRateAndRIs.PricingProviderResult;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -87,6 +88,18 @@ public class ReservedInstanceAnalysisRecommendation {
     private final float riHourlyCost;
 
     /**
+     * The hourly upfront rate for a recommended RI. The value will be 0 when no upfront purchase
+     * profile is selected.
+     */
+    private final float riUpFrontRate;
+
+    /**
+     * The hourly recurring rate for a recommended RI. The value will be 0 when all upfront purchase
+     * profile is selected.
+     */
+    private final float riRecurringRate;
+
+    /**
      * The hourly savings, in dollars, over the on-demand cost as a function of the RI's utilization
      * rate. This is overall savings for all the RI recommended to buy.
      * Example: If the On-demand cost is $100, the RI cost is $70, 2RIs recommended to but then at
@@ -141,8 +154,7 @@ public class ReservedInstanceAnalysisRecommendation {
                                                   @Nonnull ReservedInstancePurchaseConstraints contraints,
                                                   @Nonnull Action action,
                                                   int count,
-                                                  float onDemandHourlyCost,
-                                                  float riHourlyCost,
+                                                  @Nonnull PricingProviderResult pricing,
                                                   float hourlyCostSavings,
                                                   float averageCouponDemand,
                                                   int numberOfHours,
@@ -157,8 +169,10 @@ public class ReservedInstanceAnalysisRecommendation {
         this.constraints = Objects.requireNonNull(contraints);
         this.action = Objects.requireNonNull(action);
         this.count = count;
-        this.onDemandHourlyCost = onDemandHourlyCost;
-        this.riHourlyCost = riHourlyCost;
+        this.onDemandHourlyCost = pricing.getOnDemandRate();
+        this.riHourlyCost = pricing.getReservedInstanceRate();
+        this.riUpFrontRate = pricing.getReservedInstanceUpfrontRate();
+        this.riRecurringRate = pricing.getReservedInstanceRecurringRate();
         this.hourlyCostSavings = hourlyCostSavings;
         this.averageCouponDemand = averageCouponDemand;
         this.numberOfHours = numberOfHours;
@@ -377,13 +391,17 @@ public class ReservedInstanceAnalysisRecommendation {
      * @return The reserved instance bought info representing this Buy RI recommendation.
      */
     public ReservedInstanceBoughtInfo createRiBoughtInfo(@Nonnull TopologyInfo topologyInfo) {
-        // TODO: Set the costs once it is ready
+
         ReservedInstanceBoughtCost.Builder riBoughtCost = ReservedInstanceBoughtCost.newBuilder()
-            .setFixedCost(CurrencyAmount.newBuilder().setAmount(0f).build())
-            .setRecurringCostPerHour(CurrencyAmount.newBuilder().setAmount(riHourlyCost).build())
-            .setUsageCostPerHour(CurrencyAmount.newBuilder().setAmount(0f).build());
+            .setFixedCost(CurrencyAmount.newBuilder().setAmount(riUpFrontRate *
+                    ReservedInstanceAnalyzerRateAndRIs.HOURS_IN_A_MONTH * 12 * getTermInYears()).build())
+            .setRecurringCostPerHour(CurrencyAmount.newBuilder().setAmount(riRecurringRate).build())
+            .setUsageCostPerHour(CurrencyAmount.newBuilder().setAmount(riHourlyCost).build())
+            .setOndemandCostPerHour(CurrencyAmount.newBuilder().setAmount(onDemandHourlyCost).build());
+
         final int numOfCoupons = context.getComputeTier().getTypeSpecificInfo().getComputeTier()
                 .getNumCoupons();
+
         ReservedInstanceBoughtCoupons.Builder riBoughtCoupons = ReservedInstanceBoughtCoupons.newBuilder()
             .setNumberOfCoupons(riNormalizedCoupons * numOfCoupons);
         /*
