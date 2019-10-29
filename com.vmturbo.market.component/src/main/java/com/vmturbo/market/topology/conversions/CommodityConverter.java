@@ -563,11 +563,8 @@ public class CommodityConverter {
                         @Nullable Function<DtoType, HistoricalValues> historicalExtractor) {
         if (historicalExtractor != null) {
             HistoricalValues hv = historicalExtractor.apply(commDto);
-            // if system load is present, it takes precedence
-            if (hv.hasSystemLoad()) {
-                return (float)hv.getSystemLoad();
-            } else if (hv.hasHistUtilization()) {
-                // if not then hist utilization
+            if (hv.hasHistUtilization()) {
+                // if present then hist utilization
                 return (float)hv.getHistUtilization();
             }
         }
