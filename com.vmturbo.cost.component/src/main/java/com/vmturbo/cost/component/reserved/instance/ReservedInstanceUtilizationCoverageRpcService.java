@@ -1,13 +1,8 @@
 package com.vmturbo.cost.component.reserved.instance;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
@@ -18,13 +13,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 
-import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
-import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStatsResponse;
-import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceImplBase;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
@@ -76,27 +68,16 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
         }
 
         try {
-            final Optional<RegionFilter> regionFilter = request.hasRegionFilter()
-                    ? Optional.of(request.getRegionFilter())
-                    : Optional.empty();
-            final Optional<AvailabilityZoneFilter> azFilter = request.hasRegionFilter()
-                    ? Optional.of(request.getAvailabilityZoneFilter())
-                    : Optional.empty();
-            final Optional<AccountFilter> accountFilter = request.hasRegionFilter()
-                    ? Optional.of(request.getAccountFilter())
-                    : Optional.empty();
-            final TimeFrame timeFrame = timeFrameCalculator.millis2TimeFrame(request.getStartDate());
             final ReservedInstanceUtilizationFilter filter =
-                    createReservedInstanceUtilizationFilter(regionFilter, azFilter, accountFilter,
-                            request.getStartDate(), request.getEndDate(), timeFrame);
+                    createReservedInstanceUtilizationFilter(request);
             final List<ReservedInstanceStatsRecord> statRecords =
                     reservedInstanceUtilizationStore.getReservedInstanceUtilizationStatsRecords(filter);
-            float usedCouponsTotal = (float)getProjectedRICoverageCouponTotal();
-            statRecords.add(ReservedInstanceUtil.createRIStatsRecord(
-                        statRecords.isEmpty() ? usedCouponsTotal : statRecords.get(statRecords.size()-1).getCapacity().getTotal(),
-                        usedCouponsTotal,
-                        request.getEndDate() + TimeUnit.HOURS.toMillis(PROJECTED_STATS_TIME_IN_FUTURE_HOURS)));
-            GetReservedInstanceUtilizationStatsResponse response =
+            // Add projected RI Utilization point
+            // TODO (Alexey, Oct 24 2019): Respect input filter passed in the request.
+            // TODO (Alexey, Oct 24 2019): Currently we use the same method as for RI Coverage.
+            //  It looks incorrect. E.g. it doesn't take into account recommended RI purchases.
+            statRecords.add(createProjectedRICoverageStats(statRecords));
+            final GetReservedInstanceUtilizationStatsResponse response =
                     GetReservedInstanceUtilizationStatsResponse.newBuilder()
                             .addAllReservedInstanceStatsRecords(statRecords)
                             .build();
@@ -123,16 +104,12 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
         try {
             final ReservedInstanceCoverageFilter filter =
                     createReservedInstanceCoverageFilter(request);
-            final List<ReservedInstanceStatsRecord> statRecords =
-                    reservedInstanceCoverageStore.getReservedInstanceCoverageStatsRecords(filter);
-            float usedCouponsTotal = (float)getProjectedRICoverageCouponTotal();
-            // Instead of again computing the total capacity stats for the projected stats, we use the one from the last record
-            // as it should be the same.
-            statRecords.add(ReservedInstanceUtil.createRIStatsRecord(
-                        statRecords.isEmpty() ? usedCouponsTotal : statRecords.get(statRecords.size()-1).getCapacity().getTotal(),
-                        usedCouponsTotal,
-                        request.getEndDate() + TimeUnit.HOURS.toMillis(PROJECTED_STATS_TIME_IN_FUTURE_HOURS)));
-            GetReservedInstanceCoverageStatsResponse response =
+            final List<ReservedInstanceStatsRecord> statRecords = reservedInstanceCoverageStore
+                .getReservedInstanceCoverageStatsRecords(filter);
+            // Add projected RI Coverage point
+            // TODO (Alexey, Oct 24 2019): Respect input filter passed in the request.
+            statRecords.add(createProjectedRICoverageStats(statRecords));
+            final GetReservedInstanceCoverageStatsResponse response =
                     GetReservedInstanceCoverageStatsResponse.newBuilder()
                             .addAllReservedInstanceStatsRecords(statRecords)
                             .build();
@@ -149,34 +126,26 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
      * Create {@link ReservedInstanceUtilizationFilter} based on input different filters and
      * timestamp.
      *
-     * @param regionFilter region id filters.
-     * @param azFilter availability zone id filters.
-     * @param accountFilter account id filters.
-     * @param startDateMillis start date timestamp.
-     * @param endDateMillis end date timestamp.
+     * @param request The {@link GetReservedInstanceUtilizationStatsRequest}.
      * @return a {@link ReservedInstanceUtilizationFilter}.
      */
     private ReservedInstanceUtilizationFilter createReservedInstanceUtilizationFilter(
-            @Nonnull final Optional<RegionFilter> regionFilter,
-            @Nonnull final Optional<AvailabilityZoneFilter> azFilter,
-            @Nonnull final Optional<AccountFilter> accountFilter,
-            final long startDateMillis,
-            final long endDateMillis,
-            final TimeFrame timeFrame) {
+            @Nonnull final GetReservedInstanceUtilizationStatsRequest request) {
         // Get all business accounts based on scope ID's and scope type.
         final ReservedInstanceUtilizationFilter.Builder filterBuilder = ReservedInstanceUtilizationFilter.newBuilder();
-        if (regionFilter.isPresent()) {
-            filterBuilder.addAllScopeId(regionFilter.get().getRegionIdList())
+        if (request.hasRegionFilter()) {
+            filterBuilder.addAllScopeId(request.getRegionFilter().getRegionIdList())
                        .setScopeEntityType(EntityType.REGION_VALUE);
-        } else if (azFilter.isPresent()) {
-            filterBuilder.addAllScopeId(azFilter.get().getAvailabilityZoneIdList())
-                        .setScopeEntityType(EntityType.AVAILABILITY_ZONE_VALUE);
-        } else if (accountFilter.isPresent()) {
-            filterBuilder.addAllScopeId(accountFilter.get().getAccountIdList())
-                        .setScopeEntityType(EntityType.BUSINESS_ACCOUNT_VALUE);
+        } else if (request.hasAvailabilityZoneFilter()) {
+            filterBuilder.addAllScopeId(request.getAvailabilityZoneFilter().getAvailabilityZoneIdList())
+                .setScopeEntityType(EntityType.AVAILABILITY_ZONE_VALUE);
+        } else if (request.hasAccountFilter()) {
+            filterBuilder.addAllScopeId(request.getAccountFilter().getAccountIdList())
+                .setScopeEntityType(EntityType.BUSINESS_ACCOUNT_VALUE);
         }
-        filterBuilder.setStartDateMillis(startDateMillis);
-        filterBuilder.setEndDateMillis(endDateMillis);
+        filterBuilder.setStartDateMillis(request.getStartDate());
+        filterBuilder.setEndDateMillis(request.getEndDate());
+        final TimeFrame timeFrame = timeFrameCalculator.millis2TimeFrame(request.getStartDate());
         filterBuilder.setTimeFrame(timeFrame);
         return filterBuilder.build();
     }
@@ -220,34 +189,23 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
         return filterBuilder.build();
     }
 
-    /**
-     * Add one extra {@link ReservedInstanceStatsRecord} into list, and its stats value is exactly
-     * same as the latest reserved instance stats record value, but its snapshot time should be
-     * the current timestamp.
-     *
-     * @param records a list of {@link ReservedInstanceStatsRecord}.
-     * @return a list of {@link ReservedInstanceStatsRecord} contains one extra stats record.
-     */
-    private List<ReservedInstanceStatsRecord> addLatestRIStats(
-            @Nonnull final List<ReservedInstanceStatsRecord> records) {
-        if (records.isEmpty()) {
-            return Collections.emptyList();
-        }
-        records.sort(Comparator.comparingLong(ReservedInstanceStatsRecord::getSnapshotDate));
-        final long currentTimeMillis = Instant.now().toEpochMilli();
-        ReservedInstanceStatsRecord lastRIStatsRecord = records.get(records.size() - 1);
-        if (lastRIStatsRecord.getSnapshotDate() != currentTimeMillis) {
-            final ReservedInstanceStatsRecord newCurrentRIStatsRecord =
-                    ReservedInstanceStatsRecord.newBuilder(lastRIStatsRecord)
-                            .setSnapshotDate(currentTimeMillis)
-                            .build();
-            records.add(newCurrentRIStatsRecord);
-        }
-        return records;
+    private ReservedInstanceStatsRecord createProjectedRICoverageStats(
+                @Nonnull final List<ReservedInstanceStatsRecord> currentStatRecords) {
+        final float usedCouponsTotal = getProjectedRICoverageCouponTotal();
+        final long projectedTime = clock.instant()
+            .plus(PROJECTED_STATS_TIME_IN_FUTURE_HOURS, ChronoUnit.HOURS).toEpochMilli();
+        // TODO (Alexey, Oct 24 2019): Instead of again computing the total capacity stats for the
+        //  projected stats, we use the one from the last record. This is wrong since capacity may
+        //  have changed in the projected state. Also if currentStatRecords is empty we use used
+        //  coupons for capacity which is also incorrect.
+        final float capacity = currentStatRecords.isEmpty()
+            ? usedCouponsTotal
+            : currentStatRecords.get(currentStatRecords.size() - 1).getCapacity().getTotal();
+        return ReservedInstanceUtil.createRIStatsRecord(capacity, usedCouponsTotal, projectedTime);
     }
 
-    private double getProjectedRICoverageCouponTotal() {
-        return projectedRICoverageStore.getAllProjectedEntitiesRICoverages()
+    private float getProjectedRICoverageCouponTotal() {
+        return (float)projectedRICoverageStore.getAllProjectedEntitiesRICoverages()
             .values().stream()
             .flatMap(map -> map.values().stream())
             .mapToDouble(i -> i)
