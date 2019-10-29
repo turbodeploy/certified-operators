@@ -9,6 +9,8 @@ import javax.annotation.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import com.vmturbo.action.orchestrator.api.ActionsListener;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated;
@@ -395,7 +397,8 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
      * @return The plan new status
      */
     @Nonnull
-    private static PlanStatus getPlanStatusBasedOnPlanType(@Nonnull final Builder plan) {
+    @VisibleForTesting
+    static PlanStatus getPlanStatusBasedOnPlanType(@Nonnull final Builder plan) {
         final PlanStatus existingStatus = plan.getStatus();
         if (PlanStatus.FAILED.equals(existingStatus) ||
                 PlanStatus.SUCCEEDED.equals(existingStatus)) {
@@ -430,7 +433,8 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
      * @return The status of the plan
      */
     @Nonnull
-    private static PlanStatus getOCPWithBuyRIPlanStatus(@Nonnull final PlanInstance.Builder plan) {
+    @VisibleForTesting
+    static PlanStatus getOCPWithBuyRIPlanStatus(@Nonnull final PlanInstance.Builder plan) {
         final Status planProgressProjectedCostStatus = plan.getPlanProgress()
                 .getProjectedCostStatus();
         final Status planProgressProjectedRiCoverageStatus = plan.getPlanProgress()
