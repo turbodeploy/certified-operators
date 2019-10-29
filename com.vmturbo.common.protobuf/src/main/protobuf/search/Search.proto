@@ -102,8 +102,23 @@ message TraversalFilter {
         // BusinessAccount ---- ConnectedTo   ---> VirtualMachine
         // VirtualMachine  <--- ConnectedFrom ---- BusinessAccount
         // where ConnectedFrom is the opposite direction (on the same edge) of ConnectedTo
+        // This case includes all connections, i.e, normal, aggregation, and ownership.
+        // Owners and aggregators are "connected to" owned and aggregated entities, resp.
+        // Owned and aggregated entities are "connected from" owners and aggregators, resp.
         CONNECTED_TO = 2;
         CONNECTED_FROM = 3;
+        // BusinessAccount ---- Owns   ---> VirtualMachine
+        // VirtualMachine  <--- Owned by ---- BusinessAccount
+        // Zone ---- Aggregates   ---> VirtualMachine
+        // VirtualMachine  <--- Aggregated by ---- Zone
+        // This filter accepts aggregations and ownerships, but not other connections.
+        INCLUDES = 4;
+        INCLUDED_BY = 5;
+        // BusinessAccount ---- Owns   ---> VirtualMachine
+        // VirtualMachine  <--- Owned by ---- BusinessAccount
+        // This filter accepts only ownerships.
+        OWNS = 6;
+        OWNED_BY = 7;
     }
 }
 

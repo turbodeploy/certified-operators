@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -121,11 +120,22 @@ public class TopologyGraphCreator<BUILDER extends TopologyGraphEntity.Builder<BU
                 });
 
             entity.getConnectionIds()
-                .forEach(connectedId -> {
-                    final BUILDER connected = topoEntities.get(connectedId);
+                .forEach(connectionToEntity -> {
+                    final BUILDER connected = topoEntities.get(connectionToEntity.getConnectedEntityId());
                     if (connected != null) {
-                        entity.addConnectedTo(connected);
-                        connected.addConnectedFrom(entity);
+                        switch (connectionToEntity.getConnectionType()) {
+                            case NORMAL_CONNECTION:
+                                entity.addOutboundAssociation(connected);
+                                connected.addInboundAssociation(entity);
+                                break;
+                            case AGGREGATES_CONNECTION:
+                                entity.addAggregatedEntity(connected);
+                                connected.addAggregator(entity);
+                                break;
+                            case OWNS_CONNECTION:
+                                entity.addOwnedEntity(connected);
+                                connected.addOwner(entity);
+                        }
                     } else {
                         // it can be null as the connectedToEntity may not be in plan because
                         // we already filtered by scope.

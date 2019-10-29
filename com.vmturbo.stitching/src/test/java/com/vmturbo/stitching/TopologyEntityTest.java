@@ -35,6 +35,14 @@ public class TopologyEntityTest {
     private final TopologyEntityDTO.Builder dtoBuilder =
         TopologyEntityDTO.newBuilder().setOid(ENTITY_OID).setEntityType(ENTITY_TYPE);
 
+    /**
+     * Builders for a simple cloud topology: region owns zone aggregates VM connects to Volume.
+     */
+    private TopologyEntity.Builder vmBuilder;
+    private TopologyEntity.Builder azBuilder;
+    private TopologyEntity.Builder rgBuilder;
+    private TopologyEntity.Builder volBuilder;
+
     @Test
     public void testBuild() {
         final TopologyEntity entity = TopologyEntity.newBuilder(dtoBuilder).build();
@@ -170,5 +178,156 @@ public class TopologyEntityTest {
 
         assertEquals(0, consumer.build().getProviders().size());
         assertEquals(0, provider.build().getConsumers().size());
+    }
+
+    /**
+     * Tests that the connection getters return the appropriate information in a small
+     * topology where a region owns a zone which aggregates a VM.
+     */
+    @Test
+    public void testConnections() {
+        makeSimpleCloudTopology();
+
+        final TopologyEntity vm = vmBuilder.build();
+        final TopologyEntity az = azBuilder.build();
+        final TopologyEntity rg = rgBuilder.build();
+        final TopologyEntity vol = volBuilder.build();
+
+        assertEquals(1, vm.getConnectedFromEntities().size());
+        assertEquals(vm.getConnectedFromEntities().get(0), az);
+        assertEquals(1, vm.getConnectedToEntities().size());
+        assertEquals(vm.getConnectedToEntities().get(0), vol);
+        assertFalse(vm.getOwner().isPresent());
+        assertEquals(0, vm.getOwnedEntities().size());
+        assertEquals(1, vm.getAggregators().size());
+        assertEquals(vm.getAggregators().get(0), az);
+        assertEquals(0, vm.getAggregatedEntities().size());
+        assertEquals(0, vm.getOwnedOrAggregatedEntities().size());
+        assertEquals(1, vm.getOwnersOrAggregators().size());
+        assertEquals(vm.getOwnersOrAggregators().get(0), az);
+
+        assertEquals(1, az.getConnectedFromEntities().size());
+        assertEquals(az.getConnectedFromEntities().get(0), rg);
+        assertEquals(1, az.getConnectedToEntities().size());
+        assertEquals(az.getConnectedToEntities().get(0), vm);
+        assertEquals(az.getOwner().get(), rg);
+        assertEquals(0, az.getOwnedEntities().size());
+        assertEquals(0, az.getAggregators().size());
+        assertEquals(1, az.getAggregatedEntities().size());
+        assertEquals(az.getAggregatedEntities().get(0), vm);
+        assertEquals(1, az.getOwnedOrAggregatedEntities().size());
+        assertEquals(az.getOwnedOrAggregatedEntities().get(0), vm);
+        assertEquals(1, az.getOwnersOrAggregators().size());
+        assertEquals(az.getOwnersOrAggregators().get(0), rg);
+
+        assertEquals(0, rg.getConnectedFromEntities().size());
+        assertEquals(1, rg.getConnectedToEntities().size());
+        assertEquals(rg.getConnectedToEntities().get(0), az);
+        assertFalse(rg.getOwner().isPresent());
+        assertEquals(1, rg.getOwnedEntities().size());
+        assertEquals(rg.getOwnedEntities().get(0), az);
+        assertEquals(0, rg.getAggregators().size());
+        assertEquals(0, rg.getAggregatedEntities().size());
+        assertEquals(1, rg.getOwnedOrAggregatedEntities().size());
+        assertEquals(rg.getOwnedOrAggregatedEntities().get(0), az);
+        assertEquals(0, rg.getOwnersOrAggregators().size());
+
+        assertEquals(1, vol.getConnectedFromEntities().size());
+        assertEquals(vol.getConnectedFromEntities().get(0), vm);
+        assertEquals(0, vol.getConnectedToEntities().size());
+        assertFalse(vol.getOwner().isPresent());
+        assertEquals(0, vol.getOwnedEntities().size());
+        assertEquals(0, vol.getAggregators().size());
+        assertEquals(0, vol.getAggregatedEntities().size());
+        assertEquals(0, vol.getOwnedOrAggregatedEntities().size());
+        assertEquals(0, vol.getOwnersOrAggregators().size());
+    }
+
+    /**
+     * Tests that snapshots work properly in a small
+     * topology where a region owns a zone which aggregates a VM.
+     */
+    @Test
+    public void testSnapshotInConnectedTopology() {
+        makeSimpleCloudTopology();
+
+        final TopologyEntity vm = vmBuilder.build();
+        final TopologyEntity az = azBuilder.build();
+        final TopologyEntity vol = volBuilder.build();
+
+        final TopologyEntity vmSnapshot = vm.snapshot();
+        assertFalse(vm == vmSnapshot);
+        assertEquals(vm.getOid(), vmSnapshot.getOid());
+        assertEquals(vm.getDisplayName(), vmSnapshot.getDisplayName());
+        assertEquals(vm.getEntityType(), vmSnapshot.getEntityType());
+
+        assertEquals(1, vmSnapshot.getConnectedFromEntities().size());
+        assertEquals(vmSnapshot.getConnectedFromEntities().get(0), az);
+        assertEquals(1, vmSnapshot.getConnectedToEntities().size());
+        assertEquals(vmSnapshot.getConnectedToEntities().get(0), vol);
+        assertFalse(vmSnapshot.getOwner().isPresent());
+        assertEquals(0, vmSnapshot.getOwnedEntities().size());
+        assertEquals(1, vmSnapshot.getAggregators().size());
+    }
+
+    /**
+     * Tests that clearing connections work properly.
+     */
+    @Test
+    public void testClearConnections() {
+        makeSimpleCloudTopology();
+
+        vmBuilder.clearConsumersAndProviders();
+        azBuilder.clearConsumersAndProviders();
+        rgBuilder.clearConsumersAndProviders();
+        volBuilder.clearConsumersAndProviders();
+
+        assertEntityHasNoConnections(vmBuilder.build());
+        assertEntityHasNoConnections(azBuilder.build());
+        assertEntityHasNoConnections(rgBuilder.build());
+        assertEntityHasNoConnections(volBuilder.build());
+    }
+
+    private void makeSimpleCloudTopology() {
+        final long vmId = 1L;
+        final long azId = 2L;
+        final long rgId = 3L;
+        final long volId = 4L;
+
+        vmBuilder = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+                                                .setOid(vmId)
+                                                .setDisplayName("foo")
+                                                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE));
+
+        azBuilder = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+                                                .setOid(azId)
+                                                .setDisplayName("foo")
+                                                .setEntityType(EntityType.AVAILABILITY_ZONE_VALUE));
+
+        rgBuilder = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+                                                .setOid(rgId)
+                                                .setDisplayName("foo")
+                                                .setEntityType(EntityType.REGION_VALUE));
+        volBuilder = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
+                                                .setOid(volId)
+                                                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE));
+
+        vmBuilder.addOutboundAssociation(volBuilder);
+        volBuilder.addInboundAssociation(vmBuilder);
+        vmBuilder.addAggregator(azBuilder);
+        azBuilder.addAggregatedEntity(vmBuilder);
+        azBuilder.addOwner(rgBuilder);
+        rgBuilder.addOwnedEntity(azBuilder);
+    }
+
+    private void assertEntityHasNoConnections(TopologyEntity entity) {
+        assertEquals(0, entity.getConnectedFromEntities().size());
+        assertEquals(0, entity.getConnectedToEntities().size());
+        assertFalse(entity.getOwner().isPresent());
+        assertEquals(0, entity.getOwnedEntities().size());
+        assertEquals(0, entity.getAggregators().size());
+        assertEquals(0, entity.getAggregatedEntities().size());
+        assertEquals(0, entity.getOwnedOrAggregatedEntities().size());
+        assertEquals(0, entity.getOwnersOrAggregators().size());
     }
 }

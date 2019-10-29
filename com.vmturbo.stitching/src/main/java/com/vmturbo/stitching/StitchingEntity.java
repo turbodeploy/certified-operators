@@ -74,10 +74,13 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      * Get the connected {@link StitchingEntity} instances that this entity is "connected to"
      * grouped by connection type.
      *
-     * This relationship was added to support cloud entities that are connected to other entities
+     * <p>This relationship was added to support cloud entities that are connected to other entities
      * but do not buy or sell commodities. For example, a BusinessAccount may be connected to
      * other BusinessAccounts, a VM may be connected to an AvailabilityZone, and so on, and may
-     * own Workload entities such as VMs, Databases, etc.
+     * own Workload entities such as VMs, Databases, etc.</p>
+     *
+     * <p>This method returns all types of outwards connections: these include normal connections,
+     * owned and aggregated entities.</p>
      *
      * @return the map from {@link ConnectionType} to set of {@link StitchingEntity} instances that
      * this entity is connected to.
@@ -90,8 +93,11 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      * Get the connected {@link StitchingEntity} instances that are "connectedTo" this entity
      * grouped by connection type.
      *
-     * This is the inverse of the connectedTo relationship and it used by cloud probes as well
-     * as Storage Browsing probes.
+     * <p>This is the inverse of the connectedTo relationship and it used by cloud probes as well
+     * as Storage Browsing probes.</p>
+     *
+     * <p>This method returns all types of inwards connections: these include normal connections,
+     * the owner and aggregating entities.</p>
      *
      * @return the map from {@link ConnectionType} to set of {@link StitchingEntity} instances that
      * are connectedTo this entity.

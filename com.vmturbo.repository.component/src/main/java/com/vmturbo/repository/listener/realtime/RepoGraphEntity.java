@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -25,6 +26,7 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -57,8 +59,22 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
     private final Map<Integer, CommoditySoldDTO> soldCommodities;
     private final List<Long> discoveringTargetIds;
 
-    private List<RepoGraphEntity> connectedTo = Collections.emptyList();
-    private List<RepoGraphEntity> connectedFrom = Collections.emptyList();
+    /**
+     * These lists represent all connections of this entity:
+     * outbound and inbound associations (which correspond
+     * to connections of type
+     * {@link TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType#NORMAL_CONNECTION}),
+     * aggregations, and ownerships. Note that there can only be one owner.
+     * The lists are initialized to {@link Collections#emptyList} and are only
+     * assigned to {@link ArrayList}s when elements are inserted, to keep
+     * the memory footprint small.
+     */
+    private List<RepoGraphEntity> outboundAssociatedEntities = Collections.emptyList();
+    private List<RepoGraphEntity> inboundAssociatedEntities = Collections.emptyList();
+    private RepoGraphEntity owner = null;
+    private List<RepoGraphEntity> ownedEntities = Collections.emptyList();
+    private List<RepoGraphEntity> aggregators = Collections.emptyList();
+    private List<RepoGraphEntity> aggregatedEntities = Collections.emptyList();
     private List<RepoGraphEntity> providers = Collections.emptyList();
     private List<RepoGraphEntity> consumers = Collections.emptyList();
 
@@ -138,18 +154,46 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
         return new Builder(entity, sharedCompressionBuffer);
     }
 
-    private void addConnectedTo(@Nonnull final RepoGraphEntity entity) {
-        if (this.connectedTo.isEmpty()) {
-            this.connectedTo = new ArrayList<>(1);
+    private void addOutboundAssociation(@Nonnull final RepoGraphEntity entity) {
+        if (this.outboundAssociatedEntities.isEmpty()) {
+            this.outboundAssociatedEntities = new ArrayList<>(1);
         }
-        this.connectedTo.add(entity);
+        this.outboundAssociatedEntities.add(entity);
     }
 
-    private void addConnectedFrom(@Nonnull final RepoGraphEntity entity) {
-        if (this.connectedFrom.isEmpty()) {
-            this.connectedFrom = new ArrayList<>(1);
+    private void addInboundAssociation(@Nonnull final RepoGraphEntity entity) {
+        if (this.inboundAssociatedEntities.isEmpty()) {
+            this.inboundAssociatedEntities = new ArrayList<>(1);
         }
-        this.connectedFrom.add(entity);
+        this.inboundAssociatedEntities.add(entity);
+    }
+
+    private void addOwner(@Nonnull final RepoGraphEntity entity) {
+        if (this.owner != null) {
+            throw new IllegalStateException("Tried to add multiple owners to entity " + this);
+        }
+        this.owner = entity;
+    }
+
+    private void addOwnedEntity(@Nonnull final RepoGraphEntity entity) {
+        if (this.ownedEntities.isEmpty()) {
+            this.ownedEntities = new ArrayList<>(1);
+        }
+        this.ownedEntities.add(entity);
+    }
+
+    private void addAggregator(@Nonnull final RepoGraphEntity entity) {
+        if (this.aggregators.isEmpty()) {
+            this.aggregators = new ArrayList<>(1);
+        }
+        this.aggregators.add(entity);
+    }
+
+    private void addAggregatedEntity(@Nonnull final RepoGraphEntity entity) {
+        if (this.aggregatedEntities.isEmpty()) {
+            this.aggregatedEntities = new ArrayList<>(1);
+        }
+        this.aggregatedEntities.add(entity);
     }
 
     private void addProvider(@Nonnull final RepoGraphEntity entity) {
@@ -177,11 +221,20 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
         if (!providers.isEmpty()) {
             ((ArrayList<RepoGraphEntity>)providers).trimToSize();
         }
-        if (!connectedTo.isEmpty()) {
-            ((ArrayList<RepoGraphEntity>)connectedTo).trimToSize();
+        if (!outboundAssociatedEntities.isEmpty()) {
+            ((ArrayList<RepoGraphEntity>)outboundAssociatedEntities).trimToSize();
         }
-        if (!connectedFrom.isEmpty()) {
-            ((ArrayList<RepoGraphEntity>)connectedFrom).trimToSize();
+        if (!inboundAssociatedEntities.isEmpty()) {
+            ((ArrayList<RepoGraphEntity>)inboundAssociatedEntities).trimToSize();
+        }
+        if (!ownedEntities.isEmpty()) {
+            ((ArrayList)ownedEntities).trimToSize();
+        }
+        if (!aggregators.isEmpty()) {
+            ((ArrayList)aggregators).trimToSize();
+        }
+        if (!aggregatedEntities.isEmpty()) {
+            ((ArrayList)aggregatedEntities).trimToSize();
         }
     }
 
@@ -192,11 +245,21 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
         if (!providers.isEmpty()) {
             providers.clear();
         }
-        if (!connectedTo.isEmpty()) {
-            connectedTo.clear();
+        if (!outboundAssociatedEntities.isEmpty()) {
+            outboundAssociatedEntities.clear();
         }
-        if (!connectedFrom.isEmpty()) {
-            connectedFrom.clear();
+        if (!inboundAssociatedEntities.isEmpty()) {
+            inboundAssociatedEntities.clear();
+        }
+        owner = null;
+        if (!ownedEntities.isEmpty()) {
+            ownedEntities.clear();
+        }
+        if (!aggregators.isEmpty()) {
+            aggregators.clear();
+        }
+        if (!aggregatedEntities.isEmpty()) {
+            aggregatedEntities.clear();
         }
     }
 
@@ -270,11 +333,10 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
             .setEnvironmentType(EnvironmentType.ON_PREM)
             .setEntityType(type);
         Tags.Builder tagsBuilder = Tags.newBuilder();
-        tags.forEach((key, vals) -> {
+        tags.forEach((key, vals) ->
             tagsBuilder.putTags(key, TagValuesDTO.newBuilder()
                 .addAllValues(vals)
-                .build());
-        });
+                .build()));
         builder.setTags(tagsBuilder);
 
         if (!discoveringTargetIds.isEmpty()) {
@@ -296,25 +358,55 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
     @Nonnull
     @Override
     public List<RepoGraphEntity> getConsumers() {
-        return consumers;
+        return Collections.unmodifiableList(consumers);
     }
 
     @Nonnull
     @Override
     public List<RepoGraphEntity> getProviders() {
-        return providers;
+        return Collections.unmodifiableList(providers);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Nonnull
+    @Override
+    public List<RepoGraphEntity> getInboundAssociatedEntities() {
+        return Collections.unmodifiableList(inboundAssociatedEntities);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Nonnull
+    @Override
+    public List<RepoGraphEntity> getOutboundAssociatedEntities() {
+        return Collections.unmodifiableList(outboundAssociatedEntities);
     }
 
     @Nonnull
     @Override
-    public List<RepoGraphEntity> getConnectedToEntities() {
-        return connectedTo;
+    public Optional<RepoGraphEntity> getOwner() {
+        return Optional.ofNullable(owner);
     }
 
     @Nonnull
     @Override
-    public List<RepoGraphEntity> getConnectedFromEntities() {
-        return connectedFrom;
+    public List<RepoGraphEntity> getOwnedEntities() {
+        return Collections.unmodifiableList(ownedEntities);
+    }
+
+    @Nonnull
+    @Override
+    public List<RepoGraphEntity> getAggregators() {
+        return Collections.unmodifiableList(aggregators);
+    }
+
+    @Nonnull
+    @Override
+    public List<RepoGraphEntity> getAggregatedEntities() {
+        return Collections.unmodifiableList(aggregatedEntities);
     }
 
     @Nonnull
@@ -323,14 +415,13 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
         return discoveringTargetIds.stream();
     }
 
-
     /**
      * Builder for {@link RepoGraphEntity}.
      */
     public static class Builder implements TopologyGraphEntity.Builder<Builder, RepoGraphEntity> {
         private final RepoGraphEntity repoGraphEntity;
         private final Set<Long> providerIds;
-        private final Set<Long> connectedIds;
+        private final Set<ConnectedEntity> connectedEntities;
 
         private Builder(@Nonnull final TopologyEntityDTO dto,
                         @Nonnull final SharedByteBuffer sharedByteBuffer) {
@@ -338,8 +429,7 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
                 .filter(CommoditiesBoughtFromProvider::hasProviderId)
                 .map(CommoditiesBoughtFromProvider::getProviderId)
                 .collect(Collectors.toSet());
-            this.connectedIds = dto.getConnectedEntityListList().stream()
-                .map(ConnectedEntity::getConnectedEntityId)
+            this.connectedEntities = dto.getConnectedEntityListList().stream()
                 .collect(Collectors.toSet());
             this.repoGraphEntity = new RepoGraphEntity(dto, sharedByteBuffer);
         }
@@ -357,8 +447,8 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
 
         @Nonnull
         @Override
-        public Set<Long> getConnectionIds() {
-            return connectedIds;
+        public Set<ConnectedEntity> getConnectionIds() {
+            return connectedEntities;
         }
 
         @Override
@@ -373,14 +463,14 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
         }
 
         @Override
-        public Builder addConnectedFrom(final Builder connectedFrom) {
-            repoGraphEntity.addConnectedFrom(connectedFrom.repoGraphEntity);
+        public Builder addInboundAssociation(final Builder connectedFrom) {
+            repoGraphEntity.addInboundAssociation(connectedFrom.repoGraphEntity);
             return this;
         }
 
         @Override
-        public Builder addConnectedTo(final Builder connectedTo) {
-            repoGraphEntity.addConnectedTo(connectedTo.repoGraphEntity);
+        public Builder addOutboundAssociation(final Builder connectedTo) {
+            repoGraphEntity.addOutboundAssociation(connectedTo.repoGraphEntity);
             return this;
         }
 
@@ -393,6 +483,30 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
         @Override
         public Builder addConsumer(final Builder consumer) {
             repoGraphEntity.addConsumer(consumer.repoGraphEntity);
+            return this;
+        }
+
+        @Override
+        public Builder addOwner(final Builder owner) {
+            repoGraphEntity.addOwner(owner.repoGraphEntity);
+            return this;
+        }
+
+        @Override
+        public Builder addOwnedEntity(final Builder ownedEntity) {
+            repoGraphEntity.addOwnedEntity(ownedEntity.repoGraphEntity);
+            return this;
+        }
+
+        @Override
+        public Builder addAggregator(final Builder aggregator) {
+            repoGraphEntity.addAggregator(aggregator.repoGraphEntity);
+            return this;
+        }
+
+        @Override
+        public Builder addAggregatedEntity(final Builder aggregatedEntity) {
+            repoGraphEntity.addAggregatedEntity(aggregatedEntity.repoGraphEntity);
             return this;
         }
     }

@@ -90,7 +90,7 @@ public class PartialEntityConverterTest {
         RepoGraphEntity.Builder connectedToBldr = RepoGraphEntity.newBuilder(CONNECTED_TO);
         RepoGraphEntity.Builder graphBldr = RepoGraphEntity.newBuilder(ENTITY);
         graphBldr.addProvider(providerBldr);
-        graphBldr.addConnectedTo(connectedToBldr);
+        graphBldr.addOutboundAssociation(connectedToBldr);
 
         graphEntity = graphBldr.build();
     }

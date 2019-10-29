@@ -151,8 +151,8 @@ public class WastedFilesPostStitchingOperationTest {
      }
 
      private void connect(TopologyEntity.Builder source, TopologyEntity.Builder dest) {
-        source.addConnectedTo(dest);
-        dest.addConnectedFrom(source);
+        source.addOutboundAssociation(dest);
+        dest.addInboundAssociation(source);
      }
 
     /**

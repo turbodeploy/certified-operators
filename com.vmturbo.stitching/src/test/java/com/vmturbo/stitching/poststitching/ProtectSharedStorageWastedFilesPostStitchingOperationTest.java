@@ -74,12 +74,12 @@ public class ProtectSharedStorageWastedFilesPostStitchingOperationTest {
                 Collections.emptyList(),
                 Collections.emptyList());
 
-        virtualMachine1.addConnectedTo(virtualVolume1);
-        virtualVolume1.addConnectedTo(storage1);
-        virtualVolume1.addConnectedFrom(virtualMachine1);
-        virtualVolumeWasted1.addConnectedTo(storage1);
-        storage1.addConnectedFrom(virtualVolume1);
-        storage1.addConnectedFrom(virtualVolumeWasted1);
+        virtualMachine1.addOutboundAssociation(virtualVolume1);
+        virtualVolume1.addOutboundAssociation(storage1);
+        virtualVolume1.addInboundAssociation(virtualMachine1);
+        virtualVolumeWasted1.addOutboundAssociation(storage1);
+        storage1.addInboundAssociation(virtualVolume1);
+        storage1.addInboundAssociation(virtualVolumeWasted1);
         PostStitchingTestUtilities.addFilesToVirtualVolume(virtualVolume1, vm1Files);
         PostStitchingTestUtilities.addFilesToVirtualVolume(virtualVolumeWasted1, storage1Files);
 

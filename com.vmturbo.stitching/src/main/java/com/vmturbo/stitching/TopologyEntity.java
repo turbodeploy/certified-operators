@@ -8,6 +8,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -15,9 +16,11 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
@@ -53,50 +56,60 @@ public class TopologyEntity implements TopologyGraphEntity<TopologyEntity>, Jour
      */
     private final List<TopologyEntity> providers;
 
-    private final List<TopologyEntity> connectedFromEntities;
-
-    private final List<TopologyEntity> connectedToEntities;
+    /**
+     * These lists represent all connections of this entity:
+     * outbound and inbound associations (which correspond
+     * to connections of type
+     * {@link TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType#NORMAL_CONNECTION}),
+     * aggregations, and ownerships. Note that there can only be one owner.
+     *
+     * <p>The lists are mutable, because references to them are passed directly
+     * to the builder of this object. This is the reason why {@link AtomicReference}
+     * is used to store owner.</p>
+     */
+    private final List<TopologyEntity> inboundAssociatedEntities;
+    private final List<TopologyEntity> outboundAssociatedEntities;
+    private final AtomicReference<TopologyEntity> owner;
+    private final List<TopologyEntity> ownedEntities;
+    private final List<TopologyEntity> aggregators;
+    private final List<TopologyEntity> aggregatedEntities;
 
     private TopologyEntity(@Nonnull final TopologyEntityDTO.Builder entity,
                            @Nonnull final List<TopologyEntity> consumers,
                            @Nonnull final List<TopologyEntity> providers,
-                           @Nonnull final List<TopologyEntity> connectedFromEntities,
-                           @Nonnull final List<TopologyEntity> connectedToEntities) {
+                           @Nonnull final List<TopologyEntity> outboundAssociatedEntities,
+                           @Nonnull final List<TopologyEntity> inboundAssociatedEntities,
+                           @Nonnull final AtomicReference<TopologyEntity> owner,
+                           @Nonnull final List<TopologyEntity> ownedEntities,
+                           @Nonnull final List<TopologyEntity> aggregators,
+                           @Nonnull final List<TopologyEntity> aggregatedEntities) {
         this.entityBuilder = Objects.requireNonNull(entity);
         this.consumers = consumers;
         this.providers = providers;
-        this.connectedFromEntities = connectedFromEntities;
-        this.connectedToEntities = connectedToEntities;
+        this.inboundAssociatedEntities = inboundAssociatedEntities;
+        this.outboundAssociatedEntities = outboundAssociatedEntities;
+        this.owner = owner;
+        this.ownedEntities = ownedEntities;
+        this.aggregators = aggregators;
+        this.aggregatedEntities = aggregatedEntities;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public long getOid() {
         return entityBuilder.getOid();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public int getEntityType() {
         return entityBuilder.getEntityType();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Nonnull
     @Override
     public EntityState getEntityState() {
         return entityBuilder.getEntityState();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Nonnull
     @Override
     public EnvironmentType getEnvironmentType() {
@@ -132,22 +145,30 @@ public class TopologyEntity implements TopologyGraphEntity<TopologyEntity>, Jour
         final List<TopologyEntity> newProviders = new ArrayList<>(providers.size());
         newProviders.addAll(providers);
 
-        // Copy connectedFromEntities
-        final List<TopologyEntity> newConnectedFromEntities = new ArrayList<>(connectedFromEntities.size());
-        newProviders.addAll(connectedFromEntities);
+        // Copy inboundAssociatedEntities
+        final List<TopologyEntity> newConnectedFromAssociatedEntities = new ArrayList<>(inboundAssociatedEntities);
+        newConnectedFromAssociatedEntities.addAll(inboundAssociatedEntities);
 
-        // Copy connectedToEntities
-        final List<TopologyEntity> newConnectedToEntities = new ArrayList<>(connectedToEntities.size());
-        newProviders.addAll(connectedToEntities);
+        // Copy outboundAssociatedEntities
+        final List<TopologyEntity> newConnectedToAssociatedEntities =
+                new ArrayList<>(outboundAssociatedEntities.size());
+        newConnectedToAssociatedEntities.addAll(outboundAssociatedEntities);
+
+        // Copy owned entities, aggregators, aggregated entities
+        final List<TopologyEntity> newOwnedEntities = new ArrayList<>(ownedEntities.size());
+        newOwnedEntities.addAll(ownedEntities);
+        final List<TopologyEntity> newAggregators = new ArrayList<>(aggregators.size());
+        newAggregators.addAll(aggregators);
+        final List<TopologyEntity> newAggregatedEntities = new ArrayList<>(aggregatedEntities.size());
+        newAggregatedEntities.addAll(aggregatedEntities);
 
         // Create and return the copy
-        return new TopologyEntity(entityBuilder.clone(), newConsumers, newProviders,
-                newConnectedFromEntities, newConnectedToEntities);
+        return new TopologyEntity(
+                entityBuilder.clone(), newConsumers, newProviders,
+                newConnectedToAssociatedEntities, newConnectedFromAssociatedEntities,
+                owner, newOwnedEntities, newAggregators, newAggregatedEntities);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Nonnull
     @Override
     public String getDisplayName() {
@@ -199,37 +220,52 @@ public class TopologyEntity implements TopologyGraphEntity<TopologyEntity>, Jour
         return entityBuilder;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    @Nonnull
+    @Override
+    public List<TopologyEntity> getInboundAssociatedEntities() {
+        return Collections.unmodifiableList(inboundAssociatedEntities);
+    }
+
+    @Nonnull
+    @Override
+    public List<TopologyEntity> getOutboundAssociatedEntities() {
+        return Collections.unmodifiableList(outboundAssociatedEntities);
+    }
+
     @Nonnull
     @Override
     public List<TopologyEntity> getConsumers() {
         return Collections.unmodifiableList(consumers);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Nonnull
     @Override
     public List<TopologyEntity> getProviders() {
         return Collections.unmodifiableList(providers);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Nonnull
     @Override
-    public List<TopologyEntity> getConnectedFromEntities() {
-        return Collections.unmodifiableList(connectedFromEntities);
+    public Optional<TopologyEntity> getOwner() {
+        return Optional.ofNullable(owner.get());
     }
 
     @Nonnull
     @Override
-    public List<TopologyEntity> getConnectedToEntities() {
-        return Collections.unmodifiableList(connectedToEntities);
+    public List<TopologyEntity> getOwnedEntities() {
+        return Collections.unmodifiableList(ownedEntities);
+    }
+
+    @Nonnull
+    @Override
+    public List<TopologyEntity> getAggregators() {
+        return Collections.unmodifiableList(aggregators);
+    }
+
+    @Nonnull
+    @Override
+    public List<TopologyEntity> getAggregatedEntities() {
+        return Collections.unmodifiableList(aggregatedEntities);
     }
 
     /**
@@ -262,7 +298,7 @@ public class TopologyEntity implements TopologyGraphEntity<TopologyEntity>, Jour
     }
 
     /**
-     * Get the {@Link Origin} for this entity. The Origin tracks where and how an entity came to be
+     * Get the {@link Origin} for this entity. The Origin tracks where and how an entity came to be
      * included in the topology.
      *
      * @return The origin for this entity, or if not present, returns {@link Optional#empty()}.
@@ -272,7 +308,7 @@ public class TopologyEntity implements TopologyGraphEntity<TopologyEntity>, Jour
     }
 
     /**
-     * Get the {@Link DiscoveryOrigin} for this entity. The DiscoveryOrigin tracks information about which
+     * Get the {@link DiscoveryOrigin} for this entity. The DiscoveryOrigin tracks information about which
      * targets discovered the entity and when it was last updated.
      *
      * @return The {@link DiscoveryOrigin} for this entity, or if the entity does not have a discovery origin,
@@ -311,26 +347,40 @@ public class TopologyEntity implements TopologyGraphEntity<TopologyEntity>, Jour
          */
         private final ArrayList<TopologyEntity> consumers;
         private final ArrayList<TopologyEntity> providers;
-        private final ArrayList<TopologyEntity> connectedFromEntities;
-        private final ArrayList<TopologyEntity> connectedToEntities;
+        private final ArrayList<TopologyEntity> outboundAssociatedEntities;
+        private final ArrayList<TopologyEntity> inboundAssociatedEntities;
+        private AtomicReference<TopologyEntity> owner = new AtomicReference<>();
+        private final ArrayList<TopologyEntity> ownedEntities;
+        private final ArrayList<TopologyEntity> aggregators;
+        private final ArrayList<TopologyEntity> aggregatedEntities;
 
         private final TopologyEntity associatedTopologyEntity;
 
         private Builder(@Nonnull final TopologyEntityDTO.Builder entityBuilder) {
             this.consumers = new ArrayList<>();
             this.providers = new ArrayList<>();
-            this.connectedFromEntities = new ArrayList<>();
-            this.connectedToEntities = new ArrayList<>();
-            this.associatedTopologyEntity = new TopologyEntity(entityBuilder, this.consumers,
-                    this.providers, this.connectedFromEntities, this.connectedToEntities);
+            this.outboundAssociatedEntities = new ArrayList<>();
+            this.inboundAssociatedEntities = new ArrayList<>();
+            this.ownedEntities = new ArrayList<>();
+            this.aggregators = new ArrayList<>();
+            this.aggregatedEntities = new ArrayList<>();
+            this.associatedTopologyEntity =
+                new TopologyEntity(entityBuilder, this.consumers, this.providers,
+                                   this.outboundAssociatedEntities, this.inboundAssociatedEntities,
+                                   this.owner, this.ownedEntities,
+                                   this.aggregators, this.aggregatedEntities);
         }
 
         private Builder(@Nonnull final TopologyEntity.Builder topoEntityBuilder) {
             this(topoEntityBuilder.getEntityBuilder().clone());
             this.consumers.addAll(topoEntityBuilder.consumers);
             this.providers.addAll(topoEntityBuilder.providers);
-            this.connectedFromEntities.addAll(topoEntityBuilder.connectedFromEntities);
-            this.connectedToEntities.addAll(topoEntityBuilder.connectedToEntities);
+            this.outboundAssociatedEntities.addAll(topoEntityBuilder.outboundAssociatedEntities);
+            this.inboundAssociatedEntities.addAll(topoEntityBuilder.inboundAssociatedEntities);
+            this.owner.set(owner.get());
+            this.ownedEntities.addAll(topoEntityBuilder.ownedEntities);
+            this.aggregators.addAll(topoEntityBuilder.aggregators);
+            this.aggregatedEntities.addAll(topoEntityBuilder.aggregatedEntities);
         }
 
         @Override
@@ -346,14 +396,41 @@ public class TopologyEntity implements TopologyGraphEntity<TopologyEntity>, Jour
         }
 
         @Override
-        public Builder addConnectedFrom(@Nonnull final TopologyEntity.Builder connectedFromEntity) {
-            this.connectedFromEntities.add(connectedFromEntity.associatedTopologyEntity);
+        public Builder addInboundAssociation(@Nonnull final TopologyEntity.Builder connectedFromEntity) {
+            this.inboundAssociatedEntities.add(connectedFromEntity.associatedTopologyEntity);
             return this;
         }
 
         @Override
-        public Builder addConnectedTo(@Nonnull final TopologyEntity.Builder connectedToEntity) {
-            this.connectedToEntities.add(connectedToEntity.associatedTopologyEntity);
+        public Builder addOutboundAssociation(@Nonnull final TopologyEntity.Builder connectedToEntity) {
+            this.outboundAssociatedEntities.add(connectedToEntity.associatedTopologyEntity);
+            return this;
+        }
+
+        @Override
+        public Builder addOwner(@Nonnull final TopologyEntity.Builder owner) {
+            if (this.owner.get() != null) {
+                throw new IllegalStateException("Adding multiple owners to entity " + this);
+            }
+            this.owner.set(owner.associatedTopologyEntity);
+            return this;
+        }
+
+        @Override
+        public Builder addOwnedEntity(@Nonnull final TopologyEntity.Builder ownedEntity) {
+            this.ownedEntities.add(ownedEntity.associatedTopologyEntity);
+            return this;
+        }
+
+        @Override
+        public Builder addAggregator(@Nonnull final TopologyEntity.Builder aggregator) {
+            this.aggregators.add(aggregator.associatedTopologyEntity);
+            return this;
+        }
+
+        @Override
+        public Builder addAggregatedEntity(@Nonnull final TopologyEntity.Builder aggregatedEntity) {
+            this.aggregatedEntities.add(aggregatedEntity.associatedTopologyEntity);
             return this;
         }
 
@@ -361,8 +438,12 @@ public class TopologyEntity implements TopologyGraphEntity<TopologyEntity>, Jour
         public void clearConsumersAndProviders() {
             consumers.clear();
             providers.clear();
-            connectedFromEntities.clear();
-            connectedToEntities.clear();
+            outboundAssociatedEntities.clear();
+            inboundAssociatedEntities.clear();
+            owner.set(null);
+            ownedEntities.clear();
+            aggregators.clear();
+            aggregatedEntities.clear();
         }
 
         @Nonnull
@@ -374,7 +455,7 @@ public class TopologyEntity implements TopologyGraphEntity<TopologyEntity>, Jour
 
         @Nonnull
         @Override
-        public Set<Long> getConnectionIds() {
+        public Set<ConnectedEntity> getConnectionIds() {
             return TopologyGraphEntity.Builder.extractConnectionIds(
                 associatedTopologyEntity.getTopologyEntityDtoBuilder());
         }
@@ -415,6 +496,11 @@ public class TopologyEntity implements TopologyGraphEntity<TopologyEntity>, Jour
             // the consumers and providers will not be modified after the entity has been built.
             consumers.trimToSize();
             providers.trimToSize();
+            outboundAssociatedEntities.trimToSize();
+            inboundAssociatedEntities.trimToSize();
+            ownedEntities.trimToSize();
+            aggregators.trimToSize();
+            aggregatedEntities.trimToSize();
 
             return associatedTopologyEntity;
         }

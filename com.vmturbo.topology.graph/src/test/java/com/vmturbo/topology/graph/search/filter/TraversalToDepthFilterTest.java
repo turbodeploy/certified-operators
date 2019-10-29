@@ -4,10 +4,8 @@ import static com.vmturbo.topology.graph.search.filter.FilterUtils.filterOids;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
-
-import java.util.HashMap;
-import java.util.Map;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -20,6 +18,7 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditi
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.graph.SimpleCloudTopologyUtil;
 import com.vmturbo.topology.graph.TestGraphEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.search.filter.TraversalFilter.TraversalToDepthFilter;
@@ -41,10 +40,11 @@ public class TraversalToDepthFilterTest {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
+    /**
+     * Set up the topology.
+     */
     @Before
     public void setup() {
-        final Map<Long, TestGraphEntity.Builder> topologyMap = new HashMap<>();
-
         topologyGraph = TestGraphEntity.newGraph(
             TestGraphEntity.newBuilder(1L, UIEntityType.PHYSICAL_MACHINE),
             TestGraphEntity.newBuilder(2L, UIEntityType.PHYSICAL_MACHINE),
@@ -261,5 +261,69 @@ public class TraversalToDepthFilterTest {
                                 .build());
 
         assertThat(filterOids(filter, topologyGraph, 1L, 2L, 3L), contains(1L, 2L));
+    }
+
+    /**
+     * Test the behavior of all connection filters that correspond to {@link TraversalDirection}.
+     */
+    @Test
+    public void testConnectionFilters() {
+        final TopologyGraph<TestGraphEntity> graph = SimpleCloudTopologyUtil.constructTopology();
+
+        // check outgoing connection filter: this includes connections to owned and aggregated objects
+        final TraversalToDepthFilter<TestGraphEntity> outboundConnectionFilter =
+                new TraversalToDepthFilter<>(TraversalDirection.CONNECTED_TO, 1, null);
+        assertThat(filterOids(outboundConnectionFilter, graph, SimpleCloudTopologyUtil.RG_ID),
+                   containsInAnyOrder(SimpleCloudTopologyUtil.AZ_ID, SimpleCloudTopologyUtil.CT_ID,
+                                      SimpleCloudTopologyUtil.ST_ID));
+        assertThat(filterOids(outboundConnectionFilter, graph, SimpleCloudTopologyUtil.VM_ID), empty());
+        assertThat(filterOids(outboundConnectionFilter, graph, SimpleCloudTopologyUtil.CT_ID),
+                   contains(SimpleCloudTopologyUtil.ST_ID));
+
+        // check ingoing connection filter: this includes connections to owner and aggregators
+        final TraversalToDepthFilter<TestGraphEntity> inboundConnectionFilter =
+                new TraversalToDepthFilter<>(TraversalDirection.CONNECTED_FROM, 1, null);
+        assertThat(filterOids(inboundConnectionFilter, graph, SimpleCloudTopologyUtil.RG_ID), empty());
+        assertThat(filterOids(inboundConnectionFilter, graph, SimpleCloudTopologyUtil.VM_ID),
+                   contains(SimpleCloudTopologyUtil.AZ_ID));
+        assertThat(filterOids(inboundConnectionFilter, graph, SimpleCloudTopologyUtil.ST_ID),
+                   containsInAnyOrder(SimpleCloudTopologyUtil.RG_ID, SimpleCloudTopologyUtil.CT_ID));
+
+        // check owned and aggregated entities filter
+        final TraversalToDepthFilter<TestGraphEntity> ownedOrAggregatedFilter =
+                new TraversalToDepthFilter<>(TraversalDirection.INCLUDES, 1, null);
+        assertThat(filterOids(ownedOrAggregatedFilter, graph, SimpleCloudTopologyUtil.RG_ID),
+                   containsInAnyOrder(SimpleCloudTopologyUtil.AZ_ID, SimpleCloudTopologyUtil.CT_ID,
+                                      SimpleCloudTopologyUtil.ST_ID));
+        assertThat(filterOids(ownedOrAggregatedFilter, graph, SimpleCloudTopologyUtil.AZ_ID),
+                   containsInAnyOrder(SimpleCloudTopologyUtil.VM_ID, SimpleCloudTopologyUtil.DB_ID));
+        assertThat(filterOids(ownedOrAggregatedFilter, graph, SimpleCloudTopologyUtil.VM_ID), empty());
+        assertThat(filterOids(ownedOrAggregatedFilter, graph, SimpleCloudTopologyUtil.CT_ID), empty());
+
+        // check owner and aggregators filter
+        final TraversalToDepthFilter<TestGraphEntity> ownsOrAggregatesFilter =
+                new TraversalToDepthFilter<>(TraversalDirection.INCLUDED_BY, 1, null);
+        assertThat(filterOids(ownsOrAggregatesFilter, graph, SimpleCloudTopologyUtil.RG_ID), empty());
+        assertThat(filterOids(ownsOrAggregatesFilter, graph, SimpleCloudTopologyUtil.VM_ID),
+                   contains(SimpleCloudTopologyUtil.AZ_ID));
+        assertThat(filterOids(ownsOrAggregatesFilter, graph, SimpleCloudTopologyUtil.ST_ID),
+                   contains(SimpleCloudTopologyUtil.RG_ID));
+        // check owned entities only filter
+        final TraversalToDepthFilter<TestGraphEntity> ownsFilter =
+                new TraversalToDepthFilter<>(TraversalDirection.OWNS, 1, null);
+        assertThat(filterOids(ownsFilter, graph, SimpleCloudTopologyUtil.RG_ID),
+                   contains(SimpleCloudTopologyUtil.AZ_ID));
+        assertThat(filterOids(ownsFilter, graph, SimpleCloudTopologyUtil.AZ_ID), empty());
+        assertThat(filterOids(ownsFilter, graph, SimpleCloudTopologyUtil.VM_ID), empty());
+        assertThat(filterOids(ownsFilter, graph, SimpleCloudTopologyUtil.CT_ID), empty());
+
+        // check owners only
+        final TraversalToDepthFilter<TestGraphEntity> ownerFilter =
+                new TraversalToDepthFilter<>(TraversalDirection.OWNED_BY, 1, null);
+        assertThat(filterOids(ownerFilter, graph, SimpleCloudTopologyUtil.RG_ID), empty());
+        assertThat(filterOids(ownerFilter, graph, SimpleCloudTopologyUtil.AZ_ID),
+                   contains(SimpleCloudTopologyUtil.RG_ID));
+        assertThat(filterOids(ownerFilter, graph, SimpleCloudTopologyUtil.VM_ID), empty());
+        assertThat(filterOids(ownerFilter, graph, SimpleCloudTopologyUtil.ST_ID), empty());
     }
 }

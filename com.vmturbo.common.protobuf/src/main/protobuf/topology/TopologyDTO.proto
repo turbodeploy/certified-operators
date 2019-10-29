@@ -658,6 +658,14 @@ message TopologyEntityDTO {
             // - group all the slaves by master
             // - aggregate slaves stats/metrics by master
             OWNS_CONNECTION = 2;
+
+            // Aggregation is a directional relationship between two entities, the "aggregator"
+            // and the "aggregated entity". Aggregators are entities that can also be thought of as
+            // containing other entities, for example, Regions contain their VMs or Datacenters
+            // contain their PMs.
+            // This relationship is unidirectional and points from the aggregator to the aggregated
+            // entities.
+            AGGREGATES_CONNECTION = 3;
         }
     }
 

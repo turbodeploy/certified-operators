@@ -2,7 +2,6 @@ package com.vmturbo.topology.graph;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -12,9 +11,6 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -39,8 +35,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 @Immutable
 public class TopologyGraph<ENTITY extends TopologyGraphEntity<ENTITY>> {
-
-    private static final Logger logger = LogManager.getLogger();
 
     /**
      * A map permitting lookup from OID to {@link TopologyGraphEntity}.
@@ -219,6 +213,73 @@ public class TopologyGraph<ENTITY extends TopologyGraphEntity<ENTITY>> {
     @Nonnull
     public Stream<ENTITY> getConnectedToEntities(@Nonnull final ENTITY topologyEntity) {
         return topologyEntity.getConnectedToEntities().stream();
+    }
+
+    /**
+     * Get the entities that are aggregated or owned by a given {@link TopologyGraphEntity} in the graph.
+     *
+     * @param topologyEntity The {@link TopologyGraphEntity} whose aggregated and owned entities
+     *                       should be retrieved.
+     * @return The entities that are aggregated and owned by a {@link TopologyGraphEntity} in the graph.
+     */
+    @Nonnull
+    public Stream<ENTITY> getOwnedOrAggregatedEntities(@Nonnull final ENTITY topologyEntity) {
+        return topologyEntity.getOwnedOrAggregatedEntities().stream();
+    }
+
+    /**
+     * Get the owner and aggregators of a given {@link TopologyGraphEntity} in the graph.
+     *
+     * @param topologyEntity The {@link TopologyGraphEntity} whose owner and aggregators should be retrieved.
+     * @return The aggregators and owner of the {@link TopologyGraphEntity}.
+     */
+    @Nonnull
+    public Stream<ENTITY> getOwnersOrAggregators(@Nonnull final ENTITY topologyEntity) {
+        return topologyEntity.getOwnersOrAggregators().stream();
+    }
+
+    /**
+     * Get the entities that are owned by a given {@link TopologyGraphEntity} in the graph.
+     *
+     * @param topologyEntity The {@link TopologyGraphEntity} whose owned entities should be retrieved.
+     * @return The entities that are aggregated and owned by a {@link TopologyGraphEntity} in the graph.
+     */
+    @Nonnull
+    public Stream<ENTITY> getOwnedEntities(@Nonnull final ENTITY topologyEntity) {
+        return topologyEntity.getOwnedEntities().stream();
+    }
+
+    /**
+     * Get the owner of a given {@link TopologyGraphEntity} in the graph.
+     *
+     * @param topologyEntity The {@link TopologyGraphEntity} whose owner should be retrieved.
+     * @return The owner of the {@link TopologyGraphEntity}.
+     */
+    @Nonnull
+    public Stream<ENTITY> getOwner(@Nonnull final ENTITY topologyEntity) {
+        return topologyEntity.getOwner().map(Stream::of).orElseGet(Stream::empty);
+    }
+
+    /**
+     * Get the entities that are aggregated by a given {@link TopologyGraphEntity} in the graph.
+     *
+     * @param topologyEntity The {@link TopologyGraphEntity} whose aggregated entities should be retrieved.
+     * @return The entities that are aggregated by a {@link TopologyGraphEntity} in the graph.
+     */
+    @Nonnull
+    public Stream<ENTITY> getAggregatedEntities(@Nonnull final ENTITY topologyEntity) {
+        return topologyEntity.getAggregatedEntities().stream();
+    }
+
+    /**
+     * Get the aggregators of a given {@link TopologyGraphEntity} in the graph.
+     *
+     * @param topologyEntity The {@link TopologyGraphEntity} whose aggregators should be retrieved.
+     * @return The aggregators of the {@link TopologyGraphEntity}.
+     */
+    @Nonnull
+    public Stream<ENTITY> getAggregators(@Nonnull final ENTITY topologyEntity) {
+        return topologyEntity.getAggregators().stream();
     }
 
     /**

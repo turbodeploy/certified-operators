@@ -1,7 +1,9 @@
 package com.vmturbo.topology.graph;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -32,7 +34,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
  *           the right types.
  */
 public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
-
     /**
      * These are the commodity types that need to be persisted and returned by
      * {@link TopologyGraphEntity#soldCommoditiesByType()} because we support searching on their
@@ -144,22 +145,123 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
     List<E> getConsumers();
 
     /**
-     * Get the {@link TopologyGraphEntity}s this entity connects to.
-     * This is derived from {@link TopologyEntityDTO#getConnectedEntityListList()}.
+     * Get the {@link TopologyGraphEntity}s this entity connects to, with a "normal" connection
+     * (no ownership or aggregation).
+     *
+     * @return all entities connected with outbound "normal" connections to this entity
      */
     @Nonnull
-    List<E> getConnectedToEntities();
+    List<E> getOutboundAssociatedEntities();
 
     /**
-     * Get the {@link TopologyGraphEntity}s that are connected to this entity. This is the inverse
-     * of {@link TopologyGraphEntity#getConnectedToEntities()}.
+     * Get the {@link TopologyGraphEntity}s that are connected to this entity, with a "normal" connection
+     * (no ownership or aggregation).
+     *
+     * @return all entities connected with inbound "normal" connections to this entity
      */
     @Nonnull
-    List<E> getConnectedFromEntities();
+    List<E> getInboundAssociatedEntities();
+
+    /**
+     * Get the owner of this entity.
+     *
+     * @return The owner of this entity
+     */
+    @Nonnull
+    Optional<E> getOwner();
+
+    /**
+     * Get the {@link TopologyGraphEntity}s this entity owns.
+     *
+     * @return the entities this entity owns
+     */
+    @Nonnull
+    List<E> getOwnedEntities();
+
+    /**
+     * Get the aggregators of the entity.
+     *
+     * @return the entities that aggregate this entity
+     */
+    @Nonnull
+    List<E> getAggregators();
+
+    /**
+     * Get the {@link TopologyGraphEntity}s this entity aggregates.
+     *
+     * @return the entities this entity aggregates
+     */
+    @Nonnull
+    List<E> getAggregatedEntities();
+
+    /**
+     * Get all {@link TopologyGraphEntity}s connected to this, including owned and aggregated entities.
+     * The set of entities returned should be equal to the set of entities returned by
+     * {@link TopologyEntityDTO#getConnectedEntityListList()} in the equivalent
+     * {@link TopologyEntityDTO} object.
+     *
+     * @return all entities connected to this entity
+     *         (outbound associations, owned entities, and aggregated entities)
+     */
+    @Nonnull
+    default List<E> getConnectedToEntities() {
+        return Stream.of(getOutboundAssociatedEntities(), getAggregatedEntities(), getOwnedEntities())
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get all {@link TopologyGraphEntity}s that connect to this, including owner and aggregators.
+     *
+     * @return all entities that connect to this entity (inbound associations, owner, and aggregators)
+     */
+    @Nonnull
+    default List<E> getConnectedFromEntities() {
+        return Stream.of(getInboundAssociatedEntities(), getAggregators(), ownerAsList())
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get the owner and all aggregators of this entity.
+     *
+     * @return the owner and all aggregators of this entity
+     */
+    @Nonnull
+    default List<E> getOwnersOrAggregators() {
+        return Stream.of(getAggregators(), ownerAsList())
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get the owner in a singleton list, or an empty list if no owner exists.
+     *
+     * @return the owner in a singleton list, or an empty list if no owner exists
+     */
+    @Nonnull
+    default List<E> ownerAsList() {
+        return getOwner().map(Collections::singletonList).orElseGet(Collections::emptyList);
+    }
+
+    /**
+     * Get the owned and aggregated entities.
+     *
+     * @return the owned and aggregated entities.
+     */
+    @Nonnull
+    default List<E> getOwnedOrAggregatedEntities() {
+        return Stream.of(getAggregatedEntities(), getOwnedEntities())
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
+    }
 
     /**
      * A convenience method that applies a type filter on
      * {@link TopologyGraphEntity#getConnectedFromEntities()}.
+     *
+     * @param type entity type of the returned entities
+     * @return return all inbound connections of a certain entity type
      */
     @Nonnull
     default Stream<E> getConnectedFromEntities(final int type) {
@@ -188,10 +290,18 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
          * <p>
          * We don't expose the full {@link TopologyEntityDTO} so that implementations aren't forced
          * to keep them in memory.
+         *
+         * @return the set of the ids of all the providers of this entity
          */
         @Nonnull
         Set<Long> getProviderIds();
 
+        /**
+         * Return the provider ids for a specific entity.
+         *
+         * @param entity entity whose provider ids are returned
+         * @return provider ids
+         */
         @Nonnull
         static Set<Long> extractProviderIds(@Nonnull final TopologyEntityDTOOrBuilder entity) {
             return entity.getCommoditiesBoughtFromProvidersList().stream()
@@ -202,23 +312,32 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
 
         /**
          * Get the IDs of connected to entities (derived from
-         * {@link TopologyEntityDTO#getConnectedEntityListList()}).
+         * {@link TopologyEntityDTO#getConnectedEntityListList()}) and their connection types.
          * <p>
          * We don't expose the full {@link TopologyEntityDTO} so that implementations aren't forced
          * to keep them in memory.
+         *
+         * @return the set of the ids of all the outbound-connected entities for this entity
          */
         @Nonnull
-        Set<Long> getConnectionIds();
+        Set<ConnectedEntity> getConnectionIds();
 
+        /**
+         * Return the outbound connected entity ids for a specific entity.
+         *
+         * @param entity entity whose outbound connected entity ids are returned
+         * @return entity ids of all outbound connected entities
+         */
         @Nonnull
-        static Set<Long> extractConnectionIds(@Nonnull final TopologyEntityDTOOrBuilder entity) {
+        static Set<ConnectedEntity> extractConnectionIds(@Nonnull final TopologyEntityDTOOrBuilder entity) {
             return entity.getConnectedEntityListList().stream()
-                .map(ConnectedEntity::getConnectedEntityId)
                 .collect(Collectors.toSet());
         }
 
         /**
          * Get the OID of the entity.
+         *
+         * @return oid of the entity
          */
         long getOid();
 
@@ -226,7 +345,8 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
          * Add a consumer {@link Builder}. This should only be used by {@link TopologyGraphCreator}
          * when constructing the graph.
          *
-         * @return The builder, for chaining.
+         * @param consumer the new consumer
+         * @return The builder, for chaining
          */
         B addConsumer(B consumer);
 
@@ -234,28 +354,70 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
          * Add a provider {@link Builder}. This should only be used by {@link TopologyGraphCreator}
          * when constructing the graph.
          *
+         * @param provider the new provider
          * @return The builder, for chaining.
          */
         B addProvider(B provider);
 
         /**
-         * Add an outgoing connection {@link Builder}. This should only be used by
+         * Add an outgoing normal connection {@link Builder}. This should only be used by
          * {@link TopologyGraphCreator} when constructing the graph.
          *
-         * @return The builder, for chaining.
+         * @param connectedTo the new outbound associated entity
+         * @return The builder, for chaining
          */
-        B addConnectedTo(B connectedTo);
+        B addOutboundAssociation(B connectedTo);
 
         /**
-         * Add an incoming connection {@link Builder}. This should only be used by
+         * Add an incoming normal connection {@link Builder}. This should only be used by
          * {@link TopologyGraphCreator} when constructing the graph.
          *
-         * @return The builder, for chaining.
+         * @param connectedFrom the new inbound associated entity
+         * @return The builder, for chaining
          */
-        B addConnectedFrom(B connectedFrom);
+        B addInboundAssociation(B connectedFrom);
+
+        /**
+         * Add an owner {@link Builder}. This should only be used by
+         * {@link TopologyGraphCreator} when constructing the graph.
+         *
+         * @param owner the new owner
+         * @return The builder, for chaining
+         */
+        B addOwner(B owner);
+
+        /**
+         * Add an owned {@link Builder}. This should only be used by
+         * {@link TopologyGraphCreator} when constructing the graph.
+         *
+         * @param ownedEntity the new owned entity
+         * @return The builder, for chaining
+         */
+        B addOwnedEntity(B ownedEntity);
+
+        /**
+         * Add an aggregator {@link Builder}. This should only be used by
+         * {@link TopologyGraphCreator} when constructing the graph.
+         *
+         * @param aggregator the new aggregator
+         * @return The builder, for chaining
+         */
+        B addAggregator(B aggregator);
+
+        /**
+         * Add an aggregated {@link Builder}. This should only be used by
+         * {@link TopologyGraphCreator} when constructing the graph.
+         *
+         * @param aggregatedEntity the new aggregated entity
+         * @return The builder, for chaining
+         */
+        B addAggregatedEntity(B aggregatedEntity);
+
 
         /**
          * Build the entity.
+         *
+         * @return the built entity
          */
         E build();
     }

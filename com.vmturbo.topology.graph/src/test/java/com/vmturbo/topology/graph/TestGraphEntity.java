@@ -5,7 +5,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -13,6 +15,8 @@ import javax.annotation.Nonnull;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 
@@ -35,10 +39,17 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
 
     private final Map<String, List<String>> tags = new HashMap<>();
 
+    /**
+     * Relationships to other entities.
+     */
     private final List<TestGraphEntity> providers = new ArrayList<>();
     private final List<TestGraphEntity> consumers = new ArrayList<>();
-    private final List<TestGraphEntity> connectedTo = new ArrayList<>();
-    private final List<TestGraphEntity> connectedFrom = new ArrayList<>();
+    private final List<TestGraphEntity> outboundAssociatedEntities = new ArrayList<>();
+    private final List<TestGraphEntity> inboundAssociatedEntities = new ArrayList<>();
+    private final List<TestGraphEntity> aggregatedEntities = new ArrayList<>();
+    private final List<TestGraphEntity> aggregators = new ArrayList<>();
+    private final List<TestGraphEntity> ownedEntities = new ArrayList<>();
+    private final AtomicReference<TestGraphEntity> owner = new AtomicReference<>();
 
     private TestGraphEntity(final long oid, final UIEntityType type) {
         this.oid = oid;
@@ -112,26 +123,70 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
 
     @Nonnull
     @Override
-    public List<TestGraphEntity> getConnectedToEntities() {
-        return connectedTo;
+    public List<TestGraphEntity> getOutboundAssociatedEntities() {
+        return inboundAssociatedEntities;
     }
 
     @Nonnull
     @Override
-    public List<TestGraphEntity> getConnectedFromEntities() {
-        return connectedFrom;
+    public List<TestGraphEntity> getInboundAssociatedEntities() {
+        return outboundAssociatedEntities;
     }
 
+    @Nonnull
+    @Override
+    public Optional<TestGraphEntity> getOwner() {
+        return Optional.ofNullable(owner.get());
+    }
+
+    @Nonnull
+    @Override
+    public List<TestGraphEntity> getOwnedEntities() {
+        return ownedEntities;
+    }
+
+    @Nonnull
+    @Override
+    public List<TestGraphEntity> getAggregators() {
+        return aggregators;
+    }
+
+    @Nonnull
+    @Override
+    public List<TestGraphEntity> getAggregatedEntities() {
+        return aggregatedEntities;
+    }
+
+    /**
+     * Create a new builder with a specific oid and a specific entity type.
+     *
+     * @param oid the oid of the new entity builder
+     * @param entityType the entity type of the new entity builder
+     * @return the new entity builder
+     */
     @Nonnull
     public static Builder newBuilder(final long oid, final UIEntityType entityType) {
         return new Builder(oid, entityType);
     }
 
+    /**
+     * Create a new topology graph.
+     *
+     * @param topology a map from oids to entity builders
+     * @return the topology that is comprised of the given entities
+     */
     @Nonnull
     public static TopologyGraph<TestGraphEntity> newGraph(Map<Long, Builder> topology) {
         return new TopologyGraphCreator<>(topology).build();
     }
 
+    /**
+     * Create a new topology graph.
+     *
+     * @param builders a collection of builders whose entities will comprise
+     *                 the new topology
+     * @return the topology that is comprised of the given entities
+     */
     @Nonnull
     public static TopologyGraph<TestGraphEntity> newGraph(Builder... builders) {
         Map<Long, Builder> buildersById = new HashMap<>();
@@ -142,18 +197,24 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
         return newGraph(buildersById);
     }
 
+    /**
+     * Builder class for topology graphs of {@link TestGraphEntity}s.
+     */
     public static class Builder implements TopologyGraphEntity.Builder<Builder, TestGraphEntity> {
         private final TestGraphEntity entity;
 
-        private final Set<Long> connectedIds = new HashSet<>();
+        private final Set<ConnectedEntity> connectedEntities = new HashSet<>();
         private final Set<Long> providerIds = new HashSet<>();
 
         private Builder(final long oid, final UIEntityType entityType) {
             this.entity = new TestGraphEntity(oid, entityType);
         }
 
-        public Builder addConnectedId(final long consumerId) {
-            this.connectedIds.add(consumerId);
+        public Builder addConnectedEntity(long connectedEntityId, ConnectionType connectionType) {
+            this.connectedEntities.add(ConnectedEntity.newBuilder()
+                                            .setConnectedEntityId(connectedEntityId)
+                                            .setConnectionType(connectionType)
+                                            .build());
             return this;
         }
 
@@ -192,15 +253,21 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
             return this;
         }
 
-        public Builder addTarget(@Nonnull final long target) {
+        /**
+         * Add a discovering target.
+         *
+         * @param target the id of the discovering target
+         * @return {@code this} for chaining
+         */
+        public Builder addTarget(final long target) {
             entity.discoveringTargetIds.add(target);
             return this;
         }
 
         @Override
         public void clearConsumersAndProviders() {
-            entity.connectedFrom.clear();
-            entity.connectedTo.clear();
+            entity.outboundAssociatedEntities.clear();
+            entity.inboundAssociatedEntities.clear();
             entity.providers.clear();
             entity.consumers.clear();
         }
@@ -213,8 +280,8 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
 
         @Nonnull
         @Override
-        public Set<Long> getConnectionIds() {
-            return connectedIds;
+        public Set<ConnectedEntity> getConnectionIds() {
+            return connectedEntities;
         }
 
         @Override
@@ -235,14 +302,38 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
         }
 
         @Override
-        public Builder addConnectedTo(final Builder connectedTo) {
-            entity.connectedTo.add(connectedTo.entity);
+        public Builder addOutboundAssociation(final Builder connectedTo) {
+            entity.inboundAssociatedEntities.add(connectedTo.entity);
             return this;
         }
 
         @Override
-        public Builder addConnectedFrom(final Builder connectedFrom) {
-            entity.connectedFrom.add(connectedFrom.entity);
+        public Builder addInboundAssociation(final Builder connectedFrom) {
+            entity.outboundAssociatedEntities.add(connectedFrom.entity);
+            return this;
+        }
+
+        @Override
+        public Builder addOwner(final Builder owner) {
+            entity.owner.set(owner.entity);
+            return this;
+        }
+
+        @Override
+        public Builder addOwnedEntity(final Builder ownedEntity) {
+            entity.ownedEntities.add(ownedEntity.entity);
+            return this;
+        }
+
+        @Override
+        public Builder addAggregator(final Builder aggregator) {
+            entity.aggregators.add(aggregator.entity);
+            return this;
+        }
+
+        @Override
+        public Builder addAggregatedEntity(final Builder aggregatedEntity) {
+            entity.aggregatedEntities.add(aggregatedEntity.entity);
             return this;
         }
 
