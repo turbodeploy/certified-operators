@@ -5,6 +5,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -27,9 +28,6 @@ import java.util.concurrent.Executors;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
-import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
-import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import org.hamcrest.collection.IsArrayContainingInAnyOrder;
 import org.junit.Assert;
 import org.junit.Before;
@@ -53,6 +51,7 @@ import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectM
 import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.ActionType;
@@ -94,6 +93,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
+import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.CostMoles;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
@@ -166,8 +169,13 @@ public class ActionSpecMapperTest {
     private SupplyChainProtoMoles.SupplyChainServiceMole supplyChainMole =
         spy(new SupplyChainServiceMole());
 
+    private CostMoles.CostServiceMole costServiceMole = spy(new CostMoles.CostServiceMole());
+
+    private CostMoles.ReservedInstanceBoughtServiceMole reservedInstanceBoughtServiceMole =
+            spy(new CostMoles.ReservedInstanceBoughtServiceMole());
+
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(policyMole);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(policyMole, costServiceMole, reservedInstanceBoughtServiceMole);
 
     @Rule
     public GrpcTestServer supplyChainGrpcServer = GrpcTestServer.newServer(supplyChainMole);
@@ -562,6 +570,59 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.PROVISION, actionApiDTO.getActionType());
         assertEquals(DC2_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
         assertEquals(DC2_NAME, actionApiDTO.getNewLocation().getDisplayName());
+    }
+
+    @Test
+    public void testMapCloudResizeActionDetails() throws Exception {
+        final long targetId = 1;
+        // mock on-demand cost response from cost service
+        Cost.CloudCostStatRecord.StatRecord.StatValue statValueDto1 =
+                Cost.CloudCostStatRecord.StatRecord.StatValue.newBuilder().setAvg(10f).build();
+        Cost.CloudCostStatRecord.StatRecord.StatValue statValueDto2 =
+                Cost.CloudCostStatRecord.StatRecord.StatValue.newBuilder().setAvg(20f).build();
+        Cost.CloudCostStatRecord.StatRecord statRecord1 = Cost.CloudCostStatRecord.StatRecord.newBuilder().setValues(statValueDto1).build();
+        Cost.CloudCostStatRecord.StatRecord statRecord2 = Cost.CloudCostStatRecord.StatRecord.newBuilder().setValues(statValueDto2).build();
+        Cost.CloudCostStatRecord record1 = Cost.CloudCostStatRecord.newBuilder()
+                .addStatRecords(statRecord1)
+                .build();
+        Cost.CloudCostStatRecord record2 = Cost.CloudCostStatRecord.newBuilder()
+                .addStatRecords(statRecord2)
+                .build();
+        Cost.GetCloudCostStatsResponse serviceResult = Cost.GetCloudCostStatsResponse
+                .newBuilder()
+                .addCloudStatRecord(record1)
+                .addCloudStatRecord(record2)
+                .build();
+        when(costServiceMole.getCloudCostStats(any())).thenReturn(serviceResult);
+
+        // mock ri coverage response from reservedInstanceBought service
+        Map<Long, Cost.EntityReservedInstanceCoverage> mockCoverageMap = new HashMap<>();
+        Cost.EntityReservedInstanceCoverage entityReservedInstanceCoverage = Cost.EntityReservedInstanceCoverage
+                .newBuilder()
+                .putCouponsCoveredByRi(1L, 10)
+                .build();
+        mockCoverageMap.put(1L, entityReservedInstanceCoverage);
+        Cost.GetEntityReservedInstanceCoverageResponse coverageResponse = Cost
+                .GetEntityReservedInstanceCoverageResponse
+                .newBuilder()
+                .putAllCoverageByEntityId(mockCoverageMap)
+                .build();
+        when(reservedInstanceBoughtServiceMole.getEntityReservedInstanceCoverage(any())).thenReturn(coverageResponse);
+
+        // act
+        CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO = mapper.createCloudResizeActionDetailsDTO(targetId);
+
+        // check
+        assertNotNull(cloudResizeActionDetailsApiDTO);
+        // on-demand cost
+        assertEquals(cloudResizeActionDetailsApiDTO.getOnDemandCostBefore(), 10f,0);
+        assertEquals(cloudResizeActionDetailsApiDTO.getOnDemandCostAfter(), 20f,0);
+        // not implemented yet - set to $0 by default
+        assertEquals(cloudResizeActionDetailsApiDTO.getOnDemandRateBefore(), 0f ,0);
+        assertEquals(cloudResizeActionDetailsApiDTO.getOnDemandRateAfter(), 0f ,0);
+        // ri coverage
+        assertEquals(cloudResizeActionDetailsApiDTO.getRiCoverageBefore().getValue(), 10f ,0);
+        assertEquals(cloudResizeActionDetailsApiDTO.getRiCoverageAfter().getValue(), 0f ,0);
     }
 
     @Test

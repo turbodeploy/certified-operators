@@ -1552,8 +1552,8 @@ public class ActionSpecMapper {
             couponsStatApiDTO.setValue(0f);
             cloudResizeActionDetailsApiDTO.setRiCoverageBefore(couponsStatApiDTO);
         } else {
-            int coverageValue = reservedInstanceCoverage.getCouponsCoveredByRiCount();
-            couponsStatApiDTO.setValue((float)coverageValue);
+            Double coverageValue = reservedInstanceCoverage.getCouponsCoveredByRiMap().get(entityUuid);
+            couponsStatApiDTO.setValue(coverageValue.floatValue());
             capacityStatValueDTO.setAvg((float)couponCapacity);
             couponsStatApiDTO.setCapacity(capacityStatValueDTO);
             cloudResizeActionDetailsApiDTO.setRiCoverageBefore(couponsStatApiDTO);
@@ -1562,13 +1562,12 @@ public class ActionSpecMapper {
         // todo: projection data will be available after OM-51301 & OM-51296
         // return empty DTO
         capacityStatValueDTO.setAvg(0f);
-        couponsStatApiDTO.setCapacity(capacityStatValueDTO);
+        StatApiDTO couponsStatApiDTOAfter = new StatApiDTO();
+        couponsStatApiDTOAfter.setCapacity(capacityStatValueDTO);
         // no ri coverage; used coupons = 0
-        couponsStatApiDTO.setValue(0f);
-        cloudResizeActionDetailsApiDTO.setRiCoverageAfter(couponsStatApiDTO);
+        couponsStatApiDTOAfter.setValue(0f);
+        cloudResizeActionDetailsApiDTO.setRiCoverageAfter(couponsStatApiDTOAfter);
     }
-
-
 
     /**
      * Create RI historical Context Stat Snapshot DTOs
