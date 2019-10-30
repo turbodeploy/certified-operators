@@ -12,13 +12,11 @@ import org.springframework.context.annotation.Primary;
 
 import com.vmturbo.group.IdentityProviderConfig;
 import com.vmturbo.group.flyway.V1_11_Callback;
-import com.vmturbo.group.policy.PolicyConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
 @Import({IdentityProviderConfig.class,
-        SQLDatabaseConfig.class,
-        PolicyConfig.class})
+        SQLDatabaseConfig.class})
 public class GroupConfig {
 
     @Value("${tempGroupExpirationTimeMins:10}")
@@ -29,9 +27,6 @@ public class GroupConfig {
 
     @Autowired
     private SQLDatabaseConfig databaseConfig;
-
-    @Autowired
-    private PolicyConfig policyConfig;
 
     /**
      * Define flyway callbacks to be active during migrations for group component.
