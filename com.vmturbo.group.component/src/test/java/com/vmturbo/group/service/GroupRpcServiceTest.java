@@ -10,7 +10,6 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyMap;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -39,22 +38,17 @@ import io.grpc.StatusException;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
-import org.jooq.DSLContext;
+import org.hamcrest.CoreMatchers;
 import org.jooq.exception.DataAccessException;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
@@ -99,17 +93,13 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.components.common.identity.OidSet;
 import com.vmturbo.group.common.DuplicateNameException;
-import com.vmturbo.group.common.ImmutableUpdateException.ImmutableGroupUpdateException;
 import com.vmturbo.group.common.ItemNotFoundException.GroupNotFoundException;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.InvalidGroupException;
 import com.vmturbo.group.group.TemporaryGroupCache;
 import com.vmturbo.group.group.TemporaryGroupCache.InvalidTempGroupException;
-import com.vmturbo.group.policy.PolicyStore;
-import com.vmturbo.group.policy.PolicyStore.PolicyDeleteException;
 import com.vmturbo.group.service.GroupRpcService.InvalidGroupDefinitionException;
-import com.vmturbo.group.setting.SettingStore;
 import com.vmturbo.group.stitching.GroupStitchingManager;
 import com.vmturbo.group.stitching.GroupTestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -120,13 +110,6 @@ import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 /**
  * This class tests {@Link GroupRpcServiceTest}.
  */
-@SuppressWarnings("unchecked")
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        loader = AnnotationConfigContextLoader.class,
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=group_component"})
 public class GroupRpcServiceTest {
 
     private AtomicReference<List<Long>> mockDataReference = new AtomicReference<>(Collections.emptyList());
@@ -140,15 +123,12 @@ public class GroupRpcServiceTest {
     @Autowired
     private TestSQLDatabaseConfig dbConfig;
 
-    private PolicyStore policyStore = mock(PolicyStore.class);
-
-    private SettingStore settingStore = mock(SettingStore.class);
-
     private UserSessionContext userSessionContext = mock(UserSessionContext.class);
 
-    private IGroupStore groupStoreDAO = mock(IGroupStore.class);
-
     private GroupStitchingManager groupStitchingManager = spy(GroupStitchingManager.class);
+
+    private MockTransactionProvider transactionProvider;
+    private IGroupStore groupStoreDAO;
 
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(searchServiceHandler);
@@ -186,10 +166,13 @@ public class GroupRpcServiceTest {
     @Before
     public void setUp() throws Exception {
         SearchServiceBlockingStub searchServiceRpc = SearchServiceGrpc.newBlockingStub(testServer.getChannel());
+        transactionProvider = new MockTransactionProvider();
+        groupStoreDAO = transactionProvider.getGroupStore();
         groupRpcService = new GroupRpcService(temporaryGroupCache,
                 searchServiceRpc,
-                dbConfig.dsl(), policyStore, settingStore, userSessionContext, groupStoreDAO,
-                groupStitchingManager);
+                userSessionContext,
+                groupStitchingManager,
+                transactionProvider);
         when(temporaryGroupCache.getGrouping(anyLong())).thenReturn(Optional.empty());
         when(temporaryGroupCache.deleteGrouping(anyLong())).thenReturn(Optional.empty());
         MockitoAnnotations.initMocks(this);
@@ -238,7 +221,7 @@ public class GroupRpcServiceTest {
     }
 
     /**
-     * Test {@link GroupRpcService#countGenericGroups(GetGenericGroupsRequest, StreamObserver)}
+     * Test {@link GroupRpcService#countGroups(GetGroupsRequest, StreamObserver)}
      * when GetGenericGroupsRequest doesn't contain data about GroupFilter.
      */
     @Test
@@ -389,11 +372,11 @@ public class GroupRpcServiceTest {
      * Test {@link GroupRpcService#storeDiscoveredGroupsPoliciesSettings(StreamObserver)} when
      * DiscoveredGroupsPoliciesSettings hasn't targetId.
      *
-     * @throws InvalidGroupException if groupDefinition is invalid
+     * @throws StoreOperationException if groupDefinition is invalid
      */
     @Test
     public void testStoreDiscoveredGroupsPoliciesSettingsExceptionCase()
-            throws InvalidGroupException {
+            throws StoreOperationException {
         final GroupDefinition groupDefinition = createGroupDefinition();
         final UploadedGroup uploadedGroup = UploadedGroup.newBuilder()
                 .setDefinition(groupDefinition)
@@ -534,7 +517,7 @@ public class GroupRpcServiceTest {
     }
 
     @Test
-    public void testDelete() throws PolicyDeleteException, ImmutableGroupUpdateException, GroupNotFoundException {
+    public void testDelete() throws StoreOperationException {
         final long groupIdToDelete = 1234L;
 
         final GroupDTO.GroupID gid = GroupDTO.GroupID.newBuilder()
@@ -583,8 +566,10 @@ public class GroupRpcServiceTest {
         final StreamObserver<GroupDTO.DeleteGroupResponse> mockObserver =
                 mock(StreamObserver.class);
 
-        Mockito.doThrow(new GroupNotFoundException(idToDelete))
-            .when(groupStoreDAO).deleteGroup(idToDelete);
+        Mockito.doThrow(new StoreOperationException(Status.NOT_FOUND,
+                "Updable to delete group " + idToDelete))
+                .when(groupStoreDAO)
+                .deleteGroup(idToDelete);
 
         groupRpcService.deleteGroup(gid, mockObserver);
 
@@ -1042,10 +1027,10 @@ public class GroupRpcServiceTest {
     /**
      * Test that cluster groups/policies are invoked successfully in rpc call method.
      *
-     * @throws InvalidGroupException exception thrown if group is invalid
+     * @throws StoreOperationException exception thrown if group is invalid
      */
     @Test
-    public void testUpdateClusters() throws InvalidGroupException {
+    public void testUpdateClusters() throws StoreOperationException {
         StreamObserver<StoreDiscoveredGroupsPoliciesSettingsResponse> responseObserver =
                 mock(StreamObserver.class);
         StreamObserver<DiscoveredGroupsPoliciesSettings> requestObserver =
@@ -1082,19 +1067,19 @@ public class GroupRpcServiceTest {
                 .build()));
         assertThat(group.isReverseLookupSupported(), is(true));
 
-        verify(policyStore).updateTargetPolicies(isA(DSLContext.class),
-                eq(10L), eq(Collections.emptyList()), anyMap());
-        verify(settingStore).updateTargetSettingPolicies(isA(DSLContext.class),
-                eq(10L), eq(Collections.emptyList()), anyMap());
+        verify(transactionProvider.getPlacementPolicyStore()).updateTargetPolicies(eq(10L),
+                eq(Collections.emptyList()), anyMap());
+        verify(transactionProvider.getSettingPolicyStore()).updateTargetSettingPolicies(eq(10L),
+                eq(Collections.emptyList()), anyMap());
     }
 
     /**
      * Test that resource groups are uploaded and stitched successfully in rpc call method.
      *
-     * @throws InvalidGroupException exception thrown if group is invalid
+     * @throws StoreOperationException exception thrown if group is invalid
      */
     @Test
-    public void testUpdateResourceGroupsAndStitching() throws InvalidGroupException {
+    public void testUpdateResourceGroupsAndStitching() throws StoreOperationException {
         StreamObserver<StoreDiscoveredGroupsPoliciesSettingsResponse> responseObserver =
                 mock(StreamObserver.class);
         StreamObserver<DiscoveredGroupsPoliciesSettings> requestObserver =
@@ -1163,7 +1148,7 @@ public class GroupRpcServiceTest {
         Assert.assertTrue(throwable instanceof StatusException);
         final StatusException statusException = (StatusException)throwable;
         Assert.assertEquals(Status.INTERNAL.getCode(), statusException.getStatus().getCode());
-        Assert.assertEquals(Status.INTERNAL.getCode() + ": " + errorMessage, statusException.getMessage());
+        Assert.assertThat(statusException.getMessage(), CoreMatchers.containsString(errorMessage));
     }
 
     /**
@@ -1479,13 +1464,6 @@ public class GroupRpcServiceTest {
      */
     @Test
     public void testGroupCreateDifferentExceptions() throws Exception {
-        testCreateGroupException(new DataAccessException("ERR1"), "data access exception");
-        testCreateGroupException(new DuplicateNameException(0, "ERR1"), "same name exists");
-        testCreateGroupException(new InvalidGroupException("ERR1"), "group is invalid");
-    }
-
-    private void testCreateGroupException(Exception inputException, String messageToCheck)
-                    throws Exception {
         GroupDefinition group = testGrouping;
 
         CreateGroupRequest groupRequest = CreateGroupRequest
@@ -1496,8 +1474,8 @@ public class GroupRpcServiceTest {
 
         final StreamObserver<GroupDTO.CreateGroupResponse> mockObserver =
                         mock(StreamObserver.class);
-
-        Mockito.doThrow(inputException)
+        final String message = "some error occurred";
+        Mockito.doThrow(new StoreOperationException(Status.ABORTED, message))
             .when(groupStoreDAO).createGroup(Mockito.anyObject(), Mockito.anyObject(),
                             Mockito.anyObject(),
                             Mockito.anyBoolean());
@@ -1506,15 +1484,13 @@ public class GroupRpcServiceTest {
 
 
         //Verify we send the error response
-        final ArgumentCaptor<StatusRuntimeException> exceptionCaptor =
-                        ArgumentCaptor.forClass(StatusRuntimeException.class);
+        final ArgumentCaptor<StatusException> exceptionCaptor =
+                        ArgumentCaptor.forClass(StatusException.class);
         verify(mockObserver).onError(exceptionCaptor.capture());
 
-        final StatusRuntimeException exception = exceptionCaptor.getValue();
-        assertThat(exception, GrpcRuntimeExceptionMatcher.hasCode(Code.ABORTED)
-                .descriptionContains("ERR1"));
-        assertThat(exception, GrpcRuntimeExceptionMatcher.hasCode(Code.ABORTED)
-                        .descriptionContains(messageToCheck));
+        final StatusException exception = exceptionCaptor.getValue();
+        assertThat(exception, GrpcExceptionMatcher.hasCode(Code.ABORTED)
+                        .descriptionContains(message));
     }
 
     /**
@@ -1667,72 +1643,35 @@ public class GroupRpcServiceTest {
     }
 
     /**
-     * Test multiple cases where the DAO object in group service throws an
-     * exception for different reason.
+     * Tests how {@link StoreOperationException} is treated in gRPC response code.
      * @throws Exception if something goes wrong.
      */
     @Test
-    public void testGroupUpdateDifferentExceptions() throws Exception {
-        testUpdateGroupException(new ImmutableGroupUpdateException("ERR1"), false,
-                        Code.INVALID_ARGUMENT, "immutable group", "ERR1");
-        testUpdateGroupException(new DataAccessException("ERR1"), true, Code.INTERNAL,
-                        "data access exception", "ERR1");
-        testUpdateGroupException(new DuplicateNameException(0, "ERR1"), false,
-                        Code.INVALID_ARGUMENT, "same name exists", "ERR1");
-        testUpdateGroupException(new InvalidGroupException("ERR1"), false, Code.INVALID_ARGUMENT,
-                        "group is invalid", "ERR1");
-        testUpdateGroupException(new GroupNotFoundException(1), false, Code.NOT_FOUND,
-                        "not found");
-    }
-
-    private void testUpdateGroupException(Exception inputException, boolean runtime,
-                    Code code,
-                    String... messageToCheck)
-                    throws Exception {
+    public void testUpdateGroupException() throws Exception {
         GroupDefinition group = testGrouping;
 
-        UpdateGroupRequest groupRequest = UpdateGroupRequest
-                        .newBuilder()
-                        .setId(1L)
-                        .setNewDefinition(group)
-                        .build();
+        UpdateGroupRequest groupRequest =
+                UpdateGroupRequest.newBuilder().setId(1L).setNewDefinition(group).build();
 
         final StreamObserver<GroupDTO.UpdateGroupResponse> mockObserver =
-                        mock(StreamObserver.class);
+                Mockito.mock(StreamObserver.class);
 
-        Mockito.doThrow(inputException)
-            .when(groupStoreDAO).updateGroup(Mockito.anyLong(), Mockito.anyObject(),
-                            Mockito.anyObject(),
-                            Mockito.anyBoolean());
+        final String message = "some message";
+        Mockito.doThrow(new StoreOperationException(Status.ALREADY_EXISTS, message))
+                .when(groupStoreDAO)
+                .updateGroup(Mockito.anyLong(), Mockito.anyObject(), Mockito.anyObject(),
+                        Mockito.anyBoolean());
 
         groupRpcService.updateGroup(groupRequest, mockObserver);
 
+        final ArgumentCaptor<StatusException> exceptionCaptor =
+                ArgumentCaptor.forClass(StatusException.class);
+        verify(mockObserver).onError(exceptionCaptor.capture());
 
-        //Verify we send the error response
-        if (runtime) {
-            final ArgumentCaptor<StatusRuntimeException> exceptionCaptor =
-                            ArgumentCaptor.forClass(StatusRuntimeException.class);
-            verify(mockObserver).onError(exceptionCaptor.capture());
+        final StatusException exception = exceptionCaptor.getValue();
 
-            final StatusRuntimeException exception = exceptionCaptor.getValue();
-
-            for (String message : messageToCheck) {
-                assertThat(exception, GrpcRuntimeExceptionMatcher.hasCode(code)
-                                .descriptionContains(message));
-            }
-        } else {
-            final ArgumentCaptor<StatusException> exceptionCaptor =
-                            ArgumentCaptor.forClass(StatusException.class);
-            verify(mockObserver).onError(exceptionCaptor.capture());
-
-            final StatusException exception = exceptionCaptor.getValue();
-
-            for (String message : messageToCheck) {
-                assertThat(exception, GrpcExceptionMatcher.hasCode(code)
-                                .descriptionContains(message));
-            }
-        }
-
+        assertThat(exception, GrpcExceptionMatcher.hasCode(Status.ALREADY_EXISTS.getCode())
+                .descriptionContains(message));
     }
 
     /**
@@ -1795,8 +1734,9 @@ public class GroupRpcServiceTest {
                                 .build()))
             .willReturn(Arrays.asList(subGroup1, subGroup2));
 
-        Set<MemberType> memberTypes = groupRpcService.findGroupExpectedTypes(groupDefinition);
-
+        Set<MemberType> memberTypes =
+                groupRpcService.findGroupExpectedTypes(transactionProvider.getGroupStore(),
+                        groupDefinition);
         assertEquals(ImmutableSet.of(resourceGroupType,
                         entityType1,
                         entityType2,
@@ -1825,7 +1765,8 @@ public class GroupRpcServiceTest {
                             )
                         .build();
 
-        Set<MemberType> memberTypes = groupRpcService.findGroupExpectedTypes(groupDefinition);
+        final Set<MemberType> memberTypes =
+                groupRpcService.findGroupExpectedTypes(groupStoreDAO, groupDefinition);
 
         assertEquals(ImmutableSet.of(
                         MemberType

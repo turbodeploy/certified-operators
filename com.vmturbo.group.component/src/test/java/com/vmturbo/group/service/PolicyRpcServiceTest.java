@@ -284,8 +284,8 @@ public class PolicyRpcServiceTest {
 
         // this user has access to group 1 but not group 2
         when(userSessionContext.isUserScoped()).thenReturn(true);
-        when(groupRpcService.userHasAccessToGrouping(1L)).thenReturn(true);
-        when(groupRpcService.userHasAccessToGrouping(2L)).thenReturn(false);
+        when(groupRpcService.userHasAccessToGrouping(groupStore, 1L)).thenReturn(true);
+        when(groupRpcService.userHasAccessToGrouping(groupStore, 2L)).thenReturn(false);
 
         final long id = 1234L;
         final Optional<Policy> existingPolicy = Optional.of(Policy.newBuilder()
@@ -320,8 +320,8 @@ public class PolicyRpcServiceTest {
 
         // this user has access to group 1 but not group 2
         when(userSessionContext.isUserScoped()).thenReturn(true);
-        when(groupRpcService.userHasAccessToGrouping(1L)).thenReturn(true);
-        when(groupRpcService.userHasAccessToGrouping(2L)).thenReturn(false);
+        when(groupRpcService.userHasAccessToGrouping(groupStore, 1L)).thenReturn(true);
+        when(groupRpcService.userHasAccessToGrouping(groupStore, 2L)).thenReturn(false);
 
         final long id = 1234L;
         final Optional<Policy> existingPolicy = Optional.of(Policy.newBuilder()
@@ -525,8 +525,8 @@ public class PolicyRpcServiceTest {
     public void testGetPolicyForScopedUser() throws Exception {
         // user has access to group 1 but not group 2
         when(userSessionContext.isUserScoped()).thenReturn(true);
-        when(groupRpcService.userHasAccessToGrouping(1L)).thenReturn(true);
-        when(groupRpcService.userHasAccessToGrouping(2L)).thenReturn(false);
+        when(groupRpcService.userHasAccessToGrouping(groupStore, 1L)).thenReturn(true);
+        when(groupRpcService.userHasAccessToGrouping(groupStore, 2L)).thenReturn(false);
 
         final long policyIdInScope = 1;
         final PolicyDTO.Policy policyInScope = PolicyDTO.Policy.newBuilder()
@@ -556,8 +556,8 @@ public class PolicyRpcServiceTest {
 
         // user has access to group 1 but not group 2
         when(userSessionContext.isUserScoped()).thenReturn(true);
-        when(groupRpcService.userHasAccessToGrouping(1L)).thenReturn(true);
-        when(groupRpcService.userHasAccessToGrouping(2L)).thenReturn(false);
+        when(groupRpcService.userHasAccessToGrouping(groupStore, 1L)).thenReturn(true);
+        when(groupRpcService.userHasAccessToGrouping(groupStore, 2L)).thenReturn(false);
 
         final long policyIdNotInScope = 2;
         final PolicyDTO.Policy policyNotInScope = PolicyDTO.Policy.newBuilder()
@@ -611,8 +611,8 @@ public class PolicyRpcServiceTest {
         when(policyStore.getAll()).thenReturn(testPolicies);
         // user has access to group 1 but not group 2
         when(userSessionContext.isUserScoped()).thenReturn(true);
-        when(groupRpcService.userHasAccessToGrouping(1L)).thenReturn(true);
-        when(groupRpcService.userHasAccessToGrouping(2L)).thenReturn(false);
+        when(groupRpcService.userHasAccessToGrouping(groupStore, 1L)).thenReturn(true);
+        when(groupRpcService.userHasAccessToGrouping(groupStore, 2L)).thenReturn(false);
 
         policyRpcService.getAllPolicies(request, mockObserver);
         // verify we have one result and it's for policy 1
@@ -623,16 +623,16 @@ public class PolicyRpcServiceTest {
         verify(mockObserver, never()).onError(any());
 
         // verify the cache is working by checking that the groupRpcService is only called once per group id
-        verify(groupRpcService, times(1)).userHasAccessToGrouping(1L);
-        verify(groupRpcService, times(1)).userHasAccessToGrouping(2L);
+        verify(groupRpcService, times(1)).userHasAccessToGrouping(groupStore, 1L);
+        verify(groupRpcService, times(1)).userHasAccessToGrouping(groupStore, 2L);
     }
 
     @Test
     public void testCreateByScopedUser() throws DuplicateNameException {
         // this user has access to group 1 but not group 2
         when(userSessionContext.isUserScoped()).thenReturn(true);
-        when(groupRpcService.userHasAccessToGrouping(1L)).thenReturn(true);
-        when(groupRpcService.userHasAccessToGrouping(2L)).thenReturn(false);
+        when(groupRpcService.userHasAccessToGrouping(groupStore, 1L)).thenReturn(true);
+        when(groupRpcService.userHasAccessToGrouping(groupStore, 2L)).thenReturn(false);
 
         // verify that creating a policy for group 1 succeeds
         final PolicyDTO.PolicyInfo inputPolicy = PolicyDTO.PolicyInfo.newBuilder()
@@ -667,8 +667,8 @@ public class PolicyRpcServiceTest {
     public void testCreateByScopedUserFail() {
         // this user has access to group 1 but not group 2
         when(userSessionContext.isUserScoped()).thenReturn(true);
-        when(groupRpcService.userHasAccessToGrouping(1L)).thenReturn(true);
-        when(groupRpcService.userHasAccessToGrouping(2L)).thenReturn(false);
+        when(groupRpcService.userHasAccessToGrouping(groupStore, 1L)).thenReturn(true);
+        when(groupRpcService.userHasAccessToGrouping(groupStore, 2L)).thenReturn(false);
 
         // verify that creating a policy for group 2 will fail
         final PolicyDTO.PolicyInfo inputPolicy = PolicyDTO.PolicyInfo.newBuilder()

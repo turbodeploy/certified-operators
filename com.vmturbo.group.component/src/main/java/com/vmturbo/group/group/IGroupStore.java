@@ -15,9 +15,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
-import com.vmturbo.group.common.DuplicateNameException;
-import com.vmturbo.group.common.ImmutableUpdateException.ImmutableGroupUpdateException;
-import com.vmturbo.group.common.ItemNotFoundException.GroupNotFoundException;
+import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
@@ -34,13 +32,12 @@ public interface IGroupStore {
      * @param expecMemberTypes expected members types of this group
      * @param supportReverseLookup whether the group supports reverse lookups
      * @return OID of the newly create group
-     * @throws InvalidGroupException if group is malformed (including some key violations)
-     * @throws DuplicateNameException if group with the same name already exists
+     * @throws StoreOperationException if operation failed
      * @see #updateDiscoveredGroups(Collection)
      */
     long createGroup(@Nonnull Origin origin, @Nonnull GroupDefinition groupDefinition,
             @Nonnull Set<MemberType> expecMemberTypes, boolean supportReverseLookup)
-            throws InvalidGroupException, DuplicateNameException;
+            throws StoreOperationException;
 
     /**
      * Retrieves group by id.
@@ -59,18 +56,12 @@ public interface IGroupStore {
      * @param expectedMemberTypes expected mebers types for this group
      * @param supportReverseLookups whether this group supports reverse lookups
      * @return group object
-     * @throws InvalidGroupException if new group definition is malformed
-     * @throws ImmutableGroupUpdateException If the ID identifies a discovered (i.e.
-     *         non-user) group.
-     * @throws GroupNotFoundException If a group associated with the ID is not found.
-     * @throws DuplicateNameException If there is already a different group with the same
-     *         name.
+     * @throws StoreOperationException if operation failed
      */
     @Nonnull
     Grouping updateGroup(long groupId, @Nonnull GroupDefinition groupDefinition,
             @Nonnull Set<MemberType> expectedMemberTypes, boolean supportReverseLookups)
-            throws InvalidGroupException, ImmutableGroupUpdateException, GroupNotFoundException,
-            DuplicateNameException;
+            throws StoreOperationException;
 
     /**
      * Returns collection of groups, conforming to the request specified.
@@ -85,11 +76,10 @@ public interface IGroupStore {
      * Deletes the group specified by id.
      *
      * @param groupId group id
-     * @throws GroupNotFoundException if group is absent.
-     * @throws ImmutableGroupUpdateException if group could not be deleted (it is a
+     * @throws StoreOperationException if operation failed
      *         discovered group)
      */
-    void deleteGroup(long groupId) throws GroupNotFoundException, ImmutableGroupUpdateException;
+    void deleteGroup(long groupId) throws StoreOperationException;
 
     /**
      * Updates all the discovered group. Operation could be treated as removing of
@@ -97,12 +87,11 @@ public interface IGroupStore {
      *
      * @param groups new set of discovered groups
      * @return map of group string id (reported by probe's discovery process) to groups' oids.
-     * @throws InvalidGroupException if one of the group definitions specified is invalid.
-     *         Nothing will be written to the DB as a result
+     * @throws StoreOperationException if operation failed
      */
     @Nonnull
     Map<String, Long> updateDiscoveredGroups(@Nonnull Collection<DiscoveredGroup> groups)
-            throws InvalidGroupException;
+            throws StoreOperationException;
 
     /**
      * Returns all the tags present in the group component.

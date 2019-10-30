@@ -66,8 +66,9 @@ public class PolicyRpcService extends PolicyServiceImplBase {
         // create a predicate that will check user access to a group id using a cache of results.
         // (the cache is to help speed up the case where the same groups are used in several policies)
         Map<Long, Boolean> groupAccessFlags = new HashMap<>();
-        Predicate<Long> userHasAccessToGroupId = groupId
-                -> groupAccessFlags.computeIfAbsent(groupId, id -> groupService.userHasAccessToGrouping(id));
+        Predicate<Long> userHasAccessToGroupId =
+                groupId -> groupAccessFlags.computeIfAbsent(groupId,
+                        id -> groupService.userHasAccessToGrouping(groupStore, id));
         policyStore.getAll().stream()
                 .filter(policy -> isPolicyAccessible(policy, userHasAccessToGroupId))
                 .map(policy -> PolicyDTO.PolicyResponse.newBuilder()
@@ -277,7 +278,8 @@ public class PolicyRpcService extends PolicyServiceImplBase {
 
     // is the policy accessible to the current user?
     private boolean isPolicyAccessible(Policy policy) {
-        return isPolicyAccessible(policy, groupService::userHasAccessToGrouping);
+        return isPolicyAccessible(policy,
+                (id) -> groupService.userHasAccessToGrouping(groupStore, id));
     }
 
     // policy access check with injectible predicate

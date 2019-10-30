@@ -35,6 +35,8 @@ import javax.annotation.Nullable;
 import com.google.gson.reflect.TypeToken;
 import com.google.protobuf.InvalidProtocolBufferException;
 
+import io.grpc.Status;
+
 import org.apache.commons.lang.math.NumberUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
@@ -76,8 +78,6 @@ import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.group.common.DuplicateNameException;
-import com.vmturbo.group.common.ImmutableUpdateException.ImmutableGroupUpdateException;
-import com.vmturbo.group.common.ItemNotFoundException.GroupNotFoundException;
 import com.vmturbo.group.db.Tables;
 import com.vmturbo.group.db.tables.pojos.GroupDiscoverTargets;
 import com.vmturbo.group.db.tables.pojos.GroupExpectedMembersEntities;
@@ -89,6 +89,7 @@ import com.vmturbo.group.db.tables.pojos.Grouping;
 import com.vmturbo.group.db.tables.records.GroupDiscoverTargetsRecord;
 import com.vmturbo.group.db.tables.records.GroupingRecord;
 import com.vmturbo.group.identity.IdentityProvider;
+import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.proactivesupport.DataMetricCounter;
@@ -128,7 +129,7 @@ public class GroupDAO implements IGroupStore, Diagnosable {
 
     private final DSLContext dslContext;
 
-    private final Collection<Consumer<Long>> deleteCallbacks = new CopyOnWriteArrayList();
+    private final Collection<Consumer<Long>> deleteCallbacks = new CopyOnWriteArrayList<>();
 
     /**
      * Constructs group DAO.
@@ -145,30 +146,23 @@ public class GroupDAO implements IGroupStore, Diagnosable {
     @Override
     public long createGroup(@Nonnull Origin origin,
             @Nonnull GroupDefinition groupDefinition, @Nonnull Set<MemberType> expectedMemberTypes,
-            boolean supportReverseLookup) throws InvalidGroupException, DuplicateNameException {
+            boolean supportReverseLookup) throws StoreOperationException {
         final Grouping pojo = createPojoForNewGroup(origin, groupDefinition, supportReverseLookup);
         try {
-            dslContext.transaction(configuration -> {
-                final DSLContext transactionContext = DSL.using(configuration);
-                createGroup(transactionContext, pojo, groupDefinition, expectedMemberTypes);
-            });
+            createGroup(dslContext, pojo, groupDefinition, expectedMemberTypes);
         } catch (DataAccessException e) {
             GROUP_STORE_ERROR_COUNT.labels(CREATE_LABEL).increment();
             if (e.getCause() instanceof DuplicateNameException) {
                 GROUP_STORE_DUPLICATE_NAME_COUNT.increment();
-                throw (DuplicateNameException)e.getCause();
-            } else if (e.getCause() instanceof InvalidGroupException) {
-                throw (InvalidGroupException)e.getCause();
-            } else {
-                throw e;
             }
+            throw e;
         }
         return pojo.getId();
     }
 
     private void createGroup(@Nonnull DSLContext context, @Nonnull Grouping groupPojo,
             @Nonnull GroupDefinition groupDefinition, @Nonnull Set<MemberType> expectedMembers)
-            throws DuplicateNameException, InvalidGroupException {
+            throws StoreOperationException {
         validateStaticMembers(context,
                 Collections.singleton(groupDefinition.getStaticGroupMembers()),
                 Collections.singletonMap(groupPojo.getId(), groupPojo.getGroupType()));
@@ -181,8 +175,10 @@ public class GroupDAO implements IGroupStore, Diagnosable {
                 .map(Record1::value1)
                 .collect(Collectors.toList());
         if (!sameNameGroups.isEmpty()) {
-            throw new DuplicateNameException(sameNameGroups.iterator().next(),
-                    groupPojo.getDisplayName());
+            throw new StoreOperationException(Status.ALREADY_EXISTS,
+                    "Cannot create object with name " + groupPojo.getDisplayName() +
+                            " because an object with the same name and type (id: " +
+                            sameNameGroups + ") already exists.");
         }
         context.newRecord(GROUPING, groupPojo).store();
         final Collection<TableRecord<?>> inserts = new ArrayList<>();
@@ -197,7 +193,7 @@ public class GroupDAO implements IGroupStore, Diagnosable {
     @Nonnull
     private Grouping createPojoForNewGroup(@Nonnull Origin origin,
             @Nonnull GroupDefinition groupDefinition, boolean supportReverseLookup)
-            throws InvalidGroupException {
+            throws StoreOperationException {
         final Grouping pojo = createGroupFromDefinition(groupDefinition);
         pojo.setId(identityProvider.next());
         pojo.setSupportsMemberReverseLookup(supportReverseLookup);
@@ -213,14 +209,15 @@ public class GroupDAO implements IGroupStore, Diagnosable {
                 pojo.setOriginUserCreator(origin.getUser().getUsername());
                 break;
             default:
-                throw new InvalidGroupException("Invalid origin " + origin.getCreationOriginCase() +
-                        " passed to create a group");
+                throw new StoreOperationException(Status.INVALID_ARGUMENT,
+                        "Invalid origin " + origin.getCreationOriginCase() +
+                                " passed to create a group");
         }
         return pojo;
     }
 
     private Grouping createGroupFromDefinition(@Nonnull GroupDefinition groupDefinition)
-            throws InvalidGroupException {
+            throws StoreOperationException {
         final Grouping groupPojo = new Grouping();
         requireTrue(groupDefinition.hasType(), "Group type not set");
         groupPojo.setGroupType(groupDefinition.getType());
@@ -240,9 +237,10 @@ public class GroupDAO implements IGroupStore, Diagnosable {
             case STATIC_GROUP_MEMBERS:
                 break;
             default:
-                throw new InvalidGroupException("Group " + groupDefinition.getDisplayName() +
-                        " does not have any recognized selection criteria (" +
-                        groupDefinition.getSelectionCriteriaCase() + ")");
+                throw new StoreOperationException(Status.INVALID_ARGUMENT,
+                        "Group " + groupDefinition.getDisplayName() +
+                                " does not have any recognized selection criteria (" +
+                                groupDefinition.getSelectionCriteriaCase() + ")");
         }
         if (groupDefinition.hasOptimizationMetadata()) {
             final OptimizationMetadata metadata = groupDefinition.getOptimizationMetadata();
@@ -301,7 +299,7 @@ public class GroupDAO implements IGroupStore, Diagnosable {
 
     private Collection<TableRecord<?>> insertExpectedMembers(@Nonnull DSLContext context,
             long groupId, @Nonnull Set<MemberType> memberTypes,
-            @Nullable StaticMembers staticMembers) throws InvalidGroupException {
+            @Nullable StaticMembers staticMembers) throws StoreOperationException {
         final Collection<TableRecord<?>> records = new ArrayList<>();
         final Set<MemberType> directMembers;
         if (staticMembers != null) {
@@ -313,20 +311,20 @@ public class GroupDAO implements IGroupStore, Diagnosable {
             directMembers = Collections.emptySet();
         }
         if (!memberTypes.containsAll(directMembers)) {
-            throw new InvalidGroupException("Group " + groupId + " declared expected members  " +
-                    memberTypes.stream()
+            throw new StoreOperationException(Status.INVALID_ARGUMENT,
+                    "Group " + groupId + " declared expected members  " + memberTypes.stream()
                             .map(memberType -> memberType.hasGroup() ?
                                     memberType.getGroup().toString() :
                                     Integer.toString(memberType.getEntity()))
                             .collect(Collectors.joining(",", "[", "]")) +
-                    " does not contain all the direct members: " +
-                    staticMembers.getMembersByTypeList()
-                            .stream()
-                            .map(StaticMembersByType::getType)
-                            .map(memberType -> memberType.hasGroup() ?
-                                    memberType.getGroup().toString() :
-                                    Integer.toString(memberType.getEntity()))
-                            .collect(Collectors.joining(",", "[", "]")));
+                            " does not contain all the direct members: " +
+                            staticMembers.getMembersByTypeList()
+                                    .stream()
+                                    .map(StaticMembersByType::getType)
+                                    .map(memberType -> memberType.hasGroup() ?
+                                            memberType.getGroup().toString() :
+                                            Integer.toString(memberType.getEntity()))
+                                    .collect(Collectors.joining(",", "[", "]")));
         }
         for (MemberType memberType : memberTypes) {
             final boolean directMember = directMembers.contains(memberType);
@@ -385,11 +383,11 @@ public class GroupDAO implements IGroupStore, Diagnosable {
      * @param context DB context to use
      * @param members static members collection to validate
      * @param newGroups new or updated group types.
-     * @throws InvalidGroupException if one of static member references is invalid
+     * @throws StoreOperationException if one of static member references is invalid
      */
     private void validateStaticMembers(@Nonnull DSLContext context,
             @Nonnull Collection<StaticMembers> members, @Nonnull Map<Long, GroupType> newGroups)
-            throws InvalidGroupException {
+            throws StoreOperationException {
         final Set<Long> referencedIds = members.stream()
                 .map(StaticMembers::getMembersByTypeList)
                 .flatMap(Collection::stream)
@@ -412,12 +410,12 @@ public class GroupDAO implements IGroupStore, Diagnosable {
                     for (Long groupOid : membersByType.getMembersList()) {
                         final GroupType realType = groupTypes.get(groupOid);
                         if (realType == null) {
-                            throw new InvalidGroupException(
+                            throw new StoreOperationException(Status.INVALID_ARGUMENT,
                                     "Wrong reference to an absent group from static members oid=" +
                                             groupOid);
                         }
                         if (requested != realType) {
-                            throw new InvalidGroupException(
+                            throw new StoreOperationException(Status.INVALID_ARGUMENT,
                                     "Group definition contains reference to group " + groupOid +
                                             " of type " + requested + " while its real type is " +
                                             realType);
@@ -566,10 +564,7 @@ public class GroupDAO implements IGroupStore, Diagnosable {
     @Nonnull
     @Override
     public Pair<Set<Long>, Set<Long>> getStaticMembers(long groupId) {
-        return dslContext.transactionResult(config -> {
-            final DSLContext context = DSL.using(config);
-            return getStaticMembers(context, groupId);
-        });
+        return getStaticMembers(dslContext, groupId);
     }
 
     @Nonnull
@@ -663,35 +658,22 @@ public class GroupDAO implements IGroupStore, Diagnosable {
     @Override
     public GroupDTO.Grouping updateGroup(long groupId, @Nonnull GroupDefinition groupDefinition,
             @Nonnull Set<MemberType> supportedMemberTypes, boolean supportReverseLookups)
-            throws InvalidGroupException, ImmutableGroupUpdateException, GroupNotFoundException,
-            DuplicateNameException {
+            throws StoreOperationException {
         final Grouping pojo = createGroupFromDefinition(groupDefinition);
         pojo.setId(groupId);
         pojo.setSupportsMemberReverseLookup(supportReverseLookups);
         try {
-            return dslContext.transactionResult(configuration -> {
-                final DSLContext transactionContext = DSL.using(configuration);
-                updateGroup(transactionContext, pojo, groupDefinition, supportedMemberTypes);
-                return null;
-            });
+            updateGroup(dslContext, pojo, groupDefinition, supportedMemberTypes);
+            return null;
         } catch (DataAccessException e) {
             GROUP_STORE_ERROR_COUNT.labels(UPDATE_LABEL).increment();
-            if (e.getCause() instanceof ImmutableGroupUpdateException) {
-                throw (ImmutableGroupUpdateException)e.getCause();
-            } else if (e.getCause() instanceof GroupNotFoundException) {
-                throw (GroupNotFoundException)e.getCause();
-            } else if (e.getCause() instanceof DuplicateNameException) {
-                throw (DuplicateNameException)e.getCause();
-            } else {
-                throw e;
-            }
+            throw e;
         }
     }
 
     private void updateGroup(@Nonnull DSLContext context, @Nonnull Grouping group,
             @Nonnull GroupDefinition groupDefinition, @Nonnull Set<MemberType> expectedMemberTypes)
-            throws ImmutableGroupUpdateException, GroupNotFoundException, DuplicateNameException,
-            InvalidGroupException {
+            throws StoreOperationException {
         final long groupId = group.getId();
         final List<Record3<String, String, String>> result =
                 context.select(GROUPING.ORIGIN_SYSTEM_DESCRIPTION, GROUPING.ORIGIN_USER_CREATOR,
@@ -700,7 +682,7 @@ public class GroupDAO implements IGroupStore, Diagnosable {
                         .where(GROUPING.ID.eq(groupId))
                         .fetch();
         if (result.isEmpty()) {
-            throw new GroupNotFoundException(groupId);
+            throw new StoreOperationException(Status.NOT_FOUND, "Group " + groupId + " not found");
         }
         if (result.size() > 1) {
             throw new RuntimeException(
@@ -709,7 +691,9 @@ public class GroupDAO implements IGroupStore, Diagnosable {
         }
         final Record3<String, String, String> record = result.get(0);
         if (record.value3() != null) {
-            throw new ImmutableGroupUpdateException(groupId, groupDefinition.getDisplayName());
+            throw new StoreOperationException(Status.INVALID_ARGUMENT,
+                    "Attempt to modify immutable discovered group " + groupId + " display name " +
+                            groupDefinition.getDisplayName());
         }
         final int countWithTheSameName = context.selectCount()
                 .from(GROUPING)
@@ -719,7 +703,10 @@ public class GroupDAO implements IGroupStore, Diagnosable {
                 .fetchOne()
                 .value1();
         if (countWithTheSameName > 0) {
-            throw new DuplicateNameException(groupId, groupDefinition.getDisplayName());
+            throw new StoreOperationException(Status.ALREADY_EXISTS,
+                    "Cannot create object with name " + groupDefinition.getDisplayName() +
+                            " because an object with the same name and type (id: " + groupId +
+                            ") already exists.");
         }
         validateStaticMembers(context,
                 Collections.singleton(groupDefinition.getStaticGroupMembers()),
@@ -738,22 +725,19 @@ public class GroupDAO implements IGroupStore, Diagnosable {
     @Override
     public Collection<GroupDTO.Grouping> getGroups(@Nonnull GroupDTO.GroupFilter filter) {
         final Condition sqlCondition = createGroupCondition(filter);
-        return dslContext.transactionResult((configuration) -> {
-            final DSLContext context = DSL.using(configuration);
-            final Set<Long> groupingIds = context.select(GROUPING.ID)
-                    .from(GROUPING)
-                    .where(sqlCondition)
-                    .fetch()
-                    .stream()
-                    .map(Record1::value1)
-                    .collect(Collectors.toSet());
-            final Collection<Long> postSqlFiltered = filterPostSQL(context, groupingIds, filter);
-            return postSqlFiltered.stream()
-                    .map(id -> getGroupInternal(context, id))
-                    .filter(Optional::isPresent)
-                    .map(Optional::get)
-                    .collect(Collectors.toSet());
-        });
+        final Set<Long> groupingIds = dslContext.select(GROUPING.ID)
+                .from(GROUPING)
+                .where(sqlCondition)
+                .fetch()
+                .stream()
+                .map(Record1::value1)
+                .collect(Collectors.toSet());
+        final Collection<Long> postSqlFiltered = filterPostSQL(dslContext, groupingIds, filter);
+        return postSqlFiltered.stream()
+                .map(id -> getGroupInternal(dslContext, id))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toSet());
     }
 
     /**
@@ -1014,39 +998,30 @@ public class GroupDAO implements IGroupStore, Diagnosable {
     }
 
     @Override
-    public void deleteGroup(long groupId)
-            throws GroupNotFoundException, ImmutableGroupUpdateException {
+    public void deleteGroup(long groupId) throws StoreOperationException {
         try {
-            dslContext.transaction(configuration -> {
-                final DSLContext transactionContext = DSL.using(configuration);
-                deleteGroup(transactionContext, groupId);
-            });
+            deleteGroup(dslContext, groupId);
         } catch (DataAccessException e) {
             GROUP_STORE_ERROR_COUNT.labels(DELETE_LABEL).increment();
-            if (e.getCause() instanceof ImmutableGroupUpdateException) {
-                throw (ImmutableGroupUpdateException)e.getCause();
-            } else if (e.getCause() instanceof GroupNotFoundException) {
-                throw (GroupNotFoundException)e.getCause();
-            } else {
-                throw e;
-            }
+            throw e;
         }
         deleteCallbacks.forEach(callback -> callback.accept(groupId));
     }
 
     private void deleteGroup(@Nonnull DSLContext context, long groupId)
-            throws GroupNotFoundException, ImmutableGroupUpdateException {
+            throws StoreOperationException {
         final Collection<Record1<String>> discoveredSrcIds =
                 context.select(GROUPING.ORIGIN_DISCOVERED_SRC_ID)
                         .from(GROUPING)
                         .where(GROUPING.ID.eq(groupId))
                         .fetch();
         if (discoveredSrcIds.isEmpty()) {
-            throw new GroupNotFoundException(groupId);
+            throw new StoreOperationException(Status.NOT_FOUND,
+                    "Group with id " + groupId + " not found. Cannot delete");
         }
         final String discoveredSrcId = discoveredSrcIds.iterator().next().value1();
         if (discoveredSrcId != null) {
-            throw new ImmutableGroupUpdateException(
+            throw new StoreOperationException(Status.INVALID_ARGUMENT,
                     "Discovered group " + groupId + " attempted to be removed");
         }
         cleanGroupChildTables(context, groupId);
@@ -1056,21 +1031,8 @@ public class GroupDAO implements IGroupStore, Diagnosable {
     @Nonnull
     @Override
     public Map<String, Long> updateDiscoveredGroups(@Nonnull Collection<DiscoveredGroup> groups)
-            throws InvalidGroupException {
-        try {
-            return dslContext.transactionResult(configuration -> {
-                final DSLContext transactionContext = DSL.using(configuration);
-                return updateDiscoveredGroups(transactionContext, groups,
-                        srcId -> identityProvider.next());
-            });
-        } catch (DataAccessException e) {
-            GROUP_STORE_ERROR_COUNT.labels(UPDATE_DISCOVERED_LABEL).increment();
-            if (e.getCause() instanceof InvalidGroupException) {
-                throw (InvalidGroupException)e.getCause();
-            } else {
-                throw e;
-            }
-        }
+            throws StoreOperationException {
+        return updateDiscoveredGroups(dslContext, groups, srcId -> identityProvider.next());
     }
 
     /**
@@ -1081,12 +1043,12 @@ public class GroupDAO implements IGroupStore, Diagnosable {
      * @param idGenerator function to assign OIDs to the groups. It receives
      *         discoveredSourceId and produces a unique OID
      * @return map of discovered source id to OID for the new groups.
-     * @throws InvalidGroupException if group configuration is incorrect
+     * @throws StoreOperationException if group configuration is incorrect
      */
     @Nonnull
     private Map<String, Long> updateDiscoveredGroups(@Nonnull DSLContext context,
             @Nonnull Collection<DiscoveredGroup> groups,
-            @Nonnull Function<String, Long> idGenerator) throws InvalidGroupException {
+            @Nonnull Function<String, Long> idGenerator) throws StoreOperationException {
         final Map<String, Long> existingGroups = getExistingGroupKeys(context);
         validateDiscoveredGroups(context, existingGroups, groups);
 
@@ -1136,7 +1098,7 @@ public class GroupDAO implements IGroupStore, Diagnosable {
 
     private void validateDiscoveredGroups(@Nonnull DSLContext context,
             @Nonnull Map<String, Long> existingGroups,
-            @Nonnull Collection<DiscoveredGroup> discoveredGroups) throws InvalidGroupException {
+            @Nonnull Collection<DiscoveredGroup> discoveredGroups) throws StoreOperationException {
         final List<StaticMembers> members = discoveredGroups.stream()
                 .map(DiscoveredGroup::getDefinition)
                 .map(GroupDefinition::getStaticGroupMembers)
@@ -1235,32 +1197,26 @@ public class GroupDAO implements IGroupStore, Diagnosable {
     @Nonnull
     @Override
     public Map<String, Set<String>> getTags() {
-        return dslContext.transactionResult(configuration -> {
-            final DSLContext transactionContext = DSL.using(configuration);
-            final Map<String, Set<String>> result = new HashMap<>();
-            final Map<String, List<Record2<String, String>>> records =
-                    transactionContext.selectDistinct(GROUP_TAGS.TAG_KEY, GROUP_TAGS.TAG_VALUE)
-                            .from(GROUP_TAGS)
-                            .fetch()
-                            .stream()
-                            .collect(Collectors.groupingBy(Record2::value1));
-            for (Entry<String, List<Record2<String, String>>> entry : records.entrySet()) {
-                final Set<String> tagsValues =
-                        entry.getValue().stream().map(Record2::value2).collect(Collectors.toSet());
-                result.put(entry.getKey(), Collections.unmodifiableSet(tagsValues));
-            }
-            return Collections.unmodifiableMap(result);
-        });
+        final Map<String, Set<String>> result = new HashMap<>();
+        final Map<String, List<Record2<String, String>>> records =
+                dslContext.selectDistinct(GROUP_TAGS.TAG_KEY, GROUP_TAGS.TAG_VALUE)
+                        .from(GROUP_TAGS)
+                        .fetch()
+                        .stream()
+                        .collect(Collectors.groupingBy(Record2::value1));
+        for (Entry<String, List<Record2<String, String>>> entry : records.entrySet()) {
+            final Set<String> tagsValues =
+                    entry.getValue().stream().map(Record2::value2).collect(Collectors.toSet());
+            result.put(entry.getKey(), Collections.unmodifiableSet(tagsValues));
+        }
+        return Collections.unmodifiableMap(result);
     }
 
     @Nonnull
     @Override
     public Set<GroupDTO.Grouping> getStaticGroupsForEntity(long entityId) {
         try {
-            return dslContext.transactionResult(configuration -> {
-                final DSLContext transactionContext = DSL.using(configuration);
-                return getStaticGroupsForEntity(transactionContext, entityId);
-            });
+            return getStaticGroupsForEntity(dslContext, entityId);
         } catch (DataAccessException e) {
             GROUP_STORE_ERROR_COUNT.labels(GET_LABEL).increment();
             throw e;
@@ -1290,9 +1246,9 @@ public class GroupDAO implements IGroupStore, Diagnosable {
     }
 
     private static void requireTrue(boolean condition, @Nonnull String message)
-            throws InvalidGroupException {
+            throws StoreOperationException {
         if (!condition) {
-            throw new InvalidGroupException(message);
+            throw new StoreOperationException(Status.INVALID_ARGUMENT, message);
         }
     }
 

@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -16,7 +17,10 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
-import org.jooq.DSLContext;
+import io.grpc.Status;
+
+import org.hamcrest.BaseMatcher;
+import org.hamcrest.Description;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -24,12 +28,6 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -45,16 +43,13 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
-import com.vmturbo.group.common.DuplicateNameException;
-import com.vmturbo.group.common.ImmutableUpdateException.ImmutableGroupUpdateException;
-import com.vmturbo.group.common.ItemNotFoundException.GroupNotFoundException;
 import com.vmturbo.group.db.GroupComponent;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.policy.PolicyStore;
+import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.Pair;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 /**
  * Unit test to cover {@link GroupDAO} functionality.
@@ -148,7 +143,7 @@ public class GroupDaoTest {
 
     /**
      * Tests editing of discovered group. This operation is prohibited because discovered groups
-     * could not be edited manually. {@link ImmutableGroupUpdateException} is expected
+     * could not be edited manually. {@link StoreOperationException} is expected
      *
      * @throws Exception on exceptions occurred.
      */
@@ -159,24 +154,24 @@ public class GroupDaoTest {
                 groupStore.updateDiscoveredGroups(Collections.singleton(group1));
         final long groupId = createdGroups.values().iterator().next();
         final GroupDefinition newDefinition = createGroupDefinition();
-        expectedException.expect(ImmutableGroupUpdateException.class);
+        expectedException.expect(new StoreExceptionMatcher(Status.INVALID_ARGUMENT));
         groupStore.updateGroup(groupId, newDefinition, Collections.emptySet(), false);
     }
 
     /**
-     * Tests editing of group that is absent in the DB. {@link GroupNotFoundException} is expected.
+     * Tests editing of group that is absent in the DB. {@link StoreOperationException} is expected.
      *
      * @throws Exception on exceptions occurred
      */
     @Test
     public void testUpdateAbsentGroup() throws Exception {
         final GroupDefinition newDefinition = createGroupDefinition();
-        expectedException.expect(GroupNotFoundException.class);
+        expectedException.expect(new StoreExceptionMatcher(Status.NOT_FOUND));
         groupStore.updateGroup(-1, newDefinition, Collections.emptySet(), false);
     }
 
     /**
-     * Tests invalid group definition passed. {@link InvalidGroupException} is expected.
+     * Tests invalid group definition passed. {@link StoreOperationException} is expected.
      *
      * @throws Exception on exceptions occurred
      */
@@ -184,12 +179,12 @@ public class GroupDaoTest {
     public void testUpdateGroupIncorrectDefinition() throws Exception {
         final GroupDefinition newDefinition =
                 GroupDefinition.newBuilder(createGroupDefinition()).clearDisplayName().build();
-        expectedException.expect(InvalidGroupException.class);
+        expectedException.expect(new StoreExceptionMatcher(Status.INVALID_ARGUMENT));
         groupStore.updateGroup(-1, newDefinition, Collections.emptySet(), false);
     }
 
     /**
-     * Tests updat that is introducing a duplicated group name. {@link DuplicateNameException} is
+     * Tests updat that is introducing a duplicated group name. {@link StoreOperationException} is
      * expected to be thrown
      *
      * @throws Exception on exceptions occurred.
@@ -204,7 +199,7 @@ public class GroupDaoTest {
         final Origin origin = createUserOrigin();
         final long oid1 = groupStore.createGroup(origin, groupDef1, EXPECTED_MEMBERS, false);
         final long oid2 = groupStore.createGroup(origin, groupDef2, EXPECTED_MEMBERS, false);
-        expectedException.expect(DuplicateNameException.class);
+        expectedException.expect(new StoreExceptionMatcher(Status.ALREADY_EXISTS));
         groupStore.updateGroup(oid1, groupDef3, Collections.emptySet(), false);
     }
 
@@ -308,8 +303,8 @@ public class GroupDaoTest {
                                 .addMembers(oid1)))
                 .build();
 
-        expectedException.expect(InvalidGroupException.class);
-        expectedException.expectMessage(GroupType.STORAGE_CLUSTER.toString());
+        expectedException.expect(new StoreExceptionMatcher(Status.INVALID_ARGUMENT,
+                GroupType.STORAGE_CLUSTER.toString()));
         groupStore.createGroup(origin, groupDefinition2, memberTypes, false);
     }
 
@@ -333,8 +328,7 @@ public class GroupDaoTest {
                                         MemberType.newBuilder().setGroup(GroupType.STORAGE_CLUSTER))
                                 .addMembers(-1)))
                 .build();
-        expectedException.expect(InvalidGroupException.class);
-        expectedException.expectMessage("-1");
+        expectedException.expect(new StoreExceptionMatcher(Status.INVALID_ARGUMENT, "-1"));
         groupStore.createGroup(origin, groupDefinition, memberTypes, false);
     }
 
@@ -352,7 +346,7 @@ public class GroupDaoTest {
                         .addDiscoveringTargetId(333L))
                 .build();
         final GroupDefinition groupDefinition = createGroupDefinition();
-        expectedException.expect(InvalidGroupException.class);
+        expectedException.expect(new StoreExceptionMatcher(Status.INVALID_ARGUMENT));
         groupStore.createGroup(origin, groupDefinition, Collections.emptySet(), false);
     }
 
@@ -387,12 +381,12 @@ public class GroupDaoTest {
         Assert.assertEquals(groupDefinition1, group1.getDefinition());
         Assert.assertEquals(groupDefinition2, group2.getDefinition());
 
-        expectedException.expect(DuplicateNameException.class);
+        expectedException.expect(new StoreExceptionMatcher(Status.ALREADY_EXISTS));
         groupStore.createGroup(origin1, groupDuplicated, memberTypes, false);
     }
 
     /**
-     * Tests creating of a group without a selection criteria. {@link InvalidGroupException} is
+     * Tests creating of a group without a selection criteria. {@link StoreOperationException} is
      * expected
      *
      * @throws Exception on exceptions occurred
@@ -402,7 +396,7 @@ public class GroupDaoTest {
         final GroupDefinition groupDefinition = GroupDefinition.newBuilder(createGroupDefinition())
                 .clearStaticGroupMembers()
                 .build();
-        expectedException.expect(InvalidGroupException.class);
+        expectedException.expect(new StoreExceptionMatcher(Status.INVALID_ARGUMENT));
         groupStore.createGroup(createUserOrigin(), groupDefinition, Collections.emptySet(), false);
     }
 
@@ -439,7 +433,7 @@ public class GroupDaoTest {
 
     /**
      * Tests removing of discovered group. This operation is prohibited because discovered groups
-     * could not be edited manually. {@link ImmutableGroupUpdateException} is expected
+     * could not be edited manually. {@link StoreOperationException} is expected
      *
      * @throws Exception on exceptions occurred.
      */
@@ -449,19 +443,19 @@ public class GroupDaoTest {
         final Map<String, Long> createdGroups =
                 groupStore.updateDiscoveredGroups(Collections.singleton(group1));
         final long groupId = createdGroups.values().iterator().next();
-        expectedException.expect(ImmutableGroupUpdateException.class);
+        expectedException.expect(new StoreExceptionMatcher(Status.INVALID_ARGUMENT));
         groupStore.deleteGroup(groupId);
     }
 
     /**
-     * Tests removing of group that is not present in the DB. {@link GroupNotFoundException} is
+     * Tests removing of group that is not present in the DB. {@link StoreExceptionMatcher} is
      * expected
      *
      * @throws Exception on exceptions occurred.
      */
     @Test
     public void testDeleteAbsentGroup() throws Exception {
-        expectedException.expect(GroupNotFoundException.class);
+        expectedException.expect(new StoreExceptionMatcher(Status.NOT_FOUND));
         groupStore.deleteGroup(-1);
     }
 
@@ -697,4 +691,38 @@ public class GroupDaoTest {
                 .build();
     }
 
+    /**
+     * Mockito matcher for {@link StoreOperationException}.
+     */
+    private static class StoreExceptionMatcher extends BaseMatcher<StoreOperationException> {
+        private final Status status;
+        private final String message;
+
+        StoreExceptionMatcher(@Nonnull Status status, @Nonnull String message) {
+            this.status = Objects.requireNonNull(status);
+            this.message = Objects.requireNonNull(message);
+        }
+
+        StoreExceptionMatcher(@Nonnull Status status) {
+            this.status = Objects.requireNonNull(status);
+            this.message = null;
+        }
+
+        @Override
+        public boolean matches(Object item) {
+            if (!(item instanceof StoreOperationException)) {
+                return false;
+            }
+            final StoreOperationException exception = (StoreOperationException)item;
+            if (!exception.getStatus().equals(status)) {
+                return false;
+            }
+            return message == null || exception.getMessage().contains(message);
+        }
+
+        @Override
+        public void describeTo(Description description) {
+
+        }
+    }
 }
