@@ -39,7 +39,6 @@ import com.vmturbo.mediation.conversion.cloud.converter.DefaultConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DiskArrayConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.LoadBalancerConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.RegionConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.StorageConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
 import com.vmturbo.mediation.conversion.util.CloudService;
@@ -395,6 +394,8 @@ public class AwsCloudDiscoveryConverterTest {
             .named(AwsConstants.STATE).withValue("some-unrecognized-state").build();
         final EntityProperty KNOWN_STATE_ENTITY_PROPERTY = EntityBuilders.entityProperty()
             .named(AwsConstants.STATE).withValue("available").build();
+        final EntityProperty ENCRYPTION_PROPERTY = EntityBuilders.entityProperty()
+                .named(AwsConstants.ENCRYPTED).withValue("true").build();
 
         final VirtualVolumeData PREEXISTING = VirtualVolumeData.newBuilder().build();
 
@@ -404,13 +405,15 @@ public class AwsCloudDiscoveryConverterTest {
                 UNKNOWN_STATE_ENTITY_PROPERTY));
 
         assertEquals(AttachmentState.UNKNOWN, resultUnknownState.getAttachmentState());
+        assertFalse(resultUnknownState.getEncrypted());
         assertEquals(123, resultUnknownState.getIoThroughputCapacity(), .001);
 
         final VirtualVolumeData resultKnownState = converter.updateVirtualVolumeData(PREEXISTING,
             Arrays.asList(TAG_ENTITY_PROPERTY, THROUGHPUT_ENTITY_PROPERTY, UNKNOWN_ENTITY_PROPERTY,
-                KNOWN_STATE_ENTITY_PROPERTY));
+                KNOWN_STATE_ENTITY_PROPERTY, ENCRYPTION_PROPERTY));
 
         assertEquals(AttachmentState.AVAILABLE, resultKnownState.getAttachmentState());
+        assertTrue(resultKnownState.getEncrypted());
         assertEquals(123, resultKnownState.getIoThroughputCapacity(), .001);
     }
 

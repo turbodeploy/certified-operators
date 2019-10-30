@@ -31,7 +31,10 @@ public class AwsStorageConverter extends StorageConverter {
             AwsConstants.IO_THROUGHPUT_USED_PROPERTY,
                 ((VirtualVolumeData.Builder builder, String usageString) ->
                     builder.setIoThroughputUsage(Double.valueOf(usageString).doubleValue())),
-            AwsConstants.STATE, AwsStorageConverter::setVolumeAttachmentState
+            AwsConstants.STATE, AwsStorageConverter::setVolumeAttachmentState,
+            AwsConstants.ENCRYPTED,
+            ((VirtualVolumeData.Builder builder, String isEncrypted) ->
+                    builder.setEncrypted(Boolean.valueOf(isEncrypted)))
         );
 
     private static final Map<String, AttachmentState> STRING_TO_ATTACHMENT_STATE = ImmutableMap.of(

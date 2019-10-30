@@ -34,6 +34,7 @@ public class VirtualVolumeInfoMapperTest {
                         .setRedundancyType(REDUNDANCY_TYPE)
                         .setSnapshotId(SNAPSHOT_ID)
                         .setAttachmentState(AttachmentState.IN_USE)
+                        .setEncrypted(true)
                         .build());
         TypeSpecificInfo expected = TypeSpecificInfo.newBuilder()
                 .setVirtualVolume(VirtualVolumeInfo.newBuilder()
@@ -42,6 +43,7 @@ public class VirtualVolumeInfoMapperTest {
                         .setRedundancyType(REDUNDANCY_TYPE)
                         .setSnapshotId(SNAPSHOT_ID)
                         .setAttachmentState(AttachmentState.IN_USE)
+                        .setEncryption(true)
                         .build())
                 .build();
         DatabaseInfo.newBuilder()

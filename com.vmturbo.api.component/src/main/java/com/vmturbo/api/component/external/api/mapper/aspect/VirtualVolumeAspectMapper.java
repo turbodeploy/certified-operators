@@ -14,14 +14,14 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.EnvironmentTypeMapper;
@@ -613,6 +613,16 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
             storageAccessCapacity = volumeInfo.getStorageAccessCapacity();
             if (volumeInfo.hasSnapshotId()) {
                 virtualDiskApiDTO.setSnapshotId(volumeInfo.getSnapshotId());
+            }
+            if (volumeInfo.hasAttachmentState()) {
+                virtualDiskApiDTO.setAttachmentState(volumeInfo.getAttachmentState().name());
+            }
+            if (volumeInfo.hasEncryption()) {
+                String ENCRYPTION_STATE = "Disabled";
+                if (volumeInfo.getEncryption()) {
+                    ENCRYPTION_STATE = "Enabled";
+                }
+                 virtualDiskApiDTO.setEncryption(ENCRYPTION_STATE);
             }
         }
 

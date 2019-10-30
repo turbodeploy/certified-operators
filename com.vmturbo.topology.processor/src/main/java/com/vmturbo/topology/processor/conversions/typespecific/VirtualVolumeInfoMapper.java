@@ -39,6 +39,9 @@ public class VirtualVolumeInfoMapper extends TypeSpecificInfoMapper {
         if (vvData.hasAttachmentState()) {
             vvInfo.setAttachmentState(vvData.getAttachmentState());
         }
+        if (vvData.hasEncrypted()) {
+            vvInfo.setEncryption(vvData.getEncrypted());
+        }
         vvInfo.addAllFiles(vvData.getFileList());
         retBuilder.setVirtualVolume(vvInfo.build());
         return retBuilder.build();

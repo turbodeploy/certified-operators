@@ -12,6 +12,7 @@ import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.RedundancyType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
 
@@ -31,6 +32,10 @@ public class VirtualVolumeInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
     private List<VirtualVolumeFileRepoDTO> files;
 
+    private Boolean encryption;
+
+    private Integer attachmentState;
+
     @Override
     public void fillFromTypeSpecificInfo(@Nonnull final TypeSpecificInfo typeSpecificInfo,
                                          @Nonnull final ServiceEntityRepoDTO serviceEntityRepoDTO) {
@@ -49,6 +54,12 @@ public class VirtualVolumeInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         }
         if (virtualVolumeInfo.hasSnapshotId()) {
             setSnapshotId(virtualVolumeInfo.getSnapshotId());
+        }
+        if (virtualVolumeInfo.hasEncryption()) {
+            setEncryption(virtualVolumeInfo.getEncryption());
+        }
+        if (virtualVolumeInfo.hasAttachmentState()) {
+            setAttachmentState(virtualVolumeInfo.getAttachmentState().getNumber());
         }
         setFiles(virtualVolumeInfo.getFilesList());
         serviceEntityRepoDTO.setVirtualVolumeInfoRepoDTO(this);
@@ -74,6 +85,12 @@ public class VirtualVolumeInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         }
         if (getSnapshotId() != null) {
             virtualVolumeInfoBuilder.setSnapshotId(getSnapshotId());
+        }
+        if (getAttachmentState() != null) {
+            virtualVolumeInfoBuilder.setAttachmentState(AttachmentState.forNumber(getAttachmentState()));
+        }
+        if (getEncryption() != null) {
+            virtualVolumeInfoBuilder.setEncryption(getEncryption());
         }
         return TypeSpecificInfo.newBuilder()
             .setVirtualVolume(virtualVolumeInfoBuilder)
@@ -121,6 +138,22 @@ public class VirtualVolumeInfoRepoDTO implements TypeSpecificInfoRepoDTO {
             .collect(Collectors.toList()));
     }
 
+    public Boolean getEncryption() {
+        return encryption;
+    }
+
+    public void setEncryption(final Boolean encryption) {
+        this.encryption = encryption;
+    }
+
+    public Integer getAttachmentState() {
+        return attachmentState;
+    }
+
+    public void setAttachmentState(final Integer attachmentState) {
+        this.attachmentState = attachmentState;
+    }
+
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
@@ -128,26 +161,31 @@ public class VirtualVolumeInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
         final VirtualVolumeInfoRepoDTO that = (VirtualVolumeInfoRepoDTO) o;
 
-        return (Objects.equals(storageAccessCapacity, that.storageAccessCapacity) &&
-            Objects.equals(storageAmountCapacity, that.storageAmountCapacity) &&
-            Objects.equals(redundancyType, that.redundancyType) &&
-            Objects.equals(files, that.files) &&
-            Objects.equals(snapshotId, that.snapshotId));
+        return (Objects.equals(storageAccessCapacity, that.storageAccessCapacity)
+                && Objects.equals(storageAmountCapacity, that.storageAmountCapacity)
+                && Objects.equals(redundancyType, that.redundancyType)
+                && Objects.equals(files, that.files)
+                && Objects.equals(snapshotId, that.snapshotId)
+                && Objects.equals(attachmentState, that.attachmentState)
+                && Objects.equals(encryption, that.encryption));
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(storageAccessCapacity, storageAmountCapacity, redundancyType, files, snapshotId);
+        return Objects.hash(storageAccessCapacity, storageAmountCapacity, redundancyType, files,
+                snapshotId, attachmentState, encryption);
     }
 
     @Override
     public String toString() {
-        return "VirtualVolumeInfoRepoDTO{" +
-                "storageAccessCapacity=" + storageAccessCapacity +
-                ", storageAmountCapacity=" + storageAmountCapacity +
-                ", redundancyType=" + redundancyType +
-                ", files=" + files +
-                ", snapshotId=" + snapshotId +
-                '}';
+        return "VirtualVolumeInfoRepoDTO{"
+                + "storageAccessCapacity=" + storageAccessCapacity
+                + ", storageAmountCapacity=" + storageAmountCapacity
+                + ", redundancyType=" + redundancyType
+                + ", files=" + files
+                + ", snapshotId=" + snapshotId
+                + ", attachmentState=" + attachmentState
+                + ", encryption=" + encryption
+                + '}';
     }
 }

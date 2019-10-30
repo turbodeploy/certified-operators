@@ -50,6 +50,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
 
 /**
@@ -330,6 +331,8 @@ public class VirtualVolumeAspectMapperTest {
                             .setStorageAccessCapacity(storageAccessCapacity)
                             .setStorageAmountCapacity(storageAmountCapacityInMB)
                             .setSnapshotId(snapshotId)
+                            .setAttachmentState(AttachmentState.IN_USE)
+                            .setEncryption(true)
                             .build()))
             .build();
 
@@ -388,7 +391,9 @@ public class VirtualVolumeAspectMapperTest {
         assertEquals(storageAmountCapacityInMB / 1024F, statApiDTOStorageAmount.get().getCapacity().getAvg().longValue(), 0.00001);
         assertEquals(VirtualVolumeAspectMapper.CLOUD_STORAGE_AMOUNT_UNIT, statApiDTOStorageAmount.get().getUnits());
 
-        assertEquals(volumeAspect.getSnapshotId(), snapshotId);
+        assertEquals(snapshotId, volumeAspect.getSnapshotId());
+        assertEquals(AttachmentState.IN_USE.name(), volumeAspect.getAttachmentState());
+        assertEquals("Enabled", volumeAspect.getEncryption());
         assertEquals(virtualVolumeDisplayName, volumeAspect.getDisplayName());
 
         assertEquals(String.valueOf(vmId1), volumeAspect.getAttachedVirtualMachine().getUuid());
@@ -449,7 +454,9 @@ public class VirtualVolumeAspectMapperTest {
         assertEquals(storageAmountCapacityInMB, statApiDTOStorageAmount.get().getCapacity().getAvg().longValue());
         assertEquals(CommodityTypeUnits.STORAGE_AMOUNT.getUnits(), statApiDTOStorageAmount.get().getUnits());
 
-        assertEquals(volumeAspect.getSnapshotId(), snapshotId);
+        assertEquals(snapshotId, volumeAspect.getSnapshotId());
+        assertEquals(AttachmentState.IN_USE.name(), volumeAspect.getAttachmentState());
+        assertEquals("Enabled", volumeAspect.getEncryption());
         assertEquals(virtualVolumeDisplayName, volumeAspect.getDisplayName());
 
         assertEquals(String.valueOf(vmId1), volumeAspect.getAttachedVirtualMachine().getUuid());

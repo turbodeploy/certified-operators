@@ -179,6 +179,9 @@ message TypeSpecificInfo {
         // Volume attachment state. It is set to IN_USE only in particular cases like AWS volume.
         // In other cases, the attachment state will be deduced based on the association with VM.
         optional .common_dto.EntityDTO.VirtualVolumeData.AttachmentState attachment_state = 6;
+
+        // Boolean encryption enabled on volume
+        optional bool encryption = 7;
     }
 
     // specific data for a Storage entity
