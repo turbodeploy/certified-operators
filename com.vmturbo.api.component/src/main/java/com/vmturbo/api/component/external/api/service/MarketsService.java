@@ -481,31 +481,20 @@ public class MarketsService implements IMarketsService {
 
             // Reading the price index for the entities of plans
             List<PlanEntityStats> entityStats = new ArrayList<>();
-            String cursor = "0";
-            Optional<PaginationResponse> paginationResponse = Optional.ofNullable(null);
-            do {
-                Iterator<PlanTopologyStatsResponse> resp =
+            Iterator<PlanTopologyStatsResponse> resp =
                         repositoryRpcService.getPlanTopologyStats(PlanTopologyStatsRequest.newBuilder()
                                 .setTopologyId(topologyId)
                                 .setFilter(StatsFilter.newBuilder()
                                         .setStartDate(System.currentTimeMillis() + 10000)
                                         .addCommodityRequests(CommodityRequest.newBuilder()
                                                 .setCommodityName(StringConstants.PRICE_INDEX)))
-                                .setPaginationParams(PaginationParameters.newBuilder()
-                                        .setCursor(cursor))
                                 .build());
-                while (resp.hasNext()) {
-                    PlanTopologyStatsResponse chunk = resp.next();
-                        if (chunk.getTypeCase() == TypeCase.PAGINATIONRESPONSE) {
-                            paginationResponse = Optional.of(chunk.getPaginationResponse());
-                        } else {
-                            entityStats.addAll(chunk.getEntityStats().getEntityStatsList());
-                        }
-                    if (paginationResponse.isPresent()) {
-                        cursor = chunk.getPaginationResponse().getNextCursor();
+            while (resp.hasNext()) {
+                PlanTopologyStatsResponse chunk = resp.next();
+                    if (chunk.getTypeCase() != TypeCase.PAGINATIONRESPONSE) {
+                        entityStats.addAll(chunk.getEntityStats().getEntityStatsList());
                     }
-                }
-            } while (!StringUtils.isEmpty(cursor) || paginationResponse.isPresent());
+            }
 
             for (PlanEntityStats stat : entityStats) {
                 if (stat.getPlanEntityStats().getStatSnapshotsCount() > 0) {
