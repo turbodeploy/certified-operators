@@ -37,6 +37,8 @@ public class ReservedInstanceDataProcessorTest {
 
     static final long ZONE_ID = 33333;
 
+    static final long ZONE_ID_1 = 77777;
+
     static final long REGION_ID = 1234;
 
     static final long COMPUTE_TIER_ID = 1234;
@@ -153,6 +155,40 @@ public class ReservedInstanceDataProcessorTest {
         assertEquals(20, demand[0], 0.0);
         assertEquals(19, demand[1], 0.0);
         assertEquals(18, demand[2], 0.0);
+    }
+
+    /**
+     * This method tests ReservedInstanceDataProcessor::getCouponDemandByTemplate method.
+     */
+    @Test
+    public void testGetCouponDemandByTemplate() {
+        final TopologyEntityDTO buyComputeTier = buildComputeTierDTO();
+        final Map<ReservedInstanceZonalContext, float[]> zonalContexts = new HashMap<>();
+
+        final ReservedInstanceZonalContext context1 = new ReservedInstanceZonalContext(MASTER_ID,
+                OSType.LINUX, Tenancy.DEFAULT, buyComputeTier, ZONE_ID);
+        final float[] demand1 = new float[168];
+        Arrays.fill(demand1, 1f);
+
+        final ReservedInstanceZonalContext context2 = new ReservedInstanceZonalContext(MASTER_ID,
+                OSType.LINUX, Tenancy.DEFAULT, buyComputeTier, ZONE_ID_1);
+        final float[] demand2 = new float[168];
+        Arrays.fill(demand2, 2f);
+
+        zonalContexts.put(context1, demand1);
+        zonalContexts.put(context2, demand2);
+
+        final ReservedInstanceDataProcessor processor = new ReservedInstanceDataProcessor();
+        final Map<TopologyEntityDTO, float[]> couponDemandByTemplate = processor
+                .getCouponDemandByTemplate(zonalContexts, 1);
+
+        assertEquals(1, couponDemandByTemplate.size());
+        final float[] result = couponDemandByTemplate.values().stream().findFirst().get();
+        // The demand for both the contexts would collapse into a single demand since both of them
+        // are using the same compute tier (template).
+        assertEquals(3f, result[0], 0f);
+        assertEquals(3f, result[167], 0f);
+        assertEquals(3f, result[90], 0f);
     }
 
     /**

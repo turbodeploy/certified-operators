@@ -237,7 +237,7 @@ public class ReservedInstanceDataProcessor {
      *                      the effect of that we multiply the demand with the same regionCoupons)
      * @return Returns a mapping between different templates and their demand.
      */
-    private Map<TopologyEntityDTO, float[]> getCouponDemandByTemplate(Map<ReservedInstanceZonalContext,
+    protected Map<TopologyEntityDTO, float[]> getCouponDemandByTemplate(Map<ReservedInstanceZonalContext,
                                                                      float[]> demandByZonalContext,
                                                                      int regionCoupons) {
         final Map<TopologyEntityDTO, float[]> chartDemand = new HashMap<>();
@@ -247,7 +247,7 @@ public class ReservedInstanceDataProcessor {
             final TopologyEntityDTO computeTier = zonalContext.getComputeTier();
             final float[] demand = entry.getValue();
 
-            float[] demandInCoupons = chartDemand.get(zonalContext);
+            float[] demandInCoupons = chartDemand.get(computeTier);
 
             if (demandInCoupons == null) {
                 demandInCoupons = new float[demand.length];
