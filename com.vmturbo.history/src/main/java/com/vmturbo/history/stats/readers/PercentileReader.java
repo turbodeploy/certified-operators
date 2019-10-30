@@ -97,7 +97,7 @@ public class PercentileReader
                 final Result<PercentileBlobsRecord> percentileBlobsRecords =
                                 context.selectFrom(PERCENTILE_BLOBS_TABLE)
                                                 .where(PERCENTILE_BLOBS_TABLE.START_TIMESTAMP
-                                                                .eq(startTimestamp))
+                                                                .eq(new Timestamp(startTimestamp)))
                                                 .fetch();
                 final int amountOfRecords = percentileBlobsRecords.size();
                 if (amountOfRecords < 1) {
@@ -167,7 +167,7 @@ public class PercentileReader
                     }
                     final Builder percentileChunkBuilder = PercentileChunk.newBuilder();
                     percentileChunkBuilder.setPeriod(record.getAggregationWindowLength());
-                    final long startTimestamp = record.getStartTimestamp();
+                    final long startTimestamp = record.getStartTimestamp().getTime();
                     percentileChunkBuilder.setStartTimestamp(startTimestamp);
                     final ByteString data = ByteString.readFrom(
                                     new ByteArrayInputStream(sourceData, totalProcessed.get(),

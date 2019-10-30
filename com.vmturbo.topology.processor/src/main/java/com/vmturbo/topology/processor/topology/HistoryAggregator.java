@@ -100,11 +100,6 @@ public class HistoryAggregator {
                                     @Nullable List<ScenarioChange> changes,
                                     @Nonnull TopologyDTO.TopologyInfo topologyInfo,
                                     @Nullable PlanScope scope) throws PipelineStageException {
-        if (graph.getTopologyGraph().size() <= 0) {
-            logger.debug("Topology graph is empty. Unable to update commodities.");
-            return;
-        }
-
         Set<IHistoricalEditor<?>> editorsToRun = editors.stream()
                         .filter(editor -> editor.isApplicable(changes, topologyInfo, scope))
                         .collect(Collectors.toSet());

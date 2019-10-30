@@ -108,9 +108,9 @@ public class PercentileWriterTest {
     @Test
     public void checkDataUpdated() throws VmtDbException, IOException, SQLException {
         sqlRequestToResponse.add(Pair.create(Pair.create(DELETE_FROM_VMTDB_PERCENTILE_BLOBS,
-                        Collections.singletonList(10L)), null));
+                        Collections.singletonList(new Timestamp(10))), null));
         sqlRequestToResponse.add(Pair.create(Pair.create(INSERT_INTO_VMTDB_PERCENTILE_BLOBS,
-                        Arrays.asList(10L, 3L)), null));
+                        Arrays.asList(new Timestamp(10), 3L)), null));
         final AtomicReference<InputStream> writingData = new AtomicReference<>();
         Mockito.when(connection.prepareStatement(Mockito.anyString()))
                         .thenAnswer((Answer<PreparedStatement>)invocation -> {

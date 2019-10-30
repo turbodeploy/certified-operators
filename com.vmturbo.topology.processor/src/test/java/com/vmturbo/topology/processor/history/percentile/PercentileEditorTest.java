@@ -17,7 +17,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.powermock.api.mockito.PowerMockito;
 import org.powermock.core.classloader.annotations.PrepareForTest;
@@ -60,6 +59,8 @@ import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreato
 @RunWith(PowerMockRunner.class)
 @PrepareForTest({StatsHistoryServiceStub.class})
 public class PercentileEditorTest extends BaseGraphRelatedTest {
+
+    private static final long TIMESTAMP_TOTAL = 0L;
     private static final long TIMESTAMP_AUG_28_2019_12_00 = 1566993600000L;
     private static final long TIMESTAMP_AUG_29_2019_00_00 = 1567036800000L;
     private static final long TIMESTAMP_AUG_29_2019_06_00 = 1567058400000L;
@@ -121,18 +122,15 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     private void setUpTopology() {
         topologyBuilderMap = new HashMap<>();
         entitySettings = new HashMap<>();
-        addEntityWithSetting(VIRTUAL_MACHINE_OID,
-                             EntityType.VIRTUAL_MACHINE_VALUE,
-                             EntitySettingSpecs.PercentileObservationPeriodVirtualMachine,
-                             PREVIOUS_VIRTUAL_MACHINE_OBSERVATION_PERIOD);
-        addEntityWithSetting(BUSINESS_USER_OID,
-                             EntityType.BUSINESS_USER_VALUE,
-                             EntitySettingSpecs.PercentileObservationPeriodBusinessUser,
-                             PREVIOUS_BUSINESS_USER_OBSERVATION_PERIOD);
-        graphWithSettings = new GraphWithSettings(TopologyEntityTopologyGraphCreator
-                                                                  .newGraph(topologyBuilderMap),
-                                                  entitySettings,
-                                                  Collections.emptyMap());
+        addEntityWithSetting(VIRTUAL_MACHINE_OID, EntityType.VIRTUAL_MACHINE_VALUE,
+                EntitySettingSpecs.PercentileObservationPeriodVirtualMachine,
+                PREVIOUS_VIRTUAL_MACHINE_OBSERVATION_PERIOD);
+        addEntityWithSetting(BUSINESS_USER_OID, EntityType.BUSINESS_USER_VALUE,
+                EntitySettingSpecs.PercentileObservationPeriodBusinessUser,
+                PREVIOUS_BUSINESS_USER_OBSERVATION_PERIOD);
+        graphWithSettings = new GraphWithSettings(
+                TopologyEntityTopologyGraphCreator.newGraph(topologyBuilderMap), entitySettings,
+                Collections.emptyMap());
         commodityFieldAccessor = new CommodityFieldAccessor(graphWithSettings.getTopologyGraph());
     }
 
@@ -300,7 +298,6 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     @Test
     public void testCacheBackupSuccessCase()
                     throws HistoryCalculationException, InterruptedException {
-        Mockito.when(clock.millis()).thenReturn(TIMESTAMP_INIT_START_SEP_1_2019);
         percentileEditor.initContext(graphWithSettings, commodityFieldAccessor);
         final EntityCommodityFieldReference mockReference =
                         Mockito.mock(EntityCommodityFieldReference.class);
@@ -323,7 +320,6 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
      */
     @Test
     public void testCacheBackupFailureCase() throws HistoryCalculationException, InterruptedException {
-        Mockito.when(clock.millis()).thenReturn(TIMESTAMP_INIT_START_SEP_1_2019);
         percentileEditor.initContext(graphWithSettings, commodityFieldAccessor);
         final Map<EntityCommodityFieldReference, PercentileCommodityData> originalCache =
                         percentileEditor.getCache();
@@ -357,27 +353,20 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         Mockito.when(clock.millis()).thenReturn(TIMESTAMP_AUG_29_2019_00_00);
         percentileEditor.initContext(graphWithSettings, commodityFieldAccessor);
         Mockito.when(clock.millis()).thenReturn(TIMESTAMP_AUG_29_2019_06_00);
-        Mockito.reset(stub);
+
+        Mockito.verify(stub, Mockito.times(2)).load(Mockito.any(),
+                                                    Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
 
         percentileEditor.completeBroadcast();
-
-        // We should update LATEST with the latest values we have.
-        final ArgumentCaptor<PercentileCounts> latestCaptor =
-                        ArgumentCaptor.forClass(PercentileCounts.class);
-        Mockito.verify(stub, Mockito.times(1)).save(latestCaptor.capture(),
+        Mockito.verify(stub, Mockito.times(1)).save(Mockito.any(),
                                                     Mockito.eq((long)(PERCENTILE_HISTORICAL_EDITOR_CONFIG.getMaintenanceWindowHours() * Units.HOUR_MS)),
                                                     Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
-        final PercentileCounts latest = latestCaptor.getValue();
-        Assert.assertEquals(2, latest.getPercentileRecordsList().size());
-
-        // We don't update TOTAL because there is not right time now.
         Mockito.verify(stub, Mockito.never()).save(Mockito.any(),
                                                     Mockito.eq(TIMESTAMP_AUG_29_2019_00_00),
                                                     Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
 
-        // Maintenance shouldn't load any data.
-        Mockito.verify(stub, Mockito.never())
-                        .load(Mockito.any(), Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
+        Mockito.verify(stub, Mockito.times(2)).load(Mockito.any(),
+                                                    Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
     }
 
     /**
@@ -397,21 +386,19 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         percentileEditor.initContext(graphWithSettings, commodityFieldAccessor);
         Mockito.when(clock.millis()).thenReturn(TIMESTAMP_AUG_29_2019_12_00);
 
-        Mockito.reset(stub);
-        percentileEditor.completeBroadcast();
+        Mockito.verify(stub, Mockito.times(2)).load(Mockito.any(),
+                                                    Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
 
-        // Save current LATEST day percentiles with one write.
+        percentileEditor.completeBroadcast();
         Mockito.verify(stub, Mockito.times(1)).save(Mockito.any(),
                                                     Mockito.eq((long)(PERCENTILE_HISTORICAL_EDITOR_CONFIG.getMaintenanceWindowHours() * Units.HOUR_MS)),
                                                     Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
-
-        // We do exactly one TOTAL write to DB when one maintenance windows passed since last checkpoint.
         Mockito.verify(stub, Mockito.times(1)).save(Mockito.any(),
                                                     Mockito.eq(TIMESTAMP_AUG_29_2019_12_00),
                                                     Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
 
-        // We load exactly two times in maintenance because we have two different periods in graph.
-        Mockito.verify(stub, Mockito.times(2)).load(Mockito.any(),
+        // 2 Additional calls of load: one per period
+        Mockito.verify(stub, Mockito.times(4)).load(Mockito.any(),
                                                     Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
     }
 
@@ -432,21 +419,15 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         percentileEditor.initContext(graphWithSettings, commodityFieldAccessor);
         Mockito.when(clock.millis()).thenReturn(TIMESTAMP_AUG_30_2019_00_00);
 
-        Mockito.reset(stub);
         percentileEditor.completeBroadcast();
-
-        // Update LATEST day once.
         Mockito.verify(stub, Mockito.times(1)).save(Mockito.any(),
                                                     Mockito.eq((long)(PERCENTILE_HISTORICAL_EDITOR_CONFIG.getMaintenanceWindowHours() * Units.HOUR_MS)),
                                                     Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
-
-        // Normally we should do exactly one TOTAL write even if two maintenance windows passed since last checkpoint.
         Mockito.verify(stub, Mockito.times(1)).save(Mockito.any(),
                                                     Mockito.eq(TIMESTAMP_AUG_30_2019_00_00),
                                                     Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
 
-        // Two periods * two maintenance window = exactly four invocations.
-        Mockito.verify(stub, Mockito.times(4)).load(Mockito.any(),
+        Mockito.verify(stub, Mockito.times(6)).load(Mockito.any(),
                                                     Mockito.refEq(PERCENTILE_HISTORICAL_EDITOR_CONFIG));
     }
 
@@ -528,8 +509,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                             Arrays.asList(TIMESTAMP_INIT_START_SEP_1_2019, TIMESTAMP_AUG_31_2019_12_00,
                                           TIMESTAMP_AUG_31_2019_00_00, TIMESTAMP_AUG_30_2019_12_00,
                                           TIMESTAMP_AUG_30_2019_00_00, TIMESTAMP_AUG_29_2019_12_00,
-                                          TIMESTAMP_AUG_29_2019_00_00, TIMESTAMP_AUG_28_2019_12_00,
-                                          PercentilePersistenceTask.TOTAL_TIMESTAMP);
+                                          TIMESTAMP_AUG_29_2019_00_00, TIMESTAMP_AUG_28_2019_12_00, TIMESTAMP_TOTAL);
             int i = 0;
             final List<Long> entities = Arrays.asList(VIRTUAL_MACHINE_OID, BUSINESS_USER_OID);
             for (long entityOid : entities) {
@@ -542,7 +522,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         }
 
         PercentileTaskStub(StatsHistoryServiceStub unused) {
-            super(unused);
+            super(null);
             currentUtilization = new HashMap<>(DEFAULT_UTILISATION);
             PercentileRecord virtualMachinePercentileRecord = PercentileRecord.newBuilder()
                             .setEntityOid(VIRTUAL_MACHINE_OID)
@@ -577,11 +557,6 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         public Map<EntityCommodityFieldReference, PercentileRecord> load(
                         @Nonnull Collection<EntityCommodityReference> commodities,
                         @Nonnull PercentileHistoricalEditorConfig config) {
-            // Current implementation doesn't use this parameter.
-            // If this assertion fails then most likely the implementation changed and
-            // you should add more unit tests for that.
-            Assert.assertTrue(commodities.isEmpty());
-
             for (Map.Entry<EntityCommodityFieldReference, PercentileRecord> entry : resultForLoad
                             .entrySet()) {
                 EntityCommodityFieldReference entityCommodityFieldReference = entry.getKey();
@@ -601,7 +576,8 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         @Override
         public void save(@Nonnull PercentileCounts counts,
                          long periodMs,
-                         @Nonnull PercentileHistoricalEditorConfig config) {
+                         @Nonnull PercentileHistoricalEditorConfig config)
+                        throws HistoryCalculationException, InterruptedException {
             // UNUSED
         }
     }

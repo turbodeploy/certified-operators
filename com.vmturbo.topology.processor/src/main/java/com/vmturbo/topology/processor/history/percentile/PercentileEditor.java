@@ -1,10 +1,8 @@
 package com.vmturbo.topology.processor.history.percentile;
 
 import java.time.Clock;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,8 +26,8 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.forecasting.TimeInMillisConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -130,7 +128,8 @@ public class PercentileEditor extends
         }
         return !changes.stream()
                         .filter(ScenarioChange::hasPlanChanges)
-                        .anyMatch(change -> change.getPlanChanges().hasHistoricalBaseline());
+                        .filter(change -> change.getPlanChanges().hasHistoricalBaseline())
+                        .findAny().isPresent();
     }
 
     @Override
@@ -214,10 +213,8 @@ public class PercentileEditor extends
         if (!historyInitialized) {
             Stopwatch sw = Stopwatch.createStarted();
             // read the latest and full window blobs if haven't yet, set into cache
-            final PercentilePersistenceTask task =
-                            createTask(PercentilePersistenceTask.TOTAL_TIMESTAMP);
             Map<EntityCommodityFieldReference, PercentileRecord> fullPage =
-                            task.load(Collections.emptyList(), getConfig());
+                            createTask(0).load(Collections.emptyList(), getConfig());
             for (Map.Entry<EntityCommodityFieldReference, PercentileRecord> fullEntry : fullPage.entrySet()) {
                 EntityCommodityFieldReference field = fullEntry.getKey();
                 PercentileRecord record = fullEntry.getValue();
@@ -228,7 +225,7 @@ public class PercentileEditor extends
                 data.getUtilizationCountStore().addFullCountsRecord(record, true);
                 data.getUtilizationCountStore().setPeriodDays(record.getPeriod());
             }
-            logger.info("Initialized percentile full window data for {} commodities in {}",
+            logger.debug("Initialized percentile full window data for {} commodities in {}",
                          fullPage::size, sw::toString);
 
             sw.reset();
@@ -248,11 +245,11 @@ public class PercentileEditor extends
                     data.getUtilizationCountStore().setLatestCountsRecord(record);
                 }
             }
-            logger.info("Initialized percentile latest window data for timestamp {} and {} commodities in {}",
+            logger.debug("Initialized percentile latest window data for timestamp {} and {} commodities in {}",
                          () -> checkpointMs, latestPage::size, sw::toString);
 
             historyInitialized = true;
-            lastCheckpointMs = task.getLastCheckpointMs() != 0 ? task.getLastCheckpointMs() : checkpointMs;
+            lastCheckpointMs = checkpointMs;
         }
     }
 
@@ -268,7 +265,10 @@ public class PercentileEditor extends
          * We should consider keeping per-entity-type period settings only.
          * Or preferably even just one global observation window setting.
          */
-        final Map<Long, Integer> entity2period = getEntityToPeriod(graph.getTopologyGraph());
+        final Map<Long, Integer> entity2period = graph.getTopologyGraph()
+                .entities()
+                .collect(Collectors.toMap(TopologyEntity::getOid,
+                        entity -> getConfig().getObservationPeriod(entity.getOid())));
 
         final Map<EntityCommodityFieldReference, PercentileCommodityData> changedPeriodEntries =
                 new HashMap<>();
@@ -340,7 +340,7 @@ public class PercentileEditor extends
                 }
                 startTimestamp += windowMillis;
             }
-
+            // Reset last checkpoint for force starting the maintenance.
             backup.keepCacheOnClose();
             logger.info(
                     "Percentile observation windows changed for {} entries, recalculated from {} pages in {}",
@@ -365,27 +365,17 @@ public class PercentileEditor extends
                         CacheBackup backup = new CacheBackup(getCache())) {
             logger.debug("Performing percentile cache maintenance {}", ++checkpoints);
 
-            final Map<Long, Integer> entity2period = getEntityToPeriod(graph);
-            final Set<Integer> periods = new HashSet<>(entity2period.values());
-            final PercentileCounts.Builder total = PercentileCounts.newBuilder();
+            Set<Integer> periods = graph.entities()
+                            .map(entity -> getConfig().getObservationPeriod(entity.getOid()))
+                            .collect(Collectors.toSet());
 
-            /*
-             Process outdated percentiles day by day:
-
-             We take all possible periods of observation (7 days, 30 days and 90 days)
-             For each period:
-                 outdatedPercentiles = load outdated percentiles from (lastCheckpointDay - period) day
-                 for each entity in cache:
-                     if outdatedPercentiles contain entity:
-                         subtract outdated utilization counts from cache
-             Save current cache to DB.
-            */
+            final PercentileCounts.Builder builder = PercentileCounts.newBuilder();
             for (long currentCheckpointMs = lastCheckpointMs + getMaintenanceWindowInMs();
                  currentCheckpointMs <= checkpointMs;
                  currentCheckpointMs += getMaintenanceWindowInMs()) {
                 for (Integer periodInDays : periods) {
-                    final long outdatedTimestamp = currentCheckpointMs - periodInDays
-                                                                         * TimeInMillisConstants.DAY_LENGTH_IN_MILLIS;
+                    final long outdatedTimestamp = currentCheckpointMs
+                                                   - periodInDays * TimeInMillisConstants.DAY_LENGTH_IN_MILLIS;
                     final PercentilePersistenceTask loadOutdated = createTask(outdatedTimestamp);
                     logger.debug("Started checkpoint percentile cache for timestamp {} with period of {} days. Outdated percentile timestamp is {} ",
                                  currentCheckpointMs,
@@ -394,27 +384,27 @@ public class PercentileEditor extends
 
                     final Map<EntityCommodityFieldReference, PercentileRecord> oldValues =
                                     loadOutdated.load(Collections.emptyList(), getConfig());
-                    for (Map.Entry<EntityCommodityFieldReference, PercentileCommodityData> entry : getCache()
+                    for (Map.Entry<EntityCommodityFieldReference, PercentileRecord> entry : oldValues
                                     .entrySet()) {
-                        final EntityCommodityFieldReference ref = entry.getKey();
-                        if (!periodInDays.equals(entity2period.get(ref.getEntityOid()))) {
+                        final EntityCommodityFieldReference currentReference = entry.getKey();
+                        final PercentileRecord record = entry.getValue();
+                        if (getConfig().getObservationPeriod(currentReference.getEntityOid())
+                            != periodInDays) {
                             continue;
                         }
-
-                        final PercentileRecord oldRecord = oldValues.get(ref);
-                        final Collection<PercentileRecord> oldValuesForCurrentRef =
-                                        oldRecord != null ? Collections.singletonList(oldRecord) :
-                                                        Collections.emptyList();
-                        logger.trace("Checkpoint record for entity reference {}", ref);
-                        final PercentileRecord.Builder checkpoint = entry.getValue().getUtilizationCountStore()
-                                        .checkpoint(oldValuesForCurrentRef);
-                        total.addPercentileRecords(checkpoint);
+                        logger.trace("Checkpoint record {} for entity reference {}",
+                                     record, currentReference);
+                        final PercentileCommodityData data = getCache().get(currentReference);
+                        final PercentileRecord.Builder checkpoint = data.getUtilizationCountStore()
+                                        .checkpoint(Collections.singleton(record));
+                        builder.addPercentileRecords(checkpoint);
                     }
                 }
             }
 
-            logger.debug("Writing total percentile with timestamp {}", checkpointMs);
-            createTask(PercentilePersistenceTask.TOTAL_TIMESTAMP).save(total.build(), checkpointMs, getConfig());
+            final PercentileCounts total = builder.build();
+            logger.debug("Writing total percentile {} with timestamp {}", total, checkpointMs);
+            createTask(0).save(total, checkpointMs, getConfig());
 
             lastCheckpointMs = checkpointMs;
             backup.keepCacheOnClose();
@@ -422,12 +412,6 @@ public class PercentileEditor extends
         } finally {
             logger.info("Percentile cache maintenance {} took {}", checkpoints, sw);
         }
-    }
-
-    private Map<Long, Integer> getEntityToPeriod(TopologyGraph<TopologyEntity> graph) {
-        return graph.entities().collect(Collectors.toMap(TopologyEntity::getOid,
-                                                         entity -> getConfig().getObservationPeriod(
-                                                                         entity.getOid())));
     }
 
     private long getCheckpoint() {

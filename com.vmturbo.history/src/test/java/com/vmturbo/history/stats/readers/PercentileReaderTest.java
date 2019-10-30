@@ -93,7 +93,7 @@ public class PercentileReaderTest {
     public void checkRequestToEmptyDatabase() {
         sqlRequestToResponse.add(Pair.create(
                         Pair.create("select `vmtdb`.`percentile_blobs`.`start_timestamp`",
-                                        Collections.singletonList(0L)), null));
+                                        Collections.singletonList(new Timestamp(0))), null));
         final List<PercentileChunk> result = new ArrayList<>();
         final StreamObserver<PercentileChunk> responseObserver = createStreamObserver(result, true);
         percentileReader.processRequest(
@@ -126,7 +126,7 @@ public class PercentileReaderTest {
     public void checkSqlException() throws VmtDbException {
         sqlRequestToResponse.add(Pair.create(
                         Pair.create("select `vmtdb`.`percentile_blobs`.`start_timestamp`",
-                                        Collections.singletonList(0L)), null));
+                                        Collections.singletonList(new Timestamp(0))), null));
         Mockito.when(historyDbIo.transConnection()).thenAnswer((Answer<Connection>)invocation -> {
             final MockConnection connection = Mockito.spy(new MockConnection(
                             new TestDataProvider(sqlRequestToResponse)));
@@ -154,7 +154,7 @@ public class PercentileReaderTest {
         final Result<PercentileBlobsRecord> result = createDbRecord(SOURCE_DATA);
         sqlRequestToResponse.add(Pair.create(
                         Pair.create("select `vmtdb`.`percentile_blobs`.`start_timestamp`",
-                                        Collections.singletonList(20L)), result));
+                                        Collections.singletonList(new Timestamp(20))), result));
         final List<PercentileChunk> records = new ArrayList<>();
         percentileReader.processRequest(GetPercentileCountsRequest.newBuilder().setChunkSize(10)
                         .setStartTimestamp(20).build(), createStreamObserver(records, true));
@@ -170,7 +170,7 @@ public class PercentileReaderTest {
         final DSLContext context = DSL.using(SQLDialect.MARIADB);
         final Result<PercentileBlobsRecord> result = context.newResult(PERCENTILE_BLOBS_TABLE);
         final PercentileBlobsRecord values = context.newRecord(PERCENTILE_BLOBS_TABLE)
-                        .values(20L, 3L, sourceData.getBytes());
+                        .values(new Timestamp(20), 3L, sourceData.getBytes());
         result.add(values);
         return result;
     }
@@ -186,7 +186,7 @@ public class PercentileReaderTest {
         Mockito.when(clock.millis()).thenAnswer(invocation -> currentTimeValues.poll());
         sqlRequestToResponse.add(Pair.create(
                         Pair.create("select `vmtdb`.`percentile_blobs`.`start_timestamp`",
-                                        Collections.singletonList(0L)), result));
+                                        Collections.singletonList(new Timestamp(0))), result));
         final StreamObserver<PercentileChunk> streamObserver =
                         createStreamObserver(Collections.emptyList(), false);
         percentileReader.processRequest(GetPercentileCountsRequest.newBuilder().setChunkSize(10)
