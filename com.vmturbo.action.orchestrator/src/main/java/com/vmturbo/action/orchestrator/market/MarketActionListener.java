@@ -40,10 +40,17 @@ public class MarketActionListener implements ActionsListener, AnalysisSummaryLis
      */
     private long latestMarketActionPlanId = -1;
 
-    public MarketActionListener(@Nonnull final ActionOrchestratorNotificationSender notifiationSender,
+    /**
+     * Constructs new instance of {@code MarketActionListener}.
+     *
+     * @param notificationSender Notification sender.
+     * @param actionStorehouse Action store house.
+     * @param actionPlanAssessor Action plan assessor.
+     */
+    public MarketActionListener(@Nonnull final ActionOrchestratorNotificationSender notificationSender,
                                 @Nonnull final ActionStorehouse actionStorehouse,
                                 @Nonnull final ActionPlanAssessor actionPlanAssessor) {
-        this.notificationSender = Objects.requireNonNull(notifiationSender);
+        this.notificationSender = Objects.requireNonNull(notificationSender);
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
         this.actionPlanAssessor = Objects.requireNonNull(actionPlanAssessor);
     }

@@ -4,6 +4,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -13,20 +14,19 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableMap;
+
+import io.grpc.Status;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.MockitoAnnotations;
-
-import com.google.common.collect.ImmutableMap;
-
-import io.grpc.Status;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
@@ -52,7 +52,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesReque
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
-import com.vmturbo.common.protobuf.topology.EntityInfo.HostInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
@@ -68,49 +67,49 @@ public class ActionTranslatorTest {
     private ActionTranslator translator;
     private ActionModeCalculator actionModeCalculator;
 
-    private final long actionPlanId = 1234;
+    private static final long actionPlanId = 1234;
 
     private static final int CPU_SPEED_MHZ = 2000;
     private static final long VM_TARGET_ID = 2;
     private static final long HOST_ID = 99;
 
-    final int OLD_VCPU_MHZ = 2000;
-    final int NEW_VPCU_MHZ = 4000;
+    private static final int OLD_VCPU_MHZ = 2000;
+    private static final int NEW_VCPU_MHZ = 4000;
 
     private final RepositoryServiceMole repositoryServiceSpy = spy(new RepositoryServiceMole());
     private final SettingPolicyServiceMole settingPolicyServiceSpy = spy(new SettingPolicyServiceMole());
-    EntitiesAndSettingsSnapshot mockSnapshot = mock(EntitiesAndSettingsSnapshot.class);
+    private EntitiesAndSettingsSnapshot mockSnapshot = mock(EntitiesAndSettingsSnapshot.class);
 
     @Rule
     public GrpcTestServer server = GrpcTestServer.newServer(repositoryServiceSpy, settingPolicyServiceSpy);
 
     @Before
-    public void setup() throws IOException {
+    public void setup() {
         MockitoAnnotations.initMocks(this);
         translator = new ActionTranslator(server.getChannel(), server.getChannel());
         actionModeCalculator = new ActionModeCalculator();
     }
 
     @Test
-    public void testTranslateMovePassthrough() throws Exception {
+    public void testTranslateMovePassthrough() {
         final Action move = new Action(ActionOrchestratorTestUtils.createMoveRecommendation(1), actionPlanId, actionModeCalculator);
-        Action translatedAction = translator.translate(Stream.of(move), mock(EntitiesAndSettingsSnapshot.class)).findFirst().get();
+        translator.translate(Stream.of(move), mock(EntitiesAndSettingsSnapshot.class)).findFirst().get();
         assertEquals(move.getTranslationStatus(), TranslationStatus.TRANSLATION_SUCCEEDED);
     }
 
     @Test
-    public void testTranslateResizeMemoryPassthrough() throws Exception {
+    public void testTranslateResizeMemoryPassthrough() {
         final Action resize = new Action(
             ActionOrchestratorTestUtils.createResizeRecommendation(1, CommodityType.VMEM), actionPlanId, actionModeCalculator);
-        Action translatedAction = translator.translate(Stream.of(resize), mock(EntitiesAndSettingsSnapshot.class)).findFirst().get();
+        translator.translate(Stream.of(resize), mock(EntitiesAndSettingsSnapshot.class)).findFirst().get();
         assertEquals(resize.getTranslationStatus(), TranslationStatus.TRANSLATION_SUCCEEDED);
     }
 
     @Test
-    public void testTranslateResizeVcpuInfoTranslation() throws Exception {
+    public void testTranslateResizeVcpuInfoTranslation() {
         final Action resize = setupDefaultResizeAction();
 
-        Action translatedAction = translator.translate(Stream.of(resize), mockSnapshot).findFirst().get();
+        translator.translate(Stream.of(resize), mockSnapshot).findFirst().get();
 
         assertEquals(resize.getTranslationStatus(), TranslationStatus.TRANSLATION_SUCCEEDED);
         final ActionDTO.Action translatedResize = resize.getActionTranslation().getTranslatedRecommendation().get();
@@ -118,7 +117,7 @@ public class ActionTranslatorTest {
     }
 
     @Test
-    public void testInfoUnavailableDuringTranslation() throws Exception {
+    public void testInfoUnavailableDuringTranslation() {
         when(repositoryServiceSpy.retrieveTopologyEntities(
             RetrieveTopologyEntitiesRequest.newBuilder()
                 .addAllEntityOids(Arrays.asList(HOST_ID))
@@ -133,33 +132,33 @@ public class ActionTranslatorTest {
         when(mockSnapshot.getToologyContextId()).thenReturn(actionPlanId);
         final Action resize = new Action(
             ActionOrchestratorTestUtils.createResizeRecommendation(1, VM_TARGET_ID,
-                CommodityType.VCPU, OLD_VCPU_MHZ, NEW_VPCU_MHZ), actionPlanId, actionModeCalculator);
+                CommodityType.VCPU, OLD_VCPU_MHZ, NEW_VCPU_MHZ), actionPlanId, actionModeCalculator);
 
-        Action translatedAction = translator.translate(Stream.of(resize), mockSnapshot).findFirst().get();
+        translator.translate(Stream.of(resize), mockSnapshot).findFirst().get();
         assertEquals(TranslationStatus.TRANSLATION_FAILED, resize.getTranslationStatus());
         assertFalse(resize.getActionTranslation().getTranslatedRecommendation().isPresent());
     }
 
     @SuppressWarnings("unchecked")
     @Test
-    public void testExceptionDuringTranslation() throws Exception {
+    public void testExceptionDuringTranslation() {
         when(repositoryServiceSpy.retrieveTopologyEntitiesError(any()))
             .thenReturn(Optional.of(Status.INTERNAL.asException()));
         final Action resize = new Action(
             ActionOrchestratorTestUtils.createResizeRecommendation(1, VM_TARGET_ID,
-                CommodityType.VCPU, OLD_VCPU_MHZ, NEW_VPCU_MHZ), actionPlanId, actionModeCalculator);
+                CommodityType.VCPU, OLD_VCPU_MHZ, NEW_VCPU_MHZ), actionPlanId, actionModeCalculator);
         when(mockSnapshot.getEntityFromOid(VM_TARGET_ID)).thenReturn(Optional.of(
             ActionPartialEntity.newBuilder()
                 .setOid(VM_TARGET_ID)
                 .setPrimaryProviderId(HOST_ID).build()));
         when(mockSnapshot.getToologyContextId()).thenReturn(actionPlanId);
-        Stream<Action> translatedActions = translator.translate(Stream.of(resize), mockSnapshot);
-        assertTrue(resize.getTranslationStatus() == TranslationStatus.TRANSLATION_FAILED);
+        translator.translate(Stream.of(resize), mockSnapshot);
+        assertSame(resize.getTranslationStatus(), TranslationStatus.TRANSLATION_FAILED);
         assertFalse(resize.getActionTranslation().getTranslatedRecommendation().isPresent());
     }
 
     @Test
-    public void testTranslateMixedActionTypes() throws Exception {
+    public void testTranslateMixedActionTypes() {
         final Action resize = setupDefaultResizeAction();
         final Action move = new Action(ActionOrchestratorTestUtils.createMoveRecommendation(4), actionPlanId, actionModeCalculator);
 
@@ -170,7 +169,7 @@ public class ActionTranslatorTest {
     }
 
     @Test
-    public void testTranslateResizeActionTypesWithSameVcpuValue() throws Exception {
+    public void testTranslateResizeActionTypesWithSameVcpuValue() {
         final Action resize = setupDefaultResizeActionNegativeScenario();
         // Action should appear, and translation status should be failed.
         final Action action = translator.translate(Stream.of(resize), mockSnapshot).findFirst().get();
@@ -178,7 +177,7 @@ public class ActionTranslatorTest {
     }
 
     @Test
-    public void testAlreadyTranslatedDoesNotCallService() throws Exception {
+    public void testAlreadyTranslatedDoesNotCallService() {
         final Action resize = setupDefaultResizeAction();
         final Action move = new Action(ActionOrchestratorTestUtils.createMoveRecommendation(4), actionPlanId, actionModeCalculator);
         resize.getActionTranslation().setPassthroughTranslationSuccess();
@@ -188,7 +187,7 @@ public class ActionTranslatorTest {
     }
 
     @Test
-    public void testToSpecWithoutDecision() throws Exception {
+    public void testToSpecWithoutDecision() {
         final Action action = new Action(ActionOrchestratorTestUtils.createMoveRecommendation(1), actionPlanId, actionModeCalculator);
         action.setDescription("Move VM1 from PM1 to PM2");
         final ActionSpec spec = translator.translateToSpec(action);
@@ -201,7 +200,7 @@ public class ActionTranslatorTest {
     }
 
     @Test
-    public void testToSpecWithDecision() throws Exception {
+    public void testToSpecWithDecision() {
         final Action action = new Action(ActionOrchestratorTestUtils.createMoveRecommendation(1), actionPlanId, actionModeCalculator);
         final long clearingPlanId = 5;
         action.receive(new ActionEvent.NotRecommendedEvent(clearingPlanId));
@@ -331,7 +330,7 @@ public class ActionTranslatorTest {
         when(mockSnapshot.getToologyContextId()).thenReturn(actionPlanId);
 
         return new Action(ActionOrchestratorTestUtils
-            .createResizeRecommendation(1, VM_TARGET_ID, CommodityType.VCPU, OLD_VCPU_MHZ, NEW_VPCU_MHZ),
+            .createResizeRecommendation(1, VM_TARGET_ID, CommodityType.VCPU, OLD_VCPU_MHZ, NEW_VCPU_MHZ),
             actionPlanId, actionModeCalculator);
     }
 
@@ -367,21 +366,11 @@ public class ActionTranslatorTest {
     }
 
     private void verifyDefaultTranslatedResize(ActionDTO.Action translatedResize) {
-        assertEquals(NEW_VPCU_MHZ / CPU_SPEED_MHZ, translatedResize.getInfo().getResize().getNewCapacity(), 0.0f);
+        assertEquals(NEW_VCPU_MHZ / CPU_SPEED_MHZ, translatedResize.getInfo().getResize().getNewCapacity(), 0.0f);
         assertEquals(OLD_VCPU_MHZ / CPU_SPEED_MHZ, translatedResize.getInfo().getResize().getOldCapacity(), 0.0f);
         assertEquals(CommodityType.VCPU.getNumber(),
             translatedResize.getInfo().getResize().getCommodityType().getType());
         assertEquals(translatedResize.getInfo().getResize().getTarget().getId(),
             translatedResize.getInfo().getResize().getTarget().getId());
-    }
-
-    private static HostInfo hostInfo(final int cpuSpeedMhz, final long hostId) {
-        return HostInfo.newBuilder()
-            .setCpuCoreMhz(cpuSpeedMhz)
-            .setNumCpuSockets(1)
-            .setNumCpuCores(4)
-            .setNumCpuThreads(2)
-            .setHostId(hostId)
-            .build();
     }
 }
