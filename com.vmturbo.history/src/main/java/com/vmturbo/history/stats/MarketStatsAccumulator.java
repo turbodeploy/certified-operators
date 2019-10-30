@@ -22,17 +22,17 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.jooq.InsertSetMoreStep;
-import org.jooq.Query;
-import org.jooq.Table;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multimap;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jooq.InsertSetMoreStep;
+import org.jooq.Query;
+import org.jooq.Table;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -756,7 +756,10 @@ public class MarketStatsAccumulator {
                 effectiveCapacityTotal += (effectiveCapacity == null) ? capacity : effectiveCapacity;
             }
             this.min = Math.min(this.min, used);
-            this.max = Math.max(this.max, peak);
+            // ideally peak should be no less than used, but it's possible that peak is not set,
+            // which is 0 by default, thus less than used. To be safe, we should choose the larger
+            // of peak and used as max.
+            this.max = Math.max(this.max, Math.max(peak, used));
         }
 
         /**

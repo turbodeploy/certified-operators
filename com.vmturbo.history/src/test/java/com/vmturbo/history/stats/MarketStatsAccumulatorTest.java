@@ -8,15 +8,20 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import org.jooq.DSLContext;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Multimap;
+
 import org.jooq.InsertSetMoreStep;
 import org.jooq.InsertSetStep;
 import org.jooq.Query;
@@ -30,22 +35,20 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Multimap;
-
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.schema.abstraction.tables.records.VmStatsLatestRecord;
 import com.vmturbo.history.stats.MarketStatsAccumulator.DelayedCommodityBoughtWriter;
 import com.vmturbo.history.stats.MarketStatsAccumulator.MarketStatsData;
-
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Tests for the MarketStatsAccumulator.
@@ -319,6 +322,47 @@ public class MarketStatsAccumulatorTest {
         verify(historydbIO, times(1)).execute(eq(BasedbIO.Style.FORCED), eq(mockInsertStmt));
         // 2 unused getCommodityInsertStatement fetched
         verify(historydbIO, times(2)).getCommodityInsertStatement(StatsTestUtils.APP_LATEST_TABLE);
+    }
+
+    /**
+     * Test that the max value is set correctly in the case that peak value is not present. It
+     * should be the larger value of used and peak, rather than only considering peak alone.
+     *
+     * @throws Exception exception
+     */
+    @Test
+    public void testPersistCommoditiesBoughtMaxValueSetCorrectly() throws Exception {
+        // mock the db server, whose used is set, but peak is not set
+        TopologyEntityDTO dbServer = TopologyEntityDTO.newBuilder()
+                .setOid(72891)
+                .setEntityType(EntityType.DATABASE_SERVER_VALUE)
+                .addCommoditiesBoughtFromProviders(
+                        CommoditiesBoughtFromProvider.newBuilder()
+                                .setProviderId(testVm.getOid())
+                                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                        .setCommodityType(CommodityType.newBuilder()
+                                                .setType(CommodityDTO.CommodityType.DB_CACHE_HIT_RATE_VALUE))
+                                        .setUsed(20)))
+                .build();
+        // arrange
+        createMockInsertQuery(StatsTestUtils.APP_LATEST_TABLE);
+        MarketStatsAccumulator marketStatsAccumulator = new MarketStatsAccumulator(
+                TOPOLOGY_INFO, APP_ENTITY_TYPE, EnvironmentType.ON_PREM,
+                historydbIO, WRITE_TOPOLOGY_CHUNK_SIZE, commoditiesToExclude);
+        final Map<Long, Map<Integer, Double>> capacities = ImmutableMap.of(testVm.getOid(),
+                ImmutableMap.of(CommodityDTO.CommodityType.DB_CACHE_HIT_RATE_VALUE, 100D));
+        Map<Long, TopologyEntityDTO> entityByOid = ImmutableMap.of(testVm.getOid(), testVm);
+
+        // act
+        marketStatsAccumulator.persistCommoditiesBought(dbServer, capacities,
+                HashMultimap.create(), entityByOid);
+
+        Collection<MarketStatsData> statsData = marketStatsAccumulator.values();
+        assertThat(statsData.size(), is(1));
+        MarketStatsData mktStatsData = statsData.iterator().next();
+        assertThat(mktStatsData.getUsed(), is(20D));
+        // verify the max value is 20, not the peak value (0)
+        assertThat(mktStatsData.getMax(), is(20D));
     }
 
     @Test
