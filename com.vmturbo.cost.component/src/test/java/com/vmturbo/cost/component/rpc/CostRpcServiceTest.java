@@ -711,6 +711,103 @@ public class CostRpcServiceTest {
         verify(mockObserver).onCompleted();
     }
 
+    /**
+     * Test to ensure that when there is no projected topology, we get the latest entity cost,
+     * if we can correctly retrieve them.
+     *
+     * @throws Exception Generic Exception that is thrown if any exception is encountered.
+     */
+    @Test
+    public void testGetCloudStatsWithNoProjectedTopology() throws Exception {
+        final GetCloudCostStatsRequest request = GetCloudCostStatsRequest.newBuilder()
+                        .setStartDate(1L)
+                        .setEndDate(1L)
+                        .setRequestProjected(true)
+                        .build();
+        final StreamObserver<GetCloudCostStatsResponse> mockObserver =
+                        mock(StreamObserver.class);
+        final Map<Long, EntityCost> accountIdToExpenseMap = ImmutableMap.of(2L, entityCost);
+        final Map<Long, Map<Long, EntityCost>> snapshotToAccountExpensesMap = new HashMap<>();
+        snapshotToAccountExpensesMap.put(1L, accountIdToExpenseMap);
+        given(entityCostStore.getEntityCosts(any())).willReturn(snapshotToAccountExpensesMap);
+        given(entityCostStore.getLatestEntityCost(anySet(), anySet())).willReturn(snapshotToAccountExpensesMap);
+
+        final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
+        builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost), 1L));
+        // the Projected stats will be 1 hour ahead
+        builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost),
+                        1 + TimeUnit.HOURS.toMillis(1)));
+        costRpcService.getCloudCostStats(request, mockObserver);
+        verify(mockObserver).onNext(builder.build());
+        verify(mockObserver).onCompleted();
+    }
+
+    /**
+     * Test to ensure that when there is no projected topology, we try to retrieve the latest entity
+     * cost. But if multiple of them are present, we return an empty map since we will not be sure which
+     * one to pick up.
+     *
+     * @throws Exception Generic Exception that is thrown if any exception is encountered.
+     */
+    @Test
+    public void testGetCloudStatsWithNoProjectedTopologyAndMultipleLatestEntityCost() throws Exception {
+        final GetCloudCostStatsRequest request = GetCloudCostStatsRequest.newBuilder()
+                        .setStartDate(1L)
+                        .setEndDate(1L)
+                        .setRequestProjected(true)
+                        .build();
+        final StreamObserver<GetCloudCostStatsResponse> mockObserver =
+                        mock(StreamObserver.class);
+        final Map<Long, EntityCost> accountIdToExpenseMap = ImmutableMap.of(2L, entityCost);
+        final Map<Long, Map<Long, EntityCost>> snapshotToAccountExpensesMap = new HashMap<>();
+        snapshotToAccountExpensesMap.put(1L, accountIdToExpenseMap);
+        given(entityCostStore.getEntityCosts(any())).willReturn(snapshotToAccountExpensesMap);
+        final Map<Long, Map<Long, EntityCost>> latestEntityCostMap = new HashMap<>();
+        latestEntityCostMap.put(1L, accountIdToExpenseMap);
+        latestEntityCostMap.put(2L, accountIdToExpenseMap);
+        given(entityCostStore.getLatestEntityCost(anySet(), anySet())).willReturn(latestEntityCostMap);
+
+        final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
+        builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost), 1L));
+        // the Projected stats will be 1 hour ahead
+        builder.addCloudStatRecord(createCloudStatRecord(Collections.EMPTY_LIST,
+                        1 + TimeUnit.HOURS.toMillis(1)));
+        costRpcService.getCloudCostStats(request, mockObserver);
+        verify(mockObserver).onNext(builder.build());
+        verify(mockObserver).onCompleted();
+    }
+
+    /**
+     * Test to ensure that when there is no projected topology, we get the latest entity cost. If we
+     * don't get it, we retrieve an empty map.
+     *
+     * @throws Exception Generic Exception that is thrown if any exception is encountered.
+     */
+    @Test
+    public void testGetCloudStatsWithNoProjectedTopologyAnNoLatestEntityCost() throws Exception {
+        final GetCloudCostStatsRequest request = GetCloudCostStatsRequest.newBuilder()
+                        .setStartDate(1L)
+                        .setEndDate(1L)
+                        .setRequestProjected(true)
+                        .build();
+        final StreamObserver<GetCloudCostStatsResponse> mockObserver =
+                        mock(StreamObserver.class);
+        final Map<Long, EntityCost> accountIdToExpenseMap = ImmutableMap.of(2L, entityCost);
+        final Map<Long, Map<Long, EntityCost>> snapshotToAccountExpensesMap = new HashMap<>();
+        snapshotToAccountExpensesMap.put(1L, accountIdToExpenseMap);
+        given(entityCostStore.getEntityCosts(any())).willReturn(snapshotToAccountExpensesMap);
+        given(entityCostStore.getLatestEntityCost(anySet(), anySet())).willReturn(Collections.emptyMap());
+
+        final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
+        builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost), 1L));
+        // the Projected stats will be 1 hour ahead
+        builder.addCloudStatRecord(createCloudStatRecord(Collections.EMPTY_LIST,
+                        1 + TimeUnit.HOURS.toMillis(1)));
+        costRpcService.getCloudCostStats(request, mockObserver);
+        verify(mockObserver).onNext(builder.build());
+        verify(mockObserver).onCompleted();
+    }
+
     @Test
     public void testGetCloudCostStatsWithWorkloadWithEntityTypeFilter() throws Exception {
         final GetCloudCostStatsRequest request = GetCloudCostStatsRequest.newBuilder()

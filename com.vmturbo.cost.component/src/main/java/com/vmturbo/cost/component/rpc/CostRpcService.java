@@ -4,12 +4,14 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.OptionalDouble;
 import java.util.Set;
@@ -23,6 +25,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
 import io.grpc.Status;
@@ -499,10 +502,31 @@ public class CostRpcService extends CostServiceImplBase {
                 if (request.getRequestProjected()) {
                     final long projectedStatTime = (request.hasEndDate() ? request.getEndDate() : clock.millis())
                         + TimeUnit.HOURS.toMillis(PROJECTED_STATS_TIME_IN_FUTURE_HOURS);
-                    snapshotToEntityCostMap.put(
-                        projectedStatTime,
-                        request.hasEntityFilter() ? projectedEntityCostStore.getProjectedEntityCosts(filterIds)
-                            : projectedEntityCostStore.getAllProjectedEntitiesCosts());
+                    final Map<Long, EntityCost> projectedEntityCostMap = request.hasEntityFilter() ?
+                                    projectedEntityCostStore.getProjectedEntityCosts(filterIds) :
+                                    projectedEntityCostStore.getAllProjectedEntitiesCosts();
+                    if (projectedEntityCostMap.isEmpty()) {
+                        final Map<Long, Map<Long, EntityCost>> latestEntityCostMapWithTimestamp =
+                                        entityCostStore.getLatestEntityCost(filterIds,
+                                                        entityTypeFilterIds);
+                        final Collection<Map<Long, EntityCost>> values =
+                                        latestEntityCostMapWithTimestamp.values();
+
+                        try {
+                            Map<Long, EntityCost> entityCostMap = Iterables.getOnlyElement(values);
+                            snapshotToEntityCostMap.put(projectedStatTime, entityCostMap);
+                        } catch (IllegalArgumentException ex) {
+                            logger.warn("Found more than one entry for latest entity cost for filterIds {} and entityTypeFilterIds {}. Setting projected entity cost to empty",
+                                            filterIds, entityTypeFilterIds);
+                            snapshotToEntityCostMap.put(projectedStatTime, Collections.emptyMap());
+                        } catch (NoSuchElementException ex) {
+                            logger.warn("Unable to find latest entity cost for filterIds {} and entityTypeFilterIds {}. Setting projected entity cost to empty",
+                                            filterIds, entityTypeFilterIds);
+                            snapshotToEntityCostMap.put(projectedStatTime, Collections.emptyMap());
+                        }
+                    } else {
+                        snapshotToEntityCostMap.put(projectedStatTime, projectedEntityCostMap);
+                    }
                 }
 
                 final List<CloudCostStatRecord> cloudStatRecords = Lists.newArrayList();
