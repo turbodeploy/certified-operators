@@ -765,26 +765,34 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                             BigDecimal.valueOf(request.getCpuHeadroomInfo().getHeadroom()));
             headroomData.put(StringConstants.CPU_HEADROOM, StringConstants.CAPACITY,
                             BigDecimal.valueOf(request.getCpuHeadroomInfo().getCapacity()));
-            headroomData.put(StringConstants.CPU_EXHAUSTION, StringConstants.EXHAUSTION_DAYS,
-                            BigDecimal.valueOf(request.getCpuHeadroomInfo().getDaysToExhaustion()));
+            // Don't save days to exhaustion when headroom capacity is 0,
+            // because it doesn't make sense to have days to exhaustion in this case.
+            if (request.getCpuHeadroomInfo().getCapacity() != 0) {
+                headroomData.put(StringConstants.CPU_EXHAUSTION, StringConstants.EXHAUSTION_DAYS,
+                    BigDecimal.valueOf(request.getCpuHeadroomInfo().getDaysToExhaustion()));
+            }
 
             // Memory related headroom stats.
             headroomData.put(StringConstants.MEM_HEADROOM, StringConstants.USED,
                             BigDecimal.valueOf(request.getMemHeadroomInfo().getHeadroom()));
             headroomData.put(StringConstants.MEM_HEADROOM, StringConstants.CAPACITY,
                             BigDecimal.valueOf(request.getMemHeadroomInfo().getCapacity()));
-            headroomData.put(StringConstants.MEM_EXHAUSTION, StringConstants.EXHAUSTION_DAYS,
-                            BigDecimal.valueOf(request.getMemHeadroomInfo().getDaysToExhaustion()));
+            if (request.getMemHeadroomInfo().getCapacity() != 0) {
+                headroomData.put(StringConstants.MEM_EXHAUSTION, StringConstants.EXHAUSTION_DAYS,
+                    BigDecimal.valueOf(request.getMemHeadroomInfo().getDaysToExhaustion()));
+            }
 
             // Storage related headroom stats.
             headroomData.put(StringConstants.STORAGE_HEADROOM, StringConstants.USED,
                             BigDecimal.valueOf(request.getStorageHeadroomInfo().getHeadroom()));
             headroomData.put(StringConstants.STORAGE_HEADROOM, StringConstants.CAPACITY,
                             BigDecimal.valueOf(request.getStorageHeadroomInfo().getCapacity()));
-            headroomData.put(StringConstants.STORAGE_EXHAUSTION, StringConstants.EXHAUSTION_DAYS,
-                            BigDecimal.valueOf(request.getStorageHeadroomInfo().getDaysToExhaustion()));
+            if (request.getStorageHeadroomInfo().getCapacity() != 0) {
+                headroomData.put(StringConstants.STORAGE_EXHAUSTION, StringConstants.EXHAUSTION_DAYS,
+                    BigDecimal.valueOf(request.getStorageHeadroomInfo().getDaysToExhaustion()));
+            }
 
-            clusterStatsWriter.batchInsertClusterStatsByDayRecord(Long.valueOf(request.getClusterId()), headroomData);
+            clusterStatsWriter.batchInsertClusterStatsByDayRecord(request.getClusterId(), headroomData);
             responseObserver.onNext(Stats.SaveClusterHeadroomResponse.getDefaultInstance());
             responseObserver.onCompleted();
         } catch (VmtDbException e) {
