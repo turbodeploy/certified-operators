@@ -56,6 +56,9 @@ public class ComputeTierConverter implements IEntityConverter {
         EntityProfileDTO profileDTO = converter.getProfileDTO(computeTierId);
         VMProfileDTO vmProfileDTO = profileDTO.getVmProfileDTO();
 
+        // set entity properties
+        entity.addAllEntityProperties(profileDTO.getEntityPropertiesList());
+
         // set compute tier specific data
         entity.setComputeTierData(ComputeTierData.newBuilder()
                 .setFamily(vmProfileDTO.getInstanceSizeFamily())
