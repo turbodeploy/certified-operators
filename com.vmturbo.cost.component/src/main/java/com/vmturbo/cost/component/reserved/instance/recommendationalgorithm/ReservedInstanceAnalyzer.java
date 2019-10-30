@@ -226,21 +226,16 @@ public class ReservedInstanceAnalyzer {
                 @Nonnull ReservedInstanceAnalysisScope scope,
                 @Nonnull ReservedInstanceHistoricalDemandDataType historicalDemandDataType)
                                 throws CommunicationException, InterruptedException {
-       if (historicalDemandDataReader.containsDataOverWeek()) {
+        ActionPlan actionPlan;
+        if (historicalDemandDataReader.containsDataOverWeek()) {
             @Nullable ReservedInstanceAnalysisResult result = analyze(topologyContextId, scope,
                 historicalDemandDataType);
-            ActionPlan actionPlan;
             if (result == null) {
                 // when result is null, it may be that no need to buy any ri
                 // so we create a dummy action plan and send to action orchestrator
-                // once action orchestrator receives buy RI ation plan, it will
+                // once action orchestrator receives buy RI action plan, it will
                 // notify plan orchestrator it status
-                actionPlan = ActionPlan.newBuilder()
-                    .setId(IdentityGenerator.next())
-                    .setInfo(ActionPlanInfo.newBuilder()
-                        .setBuyRi(BuyRIActionPlanInfo.newBuilder()
-                            .setTopologyContextId(topologyContextId)))
-                    .build();
+                actionPlan = createEmptyActionPlan(topologyContextId);
             } else {
                 result.persistResults();
                 actionPlan = result.createActionPlan();
@@ -249,8 +244,24 @@ public class ReservedInstanceAnalyzer {
         } else {
             logger.info("There is less than one week of data available, waiting for more data to" +
                 " trigger buy RI analysis.");
-
+            actionPlan = createEmptyActionPlan(topologyContextId);
         }
+        actionsSender.notifyActionsRecommended(actionPlan);
+    }
+
+    /**
+     * Create a dummy action plan and send to action orchestrator.
+     *
+     * @param topologyContextId Topology context ID
+     * @return Empty action plan
+     */
+    private ActionPlan createEmptyActionPlan(long topologyContextId) {
+        return ActionPlan.newBuilder()
+                .setId(IdentityGenerator.next())
+                .setInfo(ActionPlanInfo.newBuilder()
+                        .setBuyRi(BuyRIActionPlanInfo.newBuilder()
+                                .setTopologyContextId(topologyContextId)))
+                .build();
     }
 
     /**
