@@ -179,8 +179,6 @@ public class PlanRpcService extends PlanServiceImplBase {
             Optional<PlanInstance> queuedPlanInstance = planDao.queuePlanInstance(planInstance);
             if (queuedPlanInstance.isPresent()) {
                 runQueuedPlan(queuedPlanInstance.get(), responseObserver);
-                responseObserver.onNext(queuedPlanInstance.get());
-                responseObserver.onCompleted();
             } else {
                 // The plan was not queued. It may still be in READY state if the maximum number
                 // of concurrent plans has reached, or it may be executed by another process.
