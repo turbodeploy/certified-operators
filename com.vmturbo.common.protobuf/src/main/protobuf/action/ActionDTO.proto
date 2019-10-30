@@ -22,11 +22,19 @@ message Explanation {
         ProvisionExplanation provision = 6;
         DeleteExplanation delete = 7;
         BuyRIExplanation buyRI = 8;
+        ScaleExplanation scale = 9;
     }
+
     // A list of explanations for move action.
     message MoveExplanation {
         repeated ChangeProviderExplanation change_provider_explanation = 1;
     }
+
+    // An explanation for Scale action.
+    message ScaleExplanation {
+        repeated ChangeProviderExplanation change_provider_explanation = 1;
+    }
+
     message ChangeProviderExplanation {
 
         oneof change_provider_explanation_type {
@@ -228,6 +236,15 @@ message Move {
     repeated ChangeProvider changes = 2;
 }
 
+// Scale an entity.
+message Scale {
+    // Entity that is scaled.
+    required ActionEntity target = 1;
+
+    // Details of each provider change.
+    repeated ChangeProvider changes = 2;
+}
+
 message ChangeProvider {
 
     // Market can recommend a move action with an empty source. In this case,
@@ -384,6 +401,7 @@ message ActionInfo {
         Deactivate deactivate = 6;
         Delete delete = 7;
         BuyRI buyRi = 8;
+        Scale scale = 9;
     }
 }
 
@@ -571,6 +589,9 @@ enum ActionType {
 
     // Buy a reserved instance of the specification.
     BUY_RI = 10;
+
+    // Scale a service entity.
+    SCALE = 11;
 }
 
 // The ActionState describes the current state of an action.

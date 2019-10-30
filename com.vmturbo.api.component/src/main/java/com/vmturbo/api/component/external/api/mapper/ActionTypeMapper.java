@@ -1,7 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
@@ -39,6 +38,7 @@ public class ActionTypeMapper {
                 .put(ActionDTO.ActionType.NONE, ActionType.NONE)
                 .put(ActionDTO.ActionType.START, ActionType.START)
                 .put(ActionDTO.ActionType.MOVE, ActionType.MOVE)
+                .put(ActionDTO.ActionType.SCALE, ActionType.SCALE)
                 .put(ActionDTO.ActionType.SUSPEND, ActionType.SUSPEND)
                 .put(ActionDTO.ActionType.PROVISION, ActionType.PROVISION)
                 .put(ActionDTO.ActionType.RECONFIGURE, ActionType.RECONFIGURE)
