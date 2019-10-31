@@ -2,17 +2,22 @@ package com.vmturbo.api.component.external.api.service;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.util.ArrayList;
 import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.mockito.Matchers;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
@@ -21,19 +26,12 @@ import com.google.common.collect.Sets;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.mockito.Matchers;
-
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
-import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
@@ -65,6 +63,12 @@ import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
@@ -100,7 +104,6 @@ public class EntitiesServiceTest {
     private ProbeInfo probeInfo;
 
     private final SeverityPopulator severityPopulator = mock(SeverityPopulator.class);
-    private final PriceIndexPopulator priceIndexPopulator = mock(PriceIndexPopulator.class);
     private final ActionsServiceMole actionsService = spy(new ActionsServiceMole());
     private final GroupServiceImplBase groupService = spy(new GroupServiceMole());
     private final StatsHistoryServiceMole historyService = spy(new StatsHistoryServiceMole());
@@ -209,7 +212,6 @@ public class EntitiesServiceTest {
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 mock(EntityAspectMapper.class),
                 severityPopulator,
-                priceIndexPopulator,
                 mock(StatsService.class),
                 mock(ActionStatsQueryExecutor.class),
                 uuidMapper,
@@ -274,8 +276,18 @@ public class EntitiesServiceTest {
         Assert.assertEquals(VM_DISPLAY_NAME, consumers.get(0).getDisplayName());
         Assert.assertEquals(UIEntityType.VIRTUAL_MACHINE.apiStr(), consumers.get(0).getClassName());
 
-        // check that priceIndexPopulator has been called correctly
-        verify(priceIndexPopulator).populateRealTimeEntities(eq(Collections.singletonList(result)));
+        // check that history stats service has been called correctly
+        verify(historyService).getEntityStats(GetEntityStatsRequest.newBuilder()
+            .setScope(
+                EntityStatsScope.newBuilder()
+                    .setEntityList(EntityList.newBuilder().addEntities(PM_ID)).build())
+            .setFilter(
+                StatsFilter.newBuilder()
+                    .addCommodityRequests(
+                        CommodityRequest.newBuilder()
+                            .setCommodityName(EntitiesService.PRICE_INDEX_COMMODITY).build())
+                    .build())
+            .build());
     }
 
     /**

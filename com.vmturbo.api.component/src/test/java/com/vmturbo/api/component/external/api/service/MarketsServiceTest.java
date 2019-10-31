@@ -4,9 +4,8 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.argThat;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -24,12 +23,6 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 
-import com.google.gson.Gson;
-
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
-
-import org.hamcrest.collection.IsCollectionWithSize;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -60,6 +53,11 @@ import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
+import com.google.gson.Gson;
+
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
+
 import com.vmturbo.api.MarketNotificationDTO.MarketNotification;
 import com.vmturbo.api.MarketNotificationDTO.StatusNotification;
 import com.vmturbo.api.component.ApiTestUtils;
@@ -70,12 +68,10 @@ import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
-import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.ScenarioMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
-import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
@@ -371,11 +367,9 @@ public class MarketsServiceTest {
         marketService.getEntitiesByMarketUuid("Market");
 
         // verify
-        verify(repositoryApi).entitiesRequest(any());
-        verify(testConfig.priceIndexPopulator()).populateRealTimeEntities(
-                (List<ServiceEntityApiDTO>)argThat(IsCollectionWithSize.hasSize(3)));
-        verify(testConfig.severityPopulator()).populate(eq(REALTIME_CONTEXT_ID),
-                (List<ServiceEntityApiDTO>)argThat(IsCollectionWithSize.hasSize(3)));
+        Mockito.verify(repositoryApi).entitiesRequest(any());
+        // check it fires stats request twice, one for VM, the other one for PM
+        verify(testConfig.statsHistoryService(), times(2)).getEntityStats(any());
     }
 
     /**
@@ -520,8 +514,7 @@ public class MarketsServiceTest {
                     groupRpcService(), repositoryRpcService(), new UserSessionContext(),
                     uiNotificationChannel(), actionStatsQueryExecutor(), thinTargetCache(),
                     entitySeverityRpcService(), statsHistoryRpcService(),
-                    statsService(), repositoryApi(), serviceEntityMapper(),
-                    severityPopulator(), priceIndexPopulator(), REALTIME_CONTEXT_ID);
+                    statsService(), repositoryApi(), serviceEntityMapper(), REALTIME_CONTEXT_ID);
         }
 
         @Bean
@@ -562,16 +555,6 @@ public class MarketsServiceTest {
         @Bean
         public ServiceEntityMapper serviceEntityMapper() {
             return new ServiceEntityMapper(thinTargetCache());
-        }
-
-        @Bean
-        public SeverityPopulator severityPopulator() {
-            return Mockito.mock(SeverityPopulator.class);
-        }
-
-        @Bean
-        public PriceIndexPopulator priceIndexPopulator() {
-            return Mockito.mock(PriceIndexPopulator.class);
         }
 
         @Bean

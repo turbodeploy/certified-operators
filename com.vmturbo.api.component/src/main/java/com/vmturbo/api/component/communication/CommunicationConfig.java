@@ -17,7 +17,6 @@ import com.vmturbo.api.ReportNotificationDTO.ReportNotification;
 import com.vmturbo.api.ReportNotificationDTO.ReportStatusNotification;
 import com.vmturbo.api.ReportNotificationDTO.ReportStatusNotification.ReportStatus;
 import com.vmturbo.api.component.ApiComponentGlobalConfig;
-import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
@@ -33,13 +32,13 @@ import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
-import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.ReservedInstanceSpecServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.cpucapacity.CpuCapacityServiceGrpc;
 import com.vmturbo.common.protobuf.cpucapacity.CpuCapacityServiceGrpc.CpuCapacityServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
@@ -398,16 +397,6 @@ public class CommunicationConfig {
     @Bean
     public SeverityPopulator severityPopulator() {
         return new SeverityPopulator(entitySeverityService());
-    }
-
-    /**
-     * An instance of {@link PriceIndexPopulator} managed by spring.
-     *
-     * @return {@link PriceIndexPopulator}
-     */
-    @Bean
-    public PriceIndexPopulator priceIndexPopulator() {
-        return new PriceIndexPopulator(historyRpcService(), repositoryRpcService());
     }
 
     @Bean

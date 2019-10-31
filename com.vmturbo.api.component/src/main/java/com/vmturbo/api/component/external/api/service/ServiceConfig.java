@@ -227,7 +227,6 @@ public class ServiceConfig {
                 communicationConfig.groupRpcService(),
                 mapperConfig.entityAspectMapper(),
                 communicationConfig.severityPopulator(),
-                communicationConfig.priceIndexPopulator(),
                 statsService(),
                 actionStatsQueryExecutor(),
                 mapperConfig.uuidMapper(),
@@ -253,7 +252,6 @@ public class ServiceConfig {
                 mapperConfig.entityAspectMapper(),
                 actionStatsQueryExecutor(),
                 communicationConfig.severityPopulator(),
-                communicationConfig.priceIndexPopulator(),
                 communicationConfig.supplyChainFetcher(),
                 actionSearchUtil(),
                 communicationConfig.settingPolicyRpcService(),
@@ -301,8 +299,6 @@ public class ServiceConfig {
                 statsService(),
                 communicationConfig.repositoryApi(),
                 communicationConfig.serviceEntityMapper(),
-                communicationConfig.severityPopulator(),
-                communicationConfig.priceIndexPopulator(),
                 communicationConfig.getRealtimeTopologyContextId());
     }
 

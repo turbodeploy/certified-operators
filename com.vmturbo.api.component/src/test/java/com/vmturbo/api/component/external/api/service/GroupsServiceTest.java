@@ -45,7 +45,6 @@ import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
-import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
@@ -163,9 +162,6 @@ public class GroupsServiceTest {
     private SeverityPopulator severityPopulator;
 
     @Mock
-    private PriceIndexPopulator priceIndexPopulator;
-
-    @Mock
     private ActionStatsQueryExecutor actionStatsQueryExecutor;
 
     @Mock
@@ -225,7 +221,6 @@ public class GroupsServiceTest {
                 entityAspectMapper,
                 actionStatsQueryExecutor,
                 severityPopulator,
-                priceIndexPopulator,
                 supplyChainFetcherFactory,
                 actionSearchUtil,
                 settingPolicyServiceBlockingStub,
@@ -334,7 +329,7 @@ public class GroupsServiceTest {
             .entities(Collections.singleton(1L))
             .build();
         when(groupMapper.getEnvironmentTypeForGroup(groupAndMembers)).thenReturn(EnvironmentType.ONPREM);
-        when(groupMapper.toGroupApiDto(groupAndMembers, EnvironmentType.ONPREM, true)).thenReturn(apiGroup);
+        when(groupMapper.toGroupApiDto(groupAndMembers, EnvironmentType.ONPREM)).thenReturn(apiGroup);
 
         when(groupExpander.getGroupWithMembers("1"))
             .thenReturn(Optional.of(groupAndMembers));
@@ -373,7 +368,7 @@ public class GroupsServiceTest {
         when(groupExpander.getGroupsWithMembers(any()))
             .thenReturn(Stream.of(clusterAndMembers));
         when(groupMapper.getEnvironmentTypeForGroup(clusterAndMembers)).thenReturn(EnvironmentType.ONPREM);
-        when(groupMapper.toGroupApiDto(clusterAndMembers, EnvironmentType.ONPREM, true)).thenReturn(clusterApiDto);
+        when(groupMapper.toGroupApiDto(clusterAndMembers, EnvironmentType.ONPREM)).thenReturn(clusterApiDto);
         when(severityPopulator.calculateSeverity(CONTEXT_ID, Collections.singleton(7L)))
             .thenReturn(Optional.of(Severity.NORMAL));
 
@@ -409,7 +404,7 @@ public class GroupsServiceTest {
         when(groupExpander.getGroupsWithMembers(any()))
             .thenReturn(Stream.of(clusterAndMembers));
         when(groupMapper.getEnvironmentTypeForGroup(clusterAndMembers)).thenReturn(EnvironmentType.ONPREM);
-        when(groupMapper.toGroupApiDto(clusterAndMembers, EnvironmentType.ONPREM, true)).thenReturn(clusterApiDto);
+        when(groupMapper.toGroupApiDto(clusterAndMembers, EnvironmentType.ONPREM)).thenReturn(clusterApiDto);
         when(severityPopulator.calculateSeverity(CONTEXT_ID, Collections.singleton(7L)))
             .thenReturn(Optional.of(Severity.NORMAL));
 
@@ -528,7 +523,7 @@ public class GroupsServiceTest {
             .thenReturn(CreateGroupResponse.newBuilder()
                     .setGroup(group)
                     .build());
-        when(groupMapper.toGroupApiDto(group, true)).thenReturn(apiDTO);
+        when(groupMapper.toGroupApiDto(group)).thenReturn(apiDTO);
         assertThat(groupsService.createGroup(apiDTO), is(apiDTO));
     }
 
@@ -549,7 +544,7 @@ public class GroupsServiceTest {
             .thenReturn(CreateGroupResponse.newBuilder()
                 .setGroup(group)
                 .build());
-        when(groupMapper.toGroupApiDto(group, true)).thenReturn(apiDTO);
+        when(groupMapper.toGroupApiDto(group)).thenReturn(apiDTO);
         assertThat(groupsService.createGroup(apiDTO), is(apiDTO));
     }
 
@@ -570,7 +565,7 @@ public class GroupsServiceTest {
                 .thenReturn(CreateGroupResponse.newBuilder()
                         .setGroup(group)
                         .build());
-        when(groupMapper.toGroupApiDto(group, true)).thenReturn(apiDTO);
+        when(groupMapper.toGroupApiDto(group)).thenReturn(apiDTO);
         assertThat(groupsService.createGroup(apiDTO), is(apiDTO));
     }
 
@@ -598,8 +593,8 @@ public class GroupsServiceTest {
                 .setNewDefinition(groupDefinition)
                 .build()))).thenReturn(updateGroupResponse);
 
-        when(groupMapper.toGroupApiDto(eq(updateGroupResponse.getUpdatedGroup()), eq(true)))
-                .thenReturn(groupApiDTO);
+        when(groupMapper.toGroupApiDto(eq(updateGroupResponse.getUpdatedGroup()))).thenReturn(
+                groupApiDTO);
 
         assertThat(groupsService.editGroup("1", groupApiDTO), is(groupApiDTO));
     }
@@ -632,7 +627,6 @@ public class GroupsServiceTest {
         groupApiDtoMock.setUuid("2");
         groupApiDtoMock.setDisplayName(name);
         groupApiDtoMock.setClassName(CommonDTO.GroupDTO.ConstraintType.CLUSTER.name());
-        groupApiDtoMock.setSeverity(Severity.NORMAL.toString());
 
         final Grouping cluster = Grouping.newBuilder()
             .setId(2L)
@@ -649,13 +643,15 @@ public class GroupsServiceTest {
 
         when(groupExpander.getMembersForGroup(cluster)).thenReturn(clusterAndMembers);
         when(groupMapper.getEnvironmentTypeForGroup(clusterAndMembers)).thenReturn(EnvironmentType.ONPREM);
-        when(groupMapper.toGroupApiDto(clusterAndMembers, EnvironmentType.ONPREM, true)).thenReturn(groupApiDtoMock);
+        when(groupMapper.toGroupApiDto(clusterAndMembers, EnvironmentType.ONPREM)).thenReturn(groupApiDtoMock);
         when(groupServiceSpy.getGroupForEntity(GetGroupForEntityRequest.newBuilder()
                 .setEntityId(1L)
                 .build()))
                 .thenReturn(GetGroupForEntityResponse.newBuilder()
                     .addGroup(cluster)
                     .build());
+        when(severityPopulator.calculateSeverity(CONTEXT_ID, Collections.emptyList()))
+            .thenReturn(Optional.of(Severity.NORMAL));
         final ApiId entityApiId = mock(ApiId.class);
         when(entityApiId.isGroup()).thenReturn(false);
 

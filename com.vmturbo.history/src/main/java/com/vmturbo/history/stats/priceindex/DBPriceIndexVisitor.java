@@ -13,17 +13,16 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.InsertSetMoreStep;
 import org.jooq.Query;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.components.common.stats.StatsUtils;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.EntityType;
@@ -31,6 +30,7 @@ import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.stats.MarketStatsAccumulator.MarketStatsData;
+import com.vmturbo.history.utils.HistoryStatsUtils;
 
 /**
  * A {@link TopologyPriceIndexVisitor} that saves the price indices to the appropriate tables
@@ -133,7 +133,7 @@ public class DBPriceIndexVisitor implements TopologyPriceIndexVisitor {
 
         // log not-found types for which we don't expect to save prices at trace level...
         Set<Integer> expectedNotFoundTypes = notFoundEntityTypes.stream()
-            .filter(StatsUtils.SDK_ENTITY_TYPES_WITHOUT_SAVED_PRICES::contains)
+            .filter(HistoryStatsUtils.SDK_ENTITY_TYPES_WITHOUT_SAVED_PRICES::contains)
             .collect(Collectors.toSet());
         if (!expectedNotFoundTypes.isEmpty()) {
             logger.trace("History DB Entity Types not found for entity types (expected): {}",

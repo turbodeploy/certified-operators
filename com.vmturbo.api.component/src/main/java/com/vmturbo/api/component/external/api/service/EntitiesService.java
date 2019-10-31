@@ -17,6 +17,11 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.hateoas.Link;
+import org.springframework.hateoas.mvc.ControllerLinkBuilder;
+
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
@@ -24,17 +29,11 @@ import com.google.common.collect.Lists;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.hateoas.Link;
-import org.springframework.hateoas.mvc.ControllerLinkBuilder;
-
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.ConstraintsMapper;
 import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
-import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
@@ -68,6 +67,7 @@ import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.RelationType;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
@@ -84,6 +84,13 @@ import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesResponse;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -99,7 +106,9 @@ public class EntitiesService implements IEntitiesService {
     private final static String UUID = "{uuid}";
     private final static String REPLACEME = "#REPLACEME";
 
-    private static final Logger logger = LogManager.getLogger();
+    public final static String PRICE_INDEX_COMMODITY = "priceIndex";
+
+    Logger logger = LogManager.getLogger();
 
     private final ActionsServiceBlockingStub actionOrchestratorRpcService;
 
@@ -114,8 +123,6 @@ public class EntitiesService implements IEntitiesService {
     private final EntityAspectMapper entityAspectMapper;
 
     private final SeverityPopulator severityPopulator;
-
-    private final PriceIndexPopulator priceIndexPopulator;
 
     private final StatsService statsService;
 
@@ -183,7 +190,6 @@ public class EntitiesService implements IEntitiesService {
         @Nonnull final GroupServiceBlockingStub groupServiceClient,
         @Nonnull final EntityAspectMapper entityAspectMapper,
         @Nonnull final SeverityPopulator severityPopulator,
-        @Nonnull final PriceIndexPopulator priceIndexPopulator,
         @Nonnull final StatsService statsService,
         @Nonnull final ActionStatsQueryExecutor actionStatsQueryExecutor,
         @Nonnull final UuidMapper uuidMapper,
@@ -200,7 +206,6 @@ public class EntitiesService implements IEntitiesService {
         this.settingPolicyServiceBlockingStub = Objects.requireNonNull(settingPolicyServiceBlockingStub);
         this.entityAspectMapper = Objects.requireNonNull(entityAspectMapper);
         this.severityPopulator = Objects.requireNonNull(severityPopulator);
-        this.priceIndexPopulator = Objects.requireNonNull(priceIndexPopulator);
         this.statsService = Objects.requireNonNull(statsService);
         this.actionStatsQueryExecutor = Objects.requireNonNull(actionStatsQueryExecutor);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
@@ -265,10 +270,55 @@ public class EntitiesService implements IEntitiesService {
         // fetch entity severity
         severityPopulator.populate(realtimeTopologyContextId, Collections.singletonList(result));
 
-        // populate price index
-        priceIndexPopulator.populateRealTimeEntities(Collections.singletonList(result));
+        // fetch price index
+        fetchAndSetPriceIndex(oid, result);
 
         return result;
+    }
+
+    private void fetchAndSetPriceIndex(final long oid, final ServiceEntityApiDTO result) {
+        try {
+            // fetch the first page of stats for this entity
+            final GetEntityStatsResponse entityStatsResponse =
+                statsHistoryService.getEntityStats(
+                    GetEntityStatsRequest.newBuilder()
+                        .setScope(
+                            EntityStatsScope.newBuilder()
+                                .setEntityList(EntityList.newBuilder().addEntities(oid)).build())
+                        .setFilter(
+                            StatsFilter.newBuilder()
+                                .addCommodityRequests(
+                                    CommodityRequest.newBuilder()
+                                        .setCommodityName(PRICE_INDEX_COMMODITY).build())
+                                .build())
+                        .build());
+
+            // read the first stats snapshot, if it exists
+            if (entityStatsResponse.getEntityStatsCount() == 0 ||
+                    entityStatsResponse.getEntityStats(0).getStatSnapshotsCount() == 0) {
+                throw new OperationFailedException("No entity stats were returned");
+            }
+            if (entityStatsResponse.getEntityStats(0).getOid() != oid) {
+                throw
+                    new OperationFailedException(
+                        "Erroneous stat record; refers to oid " +
+                            entityStatsResponse.getEntityStats(0).getOid());
+            }
+            result.setPriceIndex(
+                entityStatsResponse
+                    .getEntityStats(0).getStatSnapshots(0).getStatRecordsList().stream()
+                    .filter(x -> x.getName().equals(PRICE_INDEX_COMMODITY))
+                    .findAny()
+                    .map(StatRecord::getCurrentValue)
+                    .orElseThrow(() -> new OperationFailedException("Cannot find price index")));
+        } catch (StatusRuntimeException | OperationFailedException e) {
+            // fetching price index failed
+            // there will be no price index in the result
+            // the failure will otherwise be ignored
+            logger.warn(
+                "Cannot get the price index of entity with id {} and name {}: {}",
+                () -> oid, result::getDisplayName, e::toString);
+        }
     }
 
     @Override

@@ -5,14 +5,11 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anySet;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -52,8 +49,6 @@ import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
-import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
@@ -98,8 +93,6 @@ public class GroupMapperTest {
                                     .setStringFilter(StringFilter.newBuilder()
                                                     .setStringPropertyRegex("PhysicalMachine")));
 
-    private static final long CONTEXT_ID = 7777777;
-
     @Rule
     public ExpectedException thrown = ExpectedException.none();
 
@@ -121,11 +114,9 @@ public class GroupMapperTest {
 
     private GroupFilterMapper groupFilterMapper = new GroupFilterMapper();
 
-    private SeverityPopulator severityPopulator = mock(SeverityPopulator.class);
-
     private GroupMapper groupMapper = new GroupMapper(supplyChainFetcherFactory,
                     groupExpander, topologyProcessor, repositoryApi, entityFilterMapper,
-                    groupFilterMapper, severityPopulator, CONTEXT_ID);
+                    groupFilterMapper);
 
     private static String AND = "AND";
     private static String FOO = "foo";
@@ -1199,55 +1190,5 @@ public class GroupMapperTest {
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
 
         assertEquals(groupMapper.getEnvironmentTypeForGroup(groupExpander.getMembersForGroup(group)), EnvironmentType.HYBRID);
-    }
-
-    /**
-     * Test that the severity field on GroupApiDTO is populated as expected.
-     */
-    @Test
-    public void testPopulateSeverityOnGroupApiDTO() {
-        Grouping group = Grouping.newBuilder().setId(8L)
-                .setOrigin(Origin.newBuilder().setUser(Origin.User.newBuilder()))
-                .setDefinition(GroupDefinition.newBuilder().setType(GroupType.REGULAR)
-                        .setDisplayName("foo"))
-                .build();
-
-        when(groupExpander.getMembersForGroup(group)).thenReturn(ImmutableGroupAndMembers.builder()
-                .group(group)
-                .entities(Collections.singleton(1L))
-                .members(Collections.singleton(1L))
-                .build());
-
-        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Collections.singletonList(
-                MinimalEntity.newBuilder().setOid(1L)
-                        .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
-                        .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
-                        .build()));
-        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req);
-        when(severityPopulator.calculateSeverity(eq(CONTEXT_ID), eq(Collections.singleton(1L))))
-                .thenReturn(Optional.of(Severity.CRITICAL));
-
-        GroupApiDTO mappedDto = groupMapper.toGroupApiDto(group, true);
-        // verify that calculateSeverity is invoked and severity is populated
-        assertEquals(mappedDto.getSeverity(), Severity.CRITICAL.name());
-        verify(severityPopulator).calculateSeverity(eq(CONTEXT_ID), eq(Collections.singleton(1L)));
-
-        // verify that calculateSeverity is not invoked and severity is not populated if group is empty
-        req = ApiTestUtils.mockMultiMinEntityReq(Collections.emptyList());
-        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req);
-        group = Grouping.newBuilder().setId(9L)
-                .setOrigin(Origin.newBuilder().setUser(Origin.User.newBuilder()))
-                .setDefinition(GroupDefinition.newBuilder().setType(GroupType.REGULAR)
-                        .setDisplayName("foo"))
-                .build();
-
-        when(groupExpander.getMembersForGroup(group)).thenReturn(ImmutableGroupAndMembers.builder()
-                .group(group)
-                .entities(Collections.emptyList())
-                .members(Collections.emptyList())
-                .build());
-        mappedDto = groupMapper.toGroupApiDto(group, true);
-        assertNull(mappedDto.getSeverity());
-        verifyZeroInteractions(severityPopulator);
     }
 }

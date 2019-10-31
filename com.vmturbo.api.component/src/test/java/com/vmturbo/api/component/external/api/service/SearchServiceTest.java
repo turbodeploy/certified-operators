@@ -175,9 +175,8 @@ public class SearchServiceTest {
         final GroupServiceBlockingStub groupServiceBlockingStub =
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(userSessionContext.isUserScoped()).thenReturn(false);
-        groupMapper = new GroupMapper(supplyChainFetcherFactory, groupExpander, topologyProcessor,
-                repositoryApi, entityFilterMapper, groupFilterMapper, severityPopulator,
-                realTimeContextId);
+        groupMapper = new GroupMapper(supplyChainFetcherFactory, groupExpander,
+                        topologyProcessor, repositoryApi, entityFilterMapper, groupFilterMapper);
 
         searchService = spy(new SearchService(
                 repositoryApi,
