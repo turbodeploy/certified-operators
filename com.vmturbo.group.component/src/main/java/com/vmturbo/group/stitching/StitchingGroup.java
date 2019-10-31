@@ -113,4 +113,9 @@ public class StitchingGroup {
                         .setType(memberType)
                         .addAllMembers(members))));
     }
+
+    @Override
+    public String toString() {
+        return sourceId + '-' + targetId;
+    }
 }

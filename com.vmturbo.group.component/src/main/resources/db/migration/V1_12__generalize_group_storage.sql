@@ -107,7 +107,7 @@ ALTER TABLE grouping ADD COLUMN entity_filters BLOB;
 ALTER TABLE grouping ADD COLUMN optimization_is_global_scope BOOLEAN;
 ALTER TABLE grouping ADD COLUMN optimization_environment_type INT(11);
 CREATE INDEX idx_grouping_display_name ON grouping (display_name);
-CREATE UNIQUE INDEX idx_grouping_disc_src_id ON grouping (origin_discovered_src_id);
+CREATE INDEX idx_grouping_disc_src_id ON grouping (origin_discovered_src_id);
 
 -- Obsolete migration V_01_00_01__Drop_Discovered_Groups_Policies
 DELETE FROM policy WHERE discovered_by_id IS NOT NULL;
