@@ -37,6 +37,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
+import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
@@ -184,6 +185,8 @@ public class GroupsService implements IGroupsService {
 
     private final SeverityPopulator severityPopulator;
 
+    private final PriceIndexPopulator priceIndexPopulator;
+
     private final SupplyChainFetcherFactory supplyChainFetcherFactory;
 
     private StatsService statsService = null;
@@ -212,6 +215,7 @@ public class GroupsService implements IGroupsService {
                   @Nonnull final EntityAspectMapper entityAspectMapper,
                   @Nonnull final ActionStatsQueryExecutor actionStatsQueryExecutor,
                   @Nonnull final SeverityPopulator severityPopulator,
+                  @Nonnull final PriceIndexPopulator priceIndexPopulator,
                   @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                   @Nonnull final ActionSearchUtil actionSearchUtil,
                   @Nonnull final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub,
@@ -231,6 +235,7 @@ public class GroupsService implements IGroupsService {
         this.entityAspectMapper = entityAspectMapper;
         this.actionStatsQueryExecutor = Objects.requireNonNull(actionStatsQueryExecutor);
         this.severityPopulator = Objects.requireNonNull(severityPopulator);
+        this.priceIndexPopulator = Objects.requireNonNull(priceIndexPopulator);
         this.supplyChainFetcherFactory = Objects.requireNonNull(supplyChainFetcherFactory);
         this.settingPolicyServiceBlockingStub = Objects.requireNonNull(settingPolicyServiceBlockingStub);
         this.actionSearchUtil = Objects.requireNonNull(actionSearchUtil);
@@ -272,7 +277,8 @@ public class GroupsService implements IGroupsService {
 
         final Optional<GroupAndMembers> groupAndMembers = groupExpander.getGroupWithMembers(uuid);
         if (groupAndMembers.isPresent()) {
-            return groupMapper.toGroupApiDto(groupAndMembers.get(), groupMapper.getEnvironmentTypeForGroup(groupAndMembers.get()));
+            return groupMapper.toGroupApiDto(groupAndMembers.get(),
+                    groupMapper.getEnvironmentTypeForGroup(groupAndMembers.get()), true);
         } else {
             final String msg = "Group not found: " + uuid;
             logger.error(msg);
@@ -285,10 +291,15 @@ public class GroupsService implements IGroupsService {
         final ApiId apiId = uuidMapper.fromUuid(uuid);
         // check if scope is real time market, return all entities in the market
         if (apiId.isRealtimeMarket()) {
-            return repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
-                    SearchProtoUtil.entityTypeFilter(SearchProtoUtil.SEARCH_ALL_TYPES))
-                    .build())
-                .getSEList();
+            final List<ServiceEntityApiDTO> entities = repositoryApi.newSearchRequest(
+                    SearchProtoUtil.makeSearchParameters(
+                            SearchProtoUtil.entityTypeFilter(SearchProtoUtil.SEARCH_ALL_TYPES))
+                            .build()).getSEList();
+            // populate priceIndex on the entity
+            priceIndexPopulator.populateRealTimeEntities(entities);
+            // populate severity on the entity
+            severityPopulator.populate(realtimeTopologyContextId, entities);
+            return entities;
         }
 
         final Set<Long> leafEntities;
@@ -324,6 +335,12 @@ public class GroupsService implements IGroupsService {
         if (missingEntities > 0) {
             logger.warn("{} entities from scope {} not found in repository.", missingEntities, uuid);
         }
+
+        // populate priceIndex on the entity
+        priceIndexPopulator.populateRealTimeEntities(entities);
+        // populate severity on the entity
+        severityPopulator.populate(realtimeTopologyContextId, entities);
+
         return entities;
     }
 
@@ -492,7 +509,7 @@ public class GroupsService implements IGroupsService {
                             .build()
                             );
 
-        return groupMapper.toGroupApiDto(resp.getGroup());
+        return groupMapper.toGroupApiDto(resp.getGroup(), true);
     }
 
     @VisibleForTesting
@@ -528,7 +545,7 @@ public class GroupsService implements IGroupsService {
                                         .setId(Long.parseLong(uuid))
                                         .setNewDefinition(groupDefinition)
                                         .build());
-        return groupMapper.toGroupApiDto(response.getUpdatedGroup());
+        return groupMapper.toGroupApiDto(response.getUpdatedGroup(), true);
     }
 
     @Override
@@ -875,14 +892,8 @@ public class GroupsService implements IGroupsService {
             groupExpander.getGroupsWithMembers(groupsRequest);
         final List<GroupApiDTO> retList = groupsWithMembers
             .filter(groupAndMembers -> !isHiddenGroup(groupAndMembers.group()))
-            .map(groupAndMembers -> {
-                final GroupApiDTO apiDTO = groupMapper.toGroupApiDto(groupAndMembers, groupMapper.getEnvironmentTypeForGroup(groupAndMembers));
-                if (populateSeverity && groupAndMembers.entities().size() > 0) {
-                    severityPopulator.calculateSeverity(realtimeTopologyContextId, groupAndMembers.entities())
-                            .ifPresent(severity -> apiDTO.setSeverity(severity.name()));
-                }
-                return apiDTO;
-            })
+            .map(groupAndMembers -> groupMapper.toGroupApiDto(groupAndMembers,
+                    groupMapper.getEnvironmentTypeForGroup(groupAndMembers), populateSeverity))
             .collect(Collectors.toList());
         return retList;
     }
@@ -1149,13 +1160,8 @@ public class GroupsService implements IGroupsService {
 
         return clustersById.values().stream()
             .map(groupExpander::getMembersForGroup)
-            .map(clusterAndMembers -> {
-                final GroupApiDTO apiDTO = groupMapper.toGroupApiDto(clusterAndMembers, EnvironmentType.ONPREM);
-                severityPopulator.calculateSeverity(realtimeTopologyContextId,
-                        clusterAndMembers.entities())
-                    .ifPresent(severity -> apiDTO.setSeverity(severity.name()));
-                return apiDTO;
-            })
+            .map(clusterAndMembers ->
+                    groupMapper.toGroupApiDto(clusterAndMembers, EnvironmentType.ONPREM, true))
             .collect(Collectors.toList());
     }
 

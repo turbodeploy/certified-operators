@@ -105,18 +105,26 @@ public class GroupMapper {
 
     private final GroupFilterMapper groupFilterMapper;
 
+    private final SeverityPopulator severityPopulator;
+
+    private final long realtimeTopologyContextId;
+
     public GroupMapper(@Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                        @Nonnull final GroupExpander groupExpander,
                        @Nonnull final TopologyProcessor topologyProcessor,
                        @Nonnull final RepositoryApi repositoryApi,
                        @Nonnull final EntityFilterMapper entityFilterMapper,
-                       @Nonnull final GroupFilterMapper groupFilterMapper) {
+                       @Nonnull final GroupFilterMapper groupFilterMapper,
+                       @Nonnull final SeverityPopulator severityPopulator,
+                       long realtimeTopologyContextId) {
         this.supplyChainFetcherFactory = Objects.requireNonNull(supplyChainFetcherFactory);
         this.groupExpander = Objects.requireNonNull(groupExpander);
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.entityFilterMapper = entityFilterMapper;
         this.groupFilterMapper = groupFilterMapper;
+        this.severityPopulator = Objects.requireNonNull(severityPopulator);
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
     /**
@@ -212,7 +220,7 @@ public class GroupMapper {
      * @return the converted object.
      */
     public GroupApiDTO toGroupApiDto(@Nonnull final Grouping group, EnvironmentType environmentType) {
-        return toGroupApiDto(groupExpander.getMembersForGroup(group), environmentType);
+        return toGroupApiDto(groupExpander.getMembersForGroup(group), environmentType, false);
     }
 
 
@@ -224,10 +232,22 @@ public class GroupMapper {
      * @return the converted object.
      */
     public GroupApiDTO toGroupApiDto(@Nonnull final Grouping group) {
+        return toGroupApiDto(group, false);
+    }
+
+    /**
+     * Converts an internal representation of a group represented as a {@Grouping} object
+     * to API representation of the object.
+     *
+     * @param group The internal representation of the object.
+     * @param populateSeverity whether or not to populate severity of the group
+     * @return the converted object.
+     */
+    public GroupApiDTO toGroupApiDto(@Nonnull final Grouping group, boolean populateSeverity) {
         GroupAndMembers groupAndMembers = groupExpander.getMembersForGroup(group);
         EnvironmentType envType = getEnvironmentTypeForGroup(groupAndMembers);
 
-        return toGroupApiDto(groupExpander.getMembersForGroup(group), envType);
+        return toGroupApiDto(groupExpander.getMembersForGroup(group), envType, populateSeverity);
     }
 
     /**
@@ -236,11 +256,13 @@ public class GroupMapper {
      * @param groupAndMembers The {@link GroupAndMembers} object (get it from {@link GroupExpander})
      *                        describing the XL group and its members.
      * @param environmentType The environment type of the group.
+     * @param populateSeverity whether or not to populate severity of the group
      * @return The {@link GroupApiDTO} object.
      */
     @Nonnull
     public GroupApiDTO toGroupApiDto(@Nonnull final GroupAndMembers groupAndMembers,
-                                     @Nonnull final EnvironmentType environmentType) {
+                                     @Nonnull final EnvironmentType environmentType,
+                                     boolean populateSeverity) {
         final GroupApiDTO outputDTO;
         final Grouping group = groupAndMembers.group();
         outputDTO = convertToGroupApiDto(groupAndMembers.group(), environmentType);
@@ -255,6 +277,12 @@ public class GroupMapper {
         outputDTO.setEnvironmentType(getEnvironmentTypeForTempGroup(environmentType));
         outputDTO.setEntitiesCount(groupAndMembers.entities().size());
         outputDTO.setActiveEntitiesCount(getActiveEntitiesCount(groupAndMembers));
+
+        // only populate severity if required and if the group is not empty, since it's expensive
+        if (populateSeverity && !groupAndMembers.entities().isEmpty()) {
+            severityPopulator.calculateSeverity(realtimeTopologyContextId, groupAndMembers.entities())
+                    .ifPresent(severity -> outputDTO.setSeverity(severity.name()));
+        }
 
         return outputDTO;
     }
