@@ -86,7 +86,7 @@ public class ReservedInstanceAnalzyerRateAndRIsTest {
             .setReservedInstanceSpecInfo(ReservedInstanceAnalyzerConstantsTest.RI_SPEC_INFO_1).build();
         int hashCode = spec.hashCode();
         int hashCode1 = ReservedInstanceAnalyzerConstantsTest.RI_SPEC_1.hashCode();
-        Assert.assertTrue(hashCode == hashCode1);
+        Assert.assertTrue(hashCode1 == hashCode1);
         Assert.assertTrue(spec.equals(ReservedInstanceAnalyzerConstantsTest.RI_SPEC_1));
         Assert.assertTrue(ReservedInstanceAnalyzerConstantsTest.RI_SPEC_1.equals(spec));
 
@@ -504,8 +504,7 @@ public class ReservedInstanceAnalzyerRateAndRIsTest {
         // RESERVED_INSTANCE_SPEC_ID_1
         Pair<Float, Float> riRate =
             rateAndRIsProvider.lookupReservedInstanceRate(ReservedInstanceAnalyzerConstantsTest.REGIONAL_CONTEXT_1,
-                ReservedInstanceAnalyzerConstantsTest.PURCHASE_CONSTRAINTS_1,
-                "RILT0001");
+                ReservedInstanceAnalyzerConstantsTest.PURCHASE_CONSTRAINTS_1);
         Assert.assertTrue(riRate.getKey() != Float.MAX_VALUE);
         Assert.assertTrue(riRate.getValue() != Float.MAX_VALUE);
         // test for upfront cost.
@@ -516,8 +515,7 @@ public class ReservedInstanceAnalzyerRateAndRIsTest {
         // RESERVED_INSTANCE_SPEC_ID_2
         riRate =
             rateAndRIsProvider.lookupReservedInstanceRate(ReservedInstanceAnalyzerConstantsTest.REGIONAL_CONTEXT_1,
-                ReservedInstanceAnalyzerConstantsTest.PURCHASE_CONSTRAINTS_2,
-                "RILT0002");
+                ReservedInstanceAnalyzerConstantsTest.PURCHASE_CONSTRAINTS_2);
         Assert.assertTrue(riRate.getKey() != Float.MAX_VALUE);
         Assert.assertTrue(riRate.getValue() != Float.MAX_VALUE);
         Assert.assertEquals(riRate.getKey(), 0.00761D, 0.0001f);
@@ -526,8 +524,7 @@ public class ReservedInstanceAnalzyerRateAndRIsTest {
         // RESERVED_INSTANCE_SPEC_ID_3
         riRate =
             rateAndRIsProvider.lookupReservedInstanceRate(ReservedInstanceAnalyzerConstantsTest.REGIONAL_CONTEXT_2,
-                ReservedInstanceAnalyzerConstantsTest.PURCHASE_CONSTRAINTS_1,
-                "RILT0003");
+                ReservedInstanceAnalyzerConstantsTest.PURCHASE_CONSTRAINTS_1);
         Assert.assertTrue(riRate.getKey() != Float.MAX_VALUE);
         Assert.assertTrue(riRate.getValue() != Float.MAX_VALUE);
         Assert.assertEquals(riRate.getKey(), 0.0114155f, 0.0001f);
@@ -638,31 +635,26 @@ public class ReservedInstanceAnalzyerRateAndRIsTest {
          * lookup
          */
         // Ohio, m5.large, LINUX, DEFAULT
-        float rate = rateAndRIsProvider.lookupOnDemandRate(
-                        ReservedInstanceAnalyzerConstantsTest.REGIONAL_CONTEXT_1, "RILT0006");
+        float rate = rateAndRIsProvider.lookupOnDemandRate(ReservedInstanceAnalyzerConstantsTest.REGIONAL_CONTEXT_1);
         Assert.assertEquals(rate,
             new Double(ReservedInstanceAnalyzerConstantsTest.PRICE_HOURLY_2.getPriceAmount().getAmount()).floatValue(),
             0.001f);
 
         // Oregon, t2.micro, WINDOWS, DEDICATED
-        rate = rateAndRIsProvider.lookupOnDemandRate(
-                        ReservedInstanceAnalyzerConstantsTest.REGIONAL_CONTEXT_2, "RILT0007");
+        rate = rateAndRIsProvider.lookupOnDemandRate(ReservedInstanceAnalyzerConstantsTest.REGIONAL_CONTEXT_2);
         // lINUX/DEDICATED is PRICE_HOURLY_3 and WINDOWS/DEDICATED is PRICE_HOURLY_4
         float result = new Double(ReservedInstanceAnalyzerConstantsTest.PRICE_HOURLY_3.getPriceAmount().getAmount()
             + ReservedInstanceAnalyzerConstantsTest.PRICE_HOURLY_4.getPriceAmount().getAmount()).floatValue();
         Assert.assertEquals(rate, result, 0.001f);
 
         // Oregon, m5.large, RHEL, DEFAULT
-        rate = rateAndRIsProvider.lookupOnDemandRate(
-                        ReservedInstanceAnalyzerConstantsTest.REGIONAL_CONTEXT_4, "RILT0008");
+        rate = rateAndRIsProvider.lookupOnDemandRate(ReservedInstanceAnalyzerConstantsTest.REGIONAL_CONTEXT_4);
         // lINUX/DEDICATED is PRICE_HOURLY_3 and WINDOWS/DEDICATED is PRICE_HOURLY_4
-        result = new Double(ReservedInstanceAnalyzerConstantsTest.PRICE_HOURLY_2.getPriceAmount()
-                        .getAmount() * 2).floatValue();
+        result = new Double(ReservedInstanceAnalyzerConstantsTest.PRICE_HOURLY_2.getPriceAmount().getAmount() *2).floatValue();
         Assert.assertEquals(rate, result, 0.001f);
 
         // Ohio, t2.micro, SUSE, DEFAULT
-        rate = rateAndRIsProvider.lookupOnDemandRate(
-                        ReservedInstanceAnalyzerConstantsTest.REGIONAL_CONTEXT_5, "RILT0009");
+        rate = rateAndRIsProvider.lookupOnDemandRate(ReservedInstanceAnalyzerConstantsTest.REGIONAL_CONTEXT_5);
         // lINUX/DEDICATED is PRICE_HOURLY_3 and WINDOWS/DEDICATED is PRICE_HOURLY_4
         result = new Double(ReservedInstanceAnalyzerConstantsTest.PRICE_HOURLY_3.getPriceAmount().getAmount()
             + ReservedInstanceAnalyzerConstantsTest.PRICE_HOURLY_1.getPriceAmount().getAmount()).floatValue();

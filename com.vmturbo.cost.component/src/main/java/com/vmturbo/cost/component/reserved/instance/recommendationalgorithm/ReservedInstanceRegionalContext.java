@@ -24,7 +24,6 @@ public class ReservedInstanceRegionalContext extends ReservedInstanceContext {
 
     // region: e.g. aws-us-east-1
     private final TopologyEntityDTO region;
-
     /**
      * Constructor, we only save the Region OID and DisplayName, not whole DTO.
      *
@@ -96,9 +95,11 @@ public class ReservedInstanceRegionalContext extends ReservedInstanceContext {
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
-        builder.append("regionId=").append(getRegionId())
-            .append(" computeTierId=").append(computeTier.getOid())
-            .append(" platform=").append(platform.name())
+        builder.append("region(").append(getRegionDisplayName())
+            .append(", ").append(getRegionId())
+            .append(") computeTier(").append(computeTier.getDisplayName())
+            .append(", ").append(computeTier.getOid())
+            .append(") platform=").append(platform.name())
             .append(" tenancy=").append(tenancy.name())
             .append(" masterAccountId=").append(masterAccountId);
         return builder.toString();
