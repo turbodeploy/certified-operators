@@ -7,10 +7,12 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class StatsUtils {
 
@@ -48,4 +50,20 @@ public class StatsUtils {
             .put(StringConstants.NUM_VAPPS, UIEntityType.VIRTUAL_APPLICATION)
             .put(StringConstants.NUM_NETWORKS, UIEntityType.NETWORK)
             .build();
+
+    /**
+     * Set of sdk entity types which don't have saved priceIndex. If any of these entity types
+     * starts to have priceIndex, it should be removed from this set. One possible candidate is
+     * VIRTUAL_VOLUME, but that will not happen until the huge storage model refactor in XL.
+     */
+    public static final Set<Integer> SDK_ENTITY_TYPES_WITHOUT_SAVED_PRICES =
+            ImmutableSet.<Integer>builder()
+                    .add(EntityType.NETWORK.getNumber())
+                    .add(EntityType.INTERNET.getNumber())
+                    .add(EntityType.VIRTUAL_VOLUME.getNumber())
+                    .add(EntityType.HYPERVISOR_SERVER.getNumber())
+                    .add(EntityType.REGION.getNumber())
+                    .add(EntityType.AVAILABILITY_ZONE.getNumber())
+                    .add(EntityType.BUSINESS_ACCOUNT.getNumber())
+                    .build();
 }

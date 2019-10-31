@@ -42,7 +42,9 @@ import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
+import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
+import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
@@ -86,15 +88,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
-import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
-import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
-import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
-import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
-import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
@@ -132,7 +129,6 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.UpdateScenarioRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.UpdateScenarioResponse;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc.ScenarioServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanEntityStats;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse.TypeCase;
@@ -140,20 +136,12 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequ
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
-import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
-import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
-import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
-import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
-import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
-import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
@@ -215,6 +203,10 @@ public class MarketsService implements IMarketsService {
 
     private final ThinTargetCache thinTargetCache;
 
+    private final PriceIndexPopulator priceIndexPopulator;
+
+    private final SeverityPopulator severityPopulator;
+
     // Exclude request for price index for commodities of real market not saved in DB
     private final Set<Integer> notSavedEntityTypes = ImmutableSet.of(
         EntityType.NETWORK_VALUE,
@@ -245,6 +237,8 @@ public class MarketsService implements IMarketsService {
                           @Nonnull final StatsService statsService,
                           @Nonnull final RepositoryApi repositoryApi,
                           @Nonnull final ServiceEntityMapper serviceEntityMapper,
+                          @Nonnull final SeverityPopulator severityPopulator,
+                          @Nonnull final PriceIndexPopulator priceIndexPopulator,
                           final long realtimeTopologyContextId) {
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
@@ -270,6 +264,8 @@ public class MarketsService implements IMarketsService {
         this.statsService = Objects.requireNonNull(statsService);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
+        this.severityPopulator = Objects.requireNonNull(severityPopulator);
+        this.priceIndexPopulator = Objects.requireNonNull(priceIndexPopulator);
     }
 
     /**
@@ -440,21 +436,14 @@ public class MarketsService implements IMarketsService {
 
     @Override
     public List<ServiceEntityApiDTO> getEntitiesByMarketUuid(String uuid) throws Exception {
-        List<ServiceEntityApiDTO> serviceEntityApiDTOs = null;
-        HashMap<Long, Float> idsToPriceIndices = new HashMap<>();
+        final List<ServiceEntityApiDTO> serviceEntityApiDTOs;
         final ApiId apiId = uuidMapper.fromUuid(uuid);
         if (apiId.isRealtimeMarket()) {
             serviceEntityApiDTOs = repositoryApi.entitiesRequest(Collections.emptySet())
                 .allowGetAll()
                 .getSEList();
-            final List<EntityStats> priceIndexStats = fetchPriceIndexStats(serviceEntityApiDTOs);
-            for (EntityStats stat : priceIndexStats) {
-                if (stat.getStatSnapshotsCount() > 0) {
-                    long oid = stat.getOid();
-                    float priceIndex = stat.getStatSnapshots(0).getStatRecords(0).getUsed().getMax();
-                    idsToPriceIndices.put(oid, priceIndex);
-                }
-            }
+            // populate priceIndex
+            priceIndexPopulator.populateRealTimeEntities(serviceEntityApiDTOs);
         } else {
             OptionalPlanInstance planResponse = planRpcService.getPlan(PlanId.newBuilder()
                     .setPlanId(Long.valueOf(uuid))
@@ -478,120 +467,15 @@ public class MarketsService implements IMarketsService {
                 entities.addAll(entitiesResponse.getEntitiesList());
             }
             serviceEntityApiDTOs = populatePlacedOnUnplacedOnForEntitiesForPlan(plan, entities);
-
-            // Reading the price index for the entities of plans
-            List<PlanEntityStats> entityStats = new ArrayList<>();
-            Iterator<PlanTopologyStatsResponse> resp =
-                        repositoryRpcService.getPlanTopologyStats(PlanTopologyStatsRequest.newBuilder()
-                                .setTopologyId(topologyId)
-                                .setFilter(StatsFilter.newBuilder()
-                                        .setStartDate(System.currentTimeMillis() + 10000)
-                                        .addCommodityRequests(CommodityRequest.newBuilder()
-                                                .setCommodityName(StringConstants.PRICE_INDEX)))
-                                .build());
-            while (resp.hasNext()) {
-                PlanTopologyStatsResponse chunk = resp.next();
-                    if (chunk.getTypeCase() != TypeCase.PAGINATIONRESPONSE) {
-                        entityStats.addAll(chunk.getEntityStats().getEntityStatsList());
-                    }
-            }
-
-            for (PlanEntityStats stat : entityStats) {
-                if (stat.getPlanEntityStats().getStatSnapshotsCount() > 0) {
-                    long oid = stat.getPlanEntity().getOid();
-                    float priceIndex = stat.getPlanEntityStats().getStatSnapshots(0).getStatRecords(0).getUsed().getMax();
-                    idsToPriceIndices.put(oid, priceIndex);
-                }
-            }
+            // populate priceIndex
+            priceIndexPopulator.populatePlanEntities(topologyId, serviceEntityApiDTOs);
         }
 
-        List<Long> entities = new ArrayList<>();
-        for (ServiceEntityApiDTO serviceEntityApiDTO : serviceEntityApiDTOs) {
-            entities.add(Long.valueOf(serviceEntityApiDTO.getUuid()));
-        }
-
-        EntitySeveritiesResponse entitySeveritiesResponse = entitySeverity.getEntitySeverities(MultiEntityRequest
-                .newBuilder()
-                .setTopologyContextId(apiId.isRealtimeMarket() ? realtimeTopologyContextId : Long.valueOf(uuid))
-                .addAllEntityIds(entities)
-                .build());
-
-        HashMap<Long, String> idsToSeverities = new HashMap<>();
-        List<EntitySeverity> entitySeverityList = entitySeveritiesResponse.getEntitySeverityList();
-        for (EntitySeverity entitySeverity : entitySeverityList) {
-            idsToSeverities.put(entitySeverity.getEntityId(), entitySeverity.getSeverity().toString());
-        }
-
-        return setPriceIndexAndSeverity(serviceEntityApiDTOs, idsToPriceIndices, idsToSeverities);
-    }
-
-    /**
-     * Fetch the priceIndex stats for the given list of entities. If an entity doesn't have
-     * priceIndex or error when fetching stats in history component, it will not be included in the
-     * result.
-     *
-     * @param serviceEntityApiDTOs the list of entities to get priceIndex stats for
-     * @return list of priceIndex stats in the form of EntityStats
-     */
-    private List<EntityStats> fetchPriceIndexStats(@Nonnull List<ServiceEntityApiDTO> serviceEntityApiDTOs) {
-        // grouping entities by entity type, so it can get pagination stats for each type of
-        // entities, note: we don't support pagination across entity types for now
-        final Map<Integer, Set<Long>> entityTypesToOids = serviceEntityApiDTOs.stream()
-            .collect(Collectors.groupingBy(se ->
-                    UIEntityType.fromString(se.getClassName()).typeNumber(),
-                Collectors.mapping(s -> Long.parseLong(s.getUuid()), Collectors.toSet())));
-        // fetch price index stats of real market from history component
-        final List<EntityStats> entityStats = new ArrayList<>();
-        entityTypesToOids.entrySet().stream()
-            // filter out entities which don't have price index
-            .filter(entry -> !notSavedEntityTypes.contains(entry.getKey()))
-            .forEach(entry -> {
-                try {
-                    // build scope and filter outside while loop, since only cursor changes
-                    GetEntityStatsRequest.Builder request = GetEntityStatsRequest.newBuilder()
-                        .setScope(EntityStatsScope.newBuilder()
-                            .setEntityList(EntityList.newBuilder()
-                                .addAllEntities(entry.getValue())))
-                        .setFilter(StatsFilter.newBuilder()
-                            .addCommodityRequests(CommodityRequest.newBuilder()
-                                .setCommodityName(
-                                    EntitiesService.PRICE_INDEX_COMMODITY)));
-                    String cursor = "";
-                    do {
-                        final GetEntityStatsResponse entityStatsResponse =
-                            statsHistory.getEntityStats(request.setPaginationParams(
-                                PaginationParameters.newBuilder()
-                                    .setCursor(cursor))
-                                .build());
-                        cursor = entityStatsResponse.getPaginationResponse().getNextCursor();
-                        entityStats.addAll(entityStatsResponse.getEntityStatsList());
-                    } while (!StringUtils.isEmpty(cursor));
-                } catch (StatusRuntimeException e) {
-                    logger.error("Error while fetching priceIndex for entities {} of type {}: ",
-                        entry.getValue(), UIEntityType.fromType(entry.getKey()).apiStr(), e);
-                }
-            });
-        return entityStats;
-    }
-
-    /**
-     * Set the price index and severity for all the entities for which they exist.
-     *
-     * @param serviceEntityApiDTOs list of info for service entities
-     * @param idsToPriceIndices map from service entity id to price index
-     * @param idsToSeverities map from service entity id to severity
-     * @return list of info for service entities
-     */
-    private List<ServiceEntityApiDTO> setPriceIndexAndSeverity(List<ServiceEntityApiDTO> serviceEntityApiDTOs,
-                                                               HashMap<Long, Float> idsToPriceIndices,
-                                                               HashMap<Long, String> idsToSeverities) {
-        for (int i = 0; i < serviceEntityApiDTOs.size(); i++) {
-            serviceEntityApiDTOs.get(i).setPriceIndex(idsToPriceIndices.get(Long.valueOf(serviceEntityApiDTOs.get(i).getUuid())));
-            serviceEntityApiDTOs.get(i).setSeverity(idsToSeverities.get(Long.valueOf(serviceEntityApiDTOs.get(i).getUuid())));
-        }
-
+        // populate severity
+        severityPopulator.populate(
+                apiId.isRealtimeMarket() ? realtimeTopologyContextId : Long.valueOf(uuid),
+                serviceEntityApiDTOs);
         return serviceEntityApiDTOs;
-
     }
 
     // Market UUID is ignored for now, since there is only one Market in XL.
