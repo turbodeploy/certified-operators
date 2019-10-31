@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Stopwatch;
 import com.google.protobuf.ByteString;
 
 import io.grpc.Status;
@@ -94,11 +95,15 @@ public class PercentileReader
             final long startTimestamp = request.getStartTimestamp();
             try (Connection connection = historydbIO.transConnection();
                             DSLContext context = historydbIO.using(connection)) {
+                final Stopwatch dbReading = Stopwatch.createStarted();
                 final Result<PercentileBlobsRecord> percentileBlobsRecords =
                                 context.selectFrom(PERCENTILE_BLOBS_TABLE)
                                                 .where(PERCENTILE_BLOBS_TABLE.START_TIMESTAMP
                                                                 .eq(startTimestamp))
                                                 .fetch();
+                LOGGER.debug("'{}' for '{}' read from database in '{}'",
+                                PercentileBlobsRecord.class::getSimpleName, () -> startTimestamp,
+                                dbReading::stop);
                 final int amountOfRecords = percentileBlobsRecords.size();
                 if (amountOfRecords < 1) {
                     final String message =
@@ -114,7 +119,7 @@ public class PercentileReader
                 }
                 final int processedBytes = convert(percentileBlobsRecords.iterator().next(),
                                 request.getChunkSize(), responseObserver);
-                LOGGER.debug("Percentile data read '{}' bytes from database for '{}' timestamp in '{}'",
+                LOGGER.debug("Percentile data read '{}' bytes from database for '{}' timestamp in '{}' seconds",
                                 () -> processedBytes, () -> startTimestamp,
                                 dataMetricTimer::getTimeElapsedSecs);
                 responseObserver.onCompleted();
