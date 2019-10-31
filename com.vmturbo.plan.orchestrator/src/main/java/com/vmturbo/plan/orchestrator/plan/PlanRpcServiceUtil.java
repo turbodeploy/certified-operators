@@ -1,23 +1,31 @@
 package com.vmturbo.plan.orchestrator.plan;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.RISetting;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -35,26 +43,15 @@ public class PlanRpcServiceUtil {
      * @param scenarioInfo the scenarioInfo of plan instance
      * @param riScenario the scenario change related with RI
      * @param planId the plan id
+     * @param groupServiceClient group service client
+     * @param repositoryServiceClient repository service client
      * @return StartBuyRIAnalysisRequest
      */
     public static StartBuyRIAnalysisRequest createBuyRIRequest(@Nonnull ScenarioInfo scenarioInfo,
-                                          @Nonnull ScenarioChange riScenario, long planId) {
+                                          @Nonnull ScenarioChange riScenario, long planId,
+                                          @Nonnull final GroupServiceBlockingStub groupServiceClient,
+                                          @Nonnull final RepositoryServiceBlockingStub repositoryServiceClient) {
         // when there is buy RI involved, trigger it first
-        Map<String, Set<Long>> scopeObjectByClass = new HashMap();
-        for (PlanScopeEntry entry : scenarioInfo.getScope().getScopeEntriesList()) {
-            String className = entry.getClassName().toUpperCase();
-            long oid = entry.getScopeObjectOid();
-            if (scopeObjectByClass.containsKey(className)) {
-                Set<Long> oidSet = scopeObjectByClass.get(className);
-                oidSet.add(oid);
-            } else {
-                scopeObjectByClass.put(className, new HashSet<Long>(Arrays.asList(oid)));
-            }
-        }
-        Set<Long> regionIds = scopeObjectByClass.get(EntityType.REGION.name());
-        // Note: in planScopeEntry the class name for ba is BusinessAccount
-        // yet in the commonDTO.EntityType, ba is BUSINESS_ACCOUNT
-        Set<Long> baIds = scopeObjectByClass.get(StringConstants.BUSINESS_ACCOUNT);
         RISetting riSetting = riScenario.getRiSetting();
         /*
          * Because OCP currently does not allow User scoping by OSType or Tenancy, not setting
@@ -78,9 +75,13 @@ public class PlanRpcServiceUtil {
                                 riSetting.getPreferredPaymentOption()
                                 : ReservedInstanceType.PaymentOption.ALL_UPFRONT)
                                 .setTermYears(riSetting.hasPreferredTerm() ? riSetting.getPreferredTerm() : 1)));
+        final Map<Integer, Set<Long>> scopeObjectByClass = getClassNameToOids(scenarioInfo.getScope()
+                        .getScopeEntriesList(), groupServiceClient, repositoryServiceClient);
+        final Set<Long> regionIds = scopeObjectByClass.get(EntityType.REGION.getNumber());
         if (regionIds != null && !regionIds.isEmpty()) {
             buyRiRequest.addAllRegions(regionIds);
         }
+        final Set<Long> baIds = scopeObjectByClass.get(EntityType.BUSINESS_ACCOUNT.getNumber());
         if (baIds != null && !baIds.isEmpty()) {
             buyRiRequest.addAllAccounts(baIds);
         }
@@ -90,6 +91,51 @@ public class PlanRpcServiceUtil {
             buyRiRequest.setDemandType(DemandType.ALLOCATION);
         }
         return buyRiRequest.build();
+    }
+
+    private static Map<Integer, Set<Long>> getClassNameToOids(@Nonnull List<PlanScopeEntry> planScopeEntries,
+                                                    @Nonnull GroupServiceBlockingStub groupServiceClient,
+                                                    @Nonnull final RepositoryServiceBlockingStub repositoryServiceClient) {
+        final Map<Integer, Set<Long>> scopeObjectByClass = new HashMap<>();
+        final Set<Long> groupIdsToResolve = new HashSet<>();
+        for (PlanScopeEntry entry : planScopeEntries) {
+            final String className = entry.getClassName();
+            final long oid = entry.getScopeObjectOid();
+            if (StringConstants.GROUP_TYPES.contains(className)) {
+                groupIdsToResolve.add(oid);
+            } else {
+                // Note: in planScopeEntry the class name for ba is BusinessAccount
+                // yet in the commonDTO.EntityType, ba is BUSINESS_ACCOUNT
+                final int type = className.equals(StringConstants.BUSINESS_ACCOUNT)
+                                ? EntityType.BUSINESS_ACCOUNT_VALUE
+                                : UIEntityType.fromStringToSdkType(className);
+                scopeObjectByClass.computeIfAbsent(type, k -> new HashSet<>()).add(oid);
+            }
+        }
+        // Resolve the groups
+        if (groupIdsToResolve.size() > 0) {
+            final GetMembersRequest.Builder membersRequest = GetMembersRequest.newBuilder()
+                            .setExpandNestedGroups(true);
+            groupIdsToResolve.forEach(id -> membersRequest.setId(id));
+            final GroupDTO.GetMembersResponse response = groupServiceClient
+                            .getMembers(membersRequest.build());
+            if (response.hasMembers()) {
+                final RetrieveTopologyEntitiesRequest getEntitiesrequest = RetrieveTopologyEntitiesRequest.newBuilder()
+                                .addAllEntityOids(response.getMembers().getIdsList())
+                                .setReturnType(PartialEntity.Type.MINIMAL)
+                                .build();
+                RepositoryDTOUtil
+                                .topologyEntityStream(repositoryServiceClient
+                                                .retrieveTopologyEntities(getEntitiesrequest))
+                                .map(PartialEntity::getMinimal)
+                                .forEach(min -> scopeObjectByClass
+                                                .computeIfAbsent(min.getEntityType(),
+                                                                 k -> new HashSet<>())
+                                                .add(min.getOid()));
+            }
+        }
+
+        return scopeObjectByClass;
     }
 
     /**
