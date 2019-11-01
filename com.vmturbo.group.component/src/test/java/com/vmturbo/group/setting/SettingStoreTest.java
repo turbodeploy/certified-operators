@@ -28,16 +28,10 @@ import com.google.protobuf.ProtocolStringList;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jooq.DSLContext;
-import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto;
@@ -62,17 +56,27 @@ import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutableSettingPolicyUpdateException;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundException;
+import com.vmturbo.group.db.GroupComponent;
+import com.vmturbo.group.group.DbCleanupRule;
+import com.vmturbo.group.group.DbConfigurationRule;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.identity.IdentityProvider;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-    loader = AnnotationConfigContextLoader.class,
-    classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=group_component"})
+/**
+ * Unit test for {@link SettingStore}.
+ */
 public class SettingStoreTest {
+
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule("group_component");
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = new DbCleanupRule(dbConfig, GroupComponent.GROUP_COMPONENT);
 
     private final Logger logger = LogManager.getLogger();
 
@@ -88,9 +92,6 @@ public class SettingStoreTest {
     private static final String SETTING_TEST_JSON_SETTING_SPEC_JSON =
             "setting-test-json/setting-spec.json";
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
-
     private SettingPolicyValidator settingPolicyValidator = mock(SettingPolicyValidator.class);
 
     private IdentityProvider identityProviderSpy = spy(new IdentityProvider(0));
@@ -99,15 +100,10 @@ public class SettingStoreTest {
 
     @Before
     public void setUp() {
-        final DSLContext dslContext = dbConfig.prepareDatabase();
         settingSpecStore = new FileBasedSettingsSpecStore(SETTING_TEST_JSON_SETTING_SPEC_JSON);
-        settingStore = new SettingStore(settingSpecStore, dslContext, identityProviderSpy,
-                settingPolicyValidator, groupStore, settingsUpdatesSender);
-    }
-
-    @After
-    public void teardown() {
-        dbConfig.clean();
+        settingStore =
+                new SettingStore(settingSpecStore, dbConfig.getDslContext(), identityProviderSpy,
+                        settingPolicyValidator, groupStore, settingsUpdatesSender);
     }
 
     @Test(expected = DuplicateNameException.class)
@@ -463,14 +459,14 @@ public class SettingStoreTest {
         final Map<String, Long> groupOids = ImmutableMap.of(spInfo.getDiscoveredGroupNames(0), 1L);
 
         // Create a discovered setting policies, a and b.
-        settingStore.updateTargetSettingPolicies(dbConfig.dsl(), targetId,
+        settingStore.updateTargetSettingPolicies(dbConfig.getDslContext(), targetId,
                 Collections.singletonList(spInfo.toBuilder().addSettings(originalSetting).build()),
                 groupOids);
 
         final SettingPolicy policy = settingStore.getSettingPolicy(spInfo.getName()).get();
 
         assertThat(policy.getInfo().getSettings(0), is(originalSetting));
-        settingStore.updateTargetSettingPolicies(dbConfig.dsl(), targetId,
+        settingStore.updateTargetSettingPolicies(dbConfig.getDslContext(), targetId,
                 Collections.singletonList(spInfo.toBuilder().addSettings(updatedSetting).build()),
                 groupOids);
 
@@ -513,13 +509,14 @@ public class SettingStoreTest {
                 settingPolicyC.getDiscoveredGroupNames(0), 3L);
 
         // Create 2 discovered setting policies, a and b.
-        settingStore.updateTargetSettingPolicies(dbConfig.dsl(), targetId,
+        settingStore.updateTargetSettingPolicies(dbConfig.getDslContext(), targetId,
             Arrays.asList(settingPolicyA, settingPolicyB),
             groupOids);
 
         // Make sure they are created.
         final Collection<SettingPolicy> firstCreated =
-                settingStore.getSettingPoliciesDiscoveredByTarget(dbConfig.dsl(), targetId);
+                settingStore.getSettingPoliciesDiscoveredByTarget(dbConfig.getDslContext(),
+                        targetId);
         assertEquals(targetId, (long)firstCreated.stream()
             .map(settingPolicy -> settingPolicy.getInfo().getTargetId())
             .distinct()
@@ -534,12 +531,13 @@ public class SettingStoreTest {
 
         // Have 2 discovered setting policies, b and c.
         // a should be deleted, b should be retained, c should be created.
-        settingStore.updateTargetSettingPolicies(dbConfig.dsl(), targetId,
+        settingStore.updateTargetSettingPolicies(dbConfig.getDslContext(), targetId,
             Arrays.asList(settingPolicyC, settingPolicyB),
             groupOids);
 
         final Collection<SettingPolicy> secondCreated =
-                settingStore.getSettingPoliciesDiscoveredByTarget(dbConfig.dsl(), targetId);
+                settingStore.getSettingPoliciesDiscoveredByTarget(dbConfig.getDslContext(),
+                        targetId);
         assertEquals(targetId, (long)secondCreated.stream()
             .map(settingPolicy -> settingPolicy.getInfo().getTargetId())
             .distinct()

@@ -9,7 +9,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import org.jooq.DSLContext;
@@ -53,6 +52,11 @@ public class GroupDaoSearchTest {
     @ClassRule
     public static DbConfigurationRule dbConfig = new DbConfigurationRule("group_component");
     /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = new DbCleanupRule(dbConfig, GroupComponent.GROUP_COMPONENT);
+    /**
      * Expected exception rule.
      */
     @Rule
@@ -78,7 +82,6 @@ public class GroupDaoSearchTest {
      */
     @Before
     public void setup() throws Exception {
-        dbConfig.clearData(GroupComponent.GROUP_COMPONENT);
         final DSLContext dslContext = dbConfig.getDslContext();
         final IdentityProvider identityProvider = new IdentityProvider(0);
         groupStore = new GroupDAO(dslContext, identityProvider);

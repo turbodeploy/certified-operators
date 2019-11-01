@@ -22,17 +22,12 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import org.jooq.DSLContext;
-import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
@@ -43,23 +38,30 @@ import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutablePolicyUpdateException;
 import com.vmturbo.group.common.ItemNotFoundException.PolicyNotFoundException;
+import com.vmturbo.group.db.GroupComponent;
 import com.vmturbo.group.db.Tables;
 import com.vmturbo.group.db.tables.pojos.PolicyGroup;
 import com.vmturbo.group.db.tables.records.GroupingRecord;
 import com.vmturbo.group.db.tables.records.PolicyRecord;
+import com.vmturbo.group.group.DbCleanupRule;
+import com.vmturbo.group.group.DbConfigurationRule;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.policy.PolicyStore.PolicyDeleteException;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        loader = AnnotationConfigContextLoader.class,
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=group_component"})
 public class PolicyStoreTest {
+
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule("group_component");
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = new DbCleanupRule(dbConfig, GroupComponent.GROUP_COMPONENT);
 
     private static final long TARGET_ID = 107L;
 
@@ -86,9 +88,6 @@ public class PolicyStoreTest {
 
     private static final Map<String, Long> GROUP_TO_OID_MAP = Collections.emptyMap();
 
-    @Autowired
-    private TestSQLDatabaseConfig dbConfig;
-
     private PolicyStore policyStore;
 
     private IdentityProvider identityProvider = mock(IdentityProvider.class);
@@ -104,18 +103,13 @@ public class PolicyStoreTest {
         @SuppressWarnings("unchecked")
         final ArgumentCaptor<Consumer<Long>> captor = (ArgumentCaptor)ArgumentCaptor.forClass(Consumer.class);
         final IGroupStore groupStore = Mockito.mock(IGroupStore.class);
-        final DSLContext dslContext = dbConfig.prepareDatabase();
+        final DSLContext dslContext = dbConfig.getDslContext();
         policyStore = new PolicyStore(dslContext, mapperFactory, identityProvider, groupStore);
         Mockito.verify(groupStore).subscribeUserGroupRemoved(captor.capture());
         deletedGroupsCaptor = captor.getValue();
 
         injectGroup(CONSUMER_GROUP_ID);
         injectGroup(PRODUCER_GROUP_ID);
-    }
-
-    @After
-    public void teardown() {
-        dbConfig.clean();
     }
 
     @Test
@@ -223,7 +217,7 @@ public class PolicyStoreTest {
 
     @Test(expected = ImmutablePolicyUpdateException.class)
     public void testDeleteDiscoveredException() throws ImmutablePolicyUpdateException, PolicyNotFoundException {
-        final PolicyRecord policyRecord = dbConfig.dsl().newRecord(Tables.POLICY);
+        final PolicyRecord policyRecord = dbConfig.getDslContext().newRecord(Tables.POLICY);
         policyRecord.setEnabled(true);
         policyRecord.setName("foo");
         policyRecord.setId(POLICY_ID);
@@ -247,7 +241,7 @@ public class PolicyStoreTest {
         when(identityProvider.next()).thenReturn(discoveredPolicyId);
         when(discoveredPoliciesMapper.inputPolicy(DISCOVERED_POLICY_INFO)).thenReturn(Optional.of(POLICY_INFO));
         when(mapperFactory.newMapper(GROUP_TO_OID_MAP)).thenReturn(discoveredPoliciesMapper);
-        policyStore.updateTargetPolicies(dbConfig.dsl(), TARGET_ID,
+        policyStore.updateTargetPolicies(dbConfig.getDslContext(), TARGET_ID,
                 Collections.singletonList(DISCOVERED_POLICY_INFO), GROUP_TO_OID_MAP);
 
 
@@ -271,7 +265,7 @@ public class PolicyStoreTest {
         when(discoveredPoliciesMapper.inputPolicy(DISCOVERED_POLICY_INFO)).thenReturn(Optional.of(POLICY_INFO));
         when(mapperFactory.newMapper(GROUP_TO_OID_MAP)).thenReturn(discoveredPoliciesMapper);
 
-        policyStore.updateTargetPolicies(dbConfig.dsl(), TARGET_ID,
+        policyStore.updateTargetPolicies(dbConfig.getDslContext(), TARGET_ID,
                 Collections.singletonList(DISCOVERED_POLICY_INFO), GROUP_TO_OID_MAP);
 
         final Policy policy = policyStore.get(POLICY_ID).get();
@@ -286,10 +280,10 @@ public class PolicyStoreTest {
         when(discoveredPoliciesMapper.inputPolicy(DISCOVERED_POLICY_INFO)).thenReturn(Optional.of(POLICY_INFO));
         when(mapperFactory.newMapper(GROUP_TO_OID_MAP)).thenReturn(discoveredPoliciesMapper);
 
-        policyStore.updateTargetPolicies(dbConfig.dsl(), TARGET_ID,
+        policyStore.updateTargetPolicies(dbConfig.getDslContext(), TARGET_ID,
                 Collections.singletonList(DISCOVERED_POLICY_INFO), GROUP_TO_OID_MAP);
         assertTrue(policyStore.get(POLICY_ID).isPresent());
-        policyStore.updateTargetPolicies(dbConfig.dsl(), TARGET_ID, Collections.emptyList(), GROUP_TO_OID_MAP);
+        policyStore.updateTargetPolicies(dbConfig.getDslContext(), TARGET_ID, Collections.emptyList(), GROUP_TO_OID_MAP);
         assertFalse(policyStore.get(POLICY_ID).isPresent());
     }
 
@@ -299,7 +293,7 @@ public class PolicyStoreTest {
         when(discoveredPoliciesMapper.inputPolicy(DISCOVERED_POLICY_INFO)).thenReturn(Optional.of(POLICY_INFO));
         when(mapperFactory.newMapper(GROUP_TO_OID_MAP)).thenReturn(discoveredPoliciesMapper);
 
-        policyStore.updateTargetPolicies(dbConfig.dsl(), TARGET_ID,
+        policyStore.updateTargetPolicies(dbConfig.getDslContext(), TARGET_ID,
                 Collections.singletonList(DISCOVERED_POLICY_INFO), GROUP_TO_OID_MAP);
 
         // Need to inject the new group so the foreign-key constraint doesn't fail.
@@ -314,7 +308,7 @@ public class PolicyStoreTest {
         when(discoveredPoliciesMapper.inputPolicy(DISCOVERED_POLICY_INFO))
                 .thenReturn(Optional.of(updatedPolicyInfo));
 
-        policyStore.updateTargetPolicies(dbConfig.dsl(), TARGET_ID,
+        policyStore.updateTargetPolicies(dbConfig.getDslContext(), TARGET_ID,
                 Collections.singletonList(DISCOVERED_POLICY_INFO), GROUP_TO_OID_MAP);
 
         final Policy policy = policyStore.get(POLICY_ID).get();
@@ -330,10 +324,10 @@ public class PolicyStoreTest {
 
         final List<String> diags = policyStore.collectDiags();
 
-        dbConfig.dsl().deleteFrom(Tables.POLICY);
+        dbConfig.getDslContext().deleteFrom(Tables.POLICY);
 
         final PolicyStore newPolicyStore =
-                new PolicyStore(dbConfig.dsl(), mapperFactory, identityProvider,
+                new PolicyStore(dbConfig.getDslContext(), mapperFactory, identityProvider,
                         Mockito.mock(IGroupStore.class));
         newPolicyStore.restoreDiags(diags);
 
@@ -346,7 +340,7 @@ public class PolicyStoreTest {
     }
 
     private void injectGroup(final long id) {
-        final GroupingRecord record = dbConfig.dsl().newRecord(Tables.GROUPING);
+        final GroupingRecord record = dbConfig.getDslContext().newRecord(Tables.GROUPING);
         record.setId(id);
         record.setDisplayName("Fuel Injected " + id);
         record.setGroupType(GroupType.REGULAR);
@@ -358,7 +352,7 @@ public class PolicyStoreTest {
 
     @Nonnull
     private Map<Long, Set<Long>> getPolicyToGroupMapping() {
-        return dbConfig.dsl().selectFrom(Tables.POLICY_GROUP)
+        return dbConfig.getDslContext().selectFrom(Tables.POLICY_GROUP)
                 .fetch()
                 .into(PolicyGroup.class)
                 .stream()

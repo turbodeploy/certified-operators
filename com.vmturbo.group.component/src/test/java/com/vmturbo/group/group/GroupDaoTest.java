@@ -21,7 +21,6 @@ import io.grpc.Status;
 
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -60,6 +59,11 @@ public class GroupDaoTest {
      */
     @ClassRule
     public static DbConfigurationRule dbConfig = new DbConfigurationRule("group_component");
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = new DbCleanupRule(dbConfig, GroupComponent.GROUP_COMPONENT);
     private static final Set<MemberType> EXPECTED_MEMBERS =
             ImmutableSet.of(MemberType.newBuilder().setEntity(1).build(),
                     MemberType.newBuilder().setGroup(GroupType.COMPUTE_HOST_CLUSTER).build(),
@@ -82,17 +86,8 @@ public class GroupDaoTest {
      */
     @Before
     public void setup() {
-        dbConfig.clearData(GroupComponent.GROUP_COMPONENT);
         final IdentityProvider identityProvider = new IdentityProvider(0);
         groupStore = new GroupDAO(dbConfig.getDslContext(), identityProvider);
-    }
-
-    /**
-     * Cleanup resources after the test.
-     */
-    @After
-    public void cleanup() {
-        dbConfig.clearData(GroupComponent.GROUP_COMPONENT);
     }
 
     /**
