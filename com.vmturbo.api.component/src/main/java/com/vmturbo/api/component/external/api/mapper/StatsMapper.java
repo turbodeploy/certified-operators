@@ -640,10 +640,17 @@ public class StatsMapper {
             @Nonnull final StatScopesApiInputDTO inputDto,
             @Nonnull final EntityStatsPaginationRequest paginationRequest) {
 
+        long topologyId = planInstance.getProjectedTopologyId();
         final Stats.StatsFilter.Builder planStatsFilter = Stats.StatsFilter.newBuilder();
         if (inputDto.getPeriod() != null) {
             if (inputDto.getPeriod().getStartDate() != null) {
-                planStatsFilter.setStartDate(Long.valueOf(inputDto.getPeriod().getStartDate()));
+                final Long startDate = Long.valueOf(inputDto.getPeriod().getStartDate());
+                planStatsFilter.setStartDate(startDate);
+                // Temporary measure until OM-47881 is done
+                if (startDate.equals(0L)) {
+                    // Temporary way to signal source stats request
+                    topologyId = planInstance.getSourceTopologyId();
+                }
             }
             if (inputDto.getPeriod().getEndDate() != null) {
                 planStatsFilter.setEndDate(Long.valueOf(inputDto.getPeriod().getEndDate()));
@@ -661,8 +668,9 @@ public class StatsMapper {
             }
         }
 
+        // TODO: OM-47880 update this to also handle the source topology
         final PlanTopologyStatsRequest.Builder requestBuilder = PlanTopologyStatsRequest.newBuilder()
-                .setTopologyId(planInstance.getProjectedTopologyId())
+                .setTopologyId(topologyId)
                 .setFilter(planStatsFilter);
 
         final String relatedType = inputDto.getRelatedType();

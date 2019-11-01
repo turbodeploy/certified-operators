@@ -52,6 +52,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
@@ -174,7 +175,7 @@ public class PlanDaoImpl implements PlanDao {
         }
 
         if (planRequest.hasTopologyId()) {
-            builder.setTopologyId(planRequest.getTopologyId());
+            builder.setSourceTopologyId(planRequest.getTopologyId());
         }
         if (planRequest.hasScenarioId()) {
             builder.setScenario(ensureScenarioExist(planRequest.getScenarioId()));
@@ -232,8 +233,8 @@ public class PlanDaoImpl implements PlanDao {
      */
     private void checkPlanConsistency(@Nonnull final PlanDTO.PlanInstance plan)
             throws IntegrityException {
-        if (plan.hasTopologyId()) {
-            ensureTopologyExist(plan.getTopologyId());
+        if (plan.hasSourceTopologyId()) {
+            ensureTopologyExist(plan.getSourceTopologyId());
         }
     }
 
@@ -270,8 +271,8 @@ public class PlanDaoImpl implements PlanDao {
     public PlanDTO.PlanInstance deletePlan(final long id) throws NoSuchObjectException {
         // For now delete each piece of the plan independently.
         // TODO: implement atomic deletion with rollback. If any piece deletion fails then rollback everything.
-        // Delete projected topology from PlanOrchestrator, ActionOrchestrator,
-        // Repository and History/Stats
+        // Delete the plan topologies from PlanOrchestrator, ActionOrchestrator,
+        // Repository and History (stats)
         PlanDTO.PlanInstance plan = getPlanInstance(id).orElseThrow(() -> noSuchObjectException(id));
         if (!PlanUtils.canCurrentUserAccessPlan(plan)) {
             // throw an access error if the current user should not be able to delete the plan.
@@ -312,28 +313,18 @@ public class PlanDaoImpl implements PlanDao {
         //
         final List<String> errors = new ArrayList<>();
         final long topologyContextId = plan.getPlanId();
+        // Delete the source topology, if it exists
+        if (plan.hasSourceTopologyId()) {
+            deletePlanTopology(topologyContextId, plan.getSourceTopologyId(),
+                TopologyType.SOURCE, errors);
+        } else {
+            logger.info("Skipping source topology deletion for plan {}... no topology to delete.",
+                topologyContextId);
+        }
+        // Delete the projected topology, if it exists
         if (plan.hasProjectedTopologyId()) {
-            final long projectedTopologyId = plan.getProjectedTopologyId();
-            logger.info("Deleting projected topology with id:{} and contextId:{} ",
-                    projectedTopologyId, topologyContextId);
-
-            // Delete topology from Repository
-            try {
-                final RepositoryOperationResponse repoResponse =
-                        repositoryClient.deleteTopology(projectedTopologyId, topologyContextId);
-                if (repoResponse.getResponseCode() == RepositoryOperationResponseCode.OK) {
-                    logger.info("Successfully deleted projected topology with id:{} and"
-                                    + " contextId:{} from repository",
-                            projectedTopologyId, topologyContextId);
-                } else {
-                    errors.add("Error trying to delete projected topology with id "
-                            + projectedTopologyId + " : "
-                            + repoResponse.getError());
-                }
-            } catch (StatusRuntimeException e) {
-                errors.add("Failed to delete projected topology " + projectedTopologyId +
-                        " due to error: " + e.getLocalizedMessage());
-            }
+            deletePlanTopology(topologyContextId, plan.getProjectedTopologyId(),
+                TopologyType.PROJECTED, errors);
         } else {
             logger.info("Skipping projected topology deletion for plan {}... no topology to delete.",
                     topologyContextId);
@@ -389,6 +380,41 @@ public class PlanDaoImpl implements PlanDao {
                     StringUtils.join(errors, "\n"));
         } else {
             logger.info("Successfully deleted all known related objects for plan {}", topologyContextId);
+        }
+    }
+
+    /**
+     * Delete a plan topology
+     *
+     * <p>Deletes the plan topology specified by the combination of topologyContextId,
+     * topologyId and topologyType from the Repository by making a remote call. Any error
+     * messages are added to the errors list.</p>
+     *
+     * @param topologyContextId the planId
+     * @param topologyId the ID of the specific plan topology to delete (each plan has two)
+     * @param topologyType the type (SOURCE or PROJECTED) of plan topology to delete
+     * @param errors a list to append any error messages encountered
+     */
+    private void deletePlanTopology(long topologyContextId, long topologyId,
+                                    TopologyType topologyType, List<String> errors) {
+        logger.info("Deleting plan topology with id:{}, contextId:{} and type:{}",
+            topologyId, topologyContextId, topologyType);
+
+        // Delete topology from Repository
+        try {
+            final RepositoryOperationResponse repoResponse =
+                repositoryClient.deleteTopology(topologyId, topologyContextId, topologyType);
+            if (repoResponse.getResponseCode() == RepositoryOperationResponseCode.OK) {
+                logger.info("Successfully deleted {} topology with id:{} "
+                        + "and contextId:{} from the Repository.",
+                    topologyType, topologyId, topologyContextId);
+            } else {
+                errors.add("Error trying to delete " + topologyType + " topology with id "
+                    + topologyId + " : " + repoResponse.getError());
+            }
+        } catch (StatusRuntimeException e) {
+            errors.add("Failed to delete " + topologyType + " topology " + topologyId +
+                " due to error: " + e.getLocalizedMessage());
         }
     }
 

@@ -816,7 +816,7 @@ public class MarketsServiceTest {
                     TEST_PLAN_OVER_PLAN_ID;
             PlanInstance planResponse = PlanInstance.newBuilder()
                     .setPlanId(planId)
-                    .setTopologyId(request.getTopologyId())
+                    .setSourceTopologyId(request.getTopologyId())
                     .setStatus(PlanStatus.QUEUED)
                     .build();
             synchronized (lock) {
@@ -841,7 +841,7 @@ public class MarketsServiceTest {
                 // implement the "replace scenario" scheme - currently under discussion
                 planResponse = PlanInstance.newBuilder()
                         .setPlanId(request.getPlanId())
-                        .setTopologyId(plan.getTopologyId())
+                        .setSourceTopologyId(plan.getSourceTopologyId())
                         .setScenario(newScenario)
                         .setStatus(PlanStatus.READY)
                         .build();
@@ -886,7 +886,8 @@ public class MarketsServiceTest {
                 newPlan = PlanInstance.newBuilder()
                         .setStatus(PlanStatus.READY)
                         .setPlanId(request.getPlanId())
-                        .setTopologyId(previousPlan.getProjectedTopologyId())
+                        // In plan over plan, the old projected topology becomes the new source
+                        .setSourceTopologyId(previousPlan.getProjectedTopologyId())
                         .setProjectedTopologyId(0)
                         .setScenario(Scenario.newBuilder()
                                 .setId(request.getScenarioId())

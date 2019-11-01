@@ -22,9 +22,9 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.DeleteTopologyReques
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
@@ -80,12 +80,13 @@ public class RepositoryClient {
     }
 
     public RepositoryOperationResponse deleteTopology(long topologyId,
-            long topologyContextId) {
-
+                                                      long topologyContextId,
+                                                      TopologyType topologyType) {
         DeleteTopologyRequest request = DeleteTopologyRequest.newBuilder()
-                                            .setTopologyId(topologyId)
-                                            .setTopologyContextId(topologyContextId)
-                                            .build();
+            .setTopologyId(topologyId)
+            .setTopologyContextId(topologyContextId)
+            .setTopologyType(topologyType)
+            .build();
         try {
             return repositoryService.deleteTopology(request);
         } catch (StatusRuntimeException sre) {
@@ -95,8 +96,8 @@ public class RepositoryClient {
 
             if (sre.getStatus().getCode() == Status.Code.NOT_FOUND) {
                 // If topology doesn't exist, return success
-                logger.info("Topology with Id:{} and contextId:{} not found",
-                    topologyId, topologyContextId);
+                logger.info("Topology with Id:{}, contextId:{} and type:{} not found",
+                    topologyId, topologyContextId, topologyType);
                 responseBuilder.setResponseCode(RepositoryOperationResponseCode.OK);
             } else {
                 responseBuilder.setResponseCode(RepositoryOperationResponseCode.FAILED)

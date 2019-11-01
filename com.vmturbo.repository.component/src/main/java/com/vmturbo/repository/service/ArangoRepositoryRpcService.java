@@ -139,6 +139,13 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
             return false;
         }
 
+        if (!request.hasTopologyType()) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                .withDescription("Topology Type missing")
+                .asException());
+            return false;
+        }
+
         return true;
     }
 
@@ -149,14 +156,15 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
             return;
         }
 
-        logger.debug("Deleting topology with id:{} and contextId:{} ",
-                request.getTopologyId(), request.getTopologyContextId());
+        // Map the topology type from the request to the enum used by TopologyId
+        final TopologyType topologyType = TopologyType.mapTopologyType(request.getTopologyType());
+        logger.debug("Deleting topology with id:{}, contextId:{} and type:{}.",
+                request.getTopologyId(), request.getTopologyContextId(), topologyType);
         try {
-            topologyLifecycleManager.getRealtimeTopologyId();
             topologyLifecycleManager.deleteTopology(
                     new TopologyID(request.getTopologyContextId(),
                             request.getTopologyId(),
-                            TopologyType.PROJECTED));
+                            topologyType));
             final RepositoryOperationResponse responseBuilder =
                     RepositoryOperationResponse.newBuilder()
                         .setResponseCode(RepositoryOperationResponseCode.OK)
@@ -219,7 +227,7 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
         }
 
         final TopologyType topologyType = (request.getTopologyType() ==
-                RetrieveTopologyEntitiesRequest.TopologyType.PROJECTED) ? TopologyType.PROJECTED :
+            RepositoryDTO.TopologyType.PROJECTED) ? TopologyType.PROJECTED :
                         TopologyType.SOURCE;
 
         Optional<TopologyID> topologyIdOpt =
@@ -263,51 +271,30 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
             return entities;
         }
     }
-    /**
-     * Fetch the stats related to a Plan topology. Depending on the 'startTime' of the
-     * request: if there is a 'startTime' and it is in the future, then this request is
-     * satisfied from the projected plan topology. If there is no 'startTime' or in the past, then
-     * this request is to be to satisfied from the plan input topology (not yet implemented).
-     *
-     * @param request the parameters for this request, including the plan topology id and a StatsFilter
-     *                object describing which stats to include in the result
-     * @param responseObserver observer for the PlanTopologyResponse created here
-     */
-    @Override
-    public void getPlanTopologyStats(@Nonnull final PlanTopologyStatsRequest request,
-                      @Nonnull final StreamObserver<PlanTopologyStatsResponse> responseObserver) {
-        // what is the timeframe for this stats request?
-        if (request.hasFilter() &&
-                request.getFilter().hasStartDate() &&
-                request.getFilter().getStartDate() > Instant.now().toEpochMilli()) {
-                // future = fetch from plan projected topology
-                returnProjectedPlanStats(request, request.getTopologyId(), responseObserver);
-        } else {
-            // either no timeframe or timeframe is in the past - fetch from plan input topology
-            // NOT IMPLEMENTED, and not required by the UI at the present; return empty result
-            logger.warn("Plan stats request for 'now' = plan source topology; not implemented");
-            responseObserver.onNext(PlanTopologyStatsResponse.getDefaultInstance());
-            responseObserver.onCompleted();
-        }
-    }
 
     /**
-     * Fetch stats from the Projected Plan Topology (i.e. the output of Market Analysis).
-     * This data is taken from the Arango DB "raw TopologyApiDTO" storage.
-     *  @param request the time, entityType, and commodity filter to apply to this request
-     * @param projectedTopologyid the ID of the topology to fetch from.
+     * Fetch stats from the requested Plan Topology.
+     *
+     * <p>This topology may be either plan source or plan projected (i.e. the output of Market Analysis).
+     * This data is taken from the Arango DB "raw TopologyApiDTO" storage. The reason for using
+     * this rather than the ArangoDB graph representation of the topology appears to be that the
+     * graph representations of the entities does not contain all of the commodity information
+     * needed to calculate these stats.</p>
+     *
+     * @param request the topologyId, time, entityType, and commodity filter to retrieve stats for
      * @param responseObserver the sync for entity stats constructed here and returned to caller
      */
-    private void returnProjectedPlanStats(@Nonnull PlanTopologyStatsRequest request,
-                          long projectedTopologyid,
+    @Override
+    public void getPlanTopologyStats(@Nonnull PlanTopologyStatsRequest request,
                           @Nonnull StreamObserver<PlanTopologyStatsResponse> responseObserver) {
+        final long topologyId = request.getTopologyId();
         // create a filter on relatedEntityType
         final Stats.StatsFilter requestFilter = request.getFilter();
         logger.debug("fetch projected plan stats, entity filter {}, commodities {}",
                 request.getRelatedEntityType(), collectCommodityNames(requestFilter));
         final Predicate<TopologyEntityDTO> entityPredicate = newEntityMatcher(request);
-        final TopologyProtobufReader reader = topologyProtobufsManager.createTopologyProtobufReader(
-                        projectedTopologyid, Optional.empty());
+        final TopologyProtobufReader reader =
+            topologyProtobufsManager.createTopologyProtobufReader(topologyId, Optional.empty());
 
         // process the chunks of TopologyEntityDTO protobufs as received
         //
@@ -333,10 +320,10 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
                     entities.put(entity.getEntity().getOid(), new EntityAndStats(entity, stats));
                 }
             } catch (NoSuchElementException e) {
-                logger.error("Topology with ID: " + projectedTopologyid + "not found.",
-                        e.getMessage());
+                final String errorMessage = "Topology with ID: " + topologyId + "not found.";
+                logger.error(errorMessage, e.getMessage());
                 responseObserver.onError(Status.INTERNAL
-                        .withDescription("Topology with ID: " + projectedTopologyid + "not found.")
+                        .withDescription(errorMessage)
                         .asException());
                 return;
             }
@@ -347,6 +334,9 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
 
         final SortCommodityValueGetter sortCommodityValueGetter;
         if (paginationParams.getSortCommodity().equals(PRICE_INDEX_STAT_NAME)) {
+            // Note: This sorting will only work for projected topologies. Source topologies entities
+            // are stored as TopologyEntityDTOs and thus will not have the projectedPriceIndex or the
+            // originalPriceIndex fields set.
             sortCommodityValueGetter = (entityId) ->
                 Optional.of((float)entities.get(entityId).entity.getProjectedPriceIndex());
         } else {
@@ -587,7 +577,7 @@ public class ArangoRepositoryRpcService extends RepositoryServiceImplBase {
             return stats.getStatSnapshotsList().stream()
                     // There should be at most one stat snapshot, because each stat snapshot represents
                     // a point in time, and we are restoring a single ProjectedTopologyEntity
-                    // message - which is just the entity at the time that the projected
+                    // message - which is just the entity at the time that the source or projected
                     // topology was generated.
                     .findFirst()
                     .flatMap(snapshot -> snapshot.getStatRecordsList().stream()

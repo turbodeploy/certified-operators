@@ -431,10 +431,14 @@ message PlanInstance {
     // The plan ID. Plan ID is used as TopologyContextId.
     required int64 plan_id = 1;
 
-    //  ID of the plan input topology
-    optional int64 topology_id = 3;
+    // ID of the plan input topology
+    // This is generally the plan source topology output by the Market after performing
+    // plan market scoping (but before running actual Market analysis).
+    // In the case of plan-over-plan, this will be set to the projected_topology_id of the
+    // previous plan which this plan is using as a starting point.
+    optional int64 source_topology_id = 3;
 
-    // The scenario to be applied over existing topology befor run a plan
+    // The scenario to be applied over existing topology before running a plan
     // This is a deep-copy of the scenario at the creation time of the
     // plan instance. Subsequent changes to the scenario will not affect
     // this.

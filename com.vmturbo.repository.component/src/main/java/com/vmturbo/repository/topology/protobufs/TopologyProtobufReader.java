@@ -69,8 +69,9 @@ public class TopologyProtobufReader extends TopologyProtobufHandler {
     protected static Stream<ProjectedTopologyEntity> parseJson(final long topologyId,
                                                @Nonnull final Collection<Object> jsonObjects) {
         // We assume we're going to be reading ProjectedTopologyEntity objects. However,
-        // in old saved topologies we may actually read TopologyEntityDTO objects.
-        // Use this flag to detect the old format, to avoid having exceptions on every
+        // in old saved projected topologies or in source topologies, we may actually read
+        // TopologyEntityDTO objects.
+        // Use this flag to detect the latter format, to avoid having exceptions on every
         // encountered entity.
         AtomicBoolean areProjectedEntities = new AtomicBoolean(true);
         return jsonObjects.stream()

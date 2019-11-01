@@ -17,6 +17,7 @@ import io.grpc.Channel;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.repository.api.RepositoryClient;
 
@@ -53,7 +54,9 @@ public class FakeRepositoryClient extends RepositoryClient {
     }
 
     @Override
-    public RepositoryOperationResponse deleteTopology(final long topologyId, final long topologyContextId) {
+    public RepositoryOperationResponse deleteTopology(final long topologyId,
+                                                      final long topologyContextId,
+                                                      final TopologyType topologyType) {
         entityMap.put(topologyId, null);
         return RepositoryOperationResponse.newBuilder()
                 .setResponseCode(RepositoryOperationResponseCode.OK)

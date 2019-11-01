@@ -287,6 +287,7 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
 
     private static void processSourceTopology(@Nonnull final PlanInstance.Builder plan,
                                               final long topologyId) {
+        plan.setSourceTopologyId(topologyId);
         String planSubType = PlanRpcServiceUtil.getPlanSubType(plan.getScenario().getScenarioInfo());
         if (StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_ONLY.equals(planSubType)) {
             plan.setStatus(PlanStatus.SUCCEEDED);

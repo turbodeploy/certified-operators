@@ -67,7 +67,9 @@ public class TopologyCreatorTest {
     @Before
     public void setup() {
         when(graphDatabaseDriverBuilder.build(any())).thenReturn(mockDriver);
-        when(topologyProtobufsManager.createTopologyProtobufWriter(anyLong()))
+        when(topologyProtobufsManager.createSourceTopologyProtobufWriter(anyLong()))
+            .thenReturn(protobufWriter);
+        when(topologyProtobufsManager.createProjectedTopologyProtobufWriter(anyLong()))
                 .thenReturn(protobufWriter);
         when(graphCreatorFactory.newGraphCreator(eq(mockDriver))).thenReturn(graphCreator);
     }
@@ -76,6 +78,7 @@ public class TopologyCreatorTest {
     public void testTopologyCreatorRealtimeSourceTopology() {
         new ArangoSourceTopologyCreator(realtimeSourceId,
                 graphDatabaseDriverBuilder,
+                topologyProtobufsManager,
                 onComplete,
                 graphCreatorFactory,
                 entityConverter,
@@ -85,7 +88,7 @@ public class TopologyCreatorTest {
 
         verify(graphDatabaseDriverBuilder).build(eq(realtimeSourceId.toDatabaseName()));
         verify(graphCreatorFactory).newGraphCreator(eq(mockDriver));
-        verify(topologyProtobufsManager, never()).createTopologyProtobufWriter(anyLong());
+        verify(topologyProtobufsManager, never()).createProjectedTopologyProtobufWriter(anyLong());
     }
 
     @Test
@@ -102,13 +105,14 @@ public class TopologyCreatorTest {
 
         verify(graphDatabaseDriverBuilder).build(eq(realtimeProjectedId.toDatabaseName()));
         verify(graphCreatorFactory).newGraphCreator(eq(mockDriver));
-        verify(topologyProtobufsManager, never()).createTopologyProtobufWriter(anyLong());
+        verify(topologyProtobufsManager, never()).createProjectedTopologyProtobufWriter(anyLong());
     }
 
     @Test
     public void testTopologyCreatorPlanSourceTopology() {
         new ArangoSourceTopologyCreator(planSourceId,
                 graphDatabaseDriverBuilder,
+                topologyProtobufsManager,
                 onComplete,
                 graphCreatorFactory,
                 entityConverter,
@@ -118,7 +122,8 @@ public class TopologyCreatorTest {
 
         verify(graphDatabaseDriverBuilder).build(eq(planSourceId.toDatabaseName()));
         verify(graphCreatorFactory).newGraphCreator(eq(mockDriver));
-        verify(topologyProtobufsManager, never()).createTopologyProtobufWriter(anyLong());
+        verify(topologyProtobufsManager)
+            .createSourceTopologyProtobufWriter(eq(planSourceId.getTopologyId()));
     }
 
     @Test
@@ -136,7 +141,7 @@ public class TopologyCreatorTest {
         verify(graphDatabaseDriverBuilder).build(eq(planProjectedId.toDatabaseName()));
         verify(graphCreatorFactory).newGraphCreator(eq(mockDriver));
         verify(topologyProtobufsManager)
-            .createTopologyProtobufWriter(eq(planProjectedId.getTopologyId()));
+            .createProjectedTopologyProtobufWriter(eq(planProjectedId.getTopologyId()));
     }
 
     @Test
@@ -155,7 +160,7 @@ public class TopologyCreatorTest {
 
         verify(entityConverter).convert(any());
         verify(graphCreator).updateTopologyToDb(any());
-        verify(protobufWriter, never()).storeChunk(any());
+        verify(protobufWriter).storeChunk(any());
     }
 
     @Test
@@ -195,6 +200,7 @@ public class TopologyCreatorTest {
     private ArangoSourceTopologyCreator newTopologyCreator(TopologyID tid) {
         return new ArangoSourceTopologyCreator(tid,
                 graphDatabaseDriverBuilder,
+                topologyProtobufsManager,
                 onComplete,
                 graphCreatorFactory,
                 entityConverter,

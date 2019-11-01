@@ -87,7 +87,6 @@ import com.vmturbo.repository.service.ArangoRepositoryRpcService;
 import com.vmturbo.repository.service.ArangoSearchRpcService;
 import com.vmturbo.repository.service.ArangoSupplyChainRpcService;
 import com.vmturbo.repository.service.GraphDBService;
-import com.vmturbo.repository.service.GraphTopologyService;
 import com.vmturbo.repository.service.LiveTopologyPaginator;
 import com.vmturbo.repository.service.PartialEntityConverter;
 import com.vmturbo.repository.service.SupplyChainService;
@@ -400,13 +399,6 @@ public class RepositoryComponent extends BaseVmtComponent {
     }
 
     @Bean
-    public GraphTopologyService graphTopologyService() {
-        return new GraphTopologyService(
-                arangoDatabaseFactory(),
-                graphDefinition());
-    }
-
-    @Bean
     public EntityStatsPaginator entityStatsPaginator() {
         return new EntityStatsPaginator();
     }
@@ -546,7 +538,7 @@ public class RepositoryComponent extends BaseVmtComponent {
     }
 
     @Bean
-    public TopologyEntitiesListener topologyEntitiesListener() throws GraphDatabaseException {
+    public TopologyEntitiesListener topologyEntitiesListener() {
         return new TopologyEntitiesListener(topologyManager(),
                                             apiConfig.repositoryNotificationSender());
     }
@@ -567,7 +559,7 @@ public class RepositoryComponent extends BaseVmtComponent {
     }
 
     @Bean
-    public TopologyProcessor topologyProcessor() throws GraphDatabaseException {
+    public TopologyProcessor topologyProcessor() {
         final TopologyProcessor topologyProcessor;
         if (realtimeInMemory()) {
             // If using the in-memory graph, we want to read from the beginning on restart
@@ -596,12 +588,15 @@ public class RepositoryComponent extends BaseVmtComponent {
         final MarketComponent market;
         if (realtimeInMemory()) {
             market = marketClientConfig.marketComponent(
+                // If using the in-memory graph, we want to read from the beginning on restart
+                // so that we can populate the graph without waiting for the next broadcast.
                 MarketSubscription.forTopicWithStartFrom(
                     MarketSubscription.Topic.ProjectedTopologies, StartFrom.BEGINNING),
                 MarketSubscription.forTopicWithStartFrom(
                     MarketSubscription.Topic.AnalysisSummary, StartFrom.BEGINNING),
-                MarketSubscription.forTopicWithStartFrom(
-                    MarketSubscription.Topic.PlanAnalysisTopologies, StartFrom.BEGINNING));
+                // Plan analysis (source) topologies are always persisted, so there is no need to
+                // read this topic from the beginning.
+                MarketSubscription.forTopic(MarketSubscription.Topic.PlanAnalysisTopologies));
         } else {
             market = marketClientConfig.marketComponent(
                 MarketSubscription.forTopic(MarketSubscription.Topic.ProjectedTopologies),

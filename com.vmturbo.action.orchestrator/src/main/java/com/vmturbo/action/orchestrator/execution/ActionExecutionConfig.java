@@ -82,8 +82,9 @@ public class ActionExecutionConfig {
     public ActionTargetSelector actionTargetSelector() {
         final ActionTargetSelector actionTargetSelector =
                 new ActionTargetSelector(targetCapabilityCache(),
-                        actionExecutionTargetEntitySelector(),
-                        globalConfig.repositoryProcessorChannel());
+                    actionExecutionTargetEntitySelector(),
+                    globalConfig.repositoryProcessorChannel(),
+                    globalConfig.realtimeTopologyContextId());
         return actionTargetSelector;
     }
 }

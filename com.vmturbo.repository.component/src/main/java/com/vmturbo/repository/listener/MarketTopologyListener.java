@@ -190,10 +190,10 @@ public class MarketTopologyListener implements
             onPlanAnalysisTopologyReceivedInternal(topologyInfo, topologyDTOs);
         } catch (CommunicationException | InterruptedException e) {
             logger.error(
-                    "Failed to send notification about received plan id {} " +
-                            "Topology ID {} Topology Type {}",
-                    topologyInfo.getTopologyContextId(),
-                    topologyInfo.getTopologyId(), topologyInfo.getTopologyType(), e);
+                "Failed to send notification about received plan id {} with" +
+                    "Topology ID: {} and Topology Type: {}",
+                topologyInfo.getTopologyContextId(),
+                topologyInfo.getTopologyId(), topologyInfo.getTopologyType(), e);
         }
     }
 

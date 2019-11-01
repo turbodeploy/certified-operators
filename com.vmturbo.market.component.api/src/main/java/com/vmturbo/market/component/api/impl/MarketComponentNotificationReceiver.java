@@ -309,10 +309,12 @@ public class MarketComponentNotificationReceiver extends
      * @param commitCommand a Runnable command to be processed when the whole stream has been processed
      */
     private void processPlanAnalysisTopology(@Nonnull final Topology topology, @Nonnull Runnable commitCommand) {
-        getLogger().info("Processing plan analysis topology {}", topology::getTopologyId);
+        getLogger().debug("Processing plan analysis topology {}, segment {}",
+            topology::getTopologyId, topology::getSegmentCase);
         final long topologyId = topology.getTopologyId();
         switch (topology.getSegmentCase()) {
             case START:
+                getLogger().info("Processing plan analysis topology {}", topology::getTopologyId);
                 final Topology.Start start = topology.getStart();
                 planAnalysisTopologyChunkReceiver.startTopologyBroadcast(topologyId,
                         createPlanAnalysisTopologyChunkConsumers(start.getTopologyInfo()));
@@ -324,6 +326,7 @@ public class MarketComponentNotificationReceiver extends
             case END:
                 planAnalysisTopologyChunkReceiver.finishTopologyBroadcast(topologyId,
                         topology.getEnd().getTotalCount());
+                getLogger().info("Done processing plan analysis topology {}", topology::getTopologyId);
                 commitCommand.run();
                 break;
             default:

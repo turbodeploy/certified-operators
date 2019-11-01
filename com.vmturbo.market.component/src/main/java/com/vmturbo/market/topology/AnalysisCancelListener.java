@@ -25,7 +25,7 @@ public class AnalysisCancelListener implements PlanListener {
     public void onPlanStatusChanged(@Nonnull final PlanDTO.PlanInstance planInstance) {
         // if the status has changed to STOPPED, cancel analysis
         if (planInstance.getStatus() == PlanDTO.PlanInstance.PlanStatus.STOPPED) {
-            logger.info("received " + planInstance.getStatus().name() + " message for " + planInstance.getTopologyId());
+            logger.info("received " + planInstance.getStatus().name() + " message for " + planInstance.getSourceTopologyId());
             marketRunner.stopAnalysis(planInstance);
         }
     }

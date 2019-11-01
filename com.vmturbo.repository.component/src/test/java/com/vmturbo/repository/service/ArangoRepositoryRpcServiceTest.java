@@ -30,7 +30,6 @@ import io.grpc.Status.Code;
 import io.grpc.stub.StreamObserver;
 import javaslang.control.Either;
 
-import com.vmturbo.common.protobuf.common.Pagination;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
@@ -49,7 +48,6 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -66,7 +64,6 @@ import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyDeletionException;
-import com.vmturbo.repository.topology.protobufs.TopologyProtobufHandler;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufReader;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufsManager;
 
@@ -83,8 +80,6 @@ public class ArangoRepositoryRpcServiceTest {
     private TopologyProtobufsManager topologyProtobufsManager = mock(TopologyProtobufsManager.class);
 
     private TopologyProtobufReader topologyProtobufReader = mock(TopologyProtobufReader.class);
-
-    private TopologyProtobufHandler topologyProtobufHandler = mock(TopologyProtobufHandler.class);
 
     private TopologyLifecycleManager topologyLifecycleManager = mock(TopologyLifecycleManager.class);
 
@@ -118,17 +113,18 @@ public class ArangoRepositoryRpcServiceTest {
 
     @Test
     public void testDeleteTopology() throws TopologyDeletionException {
-
+        final RepositoryDTO.TopologyType topologyType = RepositoryDTO.TopologyType.PROJECTED;
         when(topologyProtobufsManager.createTopologyProtobufReader(eq(topologyId), any()))
             .thenReturn(topologyProtobufReader);
 
         RepositoryOperationResponse repoResponse =
-            repoClient.deleteTopology(topologyId,
-                topologyContextId);
+            repoClient.deleteTopology(topologyId, topologyContextId, topologyType);
 
-        verify(topologyLifecycleManager).deleteTopology(eq(new TopologyID(topologyContextId,
+        final TopologyID expectedTopologyId = new TopologyID(topologyContextId,
             topologyId,
-            TopologyType.PROJECTED)));
+            TopologyType.PROJECTED
+        );
+        verify(topologyLifecycleManager).deleteTopology(eq(expectedTopologyId));
         assertEquals(repoResponse.getResponseCode(),
             RepositoryOperationResponseCode.OK);
     }
@@ -202,11 +198,11 @@ public class ArangoRepositoryRpcServiceTest {
             Mockito.anySet()))
             .thenReturn(Either.right(Collections.emptyList()));
         repositoryService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
-            .setTopologyContextId(topologyContextId)
-            .setTopologyId(topologyId)
-            .addAllEntityOids(Lists.newArrayList(1L))
-            .setTopologyType(RetrieveTopologyEntitiesRequest.TopologyType.PROJECTED)
-            .build());
+                .setTopologyContextId(topologyContextId)
+                .setTopologyId(topologyId)
+                .addAllEntityOids(Lists.newArrayList(1L))
+                .setTopologyType(RepositoryDTO.TopologyType.PROJECTED)
+                .build());
     }
 
     @Test
@@ -217,11 +213,11 @@ public class ArangoRepositoryRpcServiceTest {
         when(graphDBService.retrieveTopologyEntities(eq(topologyID),
             Mockito.anySet())).thenReturn(Either.right(Collections.emptyList()));
         repositoryService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
-            .setTopologyContextId(topologyContextId)
-            .setTopologyId(topologyId)
-            .addAllEntityType(Lists.newArrayList(EntityType.VIRTUAL_MACHINE_VALUE))
-            .setTopologyType(RetrieveTopologyEntitiesRequest.TopologyType.PROJECTED)
-            .build());
+                                                   .setTopologyContextId(topologyContextId)
+                                                   .setTopologyId(topologyId)
+                                                   .addAllEntityType(Lists.newArrayList(EntityType.VIRTUAL_MACHINE_VALUE))
+                                                   .setTopologyType(RepositoryDTO.TopologyType.PROJECTED)
+                                                   .build());
     }
 
     @Test
@@ -229,10 +225,10 @@ public class ArangoRepositoryRpcServiceTest {
         when(graphDBService.retrieveRealTimeTopologyEntities(Mockito.anySet()))
             .thenReturn(Either.right(Collections.emptyList()));
         repositoryService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
-            .setTopologyContextId(topologyContextId)
-            .addAllEntityOids(Lists.newArrayList(1L))
-            .setTopologyType(RetrieveTopologyEntitiesRequest.TopologyType.SOURCE)
-            .build());
+                .setTopologyContextId(topologyContextId)
+                .addAllEntityOids(Lists.newArrayList(1L))
+                .setTopologyType(RepositoryDTO.TopologyType.SOURCE)
+                .build());
     }
 
     @Test
@@ -256,10 +252,10 @@ public class ArangoRepositoryRpcServiceTest {
             Mockito.anySet()))
             .thenReturn(Either.right(manyEntities));
         RetrieveTopologyEntitiesRequest request = RetrieveTopologyEntitiesRequest.newBuilder()
-            .setTopologyContextId(topologyContextId)
-            .setTopologyId(topologyId)
-            .setTopologyType(RetrieveTopologyEntitiesRequest.TopologyType.SOURCE)
-            .build();
+                .setTopologyContextId(topologyContextId)
+                .setTopologyId(topologyId)
+                .setTopologyType(RepositoryDTO.TopologyType.SOURCE)
+                .build();
         // call the service directly so we can monitor the response
         StreamObserver<PartialEntityBatch> responseStreamObserver = Mockito.spy(StreamObserver.class);
         repoRpcService.retrieveTopologyEntities(request, responseStreamObserver);
@@ -355,6 +351,7 @@ public class ArangoRepositoryRpcServiceTest {
     private DeleteTopologyRequest createDeleteTopologyRequest(long topologyId) {
         return DeleteTopologyRequest.newBuilder()
             .setTopologyId(topologyId)
+            .setTopologyType(RepositoryDTO.TopologyType.PROJECTED)
             .build();
     }
 
@@ -365,6 +362,7 @@ public class ArangoRepositoryRpcServiceTest {
         return DeleteTopologyRequest.newBuilder()
             .setTopologyId(topologyId)
             .setTopologyContextId(topologyContextId)
+            .setTopologyType(RepositoryDTO.TopologyType.PROJECTED)
             .build();
     }
 }

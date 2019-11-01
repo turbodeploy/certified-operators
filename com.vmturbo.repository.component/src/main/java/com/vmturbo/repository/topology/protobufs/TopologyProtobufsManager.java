@@ -10,6 +10,8 @@ import org.apache.http.HttpStatus;
 import com.arangodb.ArangoDBException;
 
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 
 /**
@@ -27,14 +29,29 @@ public class TopologyProtobufsManager {
     }
 
     /**
-     * Create a writer for chunks of raw topology DTOs. This also creates a collection in the
-     * databse for the given topology ID.
+     * Create a writer for chunks of raw projected topology DTOs. This also creates a collection in the
+     * database for the given topology ID.
      *
      * @param topologyId the topology ID identifies the collection in the database
      * @return an instance of a writer, used in writing chunks to the database
      */
-    public TopologyProtobufWriter createTopologyProtobufWriter(long topologyId) {
-        return new TopologyProtobufWriter(arangoDatabaseFactory, topologyId);
+    public TopologyProtobufWriter<ProjectedTopologyEntity> createProjectedTopologyProtobufWriter(
+        long topologyId) {
+        return new TopologyProtobufWriter<ProjectedTopologyEntity>(arangoDatabaseFactory, topologyId,
+            dto -> String.valueOf(dto.getEntity().getOid()));
+    }
+
+    /**
+     * Create a writer for chunks of raw topology DTOs. This also creates a collection in the
+     * database for the given topology ID.
+     *
+     * @param topologyId the topology ID identifies the collection in the database
+     * @return an instance of a writer, used in writing chunks to the database
+     */
+    public TopologyProtobufWriter<TopologyEntityDTO> createSourceTopologyProtobufWriter(
+        long topologyId) {
+        return new TopologyProtobufWriter<TopologyEntityDTO>(arangoDatabaseFactory, topologyId,
+            dto -> String.valueOf(dto.getOid()));
     }
 
     /**

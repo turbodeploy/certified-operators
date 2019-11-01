@@ -35,7 +35,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
@@ -71,25 +71,34 @@ public class ActionTargetSelector {
     private final RepositoryServiceBlockingStub repositoryService;
 
     /**
-     * Create an ActionTargetSelector
+     * The context ID for the realtime market. Used when making remote calls to the repository service.
+     */
+    private final long realtimeTopologyContextId;
+
+    /**
+     * Create an ActionTargetSelector.
      * @param probeCapabilityCache To get the target-specific action capabilities.
      * @param entitySelector to select a service entity to execute an action against
      * @param repositoryProcessorChannel Channel to access repository.
+     * @param realtimeTopologyContextId the context ID of the realtime market
      */
     public ActionTargetSelector(@Nonnull final ProbeCapabilityCache probeCapabilityCache,
                                 @Nonnull final ActionExecutionEntitySelector entitySelector,
-                                @Nonnull final Channel repositoryProcessorChannel) {
+                                @Nonnull final Channel repositoryProcessorChannel,
+                                final long realtimeTopologyContextId) {
         this(new TargetInfoResolver(probeCapabilityCache), entitySelector,
-            repositoryProcessorChannel);
+            repositoryProcessorChannel, realtimeTopologyContextId);
     }
 
     @VisibleForTesting
     ActionTargetSelector(@Nonnull final TargetInfoResolver targetInfoResolver,
                          @Nonnull final ActionExecutionEntitySelector entitySelector,
-                         @Nonnull final Channel repositoryProcessorChannel) {
+                         @Nonnull final Channel repositoryProcessorChannel,
+                         final long realtimeTopologyContextId) {
         this.targetInfoResolver = Objects.requireNonNull(targetInfoResolver);
         this.entitySelector = Objects.requireNonNull(entitySelector);
         this.repositoryService = RepositoryServiceGrpc.newBlockingStub(repositoryProcessorChannel);
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
     /**
@@ -133,10 +142,16 @@ public class ActionTargetSelector {
      * This is the "bulk" version of
      * {@link ActionTargetSelector#getTargetForAction(ActionDTO.Action)}.
      *
-     * //TODO: provide a flag to cause an explanation/failure to be reported for unsupported actions
-     * //where applicable.
+     * <p>This method retrieves the target resolution data (support level and targetId) for each
+     * action in the actions Stream. Entity data for entities associated with each action is required,
+     * and will be retrieved from the entityMap (if provided) or else will be retrieved using a remote
+     * call to Repository which will retrieve entity data from the realtime market.</p>
+     *
+     * <p>TODO: provide a flag to cause an explanation/failure to be reported for unsupported actions
+     * where applicable.</p>
      *
      * @param actions Stream of action recommendations.
+     * @param entityMap an optional map of cached entities, used to reduce the number of remote calls
      * @return Map of (action id) to ({@link ActionTargetInfo}) for the action, for each
      *         action in the input.
      */
@@ -150,7 +165,7 @@ public class ActionTargetSelector {
                 ActionDTOUtil.getInvolvedEntityIds(resolutionStateByAction.values()
                     .stream().map(actionResolutionData ->actionResolutionData.recommendation)
                     .collect(Collectors.toList()));
-            return getActionEntities(involvedEntities);
+            return getRealtimeActionEntities(involvedEntities);
         });
         final Set<Long> selectedEntityIds = new HashSet<>();
         for (final ActionResolutionData resolutionState : resolutionStateByAction.values()) {
@@ -225,15 +240,17 @@ public class ActionTargetSelector {
     }
 
     /**
-     * Return the {@link ActionPartialEntity} for the given entity ids.
+     * Return the {@link ActionPartialEntity} for the given entity ids from the realtime topology.
+     *
      * @param entityIds The id of the entities.
-     * @return An {@link Map<Long, ActionPartialEntity>} with an ActionPartialEntity per entity id.
+     * @return a {@link Map} with an {@link ActionPartialEntity} per entity id.
      */
-    private Map<Long, ActionPartialEntity> getActionEntities(Set<Long> entityIds){
+    private Map<Long, ActionPartialEntity> getRealtimeActionEntities(Set<Long> entityIds) {
         RetrieveTopologyEntitiesRequest getEntitiesrequest = RetrieveTopologyEntitiesRequest.newBuilder()
             .setTopologyType(TopologyType.SOURCE)
             .addAllEntityOids(entityIds)
             .setReturnType(PartialEntity.Type.ACTION)
+            .setTopologyContextId(realtimeTopologyContextId)
             .build();
         return
             RepositoryDTOUtil.topologyEntityStream(repositoryService.retrieveTopologyEntities(getEntitiesrequest))

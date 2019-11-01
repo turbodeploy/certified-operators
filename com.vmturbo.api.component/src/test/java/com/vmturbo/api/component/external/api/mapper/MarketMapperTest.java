@@ -36,7 +36,7 @@ public class MarketMapperTest {
 
     private static final PlanInstance BASE = PlanInstance.newBuilder()
             .setPlanId(PLAN_ID)
-            .setTopologyId(1L)
+            .setSourceTopologyId(1L)
             .setScenario(Scenario.newBuilder()
                     .setId(SCENARIO_ID)
                     .setScenarioInfo(ScenarioInfo.newBuilder()

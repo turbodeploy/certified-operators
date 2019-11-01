@@ -402,9 +402,9 @@ public class PlanDaoImplTest {
         final PlanInstance preexisting =
             planDao.createPlanInstance(CreatePlanRequest.newBuilder().setTopologyId(1).build());
 
-        final String first = "{\"planId\":\"1992305997952\",\"topologyId\":\"212\",\"status\":" +
+        final String first = "{\"planId\":\"1992305997952\",\"sourceTopologyId\":\"212\",\"status\":" +
             "\"READY\",\"projectType\":\"USER\"}";
-        final String second = "{\"planId\":\"1992305997760\",\"topologyId\":\"646\",\"status\":" +
+        final String second = "{\"planId\":\"1992305997760\",\"sourceTopologyId\":\"646\",\"status\":" +
             "\"READY\",\"projectType\":\"USER\"}";
 
         try {
@@ -437,7 +437,7 @@ public class PlanDaoImplTest {
     private PlanDTO.PlanInstance createHeadroomPlanInstance(@Nonnull PlanStatus planStatus, LocalDateTime createdTime)
             throws IntegrityException {
         final PlanDTO.PlanInstance.Builder builder = PlanDTO.PlanInstance.newBuilder();
-        builder.setTopologyId(1L);
+        builder.setSourceTopologyId(1L);
         builder.setPlanId(IdentityGenerator.next());
         builder.setStatus(planStatus);
         builder.setProjectType(PlanProjectType.CLUSTER_HEADROOM);

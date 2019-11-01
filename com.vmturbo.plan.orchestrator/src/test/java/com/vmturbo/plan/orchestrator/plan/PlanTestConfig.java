@@ -154,7 +154,7 @@ public class PlanTestConfig {
     public RepositoryClient repositoryClient() {
         RepositoryClient reposOkClient = Mockito.mock(RepositoryClient.class);
         Mockito
-                .when(reposOkClient.deleteTopology(Mockito.anyLong(), Mockito.anyLong()))
+                .when(reposOkClient.deleteTopology(Mockito.anyLong(), Mockito.anyLong(), Mockito.any()))
                 .thenReturn(OK);
 
         return reposOkClient;

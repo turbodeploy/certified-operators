@@ -85,9 +85,7 @@ public class TopologyGraphRepositoryRpcService extends RepositoryServiceImplBase
     @Override
     public void retrieveTopologyEntities(RetrieveTopologyEntitiesRequest request,
                                          StreamObserver<PartialEntityBatch> responseObserver) {
-        final TopologyType topologyType = (request.getTopologyType() ==
-            RetrieveTopologyEntitiesRequest.TopologyType.PROJECTED) ? TopologyType.PROJECTED :
-            TopologyType.SOURCE;
+        final TopologyType topologyType = TopologyType.mapTopologyType(request.getTopologyType());
         final boolean realtime = !request.hasTopologyContextId()  ||
             request.getTopologyContextId() == realtimeTopologyContextId;
         Tracing.log(() -> "Getting topology entities. Request: " + JsonFormat.printer().print(request));
@@ -143,16 +141,7 @@ public class TopologyGraphRepositoryRpcService extends RepositoryServiceImplBase
             return entities;
         }
     }
-    /**
-     * Fetch the stats related to a Plan topology. Depending on the 'startTime' of the
-     * request: if there is a 'startTime' and it is in the future, then this request is
-     * satisfied from the projected plan topology. If there is no 'startTime' or in the past, then
-     * this request is to be to satisfied from the plan input topology (not yet implemented).
-     *
-     * @param request the parameters for this request, including the plan topology id and a StatsFilter
-     *                object describing which stats to include in the result
-     * @param responseObserver observer for the PlanTopologyResponse created here
-     */
+
     @Override
     public void getPlanTopologyStats(@Nonnull final PlanTopologyStatsRequest request,
                       @Nonnull final StreamObserver<PlanTopologyStatsResponse> responseObserver) {

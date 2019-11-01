@@ -49,7 +49,7 @@ public class TopologyProtobufWriterTest {
     @Test
     public void testWriter() {
         TopologyProtobufsManager tpm = new TopologyProtobufsManager(factory);
-        final TopologyProtobufWriter writer = tpm.createTopologyProtobufWriter(2222);
+        final TopologyProtobufWriter writer = tpm.createProjectedTopologyProtobufWriter(2222);
         verify(db).createDatabase(Mockito.eq("topology-protobufs"));
         verify(database).collection(Mockito.eq("topology-dtos-2222"));
         verify(database).createCollection(Mockito.eq("topology-dtos-2222"));

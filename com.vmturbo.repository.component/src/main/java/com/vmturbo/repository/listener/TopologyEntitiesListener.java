@@ -28,6 +28,7 @@ import com.vmturbo.topology.processor.api.TopologySummaryListener;
  * live topology.
  */
 public class TopologyEntitiesListener implements EntitiesListener, TopologySummaryListener {
+
     private final Logger logger = LoggerFactory.getLogger(TopologyEntitiesListener.class);
 
     private final RepositoryNotificationSender notificationSender;
@@ -104,7 +105,9 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
         try {
             onTopologyNotificationInternal(topologyInfo, entityIterator);
         } catch (CommunicationException | InterruptedException e) {
-            logger.error("Error performing topology notifications", e);
+            logger.error("Error processing realtime topology."
+                + " Topology Id: " + topologyInfo.getTopologyId()
+                + " Context Id: " + topologyInfo.getTopologyContextId(), e);
         }
     }
 

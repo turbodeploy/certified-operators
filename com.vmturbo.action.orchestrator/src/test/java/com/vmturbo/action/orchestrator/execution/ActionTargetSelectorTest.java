@@ -55,6 +55,8 @@ import com.vmturbo.platform.sdk.common.util.ProbeCategory;
  */
 public class ActionTargetSelectorTest {
 
+    private static final long REALTIME_CONTEXT_ID = 777;
+
     // The class under test
     private ActionTargetSelector actionTargetSelector;
 
@@ -93,7 +95,8 @@ public class ActionTargetSelectorTest {
         // The class under test
         actionTargetSelector = new ActionTargetSelector(mockTargetInfoResolver,
             targetEntitySelectorMock,
-            repoServer.getChannel());
+            repoServer.getChannel(),
+            REALTIME_CONTEXT_ID);
     }
 
     /**

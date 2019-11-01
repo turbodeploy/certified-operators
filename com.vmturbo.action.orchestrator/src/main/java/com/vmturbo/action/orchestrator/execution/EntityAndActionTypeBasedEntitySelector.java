@@ -61,11 +61,6 @@ public class EntityAndActionTypeBasedEntitySelector implements ActionExecutionEn
                         .containsKey(action.getInfo().getActionTypeCase());
     }
 
-    private Optional<Long> getDefaultEntityId(final Action action)
-            throws UnsupportedActionException {
-        return Optional.of(ActionDTOUtil.getPrimaryEntityId(action));
-    }
-
     /**
      * Choose an entity to execute an action against
      *

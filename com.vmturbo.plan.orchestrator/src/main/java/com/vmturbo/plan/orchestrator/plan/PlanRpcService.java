@@ -277,8 +277,8 @@ public class PlanRpcService extends PlanServiceImplBase {
         ScenarioInfo scenarioInfo = planInstance.getScenario().getScenarioInfo();
         builder.setPlanId(planInstance.getPlanId());
 
-        if (planInstance.hasTopologyId()) {
-            builder.setTopologyId(planInstance.getTopologyId());
+        if (planInstance.hasSourceTopologyId()) {
+            builder.setTopologyId(planInstance.getSourceTopologyId());
         }
         if (planInstance.hasScenario()) {
             builder.addAllScenarioChange(scenarioInfo.getChangesList());
@@ -325,7 +325,9 @@ public class PlanRpcService extends PlanServiceImplBase {
             PlanInstance updatedPlanInstance = planDao.updatePlanInstance(planSpec.getPlanId(),
                     planInstanceBuilder -> {
                         planInstanceBuilder
-                                .setTopologyId(planInstance.getProjectedTopologyId())
+                                // In Plan over plan, the projected topology from the previous plan
+                                // becomes the source topology for the next plan.
+                                .setSourceTopologyId(planInstance.getProjectedTopologyId())
                                 .setProjectedTopologyId(0)
                                 .addActionPlanId(0)
                                 .clearStatsAvailable()

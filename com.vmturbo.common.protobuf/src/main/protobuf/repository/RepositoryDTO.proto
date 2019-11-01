@@ -9,11 +9,20 @@ import "CommonDTO.proto";
 import "topology/TopologyDTO.proto";
 import "stats/Stats.proto";
 
+enum TopologyType {
+    // Means source topology.
+    SOURCE = 1;
+    // Means projected topology.
+    PROJECTED = 2;
+}
+
 message DeleteTopologyRequest {
     // the id of the topology to delete
     optional int64 topology_id = 1;
     // For plan topology, the topologyContextId=planId.
     optional int64 topology_context_id = 2;
+    // The type of topology to delete, either SOURCE or PROJECTED
+    optional TopologyType topology_type = 3;
 }
 
 message RepositoryOperationResponse {
@@ -61,13 +70,6 @@ message RetrieveTopologyEntitiesRequest {
     // The type of entity to return. This allows the client to specify a detail
     // level, to reduce memory and CPU overhead.
     optional .topology.PartialEntity.Type return_type = 7;
-
-    enum TopologyType {
-        // Means source topology.
-        SOURCE = 1;
-        // Means projected topology.
-        PROJECTED = 2;
-    }
 }
 
 enum RepositoryOperationResponseCode {
@@ -145,15 +147,14 @@ service RepositoryService {
     // repositoryMaxEntitiesPerChunk property.
     rpc RetrieveTopologyEntities(RetrieveTopologyEntitiesRequest) returns (stream .topology.PartialEntityBatch);
 
-    // Fetch the stats related to a given plan execution. The request includes a StatsFilter specifying
-    // a startDate and endDate. If the startDate is in the past, then this call will include a
-    // StatsSnapshot containing the stats from the Plan Source topology.
+    // Fetch the stats related to a given plan execution.
     //
-    // TODO: fetching from the plan source topology is not yet implemented; the plan source topology
-    // is not yet persisted and so cannot be retrieved.
+    // The request includes a StatsFilter. While most fields in the StatsFilter will be respected
+    // by the query, the startDate and endDate fields are ignored.
     //
-    // If the endDate is in the future, then the responses will include a StatSnapshot with
-    // the stats from the Plan Projected topology.
+    // Instead, the stats related to the requested topologyId will be returned. Since source and
+    // projected topologies will have different IDs (even for the same plan), there is no ambiguity
+    // about which data to return (source or projected).
     //
     // The stats in each StatSnapshot returned will be restricted to commodities in the commodity_name
     // list in the StatsFilter parameter, if any. Otherwise, all stats will be returned.

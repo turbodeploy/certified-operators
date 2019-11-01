@@ -99,7 +99,7 @@ public class PlanTest {
     public void testCrud() throws Exception {
         final PlanInstance instance = planClient.createPlan(request);
         final PlanId planId = PlanId.newBuilder().setPlanId(instance.getPlanId()).build();
-        Assert.assertEquals(request.getTopologyId(), instance.getTopologyId());
+        Assert.assertEquals(request.getTopologyId(), instance.getSourceTopologyId());
         Assert.assertEquals(instance, planClient.getPlan(planId).getPlanInstance());
         Assert.assertEquals(instance, planClient.deletePlan(planId));
         Assert.assertFalse(planClient.getPlan(planId).hasPlanInstance());
@@ -113,7 +113,7 @@ public class PlanTest {
         planClient.deletePlan(PlanId.newBuilder().setPlanId(instance.getPlanId()).build());
 
         Mockito.verify(repositoryClient,
-                Mockito.never()).deleteTopology(Mockito.anyLong(), Mockito.anyLong());
+                Mockito.never()).deleteTopology(Mockito.anyLong(), Mockito.anyLong(), Mockito.any());
     }
 
     /**

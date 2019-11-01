@@ -6,6 +6,8 @@ import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.vmturbo.common.protobuf.repository.RepositoryDTO;
+
 /**
  * The {@link TopologyID} is meant to contain identity-related properties of a topology, and
  * allow comparing and grouping topologies. It's basically a container for topology ID, context ID,
@@ -139,6 +141,26 @@ public class TopologyID implements Serializable {
          * the market's analysis of a source topology.
          */
         PROJECTED;
+
+        /**
+         * Map a {@link RepositoryDTO.TopologyType} to a {@link TopologyType}
+         *
+         * <p>{@link RepositoryDTO.TopologyType} is used to represent the type of a topology in
+         * protobuf messages used in gRPC requests between components. {@link TopologyType} is
+         * used to represent the same thing within the repository as part of the identification
+         * of a topology in the database.</p>
+         *
+         * @param dtoTopologyType the {@link RepositoryDTO.TopologyType} to convert
+         * @return a {@link TopologyType} representing the same topology type
+         */
+        public static TopologyType mapTopologyType(RepositoryDTO.TopologyType dtoTopologyType) {
+            switch (dtoTopologyType) {
+                case SOURCE: return SOURCE;
+                case PROJECTED: return PROJECTED;
+                default: throw new IllegalArgumentException("TopologyType " + dtoTopologyType.name()
+                    + " not recognized");
+            }
+        }
     }
 
 }

@@ -344,6 +344,7 @@ public class TopologyLifecycleManager implements Diagnosable {
             return new ArangoSourceTopologyCreator(
                 topologyID,
                 graphDatabaseDriverBuilder,
+                topologyProtobufsManager,
                 this::registerTopology,
                 graphDriver -> new TopologyGraphCreator(graphDriver, graphDefinition),
                 TopologyEntityDTOConverter::convertToServiceEntityRepoDTOs,
@@ -454,24 +455,30 @@ public class TopologyLifecycleManager implements Diagnosable {
      * this has no effect.
      *
      * TODO (roman, Nov 7 2017): We probably don't need topology-level granularity, and only
-     * want to clear a whole context. This would make bookeeping simpler. But we need to convert
+     * want to clear a whole context. This would make book keeping simpler. But we need to convert
      * topology protobuf manager to operate on context IDs before we can do that.
      *
      * @param tid The ID of the topology to remove.
      * @throws TopologyDeletionException If there are errors deleting the topology.
      */
     public void deleteTopology(@Nonnull final TopologyID tid) throws TopologyDeletionException {
+        // There will be two separate deletion operations. Collect any associated errors to be
+        // reported after both attempts.
         final List<String> errors = new LinkedList<>();
+        // First delete the raw protobufs stored for the supplied topology
         try {
-            topologyProtobufsManager.createTopologyProtobufReader(tid.getTopologyId(),
-                    Optional.empty()).delete();
+            topologyProtobufsManager
+                .createTopologyProtobufReader(tid.getTopologyId(), Optional.empty())
+                .delete();
         } catch (NoSuchElementException e) {
             // This is not considered an error, since the requested topology is "deleted" now :)
-            LOGGER.warn("No topology protobufs to delete for topology {}", tid);
+            // In other words, topology deletion is an idempotent operation, which results in the
+            // same outcome no matter how many consecutive times it is executed.
+            LOGGER.warn("No topology protobufs to delete for topology {}", tid.getTopologyId());
         } catch (ArangoDBException e) {
             errors.add(e.getErrorMessage());
         }
-
+        // Next, delete the graph representation of the supplied topology
         try {
             graphDatabaseDriverBuilder.build(tid.toDatabaseName()).dropDatabase();
 
@@ -487,6 +494,7 @@ public class TopologyLifecycleManager implements Diagnosable {
         } catch (ArangoDBException e) {
             if (e.getErrorNum() == ERROR_ARANGO_DATABASE_NOT_FOUND) {
                 // This is not considered an error, since the requested db is "deleted" now :)
+                // Topology deletion is an idempotent operation.
                 LOGGER.warn("No database to delete for topology {}", tid);
             } else {
                 errors.add(e.getErrorMessage());
@@ -766,6 +774,7 @@ public class TopologyLifecycleManager implements Diagnosable {
 
         ArangoSourceTopologyCreator(@Nonnull final TopologyID topologyID,
                               @Nonnull final GraphDatabaseDriverBuilder graphDatabaseDriverBuilder,
+                              @Nonnull final TopologyProtobufsManager protobufsManager,
                               @Nonnull final Consumer<TopologyID> onComplete,
                               @Nonnull final TopologyGraphCreatorFactory topologyGraphCreatorFactory,
                               @Nonnull final EntityConverter entityConverter,
@@ -774,11 +783,14 @@ public class TopologyLifecycleManager implements Diagnosable {
                               final long realtimeTopologyContextId,
                               final int numberOfExpectedRealtimeSourceDB,
                               final int numberOfExpectedRealtimeProjectedDB) {
-            super(topologyID, graphDatabaseDriverBuilder, Optional.empty(), onComplete,
-                    topologyGraphCreatorFactory, entityConverter, globalSupplyChainManager,
-                    graphDBExecutor, realtimeTopologyContextId, numberOfExpectedRealtimeSourceDB,
-                    numberOfExpectedRealtimeProjectedDB);
-            Preconditions.checkArgument(!topologyProtobufWriter.isPresent());
+            super(topologyID, graphDatabaseDriverBuilder,
+                TopologyUtil.isPlanSourceTopology(topologyID, realtimeTopologyContextId)
+                    ? Optional.of(protobufsManager
+                        .createSourceTopologyProtobufWriter(topologyID.getTopologyId()))
+                    : Optional.empty(),
+                onComplete, topologyGraphCreatorFactory, entityConverter, globalSupplyChainManager,
+                graphDBExecutor, realtimeTopologyContextId, numberOfExpectedRealtimeSourceDB,
+                numberOfExpectedRealtimeProjectedDB);
             this.globalSupplyChain = new GlobalSupplyChain(topologyID, graphDBExecutor);
         }
 
@@ -795,6 +807,7 @@ public class TopologyLifecycleManager implements Diagnosable {
             try {
                 topologyGraphCreator.updateTopologyToDb(entityConverter.convert(entities));
                 globalSupplyChain.processEntities(entities);
+                topologyProtobufWriter.ifPresent(writer -> writer.storeChunk(entities));
             } catch (VertexOperationException | EdgeOperationException | CollectionOperationException e) {
                 throw new TopologyEntitiesException(e);
             }
@@ -831,8 +844,10 @@ public class TopologyLifecycleManager implements Diagnosable {
                                  final int numberOfExpectedRealtimeSourceDB,
                                  final int numberOfExpectedRealtimeProjectedDB) {
             super(topologyID, graphDatabaseDriverBuilder,
-                TopologyUtil.isPlanProjectedTopology(topologyID, realtimeTopologyContextId) ?
-                    Optional.of(protobufsManager.createTopologyProtobufWriter(topologyID.getTopologyId())) : Optional.empty(),
+                TopologyUtil.isPlanProjectedTopology(topologyID, realtimeTopologyContextId)
+                    ? Optional.of(protobufsManager
+                        .createProjectedTopologyProtobufWriter(topologyID.getTopologyId()))
+                    : Optional.empty(),
                     onComplete, topologyGraphCreatorFactory, entityConverter, globalSupplyChainManager,
                     graphDBExecutor, realtimeTopologyContextId, numberOfExpectedRealtimeSourceDB,
                     numberOfExpectedRealtimeProjectedDB);

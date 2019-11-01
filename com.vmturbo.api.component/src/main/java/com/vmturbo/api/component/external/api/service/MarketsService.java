@@ -455,6 +455,7 @@ public class MarketsService implements IMarketsService {
 
             // Get the list of unplaced entities from the repository for this plan
             PlanInstance plan = planResponse.getPlanInstance();
+            // TODO: OM-47880 update this to also handle the source topology
             final long topologyId = plan.getProjectedTopologyId();
 
             Iterable<RetrieveTopologyResponse> response = () ->
