@@ -207,6 +207,7 @@ public class AnalysisServer implements AutoCloseable {
                         currPartial);
         ProtobufToAnalysis.populateRawCommodityMap(endDiscMsg, currPartial);
         ProtobufToAnalysis.populateCommodityProducesDependancyMap(endDiscMsg, currPartial);
+        ProtobufToAnalysis.populateHistoryBasedResizeDependencyMap(endDiscMsg, currPartial);
         ProtobufToAnalysis.commToAdjustOverhead(endDiscMsg, currPartial);
 
         if (message.getMarketName().equals("Deploy")) {
