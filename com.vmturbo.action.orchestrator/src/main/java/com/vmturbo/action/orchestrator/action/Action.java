@@ -501,7 +501,7 @@ public class Action implements ActionView {
 
     /**
      * Get the translation of the action from the market's domain-agnostic representation into
-     * the domain-specific real-world representaiton. See {@link ActionTranslation} for more details.
+     * the domain-specific real-world representation. See {@link ActionTranslation} for more details.
      *
      * @return The {@link ActionTranslation} associated with this action.
      */
@@ -511,6 +511,15 @@ public class Action implements ActionView {
         synchronized (recommendationLock) {
             return actionTranslation;
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Nonnull
+    public ActionDTO.Action getTranslationResultOrOriginal() {
+        return getActionTranslation().getTranslationResultOrOriginal();
     }
 
     /**

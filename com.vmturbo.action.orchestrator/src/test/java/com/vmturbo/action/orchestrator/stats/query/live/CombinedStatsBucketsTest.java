@@ -14,12 +14,11 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import org.junit.Test;
-
 import com.google.common.collect.Sets;
 
+import org.junit.Test;
+
+import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.stats.query.live.CombinedStatsBuckets.CombinedStatsBucketsFactory;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -38,6 +37,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -77,17 +77,11 @@ public class CombinedStatsBucketsTest {
         final CombinedStatsBuckets buckets = factory.bucketsForQuery(queryInfo);
 
         final SingleActionInfo savingsAction = actionInfo(
-            bldr -> {
-                bldr.setSavingsPerHour(CurrencyAmount.newBuilder()
-                    .setAmount(1));
-            },
+            bldr -> bldr.setSavingsPerHour(CurrencyAmount.newBuilder().setAmount(1)),
             view -> {},
             Sets.newHashSet(CLOUD_VM, ON_PREM_VM));
         final SingleActionInfo investmentAction = actionInfo(
-            bldr -> {
-                bldr.setSavingsPerHour(CurrencyAmount.newBuilder()
-                    .setAmount(-1));
-            },
+            bldr -> bldr.setSavingsPerHour(CurrencyAmount.newBuilder().setAmount(-1)),
             view -> {},
             // One of the same entities involved.
             Sets.newHashSet(ON_PREM_VM));
@@ -456,8 +450,7 @@ public class CombinedStatsBucketsTest {
             .setDeprecatedImportance(1);
         actionCustomizer.accept(builder);
 
-        final ActionView actionView = mock(ActionView.class);
-        when(actionView.getRecommendation()).thenReturn(builder.build());
+        final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(builder.build());
         actionViewConsumer.accept(actionView);
 
         final SingleActionInfo singleActionInfo = ImmutableSingleActionInfo.builder()

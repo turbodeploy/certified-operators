@@ -1,26 +1,25 @@
 package com.vmturbo.action.orchestrator.action;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 import java.util.Optional;
 
 import org.junit.Test;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
-import com.vmturbo.action.orchestrator.action.ActionTranslation;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 public class ActionTranslationTest {
 
-    final ActionDTO.Action original = ActionOrchestratorTestUtils
+    private final ActionDTO.Action original = ActionOrchestratorTestUtils
         .createResizeRecommendation(1, 2, CommodityType.VMEM, 1000, 2000);
 
-    final ActionDTO.Action translated = ActionOrchestratorTestUtils
+    private final ActionDTO.Action translated = ActionOrchestratorTestUtils
         .createResizeRecommendation(1, 2, CommodityType.VMEM, 1, 2);
 
     @Test
-    public void testGetTranslationResultOrOriginal() throws Exception {
+    public void testGetTranslationResultOrOriginal() {
         final ActionTranslation translation = new ActionTranslation(original);
         assertEquals(original, translation.getTranslationResultOrOriginal());
 
@@ -29,7 +28,7 @@ public class ActionTranslationTest {
     }
 
     @Test
-    public void testSetTranslationSuccess() throws Exception {
+    public void testSetTranslationSuccess() {
         final ActionTranslation translation = new ActionTranslation(original);
         assertEquals(Optional.empty(), translation.getTranslatedRecommendation());
 
@@ -38,7 +37,7 @@ public class ActionTranslationTest {
     }
 
     @Test
-    public void testSetPassthroughTranslationSuccess() throws Exception {
+    public void testSetPassthroughTranslationSuccess() {
         final ActionTranslation translation = new ActionTranslation(original);
         assertEquals(Optional.empty(), translation.getTranslatedRecommendation());
 
@@ -47,7 +46,7 @@ public class ActionTranslationTest {
     }
 
     @Test
-    public void testSetTranslationFailure() throws Exception {
+    public void testSetTranslationFailure() {
         final ActionTranslation translation = new ActionTranslation(original);
         assertEquals(Optional.empty(), translation.getTranslatedRecommendation());
 

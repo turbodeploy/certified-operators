@@ -22,17 +22,17 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Maps;
+
+import io.prometheus.client.Summary;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
 import org.jooq.DSLContext;
 import org.jooq.InsertValuesStep5;
 import org.jooq.impl.DSL;
-
-import com.google.common.collect.Iterators;
-import com.google.common.collect.Maps;
-
-import io.prometheus.client.Summary;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionDescriptionBuilder;
@@ -440,7 +440,7 @@ public class PlanActionStore implements ActionStore {
 
         // Forming the actions descriptions
         return translatedActionsToAdd.stream().map(action -> {
-                final ActionDTO.Action recommendation = action.getActionTranslation().getTranslationResultOrOriginal();
+                final ActionDTO.Action recommendation = action.getTranslationResultOrOriginal();
                 return ImmutableActionAndDescription.builder()
                     .translatedAction(recommendation)
                     .description(ActionDescriptionBuilder.buildActionDescription(snapshot, recommendation))

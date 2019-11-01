@@ -6,10 +6,7 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
-import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
@@ -108,6 +105,16 @@ public interface ActionView {
      */
     @Nonnull
     ActionTranslation getActionTranslation();
+
+    /**
+     * If translation has succeeded, get the result of translation. If translation has not yet succeeded,
+     * return the untranslated recommendation.
+     *
+     * @return Either the result of the translation or the untranslated recommendation depending on
+     *         whether translation has succeeded.
+     */
+    @Nonnull
+    ActionDTO.Action getTranslationResultOrOriginal();
 
     /**
      * Get the status of the translation associated with this action. See

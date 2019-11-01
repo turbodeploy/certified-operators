@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator;
 
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -11,12 +12,10 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.google.common.collect.ImmutableMap;
+
 import org.junit.Assert;
 import org.mockito.Mockito;
-
-import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
@@ -30,12 +29,13 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -47,14 +47,11 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public class ActionOrchestratorTestUtils {
 
-
     private ActionOrchestratorTestUtils() {}
 
-    public static final long TARGET_ID = 11;
+    private static final long TARGET_ID = 11;
 
     private static final AtomicLong idCounter = new AtomicLong();
-
-    private static int entityType = 1;
 
     private static final int DEFAULT_ENTITY_TYPE = EntityType.VIRTUAL_MACHINE_VALUE;
 
@@ -95,6 +92,7 @@ public class ActionOrchestratorTestUtils {
 
     @Nonnull
     public static ActionDTO.Action createMoveRecommendation(final long actionId) {
+        int entityType = 1;
         return createMoveRecommendation(actionId, idCounter.incrementAndGet(),
             idCounter.incrementAndGet(), entityType,
             idCounter.incrementAndGet(), entityType);
@@ -133,20 +131,6 @@ public class ActionOrchestratorTestUtils {
         return createResizeRecommendation(actionId, TARGET_ID, resizeCommodity, 1.0, 2.0);
     }
 
-    @Nonnull
-    public static ActionSpec resizeActionSpec(final long actionId, final long actionPlanId) {
-        return baseActionSpec(actionPlanId)
-                .setRecommendation(createResizeRecommendation(actionId, CommodityDTO.CommodityType.VMEM))
-                .build();
-    }
-
-    @Nonnull
-    public static ActionSpec moveActionSpec(final long actionId, final long actionPlanId) {
-        return baseActionSpec(actionPlanId)
-                .setRecommendation(createMoveRecommendation(actionId))
-                .build();
-    }
-
     public static void assertActionsEqual(@Nonnull final Action expected,
                                     @Nonnull final Action got) {
         Assert.assertEquals(expected.getId(), got.getId());
@@ -163,8 +147,8 @@ public class ActionOrchestratorTestUtils {
         Assert.assertEquals(expected.getDecision(), got.getDecision());
     }
 
-    public static void assertExecutionStepsEqual(@Nonnull final ExecutableStep expected,
-                                           @Nonnull final ExecutableStep got) {
+    private static void assertExecutionStepsEqual(@Nonnull final ExecutableStep expected,
+            @Nonnull final ExecutableStep got) {
         Assert.assertEquals(expected.getTargetId(), got.getTargetId());
         Assert.assertEquals(expected.getProgressPercentage(), got.getProgressPercentage());
         Assert.assertEquals(expected.getCompletionTime(), got.getCompletionTime());
@@ -182,14 +166,6 @@ public class ActionOrchestratorTestUtils {
             .setDeprecatedImportance(0)
             .setExecutable(true)
             .setExplanation(Explanation.newBuilder().build());
-    }
-
-    private static ActionSpec.Builder baseActionSpec(final long actionPlanId) {
-        return ActionSpec.newBuilder()
-                .setActionPlanId(actionPlanId)
-                .setRecommendationTime(System.currentTimeMillis())
-                .setActionMode(ActionMode.MANUAL)
-                .setIsExecutable(true);
     }
 
     public static Map<String, Setting> makeActionModeSetting(ActionMode mode) {
@@ -260,5 +236,21 @@ public class ActionOrchestratorTestUtils {
             ct.setKey(key);
         }
         return Explanation.ReasonCommodity.newBuilder().setCommodityType(ct.build()).build();
+    }
+
+    /**
+     * Mock {@link ActionView} instance.
+     *
+     * @param action Action that is backing {@code ActionView}.
+     * @return Mocked {@code ActionView} instance.
+     */
+    @Nonnull
+    public static ActionView mockActionView(ActionDTO.Action action) {
+        final ActionView actionView = mock(ActionView.class);
+
+        when(actionView.getRecommendation()).thenReturn(action);
+        when(actionView.getTranslationResultOrOriginal()).thenReturn(action);
+
+        return actionView;
     }
 }

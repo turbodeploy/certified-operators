@@ -3,11 +3,11 @@ package com.vmturbo.action.orchestrator.stats;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import org.junit.Test;
 
+import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.stats.StatsActionViewFactory.StatsActionView;
 import com.vmturbo.action.orchestrator.stats.groups.ActionGroup.ActionGroupKey;
@@ -30,7 +30,6 @@ public class StatsActionViewFactoryTest {
     public void testFactoryFromActionView() throws UnsupportedActionException {
         // Arrange
         final StatsActionViewFactory factory = new StatsActionViewFactory();
-        final ActionView actionView = mock(ActionView.class);
         final ActionEntity targetEntity = ActionEntity.newBuilder()
                 .setId(1L)
                 .setType(EntityType.VIRTUAL_MACHINE_VALUE)
@@ -46,7 +45,7 @@ public class StatsActionViewFactoryTest {
                                 .setEndUtilization(2)))
                 .setDeprecatedImportance(10)
                 .build();
-        when(actionView.getRecommendation()).thenReturn(recommendation);
+        final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(recommendation);
         when(actionView.getState()).thenReturn(ActionState.QUEUED);
         when(actionView.getMode()).thenReturn(ActionMode.AUTOMATIC);
         when(actionView.getActionCategory()).thenReturn(ActionCategory.PERFORMANCE_ASSURANCE);

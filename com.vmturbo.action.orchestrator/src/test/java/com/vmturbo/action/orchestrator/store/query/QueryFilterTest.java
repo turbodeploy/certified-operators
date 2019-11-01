@@ -2,8 +2,6 @@ package com.vmturbo.action.orchestrator.store.query;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
@@ -11,17 +9,15 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
-import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.PlanActionStore;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
@@ -47,8 +43,6 @@ public class QueryFilterTest {
     private ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
     private static final long ACTION_PLAN_ID = 9876;
 
-    private final ActionStore actionStore = mock(ActionStore.class);
-
     private final ActionQueryFilter visibleFilter = ActionQueryFilter.newBuilder()
         .setVisible(true)
         .build();
@@ -70,7 +64,7 @@ public class QueryFilterTest {
             .build();
 
     @Test
-    public void testEmptyFilter() throws Exception {
+    public void testEmptyFilter() {
         // Even if the visibility is false, the spec should still pass the test if no visibility
         // filter is included.
         final QueryFilter filter = new QueryFilter(ActionQueryFilter.newBuilder().build(), view -> false);
@@ -83,7 +77,7 @@ public class QueryFilterTest {
     }
 
     @Test
-    public void testExecutableDisabledNotVisible() throws Exception {
+    public void testExecutableDisabledNotVisible() {
         final ActionView actionView =
             notExecutableMoveAction(0L/*id*/, 1L/*srcId*/, 1/*srcType*/, 2L/*destId*/, 1/*destType*/, 3L/*targetId*/);
         when(actionView.getMode()).thenReturn(ActionMode.DISABLED);
@@ -95,7 +89,7 @@ public class QueryFilterTest {
     }
 
     @Test
-    public void testManualNotExecutableVisible() throws Exception {
+    public void testManualNotExecutableVisible() {
         final ActionView actionView =
             notExecutableMoveAction(0L/*id*/, 1L/*srcId*/, 1/*srcType*/, 2L/*destId*/, 1/*destType*/, 3L/*targetId*/);
         when(actionView.getMode()).thenReturn(ActionMode.MANUAL);
@@ -105,7 +99,7 @@ public class QueryFilterTest {
     }
 
     @Test
-    public void testManualReadyAndExecutableVisible() throws Exception {
+    public void testManualReadyAndExecutableVisible() {
         final ActionView actionView =
             executableMoveAction(0L/*id*/, 1L/*srcId*/, 1/*srcType*/, 2L/*destId*/, 1/*destType*/, 3L/*targetId*/);
         when(actionView.getMode()).thenReturn(ActionMode.MANUAL);
@@ -117,7 +111,7 @@ public class QueryFilterTest {
     }
 
     @Test
-    public void testManualVisibleNotSetDoesNotFilter() throws Exception {
+    public void testManualVisibleNotSetDoesNotFilter() {
         final ActionView actionView =
             notExecutableMoveAction(0L/*id*/, 1L/*srcId*/, 1/*srcType*/, 2L/*destId*/, 1/*destType*/, 3L/*targetId*/);
         when(actionView.getMode()).thenReturn(ActionMode.MANUAL);
@@ -126,7 +120,7 @@ public class QueryFilterTest {
     }
 
     @Test
-    public void testRecommendVisible() throws Exception {
+    public void testRecommendVisible() {
         final ActionView actionView =
             notExecutableMoveAction(0L/*id*/, 1L/*srcId*/, 1/*srcType*/, 2L/*destId*/, 1/*destType*/, 3L/*targetId*/);
         when(actionView.getMode()).thenReturn(ActionMode.RECOMMEND);
@@ -135,7 +129,7 @@ public class QueryFilterTest {
     }
 
     @Test
-    public void testStateMatch() throws Exception {
+    public void testStateMatch() {
         final ActionView actionView =
             notExecutableMoveAction(0L/*id*/, 1L/*srcId*/, 1/*srcType*/, 2L/*destId*/, 1/*destType*/, 3L/*targetId*/);
         when(actionView.getMode()).thenReturn(ActionMode.RECOMMEND);
@@ -146,7 +140,7 @@ public class QueryFilterTest {
     }
 
     @Test
-    public void testStateNoMatch() throws Exception {
+    public void testStateNoMatch() {
         final ActionView actionView =
             notExecutableMoveAction(0L/*id*/, 1L/*srcId*/, 1/*srcType*/, 2L/*destId*/, 1/*destType*/, 3L/*targetId*/);
         when(actionView.getMode()).thenReturn(ActionMode.RECOMMEND);
@@ -156,7 +150,7 @@ public class QueryFilterTest {
     }
 
     @Test
-    public void testTypeFilterNoMatch() throws Exception {
+    public void testTypeFilterNoMatch() {
         final ActionView actionView =
                 notExecutableMoveAction(0L/*id*/, 1L/*srcId*/, 1/*srcType*/, 2L/*destId*/, 1/*destType*/, 3L/*targetId*/);
         assertFalse(new QueryFilter(ActionQueryFilter.newBuilder()
@@ -165,7 +159,7 @@ public class QueryFilterTest {
     }
 
     @Test
-    public void testTypeFilterMatch() throws Exception {
+    public void testTypeFilterMatch() {
         final ActionView actionView =
                 notExecutableMoveAction(0L/*id*/, 1L/*srcId*/, 1/*srcType*/, 2L/*destId*/, 1/*destType*/, 3L/*targetId*/);
         assertTrue(new QueryFilter(ActionQueryFilter.newBuilder()
@@ -208,7 +202,7 @@ public class QueryFilterTest {
     }
 
     @Test
-    public void testStateAndVisibleMatch() throws Exception {
+    public void testStateAndVisibleMatch() {
         final ActionView actionView =
             notExecutableMoveAction(0L/*id*/, 1L/*srcId*/, 1/*srcType*/, 2L/*destId*/, 1/*destType*/, 3L/*targetId*/);
         when(actionView.getMode()).thenReturn(ActionMode.MANUAL);
@@ -321,8 +315,7 @@ public class QueryFilterTest {
         final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
             .setEnvironmentType(EnvironmentType.CLOUD)
             .build();
-        final ActionView actionView = mock(ActionView.class);
-        when(actionView.getRecommendation()).thenReturn(action);
+        final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(action);
         assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
             .test(actionView));
     }
@@ -345,8 +338,7 @@ public class QueryFilterTest {
         final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
             .setEnvironmentType(EnvironmentType.ON_PREM)
             .build();
-        final ActionView actionView = mock(ActionView.class);
-        when(actionView.getRecommendation()).thenReturn(action);
+        final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(action);
         assertFalse(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
             .test(actionView));
     }
@@ -368,8 +360,7 @@ public class QueryFilterTest {
 
         final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
             .build();
-        final ActionView actionView = mock(ActionView.class);
-        when(actionView.getRecommendation()).thenReturn(action);
+        final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(action);
         // Should pass the filter, since no environment type is specified.
         assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
             .test(actionView));
@@ -389,8 +380,7 @@ public class QueryFilterTest {
         final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
             .setEnvironmentType(EnvironmentType.ON_PREM)
             .build();
-        final ActionView actionView = mock(ActionView.class);
-        when(actionView.getRecommendation()).thenReturn(action);
+        final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(action);
         assertFalse(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
             .test(actionView));
     }

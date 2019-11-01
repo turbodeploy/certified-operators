@@ -21,12 +21,12 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.protobuf.util.JsonFormat;
 
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
-
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent;
@@ -46,8 +46,6 @@ import com.vmturbo.action.orchestrator.stats.query.live.FailedActionQueryExcepti
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse.StoreDeletionException;
-import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
-import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
@@ -62,7 +60,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
@@ -217,8 +214,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                     AcceptActionResponse attemptResponse = attemptAcceptAndExecute(action,
                             userNameAndUuid);
                     if (!action.isReady()) {
-                        store.getEntitySeverityCache()
-                                .refresh(action.getRecommendation(), store);
+                        store.getEntitySeverityCache().refresh(
+                                action.getTranslationResultOrOriginal(), store);
                     }
                     AuditLog.newEntry(AuditAction.EXECUTE_ACTION, action.getDescription(), true)
                         .targetName(String.valueOf(action.getId()))
@@ -445,7 +442,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                 // In the final Map, there will be one entry: key Host2 and Value is Action 1.
                 translatedActionViews.forEach(actionView -> {
                     try {
-                        ActionDTOUtil.getInvolvedEntityIds(actionView.getRecommendation()).stream()
+                        ActionDTOUtil.getInvolvedEntityIds(actionView.getTranslationResultOrOriginal())
+                                .stream()
                                 // We only care about actions that involve the target entities.
                                 .filter(targetEntities::contains)
                                 .forEach(entityId -> actionsByEntity.put(entityId, actionView));
@@ -552,20 +550,11 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         // group by {ActionCategory, numAction|numEntities, costPrice(savings|investment)}
         actionTranslator.translateToSpecs(actionStore.get().getActionViews().getAll().collect(Collectors.toList()))
             .forEach(actionSpec -> {
-                ActionCategory category = actionSpec.getCategory();
-                switch (category) {
-                    case PERFORMANCE_ASSURANCE:
-                        actionCategoryStatsMap.get(category).addAction(actionSpec.getRecommendation());
-                        break;
-                    case PREVENTION:
-                        actionCategoryStatsMap.get(category).addAction(actionSpec.getRecommendation());
-                        break;
-                    case COMPLIANCE:
-                        actionCategoryStatsMap.get(category).addAction(actionSpec.getRecommendation());
-                        break;
-                    case UNKNOWN:
-                        logger.error("Unknown action category for {}", actionSpec);
-                        break;
+                final ActionCategory category = actionSpec.getCategory();
+                if (category == ActionCategory.UNKNOWN) {
+                    logger.error("Unknown action category for {}", actionSpec);
+                } else {
+                    actionCategoryStatsMap.get(category).addAction(actionSpec.getRecommendation());
                 }
             });
 
@@ -644,8 +633,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         long actionTargetId = -1;
         Optional<FailureEvent> failure = Optional.empty();
 
-        ActionTargetInfo actionTargetInfo =
-            actionTargetSelector.getTargetForAction(action.getRecommendation());
+        ActionTargetInfo actionTargetInfo = actionTargetSelector.getTargetForAction(
+                action.getTranslationResultOrOriginal());
         if (actionTargetInfo.supportingLevel() == SupportLevel.SUPPORTED) {
             // Target should be set if support level is "supported".
             actionTargetId = actionTargetInfo.targetId().get();
@@ -820,7 +809,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
 
     private static Map<ActionType, Long> getActionsByType(@Nonnull final Stream<ActionView> actionViewStream) {
         return actionViewStream
-                .map(ActionView::getRecommendation)
+                .map(ActionView::getTranslationResultOrOriginal)
                 .collect(Collectors.groupingBy(
                         ActionDTOUtil::getActionInfoActionType,
                         Collectors.counting()));
@@ -854,6 +843,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                 .setActionSpec(spec)
                 .build();
     }
+
     /**
      *  A helper class for accumulating the stats for each action category.
      */

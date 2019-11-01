@@ -48,7 +48,6 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
     private static final long TOPOLOGY_ID = 7L;
     private static final long TOPOLOGY_CONTEXT_ID = 77L;
     private static final long ENTITY_ID = 1L;
-    private static final EntityType VM_ENTITY_TYPE = EntityType.VIRTUAL_MACHINE;
     private static final String VM_CLASSIC_ENTITY_TYPE = "VirtualMachine";
 
     private SettingPolicyServiceMole spServiceSpy = spy(new SettingPolicyServiceMole());

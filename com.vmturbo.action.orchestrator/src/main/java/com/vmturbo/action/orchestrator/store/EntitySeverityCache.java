@@ -146,9 +146,8 @@ public class EntitySeverityCache {
      */
     private void handleActionSeverity(@Nonnull final ActionView actionView) {
         try {
-            final long severityEntity =
-                            ActionDTOUtil.getSeverityEntity(
-                                actionView.getRecommendation());
+            final long severityEntity = ActionDTOUtil.getSeverityEntity(
+                    actionView.getTranslationResultOrOriginal());
             final Severity nextSeverity = ActionDTOUtil.mapActionCategoryToSeverity(
                 actionView.getActionCategory());
 
@@ -172,9 +171,8 @@ public class EntitySeverityCache {
      */
     private boolean matchingSeverityEntity(long severityEntity, @Nonnull final ActionView actionView) {
         try {
-            long specSeverityEntity =
-                            ActionDTOUtil.getSeverityEntity(
-                                actionView.getRecommendation());
+            long specSeverityEntity = ActionDTOUtil.getSeverityEntity(
+                    actionView.getTranslationResultOrOriginal());
             return specSeverityEntity == severityEntity;
         } catch (UnsupportedActionException e) {
             return false;

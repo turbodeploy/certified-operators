@@ -100,7 +100,7 @@ public class PlanActionStoreTransactionTest {
     }
 
     @Test
-    public void testRollbackWhenErrorDuringPopulateClean() throws Exception {
+    public void testRollbackWhenErrorDuringPopulateClean() {
         MockDataProvider mockProvider = providerFailingOn("DELETE");
         actionStore = new PlanActionStore(actionFactory, contextFor(mockProvider), topologyContextId, entitiesSnapshotFactory, actionTranslator, realtimeId);
 
@@ -115,7 +115,7 @@ public class PlanActionStoreTransactionTest {
     }
 
     @Test
-    public void testRollbackWhenErrorDuringPopulateStore() throws Exception {
+    public void testRollbackWhenErrorDuringPopulateStore() {
         MockDataProvider mockProvider = providerFailingOn("INSERT");
         actionStore = new PlanActionStore(actionFactory, contextFor(mockProvider), topologyContextId, entitiesSnapshotFactory, actionTranslator, realtimeId);
 
@@ -127,7 +127,7 @@ public class PlanActionStoreTransactionTest {
     }
 
     @Test
-    public void testRollbackWhenErrorDuringOverwrite() throws Exception {
+    public void testRollbackWhenErrorDuringOverwrite() {
         MockDataProvider mockProvider = providerFailingOn("INSERT");
         actionStore = new PlanActionStore(actionFactory, contextFor(mockProvider), topologyContextId, entitiesSnapshotFactory, actionTranslator, realtimeId);
 
@@ -142,7 +142,7 @@ public class PlanActionStoreTransactionTest {
     }
 
     @Test
-    public void testRollbackDuringClear() throws Exception {
+    public void testRollbackDuringClear() {
         MockDataProvider mockProvider = providerFailingOn("DELETE");
         actionStore = new PlanActionStore(actionFactory, contextFor(mockProvider), topologyContextId, entitiesSnapshotFactory, actionTranslator, realtimeId);
 

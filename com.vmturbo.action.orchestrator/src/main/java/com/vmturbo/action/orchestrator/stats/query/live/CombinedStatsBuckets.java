@@ -16,18 +16,18 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
 
+import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.ExplanationComposer;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
-import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat.StatGroup;
+import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 
 /**
  * Represents a set of "buckets", where each bucket contains stats for action groups that
@@ -94,30 +94,29 @@ class CombinedStatsBuckets {
         // When processing lots of actions creating all of these keys may be inefficient.
         // If necessary we can consider a "faster" implementation, or recycling the keys.
         final ImmutableGroupByBucketKey.Builder keyBuilder = ImmutableGroupByBucketKey.builder();
+        final ActionView actionView = actionInfo.action();
+        final ActionDTO.Action action = actionView.getTranslationResultOrOriginal();
         if (groupBy.contains(GroupBy.ACTION_CATEGORY)) {
-            keyBuilder.category(actionInfo.action().getActionCategory());
+            keyBuilder.category(actionView.getActionCategory());
         }
         if (groupBy.contains(GroupBy.ACTION_EXPLANATION)) {
-            keyBuilder.explanation(ExplanationComposer.shortExplanation(
-                actionInfo.action().getRecommendation()));
+            keyBuilder.explanation(ExplanationComposer.shortExplanation(action));
         }
         if (groupBy.contains(GroupBy.ACTION_STATE)) {
-            keyBuilder.state(actionInfo.action().getState());
+            keyBuilder.state(actionView.getState());
         }
         if (groupBy.contains(GroupBy.ACTION_TYPE)) {
-            keyBuilder.type(ActionDTOUtil.getActionInfoActionType(
-                actionInfo.action().getRecommendation()));
+            keyBuilder.type(ActionDTOUtil.getActionInfoActionType(action));
         }
         if (groupBy.contains(GroupBy.REASON_COMMODITY)) {
-            ActionDTOUtil.getReasonCommodities(actionInfo.action().getRecommendation())
+            ActionDTOUtil.getReasonCommodities(action)
                 .findFirst()
                 .map(reason -> reason.getCommodityType().getType())
                 .ifPresent(keyBuilder::reasonCommodityBaseType);
         }
         if (groupBy.contains(GroupBy.TARGET_ENTITY_TYPE)) {
             try {
-                keyBuilder.targetEntityType(
-                    ActionDTOUtil.getPrimaryEntity(actionInfo.action().getRecommendation()).getType());
+                keyBuilder.targetEntityType(ActionDTOUtil.getPrimaryEntity(action).getType());
             } catch (UnsupportedActionException e) {
                 // This shouldn't really happen unless we add a new action type and forget
                 // to update the code.
@@ -127,8 +126,7 @@ class CombinedStatsBuckets {
         }
         if (groupBy.contains(GroupBy.TARGET_ENTITY_ID)) {
             try {
-                keyBuilder.targetEntityId(
-                    ActionDTOUtil.getPrimaryEntityId(actionInfo.action().getRecommendation()));
+                keyBuilder.targetEntityId(ActionDTOUtil.getPrimaryEntityId(action));
             } catch (UnsupportedActionException e) {
                 logger.error("Failed to get the id of the primary entity of action: {}",
                     e.getMessage());
@@ -171,8 +169,8 @@ class CombinedStatsBuckets {
                 .map(ActionEntity::getId)
                 .forEach(this.involvedEntities::add);
             this.actionCount++;
-            double savingAmount = actionInfo.action().getRecommendation()
-                .getSavingsPerHour().getAmount();
+            double savingAmount = actionInfo.action().getTranslationResultOrOriginal()
+                    .getSavingsPerHour().getAmount();
             if (savingAmount >= 0) {
                 this.savings += savingAmount;
             } else {

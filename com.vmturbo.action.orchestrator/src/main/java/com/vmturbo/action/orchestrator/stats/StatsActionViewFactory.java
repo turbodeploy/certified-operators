@@ -34,9 +34,10 @@ public class StatsActionViewFactory {
         throws UnsupportedActionException {
         final ImmutableStatsActionView.Builder snapshotBuilder =
             ImmutableStatsActionView.builder()
-                .recommendation(action.getRecommendation())
+                .recommendation(action.getTranslationResultOrOriginal())
                 .actionGroupKey(ImmutableActionGroupKey.builder()
-                    .actionType(ActionDTOUtil.getActionInfoActionType(action.getRecommendation()))
+                    .actionType(ActionDTOUtil.getActionInfoActionType(
+                            action.getTranslationResultOrOriginal()))
                     .actionState(action.getState())
                     .actionMode(action.getMode())
                     .category(action.getActionCategory())
@@ -45,8 +46,8 @@ public class StatsActionViewFactory {
         // entity impacted by this action, which also aligns with classic.
         // for example: a move vm action may involve target entity (vm), current entity (current
         // host), new entity (new host), we should only count the vm in "numEntities" stats.
-        snapshotBuilder.addInvolvedEntities(
-                ActionDTOUtil.getPrimaryEntity(action.getRecommendation()));
+        snapshotBuilder.addInvolvedEntities(ActionDTOUtil.getPrimaryEntity(
+                action.getTranslationResultOrOriginal()));
         return snapshotBuilder.build();
     }
 

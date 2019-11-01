@@ -74,15 +74,15 @@ public class QueryFilter {
         }
 
         if (!filter.getTypesList().isEmpty() &&
-                !filter.getTypesList().contains(
-                        ActionDTOUtil.getActionInfoActionType(actionView.getRecommendation()))) {
+                !filter.getTypesList().contains(ActionDTOUtil.getActionInfoActionType(
+                        actionView.getTranslationResultOrOriginal()))) {
             return false;
         }
 
         if (filter.hasEnvironmentType()) {
             try {
                 final ActionEnvironmentType envType =
-                    ActionEnvironmentType.forAction(actionView.getRecommendation());
+                    ActionEnvironmentType.forAction(actionView.getTranslationResultOrOriginal());
                 if (!envType.matchesEnvType(filter.getEnvironmentType())) {
                     return false;
                 }
@@ -98,7 +98,7 @@ public class QueryFilter {
             try {
                 // Get the involved entity once.
                 List<ActionEntity> actionInvolvedEntities = ActionDTOUtil.getInvolvedEntities(
-                    actionView.getRecommendation());
+                    actionView.getTranslationResultOrOriginal());
                 // If the caller specified an explicit list of OID to look for, we look in that
                 // list and ignore the specified list of entity types.
                 if (filter.getInvolvedEntities().getOidsCount() > 0) {

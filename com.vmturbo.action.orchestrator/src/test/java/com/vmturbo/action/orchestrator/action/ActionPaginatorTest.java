@@ -19,6 +19,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.DefaultActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.PaginatedActionViews;
@@ -60,15 +61,15 @@ public class ActionPaginatorTest {
     }
 
     private ActionView newActionView(final long id, Consumer<ActionDTO.Action.Builder> recommendationCustomizer) {
-        final ActionView actionView = mock(ActionView.class);
         final ActionDTO.Action.Builder recommendationBuilder = ActionDTO.Action.newBuilder()
                 .setId(id)
                 .setInfo(ActionInfo.getDefaultInstance())
                 .setExplanation(Explanation.getDefaultInstance())
                 .setDeprecatedImportance(0.0);
         recommendationCustomizer.accept(recommendationBuilder);
+        final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(
+                recommendationBuilder.build());
         when(actionView.getId()).thenReturn(id);
-        when(actionView.getRecommendation()).thenReturn(recommendationBuilder.build());
         return actionView;
     }
 

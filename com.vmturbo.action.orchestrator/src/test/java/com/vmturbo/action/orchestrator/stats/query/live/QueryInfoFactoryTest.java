@@ -4,7 +4,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.function.Consumer;
@@ -13,6 +12,7 @@ import javax.annotation.Nonnull;
 
 import org.junit.Test;
 
+import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -262,8 +262,7 @@ public class QueryInfoFactoryTest {
             .setDeprecatedImportance(1);
         actionCustomizer.accept(builder);
 
-        final ActionView actionView = mock(ActionView.class);
-        when(actionView.getRecommendation()).thenReturn(builder.build());
+        final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(builder.build());
         actionViewConsumer.accept(actionView);
 
         final SingleActionInfo singleActionInfo = ImmutableSingleActionInfo.builder()

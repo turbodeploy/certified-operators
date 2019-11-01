@@ -12,16 +12,16 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.jooq.exception.DataAccessException;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 import com.google.common.collect.Sets;
 
 import io.grpc.Status;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionView;
@@ -180,8 +180,8 @@ public class CurrentActionStatReader {
                     // entities, since we need them often.
                     return Optional.of(ImmutableSingleActionInfo.builder()
                         .action(actionView)
-                        .involvedEntities(Sets.newHashSet(
-                            ActionDTOUtil.getInvolvedEntities(actionView.getRecommendation())))
+                        .involvedEntities(Sets.newHashSet(ActionDTOUtil.getInvolvedEntities(
+                                actionView.getTranslationResultOrOriginal())))
                         .build());
                 } catch (UnsupportedActionException e) {
                     return Optional.<SingleActionInfo>empty();

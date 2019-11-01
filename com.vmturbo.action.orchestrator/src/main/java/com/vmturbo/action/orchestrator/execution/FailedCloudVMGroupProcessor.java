@@ -7,12 +7,15 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+
 import io.grpc.StatusRuntimeException;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -204,7 +207,7 @@ public class FailedCloudVMGroupProcessor {
      */
     private void handleActionUpdate(@Nonnull ActionView action, boolean failed) {
         try {
-            ActionDTO.Action actionDTO = action.getActionTranslation().getTranslationResultOrOriginal();
+            ActionDTO.Action actionDTO = action.getTranslationResultOrOriginal();
             ActionEntity actionEntity = ActionDTOUtil.getPrimaryEntity(actionDTO);
             if (!isValidAction(actionDTO, actionEntity)) {
                 logger.debug("Only processing action on VMs running Environment type Cloud of action type Move or Resize");

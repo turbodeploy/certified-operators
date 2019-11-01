@@ -5,10 +5,10 @@ import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Sets;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ActionGroupFilter;
@@ -109,7 +109,8 @@ public class QueryInfoFactory {
                 // Note - using "contains" instead of constructing a new set, because the
                 // input list is a single-digit size.
                 return actionGroupFilter.getActionTypeList().contains(
-                    ActionDTOUtil.getActionInfoActionType(actionInfo.action().getRecommendation()));
+                        ActionDTOUtil.getActionInfoActionType(
+                                actionInfo.action().getTranslationResultOrOriginal()));
             });
         }
         if (!actionGroupFilter.getActionCategoryList().isEmpty()) {

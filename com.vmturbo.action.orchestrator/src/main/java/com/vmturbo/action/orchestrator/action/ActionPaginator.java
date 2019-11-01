@@ -12,13 +12,12 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Preconditions;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.base.Preconditions;
-
 import com.vmturbo.action.orchestrator.store.query.QueryFilter;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.ActionOrderBy;
@@ -59,7 +58,8 @@ public class ActionPaginator {
             return a1CategoryName.compareTo(a2CategoryName);
         }));
         registry.put(ActionOrderBy.ACTION_SAVINGS,
-            new StableActionComparator(Comparator.comparingDouble(view -> view.getRecommendation().getSavingsPerHour().getAmount())));
+            new StableActionComparator(Comparator.comparingDouble(view ->
+                    view.getTranslationResultOrOriginal().getSavingsPerHour().getAmount())));
         registry.put(ActionOrderBy.ACTION_RECOMMENDATION_TIME,
             new StableActionComparator((a1, a2) -> {
             final LocalDateTime a1Time = a1.getRecommendationTime();
