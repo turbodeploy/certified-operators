@@ -324,8 +324,8 @@ public class RICostDataUploader {
                         .newBuilder();
                     if (riData.hasShared()) {
                         scopeInfo.setShared(riData.getShared());
-                        if (!riData.getShared() && riData.getAppliedScopesCount() > 1) {
-                            logger.warn("Single scoped RI has {} applied scopes. RI ID is {}.",
+                        if (riData.getShared() && riData.getAppliedScopesCount() > 0) {
+                            logger.warn("Shared RI has {} applied scopes. RI ID is {}.",
                                 riData.getAppliedScopesCount(), riStitchingEntity.getLocalId());
                         }
                     }

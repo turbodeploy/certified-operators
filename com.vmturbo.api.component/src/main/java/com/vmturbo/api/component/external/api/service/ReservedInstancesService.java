@@ -22,7 +22,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
-import com.vmturbo.common.protobuf.topology.UIEntityType;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -57,6 +56,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
@@ -231,6 +231,8 @@ public class ReservedInstancesService implements IReservedInstancesService {
                     reservedInstanceSpecMap.get(riSpecId).getReservedInstanceSpecInfo();
             relateEntityIds.add(reservedInstanceSpecInfo.getRegionId());
             relateEntityIds.add(reservedInstanceSpecInfo.getTierId());
+            relateEntityIds.addAll(reservedInstanceBoughtInfo.getReservedInstanceScopeInfo()
+                    .getApplicableBusinessAccountIdList());
         }
         return relateEntityIds;
     }
@@ -312,7 +314,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
      * Fetch the PlanInstance for the given uuid. It will return empty if the uuid is not valid, or
      * plan doesn't exist.
      */
-    public Optional<PlanInstance> fetchPlanInstance(@Nonnull String uuid) {
+    private Optional<PlanInstance> fetchPlanInstance(@Nonnull String uuid) {
         try {
             // the uuid may be magic string from UI
             final long planId = Long.parseLong(uuid);

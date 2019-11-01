@@ -2,7 +2,6 @@ package com.vmturbo.cost.component.reserved.instance;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -12,10 +11,10 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
@@ -266,9 +265,7 @@ public class ReservedInstanceCoverageValidator {
             @Nonnull final ReservedInstanceBought reservedInstance) {
 
         final ReservedInstanceBoughtInfo riInfo = reservedInstance.getReservedInstanceBoughtInfo();
-        final boolean isReservedInstanceShared = !riInfo.hasReservedInstanceScopeInfo() ||
-                (riInfo.hasReservedInstanceScopeInfo() &&
-                        riInfo.getReservedInstanceScopeInfo().getShared());
+        final boolean isReservedInstanceShared = riInfo.getReservedInstanceScopeInfo().getShared();
         final long riAccount = riInfo.getBusinessAccountId();
 
         return cloudTopology.getOwner(entityDTO.getOid())

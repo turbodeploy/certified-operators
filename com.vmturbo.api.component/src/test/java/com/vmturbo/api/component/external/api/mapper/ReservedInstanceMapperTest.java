@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import static org.junit.Assert.assertEquals;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -22,6 +23,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
@@ -33,6 +35,10 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
  */
 public class ReservedInstanceMapperTest {
 
+    private static final long ACCOUNT_1_ID = 111L;
+    private static final long ACCOUNT_2_ID = 222L;
+    private static final long NOT_EXISTING_ACCOUNT_ID = 333L;
+
     private ReservedInstanceMapper reservedInstanceMapper =
         new ReservedInstanceMapper(new CloudTypeMapper());
 
@@ -41,7 +47,7 @@ public class ReservedInstanceMapperTest {
             .setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
                     .setProbeReservedInstanceId("RI_ID")
                     .setDisplayName("RI display name")
-                    .setBusinessAccountId(11L)
+                    .setBusinessAccountId(ACCOUNT_1_ID)
                     .setNumBought(10)
                     .setAvailabilityZoneId(22L)
                     .setReservedInstanceSpec(99L)
@@ -55,7 +61,13 @@ public class ReservedInstanceMapperTest {
                                     .setAmount(300.0)))
                     .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder()
                             .setNumberOfCouponsUsed(10)
-                            .setNumberOfCoupons(100)))
+                            .setNumberOfCoupons(100))
+                    .setReservedInstanceScopeInfo(ReservedInstanceScopeInfo.newBuilder()
+                            .setShared(false)
+                            .addApplicableBusinessAccountId(ACCOUNT_1_ID)
+                            .addApplicableBusinessAccountId(ACCOUNT_2_ID)
+                            .addApplicableBusinessAccountId(NOT_EXISTING_ACCOUNT_ID)
+                            .build()))
             .build();
 
     private ReservedInstanceSpec riSpec = ReservedInstanceSpec.newBuilder()
@@ -75,11 +87,14 @@ public class ReservedInstanceMapperTest {
     public void testMapToReservedInstanceApiDTO() throws Exception {
         final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap = new HashMap<>();
         final float delta = 0.000001f;
-        final ServiceEntityApiDTO businessAccount = new ServiceEntityApiDTO();
         final TargetApiDTO target = new TargetApiDTO();
         target.setType(CloudType.AWS.name());
-        businessAccount.setDiscoveredBy(target);
-        businessAccount.setDisplayName("Account");
+        final ServiceEntityApiDTO mainAccount = new ServiceEntityApiDTO();
+        mainAccount.setDiscoveredBy(target);
+        mainAccount.setDisplayName("Account");
+        final ServiceEntityApiDTO siblingAccount = new ServiceEntityApiDTO();
+        siblingAccount.setDiscoveredBy(target);
+        siblingAccount.setDisplayName("Sibling Account");
         ServiceEntityApiDTO availabilityZoneEntity = new ServiceEntityApiDTO();
         availabilityZoneEntity.setUuid("22");
         availabilityZoneEntity.setDisplayName("us-east-1a");
@@ -89,17 +104,18 @@ public class ReservedInstanceMapperTest {
         ServiceEntityApiDTO templateEntity = new ServiceEntityApiDTO();
         templateEntity.setUuid("33");
         templateEntity.setDisplayName("c3.xlarge");
-        serviceEntityApiDTOMap.put(11L, businessAccount);
+        serviceEntityApiDTOMap.put(ACCOUNT_1_ID, mainAccount);
+        serviceEntityApiDTOMap.put(ACCOUNT_2_ID, siblingAccount);
         serviceEntityApiDTOMap.put(22L, availabilityZoneEntity);
         serviceEntityApiDTOMap.put(33L, templateEntity);
         serviceEntityApiDTOMap.put(44L, regionEntity);
         final ReservedInstanceApiDTO reservedInstanceApiDTO =
                 reservedInstanceMapper.mapToReservedInstanceApiDTO(riBought, riSpec, serviceEntityApiDTOMap);
         assertEquals("RI_ID", reservedInstanceApiDTO.getTrueID());
-        assertEquals("11", reservedInstanceApiDTO.getAccountId());
+        assertEquals(String.valueOf(ACCOUNT_1_ID), reservedInstanceApiDTO.getAccountId());
         assertEquals("Account", reservedInstanceApiDTO.getAccountDisplayName());
         assertEquals("ResOrder-1", reservedInstanceApiDTO.getOrderID());
-        assertEquals(AzureRIScopeType.SHARED, reservedInstanceApiDTO.getScopeType());
+        assertEquals(AzureRIScopeType.SINGLE, reservedInstanceApiDTO.getScopeType());
         assertEquals(Platform.LINUX, reservedInstanceApiDTO.getPlatform());
         assertEquals(ReservedInstanceType.STANDARD, reservedInstanceApiDTO.getType());
         assertEquals("us-east-1a", reservedInstanceApiDTO.getLocation().getDisplayName());
@@ -114,6 +130,7 @@ public class ReservedInstanceMapperTest {
         assertEquals(100.0, reservedInstanceApiDTO.getUpFrontCost(), delta);
         assertEquals(300.0, reservedInstanceApiDTO.getActualHourlyCost(), delta);
         assertEquals(CloudType.AWS, reservedInstanceApiDTO.getCloudType());
+        assertEquals(Arrays.asList("Account", "Sibling Account"), reservedInstanceApiDTO.getAppliedScopes());
     }
 
     /**
@@ -143,8 +160,9 @@ public class ReservedInstanceMapperTest {
         final TargetApiDTO target = new TargetApiDTO();
         target.setType(probeType.getProbeType());
         businessAccount.setDiscoveredBy(target);
+        businessAccount.setDisplayName("Main Account");
         final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap = ImmutableMap
-            .of(11L, businessAccount);
+            .of(ACCOUNT_1_ID, businessAccount);
 
         // Act
         final ReservedInstanceApiDTO reservedInstanceApiDTO = reservedInstanceMapper

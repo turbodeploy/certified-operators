@@ -1,7 +1,9 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -41,8 +43,6 @@ public class ReservedInstanceMapper {
     private static final String YEAR = "Year";
 
     private static final long NUM_OF_MILLISECONDS_OF_YEAR = 365L * 86400L * 1000L;
-
-    private static final int NUM_OF_HOURS_OF_YEAR = 365 * 24;
 
     private final CloudTypeMapper cloudTypeMapper;
 
@@ -160,6 +160,19 @@ public class ReservedInstanceMapper {
                 ? AzureRIScopeType.SHARED
                 : AzureRIScopeType.SINGLE);
         reservedInstanceApiDTO.setOrderID(reservedInstanceBoughtInfo.getReservationOrderId());
+        reservedInstanceApiDTO.setAppliedScopes(reservedInstanceBoughtInfo
+                .getReservedInstanceScopeInfo().getApplicableBusinessAccountIdList()
+                .stream()
+                .map(oid -> {
+                    final ServiceEntityApiDTO account = serviceEntityApiDTOMap.get(oid);
+                    if (account == null) {
+                        logger.error("Cannot find account specified in applied scopes: " + oid);
+                    }
+                    return account;
+                })
+                .filter(Objects::nonNull)
+                .map(BaseApiDTO::getDisplayName)
+                .collect(Collectors.toList()));
 
         return reservedInstanceApiDTO;
     }
