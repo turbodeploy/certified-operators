@@ -57,7 +57,9 @@ public class ReservedInstanceAnalyzerRateAndRIs {
 
     private static final Logger logger = LogManager.getLogger();
 
-    // Hours in a month.
+    /**
+     * Hours in a month.
+     */
     public static final int HOURS_IN_A_MONTH = 730;
 
     /*
@@ -130,74 +132,80 @@ public class ReservedInstanceAnalyzerRateAndRIs {
      * Given the regional context and RI purchase constraints, return the on-demand and RI rates.
      * @param regionalContext regional context.
      * @param constraints reserved instance purchase constraints.
+     * @param logTag A unique string to identify related messages for a particular RI Buy analysis
      * @return on-demand and RI rates for this regional context and purchase constraints.
      */
     public PricingProviderResult findRates(ReservedInstanceRegionalContext regionalContext,
-                                           ReservedInstancePurchaseConstraints constraints) {
-        return new PricingProviderResult(lookupOnDemandRate(regionalContext),
-            lookupReservedInstanceRate(regionalContext, constraints));
+                                           ReservedInstancePurchaseConstraints constraints,
+                                           String logTag) {
+        return new PricingProviderResult(lookupOnDemandRate(regionalContext, logTag),
+                        lookupReservedInstanceRate(regionalContext, constraints, logTag));
     }
 
     /**
      * Find the on-demand rate for this regional context.
      *
      * @param regionalContext regional context.
+     * @param logTag A unique string to identify related messages for a particular RI Buy analysis
      * @return on-demand rate or 0 if not found.
      */
-    public float lookupOnDemandRate(@Nonnull ReservedInstanceRegionalContext regionalContext) {
+    public float lookupOnDemandRate(@Nonnull ReservedInstanceRegionalContext regionalContext,
+                    @Nonnull String logTag) {
         float onDemandRate = 0f;
 
         // onDemandPriceTableByRegion from constructor
         if (CollectionUtils.isEmpty(onDemandRateMap)) {
-            logger.warn("lookupOnDemandRate() on-demand rates are not available!");
+            logger.warn("{}lookupOnDemandRate() on-demand rates are not available!", logTag);
             return onDemandRate;
         }
         OnDemandPriceTable onDemandPriceTable = onDemandRateMap.get(regionalContext.getRegionId());
         if (onDemandPriceTable == null) {
-            logger.warn("lookupOnDemandRate() could not find on-demand rates for region in context={}",
-                regionalContext);
+            logger.warn("{}lookupOnDemandRate() could not find on-demand rates for region in context={}",
+                 logTag, regionalContext);
             return onDemandRate;
         }
         Map<Long, ComputeTierPriceList> onDemandMapByTier = onDemandPriceTable.getComputePricesByTierIdMap();
         if (onDemandMapByTier == null) {
-            logger.warn("lookupOnDemandRate() could not find on-demand rate by tier in context={}",
-                regionalContext);
+            logger.warn("{}lookupOnDemandRate() could not find on-demand rate by tier in context={}",
+                logTag, regionalContext);
             return onDemandRate;
         }
         ComputeTierPriceList computeTierRates = onDemandMapByTier.get(regionalContext.getComputeTier().getOid());
         if (computeTierRates == null) {
-            logger.warn("getRates() could not find on-demand rate by tier={}({}) in region={}",
-                regionalContext.getComputeTier().getDisplayName(), regionalContext.getComputeTier().getOid(),
+            logger.warn("{}getRates() could not find on-demand rate by tier={}({}) in region={}",
+                logTag, regionalContext.getComputeTier().getDisplayName(),
+                regionalContext.getComputeTier().getOid(),
                 regionalContext.getRegionId());
             return onDemandRate;
         }
         ComputeTierConfigPrice baseRate = computeTierRates.getBasePrice();
         if (baseRate == null) {
-            logger.warn("lookupOnDemandRate() could not find on-demand base rate for tier={} in region={}",
-                regionalContext.getComputeTier().getDisplayName(),
+            logger.warn("{}lookupOnDemandRate() could not find on-demand base rate for tier={} in region={}",
+                logTag, regionalContext.getComputeTier().getDisplayName(),
                 regionalContext.getRegionId());
             return onDemandRate;
         }
         List<Price> prices = baseRate.getPricesList();
         if (prices.size() > 1) {
-            logger.warn("lookupOnDemandRate for masterID={} regionId={} tier={} platform={} tenancy={} prices.size()={} > 1",
-                regionalContext.getMasterAccountId(), regionalContext.getRegionId(),
+            logger.warn("{}lookupOnDemandRate for masterID={} regionId={} tier={} platform={} tenancy={} prices.size()={} > 1",
+                logTag, regionalContext.getMasterAccountId(), regionalContext.getRegionId(),
                 regionalContext.getComputeTier().getDisplayName(), regionalContext.getPlatform().name(),
                 regionalContext.getTenancy().name(), prices.size());
         }
         for (Price price : prices) {
-            onDemandRate += computeOnDemandRate(price, regionalContext, "base");
+            onDemandRate += computeOnDemandRate(price, regionalContext, "base", logTag);
         }
         for (ComputeTierConfigPrice adjustment:  computeTierRates.getPerConfigurationPriceAdjustmentsList()) {
             if (adjustment.getTenancy() == regionalContext.getTenancy() &&
                 adjustment.getGuestOsType() == regionalContext.getPlatform()) {
                 for (Price price : adjustment.getPricesList()) {
-                    onDemandRate += computeOnDemandRate(price, regionalContext, "adjustment");
+                    onDemandRate += computeOnDemandRate(price, regionalContext, "adjustment",
+                                    logTag);
                 }
             }
         }
-        logger.debug("lookupOnDemandRate() onDemandRate={} for context={}",
-            onDemandRate, regionalContext);
+        logger.debug("{}lookupOnDemandRate() onDemandRate={} for context={}", logTag, onDemandRate,
+            regionalContext);
         return onDemandRate;
     }
 
@@ -207,15 +215,17 @@ public class ReservedInstanceAnalyzerRateAndRIs {
      * @param price the price from the price table
      * @param context regional context (for logging)
      * @param type base or adjustment for logging
+     * @param logTag A unique string to identify related messages for a particular RI Buy analysis
      * @return onDemand rate
      */
-    private float computeOnDemandRate(Price price, ReservedInstanceRegionalContext context, String type) {
+    private float computeOnDemandRate(Price price, ReservedInstanceRegionalContext context,
+                    String type, String logTag) {
         float rate = 0;
         Unit unit = price.getUnit();
         CurrencyAmount currencyAmount = price.getPriceAmount();
         if (!currencyAmount.hasAmount()) {
-            logger.warn("computeOnDemandRate() type={} currencyAmount={} has no amount for context={}",
-                type, type, currencyAmount, context);
+            logger.warn("{}computeOnDemandRate() type={} currencyAmount={} has no amount for context={}",
+                logTag, type, type, currencyAmount, context);
             return rate;
         }
         double amount = currencyAmount.getAmount();
@@ -223,17 +233,17 @@ public class ReservedInstanceAnalyzerRateAndRIs {
         if (unit == Unit.MONTH) {
             divisor = HOURS_IN_A_MONTH;
         } else if (unit == Unit.TOTAL) {
-            logger.warn("computeOnDemandRate() type={} unit == Unit.TOTAL for context={}",
+            logger.warn("{}computeOnDemandRate() type={} unit == Unit.TOTAL for context={}", logTag,
                 type, context);
             return rate;
         } else if (unit != Unit.HOURS) {
-            logger.warn("computeOnDemandRate() type={} unit != Unit.HOURS for context={}",
+            logger.warn("{}computeOnDemandRate() type={} unit != Unit.HOURS for context={}", logTag,
                 type, context);
             return rate;
         }
-         rate = new Double(amount / divisor).floatValue();
-        logger.debug("computeOnDemandRate() type={} hourly rate={} divisor={} for context={}",
-            type, rate, divisor, context);
+        rate = new Double(amount / divisor).floatValue();
+        logger.trace("{}computeOnDemandRate() type={} hourly rate={} divisor={} for context={}",
+            logTag, type, rate, divisor, context);
         return rate;
     }
 
@@ -260,24 +270,26 @@ public class ReservedInstanceAnalyzerRateAndRIs {
      *
      * @param regionalContext regional context
      * @param constraints purchase constraints
+     * @param logTag A unique string to identify related messages for a particular RI Buy analysis
      * @return Returns a pair of values. The first one is the upfront hourly cost. The second one is
      *          the recurring cost. If the price is not found it returns a pair which sums to
      *          FLOAT.MAX_VALUE.
      */
     public Pair<Float, Float> lookupReservedInstanceRate(@Nonnull ReservedInstanceRegionalContext regionalContext,
-                                                         @Nonnull ReservedInstancePurchaseConstraints constraints) {
+                                                         @Nonnull ReservedInstancePurchaseConstraints constraints,
+                                                         @Nonnull String logTag) {
         ReservedInstanceSpecKey key = new ReservedInstanceSpecKey(regionalContext, constraints);
         ReservedInstanceSpec spec = reservedInstanceSpecKeyMap.get(key);
         if (spec == null) {
-            logger.warn("lookupReservedInstanceRate() can't find ReservedInstanceSpec for key={}",
-                key);
+            logger.warn("{}lookupReservedInstanceRate() can't find ReservedInstanceSpec for key={}",
+                logTag, key);
             return Pair.of(Float.MAX_VALUE, 0f);
         }
         long specId = spec.getId();
         ReservedInstancePrice riPrice = reservedInstanceRateMap.get(specId);
         if (riPrice == null) {
-            logger.warn("lookupReservedInstanceRate() can't find rate for ReservedInstanceSpecId={} for key={}",
-                specId, key);
+            logger.warn("{}lookupReservedInstanceRate() can't find rate for ReservedInstanceSpecId={} for key={}",
+                logTag, specId, key);
             return Pair.of(Float.MAX_VALUE, 0f);
         }
         Price upFrontPrice = riPrice.getUpfrontPrice();
@@ -292,8 +304,9 @@ public class ReservedInstanceAnalyzerRateAndRIs {
                 (constraints.getTermInYears() * 12 * HOURS_IN_A_MONTH);
         }
         float riRate = upFrontAmortizedCost + new Double(hourlyAmount).floatValue();
-        logger.debug("lookupReservedInstanceRate() riRate={} = hourlyAmount={} + upFrontAmortized{} (upFront={}) for specId={} context={} constraints={}",
-            riRate, hourlyAmount, upFrontAmortizedCost, upFrontAmount, specId, regionalContext, constraints);
+        logger.debug("{}lookupReservedInstanceRate() riRate={} = hourlyAmount={} + upFrontAmortized{} (upFront={}) for specId={} context={} constraints={}",
+            logTag, riRate, hourlyAmount, upFrontAmortizedCost, upFrontAmount, specId,
+            regionalContext, constraints);
         final Pair pair = Pair.of(upFrontAmortizedCost, new Double(hourlyAmount).floatValue());
         return pair;
     }
