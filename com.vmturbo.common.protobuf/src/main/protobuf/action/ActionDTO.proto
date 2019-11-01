@@ -236,7 +236,9 @@ message Move {
     repeated ChangeProvider changes = 2;
 }
 
-// Scale an entity.
+// Scale an entity. Currently this action type is used to represent Cloud Move actions for
+// workloads when they are moved from one template to another. Market doesn't generate Scale
+// actions but Action Orchestrator translates Cloud Moves to Scale actions.
 message Scale {
     // Entity that is scaled.
     required ActionEntity target = 1;
@@ -590,7 +592,9 @@ enum ActionType {
     // Buy a reserved instance of the specification.
     BUY_RI = 10;
 
-    // Scale a service entity.
+    // Scale a service entity. Currently this action type is used to represent Cloud Move actions
+    // for workloads when they are moved from one template to another. Market doesn't generate
+    // Scale actions but Action Orchestrator translates Cloud Moves to Scale actions.
     SCALE = 11;
 }
 
