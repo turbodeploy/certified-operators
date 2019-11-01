@@ -48,10 +48,10 @@ public class ReservedInstanceAnalyzerTest {
                 OSType.LINUX, Tenancy.DEFAULT, buyComputeTier, region);
         ReservedInstanceAnalyzerRateAndRIs priceAndRIProvider = Mockito
                 .mock(ReservedInstanceAnalyzerRateAndRIs.class);
-        Mockito.when(priceAndRIProvider.lookupOnDemandRate(any())).thenReturn(1f);
+        Mockito.when(priceAndRIProvider.lookupOnDemandRate(any(), any())).thenReturn(1f);
         ReservedInstanceAnalyzer analyzer = new ReservedInstanceAnalyzer();
         final float hourlyOnDemandCost = analyzer.getHourlyOnDemandCost(templateTypeHourlyDemand,
-                regionalContext, priceAndRIProvider);
+                        regionalContext, priceAndRIProvider, "RILT0000");
         assertEquals(1f, hourlyOnDemandCost, 0.0);
     }
 
