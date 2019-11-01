@@ -90,10 +90,10 @@ public class PercentilePersistenceTaskTest {
                 Assert.assertEquals(chunkSizeKb * Units.KBYTE, request.getChunkSize());
                 ReaderObserver observer = invocation.getArgumentAt(1, ReaderObserver.class);
                 int pos = payload.length / 3;
-                observer.onNext(PercentileChunk.newBuilder().setPeriod(0).setStartTimestamp(0)
+                observer.onNext(PercentileChunk.newBuilder().setPeriod(0).setStartTimestamp(PercentilePersistenceTask.TOTAL_TIMESTAMP)
                                 .setContent(ByteString.copyFrom(payload, 0, pos))
                                 .build());
-                observer.onNext(PercentileChunk.newBuilder().setPeriod(0).setStartTimestamp(0)
+                observer.onNext(PercentileChunk.newBuilder().setPeriod(0).setStartTimestamp(PercentilePersistenceTask.TOTAL_TIMESTAMP)
                                 .setContent(ByteString.copyFrom(payload, pos, payload.length - pos))
                                 .build());
                 observer.onCompleted();
@@ -203,6 +203,47 @@ public class PercentilePersistenceTaskTest {
         PercentilePersistenceTask task = new PercentilePersistenceTask(history);
         task.save(counts, periodMs, config);
         Assert.assertArrayEquals(counts.toByteArray(), writer.getResult());
+    }
+
+    /**
+     * Test if {@link PercentilePersistenceTask#save} doesn't actual write
+     * the data when it gets empty counts. More formally the method
+     * shouldn't write if result of {@link PercentileCounts#toByteArray()}
+     * for first argument is empty.
+     *
+     * @throws InterruptedException when failed
+     * @throws HistoryCalculationException when failed
+     */
+    @Test
+    public void testSaveWithEmptyInput() throws InterruptedException, HistoryCalculationException {
+        TestWriter writer = Mockito.spy(new TestWriter());
+        StatsHistoryServiceStub history = PowerMockito.mock(StatsHistoryServiceStub.class);
+        Mockito.doReturn(writer).when(history).setPercentileCounts(Mockito.any());
+
+        PercentilePersistenceTask task = new PercentilePersistenceTask(history);
+        task.save(PercentileCounts.newBuilder().build(), 0, config);
+        Mockito.verify(writer, Mockito.never()).onNext(Mockito.any());
+
+        // Call of onCompleted is implementation details.
+        Mockito.verify(writer, Mockito.atMost(1)).onCompleted();
+    }
+
+    /**
+     * Test that  {@link PercentilePersistenceTask#PercentilePersistenceTask(StatsHistoryServiceStub)} creates a task that will load/save total value in DB.
+     */
+    @Test
+    public void testDefaultConstructor() {
+        PercentilePersistenceTask task = new PercentilePersistenceTask(Mockito.mock(StatsHistoryServiceStub.class));
+        Assert.assertEquals(PercentilePersistenceTask.TOTAL_TIMESTAMP, task.getStartTimestamp());
+    }
+
+    /**
+     * Test that {@link PercentilePersistenceTask#PercentilePersistenceTask(StatsHistoryServiceStub)} throws {@link NullPointerException}
+     * upon null argument.
+     */
+    @Test(expected = NullPointerException.class)
+    public void testDefaultConstructorStubIsNotNull() {
+        new PercentilePersistenceTask(null);
     }
 
     /**
