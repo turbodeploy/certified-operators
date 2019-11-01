@@ -47,6 +47,7 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutableSettingPolicyUpdateException;
 import com.vmturbo.group.common.InvalidItemException;
@@ -283,8 +284,24 @@ public class SettingStore implements Diagnosable {
                         newInfo.getSettingsList().stream().map(Setting::getSettingSpecName)
                             .collect(Collectors.toSet());
 
+                    List<Setting> settingsToAdd = new ArrayList<>();
                     for (Setting existingSettingName : existingPolicy.getInfo().getSettingsList()) {
                         if (!newSettingNames.contains(existingSettingName.getSettingSpecName())) {
+                            /**
+                             * SLA is created behind the scenes, not exposed in the UI.
+                             * TODO If this changes this will have to be revisited.
+                             */
+                            if (existingSettingName.getSettingSpecName().contains("slaCapacity")) {
+                                settingsToAdd.add(existingSettingName);
+                                continue;
+                            }
+
+                            if (SettingDTOUtil.isDefaultValueSetting(existingSettingName)) {
+                                 // add existingSettingName as default setting to the new policy
+                                settingsToAdd.add(existingSettingName);
+                                continue;
+                            }
+
                             /**
                              * TODO (Marco, August 05 2018) OM-48940
                              * ActionWorkflow and ActionScript settings are missing in the ui and
@@ -296,6 +313,20 @@ public class SettingStore implements Diagnosable {
                                     throw new InvalidItemException("Illegal attempt to remove a " +
                                     "default setting.");
                         }
+                    }
+
+                    if (!settingsToAdd.isEmpty()) {
+                        // add the default entities that are missing
+                        settingsToAdd.addAll(newInfo.getSettingsList());
+
+                        SettingPolicyInfo newNewInfo = SettingPolicyInfo.newBuilder(newInfo)
+                            .clearSettings()
+                            .addAllSettings(settingsToAdd)
+                            .build();
+
+                        return internalUpdateSettingPolicy(context, existingPolicy.toBuilder()
+                                        .setInfo(newNewInfo)
+                                        .build());
                     }
                 }
 

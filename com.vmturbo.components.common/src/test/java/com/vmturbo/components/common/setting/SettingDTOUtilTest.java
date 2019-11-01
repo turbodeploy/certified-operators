@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath;
@@ -43,6 +44,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 
 /**
  * Unit tests for {@link SettingDTOUtil}.
@@ -343,6 +345,81 @@ public class SettingDTOUtilTest {
         // assert
         assertThat(categoryPath, equalTo(expectedCategoryPath));
 
+    }
+
+
+    /**
+     * Test using the utility method to IsDefaultValueSetting for all types of settings:
+     *   boolean, numeric, string, enum.
+     */
+    @Test
+    public void testIsDefaultValueSetting() {
+        // not set
+        Setting setting = Setting.newBuilder()
+            .setSettingSpecName("name1")
+            .build();
+
+        assertFalse(SettingDTOUtil.isDefaultValueSetting(setting));
+
+        // boolean setting
+        Setting setting1 = Setting.newBuilder()
+            .setSettingSpecName("name1")
+            .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
+            .build();
+
+        assertTrue(SettingDTOUtil.isDefaultValueSetting(setting1));
+
+        Setting setting2 = Setting.newBuilder()
+                        .setSettingSpecName("name")
+                        .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true).build())
+                        .build();
+
+        assertFalse(SettingDTOUtil.isDefaultValueSetting(setting2));
+
+        // String setting
+        Setting setting3 = Setting.newBuilder()
+                        .setSettingSpecName("name")
+                        .setStringSettingValue(StringSettingValue.getDefaultInstance())
+                        .build();
+
+        assertTrue(SettingDTOUtil.isDefaultValueSetting(setting3));
+
+        Setting setting4 = Setting.newBuilder()
+                        .setSettingSpecName("name")
+                        .setStringSettingValue(StringSettingValue.newBuilder().setValue("test").build())
+                        .build();
+
+        assertFalse(SettingDTOUtil.isDefaultValueSetting(setting4));
+
+        // numeric setting
+        Setting setting5 = Setting.newBuilder()
+                        .setSettingSpecName("name")
+                        .setNumericSettingValue(NumericSettingValue.getDefaultInstance())
+                        .build();
+
+        assertTrue(SettingDTOUtil.isDefaultValueSetting(setting5));
+
+        Setting setting6 = Setting.newBuilder()
+                        .setSettingSpecName("name")
+                        .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(123).build())
+                        .build();
+
+        assertFalse(SettingDTOUtil.isDefaultValueSetting(setting6));
+
+        // enum setting
+        Setting setting7 = Setting.newBuilder()
+                        .setSettingSpecName("name")
+                        .setEnumSettingValue(EnumSettingValue.getDefaultInstance())
+                        .build();
+
+        assertTrue(SettingDTOUtil.isDefaultValueSetting(setting7));
+
+        Setting setting8 = Setting.newBuilder()
+                        .setSettingSpecName("name")
+                        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("test").build())
+                        .build();
+
+        assertFalse(SettingDTOUtil.isDefaultValueSetting(setting8));
     }
 
     private EnumSettingValue createEnumSettingValue(String value) {

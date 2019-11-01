@@ -39,6 +39,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 
+
 /**
  * Utilities for dealing with messages defined in {@link SettingProto} (Setting.proto).
  */
@@ -228,6 +229,38 @@ public final class SettingDTOUtil {
     }
 
     /**
+     * Has a setting the default value for its type.
+     *
+     * @param setting Setting to investigate.
+     * @return true if the setting has the default value for its type.
+     */
+    public static boolean isDefaultValueSetting(Setting setting) {
+        if (SettingProto.Setting.ValueCase.VALUE_NOT_SET.equals(setting.getValueCase())) {
+            return false;
+        }
+
+        Setting settingDefault = setting.getDefaultInstanceForType();
+
+        switch (setting.getValueCase()) {
+        case BOOLEAN_SETTING_VALUE:
+            return setting.getBooleanSettingValue().getValue()
+                            == settingDefault.getBooleanSettingValue().getValue();
+        case NUMERIC_SETTING_VALUE:
+            return setting.getNumericSettingValue().getValue()
+                            == settingDefault.getNumericSettingValue().getValue();
+        case STRING_SETTING_VALUE:
+            return Objects.equals(setting.getStringSettingValue().getValue(),
+                            settingDefault.getStringSettingValue().getValue());
+        case ENUM_SETTING_VALUE:
+            return Objects.equals(setting.getEnumSettingValue().getValue(),
+                            settingDefault.getEnumSettingValue().getValue());
+        default:
+            throw new IllegalArgumentException("Illegal setting value type: "
+                + setting.getValueCase());
+        }
+    }
+
+    /**
      * Compare two EnumSettingValue types.
      *
      * @param value1 EnumSettingValue.
@@ -267,4 +300,5 @@ public final class SettingDTOUtil {
             .setValue(value)
             .build();
     }
+
 }
