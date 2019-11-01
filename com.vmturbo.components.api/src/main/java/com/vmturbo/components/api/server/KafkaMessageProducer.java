@@ -1,7 +1,5 @@
 package com.vmturbo.components.api.server;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.ExecutionException;
@@ -67,11 +65,31 @@ public class KafkaMessageProducer implements AutoCloseable {
     private final KafkaProducer<String, byte[]> producer;
     private final Logger logger = LogManager.getLogger(getClass());
     private final AtomicLong msgCounter = new AtomicLong(0);
+    private final String namespacePrefix;
 
     // boolean tracking if the last send was successful or not. Used as a simple health check.
     private AtomicBoolean lastSendFailed = new AtomicBoolean(false);
 
+    /**
+     * Construct a {@link KafkaMessageProducer} given the list of bootstrap servers and the
+     * namespace prefix.
+     *
+     * @param bootstrapServer the list of Kafka bootstrap servers
+     */
     public KafkaMessageProducer(@Nonnull String bootstrapServer) {
+        this(bootstrapServer, "");
+    }
+
+    /**
+     * Construct a {@link KafkaMessageProducer} given the list of bootstrap servers and the
+     * namespace prefix.
+     *
+     * @param bootstrapServer the list of Kafka bootstrap servers
+     * @param namespacePrefix the namespace prefix to be added to the topics
+     */
+    public KafkaMessageProducer(@Nonnull String bootstrapServer, @Nonnull String namespacePrefix) {
+        this.namespacePrefix = Objects.requireNonNull(namespacePrefix);
+
         // set the default properties
         final Properties props = new Properties();
         props.put("bootstrap.servers", bootstrapServer);
@@ -164,7 +182,8 @@ public class KafkaMessageProducer implements AutoCloseable {
      * @return message sender.
      */
     public <S extends AbstractMessage> IMessageSender<S> messageSender(@Nonnull String topic) {
-        return new BusMessageSender<>(topic);
+        final String namespacedTopic = namespacePrefix + topic;
+        return new BusMessageSender<>(namespacedTopic);
     }
 
     /**
@@ -180,7 +199,8 @@ public class KafkaMessageProducer implements AutoCloseable {
      */
     public <S extends AbstractMessage> IMessageSender<S> messageSender(@Nonnull String topic,
                                            @Nonnull Function<S, String> keyGenerator) {
-        return new BusMessageSender<>(topic, keyGenerator);
+        final String namespacedTopic = namespacePrefix + topic;
+        return new BusMessageSender<>(namespacedTopic, keyGenerator);
     }
 
     /**

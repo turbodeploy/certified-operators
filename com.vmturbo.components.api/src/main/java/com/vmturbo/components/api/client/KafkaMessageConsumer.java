@@ -111,6 +111,11 @@ public class KafkaMessageConsumer implements AutoCloseable {
     private final ExecutorService threadPool;
 
     /**
+     * Namespace prefix for this consumer
+     */
+    private final String namespacePrefix;
+
+    /**
      * map of topic -> settings.
      */
     @GuardedBy("consumerLock")
@@ -119,10 +124,34 @@ public class KafkaMessageConsumer implements AutoCloseable {
     @GuardedBy("consumerLock")
     private boolean started = false;
 
+    /**
+     * Construct a {@link KafkaMessageConsumer} given the list of bootstrap servers, the consumer
+     * group and the namespace prefix.
+     *
+     * @param bootstrapServer the list of bootstrap servers
+     * @param consumerGroup the consumer group name
+     */
     public KafkaMessageConsumer(@Nonnull String bootstrapServer, @Nonnull String consumerGroup) {
+        this(bootstrapServer, consumerGroup, "");
+    }
+
+    /**
+     * Construct a {@link KafkaMessageConsumer} given the list of bootstrap servers, the consumer
+     * group and the namespace prefix.
+     *
+     * @param bootstrapServer the list of bootstrap servers
+     * @param consumerGroup the consumer group name
+     * @param namespacePrefix the namespace prefix to be added to the topics and consumer groups
+     */
+    public KafkaMessageConsumer(@Nonnull String bootstrapServer, @Nonnull String consumerGroup,
+                                @Nonnull String namespacePrefix) {
+        this.namespacePrefix = Objects.requireNonNull(namespacePrefix);
+        final String namespacedConsumerGroup =
+                namespacePrefix + Objects.requireNonNull(consumerGroup);
+
         final Properties props = new Properties();
         props.put("bootstrap.servers", bootstrapServer);
-        props.put("group.id", consumerGroup);
+        props.put("group.id", namespacedConsumerGroup);
         props.put("enable.auto.commit", "false");
         props.put("key.deserializer", StringDeserializer.class.getName());
         props.put("value.deserializer", ByteArrayDeserializer.class.getName());
@@ -166,7 +195,8 @@ public class KafkaMessageConsumer implements AutoCloseable {
      */
     public <T> IMessageReceiver<T> messageReceiver(@Nonnull String topic,
             @Nonnull Deserializer<T> deserializer) {
-        return createMessageReceiver(topic, deserializer);
+        final String namespacedTopic = namespacePrefix + topic;
+        return createMessageReceiver(namespacedTopic, deserializer);
     }
 
     /**
@@ -180,9 +210,13 @@ public class KafkaMessageConsumer implements AutoCloseable {
      */
     public <T> IMessageReceiver<T> messageReceiverWithSettings(@Nonnull TopicSettings topicSettings,
                                                    @Nonnull Deserializer<T> deserializer) {
+        final String namespacedTopic = namespacePrefix + topicSettings.topic;
+        final TopicSettings namespacedTopicSettings = new TopicSettings(namespacedTopic,
+                topicSettings.startFrom);
+
         // store the settings in a map
         synchronized (consumerLock) {
-            topicSettingsMap.put(topicSettings.topic, topicSettings);
+            topicSettingsMap.put(namespacedTopicSettings.topic, namespacedTopicSettings);
             return messageReceiver(topicSettings.topic, deserializer);
         }
     }
@@ -202,7 +236,9 @@ public class KafkaMessageConsumer implements AutoCloseable {
             @Nonnull Collection<TopicSettings> topicSettings,
             @Nonnull Deserializer<T> deserializer) {
         synchronized (consumerLock) {
-            topicSettings.forEach(setting -> topicSettingsMap.put(setting.topic, setting));
+            topicSettings.stream()
+                    .map(ts -> new TopicSettings(namespacePrefix + ts.topic, ts.startFrom))
+                    .forEach(setting -> topicSettingsMap.put(setting.topic, setting));
             return messageReceiver(Collections2.transform(topicSettings, setting -> setting.topic),
                 deserializer);
         }
@@ -224,7 +260,8 @@ public class KafkaMessageConsumer implements AutoCloseable {
         final Collection<IMessageReceiver<T>> receivers = new ArrayList<>();
         synchronized (consumerLock) {
             for (String topic : topics) {
-                receivers.add(createMessageReceiver(topic, deserializer));
+                final String namespaceTopic = namespacePrefix + topic;
+                receivers.add(createMessageReceiver(namespaceTopic, deserializer));
             }
         }
         return new UmbrellaMessageReceiver<>(receivers);
@@ -614,7 +651,7 @@ public class KafkaMessageConsumer implements AutoCloseable {
          * <ul><li><code>LAST_COMMITTED</code>: The consumer will read from the last committed offset.
          * This is the default behavior.</li>
          * <li><code>BEGINNING</code>: The consumer will read from the earliest available offset in
-         * the parition. Note that this implies that previously seen messages will be seen again, so
+         * the partition. Note that this implies that previously seen messages will be seen again, so
          * be certain your consumer is prepared to handle these.</li>
          * <li><code>END</code>: The consumer will read from the end of the partition, meaning only
          * new messages published after the partition was assigned will be seen by the consumer. Use

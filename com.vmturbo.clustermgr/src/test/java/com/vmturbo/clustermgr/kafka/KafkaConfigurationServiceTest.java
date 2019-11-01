@@ -1,12 +1,8 @@
 package com.vmturbo.clustermgr.kafka;
 
 import java.util.List;
-import java.util.Properties;
-import java.util.concurrent.TimeoutException;
 
-import org.apache.kafka.clients.admin.AdminClient;
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;

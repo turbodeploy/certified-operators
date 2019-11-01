@@ -19,6 +19,6 @@ public class BaseKafkaProducerConfig extends BaseKafkaConfig {
      */
     @Bean
     public KafkaMessageProducer kafkaMessageSender() {
-        return new KafkaMessageProducer(bootstrapServer());
+        return new KafkaMessageProducer(bootstrapServer(), kafkaNamespacePrefix());
     }
 }

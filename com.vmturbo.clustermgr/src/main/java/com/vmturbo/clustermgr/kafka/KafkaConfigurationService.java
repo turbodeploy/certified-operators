@@ -54,6 +54,8 @@ public class KafkaConfigurationService {
 
     private final String kafkaBootstrapServers;
 
+    private final String namespacePrefix;
+
     /**
      * Create a KafkaConfigurationService that will apply a topic configuration to the kafka
      * cluster at bootstrap servers, and use custom timeout/retry settings you provide.
@@ -62,6 +64,22 @@ public class KafkaConfigurationService {
      * @param configRetryDelayMs the number of milliseconds to wait between retry attempts
      */
     public KafkaConfigurationService(@Nonnull String bootstrapServers, int kafkaConfigMaxRetryTimeSecs, int configRetryDelayMs) {
+        this(bootstrapServers, kafkaConfigMaxRetryTimeSecs, configRetryDelayMs, "");
+    }
+
+    /**
+     * Create a KafkaConfigurationService that will apply a topic configuration to the kafka
+     * cluster at bootstrap servers, and use custom timeout/retry settings you provide.
+     * @param bootstrapServers one or more kafka broker addresses to connect to.
+     * @param kafkaConfigMaxRetryTimeSecs the amount of time the config service can start a retry within
+     * @param configRetryDelayMs the number of milliseconds to wait between retry attempts
+     * @param namespacePrefix namespace of this XL deployment
+     */
+    public KafkaConfigurationService(@Nonnull String bootstrapServers,
+                                     int kafkaConfigMaxRetryTimeSecs, int configRetryDelayMs,
+                                     @Nonnull String namespacePrefix) {
+        this.namespacePrefix = Objects.requireNonNull(namespacePrefix);
+
         if (StringUtils.isEmpty(bootstrapServers)) {
             throw new IllegalArgumentException("bootstrapServers must have a value.");
         }
@@ -179,7 +197,10 @@ public class KafkaConfigurationService {
      */
     public void applyKafkaConfiguration(@Nonnull KafkaConfiguration configuration)
             throws InterruptedException, ExecutionException {
-        Objects.requireNonNull(configuration);
+
+        // prefix all the topics with the namespace
+        Objects.requireNonNull(configuration).getTopics().stream().forEach(topicConfig ->
+                topicConfig.setTopic(namespacePrefix + topicConfig.getTopic()));
 
         // create an admin client
         try (AdminClient adminClient = createKafkaAdminClient(kafkaBootstrapServers)) {
