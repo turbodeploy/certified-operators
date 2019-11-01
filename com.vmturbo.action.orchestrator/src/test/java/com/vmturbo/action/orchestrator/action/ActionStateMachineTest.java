@@ -10,10 +10,10 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.junit.Assert;
 import org.junit.Test;
-
-import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AfterFailureEvent;
@@ -28,7 +28,6 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ProgressEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision.ClearingDecision.Reason;
@@ -37,6 +36,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep.Status;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
@@ -75,7 +75,7 @@ public class ActionStateMachineTest {
                 EntityType.VIRTUAL_MACHINE.getNumber()));
     }
     @Test
-    public void testManuallyAccept() {
+    public void testManuallyAccept() throws UnsupportedActionException {
         when(entitySettingsCache.getSettingsForEntity(eq(1L)))
             .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
         setEntitiesOIDs();
@@ -90,7 +90,7 @@ public class ActionStateMachineTest {
     }
 
     @Test
-    public void testAutomaticallyAccept() {
+    public void testAutomaticallyAccept() throws UnsupportedActionException {
         when(entitySettingsCache.getSettingsForEntity(eq(1L)))
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.AUTOMATIC));
         setEntitiesOIDs();
@@ -104,7 +104,7 @@ public class ActionStateMachineTest {
     }
 
     @Test
-    public void testBeginExecutionAutomaticAction() {
+    public void testBeginExecutionAutomaticAction() throws UnsupportedActionException {
         when(entitySettingsCache.getSettingsForEntity(eq(1L)))
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.AUTOMATIC));
         setEntitiesOIDs();
@@ -126,7 +126,7 @@ public class ActionStateMachineTest {
     }
 
     @Test
-    public void testBeginExecutionManualAction() {
+    public void testBeginExecutionManualAction() throws UnsupportedActionException {
         when(entitySettingsCache.getSettingsForEntity(eq(1L)))
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
         setEntitiesOIDs();
@@ -163,9 +163,8 @@ public class ActionStateMachineTest {
         );
     }
 
-
     @Test
-    public void testQueuedToClearedActionStateChange() {
+    public void testQueuedToClearedActionStateChange() throws UnsupportedActionException {
         // Test the state transition from QUEUED to CLEARED state.
         setEntitiesOIDs();
         Action action = new Action(move, actionPlanId, actionModeCalculator);
@@ -194,7 +193,7 @@ public class ActionStateMachineTest {
     }
 
     @Test
-    public void testExecutionCreatesExecutionStep() {
+    public void testExecutionCreatesExecutionStep() throws UnsupportedActionException {
         when(entitySettingsCache.getSettingsForEntity(eq(1L)))
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
         setEntitiesOIDs();
@@ -219,7 +218,7 @@ public class ActionStateMachineTest {
     }
 
     @Test
-    public void testProgressUpdates() {
+    public void testProgressUpdates() throws UnsupportedActionException {
         when(entitySettingsCache.getSettingsForEntity(eq(1L)))
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
         setEntitiesOIDs();
@@ -246,7 +245,7 @@ public class ActionStateMachineTest {
     }
 
     @Test
-    public void testActionSuccess() {
+    public void testActionSuccess() throws UnsupportedActionException {
         when(entitySettingsCache.getSettingsForEntity(eq(1L)))
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
         setEntitiesOIDs();
@@ -271,7 +270,7 @@ public class ActionStateMachineTest {
     }
 
     @Test
-    public void testActionFailure() {
+    public void testActionFailure() throws UnsupportedActionException {
         when(entitySettingsCache.getSettingsForEntity(eq(1L)))
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
         setEntitiesOIDs();
@@ -299,7 +298,7 @@ public class ActionStateMachineTest {
     }
 
     @Test
-    public void testPostAfterActionSuccess() {
+    public void testPostAfterActionSuccess() throws UnsupportedActionException {
         // Define a workflow to be executed in the POST phase
         when(entitySettingsCache.getSettingsForEntity(eq(1L)))
             .thenReturn(makePostMoveWorkflowSetting(ActionMode.MANUAL, "postMove.sh"));
@@ -329,7 +328,7 @@ public class ActionStateMachineTest {
     }
 
     @Test
-    public void testPostAfterActionFailure() {
+    public void testPostAfterActionFailure() throws UnsupportedActionException {
         // Define a workflow to be executed in the POST phase
         when(entitySettingsCache.getSettingsForEntity(eq(1L)))
             .thenReturn(makePostMoveWorkflowSetting(ActionMode.MANUAL, "postMove.sh"));
@@ -371,7 +370,6 @@ public class ActionStateMachineTest {
         Assert.assertEquals(postFailureDescription, postExecutableStep.getErrors().get(0));
         Assert.assertEquals(Status.FAILED, postExecutableStep.getStatus());
         Assert.assertTrue(postExecutableStep.getCompletionTime().isPresent());
-
     }
 
     private static Map<String, Setting> makePostMoveWorkflowSetting(ActionMode mode, String workflowName) {

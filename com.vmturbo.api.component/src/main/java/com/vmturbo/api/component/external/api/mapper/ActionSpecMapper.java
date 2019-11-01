@@ -1,5 +1,10 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static com.vmturbo.common.protobuf.action.ActionDTO.ActionType.BUY_RI;
+import static com.vmturbo.common.protobuf.action.ActionDTO.ActionType.RESIZE;
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.TRANSLATION_PATTERN;
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.TRANSLATION_PREFIX;
+
 import java.beans.PropertyDescriptor;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -67,6 +72,7 @@ import com.vmturbo.common.protobuf.StringUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter.InvolvedEntities;
@@ -78,10 +84,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
@@ -98,8 +102,8 @@ import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageRe
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
-import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -111,11 +115,6 @@ import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
-
-import static com.vmturbo.common.protobuf.action.ActionDTO.ActionType.BUY_RI;
-import static com.vmturbo.common.protobuf.action.ActionDTO.ActionType.RESIZE;
-import static com.vmturbo.common.protobuf.action.ActionDTOUtil.TRANSLATION_PATTERN;
-import static com.vmturbo.common.protobuf.action.ActionDTOUtil.TRANSLATION_PREFIX;
 
 /**
  * Map an ActionSpec returned from the ActionOrchestrator into an {@link ActionApiDTO} to be
@@ -143,22 +142,9 @@ public class ActionSpecMapper {
     private static final String API_CATEGORY_UNKNOWN = "Unknown";
     // END - Strings representing action categories in the API.
 
-
-    private static final String STORAGE_VALUE = UIEntityType.STORAGE.apiStr();
-    private static final String STORAGE_TIER_VALUE = UIEntityType.STORAGE_TIER.apiStr();
-    private static final String PHYSICAL_MACHINE_VALUE = UIEntityType.PHYSICAL_MACHINE.apiStr();
-    private static final String DISK_ARRAY_VALUE = UIEntityType.DISKARRAY.apiStr();
-    private static final Set<String> PRIMARY_TIER_VALUES = ImmutableSet.of(
-            UIEntityType.COMPUTE_TIER.apiStr(), UIEntityType.DATABASE_SERVER_TIER.apiStr(),
-            UIEntityType.DATABASE_TIER.apiStr());
     private static final Set<String> TIER_VALUES = ImmutableSet.of(
             UIEntityType.COMPUTE_TIER.apiStr(), UIEntityType.DATABASE_SERVER_TIER.apiStr(),
             UIEntityType.DATABASE_TIER.apiStr(), UIEntityType.STORAGE_TIER.apiStr());
-    private static final Set<String> STORAGE_VALUES = ImmutableSet.of(
-            UIEntityType.STORAGE_TIER.apiStr(), UIEntityType.STORAGE.apiStr());
-
-    private static final String UP = "up";
-    private static final String DOWN = "down";
 
     // Commodities in actions mapped to their default units.
     // For example, vMem commodity has its default capacity unit as KB.
@@ -248,11 +234,9 @@ public class ActionSpecMapper {
         for (ActionSpec spec : actionSpecs) {
             try {
                 final ActionApiDTO actionApiDTO = mapActionSpecToActionApiDTOInternal(spec, context, topologyContextId);
-                if (Objects.nonNull(actionApiDTO)) {
-                    actionApiDTOS.add(actionApiDTO);
-                }
+                actionApiDTOS.add(actionApiDTO);
             } catch (UnknownObjectException e) {
-                unresolvedEntities+=1;
+                unresolvedEntities += 1;
                 logger.debug("Couldn't resolve entity from spec {} {}", spec, e);
             }
         }
@@ -403,8 +387,10 @@ public class ActionSpecMapper {
         // handle different action types
         switch (actionType) {
             case MOVE:
-                addMoveInfo(actionApiDTO, info.getMove(),
-                    recommendation.getExplanation().getMove(), context, ActionType.MOVE);
+                addMoveInfo(actionApiDTO, recommendation, context, ActionType.MOVE);
+                break;
+            case SCALE:
+                addMoveInfo(actionApiDTO, recommendation, context, ActionType.SCALE);
                 break;
             case RECONFIGURE:
                 addReconfigureInfo(actionApiDTO, info.getReconfigure(),
@@ -417,8 +403,7 @@ public class ActionSpecMapper {
                 // if the RESIZE action was originally a MOVE, we need to set the action details as
                 // if it was a MOVE, otherwise we call the RESIZE method.
                 if (info.getActionTypeCase() == ActionTypeCase.MOVE) {
-                    addMoveInfo(actionApiDTO, info.getMove(),
-                        recommendation.getExplanation().getMove(), context, ActionType.RESIZE);
+                    addMoveInfo(actionApiDTO, recommendation, context, ActionType.RESIZE);
                 } else {
                     addResizeInfo(actionApiDTO, info.getResize(), context);
                 }
@@ -427,8 +412,7 @@ public class ActionSpecMapper {
                 // if the ACTIVATE action was originally a MOVE, we need to set the action details
                 // as if it was a MOVE, otherwise we call the ACTIVATE method.
                 if (info.getActionTypeCase() == ActionTypeCase.MOVE) {
-                    addMoveInfo(actionApiDTO, info.getMove(),
-                        recommendation.getExplanation().getMove(), context, ActionType.START);
+                    addMoveInfo(actionApiDTO, recommendation, context, ActionType.START);
                 } else {
                     addActivateInfo(actionApiDTO, info.getActivate(), context);
                 }
@@ -819,19 +803,18 @@ public class ActionSpecMapper {
      *
      * @param wrapperDto the DTO that represents the move recommendation and
      * wraps other {@link ActionApiDTO}s
-     * @param move A Move recommendation with one or more provider changes
-     * @param moveExplanation wraps the explanations for the provider changes
+     * @param action Action object
      * @param context mapping from {@link ActionSpec} to {@link ActionApiDTO}
      * @param actionType {@link ActionType} that will be assigned to wrapperDto param
      * @throws UnknownObjectException when the actions involve an unrecognized (out of
      * context) oid
      */
     private void addMoveInfo(@Nonnull final ActionApiDTO wrapperDto,
-                             @Nonnull final Move move,
-                             final MoveExplanation moveExplanation,
+                             @Nonnull final ActionDTO.Action action,
                              @Nonnull final ActionSpecMappingContext context,
                              @Nonnull final ActionType actionType)
-                    throws UnknownObjectException, ExecutionException, InterruptedException {
+            throws UnknownObjectException, ExecutionException, InterruptedException,
+            UnsupportedActionException {
 
         // If any part of the compound move is an initial placement, the whole move is an initial
         // placement.
@@ -845,16 +828,18 @@ public class ActionSpecMapper {
         // and it will generate an initial placement for the host. However, suppose it also generates
         // a storage move. Since the original storage was not removed from the topology, the storage
         // move would be a regular move.
-        final boolean initialPlacement =
-            moveExplanation.getChangeProviderExplanationList().stream()
+        final List<ChangeProviderExplanation> changeProviderExplanationList = ActionDTOUtil
+            .getChangeProviderExplanationList(action.getExplanation());
+        final boolean initialPlacement = changeProviderExplanationList.stream()
                 .anyMatch(ChangeProviderExplanation::hasInitialPlacement);
 
         wrapperDto.setActionType(actionType);
         // Set entity DTO fields for target, source (if needed) and destination entities
+        final ActionEntity target = ActionDTOUtil.getPrimaryEntity(action);
         wrapperDto.setTarget(
-            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(move.getTarget().getId())));
+            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(target.getId())));
 
-        ChangeProvider primaryChange = ActionDTOUtil.getPrimaryChangeProvider(move);
+        final ChangeProvider primaryChange = ActionDTOUtil.getPrimaryChangeProvider(action);
         final boolean hasPrimarySource = !initialPlacement && primaryChange.getSource().hasId();
         if (hasPrimarySource) {
             long primarySourceId = primaryChange.getSource().getId();
@@ -875,30 +860,29 @@ public class ActionSpecMapper {
         setRelatedDatacenter(primaryDestinationId, wrapperDto, context, true);
 
         List<ActionApiDTO> actions = Lists.newArrayList();
-        for (ChangeProvider change : move.getChangesList()) {
-            actions.add(singleMove(actionType, wrapperDto, move.getTarget().getId(), change, context));
+        for (ChangeProvider change : ActionDTOUtil.getChangeProviderList(action)) {
+            actions.add(singleMove(actionType, wrapperDto, target.getId(), change, context));
         }
         wrapperDto.addCompoundActions(actions);
 
-        wrapperDto.getRisk().setReasonCommodity(getReasonCommodities(moveExplanation));
+        wrapperDto.getRisk().setReasonCommodity(getReasonCommodities(changeProviderExplanationList));
 
         // set current location, new location and cloud aspects for cloud resize actions
-        if (move.getTarget().getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.CLOUD) {
+        if (target.getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.CLOUD) {
             // set location, which is the region
-            setCurrentAndNewLocation(move.getTarget().getId(), context, wrapperDto);
+            setCurrentAndNewLocation(target.getId(), context, wrapperDto);
 
             // set cloud aspects to target entity
             final Map<String, EntityAspect> aspects = new HashMap<>();
-            context.getCloudAspect(move.getTarget().getId()).map(cloudAspect -> aspects.put(
+            context.getCloudAspect(target.getId()).map(cloudAspect -> aspects.put(
                     StringConstants.CLOUD_ASPECT_NAME, cloudAspect));
             wrapperDto.getTarget().setAspects(aspects);
         }
     }
 
-    private String getReasonCommodities(MoveExplanation moveExplanation) {
+    private String getReasonCommodities(List<ChangeProviderExplanation> changeProviderExplanations) {
         // Using set to avoid duplicates
         Set<ReasonCommodity> reasonCommodities = new HashSet<>();
-        List<ChangeProviderExplanation> changeProviderExplanations = moveExplanation.getChangeProviderExplanationList();
         for (ChangeProviderExplanation changeProviderExplanation : changeProviderExplanations) {
             switch (changeProviderExplanation.getChangeProviderExplanationTypeCase()) {
                 case COMPLIANCE:

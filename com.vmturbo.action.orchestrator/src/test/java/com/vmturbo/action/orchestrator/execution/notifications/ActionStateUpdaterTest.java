@@ -46,6 +46,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost.ActionIds;
 
@@ -83,7 +84,7 @@ public class ActionStateUpdaterTest {
     private Action testAction2;
 
     @Before
-    public void setup() {
+    public void setup() throws UnsupportedActionException {
         when(entitySettingsCache.getSettingsForEntity(eq(3L)))
             .thenReturn(makeActionModeSetting(ActionMode.MANUAL));
         when(actionStorehouse.getStore(eq(realtimeTopologyContextId))).thenReturn(Optional.of(actionStore));
@@ -92,7 +93,7 @@ public class ActionStateUpdaterTest {
         testAction2 = makeTestAction(actionId2);
     }
 
-    private Action makeTestAction(final long actionId) {
+    private Action makeTestAction(final long actionId) throws UnsupportedActionException {
         Action testAction = new Action(recommendation.toBuilder().setId(actionId).build(), 4, actionModeCalculator);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entitySettingsCache, testAction);
         testAction.getActionTranslation().setPassthroughTranslationSuccess();

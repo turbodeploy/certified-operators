@@ -1,7 +1,6 @@
 package com.vmturbo.action.orchestrator.store;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -129,7 +128,7 @@ class LiveActions implements QueryableActionViews {
         // Since we're not modifying the maps, we can get by with a read lock.
         actionsLock.readLock().lock();
         try {
-            marketActions.values().forEach(consumer::accept);
+            marketActions.values().forEach(consumer);
         } finally {
             actionsLock.readLock().unlock();
         }
@@ -218,11 +217,7 @@ class LiveActions implements QueryableActionViews {
     void updateBuyRIActions(@Nonnull final EntitiesAndSettingsSnapshot newEntitiesSnapshot) {
         actionsLock.writeLock().lock();
         try {
-            riActions.values().forEach(action -> {
-                if (action.getState() == ActionState.READY) {
-                    action.refreshAction(newEntitiesSnapshot);
-                }
-            });
+            riActions.values().forEach(action -> refreshAction(action, newEntitiesSnapshot));
         } finally {
             actionsLock.writeLock().unlock();
         }
@@ -257,14 +252,7 @@ class LiveActions implements QueryableActionViews {
 
             // Now that we updated the entities + settings cache, refresh the action modes
             // of all market actions and set action description.
-            marketActions.values().forEach(action -> {
-                // We only want to refresh the action modes of "READY" actions.
-                // Once an action has been accepted (by the user or system) it doesn't make
-                // sense to retroactively modify the action mode or other dynamic information.
-                if (action.getState() == ActionState.READY) {
-                    action.refreshAction(newEntitiesSnapshot);
-                }
-            });
+            marketActions.values().forEach(action -> refreshAction(action, newEntitiesSnapshot));
 
             marketActions.values().stream()
                 .collect(Collectors.groupingBy(a ->
@@ -274,6 +262,21 @@ class LiveActions implements QueryableActionViews {
                 .observe((double) count));
         } finally {
             actionsLock.writeLock().unlock();
+        }
+    }
+
+    private static void refreshAction(
+            @Nonnull final Action action,
+            @Nonnull final EntitiesAndSettingsSnapshot newEntitiesSnapshot) {
+        // We only want to refresh the action modes of "READY" actions.
+        // Once an action has been accepted (by the user or system) it doesn't make
+        // sense to retroactively modify the action mode or other dynamic information.
+        if (action.getState() == ActionState.READY) {
+            try {
+                action.refreshAction(newEntitiesSnapshot);
+            } catch (UnsupportedActionException e) {
+                logger.error("Failed to refresh action " + action, e);
+            }
         }
     }
 
@@ -542,7 +545,7 @@ class LiveActions implements QueryableActionViews {
                     throw new UserAccessScopeException("User does not have access to all entities involved in action.");
                 }
             } catch (UnsupportedActionException uae) {
-                logger.error("Unsupported action {}", uae);
+                logger.error("Unsupported action", uae);
             }
         }
     }

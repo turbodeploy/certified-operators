@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -418,17 +419,17 @@ public class ActionDescriptionBuilderTest {
             .build();
     }
 
-    public static Optional<ActionPartialEntity> createEntity(Long Oid, int entityType,
-                                                             String displayName) {
+    private static Optional<ActionPartialEntity> createEntity(Long oid, int entityType,
+                                                              String displayName) {
         return Optional.of(ActionPartialEntity.newBuilder()
-            .setOid(Oid)
+            .setOid(oid)
             .setEntityType(entityType)
             .setDisplayName(displayName)
             .build());
     }
 
     @Test
-    public void testBuildMoveActionDescription() {
+    public void testBuildMoveActionDescription() throws UnsupportedActionException {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
             .thenReturn((createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
@@ -450,7 +451,7 @@ public class ActionDescriptionBuilderTest {
     }
 
     @Test
-    public void testBuildScaleActionDescription() {
+    public void testBuildScaleActionDescription() throws UnsupportedActionException {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
                 .thenReturn((createEntity(VM1_ID,
                         EntityType.VIRTUAL_MACHINE.getNumber(),
@@ -476,7 +477,8 @@ public class ActionDescriptionBuilderTest {
      * Test the description of reconfigure action with reason commodities.
      */
     @Test
-    public void testBuildReconfigureActionReasonCommoditiesDescription() {
+    public void testBuildReconfigureActionReasonCommoditiesDescription()
+            throws UnsupportedActionException {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
             .thenReturn((createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
@@ -498,7 +500,8 @@ public class ActionDescriptionBuilderTest {
      * Test the description of reconfigure action with reason settings.
      */
     @Test
-    public void testBuildReconfigureActionReasonSettingsDescription() {
+    public void testBuildReconfigureActionReasonSettingsDescription()
+            throws UnsupportedActionException {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
             .thenReturn((createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
@@ -518,7 +521,8 @@ public class ActionDescriptionBuilderTest {
      * Test the description of reconfigure action without source.
      */
     @Test
-    public void testBuildReconfigureActionWithoutSourceDescription() {
+    public void testBuildReconfigureActionWithoutSourceDescription()
+            throws UnsupportedActionException {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
             .thenReturn((createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
@@ -530,7 +534,7 @@ public class ActionDescriptionBuilderTest {
     }
 
     @Test
-    public void testBuildResizeActionDescription() {
+    public void testBuildResizeActionDescription() throws UnsupportedActionException {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
             .thenReturn((createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
@@ -543,7 +547,7 @@ public class ActionDescriptionBuilderTest {
     }
 
     @Test
-    public void testBuildResizeMemActionDescription() {
+    public void testBuildResizeMemActionDescription() throws UnsupportedActionException {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
             .thenReturn((createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
@@ -559,7 +563,7 @@ public class ActionDescriptionBuilderTest {
      * Test resize reservation action description.
      */
     @Test
-    public void testBuildResizeMemReservationActionDescription() {
+    public void testBuildResizeMemReservationActionDescription() throws UnsupportedActionException {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
                 .thenReturn((createEntity(VM1_ID,
                         EntityType.VIRTUAL_MACHINE.getNumber(),
@@ -576,7 +580,7 @@ public class ActionDescriptionBuilderTest {
      * Test resize Vcpu action description for VM.
      */
     @Test
-    public void testBuildResizeVcpuActionDescriptionForVM() {
+    public void testBuildResizeVcpuActionDescriptionForVM() throws UnsupportedActionException {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
             .thenReturn((createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
@@ -593,7 +597,8 @@ public class ActionDescriptionBuilderTest {
      * Test resize Vcpu reservation action description for VM.
      */
     @Test
-    public void testBuildResizeVcpuReservationActionDescriptionForVM() {
+    public void testBuildResizeVcpuReservationActionDescriptionForVM()
+            throws UnsupportedActionException {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
             .thenReturn((createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
@@ -610,7 +615,8 @@ public class ActionDescriptionBuilderTest {
      * Test resize Vcpu action description for container.
      */
     @Test
-    public void testBuildResizeVcpuActionDescriptionForContainer() {
+    public void testBuildResizeVcpuActionDescriptionForContainer()
+            throws UnsupportedActionException {
         when(entitySettingsCache.getEntityFromOid(eq(CONTAINER1_ID)))
             .thenReturn((createEntity(CONTAINER1_ID,
                 EntityType.CONTAINER.getNumber(),
@@ -627,7 +633,8 @@ public class ActionDescriptionBuilderTest {
      * Test resize Vcpu reservation action description for container.
      */
     @Test
-    public void testBuildResizeVcpuReservationActionDescriptionForContainer() {
+    public void testBuildResizeVcpuReservationActionDescriptionForContainer()
+            throws UnsupportedActionException {
         when(entitySettingsCache.getEntityFromOid(eq(CONTAINER1_ID)))
             .thenReturn((createEntity(CONTAINER1_ID,
                 EntityType.CONTAINER.getNumber(),
@@ -645,7 +652,7 @@ public class ActionDescriptionBuilderTest {
      * resize DBMem action.
      */
     @Test
-    public void testBuildResizeDBMemActionDescription() {
+    public void testBuildResizeDBMemActionDescription() throws UnsupportedActionException {
         final long dbsId = 19L;
         when(entitySettingsCache.getEntityFromOid(eq(dbsId))).thenReturn(
                 createEntity(dbsId, EntityType.DATABASE_SERVER_VALUE, "sqlServer1"));
@@ -659,7 +666,7 @@ public class ActionDescriptionBuilderTest {
     }
 
     @Test
-    public void testBuildDeactivateActionDescription() {
+    public void testBuildDeactivateActionDescription() throws UnsupportedActionException {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
             .thenReturn((createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
@@ -672,7 +679,7 @@ public class ActionDescriptionBuilderTest {
     }
 
     @Test
-    public void testBuildActivateActionDescription() {
+    public void testBuildActivateActionDescription() throws UnsupportedActionException {
         when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
             .thenReturn((createEntity(VM1_ID,
                 EntityType.VIRTUAL_MACHINE.getNumber(),
@@ -688,7 +695,7 @@ public class ActionDescriptionBuilderTest {
      * Test ProvisionBySupply action description.
      */
     @Test
-    public void testBuildProvisionBySupplyActionDescription() {
+    public void testBuildProvisionBySupplyActionDescription() throws UnsupportedActionException {
         when(entitySettingsCache.getEntityFromOid(eq(ST_SOURCE_ID)))
             .thenReturn(createEntity(ST_SOURCE_ID,
                 EntityType.STORAGE.getNumber(),
@@ -704,7 +711,7 @@ public class ActionDescriptionBuilderTest {
      * Test ProvisionByDemand action description.
      */
     @Test
-    public void testBuildProvisionByDemandActionDescription() {
+    public void testBuildProvisionByDemandActionDescription() throws UnsupportedActionException {
         when(entitySettingsCache.getEntityFromOid(eq(PM_SOURCE_ID)))
             .thenReturn(createEntity(PM_SOURCE_ID,
                 EntityType.PHYSICAL_MACHINE.getNumber(),
@@ -722,7 +729,7 @@ public class ActionDescriptionBuilderTest {
     }
 
     @Test
-    public void testBuildDeleteActionDescription() {
+    public void testBuildDeleteActionDescription() throws UnsupportedActionException {
         when(entitySettingsCache.getEntityFromOid(eq(ST_SOURCE_ID)))
             .thenReturn((createEntity(ST_SOURCE_ID,
                 EntityType.STORAGE.getNumber(),
@@ -735,7 +742,8 @@ public class ActionDescriptionBuilderTest {
     }
 
     @Test
-    public void testBuildDeleteCloudStorageActionDescription_whenSearchServiceHasNoBAInfo() {
+    public void testBuildDeleteCloudStorageActionDescription_whenSearchServiceHasNoBAInfo()
+            throws UnsupportedActionException {
         when(entitySettingsCache.getEntityFromOid(eq(VV_ID)))
             .thenReturn((createEntity(VV_ID,
                 EntityType.VIRTUAL_VOLUME.getNumber(),
@@ -755,7 +763,8 @@ public class ActionDescriptionBuilderTest {
     }
 
     @Test
-    public void testBuildDeleteCloudStorageActionDescription_whenSearchServiceHasBAInfo() {
+    public void testBuildDeleteCloudStorageActionDescription_whenSearchServiceHasBAInfo()
+            throws UnsupportedActionException {
         final long businessAccountOid = 88L;
         final String businessAccountName = "business_account_name";
         when(entitySettingsCache.getEntityFromOid(eq(VV_ID)))
@@ -783,7 +792,8 @@ public class ActionDescriptionBuilderTest {
      * Test Delete Cloud Storage Action when snapshot has no BA info.
      */
     @Test
-    public void testBuildDeleteCloudStorageActionDescription_whenSnapshotDoesNotHaveSourceEntity_SearchServiceHasBAInfo() {
+    public void testBuildDeleteCloudStorageActionDescription_whenSnapshotDoesNotHaveSourceEntity_SearchServiceHasBAInfo()
+            throws UnsupportedActionException {
         final long businessAccountOid = 88L;
         final String businessAccountName = "business_account_name";
         when(entitySettingsCache.getEntityFromOid(eq(VV_ID)))
@@ -809,7 +819,8 @@ public class ActionDescriptionBuilderTest {
      * Test Delete Cloud Storage Action Description when action has no source entity.
      */
     @Test
-    public void testBuildDeleteCloudStorageActionDescription_whenActionHasNoSourceEntity_SearchServiceHasBAInfo() {
+    public void testBuildDeleteCloudStorageActionDescription_whenActionHasNoSourceEntity_SearchServiceHasBAInfo()
+            throws UnsupportedActionException {
         final long businessAccountOid = 88L;
         final String businessAccountName = "business_account_name";
         when(entitySettingsCache.getEntityFromOid(eq(VV_ID)))
@@ -830,7 +841,7 @@ public class ActionDescriptionBuilderTest {
     }
 
     @Test
-    public void testBuildBuyRIActionDescription() {
+    public void testBuildBuyRIActionDescription() throws UnsupportedActionException {
         when(entitySettingsCache.getEntityFromOid(eq(COMPUTE_TIER_ID)))
             .thenReturn((createEntity(COMPUTE_TIER_ID,
                 EntityType.COMPUTE_TIER.getNumber(),

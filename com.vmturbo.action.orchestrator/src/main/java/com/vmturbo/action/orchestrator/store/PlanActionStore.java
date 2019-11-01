@@ -50,6 +50,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 
 /**
  * {@inheritDoc}
@@ -403,10 +404,8 @@ public class PlanActionStore implements ActionStore {
      */
     private List<ActionAndDescription> translatePlanActions(@Nonnull final List<ActionDTO.Action> actions,
                                                             @Nonnull final com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan planData) {
-        final Set<Long> entitiesToRetrieve = new HashSet<>();
-        final Set<ActionTypeCase> unsupportedActionTypes = new HashSet<>();
-
-        entitiesToRetrieve.addAll(ActionDTOUtil.getInvolvedEntityIds(actions));
+        final Set<Long> entitiesToRetrieve =
+                new HashSet<>(ActionDTOUtil.getInvolvedEntityIds(actions));
         // snapshot object will contain the entities information that is required to
         // form the actions descriptions
         long planId = planData.getTopologyContextId();
@@ -418,12 +417,8 @@ public class PlanActionStore implements ActionStore {
             entitiesToRetrieve, planId, planData.getTopologyId());
 
         final Stream<Action> translatedActions = actionTranslator.translate(actions.stream()
-            .map(recommendedAction -> {
-                final Action action;
-                action = actionFactory.newAction(recommendedAction, planData.getId());
-                return action;
-            })
-            .filter(Objects::nonNull), snapshot);
+            .map(recommendedAction -> actionFactory.newAction(recommendedAction, planData.getId())),
+            snapshot);
 
         final List<Action> translatedActionsToAdd = new ArrayList<>();
 
@@ -434,19 +429,26 @@ public class PlanActionStore implements ActionStore {
             }
         });
 
+        // Forming the actions descriptions
+        final List<ActionAndDescription> result = new ArrayList<>();
+        final Set<ActionTypeCase> unsupportedActionTypes = new HashSet<>();
+        for (final Action action : translatedActionsToAdd) {
+            final ActionDTO.Action recommendation = action.getTranslationResultOrOriginal();
+            try {
+                final String  description = ActionDescriptionBuilder.buildActionDescription(
+                        snapshot, recommendation);
+                result.add(ImmutableActionAndDescription.builder()
+                        .translatedAction(recommendation)
+                        .description(description)
+                        .build());
+            } catch (UnsupportedActionException e) {
+                unsupportedActionTypes.add(recommendation.getInfo().getActionTypeCase());
+            }
+        }
         if (!unsupportedActionTypes.isEmpty()) {
             logger.error("Action plan contained unsupported action types: {}", unsupportedActionTypes);
         }
-
-        // Forming the actions descriptions
-        return translatedActionsToAdd.stream().map(action -> {
-                final ActionDTO.Action recommendation = action.getTranslationResultOrOriginal();
-                return ImmutableActionAndDescription.builder()
-                    .translatedAction(recommendation)
-                    .description(ActionDescriptionBuilder.buildActionDescription(snapshot, recommendation))
-                    .build();
-            })
-            .collect(Collectors.toList());
+        return result;
     }
 
     /**

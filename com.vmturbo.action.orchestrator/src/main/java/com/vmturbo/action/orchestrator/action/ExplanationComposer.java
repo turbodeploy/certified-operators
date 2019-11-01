@@ -14,10 +14,10 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -28,13 +28,13 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderEx
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Congestion;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Efficiency;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Evacuation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -134,6 +134,7 @@ public class ExplanationComposer {
         Explanation explanation = action.getExplanation();
         switch (explanation.getActionExplanationTypeCase()) {
             case MOVE:
+            case SCALE:
                 return buildMoveExplanation(action, keepItShort, settingPolicyIdToSettingPolicyName);
             case RESIZE:
                 return buildResizeExplanation(action, keepItShort);
@@ -186,16 +187,16 @@ public class ExplanationComposer {
         // if we only have one source entity, we'll use it in the explanation builder. if
         // multiple, we won't bother because we don't have enough info to attribute
         // commodities to specific sources
-        List<ActionEntity> source_entities = action.getInfo().getMove().getChangesList().stream()
+        List<ActionEntity> source_entities = ActionDTOUtil.getChangeProviderList(action)
+            .stream()
             .map(ChangeProvider::getSource)
             .collect(Collectors.toList());
         Optional<ActionEntity> optionalSourceEntity = source_entities.size() == 1
             ? Optional.of(source_entities.get(0))
             : Optional.empty();
 
-        MoveExplanation moveExp = explanation.getMove();
-        List<ChangeProviderExplanation> changeExplanations =
-            moveExp.getChangeProviderExplanationList();
+        List<ChangeProviderExplanation> changeExplanations = ActionDTOUtil
+            .getChangeProviderExplanationList(explanation);
         ChangeProviderExplanation firstChangeProviderExplanation =
             changeExplanations.get(0);
         if (firstChangeProviderExplanation.hasInitialPlacement()) {
@@ -210,8 +211,16 @@ public class ExplanationComposer {
             changeExplanations = primaryChangeExplanation;
         }
         changeExplanations.stream()
-            .map(provider -> changeExplanationBuilder(optionalSourceEntity, action.getInfo()
-                .getMove().getTarget(), provider, keepItShort, settingPolicyIdToSettingPolicyName))
+            .map(provider -> {
+                try {
+                    return changeExplanationBuilder(optionalSourceEntity,
+                        ActionDTOUtil.getPrimaryEntity(action), provider, keepItShort,
+                        settingPolicyIdToSettingPolicyName);
+                } catch (UnsupportedActionException e) {
+                    logger.error("Cannot build action explanation", e);
+                    return ACTION_TYPE_ERROR;
+                }
+            })
             .forEach(sj::add);
         return sj.toString();
     }

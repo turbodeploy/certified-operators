@@ -28,18 +28,18 @@ import java.util.concurrent.Executors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.hamcrest.collection.IsArrayContainingInAnyOrder;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -76,6 +76,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Efficiency;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.InitialPlacement;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Performance;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeactivateExplanation;
@@ -86,18 +87,20 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.CostMoles;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
-import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
@@ -266,6 +269,38 @@ public class ActionSpecMapperTest {
 
         assertEquals(ActionType.MOVE, actionApiDTO.getActionType());
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
+
+        // Validate that the importance value is 0
+        assertEquals(0, actionApiDTO.getImportance(), 0.05);
+    }
+
+    /**
+     * Test mapping of Scale action.
+     * @throws Exception in case of mapping error.
+     */
+    @Test
+    public void testMapScale() throws Exception {
+        final ActionInfo scaleInfo = getScaleActionInfo();
+        final Explanation explanation = Explanation.newBuilder()
+            .setScale(ScaleExplanation.newBuilder()
+                .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                    .setEfficiency(Efficiency.newBuilder()))
+                .build())
+            .build();
+
+        final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
+            buildActionSpec(scaleInfo, explanation), REAL_TIME_TOPOLOGY_CONTEXT_ID);
+
+        assertEquals(ActionType.SCALE, actionApiDTO.getActionType());
+        assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
+        assertEquals("3", actionApiDTO.getTarget().getUuid());
+        assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
+
+        ActionApiDTO first = actionApiDTO.getCompoundActions().get(0);
+        assertEquals(SOURCE, first.getCurrentEntity().getDisplayName());
+        assertEquals("1", first.getCurrentValue());
+        assertEquals(DESTINATION, first.getNewEntity().getDisplayName());
+        assertEquals("2", first.getNewValue());
 
         // Validate that the importance value is 0
         assertEquals(0, actionApiDTO.getImportance(), 0.05);
@@ -1441,6 +1476,24 @@ public class ActionSpecMapperTest {
             .thenReturn(req);
 
         return moveInfo;
+    }
+
+    private ActionInfo getScaleActionInfo() {
+        final ActionInfo scaleInfo = ActionInfo.newBuilder()
+            .setScale(Scale.newBuilder()
+                .setTarget(ApiUtilsTest.createActionEntity(3))
+                .addChanges(ChangeProvider.newBuilder()
+                    .setSource(ApiUtilsTest.createActionEntity(1))
+                    .setDestination(ApiUtilsTest.createActionEntity(2))))
+            .build();
+
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
+            topologyEntityDTO(TARGET, 3L, EntityType.VIRTUAL_MACHINE_VALUE),
+            topologyEntityDTO(SOURCE, 1L, UIEntityType.COMPUTE_TIER.typeNumber()),
+            topologyEntityDTO(DESTINATION, 2L, UIEntityType.COMPUTE_TIER.typeNumber())));
+        when(repositoryApi.entitiesRequest(any())).thenReturn(req);
+
+        return scaleInfo;
     }
 
     /**

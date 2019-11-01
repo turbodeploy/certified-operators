@@ -46,6 +46,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep.Status;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
@@ -362,7 +363,8 @@ public class Action implements ActionView {
      * {@link EntitiesAndSettingsSnapshotFactory} is updated with the new snapshot of the settings
      * and entities needed to resolve action modes and form the action description.
      */
-    public void refreshAction(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot) {
+    public void refreshAction(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot)
+            throws UnsupportedActionException {
         synchronized (recommendationLock) {
             actionMode = actionModeCalculator.calculateActionMode(this, entitiesSnapshot);
             workflowSettingsForState = actionModeCalculator.calculateWorkflowSettings(recommendation, entitiesSnapshot);

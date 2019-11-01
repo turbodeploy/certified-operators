@@ -81,7 +81,7 @@ public class ActionDTOUtil {
     private static final String TRANSLATION_REGEX = "\\{entity:([^:]*?):([^:]*?):([^:]*?)\\}";
     public static final Pattern TRANSLATION_PATTERN = Pattern.compile(TRANSLATION_REGEX);
 
-    public static final Set<Integer> PRIMARY_TIER_VALUES = ImmutableSet.of(
+    private static final Set<Integer> PRIMARY_TIER_VALUES = ImmutableSet.of(
         EntityType.COMPUTE_TIER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE,
         EntityType.DATABASE_TIER_VALUE);
 
@@ -124,7 +124,7 @@ public class ActionDTOUtil {
      * @return The {@link ActionPlanType} of the action plan.
      */
     @Nonnull
-    public static ActionPlanType getActionPlanType(@Nonnull final ActionPlanInfo  actionPlanInfo) {
+    public static ActionPlanType getActionPlanType(@Nonnull final ActionPlanInfo actionPlanInfo) {
         switch (actionPlanInfo.getTypeInfoCase()) {
             case MARKET:
                 return ActionPlanType.MARKET;
@@ -150,10 +150,11 @@ public class ActionDTOUtil {
 
         switch (actionInfo.getActionTypeCase()) {
             case MOVE:
-                // For move actions, the importance of the action
+            case SCALE:
+                // For move/scale actions, the importance of the action
                 // is applied to the source instead of the target,
                 // since we're moving the load off of the source.
-                List<ChangeProvider> changes = actionInfo.getMove().getChangesList();
+                final List<ChangeProvider> changes = getChangeProviderList(action);
                 return changes.stream()
                     .filter(provider -> provider.getSource().getType() == EntityType.PHYSICAL_MACHINE_VALUE)
                     .findFirst()
@@ -178,7 +179,7 @@ public class ActionDTOUtil {
             case BUYRI:
                 return actionInfo.getBuyRi().getRegion().getId();
             default:
-                throw new UnsupportedActionException(action.getId(), actionInfo);
+                throw new UnsupportedActionException(action);
         }
     }
 
@@ -197,7 +198,9 @@ public class ActionDTOUtil {
 
         switch (actionInfo.getActionTypeCase()) {
             case MOVE:
-                return getMoveActionTarget(actionInfo.getMove());
+                return actionInfo.getMove().getTarget();
+            case SCALE:
+                return actionInfo.getScale().getTarget();
             case RECONFIGURE:
                 return actionInfo.getReconfigure().getTarget();
             case PROVISION:
@@ -213,7 +216,7 @@ public class ActionDTOUtil {
             case BUYRI:
                 return actionInfo.getBuyRi().getRegion();
             default:
-                throw new UnsupportedActionException(action.getId(), actionInfo);
+                throw new UnsupportedActionException(action);
         }
     }
 
@@ -270,7 +273,7 @@ public class ActionDTOUtil {
 
         for (final Action action : actions) {
             try {
-                involvedEntitiesSet.addAll(ActionDTOUtil.getInvolvedEntityIds(action));
+                involvedEntitiesSet.addAll(getInvolvedEntityIds(action));
             } catch (UnsupportedActionException e) {
                 if (unsupportedActionTypes.isEmpty()) {
                     unsupportedActionTypes = new HashMap<>();
@@ -308,12 +311,13 @@ public class ActionDTOUtil {
     @Nonnull
     public static List<ActionEntity> getInvolvedEntities(@Nonnull final ActionDTO.Action action)
             throws UnsupportedActionException {
-        switch (action.getInfo().getActionTypeCase()) {
+        final ActionInfo actionInfo = action.getInfo();
+        switch (actionInfo.getActionTypeCase()) {
             case MOVE:
-                final ActionDTO.Move move = action.getInfo().getMove();
+            case SCALE:
                 List<ActionEntity> retList = new ArrayList<>();
-                retList.add(move.getTarget());
-                for (ChangeProvider change : move.getChangesList()) {
+                retList.add(getPrimaryEntity(action));
+                for (ChangeProvider change : getChangeProviderList(action)) {
                     if (change.getSource().getId() != 0) {
                         retList.add(change.getSource());
                     }
@@ -324,22 +328,22 @@ public class ActionDTOUtil {
                 }
                 return retList;
             case RESIZE:
-                return Collections.singletonList(action.getInfo().getResize().getTarget());
+                return Collections.singletonList(actionInfo.getResize().getTarget());
             case ACTIVATE:
-                return Collections.singletonList(action.getInfo().getActivate().getTarget());
+                return Collections.singletonList(actionInfo.getActivate().getTarget());
             case DEACTIVATE:
-                return Collections.singletonList(action.getInfo().getDeactivate().getTarget());
+                return Collections.singletonList(actionInfo.getDeactivate().getTarget());
             case PROVISION:
-                return Collections.singletonList(action.getInfo().getProvision().getEntityToClone());
+                return Collections.singletonList(actionInfo.getProvision().getEntityToClone());
             case RECONFIGURE:
-                final ActionDTO.Reconfigure reconfigure = action.getInfo().getReconfigure();
+                final ActionDTO.Reconfigure reconfigure = actionInfo.getReconfigure();
                 if (reconfigure.hasSource()) {
                     return Arrays.asList(reconfigure.getTarget(), reconfigure.getSource());
                 } else {
                     return Collections.singletonList(reconfigure.getTarget());
                 }
             case DELETE:
-                final Delete delete = action.getInfo().getDelete();
+                final Delete delete = actionInfo.getDelete();
                 List<ActionEntity> deleteActionEntities = new ArrayList<>();
                 deleteActionEntities.add(delete.getTarget());
                 if (delete.hasSource()) {
@@ -347,7 +351,7 @@ public class ActionDTOUtil {
                 }
                 return deleteActionEntities;
             case BUYRI:
-                final BuyRI buyRi = action.getInfo().getBuyRi();
+                final BuyRI buyRi = actionInfo.getBuyRi();
                 List<ActionEntity> actionEntities = new ArrayList<>();
                 actionEntities.add(buyRi.getComputeTier());
                 actionEntities.add(buyRi.getRegion());
@@ -368,7 +372,6 @@ public class ActionDTOUtil {
     public static Severity mapActionCategoryToSeverity(@Nonnull final ActionCategory category) {
         switch (category) {
             case PERFORMANCE_ASSURANCE:
-                return Severity.CRITICAL;
             case COMPLIANCE:
                 return Severity.CRITICAL;
             case PREVENTION:
@@ -410,6 +413,8 @@ public class ActionDTOUtil {
                     }
                 }
                 return ActionType.MOVE;
+            case SCALE:
+                return ActionType.SCALE;
             case RECONFIGURE:
                 return ActionType.RECONFIGURE;
             case PROVISION:
@@ -441,6 +446,9 @@ public class ActionDTOUtil {
      * @return true if the given MOVE is ACTIVATE, false otherwise.
      */
     private static Boolean isMoveActivate(@Nonnull final Action action) {
+        if (!action.getExplanation().hasMove()) {
+            return false;
+        }
         MoveExplanation moveExplanation = action.getExplanation().getMove();
         return (moveExplanation.getChangeProviderExplanationCount() > 0
             && moveExplanation.getChangeProviderExplanationList().stream()
@@ -466,6 +474,62 @@ public class ActionDTOUtil {
     }
 
     /**
+     * Get the list of {@link ChangeProvider} associated with Move or Right Size action.
+     *
+     * @param action Move or Right Size action.
+     * @return List of {@link ChangeProvider}.
+     * @throws IllegalArgumentException if action is not of Move/RightSize type.
+     */
+    @Nonnull
+    public static List<ChangeProvider> getChangeProviderList(@Nonnull final ActionDTO.Action action) {
+        final ActionInfo actionInfo = action.getInfo();
+        switch (actionInfo.getActionTypeCase()) {
+            case MOVE:
+                return actionInfo.getMove().getChangesList();
+            case SCALE:
+                return actionInfo.getScale().getChangesList();
+            default:
+                throw new IllegalArgumentException("Cannot get change provider list for " +
+                    "action type " + actionInfo.getActionTypeCase());
+        }
+    }
+
+    /**
+     * Get the list of {@link ChangeProviderExplanation} associated with Move or Right Size action.
+     *
+     * @param explanation Action explanation.
+     * @return List of {@link ChangeProviderExplanation}.
+     * @throws IllegalArgumentException if action is not of Move/RightSize type.
+     */
+    @Nonnull
+    public static List<ChangeProviderExplanation> getChangeProviderExplanationList(
+                @Nonnull final Explanation explanation) {
+        switch (explanation.getActionExplanationTypeCase()) {
+            case MOVE:
+                return explanation.getMove().getChangeProviderExplanationList();
+            case SCALE:
+                return explanation.getScale().getChangeProviderExplanationList();
+            case ACTIONEXPLANATIONTYPE_NOT_SET:
+                return Collections.emptyList();
+            default:
+                throw new IllegalArgumentException("Cannot get change provider explanation list " +
+                    "for explanation type " + explanation.getActionExplanationTypeCase());
+        }
+    }
+
+    /**
+     * Get primary {@link ChangeProvider} for Move or Right Size action.
+     *
+     * @param action Move or Right Size action.
+     * @return The primary {@link ChangeProvider}.
+     * @throws IllegalArgumentException if action is not of Move/RightSize type.
+     */
+    @Nonnull
+    public static ChangeProvider getPrimaryChangeProvider(@Nonnull final ActionDTO.Action action) {
+        return getChangeProviderList(action).get(getPrimaryChangeProviderIdx(action));
+    }
+
+    /**
      * Get the "primary" {@link ChangeProvider} for a particular move action.
      * Only relevant in compound moves. Generally, if a PM move is accompanied by a storage move,
      * the PM move is considered primary.
@@ -475,12 +539,23 @@ public class ActionDTOUtil {
      */
     @Nonnull
     public static ChangeProvider getPrimaryChangeProvider(@Nonnull final ActionDTO.Move move) {
-        return move.getChanges(getPrimaryChangeProviderIdx(move));
+        return move.getChanges(getPrimaryChangeProviderIdx(move.getChangesList()));
     }
 
-    private static int getPrimaryChangeProviderIdx(@Nonnull final ActionDTO.Move move) {
-        for (int i = 0; i < move.getChangesList().size(); ++i) {
-            final ChangeProvider change = move.getChanges(i);
+    @Nonnull
+    private static ChangeProviderExplanation getPrimaryChangeProviderExplanation(
+        @Nonnull final ActionDTO.Action action) {
+        return getChangeProviderExplanationList(action.getExplanation()).get(
+            getPrimaryChangeProviderIdx(action));
+    }
+
+    private static int getPrimaryChangeProviderIdx(@Nonnull final ActionDTO.Action action) {
+        return getPrimaryChangeProviderIdx(getChangeProviderList(action));
+    }
+
+    private static int getPrimaryChangeProviderIdx(@Nonnull final List<ChangeProvider> changeProviderList) {
+        for (int i = 0; i < changeProviderList.size(); ++i) {
+            final ChangeProvider change = changeProviderList.get(i);
             if (isPrimaryEntityType(change.getDestination().getType())) {
                 return i;
             }
@@ -512,10 +587,11 @@ public class ActionDTOUtil {
     @Nonnull
     public static Stream<ReasonCommodity> getReasonCommodities(@Nonnull final ActionDTO.Action action) {
         final ActionInfo actionInfo = action.getInfo();
-        switch (action.getInfo().getActionTypeCase()) {
+        switch (actionInfo.getActionTypeCase()) {
             case MOVE:
-                final ChangeProviderExplanation changeExp = action.getExplanation().getMove()
-                    .getChangeProviderExplanation(getPrimaryChangeProviderIdx(actionInfo.getMove()));
+            case SCALE:
+                final ChangeProviderExplanation changeExp = getPrimaryChangeProviderExplanation(
+                        action);
                 switch (changeExp.getChangeProviderExplanationTypeCase()) {
                     case COMPLIANCE:
                         return changeExp.getCompliance().getMissingCommoditiesList().stream();
@@ -539,7 +615,7 @@ public class ActionDTOUtil {
                     return provisionExplanation.getProvisionByDemandExplanation()
                         .getCommodityMaxAmountAvailableList().stream()
                         .map(CommodityMaxAmountAvailableEntry::getCommodityBaseType)
-                        .map(baseType -> createReasonCommodityFromBaseType(baseType));
+                        .map(ActionDTOUtil::createReasonCommodityFromBaseType);
                 } else if (provisionExplanation.hasProvisionBySupplyExplanation()) {
                     return Stream.of(provisionExplanation.getProvisionBySupplyExplanation()
                                     .getMostExpensiveCommodityInfo());
@@ -548,13 +624,13 @@ public class ActionDTOUtil {
                 }
             case RESIZE:
                 return Stream.of(actionInfo.getResize().getCommodityType())
-                                .map(ct -> createReasonCommodityFromCommodityType(ct));
+                                .map(ActionDTOUtil::createReasonCommodityFromCommodityType);
             case ACTIVATE:
-                return action.getInfo().getActivate().getTriggeringCommoditiesList()
-                    .stream().map(ct -> createReasonCommodityFromCommodityType(ct));
+                return actionInfo.getActivate().getTriggeringCommoditiesList()
+                    .stream().map(ActionDTOUtil::createReasonCommodityFromCommodityType);
             case DEACTIVATE:
-                return action.getInfo().getDeactivate().getTriggeringCommoditiesList()
-                    .stream().map(ct -> createReasonCommodityFromCommodityType(ct));
+                return actionInfo.getDeactivate().getTriggeringCommoditiesList()
+                    .stream().map(ActionDTOUtil::createReasonCommodityFromCommodityType);
             // No reason commodities present for BUY RI.
             case BUYRI:
             default:
@@ -677,7 +753,7 @@ public class ActionDTOUtil {
      * @return
      */
     public static String beautifyCommodityType(@Nonnull final TopologyDTO.CommodityType commodityType) {
-        return ActionDTOUtil.getCommodityDisplayName(commodityType);
+        return getCommodityDisplayName(commodityType);
     }
 
 

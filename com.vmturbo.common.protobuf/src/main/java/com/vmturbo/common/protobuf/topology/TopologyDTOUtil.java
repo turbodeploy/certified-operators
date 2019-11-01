@@ -13,15 +13,12 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -30,8 +27,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 public final class TopologyDTOUtil {
     private static final String STORAGE_CLUSTER_WITH_GROUP = "group";
     private static final String STORAGE_CLUSTER_ISO = "iso-";
-
-    private static final Logger logger = LogManager.getLogger();
 
     /**
      * Name of alleviate pressure plan type.

@@ -29,6 +29,7 @@ import com.vmturbo.action.orchestrator.action.ExecutableStep;
 import com.vmturbo.action.orchestrator.action.ExplanationComposer;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.batch.translator.BatchTranslator;
+import com.vmturbo.action.orchestrator.translation.batch.translator.CloudMoveBatchTranslator;
 import com.vmturbo.action.orchestrator.translation.batch.translator.PassThroughBatchTranslator;
 import com.vmturbo.action.orchestrator.translation.batch.translator.SkipBatchTranslator;
 import com.vmturbo.action.orchestrator.translation.batch.translator.VCpuResizeBatchTranslator;
@@ -173,11 +174,10 @@ public class ActionTranslator {
             @Nonnull final List<? extends ActionView> actionViews) {
         final Set<Long> reasonSettings = new HashSet<>();
         for (ActionView actionView : actionViews) {
-            Explanation explanation = actionView.getRecommendation().getExplanation();
+            final Explanation explanation = actionView.getRecommendation().getExplanation();
             switch (explanation.getActionExplanationTypeCase()) {
                 case MOVE:
-                    actionView.getRecommendation().getExplanation().getMove()
-                        .getChangeProviderExplanationList().stream()
+                    explanation.getMove().getChangeProviderExplanationList().stream()
                         .filter(ChangeProviderExplanation::getIsPrimaryChangeProviderExplanation)
                         .filter(ChangeProviderExplanation::hasCompliance)
                         .map(ChangeProviderExplanation::getCompliance)
@@ -251,8 +251,7 @@ public class ActionTranslator {
     private ActionSpec toSpec(@Nonnull final ActionView actionView,
                               @Nonnull final Map<Long, String> settingPolicyIdToSettingPolicyName) {
         final ActionDTO.Action recommendationForDisplay = actionView
-            .getActionTranslation()
-            .getTranslationResultOrOriginal();
+                .getTranslationResultOrOriginal();
 
         ActionSpec.Builder specBuilder = ActionSpec.newBuilder()
             .setRecommendation(recommendationForDisplay)

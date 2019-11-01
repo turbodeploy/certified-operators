@@ -4,17 +4,21 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import com.google.common.collect.Sets;
 
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
@@ -39,10 +43,12 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
@@ -421,6 +427,106 @@ public class ActionDTOUtilTest {
         assertThat(reasonCommodities, containsInAnyOrder(commodity1, commodity2));
     }
 
+    /**
+     * Test for invocation of {@link ActionDTOUtil#getPrimaryEntity(Action)} method for Move and
+     * Scale actions.
+     */
+    @Test
+    public void testGetPrimaryEntityForMoveAndScale() throws UnsupportedActionException {
+        final ActionEntity target = createActionEntity(11);
+        final ActionInfo move =
+                ActionInfo.newBuilder().setMove(Move.newBuilder().setTarget(target)).build();
+        final ActionInfo scale =
+                ActionInfo.newBuilder().setScale(Scale.newBuilder().setTarget(target)).build();
+        for (final ActionInfo actionInfo : Arrays.asList(move, scale)) {
+            final Action action = Action.newBuilder()
+                    .setId(123121)
+                    .setExplanation(Explanation.getDefaultInstance())
+                    .setInfo(actionInfo)
+                    .setDeprecatedImportance(1)
+                    .build();
+            assertSame(target, ActionDTOUtil.getPrimaryEntity(action));
+        }
+    }
+
+    /**
+     * Test for successful invocation of {@link ActionDTOUtil#getChangeProviderList(Action)} method.
+     */
+    @Test
+    public void testGetChangeProviderListSucceeded() {
+        final ActionEntity target = createActionEntity(11);
+        final ActionInfo move = ActionInfo.newBuilder().setMove(Move.newBuilder()
+            .addChanges(ChangeProvider.getDefaultInstance())
+            .setTarget(target)).build();
+        final ActionInfo rightSize = ActionInfo.newBuilder().setScale(Scale.newBuilder()
+            .addChanges(ChangeProvider.getDefaultInstance())
+            .setTarget(target)).build();
+        Stream.of(move, rightSize).forEach(actionInfo -> {
+            final Action action = Action.newBuilder()
+                .setId(123121)
+                .setExplanation(Explanation.getDefaultInstance())
+                .setInfo(actionInfo)
+                .setDeprecatedImportance(1)
+                .build();
+            assertEquals(1, ActionDTOUtil.getChangeProviderList(action).size());
+        });
+    }
+
+    /**
+     * Test for failed invocation of {@link ActionDTOUtil#getChangeProviderList(Action)} method.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetChangeProviderListFailed() {
+        final ActionEntity target = createActionEntity(11);
+        final Action action = Action.newBuilder()
+            .setId(123121)
+            .setExplanation(Explanation.getDefaultInstance())
+            .setInfo(ActionInfo.newBuilder().setResize(Resize.newBuilder().setTarget(target)))
+            .setDeprecatedImportance(1)
+            .build();
+        ActionDTOUtil.getChangeProviderList(action);
+    }
+
+    /**
+     * Test for successful invocation of
+     * {@link ActionDTOUtil#getChangeProviderExplanationList(Explanation)} method.
+     */
+    @Test
+    public void testGetChangeProviderExplanationListSucceeded() {
+        final Explanation move = Explanation.newBuilder()
+            .setMove(MoveExplanation.newBuilder()
+                .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder().build()))
+            .build();
+        final Explanation rightSize = Explanation.newBuilder()
+            .setScale(ScaleExplanation.newBuilder()
+                .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder().build()))
+            .build();
+        Stream.of(move, rightSize).forEach(explanation ->
+            assertEquals(1, ActionDTOUtil.getChangeProviderExplanationList(explanation).size()));
+    }
+
+    /**
+     * Test for successful invocation of
+     * {@link ActionDTOUtil#getChangeProviderExplanationList(Explanation)} method when result is
+     * empty list.
+     */
+    @Test
+    public void testGetChangeProviderExplanationListEmpty() {
+        assertTrue(ActionDTOUtil.getChangeProviderExplanationList(
+            Explanation.getDefaultInstance()).isEmpty());
+    }
+
+    /**
+     * Test for failed invocation of
+     * {@link ActionDTOUtil#getChangeProviderExplanationList(Explanation)} method.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetChangeProviderExplanationListFailed() {
+        final Explanation explanation = Explanation.newBuilder()
+            .setProvision(ProvisionExplanation.getDefaultInstance()).build();
+        ActionDTOUtil.getChangeProviderExplanationList(explanation);
+    }
+
     private static ActionEntity createActionEntity(long id) {
         // set some fake type for now
         final int defaultEntityType = 1;
@@ -435,4 +541,3 @@ public class ActionDTOUtilTest {
                         .setType(baseType).build())).build();
     }
 }
-

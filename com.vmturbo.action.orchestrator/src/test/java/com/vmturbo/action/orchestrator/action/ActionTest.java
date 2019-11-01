@@ -15,18 +15,17 @@ import static org.mockito.Mockito.when;
 
 import java.util.Map;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-
-import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -37,6 +36,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -66,7 +66,7 @@ public class ActionTest {
     private ActionModeCalculator actionModeCalculator = spy(new ActionModeCalculator());
 
     @Before
-    public void setup() {
+    public void setup() throws UnsupportedActionException {
         IdentityGenerator.initPrefix(0);
 
         moveRecommendation =
@@ -106,7 +106,7 @@ public class ActionTest {
         reconfigureAction.getActionTranslation().setPassthroughTranslationSuccess();
     }
 
-    public void setEntitiesOIDs() {
+    private void setEntitiesOIDs() {
         when(entitySettingsCache.getEntityFromOid(eq(11L)))
             .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(11L,
                 EntityType.VIRTUAL_MACHINE.getNumber()));
@@ -125,34 +125,34 @@ public class ActionTest {
     }
 
     @Test
-    public void testGetRecommendation() throws Exception {
+    public void testGetRecommendation() {
         assertEquals(moveRecommendation, moveAction.getRecommendation());
     }
 
     @Test
-    public void testGetActionPlanId() throws Exception {
+    public void testGetActionPlanId() {
         assertEquals(actionPlanId, moveAction.getActionPlanId());
     }
 
     @Test
-    public void testInitialState() throws Exception {
+    public void testInitialState() {
         assertEquals(ActionState.READY, moveAction.getState());
     }
 
     @Test
-    public void testIsReady() throws Exception {
+    public void testIsReady() {
         assertTrue(moveAction.isReady());
         moveAction.receive(new ActionEvent.NotRecommendedEvent(5));
         assertFalse(moveAction.isReady());
     }
 
     @Test
-    public void testGetId() throws Exception {
+    public void testGetId() {
         assertEquals(moveRecommendation.getId(), moveAction.getId());
     }
 
     @Test
-    public void testExecutionCreatesExecutionStep() throws Exception {
+    public void testExecutionCreatesExecutionStep() {
         final long targetId = 7;
         when(entitySettingsCache.getSettingsForEntity(eq(11L)))
             .thenReturn(ImmutableMap.of("move", makeSetting("move", ActionMode.MANUAL)));
@@ -162,7 +162,7 @@ public class ActionTest {
     }
 
     @Test
-    public void testBeginExecutionEventStartsExecute() throws Exception {
+    public void testBeginExecutionEventStartsExecute() {
         final long targetId = 7;
         when(entitySettingsCache.getSettingsForEntity(eq(11L)))
                 .thenReturn(ImmutableMap.of("move", makeSetting("move", ActionMode.MANUAL)));
@@ -197,7 +197,7 @@ public class ActionTest {
     }
 
     @Test
-    public void testInvalidateAction() {
+    public void testInvalidateAction() throws UnsupportedActionException {
         doReturn(ActionMode.MANUAL).when(actionModeCalculator)
             .calculateActionMode(moveAction, entitySettingsCache);
 
@@ -278,7 +278,7 @@ public class ActionTest {
     }
 
     @Test
-    public void testGetModeSupportLevelUnsupported(){
+    public void testGetModeSupportLevelUnsupported() throws UnsupportedActionException {
         //UNSUPPORTED support level - no modes above DISABLED even though set to RECOMMEND
         moveRecommendation =
                 makeRec(TestActionBuilder.makeMoveInfo(11L, 22L, 1, 33L, 1),
@@ -329,7 +329,7 @@ public class ActionTest {
     }
 
     @Test
-    public void testGetModeSupportLevelSupported() {
+    public void testGetModeSupportLevelSupported() throws UnsupportedActionException {
         //SUPPORTED support level - all modes work
 
         Map<String, Setting> settings = ImmutableMap.<String, Setting>builder()
@@ -358,8 +358,8 @@ public class ActionTest {
         assertEquals(reconfigureAction.getMode(), ActionMode.RECOMMEND);
     }
 
-    public static ActionDTO.Action.Builder makeRec(ActionInfo.Builder infoBuilder,
-                                             final SupportLevel supportLevel) {
+    private static ActionDTO.Action.Builder makeRec(ActionInfo.Builder infoBuilder,
+            final SupportLevel supportLevel) {
         return ActionDTO.Action.newBuilder()
                 .setId(IdentityGenerator.next())
                 .setDeprecatedImportance(0)

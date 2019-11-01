@@ -29,10 +29,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityNewCapacityEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
-import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
@@ -53,7 +53,6 @@ public class ActionDescriptionBuilder {
     private static final String UP = "up";
     private static final String DOWN = "down";
     private static final String OF = " of ";
-    private static final String DEFAULT_ERROR_MSG = "Unsupported action type ";
     private static final String ENTITY_NOT_FOUND_WARN_MSG = "Entity {} doesn't exist in the entities snapshot";
 
 
@@ -124,11 +123,13 @@ public class ActionDescriptionBuilder {
      * @return The final action description string that will be displayed in the UI.
      */
     public static String buildActionDescription(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
-                                                @Nonnull final ActionDTO.Action recommendation) {
+                                                @Nonnull final ActionDTO.Action recommendation)
+            throws UnsupportedActionException {
         final ActionInfo info = recommendation.getInfo();
         switch(info.getActionTypeCase()) {
             case MOVE:
-                return getMoveActionDescription(entitiesSnapshot, recommendation);
+            case SCALE:
+                return getMoveOrScaleActionDescription(entitiesSnapshot, recommendation);
             case RECONFIGURE:
                 return getReconfigureActionDescription(entitiesSnapshot, recommendation);
             case PROVISION:
@@ -144,8 +145,7 @@ public class ActionDescriptionBuilder {
             case BUYRI:
                 return getRIBuyActionDescription(entitiesSnapshot, recommendation);
             default:
-                throw new IllegalArgumentException(DEFAULT_ERROR_MSG +
-                    info.getActionTypeCase().name());
+                throw new UnsupportedActionException(recommendation);
         }
     }
 
@@ -236,25 +236,25 @@ public class ActionDescriptionBuilder {
     }
 
     /**
-     * Builds the Move action description. This is intended to be called by
+     * Builds Move or Right Size action description. This is intended to be called by
      * {@link ActionDescriptionBuilder#buildActionDescription(EntitiesAndSettingsSnapshot, ActionDTO.Action)}
      *
      * @param entitiesSnapshot {@link EntitiesAndSettingsSnapshot} object that contains entities
      * information.
-     * @return The Move action description.
+     * @param recommendation Action recommendation.
+     * @return The action description.
      */
-    private static String getMoveActionDescription(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
-                                            @Nonnull final ActionDTO.Action recommendation) {
-        final boolean initialPlacement =
-            recommendation.getExplanation().getMove().getChangeProviderExplanationList()
-                .stream().anyMatch(ChangeProviderExplanation::hasInitialPlacement);
-        final Move move = recommendation.getInfo().getMove();
-        ChangeProvider primaryChange = ActionDTOUtil
-            .getPrimaryChangeProvider(move);
+    private static String getMoveOrScaleActionDescription(
+                @Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
+                @Nonnull final ActionDTO.Action recommendation) throws UnsupportedActionException {
+        final boolean initialPlacement = ActionDTOUtil.getChangeProviderExplanationList(
+            recommendation.getExplanation()).stream()
+            .anyMatch(ChangeProviderExplanation::hasInitialPlacement);
 
+        final ChangeProvider primaryChange = ActionDTOUtil.getPrimaryChangeProvider(recommendation);
         final boolean hasSource = !initialPlacement && primaryChange.hasSource();
         final long destinationEntityId = primaryChange.getDestination().getId();
-        final long targetEntityId = move.getTarget().getId();
+        final long targetEntityId = ActionDTOUtil.getPrimaryEntity(recommendation).getId();
 
         Optional<ActionPartialEntity> optTargetEntity = entitiesSnapshot.getEntityFromOid(targetEntityId);
         if( !optTargetEntity.isPresent()) {
@@ -266,7 +266,7 @@ public class ActionDescriptionBuilder {
             logger.debug(ENTITY_NOT_FOUND_WARN_MSG, destinationEntityId);
             return "";
         }
-        // All moves should have a target entity and a destination.
+        // All Move/RightSize actions should have a target entity and a destination.
         ActionPartialEntity targetEntityDTO = optTargetEntity.get();
 
         ActionPartialEntity newEntityDTO = optDestinationEntity.get();

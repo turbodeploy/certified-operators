@@ -10,13 +10,13 @@ import com.google.common.collect.ImmutableSet;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 public class ActionCategoryExtractor {
 
-    public static final Set<Integer> SEGMENTATION_COMMODITY_SET = ImmutableSet.of(
+    private static final Set<Integer> SEGMENTATION_COMMODITY_SET = ImmutableSet.of(
         CommodityType.SEGMENTATION_VALUE, CommodityType.DRS_SEGMENTATION_VALUE);
 
     /**
@@ -28,9 +28,9 @@ public class ActionCategoryExtractor {
     public static ActionCategory assignActionCategory(Explanation explanation) {
         switch (explanation.getActionExplanationTypeCase()) {
             case MOVE:
-                MoveExplanation moveExp = explanation.getMove();
+            case SCALE:
                 List<ChangeProviderExplanation> changeExplanations =
-                                moveExp.getChangeProviderExplanationList();
+                    ActionDTOUtil.getChangeProviderExplanationList(explanation);
                 List<ChangeProviderExplanation> primaryExplanations = changeExplanations.stream()
                     .filter(ChangeProviderExplanation::getIsPrimaryChangeProviderExplanation)
                     .collect(Collectors.toList());
