@@ -5,6 +5,8 @@ import javax.annotation.PostConstruct;
 import com.ecwid.consul.v1.ConsulClient;
 import com.ecwid.consul.v1.ConsulRawClient;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,6 +18,8 @@ import com.vmturbo.components.common.health.ConsulHealthcheckRegistration;
  */
 @Configuration
 public class ConsulRegistrationConfig {
+
+    private static final Logger logger = LogManager.getLogger(DiagnosticService.class);
 
     /**
      * Key for environment variable to control:  if "true" this component should register
@@ -64,6 +68,11 @@ public class ConsulRegistrationConfig {
      */
     @PostConstruct
     protected void registerConsul() {
-        consulHealthcheckRegistration().registerService();
+        if (enableConsulRegistration) {
+            consulHealthcheckRegistration().registerService();
+        } else {
+            logger.info("Consul Registration Disabled.");
+        }
+
     }
 }
