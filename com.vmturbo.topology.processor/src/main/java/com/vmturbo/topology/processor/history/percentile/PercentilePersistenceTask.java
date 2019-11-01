@@ -47,7 +47,7 @@ public class PercentilePersistenceTask extends
      */
     public static final long TOTAL_TIMESTAMP = 0;
     private static final Logger logger = LogManager.getLogger();
-    private static final long waitForChannelReadinessIntervalMs = 1;
+    private static final long waitForChannelReadinessIntervalMs = 50;
     private static final long TOTAL_START_TIMESTAMP = 0L;
     private final StatsHistoryServiceStub statsHistoryClient;
     private long startTimestamp;

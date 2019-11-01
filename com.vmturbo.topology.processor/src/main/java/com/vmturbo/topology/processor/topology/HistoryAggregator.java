@@ -111,7 +111,6 @@ public class HistoryAggregator {
         if (editorsToRun.isEmpty()) {
             return;
         }
-        final Stopwatch stopwatch = Stopwatch.createStarted();
         Map<IHistoricalEditor<?>, List<EntityCommodityReference>> commsToUpdate =
                         gatherEligibleCommodities(graph.getTopologyGraph(), editorsToRun);
         // store reference to the current settings for policies access
@@ -147,10 +146,10 @@ public class HistoryAggregator {
         forEachEditor(editorsToRun, IHistoricalEditor::completeBroadcast, "completion",
                       "The time spent completing historical data broadcast preparation for {}");
 
-        logger.info("History aggregator commodities modified: {} in {}", editorsToRun.stream()
-                        .map(editor -> editor.getClass().getSimpleName() + ":" + accessor
-                                        .getUpdateCount(editor.getClass().getSimpleName()))
-                        .collect(Collectors.joining(" ")), stopwatch.stop());
+        logger.info("History aggregator commodities modified: " + editorsToRun.stream()
+                        .map(editor -> editor.getClass().getSimpleName() + ":"
+                                       + accessor.getUpdateCount(editor.getClass().getSimpleName()))
+                        .collect(Collectors.joining(" ")));
     }
 
     /**
@@ -179,9 +178,6 @@ public class HistoryAggregator {
                     throw new PipelineStageException("Historical calculations " + description
                                                      + " failed for "
                                                      + editor.getClass().getSimpleName(), e);
-                } finally {
-                    logger.debug(() -> String.format("%s: %s secs", metricHelpFormat,
-                                    timer.getTimeElapsedSecs()), editorName);
                 }
             }
         }

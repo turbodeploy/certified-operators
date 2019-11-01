@@ -161,7 +161,7 @@ public class PercentileWriter implements StreamObserver<PercentileChunk> {
             try {
                 dataWritingPromise.get();
                 responseObserver.onNext(SetPercentileCountsResponse.newBuilder().build());
-                logger.debug("Percentile data '{}' bytes in '{}' chunks for '{}' timestamp have been written successfully in '{}' seconds",
+                logger.debug("Percentile data '{}' bytes in '{}' chunks for '{}' timestamp have been written successfully in '{}'",
                                 totalBytesWritten::get, processedChunks::get, startTimestamp::get,
                                 dataMetricTimer::getTimeElapsedSecs);
                 responseObserver.onCompleted();

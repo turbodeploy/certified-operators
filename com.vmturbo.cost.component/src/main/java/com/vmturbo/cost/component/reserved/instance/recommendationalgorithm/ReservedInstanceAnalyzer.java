@@ -24,6 +24,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Stopwatch;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,7 +34,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.BuyRIActionPlanInfo;
 import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
@@ -43,6 +46,7 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBloc
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.reservedinstance.recommendationalgorithm.RecommendationKernelAlgorithm;
 import com.vmturbo.commons.reservedinstance.recommendationalgorithm.RecommendationKernelAlgorithmResult;
@@ -123,7 +127,7 @@ public class ReservedInstanceAnalyzer {
 
     /*
      * Facade to access the historical demand.
-     * Refactoring code to improve JUnit testing, because this class is highly dependent on the Spring
+     * Refatoring code to improve JUnit testing, because this class is highly dependent on the Spring
      * framework's dependency injection, which is difficult to JUnit test.
      *
      * TODO: This object should be passed into the constructor and eliminate the computeTierDemandStatsStore
@@ -197,7 +201,7 @@ public class ReservedInstanceAnalyzer {
         this.actionsSender = null;
         this.buyRiStore = null;
         this.actionContextRIBuyStore = null;
-        this.realtimeTopologyContextId = 1L;
+        this.realtimeTopologyContextId = 1l;
         this.historicalDemandDataReader = null;
         this.riBoughtStore = null;
         this.riSpecStore = null;
@@ -396,8 +400,7 @@ public class ReservedInstanceAnalyzer {
 
         String csv = new String(baos.toByteArray(), StandardCharsets.UTF_8);
         ps.close();
-        // start the CSV on a new line, so it is easy to extract into Excel
-        logger.info("AnalysisResults{}{}", System.lineSeparator(), csv);
+        logger.info("AnalysisResults {}",  csv);
     }
 
     /**
@@ -452,14 +455,12 @@ public class ReservedInstanceAnalyzer {
                 logger.debug("{}no demand for cluster {}", logTag, regionalContext);
                 continue;
             }
-            logger.debug("{}Buy RIs for profile={} in {} from context={}", logTag,
-                            buyComputeTier.getDisplayName(), regionalContext.getRegionDisplayName(),
-                            regionalContext);
+            logger.debug("{}Buy RIs for profile={} in context={}",
+                        logTag, buyComputeTier.getDisplayName(), regionalContext);
             // Get the rates for the first instance type we're considering.
             // This will either be the only one, or if instance size flexible
             // this will be the one with the smallest coupon value.
-            PricingProviderResult rates = rateAndRIProvider.findRates(regionalContext,
-                            purchaseConstraints, logTag);
+            PricingProviderResult rates = rateAndRIProvider.findRates(regionalContext, purchaseConstraints);
             if (rates == null) {
                 // something went wrong with the looking up rates.
                 logger.warn("{}analyze() rates are null for regionContext={} and constraints={}",
@@ -483,7 +484,7 @@ public class ReservedInstanceAnalyzer {
                     // Get the graph data.
                     Map<TopologyEntityDTO, float[]> riBuyChartDemand = dataProcessor.getRIBuyChartDemand();
                     float hourlyOnDemandCost = getHourlyOnDemandCost(riBuyChartDemand,
-                                    regionalContext, rateAndRIProvider, logTag);
+                            regionalContext, rateAndRIProvider);
                     recommendation.setEstimatedOnDemandCost(hourlyOnDemandCost *
                             ReservedInstanceAnalyzerRateAndRIs.HOURS_IN_A_MONTH
                             * 12 * recommendation.getTermInYears());
@@ -503,30 +504,24 @@ public class ReservedInstanceAnalyzer {
      * @param templateTypeHourlyDemand mapping from template to demand in coupons.
      * @param regionalContext Regional Context.
      * @param rateAndRIProvider Facade to access the rate and reserved instances.
-     * @param logTag A unique string to identify related messages for a particular RI Buy analysis
      * @return the average hourly charges for the weekly demand.
      */
     public float getHourlyOnDemandCost(final Map<TopologyEntityDTO, float[]> templateTypeHourlyDemand,
                                        ReservedInstanceRegionalContext regionalContext,
-                                       ReservedInstanceAnalyzerRateAndRIs rateAndRIProvider,
-                                       String logTag) {
+                                       ReservedInstanceAnalyzerRateAndRIs rateAndRIProvider) {
         float totalCostAcrossWorkloads = 0f;
         for (Entry<TopologyEntityDTO, float[]> entry : templateTypeHourlyDemand.entrySet()) {
-            /*
+            /**
              * An ISF RI Buy recommendation can have different compute tiers covered.
              * We want to calculate the on demand cost of each of those different compute tier demand.
-             * We construct a new ReservedInstanceRegionalContext using the compute tier of the current
+             * We constuct a new ReservedInstanceRegionalContext using the compute tier of the current
              * template. The reason in doing so is to be able to use the existing
              * rateAndRIProvider:: lookupOnDemandRate.
              */
-            ReservedInstanceRegionalContext newRegionalContext =
-                            new ReservedInstanceRegionalContext(
-                                            regionalContext.getMasterAccountId(),
-                                            regionalContext.getPlatform(),
-                                            regionalContext.getTenancy(),
-                                            entry.getKey(),
-                                            regionalContext.getRegion());
-            float onDemandPrice = rateAndRIProvider.lookupOnDemandRate(newRegionalContext, logTag);
+            ReservedInstanceRegionalContext newRegionalContext = new ReservedInstanceRegionalContext
+                    (regionalContext.getMasterAccountId(), regionalContext.getPlatform(),
+                            regionalContext.getTenancy(), entry.getKey(), regionalContext.getRegion());
+            float onDemandPrice = rateAndRIProvider.lookupOnDemandRate(newRegionalContext);
             int numberOfCoupons = entry.getKey().getTypeSpecificInfo().getComputeTier().getNumCoupons();
             float weeklyWorkloadDemand = 0f;
             // The demand is in terms of zonal coupons. So inorder to get actual workload demand we
@@ -670,6 +665,22 @@ public class ReservedInstanceAnalyzer {
         return result;
     }
 
+    private ReservedInstancePurchaseConstraints getPurchaseConstraints(ReservedInstanceAnalysisScope scope)
+            throws IllegalArgumentException {
+        if (scope.getRiPurchaseProfile() == null) {
+            return getPurchaseConstraints();
+        } else {
+            RIPurchaseProfile profile = scope.getRiPurchaseProfile();
+            if (!profile.hasRiType()) {
+                throw new IllegalArgumentException("No ReservedInstanceType is defined in ReservedInstanceAnalysisScope");
+            }
+            ReservedInstanceType type = profile.getRiType();
+            return new ReservedInstancePurchaseConstraints(type.getOfferingClass(), type.getTermYears(),
+                                                           type.getPaymentOption());
+
+        }
+    }
+
     /**
      * Given an array of floats, remove the negative values.
      *
@@ -699,23 +710,6 @@ public class ReservedInstanceAnalyzer {
             results[i++] = (f != null ? f : 0f);
         }
         return results;
-    }
-
-    private ReservedInstancePurchaseConstraints getPurchaseConstraints(
-                    ReservedInstanceAnalysisScope scope) throws IllegalArgumentException {
-        if (scope.getRiPurchaseProfile() == null) {
-            return getPurchaseConstraints();
-        } else {
-            RIPurchaseProfile profile = scope.getRiPurchaseProfile();
-            if (!profile.hasRiType()) {
-                throw new IllegalArgumentException(
-                                "No ReservedInstanceType is defined in ReservedInstanceAnalysisScope");
-            }
-            ReservedInstanceType type = profile.getRiType();
-            return new ReservedInstancePurchaseConstraints(type.getOfferingClass(),
-                            type.getTermYears(), type.getPaymentOption());
-
-        }
     }
 
     /**
