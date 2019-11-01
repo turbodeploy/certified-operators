@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -41,11 +42,16 @@ import com.vmturbo.topology.processor.history.percentile.PercentileDto.Percentil
  */
 public class PercentilePersistenceTask extends
                 AbstractStatsLoadingTask<PercentileHistoricalEditorConfig, PercentileRecord> {
+    /**
+     * Timestamp for TOTAL percentile data in database.
+     */
+    public static final long TOTAL_TIMESTAMP = 0;
     private static final Logger logger = LogManager.getLogger();
     private static final long waitForChannelReadinessIntervalMs = 50;
     private static final long TOTAL_START_TIMESTAMP = 0L;
     private final StatsHistoryServiceStub statsHistoryClient;
     private long startTimestamp;
+    private long lastCheckpointMs;
 
     /**
      * Construct the task to load percentile data for the 'full window' from the persistent store.
@@ -54,6 +60,18 @@ public class PercentilePersistenceTask extends
      */
     public PercentilePersistenceTask(StatsHistoryServiceStub statsHistoryClient) {
         this(statsHistoryClient, TOTAL_START_TIMESTAMP);
+    }
+
+    /**
+     * Construct the task to load percentile data from the persistent store.
+     *
+     * @param statsHistoryClient persistent store grpc interface
+     * @param startTimestamp starting timestamp for the page to load, 0 for 'full window'
+     */
+    public PercentilePersistenceTask(@Nonnull StatsHistoryServiceStub statsHistoryClient,
+                                     long startTimestamp) {
+        this.statsHistoryClient = Objects.requireNonNull(statsHistoryClient);
+        this.startTimestamp = startTimestamp;
     }
 
     public long getStartTimestamp() {
@@ -65,15 +83,13 @@ public class PercentilePersistenceTask extends
     }
 
     /**
-     * Construct the task to load percentile data from the persistent store.
+     * Getter for {@link PercentilePersistenceTask#lastCheckpointMs} field.
      *
-     * @param statsHistoryClient persistent store grpc interface
-     * @param startTimestamp starting timestamp for the page to load, 0 for 'full window'
+     * @return checkpoint timestamp of last {@link PercentilePersistenceTask#load(Collection, PercentileHistoricalEditorConfig)}
+     * or zero if {@link PercentilePersistenceTask#load(Collection, PercentileHistoricalEditorConfig)} wasn't called.
      */
-    public PercentilePersistenceTask(StatsHistoryServiceStub statsHistoryClient,
-                    long startTimestamp) {
-        this.statsHistoryClient = statsHistoryClient;
-        this.startTimestamp = startTimestamp;
+    public long getLastCheckpointMs() {
+        return lastCheckpointMs;
     }
 
     @Override
@@ -128,11 +144,19 @@ public class PercentilePersistenceTask extends
      * @param config configuration settings
      * @throws HistoryCalculationException when failed to persist
      * @throws InterruptedException when interrupted
+     *
+     * @implNote If <code>counts</code> is empty then no store is performed.
      */
     public void save(@Nonnull PercentileCounts counts,
                      long periodMs,
                      @Nonnull PercentileHistoricalEditorConfig config)
                     throws HistoryCalculationException, InterruptedException {
+        if (counts.getPercentileRecordsList().isEmpty()) {
+            logger.debug("There is no percentile commodity entries to save for timestamp {}. Skipping actual write",
+                         startTimestamp);
+            return;
+        }
+
         Stopwatch sw = Stopwatch.createStarted();
         WriterObserver observer = new WriterObserver(config.getGrpcStreamTimeoutSec());
         StreamObserver<PercentileChunk> writer = statsHistoryClient.setPercentileCounts(observer);
@@ -273,6 +297,7 @@ public class PercentilePersistenceTask extends
             try {
                 checkIoAvailability(null);
                 chunk.getContent().writeTo(result);
+                lastCheckpointMs = chunk.getPeriod();
                 if (logger.isTraceEnabled()) {
                     logger.trace("Received percentile blob chunk {} for timestamp {}", chunkNo++,
                                  startTimestamp);

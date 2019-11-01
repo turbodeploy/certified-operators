@@ -30,6 +30,7 @@ public abstract class BaseGraphRelatedTest {
         @SuppressWarnings("unchecked")
         TopologyGraph<TopologyEntity> graph = Mockito.mock(TopologyGraph.class);
         Mockito.when(graph.entities()).thenReturn(entities.stream());
+        Mockito.when(graph.size()).thenReturn(entities.size());
         for (TopologyEntity entity : entities) {
             Mockito.when(graph.getEntity(entity.getOid())).thenReturn(Optional.of(entity));
         }
