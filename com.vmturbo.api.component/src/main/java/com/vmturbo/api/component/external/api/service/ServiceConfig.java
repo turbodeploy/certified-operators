@@ -303,7 +303,6 @@ public class ServiceConfig {
                 communicationConfig.serviceEntityMapper(),
                 communicationConfig.severityPopulator(),
                 communicationConfig.priceIndexPopulator(),
-                communicationConfig.actionsRpcService(),
                 communicationConfig.getRealtimeTopologyContextId());
     }
 

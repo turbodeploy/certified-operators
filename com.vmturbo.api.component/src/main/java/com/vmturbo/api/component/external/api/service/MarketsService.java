@@ -55,8 +55,6 @@ import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
-import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
-import com.vmturbo.api.dto.action.NoDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
@@ -89,7 +87,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
-import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
@@ -210,8 +207,6 @@ public class MarketsService implements IMarketsService {
 
     private final SeverityPopulator severityPopulator;
 
-    private final ActionsServiceBlockingStub actionOrchestratorRpcService;
-
     // Exclude request for price index for commodities of real market not saved in DB
     private final Set<Integer> notSavedEntityTypes = ImmutableSet.of(
         EntityType.NETWORK_VALUE,
@@ -244,7 +239,6 @@ public class MarketsService implements IMarketsService {
                           @Nonnull final ServiceEntityMapper serviceEntityMapper,
                           @Nonnull final SeverityPopulator severityPopulator,
                           @Nonnull final PriceIndexPopulator priceIndexPopulator,
-                          @Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
                           final long realtimeTopologyContextId) {
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
@@ -272,7 +266,6 @@ public class MarketsService implements IMarketsService {
         this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
         this.severityPopulator = Objects.requireNonNull(severityPopulator);
         this.priceIndexPopulator = Objects.requireNonNull(priceIndexPopulator);
-        this.actionOrchestratorRpcService = Objects.requireNonNull(actionOrchestratorRpcService);
     }
 
     /**
@@ -435,27 +428,10 @@ public class MarketsService implements IMarketsService {
                 .orElseGet(() -> paginationRequest.finalPageResponse(results));
     }
 
-    /**
-     * Get an action by the market.
-     *
-     * @param marketUuid the market uuid.
-     * @param actionUuid the action uuid.
-     * @return an action.
-     * @throws Exception exception.
-     */
     @Override
-    public ActionApiDTO getActionByMarketUuid(String marketUuid, String actionUuid) throws Exception {
-        logger.debug("Request to get action by market UUID: {}, action ID: {}", marketUuid, actionUuid);
-        ActionOrchestratorAction action = actionOrchestratorRpcService
-                .getAction(actionRequest(marketUuid, actionUuid));
-        if (!action.hasActionSpec()) {
-            throw new UnknownObjectException("Action with given action uuid: " + actionUuid + " not found");
-        }
-        logger.debug("Mapping actions for: {}", marketUuid);
-        final ActionApiDTO answer = actionSpecMapper.mapActionSpecToActionApiDTO(action.getActionSpec(),
-                realtimeTopologyContextId);
-        logger.trace("Result: {}", () -> answer.toString());
-        return answer;
+    public ActionApiDTO getActionByMarketUuid(String uuid, String aUuid) throws Exception {
+        logger.debug("Request to get action by market UUID: {}, action ID: {}", uuid, aUuid);
+        throw ApiUtils.notImplementedInXL();
     }
 
     @Override
@@ -968,29 +944,6 @@ public class MarketsService implements IMarketsService {
     }
 
     /**
-     * Get details for an action by the market.
-     *
-     * @param marketUuid uuid of the market.
-     * @param actionuuid uuid of the action.
-     * @return details about the action in a market.
-     * @throws Exception exception.
-     */
-    @Override
-    public ActionDetailsApiDTO getActionsDetailsByUuid(String marketUuid, String actionuuid) throws Exception {
-        ActionOrchestratorAction action = actionOrchestratorRpcService
-                .getAction(actionRequest(marketUuid, actionuuid));
-        if (action.hasActionSpec()) {
-            // create action details dto based on action api dto which contains "explanation" with coverage information.
-            ActionDetailsApiDTO actionDetailsApiDTO = actionSpecMapper.createActionDetailsApiDTO(action);
-            if (actionDetailsApiDTO == null) {
-                return new NoDetailsApiDTO();
-            }
-            return actionDetailsApiDTO;
-        }
-        return new NoDetailsApiDTO();
-    }
-
-    /**
      * Create a list of ServiceEntityApiDTO objects from a collection of TopologyEntityDTOs.
      *
      * @param plan       plan instance object
@@ -1170,20 +1123,6 @@ public class MarketsService implements IMarketsService {
                 inputDto.setEndTime(DateTimeUtil.getNow());
             }
         }
-    }
-
-    /**
-     * Creates an action request using a market uuid and an action uuid.
-     *
-     * @param marketUuid uuid of the market.
-     * @param actionUuid uuid of the action.
-     * @return the action request.
-     */
-    private static SingleActionRequest actionRequest(String marketUuid, String actionUuid) {
-        return SingleActionRequest.newBuilder()
-                .setTopologyContextId(Long.valueOf(marketUuid))
-                .setActionId(Long.valueOf(actionUuid))
-                .build();
     }
 
     /**

@@ -521,7 +521,7 @@ public class MarketsServiceTest {
                     uiNotificationChannel(), actionStatsQueryExecutor(), thinTargetCache(),
                     entitySeverityRpcService(), statsHistoryRpcService(),
                     statsService(), repositoryApi(), serviceEntityMapper(),
-                    severityPopulator(), priceIndexPopulator(),actionsRpcService(), REALTIME_CONTEXT_ID);
+                    severityPopulator(), priceIndexPopulator(), REALTIME_CONTEXT_ID);
         }
 
         @Bean
@@ -682,11 +682,6 @@ public class MarketsServiceTest {
         @Bean
         public StatsHistoryServiceBlockingStub statsHistoryRpcService() {
             return StatsHistoryServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
-        }
-
-        @Bean
-        public ActionsServiceBlockingStub actionsRpcService() {
-            return ActionsServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
         }
 
         @Bean
