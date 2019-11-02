@@ -91,6 +91,7 @@
         <swagger.codegen.plugin.version>2.2.3</swagger.codegen.plugin.version>
         <jackson-datatype-guava.version>2.6.5</jackson-datatype-guava.version>
         <jackson-core.version>2.10.0</jackson-core.version>
+        <snakeyaml.version>1.24</snakeyaml.version>
         <javax.ws.rs-api.version>2.0</javax.ws.rs-api.version>
         <commons-collections4.version>4.1</commons-collections4.version>
         <jooq.version>3.8.5</jooq.version>
@@ -2502,6 +2503,11 @@
                 <groupId>com.fasterxml.jackson.dataformat</groupId>
                 <artifactId>jackson-dataformat-yaml</artifactId>
                 <version>${jackson-core.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.yaml</groupId>
+                <artifactId>snakeyaml</artifactId>
+                <version>${snakeyaml.version}</version>
             </dependency>
             <dependency>
                 <groupId>javax.ws.rs</groupId>

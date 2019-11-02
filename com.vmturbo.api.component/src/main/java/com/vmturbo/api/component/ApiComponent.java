@@ -14,7 +14,6 @@ import org.eclipse.jetty.servlet.FilterHolder;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
@@ -24,15 +23,15 @@ import org.springframework.web.context.support.AnnotationConfigWebApplicationCon
 import org.springframework.web.filter.DelegatingFilterProxy;
 import org.springframework.web.servlet.DispatcherServlet;
 
-import com.vmturbo.api.internal.controller.DBAdminController;
-import com.vmturbo.api.external.controller.ProbesController;
-import com.vmturbo.api.internal.controller.ApiDiagnosticsConfig;
 import com.vmturbo.api.component.external.api.ExternalApiConfig;
 import com.vmturbo.api.component.external.api.dispatcher.DispatcherControllerConfig;
 import com.vmturbo.api.component.external.api.dispatcher.DispatcherValidatorConfig;
 import com.vmturbo.api.component.external.api.service.ServiceConfig;
 import com.vmturbo.api.component.external.api.swagger.SwaggerConfig;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
+import com.vmturbo.api.external.controller.ProbesController;
+import com.vmturbo.api.internal.controller.ApiDiagnosticsConfig;
+import com.vmturbo.api.internal.controller.DBAdminController;
 import com.vmturbo.components.common.BaseVmtComponent;
 
 /**
@@ -56,19 +55,21 @@ public class ApiComponent extends BaseVmtComponent {
 
     private static final Logger logger = LogManager.getLogger();
 
-    public static final String VERSION_FILE_NAME = "turbonomic_cluster_version.txt";
-
     @Autowired
     private ApiDiagnosticsConfig diagnosticsConfig;
 
     // env vars
-    static private String ENV_UPLOAD_MAX_FILE_SIZE_KB = "multipartConfigMaxFileSizeKb";
-    static private int DEFAULT_UPLOAD_MAX_FILE_SIZE_KB = 50;
+    private static final String ENV_UPLOAD_MAX_FILE_SIZE_KB = "multipartConfigMaxFileSizeKb";
+    private static final int DEFAULT_UPLOAD_MAX_FILE_SIZE_KB = 50;
 
-    static private String ENV_UPLOAD_MAX_REQUEST_SIZE_KB = "multipartConfigMaxRequestSizeKb";
-    static private int DEFAULT_UPLOAD_MAX_REQUEST_SIZE_KB = 200;
+    private static final String ENV_UPLOAD_MAX_REQUEST_SIZE_KB = "multipartConfigMaxRequestSizeKb";
+    private static final int DEFAULT_UPLOAD_MAX_REQUEST_SIZE_KB = 200;
 
-
+    /**
+     * Starts the component.
+     *
+     * @param args The mandatory arguments.
+     */
     public static void main(String[] args) {
         startContext(ApiComponent::createContext);
     }
@@ -80,16 +81,19 @@ public class ApiComponent extends BaseVmtComponent {
      * (springSecurityFilterChain). Special DispacheerServlet instance is created upon REST Spring
      * context.
      *
-     * Spring security filters are added to REST DispatcherServlet, websockets API connection and
+     * <p>Spring security filters are added to REST DispatcherServlet, websockets API connection and
      * reporting CGI-BIN directory
      *
      * @param contextServer Jetty context handler to register with
      * @return rest application context
+     * @throws ContextConfigurationException if there is an error loading the external configuration
+     * properties
      */
     private static ConfigurableWebApplicationContext createContext(
-            @Nonnull ServletContextHandler contextServer) {
+            @Nonnull ServletContextHandler contextServer) throws ContextConfigurationException {
         final AnnotationConfigWebApplicationContext rootContext =
                 new AnnotationConfigWebApplicationContext();
+        addConfigurationPropertySources(rootContext);
         rootContext.register(ApiComponent.class);
         final Servlet dispatcherServlet = new DispatcherServlet(rootContext);
         final ServletHolder servletHolder = new ServletHolder(dispatcherServlet);

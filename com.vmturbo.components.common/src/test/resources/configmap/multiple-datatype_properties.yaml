@@ -1,0 +1,8 @@
+defaultProperties:
+    global:
+       int_prop: 123
+       string_prop: "abc"
+       boolean_prop: true
+       multiline_prop: |-
+         first line
+         second line

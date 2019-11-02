@@ -67,6 +67,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.core.env.Environment;
+import org.springframework.core.env.PropertiesPropertySource;
+import org.springframework.core.env.PropertySource;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.context.ConfigurableWebApplicationContext;
 import org.springframework.web.context.ContextLoaderListener;
@@ -76,10 +78,10 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
 import com.vmturbo.clustermgr.api.ClusterMgrClient;
 import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
-import com.vmturbo.clustermgr.api.ComponentProperties;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.tracing.Tracing;
+import com.vmturbo.components.common.config.ConfigMapPropertiesReader;
 import com.vmturbo.components.common.health.CompositeHealthMonitor;
 import com.vmturbo.components.common.health.ConsulHealthcheckRegistration;
 import com.vmturbo.components.common.health.HealthStatus;
@@ -138,6 +140,15 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      * ClusterMgr ("standalone: false").
      */
     public static final String PROP_STANDALONE = "standalone";
+
+    /**
+     * The path to the "properties.yaml" file used to load external configuration properties
+     * prior to Spring configuration.
+     */
+    public static final String PROP_PROPERTIES_YAML_PATH = "propertiesYamlPath";
+    private static final String DEFAULT_PROPERTIES_YAML_FILE_PATH =
+        "file:/etc/turbonomic/properties.yaml";
+
     /**
      * The environment key for the port number for the Jetty instance for each component.
      */
@@ -170,11 +181,28 @@ public abstract class BaseVmtComponent implements IVmtComponent,
 
     private static final Logger logger = LogManager.getLogger();
 
+    private static final String DEFAULT_SERVER_HTTP_PORT = "8080";
+    /**
+     * The config source name for the properties read from "properties.yaml".
+     */
+    private static final String PROPERTIES_YAML_CONFIG_SOURCE = "properties.yaml";
+    /**
+     * The config source name for the properties read from the "CONFIG" resource.
+     */
+    private static final String OTHER_PROPERTIES_CONFIG_SOURCE = "other-properties";
+
     private static String componentType;
     private static String instanceId;
     private static String instanceIp;
-    private static Boolean standalone;
-    private static long clusterMgrConnectionRetryDelayMs;
+
+    /**
+     * Indicate whether this component should contact ClusterMgr for configuration information
+     * on startup or shut-down.
+     */
+    private static Boolean standalone = EnvironmentUtils.getOptionalEnvProperty(PROP_STANDALONE)
+        .map(Boolean::parseBoolean)
+        .orElse(false);
+
 
     private static final DataMetricGauge STARTUP_DURATION_METRIC = DataMetricGauge.builder()
             .withName("component_startup_duration_ms")
@@ -189,6 +217,13 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     private ExecutionStatus status = ExecutionStatus.NEW;
     private final AtomicBoolean startFired = new AtomicBoolean(false);
 
+    /**
+     * This property is used to disable consul registration. This is necessary for tests and
+     * for components running outside the primary Turbonomic K8s cluster.
+     */
+    @Value("${" + ENABLE_CONSUL_REGISTRATION + ":true}")
+    private Boolean enableConsulRegistration;
+
     private static final int SCHEDULED_METRICS_DELAY_MS = 60000;
 
     @Value("${scheduledMetricsIntervalMs:60000}")
@@ -197,11 +232,13 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     @Value("${serverGrpcPort}")
     private int grpcPort;
 
+    @Value("${connRetryIntervalSeconds}")
+    private String connRetryIntervalSeconds;
+
     // the max message size (in bytes) that the GRPC server for this component will accept. Default
     // value is 4194304 bytes (or 4 MB) which is the GRPC default behavior.
     @Value("${server.grpcMaxMessageBytes:4194304}")
     private int grpcMaxMessageBytes;
-
 
     @GuardedBy("grpcServerLock")
     private Server grpcServer;
@@ -294,7 +331,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     /**
      * The metrics endpoint that exposes Prometheus metrics on the pre-defined /metrics URL.
      *
-     * @return a new Servlet to handle the /metrics REST API calls
+     * @return an instance of the MetricsServlet initialized to work with the default
+     * CollectorRegistry.
      */
     @Bean
     public Servlet metricsServlet() {
@@ -362,10 +400,6 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         }
 
         setStatus(ExecutionStatus.MIGRATING);
-        final Boolean enableConsulRegistration = EnvironmentUtils
-            .getOptionalEnvProperty(ENABLE_CONSUL_REGISTRATION)
-            .map(Boolean::parseBoolean)
-            .orElse(true);
         if (enableConsulRegistration) {
             baseVmtComponentConfig.migrationFramework().startMigrations(getMigrations(), false);
         }
@@ -631,20 +665,167 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         }
     }
 
+    /**
+     * Initialize a Spring context configured for a Web Application. Register the given
+     * Configuration class in the context, load the external configuration properties as
+     * property sources, and define a DispatcherServlet in the context. Return the Context
+     * as "active".
+     *
+     * @param contextConfigurer add context configuration specific to a particular component
+     * @param configurationClass the main @Configuration class to load into the context
+     * @return the ConfigurableWebApplicationContext configured with the given @Configuration class
+     * and set to "active"
+     * @throws ContextConfigurationException if there's an error reading the external configuration
+     * properties
+     */
     @Nonnull
     protected static ConfigurableWebApplicationContext attachSpringContext(
-            @Nonnull ServletContextHandler contextServer, @Nonnull Class<?> configurationClass) {
+            @Nonnull ServletContextHandler contextConfigurer,
+            @Nonnull Class<?> configurationClass) throws ContextConfigurationException {
+        logger.info("Creating application context for: componentType {}; instanceId {}; instanceIp {};",
+            componentType, instanceId, instanceIp);
         final AnnotationConfigWebApplicationContext applicationContext =
                 new AnnotationConfigWebApplicationContext();
+        addConfigurationPropertySources(applicationContext);
+
+        // Add the main @Configuration class to the context and add servlet dispatcher and holder
         applicationContext.register(configurationClass);
         final Servlet dispatcherServlet = new DispatcherServlet(applicationContext);
         final ServletHolder servletHolder = new ServletHolder(dispatcherServlet);
-        contextServer.addServlet(servletHolder, "/*");
-        // Setup Spring context
-        final ContextLoaderListener springListener = new ContextLoaderListener(applicationContext);
-        contextServer.addEventListener(springListener);
+        contextConfigurer.addServlet(servletHolder, "/*");
+
+        // Setup Spring context event listener / dispatcher
+        contextConfigurer.addEventListener(new ContextLoaderListener(applicationContext));
         applicationContext.isActive();
         return applicationContext;
+    }
+
+    /**
+     * Load the configuration properties from "properties.yaml" and the "other" configuration
+     * properties into PropertySources and add those to the given ApplicationContext.
+     *
+     * @param applicationContext the context for the component to be configured
+     * @throws ContextConfigurationException if there is an error reading any of the property
+     * configuration sources
+     */
+    protected static void addConfigurationPropertySources(
+        @Nonnull final AnnotationConfigWebApplicationContext applicationContext)
+        throws ContextConfigurationException {
+        // Fetch external configuration properties from  to add to context
+        String propertiesYamlFilePath = EnvironmentUtils
+            .getOptionalEnvProperty(PROP_PROPERTIES_YAML_PATH)
+            .orElse(DEFAULT_PROPERTIES_YAML_FILE_PATH);
+        final PropertySource<?> mergedPropertyConfiguration =
+            fetchConfigurationProperties(componentType, propertiesYamlFilePath);
+        applicationContext.getEnvironment().getPropertySources()
+            .addFirst(mergedPropertyConfiguration);
+        // Fetch other configuration properties from files compiled into the component
+        applicationContext.getEnvironment().getPropertySources()
+            .addFirst(fetchOtherProperties(CONFIG));
+    }
+
+    /**
+     * Fetch the Turbonomic external configuration properties for this component.
+     *
+     * <p>The configuration properties are fetched from the "properties.yaml" file mounted
+     * from the K8s ConfigMap resource. This includes defaultProperties and customProperties
+     * sections with (optional) override sections for each component-type.
+     *
+     * <p>The "customProperties" section is populated from the Custom Resource configuration
+     * for this particular Turbonomic deployment.
+     *
+     * <p>The "effective" configuration properties are calculated by merging the different sections
+     * of "properties.yaml" in priority order:
+     * <ol>
+     *     <li>defaultProperties: global:
+     *     <li>defaultProperties: [component-type]:
+     *     <li>customProperties: global:</li>
+     *     <li>customProperties: [component-type]:
+     * </ol>
+     *
+     * @param componentType The type of the component to be configured, used to look up the
+     *                      subsection of the properties.yaml file
+     * @param propertiesYamlFilePath the file path to fetch the "properties.yaml" file from
+     * @return a PropertySource containing the configuration properties loaded from the
+     * given configuration file path
+     * @throws ContextConfigurationException if there is a problem reading the "properties.yaml"
+     * file or the file has an invalid structure
+     */
+    @VisibleForTesting
+    static PropertySource<?> fetchConfigurationProperties(
+        @Nonnull final String componentType,
+        @Nonnull final String propertiesYamlFilePath) throws ContextConfigurationException {
+        try {
+            final Properties yamlProperties = ConfigMapPropertiesReader.readConfigMap(
+                componentType, propertiesYamlFilePath);
+            // log the properties for debugging
+            logger.info("Configuration properties loaded from properties.yaml: {}",
+                propertiesYamlFilePath);
+            yamlProperties.forEach(BaseVmtComponent::logProperty);
+            // populate a PropertySource with the config properties from the yaml file
+            return new PropertiesPropertySource(PROPERTIES_YAML_CONFIG_SOURCE, yamlProperties);
+        } catch (IOException  e) {
+            throw new ContextConfigurationException("Error reading configuration file: " +
+                propertiesYamlFilePath, e);
+        }
+    }
+
+    /**
+     * Fetch configuration properties other than {@link #COMPONENT_DEFAULT_PATH}.
+     * Look for files in the "config" resource. Files of type ".properties" are
+     * treated as {@link Properties} files. For other file types create a property
+     * which name is the file name and value is the content of the file.
+     *
+     * @param otherPropertiesResource the name of the "resource" to fetch the "other"
+     *                                configuration properties from
+     * @return a properties map with all the loaded properties
+     * @throws ContextConfigurationException when there is a problem accessing resources
+     */
+    @VisibleForTesting
+    static PropertySource<?> fetchOtherProperties(
+        @Nonnull final String otherPropertiesResource) throws ContextConfigurationException {
+        try {
+            Properties properties = new Properties();
+            Enumeration<URL> configs = BaseVmtComponent.class.getClassLoader()
+                .getResources(otherPropertiesResource);
+            while (configs.hasMoreElements()) {
+                URI uri = configs.nextElement().toURI();
+                FileSystem fs = fileSystem(uri);
+                Path configPath = fs.getPath(path(uri));
+                try (DirectoryStream<Path> ds = Files.newDirectoryStream(configPath)) {
+                    ds.forEach(propPath -> {
+                        // Skip COMPONENT_DEFAULT_PATH - it is loaded in loadDefaultProperties()
+                        if (!propPath.toString().endsWith(COMPONENT_DEFAULT_PATH)) {
+                            String fileName = propPath.getFileName().toString();
+                            if (fileName.endsWith(".properties")) {
+                                properties.putAll(propsFromInputStream(
+                                    pathInputStream(propPath), propPath.toString()));
+                            } else {
+                                logger.info("Loading " + propPath);
+                                try {
+                                    String content = new String(Files.readAllBytes(propPath));
+                                    properties.put(fileName, content);
+                                    logger.info("Loaded " + content.length()
+                                        + " bytes from " + propPath);
+                                } catch (IOException e) {
+                                    logger.warn("Could not load " + propPath);
+                                }
+                            }
+                        }
+                    });
+                } finally {
+                    try {
+                        fs.close();
+                    } catch (UnsupportedOperationException usoe) {
+                        // Happens during testing with "file" scheme. Ignore.
+                    }
+                }
+            }
+            return new PropertiesPropertySource(OTHER_PROPERTIES_CONFIG_SOURCE, properties);
+        } catch (URISyntaxException | IOException e) {
+            throw new ContextConfigurationException("Error reading other properties files from: " +
+                otherPropertiesResource, e);
+        }
     }
 
     /**
@@ -666,6 +847,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      * @param contextConfigurer configuration callback to perform some specific
      *         configuration on the servlet context
      * @return Spring context, created as the result of webserver startup.
+     * or loading configuration properties
      */
     @Nonnull
     protected static ConfigurableWebApplicationContext startContext(
@@ -680,29 +862,10 @@ public abstract class BaseVmtComponent implements IVmtComponent,
             logger.error("Cannot fetch localHost().", e);
             System.exit(1);
         }
-        logger.info("External configuration: componentType {}; instanceId {}; instanceIp {};",
-            componentType, instanceId, instanceIp);
-        standalone = EnvironmentUtils.getOptionalEnvProperty(PROP_STANDALONE)
-                .map(Boolean::parseBoolean)
-                .orElse(false);
-        // load the local configuration properties
-        Properties defaultProperties = loadConfigurationProperties();
-        if (standalone) {
-            // call ClusterMgr to fetch the configuration for this component type - blocking call
-            fetchLocalConfigurationProperties(defaultProperties);
-        } else {
-            // get a pointer to the ClusterMgr client api
-            ClusterMgrRestClient clusterMgrClient = getClusterMgrClient();
-
-            // send the default config properties to clustermgr - blocking call
-            updateClusterConfigurationProperties(clusterMgrClient, defaultProperties);
-
-            // call ClusterMgr to fetch the configuration for this component type - blocking call
-            fetchClusterConfigurationProperties(clusterMgrClient);
-        }
 
         logger.info("Starting web server with spring context");
-        final String serverPort = EnvironmentUtils.requireEnvProperty(PROP_serverHttpPort);
+        final String serverPort = EnvironmentUtils.getOptionalEnvProperty(PROP_serverHttpPort)
+            .orElse(DEFAULT_SERVER_HTTP_PORT);
         System.setProperty("org.jooq.no-logo", "true");
 
         org.eclipse.jetty.server.Server server =
@@ -736,9 +899,6 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      */
     public static ClusterMgrRestClient getClusterMgrClient() {
         final int clusterMgrPort = EnvironmentUtils.parseIntegerFromEnv("clustermgr_port");
-        final int clusterMgrConnectionRetryDelaySecs = EnvironmentUtils.parseIntegerFromEnv("clustermgr_retry_delay_sec");
-        clusterMgrConnectionRetryDelayMs =
-                Duration.ofSeconds(clusterMgrConnectionRetryDelaySecs).toMillis();
         final String clusterMgrHost = EnvironmentUtils.requireEnvProperty("clustermgr_host");
 
         logger.info("clustermgr_host: {}, clustermgr_port: {}", clusterMgrHost, clusterMgrPort);
@@ -746,85 +906,6 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                 ComponentApiConnectionConfig.newBuilder()
                         .setHostAndPort(clusterMgrHost, clusterMgrPort)
                         .build());
-    }
-
-    /**
-     * Read the default configuration properties for this component from the resource file.
-     *
-     * @return properties loaded from the config resource of the component
-     *
-     */
-    @VisibleForTesting
-    static Properties loadConfigurationProperties() {
-        logger.info("Sending the default configuration for this component to ClusterMgr");
-        final Properties defaultProperties = new Properties();
-        try {
-            // Handle component defaults first (so other properties can override)
-            defaultProperties.putAll(loadDefaultProperties());
-            // Handle other resources in config
-            defaultProperties.putAll(loadOtherProperties());
-        } catch (URISyntaxException | IOException e) {
-            logger.error("Could not access the config resources", e);
-        }
-
-        return defaultProperties;
-    }
-
-    private static Properties loadDefaultProperties() {
-        // TODO: what if there are other jars with the same resource? Should we
-        // forcefully prevent that (not let the component start)? Consider them as override?
-        logger.info("Loading component defaults from " + COMPONENT_DEFAULT_PATH);
-        return propsFromInputStream(() -> BaseVmtComponent.class.getClassLoader()
-                        .getResourceAsStream(COMPONENT_DEFAULT_PATH), COMPONENT_DEFAULT_PATH);
-    }
-
-    /**
-     * Load properties other than {@link #COMPONENT_DEFAULT_PATH}.
-     * Look for files in the "config" resource. Files of type ".properties" are
-     * treated as {@link Properties} files. For other file types create a property
-     * which name is the file name and value is the content of the file.
-     *
-     * @return a properties map with all the loaded properties
-     * @throws IOException when there is a problem accessing resources
-     * @throws URISyntaxException when unable to convert a resource URL to URI
-     */
-    private static Properties loadOtherProperties() throws URISyntaxException, IOException {
-        Properties properties = new Properties();
-        Enumeration<URL> configs = BaseVmtComponent.class.getClassLoader().getResources(CONFIG);
-        while (configs.hasMoreElements()) {
-            URI uri = configs.nextElement().toURI();
-            FileSystem fs = fileSystem(uri);
-            Path configPath = fs.getPath(path(uri));
-            try (DirectoryStream<Path> ds = Files.newDirectoryStream(configPath)) {
-                ds.forEach(propPath -> {
-                    // Skip COMPONENT_DEFAULT_PATH - it is loaded in loadDefaultProperties()
-                    if (!propPath.toString().endsWith(COMPONENT_DEFAULT_PATH)) {
-                        String fileName = propPath.getFileName().toString();
-                        if (fileName.endsWith(".properties")) {
-                            properties.putAll(propsFromInputStream(
-                                pathInputStream(propPath), propPath.toString()));
-                        } else {
-                            logger.info("Looading " + propPath);
-                            try {
-                                String content = new String(Files.readAllBytes(propPath));
-                                properties.put(fileName, content);
-                                logger.info("Loaded " + content.length()
-                                + " bytes from " + propPath);
-                            } catch (IOException e) {
-                                logger.warn("Could not load " + propPath);
-                            }
-                        }
-                    }
-                });
-            } finally {
-                try {
-                    fs.close();
-                } catch (UnsupportedOperationException usoe) {
-                    // Happens during testing with "file" scheme. Ignore.
-                }
-            }
-        }
-        return properties;
     }
 
     private static Supplier<InputStream> pathInputStream(Path propPath) {
@@ -872,102 +953,6 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                         : path;
     }
 
-    /**
-     * Read the default configuration properties for this component from the resource file and
-     * publish those to the clustermgr configuration port.
-     *
-     * @param clusterMgrClient the clustermgr api client handle
-     * @param defaultProperties default properties to be sent to clustermgr
-     */
-    private static void updateClusterConfigurationProperties(
-            @Nonnull final ClusterMgrRestClient clusterMgrClient, Properties defaultProperties) {
-        logger.info("Sending the default configuration for this component to ClusterMgr");
-        // now loop forever trying to call the clustermgr client to store those default properties
-        final ComponentProperties defaultComponentProperties = new ComponentProperties();
-        defaultProperties.forEach((defaultKey, defaultValue) ->
-            defaultComponentProperties.put(defaultKey.toString(), defaultValue.toString()));
-        int tryCount = 1;
-        do {
-            try {
-                clusterMgrClient.putComponentDefaultProperties(componentType, defaultComponentProperties);
-                logger.info("Default property values for component type '{}' successfully stored",
-                    componentType);
-                defaultProperties.forEach(BaseVmtComponent::logProperty);
-                break;
-            } catch (ResourceAccessException e) {
-                logger.error("Error in attempt {} to send default configuration from ClusterMgr: {}",
-                    tryCount++, e.getMessage());
-                sleepWaitingForClusterMgr();
-            }
-        } while (true);
-    }
-
-    /**
-     * Fetch the local configuration for this component type and store them in
-     * the System properties. Retry until you succeed - this is a blocking call.
-     *
-     * <p>This method is intended to be called by each component's main() method before
-     * beginning Spring instantiation.
-     *
-     * @param defaultProperties the set of properties to use as the baseline;
-     *                          loaded from a file "global_defaults.properties"
-     */
-    @VisibleForTesting
-    static void fetchLocalConfigurationProperties(Properties defaultProperties) {
-        do {
-            try {
-                defaultProperties.stringPropertyNames().forEach(configKey -> {
-                    logProperty(configKey, defaultProperties.getProperty(configKey));
-                    System.setProperty(configKey, defaultProperties.getProperty(configKey));
-                });
-                break;
-            } catch (ResourceAccessException e) {
-                logger.error("Error fetching configuration from ClusterMgr: {}", e.getMessage());
-                sleepWaitingForClusterMgr();
-            }
-        } while (true);
-        logger.info("configuration initialized");
-    }
-
-    /**
-     * Fetch the configuration for this component type from ClusterMgr and store them in
-     * the System properties. Retry until you succeed - this is a blocking call.
-     *
-     * <p>This method is intended to be called by each component's main() method before
-     * beginning Spring instantiation.
-     *
-     * @param clusterMgrClient the clustermgr api client handle
-     */
-    private static void fetchClusterConfigurationProperties(ClusterMgrRestClient clusterMgrClient) {
-
-        logger.info("Fetching configuration from ClusterMgr for '{}' component of type '{}'",
-                instanceId, componentType);
-        do {
-            try {
-                ComponentProperties componentProperties =
-                        clusterMgrClient.getEffectiveInstanceProperties(componentType, instanceId);
-                componentProperties.forEach((configKey, configValue) -> {
-                    logProperty(configKey, configValue);
-                    // {@link PropertySourcesPlaceholderConfigurer} is registered in
-                    // BaseVmtComponentConfig::configurer(), so environment variable values
-                    // will also be injected.
-                    if (isOverridden(configKey)) {
-                       logger.info("Found overridable environment variable: {}, with value: {}." +
-                           " Skip applying instance value: {}", configKey,
-                           EnvironmentUtils.requireEnvProperty(configKey), configValue);
-                    } else {
-                        System.setProperty(configKey, configValue);
-                    }
-                });
-                break;
-            } catch (ResourceAccessException e) {
-                logger.error("Error fetching configuration from ClusterMgr: {}", e.getMessage());
-                sleepWaitingForClusterMgr();
-            }
-        } while (true);
-        logger.info("configuration initialized");
-    }
-
     @VisibleForTesting
     static boolean isOverridden(@Nonnull final String configKey) {
         return OVERRIDABLE_ENV_PROPERTIES.contains(configKey)
@@ -1005,32 +990,6 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     }
 
     /**
-     * Get the value of a single configuration property.
-     * This implementation assumes the configuration properties are stored as System
-     * properties. This may change when switching to Kubernetes configmaps.
-     *
-     * @param property the configuration property to get
-     * @return the value of the configuration property
-     */
-    public static String getConfigurationProperty(String property) {
-        return System.getProperty(property);
-    }
-
-    /**
-     * Sleep while wait/looping for ClusterMgr to respond.
-     */
-    private static void sleepWaitingForClusterMgr() {
-        try {
-            logger.info("...sleeping for {} ms and then trying again...",
-                    clusterMgrConnectionRetryDelayMs);
-            Thread.sleep(clusterMgrConnectionRetryDelayMs);
-        } catch (InterruptedException ie) {
-            logger.warn("Interrupted while waiting for ClusterMgr; continuing to wait.");
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    /**
      * Publishes version information of this container into a centralized key-value store.
      */
     private void publishVersionInformation() {
@@ -1038,7 +997,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
             // get a pointer to the ClusterMgr client api
             ClusterMgrRestClient clusterMgrClient = getClusterMgrClient();
 
-            // get the component version
+            // get the component version and record it in the key/value store
             final String specVersion = getClass().getPackage().getSpecificationVersion();
             if (specVersion != null) {
                 logger.info("Component version for {} found: {}", componentType, specVersion);
@@ -1046,10 +1005,24 @@ public abstract class BaseVmtComponent implements IVmtComponent,
             } else {
                 logger.error("Could not get Specification-Version for component class {}", getClass());
             }
-            // and the component IP address
+            // persist the component IP address - TODO - remove this call completely; get IP from consul
             if (StringUtils.isNotBlank(instanceId) && StringUtils.isNotBlank(instanceIp)) {
-                clusterMgrClient.setComponentInstanceProperty(componentType, instanceId,
-                    PROP_INSTANCE_IP, instanceIp);
+                for (int i = 1; true; i++) {
+                    try {
+                        clusterMgrClient.setComponentInstanceProperty(componentType, instanceId,
+                            PROP_INSTANCE_IP, instanceIp);
+                        return;
+                    } catch (ResourceAccessException e) {
+                        logger.warn("Try #{} connecting to clustermgr failed; waiting {} seconds...",
+                            i, connRetryIntervalSeconds);
+                    }
+                    try {
+                        Thread.sleep(Duration.ofSeconds(Integer.parseInt(connRetryIntervalSeconds))
+                            .toMillis());
+                    } catch (InterruptedException e) {
+                        logger.warn("Sleep interrupted");
+                    }
+                }
             }
         }
     }

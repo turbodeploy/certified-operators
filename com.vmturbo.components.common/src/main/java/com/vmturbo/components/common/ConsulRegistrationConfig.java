@@ -43,8 +43,8 @@ public class ConsulRegistrationConfig {
     private String instanceIp;
 
     /**
-     * This property is used only for tests to disable consul registration. This property and
-     * mechanigs should be removed as soon as consul registration is moved to clustermanager.
+     * This property is used to disable consul registration. This is necessary for tests and
+     * for components running outside the primary Turbonomic K8s cluster.
      */
     @Value("${" + ENABLE_CONSUL_REGISTRATION + ":true}")
     private Boolean enableConsulRegistration;

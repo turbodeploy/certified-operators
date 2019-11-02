@@ -1,0 +1,14 @@
+defaultProperties:
+    global:
+       foo: 123
+       bar: 456
+    test-component:
+       xyz: 123
+    other-component:
+       ignored: 1000
+customProperties:
+    global:
+       bar: 789
+       new: 'this is new'
+    test-component:
+       xyz: 999

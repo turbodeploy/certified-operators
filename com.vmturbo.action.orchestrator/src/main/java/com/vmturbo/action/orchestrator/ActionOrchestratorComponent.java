@@ -121,6 +121,11 @@ public class ActionOrchestratorComponent extends BaseVmtComponent {
         return Collections.singletonList(new JwtServerInterceptor(securityConfig.apiAuthKVStore()));
     }
 
+    /**
+     * Starts the component.
+     *
+     * @param args The mandatory arguments.
+     */
     public static void main(String[] args) {
         startContext(ActionOrchestratorComponent.class);
     }

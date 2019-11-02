@@ -9,15 +9,15 @@ import java.util.zip.ZipOutputStream;
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
 
+import io.grpc.BindableService;
+import io.grpc.ServerInterceptor;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-
-import io.grpc.BindableService;
-import io.grpc.ServerInterceptor;
 
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
@@ -30,6 +30,9 @@ import com.vmturbo.group.service.RpcConfig;
 import com.vmturbo.group.setting.SettingConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
+/**
+ * Main component configuration for the Group Component. Manages groups and policies.
+ */
 @Configuration("theComponent")
 @Import({IdentityProviderConfig.class,
         MigrationConfig.class,
@@ -99,6 +102,11 @@ public class GroupComponent extends BaseVmtComponent {
         return Collections.singletonList(new JwtServerInterceptor(securityConfig.apiAuthKVStore()));
     }
 
+    /**
+     * Main entry point.
+     *
+     * @param args command-line arguments - ignored
+     */
     public static void main(String[] args) {
         startContext(GroupComponent.class);
     }

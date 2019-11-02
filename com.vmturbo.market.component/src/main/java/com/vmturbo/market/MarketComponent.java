@@ -55,7 +55,11 @@ public class MarketComponent extends BaseVmtComponent {
 
     @Value("${defaultTraxCalculationsTrackedPerDay:360}")
     private int defaultTraxCalculationsTrackedPerDay;
-
+    /**
+     * Starts the component.
+     *
+     * @param args The mandatory arguments.
+     */
     public static void main(String[] args) {
         startContext(MarketComponent.class);
     }

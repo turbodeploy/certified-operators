@@ -58,6 +58,11 @@ public class MediationComponentMain extends BaseVmtComponent {
     private Logger log = LogManager.getLogger();
     private int streamBufferSize = (int)FileUtils.ONE_KB;
 
+    /**
+     * Starts the component.
+     *
+     * @param args The mandatory arguments.
+     */
     public static void main(String[] args) {
         startContext(MediationComponentMain.class);
     }
@@ -131,6 +136,13 @@ public class MediationComponentMain extends BaseVmtComponent {
         super.onStopComponent();
     }
 
+    /**
+     * Set up an executor service and thread pool for async operations.
+     * Initialize the thread name with the component instance id as a prefix to aid
+     * with filtering logs.
+     *
+     * @return a new ExecutorService with thread factory configured.
+     */
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService threadPool() {
         final ThreadFactory threadFactory =
@@ -167,7 +179,7 @@ public class MediationComponentMain extends BaseVmtComponent {
         try {
             diagsZip.putNextEntry(new ZipEntry(diagsFile));
             FileInputStream inputStream =
-                new FileInputStream(Paths.get(getEnvTmpDiagsDir(),diagsFile).toString());
+                new FileInputStream(Paths.get(getEnvTmpDiagsDir(), diagsFile).toString());
             byte[] bytes = new byte[streamBufferSize];
             int length;
             while ((length = inputStream.read(bytes)) >= 0) {

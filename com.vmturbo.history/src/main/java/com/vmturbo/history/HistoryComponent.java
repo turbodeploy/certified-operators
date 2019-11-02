@@ -7,15 +7,15 @@ import java.util.zip.ZipOutputStream;
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
 
+import io.grpc.BindableService;
+import io.grpc.ServerInterceptor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-
-import io.grpc.BindableService;
-import io.grpc.ServerInterceptor;
 
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
@@ -30,14 +30,17 @@ import com.vmturbo.history.market.MarketListenerConfig;
 import com.vmturbo.history.stats.StatsConfig;
 import com.vmturbo.history.topology.TopologyListenerConfig;
 
+/**
+ * The main configuration for the History Component.
+ */
 @Configuration("theComponent")
 @Import({HistoryDbConfig.class, TopologyListenerConfig.class, MarketListenerConfig.class,
-        StatsConfig.class, HistoryApiConfig.class, ApiSecurityConfig.class, SpringSecurityConfig.class,
+    StatsConfig.class, HistoryApiConfig.class, ApiSecurityConfig.class, SpringSecurityConfig.class,
     HistoryDiagnosticsConfig.class,
 })
 public class HistoryComponent extends BaseVmtComponent {
 
-    private final static Logger log = LogManager.getLogger();
+    private static final Logger log = LogManager.getLogger();
 
     @Autowired
     private HistoryDbConfig historyDbConfig;
@@ -69,7 +72,8 @@ public class HistoryComponent extends BaseVmtComponent {
 
         log.info("Adding MariaDB and Kafka producer health checks to the component health monitor.");
         getHealthMonitor().addHealthCheck(
-                new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,historyDbConfig.historyDbIO()::connection));
+                new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
+                    historyDbConfig.historyDbIO()::connection));
         getHealthMonitor().addHealthCheck(historyApiConfig.kafkaProducerHealthMonitor());
     }
 
@@ -78,6 +82,11 @@ public class HistoryComponent extends BaseVmtComponent {
         diagnosticsConfig.historyDiagnostics().dump(diagnosticZip);
     }
 
+    /**
+     * This is the method that's called to initialize the component.
+     *
+     * @param args Command-line arguments.
+     */
     public static void main(String[] args) {
         startContext(HistoryComponent.class);
     }

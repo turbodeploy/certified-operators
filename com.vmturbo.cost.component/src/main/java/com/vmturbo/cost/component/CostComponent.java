@@ -94,6 +94,8 @@ public class CostComponent extends BaseVmtComponent {
      * Starts the component.
      *
      * @param args The mandatory arguments.
+     * @throws ContextConfigurationException if there is an error reading the external
+     * properties.yaml file
      */
     public static void main(String[] args) {
         startContext(CostComponent.class);

@@ -2,17 +2,11 @@ package com.vmturbo.reports.component;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
 
 import io.grpc.BindableService;
-import io.grpc.ServerBuilder;
-import io.grpc.ServerInterceptor;
-import io.grpc.ServerInterceptors;
-
-import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -50,6 +44,11 @@ public class ReportsComponent extends BaseVmtComponent {
                         reportingConfig.dbConfig().dataSource()::getConnection));
     }
 
+    /**
+     * Starts the component.
+     *
+     * @param args The mandatory arguments.
+     */
     public static void main(String[] args) {
         startContext(ReportsComponent.class);
     }

@@ -8,15 +8,15 @@ import java.util.zip.ZipOutputStream;
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
 
+import io.grpc.BindableService;
+import io.grpc.ServerInterceptor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-
-import io.grpc.BindableService;
-import io.grpc.ServerInterceptor;
 
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
@@ -110,6 +110,11 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
         getHealthMonitor().addHealthCheck(planConfig.kafkaHealthMonitor());
     }
 
+    /**
+     * Starts the component.
+     *
+     * @param args The mandatory arguments.
+     */
     public static void main(String[] args) {
         startContext(PlanOrchestratorComponent.class);
     }

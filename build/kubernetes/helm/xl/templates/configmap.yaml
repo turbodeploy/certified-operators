@@ -51,7 +51,11 @@ data:
                 websocket.pong.timeout: 30000
                 # Remote iterator consumers - 10 minutes max wait for next chunk
                 com.vmturbo.communication.remote.iterator.timeout: 600000
-            action-orchestrator:
+                # driver property settings must be suitable for inclusion in a URL query
+                # string, with individual settings separated by "&". No initial "&" or "?" should appear
+                mariadbDriverProperties: useServerPrepStmts=true
+                mysqlDriverProperties:
+        action-orchestrator:
                 identityGeneratorPrefix: 9
                 actionPaginationDefaultLimit: 100
                 actionPaginationMaxLimit: 500
@@ -192,7 +196,8 @@ data:
                 influxUsername: root
                 influxDatabaseName: metron
                 actionOrchestratorHost: action-orchestrator
-                # Retain data for 52 weeks (1 year),
+                marketHost: market
+              # Retain data for 52 weeks (1 year),
                 # a replication factor set to one, and a shard group duration set to seven days.
                 # For more details on how retention policies work in influxdb see
                 # https://www.influxdata.com/blog/influxdb-shards-retention-policies/
@@ -412,6 +417,13 @@ data:
                 #historyAggregation.percentileBuckets.VCPU: 0,1,2,3,4,5,6,7,8,9,10,20,30,40,50,60,70,80,90,91,92,93,84,95,96,97,98,99,100
                 # How often to checkpoint the percentile cache in the persistence store
                 historyAggregation.percentileMaintenanceWindowHours: 24
+                # The maximum message size for serializing percentile blobs
+                # Typical size for 10 millions of commodities is 120mb
+                historyAggregation.grpcChannelMaxMessageSizeKb: 204800
+                # The timeout in seconds to history access streaming operations
+                historyAggregation.grpcStreamTimeoutSec: 300
+                # The chunk size for history access streaming operations
+                historyAggregation.blobReadWriteChunkSizeKb: 128
 {{- if .Values.properties }}
         customProperties:
 {{ toYaml .Values.properties | indent 12 }}

@@ -2,14 +2,10 @@ package com.vmturbo.sample.component;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
 import io.grpc.BindableService;
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
-import io.grpc.ServerInterceptor;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,13 +26,14 @@ import com.vmturbo.sample.component.notifications.SampleComponentNotificationsCo
  * See the associated wiki page:
  * https://vmturbo.atlassian.net/wiki/display/Home/Creating+An+XL+Component
  *
- * The {@link SampleComponent} class is the main configuration for this component.
+ * <p>The {@link SampleComponent} class is the main configuration for this component.
  * Most of the actual functionality should live in sub-packages (see {@link EchoRpcConfig} and
  * {@link SampleComponentNotificationSender}) but this is the class that ties everything together,
  * and defines global beans that cross package borders.
+ *
+ * <p>The name "theComponent" is required for autowiring to work properly.
  */
 
-// The name "theComponent" is required for autowiring to work properly.
 @Configuration("theComponent")
 @Import({EchoRpcConfig.class, SampleComponentNotificationsConfig.class})
 public class SampleComponent extends BaseVmtComponent {
@@ -71,7 +68,7 @@ public class SampleComponent extends BaseVmtComponent {
      * This bean creates a custom GSON HTTP converter configured to support swagger.
      * Swagger is what we use to document our rest controllers.
      *
-     * (see: http://stackoverflow.com/questions/30219946/springfoxswagger2-does-not-work-with-gsonhttpmessageconverterconfig/30220562#30220562)
+     * <p>(see: http://stackoverflow.com/questions/30219946/springfoxswagger2-does-not-work-with-gsonhttpmessageconverterconfig/30220562#30220562)
      *
      * @return The {@link GsonHttpMessageConverter}.
      */

@@ -154,6 +154,10 @@ public abstract class AbstractIntegrationTest {
         environment.setProperty("consul_port", "0");
         environment.setProperty("consul_host", "consul");
         environment.setProperty(ConsulRegistrationConfig.ENABLE_CONSUL_REGISTRATION, "false");
+        environment.setProperty("standalone", "true");
+        environment.setProperty("clustermgr_port", "0");
+        System.setProperty("standalone", "true");
+        System.setProperty("connRetryIntervalSeconds", "10");
 
         applicationContext = new AnnotationConfigWebApplicationContext();
         applicationContext.setEnvironment(environment);

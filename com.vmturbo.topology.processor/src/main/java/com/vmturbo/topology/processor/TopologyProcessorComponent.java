@@ -166,6 +166,11 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
             topologyProcessorRpcConfig.probeService());
     }
 
+    /**
+     * Starts the component.
+     *
+     * @param args The mandatory arguments.
+     */
     public static void main(String[] args) {
         startContext((contextServer) -> {
             try {

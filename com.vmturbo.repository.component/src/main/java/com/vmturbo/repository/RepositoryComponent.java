@@ -640,12 +640,17 @@ public class RepositoryComponent extends BaseVmtComponent {
         return Collections.singletonList(jwtInterceptor);
     }
 
-    public static boolean realtimeInMemory() {
+    private static boolean realtimeInMemory() {
         return EnvironmentUtils.getOptionalEnvProperty("realtime.topology.in.memory")
             .map(Boolean::parseBoolean)
             .orElse(true);
     }
 
+    /**
+     * Starts the component.
+     *
+     * @param args The mandatory arguments.
+     */
     public static void main(String[] args) {
         startContext(RepositoryComponent.class);
     }

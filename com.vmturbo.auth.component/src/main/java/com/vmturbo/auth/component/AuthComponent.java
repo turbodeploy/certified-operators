@@ -10,6 +10,9 @@ import javax.annotation.PostConstruct;
 import javax.servlet.DispatcherType;
 import javax.servlet.Servlet;
 
+import io.grpc.BindableService;
+import io.grpc.ServerInterceptor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.jetty.servlet.FilterHolder;
@@ -24,9 +27,6 @@ import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.filter.DelegatingFilterProxy;
 import org.springframework.web.servlet.DispatcherServlet;
-
-import io.grpc.BindableService;
-import io.grpc.ServerInterceptor;
 
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
@@ -44,7 +44,7 @@ import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 @Import({AuthRESTSecurityConfig.class, AuthDBConfig.class, SpringSecurityConfig.class,
         WidgetsetConfig.class, LicensingConfig.class, UserScopeServiceConfig.class})
 public class AuthComponent extends BaseVmtComponent {
-    public static final String PATH_SPEC = "/*";
+    private static final String PATH_SPEC = "/*";
     /**
      * The logger.
      */
@@ -119,16 +119,19 @@ public class AuthComponent extends BaseVmtComponent {
      * (springSecurityFilterChain). Special DispatcherServlet instance is created upon REST Spring
      * context.
      *
-     * Spring security filters, which includes custom {@link SpringAuthFilter}, are added to
+     * <p>Spring security filters, which includes custom {@link SpringAuthFilter}, are added to
      * REST DispatcherServlet.
      *
      * @param contextServer Jetty context handler to register with
      * @return rest application context
+     * @throws ContextConfigurationException if there is an error loading the external configuration
+     * properties
      */
     private static ConfigurableWebApplicationContext createContext(
-            @Nonnull ServletContextHandler contextServer) {
+            @Nonnull ServletContextHandler contextServer) throws ContextConfigurationException {
         final AnnotationConfigWebApplicationContext rootContext =
                 new AnnotationConfigWebApplicationContext();
+        addConfigurationPropertySources(rootContext);
         rootContext.register(AuthComponent.class);
 
         final AnnotationConfigWebApplicationContext restContext =

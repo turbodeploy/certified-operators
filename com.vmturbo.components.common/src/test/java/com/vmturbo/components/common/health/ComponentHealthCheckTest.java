@@ -1,5 +1,6 @@
 package com.vmturbo.components.common.health;
 
+import static com.vmturbo.components.common.BaseVmtComponent.PROP_STANDALONE;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -49,7 +50,10 @@ public class ComponentHealthCheckTest {
     @Before
     public void setup() throws Exception {
         System.setProperty(BaseVmtComponent.PROP_COMPONENT_TYPE, "SimpleTestComponent");
-        System.setProperty(BaseVmtComponent.PROP_STANDALONE, "true");
+        System.setProperty(PROP_STANDALONE, "true");
+        System.setProperty("connRetryIntervalSeconds", "10");
+        System.setProperty(BaseVmtComponent.PROP_PROPERTIES_YAML_PATH,
+            "configmap/empty_properties.yaml");
         System.setProperty(BaseVmtComponent.PROP_serverHttpPort, "8282");
         System.setProperty(BaseVmtComponent.PROP_INSTANCE_ID, "instance");
         System.setProperty(BaseVmtComponent.PROP_INSTANCE_IP, "10.10.10.10");
@@ -92,7 +96,7 @@ public class ComponentHealthCheckTest {
         long startTime = System.nanoTime();
         // now verify that the component is reported as ready
         MvcResult result = mockMvc.perform(get(API_PREFIX + "/health")
-                .accept(MediaType.TEXT_PLAIN_VALUE,MediaType.ALL_VALUE))
+                .accept(MediaType.TEXT_PLAIN_VALUE, MediaType.ALL_VALUE))
                 .andExpect(status().isOk())
                 .andReturn();
     }
@@ -105,7 +109,7 @@ public class ComponentHealthCheckTest {
             return "SimpleTestComponent";
         }
 
-        public static ConfigurableWebApplicationContext start() {
+        static ConfigurableWebApplicationContext start() {
             return startContext(SimpleTestComponent.class);
         }
     }

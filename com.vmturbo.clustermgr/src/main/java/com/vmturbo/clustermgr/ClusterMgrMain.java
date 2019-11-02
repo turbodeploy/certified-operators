@@ -122,6 +122,7 @@ public class ClusterMgrMain {
         // configure kafka
         try {
             kafkaConfigurationService.loadConfiguration(kafkaConfigFile);
+            log.info("<<<<<<<<<<<< kafka configured.");
         } catch (TimeoutException te) {
             log.error("Kafka configuration timed out. Will continue retrying in background.");
             startBackgroundTask(new KafkaBackgroundConfigurationTask());
