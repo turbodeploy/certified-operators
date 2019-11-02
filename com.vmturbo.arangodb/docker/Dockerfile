@@ -3,14 +3,14 @@ MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
 ENV ARANGO_VERSION 3.3.23-1
 ENV ARANGO_URL https://download.arangodb.com/arangodb33/CentOS_7/x86_64/arangodb3-${ARANGO_VERSION}.x86_64.rpm
-ENV OPENSSL_URL=https://download.fedoraproject.org/pub/fedora/linux/releases/30/Everything/x86_64/os/Packages/c/compat-openssl10-1.0.2o-5.fc30.x86_64.rpm
+ENV OPENSSL_URL http://mirror.centos.org/centos/8/AppStream/x86_64/os/Packages/compat-openssl10-1.0.2o-3.el8.x86_64.rpm
 
 # The systemd-coredump userid 999 would be the owner of the /var/lib/arangodb3 directory after the ubi8 update
 # We should have created arangodb user with an explicit userid instead of it picking 999
 RUN userdel systemd-coredump
 
 # Install rsyslog and other packages
-RUN dnf install -y https://download.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \
+RUN dnf install -y https://download.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \
     dnf install -y rsyslog procps-ng python2 jemalloc pwgen && \
     dnf clean all && \
     rm -rf /var/cache/dnf

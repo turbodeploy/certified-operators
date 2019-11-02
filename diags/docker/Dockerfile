@@ -4,9 +4,12 @@ MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 # Install rsyslog and java-11 packages
 RUN dnf install -y rsyslog procps-ng python2 java-11-openjdk-devel xz \
         openssl gettext iputils iproute nmap lsof openssh-clients && \
-    echo "[fedora]" > /etc/yum.repos.d/fedora.repo && \
-    echo "baseurl = https://download.fedoraproject.org/pub/fedora/linux/releases/30/Everything/x86_64/os" >> /etc/yum.repos.d/fedora.repo && \
-    echo "gpgcheck=0" >> /etc/yum.repos.d/fedora.repo && \
+    echo "[CentOS_Base]" > /etc/yum.repos.d/base.repo && \
+    echo "baseurl = http://mirror.centos.org/centos/8/BaseOS/x86_64/os/" >> /etc/yum.repos.d/base.repo && \
+    echo "gpgcheck=0" >> /etc/yum.repos.d/base.repo && \
+    echo "[CentOS_AppStream]" > /etc/yum.repos.d/appstream.repo && \
+    echo "baseurl = http://mirror.centos.org/centos/8/AppStream/x86_64/os/" >> /etc/yum.repos.d/appstream.repo && \
+    echo "gpgcheck=0" >> /etc/yum.repos.d/appstream.repo && \
     dnf install -y tcpdump telnet sysstat strace iptraf-ng traceroute && \
     dnf clean all && \
     rm -rf /var/cache/dnf && \
