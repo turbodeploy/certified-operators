@@ -78,7 +78,12 @@ public class ActionListenerTest {
         actionsListener.onActionsUpdated(actionsUpdated);
         final PlanInstance instance = planDao.getPlanInstance(planId).get();
         Assert.assertTrue(ACTION_PLAN_ID == instance.getActionPlanIdList().get(0));
-        Assert.assertEquals(PlanStatus.WAITING_FOR_RESULT, instance.getStatus());
+        Assert.assertNotEquals(PlanStatus.STARTING_BUY_RI, instance.getStatus());
+        // Check for both WAITING_FOR_RESULT and CONSTRUCTING_TOPOLOGY status since
+        // PlanRpcService.startAnalysis submits a task to ExecutorService to update the
+        // status.
+        Assert.assertTrue(PlanStatus.CONSTRUCTING_TOPOLOGY == instance.getStatus() ||
+                PlanStatus.WAITING_FOR_RESULT == instance.getStatus());
     }
 
     /**
