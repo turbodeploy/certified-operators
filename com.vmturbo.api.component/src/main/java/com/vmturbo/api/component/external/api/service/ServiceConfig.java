@@ -414,7 +414,8 @@ public class ServiceConfig {
                 userSessionContext(),
                 communicationConfig.groupRpcService(),
                 communicationConfig.serviceEntityMapper(),
-                mapperConfig.entityFilterMapper());
+                mapperConfig.entityFilterMapper(),
+                mapperConfig.entityAspectMapper());
     }
 
     @Bean

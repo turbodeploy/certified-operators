@@ -15,6 +15,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -56,6 +57,7 @@ import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
 import com.vmturbo.api.component.external.api.util.ImmutableGroupAndMembers;
@@ -70,6 +72,7 @@ import com.vmturbo.api.dto.search.CriteriaOptionApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.SearchOrderBy;
@@ -141,6 +144,7 @@ public class SearchServiceTest {
     private final UserSessionContext userSessionContext = mock(UserSessionContext.class);
     private final EntityFilterMapper entityFilterMapper = new EntityFilterMapper(groupUseCaseParser);
     private final GroupFilterMapper groupFilterMapper = new GroupFilterMapper();
+    private final EntityAspectMapper entityAspectMapper = mock(EntityAspectMapper.class);
 
     private SearchServiceMole searchServiceSpy = Mockito.spy(new SearchServiceMole());
     private EntitySeverityServiceMole entitySeverityServiceSpy = Mockito.spy(new EntitySeverityServiceMole());
@@ -201,7 +205,8 @@ public class SearchServiceTest {
                 userSessionContext,
                 groupServiceBlockingStub,
                 serviceEntityMapper,
-                entityFilterMapper));
+                entityFilterMapper,
+                entityAspectMapper));
     }
 
     /**
@@ -242,16 +247,16 @@ public class SearchServiceTest {
     @Test
     public void testGetSearchResults() throws Exception {
 
-        getSearchResults(searchService, null, Lists.newArrayList("Group"), null, null, null, EnvironmentType.ONPREM, null);
-        verify(groupsService, Mockito.times(1)).getGroups();
+        getSearchResults(searchService, null, Lists.newArrayList("Group"), null, null, null, EnvironmentType.ONPREM, null, null);
+        verify(groupsService, times(1)).getGroups();
 
-        getSearchResults(searchService, null, Lists.newArrayList("Market"), null, null, null, EnvironmentType.ONPREM, null);
+        getSearchResults(searchService, null, Lists.newArrayList("Market"), null, null, null, EnvironmentType.ONPREM, null, null);
         verify(marketsService).getMarkets(Mockito.anyListOf(String.class));
 
-        getSearchResults(searchService, null, Lists.newArrayList("Target"), null, null, null, EnvironmentType.ONPREM, null);
+        getSearchResults(searchService, null, Lists.newArrayList("Target"), null, null, null, EnvironmentType.ONPREM, null, null);
         verify(targetsService).getTargets(null);
 
-        getSearchResults(searchService, null, Lists.newArrayList("BusinessAccount"), null, null, null, EnvironmentType.CLOUD, null);
+        getSearchResults(searchService, null, Lists.newArrayList("BusinessAccount"), null, null, null, EnvironmentType.CLOUD, null, null);
         verify(businessUnitMapper).getAndConvertDiscoveredBusinessUnits(targetsService);
     }
 
@@ -271,7 +276,7 @@ public class SearchServiceTest {
         // filter by AWS
         Collection<BaseApiDTO> regions_aws = getSearchResults(searchService, null,
             Lists.newArrayList("Region"), null, null, null, null,
-            Lists.newArrayList(probeType1));
+            Lists.newArrayList(probeType1), null);
         assertThat(regions_aws.stream()
             .map(dto -> Long.valueOf(dto.getUuid()))
             .collect(Collectors.toList()), containsInAnyOrder(1L, 2L));
@@ -279,7 +284,7 @@ public class SearchServiceTest {
         // filter by Azure
         Collection<BaseApiDTO> regions_azure = getSearchResults(searchService, null,
             Lists.newArrayList("Region"), null, null, null, EnvironmentType.CLOUD,
-            Lists.newArrayList(probeType2));
+            Lists.newArrayList(probeType2), null);
         assertThat(regions_azure.stream()
             .map(dto -> Long.valueOf(dto.getUuid()))
             .collect(Collectors.toList()), containsInAnyOrder(3L));
@@ -287,7 +292,7 @@ public class SearchServiceTest {
         // filter by both AWS and Azure
         Collection<BaseApiDTO> regions_all = getSearchResults(searchService, null,
             Lists.newArrayList("Region"), null, null, null, EnvironmentType.CLOUD,
-            Lists.newArrayList(probeType1, probeType2));
+            Lists.newArrayList(probeType1, probeType2),  null);
         assertThat(regions_all.stream()
             .map(dto -> Long.valueOf(dto.getUuid()))
             .collect(Collectors.toList()), containsInAnyOrder(1L, 2L, 3L));
@@ -295,12 +300,12 @@ public class SearchServiceTest {
         // filter by a vc probe type
         Collection<BaseApiDTO> regions_vc = getSearchResults(searchService, null,
             Lists.newArrayList("Region"), null, null, null, EnvironmentType.CLOUD,
-            Lists.newArrayList(SDKProbeType.VCENTER.getProbeType()));
+            Lists.newArrayList(SDKProbeType.VCENTER.getProbeType()), null);
         assertThat(regions_vc, empty());
 
         // filter by null probeTypes
         Collection<BaseApiDTO> regions_null_probeType = getSearchResults(searchService, null,
-            Lists.newArrayList("Region"), null, null, null, EnvironmentType.CLOUD, null);
+            Lists.newArrayList("Region"), null, null, null, EnvironmentType.CLOUD, null, null);
         assertThat(regions_null_probeType.stream()
             .map(dto -> Long.valueOf(dto.getUuid()))
             .collect(Collectors.toList()), containsInAnyOrder(1L, 2L, 3L));
@@ -308,7 +313,7 @@ public class SearchServiceTest {
 
     @Test
     public void testGetSearchGroup() throws Exception {
-        getSearchResults(searchService, null, null, null, null, "SomeGroupType", EnvironmentType.ONPREM, null);
+        getSearchResults(searchService, null, null, null, null, "SomeGroupType", EnvironmentType.ONPREM, null, null);
         verify(groupsService).getGroups();
         verify(targetsService, Mockito.never()).getTargets(null);
         verify(marketsService, Mockito.never()).getMarkets(Mockito.anyListOf(String.class));
@@ -364,9 +369,15 @@ public class SearchServiceTest {
         ApiTestUtils.mockRealtimeId(UuidMapper.UI_REAL_TIME_MARKET_STR, 777777, uuidMapper);
 
         // Act
-        Collection<BaseApiDTO> results = getSearchResults(searchService, null, types, scopes, null, null, null, null);
+        Collection<BaseApiDTO> results = getSearchResults(searchService, null, types,
+                scopes, null, null, null, null,
+                null);
 
         // Assert
+        assertThat(results.size(), is(4));
+        assertThat(results.stream().map(BaseApiDTO::getUuid).collect(Collectors.toList()),
+                containsInAnyOrder("1", "2", "3", "4"));
+
         verify(groupsService, Mockito.never()).getGroups();
         verify(targetsService, Mockito.never()).getTargets(null);
         verify(marketsService, Mockito.never()).getMarkets(Mockito.anyListOf(String.class));
@@ -374,10 +385,6 @@ public class SearchServiceTest {
         ArgumentCaptor<SearchParameters> paramsCaptor = ArgumentCaptor.forClass(SearchParameters.class);
         verify(repositoryApi).newSearchRequest(paramsCaptor.capture());
         assertThat(paramsCaptor.getValue().getStartingFilter(), is(SearchProtoUtil.entityTypeFilter("PhysicalMachine")));
-
-        assertThat(results.size(), is(4));
-        assertThat(results.stream().map(BaseApiDTO::getUuid).collect(Collectors.toList()),
-                containsInAnyOrder("1", "2", "3", "4"));
     }
 
     /**
@@ -403,38 +410,86 @@ public class SearchServiceTest {
 
         // Act
         Collection<BaseApiDTO> results = getSearchResults(searchService, null, types, scopes,
-                null, null, null, null);
+                null, null, null, null, null);
 
         // Assert
         assertThat(results, hasItems(groupApiDTO));
+    }
+
+    /**
+     * Tests getSearchResults with {@link EntityDetailType}.aspects.
+     *
+     * <p>Expect {@link EntityAspectMapper} to not be added to search request</p>
+     * @throws Exception No expected to be thrown
+     */
+    @Test
+    public void testSearchWithClusterEntityDetailTypeAspects() throws Exception {
+        //GIVEN
+        SearchRequest req = mock(SearchRequest.class);
+        when(repositoryApi.newSearchRequest(any(SearchParameters.class))).thenReturn(req);
+        when(req.getSEList()).thenReturn(Collections.EMPTY_LIST);
+
+        List<String> scopes = Lists.newArrayList("283218897841408");
+        List<String> types = Lists.newArrayList("VirtualMachine");
+        EntityDetailType entityDetailType = EntityDetailType.aspects;
+
+        //WHEN
+        Collection<BaseApiDTO> results = getSearchResults(searchService, null, types, scopes, null, null, null, null, entityDetailType);
+
+        //THEN
+        verify(req).useAspectMapper(entityAspectMapper);
+    }
+
+    /**
+     * Tests getSearchResults on type VirtualMachine, list of scopes, with entityDetailType null.
+     *
+     * <p>Expect {@link EntityAspectMapper} to not be added to search request</p>
+     * @throws Exception No expected to be thrown
+     */
+    @Test
+    public void testSearchWithClusterEntityDetailTypeNoneAspects() throws Exception {
+        //GIVEN
+        SearchRequest req = mock(SearchRequest.class);
+        when(repositoryApi.newSearchRequest(any(SearchParameters.class))).thenReturn(req);
+        when(req.getSEList()).thenReturn(Collections.EMPTY_LIST);
+
+        List<String> scopes = Lists.newArrayList("283218897841408");
+        List<String> types = Lists.newArrayList("VirtualMachine");
+        EntityDetailType entityDetailType = null;
+
+        //WHEN
+        Collection<BaseApiDTO> results = getSearchResults(searchService, null, types, scopes, null, null, null, null, entityDetailType);
+
+        //THEN
+        verify(req, times(0)).useAspectMapper(entityAspectMapper);
     }
 
     @Test
     public void testClusterFilters() throws Exception {
         // create a SearchParams for members of Cluster1
         final PropertyFilter clusterSpecifier = PropertyFilter.newBuilder()
-            .setStringFilter(StringFilter.newBuilder()
-                .setStringPropertyRegex("Cluster1"))
-            .setPropertyName("displayName")
-            .build();
+                .setStringFilter(StringFilter.newBuilder()
+                        .setStringPropertyRegex("Cluster1"))
+                .setPropertyName("displayName")
+                .build();
         final SearchParameters params = SearchParameters.newBuilder()
-            .addSearchFilter(SearchFilter.newBuilder()
-                .setClusterMembershipFilter(ClusterMembershipFilter.newBuilder()
-                    .setClusterSpecifier(clusterSpecifier)))
-            .build();
+                .addSearchFilter(SearchFilter.newBuilder()
+                        .setClusterMembershipFilter(ClusterMembershipFilter.newBuilder()
+                                .setClusterSpecifier(clusterSpecifier)))
+                .build();
 
         final GroupAndMembers clusterAndMembers = ImmutableGroupAndMembers.builder()
-            .group(Grouping.newBuilder()
-                .setId(1L)
-                .setDefinition(GroupDefinition.newBuilder()
+                .group(Grouping.newBuilder()
+                        .setId(1L)
+                        .setDefinition(GroupDefinition.newBuilder()
                                 .setType(GroupType.COMPUTE_HOST_CLUSTER)
                                 .setDisplayName("Cluster1")
-                                )
-                .build())
-            .members(ImmutableSet.of(1L, 2L))
-            // Not needed for clusters
-            .entities(Collections.emptyList())
-            .build();
+                        )
+                        .build())
+                .members(ImmutableSet.of(1L, 2L))
+                // Not needed for clusters
+                .entities(Collections.emptyList())
+                .build();
 
         when(groupExpander.getGroupsWithMembers(any())).thenReturn(Stream.of(clusterAndMembers));
 

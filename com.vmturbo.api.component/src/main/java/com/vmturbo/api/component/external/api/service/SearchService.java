@@ -40,6 +40,8 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
+import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.BusinessUnitMapper;
 import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
@@ -122,6 +124,9 @@ public class SearchService implements ISearchService {
     private final GroupsService groupsService;
     private final GroupExpander groupExpander;
 
+    //Mapper for getting aspects for entity or group
+    private final EntityAspectMapper entityAspectMapper;
+
     private final TargetsService targetsService;
 
     private final SearchServiceBlockingStub searchServiceRpc;
@@ -179,7 +184,8 @@ public class SearchService implements ISearchService {
                   @Nonnull final UserSessionContext userSessionContext,
                   @Nonnull final GroupServiceBlockingStub groupServiceRpc,
                   @Nonnull final ServiceEntityMapper serviceEntityMapper,
-                  @Nonnull final EntityFilterMapper entityFilterMapper) {
+                  @Nonnull final EntityFilterMapper entityFilterMapper,
+                  @Nonnull final EntityAspectMapper entityAspectMapper) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.marketsService = Objects.requireNonNull(marketsService);
         this.groupsService = Objects.requireNonNull(groupsService);
@@ -202,6 +208,7 @@ public class SearchService implements ISearchService {
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
         this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
         this.entityFilterMapper = Objects.requireNonNull(entityFilterMapper);
+        this.entityAspectMapper = Objects.requireNonNull(entityAspectMapper);
     }
 
     @Override
@@ -226,7 +233,8 @@ public class SearchService implements ISearchService {
 
     private Stream<ServiceEntityApiDTO> queryByTypeAndStateAndName(@Nullable String nameRegex,
                                                                    @Nullable List<String> types,
-                                                                   @Nullable String state) {
+                                                                   @Nullable String state,
+                                                                   @Nullable EntityDetailType entityDetailType) {
         // TODO Now, we only support one type of entities in the search
         if (types == null || types.isEmpty()) {
             IllegalArgumentException e = new IllegalArgumentException("Type must be set for search result.");
@@ -247,7 +255,15 @@ public class SearchService implements ISearchService {
                 SearchProtoUtil.stateFilter(state)));
         }
 
-        return repositoryApi.newSearchRequest(searchParamsBuilder.build())
+        SearchRequest searchRequest = repositoryApi.newSearchRequest(searchParamsBuilder.build());
+
+        if (EntityDetailType.aspects == entityDetailType) {
+            searchRequest.useAspectMapper(entityAspectMapper);
+        }
+
+        //TODO: OM-52167 Differentiate between EntityDetailType.compact and EntityDetailType.entity
+
+        return searchRequest
             .getSEList()
             .stream();
     }
@@ -341,8 +357,8 @@ public class SearchService implements ISearchService {
         if (scopes == null || scopes.size() <= 0 ||
                 (scopes.get(0).equals(UuidMapper.UI_REAL_TIME_MARKET_STR))) {
             // Search with no scope requested; or a single scope == "Market"; then search in live Market
-            entitiesResult = queryByTypeAndStateAndName(query, types, state)
-                .filter(scopeFilter);
+            entitiesResult = queryByTypeAndStateAndName(query, types, state, entityDetailType)
+                    .filter(scopeFilter);
         } else {
             // expand to include the supplychain for the 'scopes', some of which may be groups or
             // clusters, and derive a list of ServiceEntities
@@ -354,7 +370,7 @@ public class SearchService implements ISearchService {
 
             // Fetch service entities matching the given specs
             // Restrict entities to those whose IDs are in the expanded 'scopeEntities'
-           entitiesResult = queryByTypeAndStateAndName(query, types, state)
+           entitiesResult = queryByTypeAndStateAndName(query, types, state, entityDetailType)
                 .filter(scopeFilter)
                 .filter(se -> scopeServiceEntityIds.contains(se.getUuid()));
         }

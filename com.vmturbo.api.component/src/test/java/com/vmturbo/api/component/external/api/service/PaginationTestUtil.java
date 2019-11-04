@@ -8,6 +8,7 @@ import java.util.List;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.api.enums.EntityDetailType;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
@@ -46,7 +47,8 @@ public class PaginationTestUtil {
                                                           String state,
                                                           String groupType,
                                                           EnvironmentType envType,
-                                                          List<String> probeTypes) throws Exception {
+                                                          List<String> probeTypes,
+                                                          EntityDetailType entityDetailType) throws Exception {
         final ArgumentCaptor<List<BaseApiDTO>> resultCaptor =
                 ArgumentCaptor.forClass((Class)List.class);
         final SearchPaginationRequest paginationRequest = Mockito.mock(SearchPaginationRequest.class);
@@ -59,7 +61,7 @@ public class PaginationTestUtil {
                 state,
                 Collections.singletonList(groupType),
                 envType,
-                null,
+                entityDetailType,
                 paginationRequest,
                 null,
                 probeTypes, true);
