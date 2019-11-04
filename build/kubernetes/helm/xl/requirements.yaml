@@ -3,7 +3,7 @@ dependencies:
   - name: arangodb
     repository: file://../base/arangodb
     version: 0.1.0
-    condition: platform.enabled
+    condition: platform.enabled, control.enabled
   - name: consul
     repository: file://../base/consul
     version: 0.1.0
@@ -48,7 +48,7 @@ dependencies:
   - name: action-orchestrator
     repository: file://../services/action-orchestrator
     version: 0.1.0
-    condition: platform.enabled
+    condition: platform.enabled, control.enabled
   - name: clustermgr
     repository: file://../services/clustermgr
     version: 0.1.0
@@ -56,7 +56,7 @@ dependencies:
   - name: cost
     repository: file://../services/cost
     version: 0.1.0
-    condition: platform.enabled
+    condition: platform.enabled, control.enabled
   - name: group
     repository: file://../services/group
     version: 0.1.0
@@ -68,7 +68,7 @@ dependencies:
   - name: market
     repository: file://../services/market
     version: 0.1.0
-    condition: platform.enabled
+    condition: platform.enabled, control.enabled
   - name: ml-datastore
     repository: file://../services/ml-datastore
     version: 0.1.0
@@ -80,11 +80,11 @@ dependencies:
   - name: plan-orchestrator
     repository: file://../services/plan-orchestrator
     version: 0.1.0
-    condition: platform.enabled
+    condition: platform.enabled, control.enabled
   - name: reporting
     repository: file://../services/reporting
     version: 0.1.0
-    condition: platform.enabled
+    condition: platform.enabled, control.enabled
   - name: repository
     repository: file://../services/repository
     version: 0.1.0
@@ -135,10 +135,10 @@ dependencies:
     version: ^0.13.1
     repository: file://../base/cassandra
     condition: jaeger.enabled, jaeger.provisionDataStore.cassandra
-  - name: elasticsearch
-    version: ^1.19.1
-    repository: file://../base/elasticsearch
-    condition: jaeger.enabled, jaeger.provisionDataStore.elasticsearch
+#  - name: elasticsearch
+#    version: ^1.24.1
+#    repository: file://../base/elasticsearch
+#    condition: jaeger.enabled, jaeger.provisionDataStore.elasticsearch
 
 # Mediation dependencies
   - name: mediation-actionscript

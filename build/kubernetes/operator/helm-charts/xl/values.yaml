@@ -43,6 +43,8 @@ istioingress:
   enabled: false
 platform:
   enabled: true
+control:
+  enabled: true
 metron:
   enabled: false
 kubeturbo:
