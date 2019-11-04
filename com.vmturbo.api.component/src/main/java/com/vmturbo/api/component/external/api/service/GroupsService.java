@@ -255,6 +255,12 @@ public class GroupsService implements IGroupsService {
         this.statsService = Objects.requireNonNull(statsService);
     }
 
+    /**
+     * Get groups from the group component. This method is not optimized in case we need to
+     * paginate the results. Consider using {@link #getPaginatedGroupApiDTOS} instead.
+     *
+     * @return a list of {@link GroupApiDTO}.
+     */
     @Override
     public List<GroupApiDTO> getGroups()  {
         return getGroupApiDTOS(GetGroupsRequest.newBuilder()

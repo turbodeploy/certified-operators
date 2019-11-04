@@ -309,8 +309,9 @@ public class SearchService implements ISearchService {
             if (types.contains(GROUP)) {
                 // IN Classic, this returns all Groups + Clusters. So we call getGroups which gets
                 // all Groups(supertype).
-                final Collection<GroupApiDTO> groups = groupsService.getGroups();
-                return paginationRequest.allResultsResponse(Lists.newArrayList(groups));
+                return groupsService.getPaginatedGroupApiDTOS(
+                    Collections.emptyList(),
+                    paginationRequest);
             } else if (types.contains(CLUSTER)) {
                 final Collection<GroupApiDTO> groups =
                     groupsService.getGroupsByType(GroupType.COMPUTE_HOST_CLUSTER,
