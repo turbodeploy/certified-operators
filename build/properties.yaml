@@ -416,4 +416,4 @@ defaultProperties:
         # The timeout in seconds to history access streaming operations
         historyAggregation.grpcStreamTimeoutSec: 300
         # The chunk size for history access streaming operations
-        historyAggregation.blobReadWriteChunkSizeKb: 128
+        historyAggregation.blobReadWriteChunkSizeKb: 128[turbonomic@clustermgr-67c569745f-sfq4q /]$
