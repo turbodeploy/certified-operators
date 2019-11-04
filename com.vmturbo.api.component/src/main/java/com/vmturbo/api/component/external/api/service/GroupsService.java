@@ -112,6 +112,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin.User;
 import com.vmturbo.common.protobuf.group.GroupDTO.OriginFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
@@ -261,6 +262,12 @@ public class GroupsService implements IGroupsService {
         this.statsService = Objects.requireNonNull(statsService);
     }
 
+    /**
+     * Get groups from the group component. This method is not optimized in case we need to
+     * paginate the results. Consider using {@link #getPaginatedGroupApiDTOS} instead.
+     *
+     * @return a list of {@link GroupApiDTO}.
+     */
     @Override
     public List<GroupApiDTO> getGroups()  {
         return getGroupApiDTOS(GetGroupsRequest.newBuilder()
@@ -967,6 +974,7 @@ public class GroupsService implements IGroupsService {
      *
      * @param filterList the list of filter criteria to apply.
      * @param paginationRequest Contains the limit, the order and a potential cursor
+     * @param groupType Contains the type of the group members
      *
      * @return The list of {@link GroupApiDTO} objects.
      * @throws InvalidOperationException When the cursor is invalid.
@@ -974,14 +982,27 @@ public class GroupsService implements IGroupsService {
      */
     @Nonnull
     public SearchPaginationResponse getPaginatedGroupApiDTOS(final List<FilterApiDTO> filterList,
-                                                             final SearchPaginationRequest paginationRequest)
+                                                             final SearchPaginationRequest paginationRequest,
+                                                             final String groupType)
         throws InvalidOperationException, OperationFailedException {
 
         final GetGroupsRequest groupsRequest = getGroupsRequestForFilters(GroupType.REGULAR, filterList)
             .build();
 
-        final List<GroupAndMembers> groupsWithMembers =
-            groupExpander.getGroupsWithMembers(groupsRequest).collect(Collectors.toList());
+        List<GroupAndMembers> groupsWithMembers;
+        if (groupType != null) {
+            MemberType groupMembersType =
+                MemberType.newBuilder()
+                    .setEntity(UIEntityType.fromString(groupType).typeNumber())
+                    .build();
+            groupsWithMembers = groupExpander.getGroupsWithMembers(groupsRequest)
+                .filter(g -> g.group().getExpectedTypesList().contains(groupMembersType))
+                .collect(Collectors.toList());
+        } else {
+            groupsWithMembers =
+                groupExpander.getGroupsWithMembers(groupsRequest).collect(Collectors.toList());
+
+        }
 
         Map<String, GroupAndMembers> idToGroupAndMembers = new HashMap<>();
 

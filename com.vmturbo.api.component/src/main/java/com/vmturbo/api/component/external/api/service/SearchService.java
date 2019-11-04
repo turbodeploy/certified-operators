@@ -321,18 +321,17 @@ public class SearchService implements ISearchService {
             return paginationRequest.allResultsResponse(searchAll());
         } else if (StringUtils.isNotEmpty(groupType)) {
             // if 'groupType' is specified, this MUST be a search over GROUPs
-
-            final List<GroupApiDTO> groups = groupsService.getGroups();
-            return paginationRequest.allResultsResponse(groups.stream()
-                .filter(g -> groupType.equals(g.getGroupType()))
-                .collect(Collectors.toList()));
+            return groupsService.getPaginatedGroupApiDTOS(
+                addNameMatcher(query, Collections.emptyList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
+                paginationRequest, groupType);
         } else if (types != null) {
             // Check for a type that requires a query to a specific service, vs. Repository search.
             if (types.contains(GROUP)) {
                 // IN Classic, this returns all Groups + Clusters. So we call getGroups which gets
                 // all Groups(supertype).
-                final Collection<GroupApiDTO> groups = groupsService.getGroups();
-                return paginationRequest.allResultsResponse(Lists.newArrayList(groups));
+                return groupsService.getPaginatedGroupApiDTOS(
+                    addNameMatcher(query, Collections.emptyList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
+                    paginationRequest, null);
             } else if (types.contains(CLUSTER)) {
                 final Collection<GroupApiDTO> groups =
                     groupsService.getGroupsByType(GroupType.COMPUTE_HOST_CLUSTER,
@@ -459,7 +458,7 @@ public class SearchService implements ISearchService {
             case GROUP:
                 return groupsService.getPaginatedGroupApiDTOS(
                         addNameMatcher(query, inputDTO.getCriteriaList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
-                        paginationRequest);
+                        paginationRequest, null);
             case CLUSTER:
                 // this is a search for a compute Cluster of physical machines
                 return paginationRequest.allResultsResponse(

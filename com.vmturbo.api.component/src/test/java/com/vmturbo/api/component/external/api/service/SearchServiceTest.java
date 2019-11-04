@@ -268,9 +268,8 @@ public class SearchServiceTest {
      */
     @Test
     public void testGetSearchResults() throws Exception {
-
-        getSearchResults(searchService, null, Lists.newArrayList("Group"), null, null, null, EnvironmentType.ONPREM, null, null);
-        verify(groupsService, times(1)).getGroups();
+        final SearchPaginationResponse paginationResponse =
+            Mockito.mock(SearchPaginationResponse.class);
 
         getSearchResults(searchService, null, Lists.newArrayList("Market"), null, null, null, EnvironmentType.ONPREM, null, null);
         verify(marketsService).getMarkets(Mockito.anyListOf(String.class));
@@ -280,6 +279,21 @@ public class SearchServiceTest {
 
         getSearchResults(searchService, null, Lists.newArrayList("BusinessAccount"), null, null, null, EnvironmentType.CLOUD, null, null);
         verify(businessUnitMapper).getAndConvertDiscoveredBusinessUnits(targetsService, null);
+
+        when(groupsService.getPaginatedGroupApiDTOS(any(), any(), any())).thenReturn(paginationResponse);
+        assertEquals(paginationResponse, searchService.getSearchResults(
+            null,
+            Lists.newArrayList("Group"),
+            null,
+            null,
+            Collections.singletonList(null),
+            EnvironmentType.ONPREM,
+            null,
+            null,
+            null,
+            null,
+            true));
+        verify(groupsService).getPaginatedGroupApiDTOS(any(), any(), any());
     }
 
     @Test
@@ -335,10 +349,26 @@ public class SearchServiceTest {
 
     @Test
     public void testGetSearchGroup() throws Exception {
-        getSearchResults(searchService, null, null, null, null, "SomeGroupType", EnvironmentType.ONPREM, null, null);
-        verify(groupsService).getGroups();
+        final SearchPaginationResponse paginationResponse =
+            Mockito.mock(SearchPaginationResponse.class);
+        when(groupsService.getPaginatedGroupApiDTOS(any(), any(), any())).thenReturn(paginationResponse);
+        assertEquals(paginationResponse, searchService.getSearchResults(
+            "myGroup",
+            Lists.newArrayList("Group"),
+            null,
+            null,
+            Arrays.asList("VirtualMachine"),
+            EnvironmentType.ONPREM,
+            null,
+            null,
+            null,
+            null,
+            true));
         verify(targetsService, Mockito.never()).getTargets(null);
         verify(marketsService, Mockito.never()).getMarkets(Mockito.anyListOf(String.class));
+        verify(groupsService).getPaginatedGroupApiDTOS(any(), any(), any());
+        verify(searchService).addNameMatcher(any(), any(), any());
+
     }
     /**
      * Test scoped to a cluster;  search result returns 5 SE's, one of which isn't in cluster.
