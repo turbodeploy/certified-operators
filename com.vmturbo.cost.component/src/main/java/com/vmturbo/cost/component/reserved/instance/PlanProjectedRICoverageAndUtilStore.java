@@ -28,6 +28,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -41,6 +42,7 @@ import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanc
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.repository.api.RepositoryListener;
 
 public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
@@ -49,11 +51,15 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
 
     private final DSLContext context;
 
-    private final RepositoryServiceBlockingStub repositoryClient;
+    private final RepositoryServiceBlockingStub repositoryServiceBlockingStub;
+
+    private final RepositoryClient repositoryClient;
 
     private final ReservedInstanceBoughtStore reservedInstanceBoughtStore;
 
     private final ReservedInstanceSpecStore reservedInstanceSpecStore;
+
+    private final SupplyChainServiceBlockingStub supplyChainServiceBlockingStub;
 
     private final int chunkSize;
 
@@ -64,6 +70,8 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
     private final Map<Long, Boolean> projectedTopologyAvailable = new HashMap<Long, Boolean>();
 
     private final Map<Long, Param> cachedRICoverage = new HashMap<Long, Param>();
+
+    private final long realtimeTopologyContextId;
 
     private final Set<Integer> entityTypeSet = ImmutableSet.of(EntityType.REGION_VALUE,
                                                                   EntityType.BUSINESS_ACCOUNT_VALUE,
@@ -87,16 +95,22 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
 
     public PlanProjectedRICoverageAndUtilStore(@Nonnull final DSLContext context,
                                     int projectedTopologyTimeOut,
-                                    @Nonnull final RepositoryServiceBlockingStub repositoryClient,
+                                    @Nonnull final RepositoryServiceBlockingStub repositoryServiceBlockingStub,
+                                    @Nonnull final RepositoryClient repositoryClient,
                                     @Nonnull final ReservedInstanceBoughtStore reservedInstanceBoughtStore,
                                     @Nonnull final ReservedInstanceSpecStore reservedInstanceSpecStore,
-                                    final int chunkSize) {
+                                    @Nonnull SupplyChainServiceBlockingStub supplyChainServiceBlockingStub,
+                                    final int chunkSize,
+                                    final long realtimeTopologyContextId) {
         this.context = context;
         this.projectedTopologyTimeOut = projectedTopologyTimeOut;
+        this.repositoryServiceBlockingStub = Objects.requireNonNull(repositoryServiceBlockingStub);
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
         this.reservedInstanceBoughtStore = reservedInstanceBoughtStore;
         this.reservedInstanceSpecStore = reservedInstanceSpecStore;
+        this.supplyChainServiceBlockingStub = supplyChainServiceBlockingStub;
         this.chunkSize = chunkSize;
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
     /**
@@ -138,10 +152,10 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
      * @param entityRICoverage
      */
     private void insertRecordsToTable(long projectedTopologyId, @Nonnull TopologyInfo topoInfo,
-                                      @Nonnull List<EntityReservedInstanceCoverage> entityRICoverage) {
-        // get plan projected topology entity DTO from repository
+                                       @Nonnull List<EntityReservedInstanceCoverage> entityRICoverage) {
+        // get plan projected topology entity DTO from repository.
         long topologyContextId = topoInfo.getTopologyContextId();
-        Map<Long,TopologyEntityDTO> entityMap = RepositoryDTOUtil.topologyEntityStream(repositoryClient
+        Map<Long, TopologyEntityDTO> entityMap = RepositoryDTOUtil.topologyEntityStream(repositoryServiceBlockingStub
             .retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
                 .setTopologyContextId(topoInfo.getTopologyContextId())
                 .setTopologyId(projectedTopologyId)
@@ -159,12 +173,13 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
                         .collect(Collectors.toSet());
         List<PlanProjectedReservedInstanceCoverageRecord> coverageRcd = new ArrayList<>();
         Builder reservedInstanceBoughtFilterBuilder = ReservedInstanceBoughtFilter.newBuilder();
-        final List<Long> scopeOids = topoInfo.getScopeSeedOidsList();
         final List<ReservedInstanceBought> allReservedInstancesBought =
                         reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(
-                                                  reservedInstanceBoughtFilterBuilder
-                                                  .addAllScopeId(topoInfo.getScopeSeedOidsList())
-                                                  .setScopeEntityType(topoInfo.getScopeEntityType())
+                                              reservedInstanceBoughtFilterBuilder
+                                              .setCloudScopesTuple(
+                           repositoryClient.getCloudScopes(topoInfo.getScopeSeedOidsList(),
+                                                           realtimeTopologyContextId,
+                                                           this.supplyChainServiceBlockingStub))
                                                   .build());
         Iterator<EntityReservedInstanceCoverage> it = entityRICoverage.iterator();
         while(it.hasNext()) {
@@ -298,8 +313,9 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
         final List<ReservedInstanceBought> projectedReservedInstancesBought =
                 reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter
                         .newBuilder()
-                        .addAllScopeId(topoInfo.getScopeSeedOidsList())
-                        .setScopeEntityType(topoInfo.getScopeEntityType())
+                        .setCloudScopesTuple(
+                        repositoryClient.getCloudScopes(topoInfo.getScopeSeedOidsList(),
+                                            realtimeTopologyContextId, this.supplyChainServiceBlockingStub))
                         .build())
                 .stream()
                 .filter(ri -> riUsedCouponMap.containsKey(ri.getId()))

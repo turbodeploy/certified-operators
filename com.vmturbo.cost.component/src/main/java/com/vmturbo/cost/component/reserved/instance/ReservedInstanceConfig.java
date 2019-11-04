@@ -8,11 +8,14 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceBoughtServiceController;
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceSpecServiceController;
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceUtilizationCoverageServiceController;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
@@ -120,9 +123,25 @@ public class ReservedInstanceConfig {
     }
 
     @Bean
+    public JwtClientInterceptor jwtClientInterceptor() {
+        return new JwtClientInterceptor();
+    }
+
+    @Bean
+    public SupplyChainServiceBlockingStub supplyChainRpcService() {
+        return SupplyChainServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel())
+                .withInterceptors(jwtClientInterceptor());
+    }
+
+    /**
+     *  ReservedInstanceBoughtRpcService bean.
+     * @return The {@link ReservedInstanceBoughtRpcService}
+     */
+    @Bean
     public ReservedInstanceBoughtRpcService reservedInstanceBoughtRpcService() {
         return new ReservedInstanceBoughtRpcService(reservedInstanceBoughtStore(),
                 entityReservedInstanceMappingStore(), repositoryClientConfig.repositoryClient(),
+                supplyChainRpcService(),
                 realtimeTopologyContextId);
     }
 
@@ -214,15 +233,22 @@ public class ReservedInstanceConfig {
         return new DefaultTopologyEntityCloudTopologyFactory();
     }
 
+    /**
+     * PlanProjectedRICoverageAndUtilStore bean.
+     * @return The {@link PlanProjectedRICoverageAndUtilStore}
+     */
     @Bean
     public PlanProjectedRICoverageAndUtilStore planProjectedRICoverageAndUtilStore() {
         PlanProjectedRICoverageAndUtilStore PlanProjectedRICoverageAndUtilStore
                 = new PlanProjectedRICoverageAndUtilStore(databaseConfig.dsl(),
                                                    projectedTopologyTimeOut,
                                                    repositoryServiceClient(),
+                                                   repositoryClientConfig.repositoryClient(),
                                                    reservedInstanceBoughtStore(),
                                                    reservedInstanceSpecStore(),
-                                                   persistEntityCostChunkSize);
+                                                   supplyChainRpcService(),
+                                                   persistEntityCostChunkSize,
+                                                   realtimeTopologyContextId);
         repositoryClientConfig.repository().addListener(PlanProjectedRICoverageAndUtilStore);
         return PlanProjectedRICoverageAndUtilStore;
     }

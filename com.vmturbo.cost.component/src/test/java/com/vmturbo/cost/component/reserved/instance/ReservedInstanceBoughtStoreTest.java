@@ -4,8 +4,10 @@ import static org.junit.Assert.assertEquals;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.flywaydb.core.Flyway;
@@ -24,15 +26,18 @@ import com.google.common.collect.Sets;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceSpecRecord;
 import com.vmturbo.cost.component.identity.IdentityProvider;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
+import com.vmturbo.platform.sdk.common.CloudCostDTOREST.Tenancy;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.OfferingClass;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.PaymentOption;
-import com.vmturbo.platform.sdk.common.CloudCostDTOREST.Tenancy;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 /**
@@ -67,7 +72,7 @@ public class ReservedInstanceBoughtStoreTest {
             .build();
 
     final ReservedInstanceBoughtInfo riInfoTwo = ReservedInstanceBoughtInfo.newBuilder()
-            .setBusinessAccountId(456)
+            .setBusinessAccountId(456L)
             .setProbeReservedInstanceId("foo")
             .setReservedInstanceSpec(99L)
             .setAvailabilityZoneId(100L)
@@ -75,7 +80,7 @@ public class ReservedInstanceBoughtStoreTest {
             .build();
 
     final ReservedInstanceBoughtInfo riInfoThree = ReservedInstanceBoughtInfo.newBuilder()
-            .setBusinessAccountId(789)
+            .setBusinessAccountId(789L)
             .setProbeReservedInstanceId("test")
             .setReservedInstanceSpec(99L)
             .setAvailabilityZoneId(50L)
@@ -83,7 +88,7 @@ public class ReservedInstanceBoughtStoreTest {
             .build();
 
     final ReservedInstanceBoughtInfo riInfoFour = ReservedInstanceBoughtInfo.newBuilder()
-            .setBusinessAccountId(789)
+            .setBusinessAccountId(789L)
             .setProbeReservedInstanceId("qux")
             .setReservedInstanceSpec(100L)
             .setAvailabilityZoneId(50L)
@@ -221,6 +226,41 @@ public class ReservedInstanceBoughtStoreTest {
                 reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(regionIdFilter);
         assertEquals(1, reservedInstancesByRegionIdFilter.size());
         assertEquals("bar", reservedInstancesByRegionIdFilter.get(0)
+                .getReservedInstanceBoughtInfo().getProbeReservedInstanceId());
+
+    }
+
+    /**
+     * Test getting bought (existing) RIs by Account filter.
+     *
+     * <p> The RIs returned should be RIs from all sub-accounts and the master account for the Billing Family.
+     */
+    @Test
+    public void testGetReservedInstanceByAccountFilter() {
+        final List<ReservedInstanceBoughtInfo> reservedInstanceInfos = Arrays.asList(riInfoOne, riInfoTwo);
+        reservedInstanceBoughtStore.updateReservedInstanceBought(dsl, reservedInstanceInfos);
+        List<Long> scopeIds = new ArrayList<>();
+        scopeIds.add(0L);
+        final ReservedInstanceBoughtFilter zeroAccountIdFilter = ReservedInstanceBoughtFilter.newBuilder()
+                .addAllScopeId(scopeIds)
+                .setScopeEntityType(BUSINESS_ACCOUNT_VALUE)
+                .setJoinWithSpecTable(false)
+                .build();
+        final List<ReservedInstanceBought> reservedInstancesByZeroAccountIdFilter =
+                reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(zeroAccountIdFilter);
+        assertEquals(0, reservedInstancesByZeroAccountIdFilter.size());
+
+        scopeIds.add(123L);
+        scopeIds.add(456L);
+        final ReservedInstanceBoughtFilter accountIdFilter = ReservedInstanceBoughtFilter.newBuilder()
+                .addAllScopeId(scopeIds)
+                .setScopeEntityType(BUSINESS_ACCOUNT_VALUE)
+                .setJoinWithSpecTable(false)
+                .build();
+        final List<ReservedInstanceBought> reservedInstancesByAccountIdFilter =
+                reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(accountIdFilter);
+        assertEquals(2, reservedInstancesByAccountIdFilter.size());
+        assertEquals("bar", reservedInstancesByAccountIdFilter.get(0)
                 .getReservedInstanceBoughtInfo().getProbeReservedInstanceId());
 
     }

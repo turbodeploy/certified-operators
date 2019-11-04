@@ -1,8 +1,10 @@
 package com.vmturbo.cost.component.reserved.instance.filter;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -27,29 +29,40 @@ public class ReservedInstanceBoughtFilter extends ReservedInstanceFilter {
     // Needs to set to true, if any filter needs to get from reserved instance spec table.
     private boolean joinWithSpecTable;
 
+    // The cloud scopes. Map keyed by EntityType to List of OIDs for each EntityType in scope.
+    private Map<EntityType, Set<Long>> cloudScopesTuple;
+
     /**
      * Constructor for ReservedInstanceBoughtFilter.
      *
-     * @param scopeIds The scope(s) Ids.
-     * @param billingAccountIds The relevant business account OIDs, for the one or more billing families in scope.
+     * @param scopeIds The scope(s) IDs.
      * @param scopeEntityType The scope(s) entity type.
+     * @param cloudScopesTuple The Cloud Scopes Tuple for the topology scope.
      * @param joinWithSpecTable True if any filter needs to get from reserved instance spec table.
-     * TODO: OM-50904 GetReservedInstanceBoughtByFilter request will take in the existing TopoologyInfo instead of
-     * scope_seed_oids and scope_entity_type and call repositoryClient.getOcpScopesTuple() to figure out the
-     * Regions/AZ's/BA's in any scoped or unscoped topology, which will help with mixed Group scopes, and simplify
-     * filter logic further.
      */
-    private ReservedInstanceBoughtFilter( final Set<Long> scopeIds,
-                                         @Nonnull final Set<Long> billingAccountIds,
+    private ReservedInstanceBoughtFilter(@Nonnull final Set<Long> scopeIds,
                                          final int scopeEntityType,
+                                         @Nonnull final Map<EntityType, Set<Long>> cloudScopesTuple,
                                          final boolean joinWithSpecTable) {
-        super(scopeIds, billingAccountIds, scopeEntityType);
-        if (scopeEntityType == EntityType.REGION_VALUE) {
-            this.joinWithSpecTable = true;
+        super(scopeIds, scopeEntityType);
+        this.cloudScopesTuple = cloudScopesTuple;
+        this.joinWithSpecTable = joinWithSpecTable;
+        // Note that cloudScopesTuple should be set for Group scopes, and hence associated
+        // Regions, AZ's and BA's should be set.
+        if (!scopeIds.isEmpty()) {
+            // when REGION is involved, we need to join with the reserved_instance_spec table.
+            if (scopeEntityType == EntityType.REGION_VALUE) {
+                this.joinWithSpecTable = true;
+            }
+            this.conditions = generateConditions(scopeIds, scopeEntityType);
         } else {
-            this.joinWithSpecTable = joinWithSpecTable;
+            // There could be a combination of REGION and BILLING ACCOUNT for e.g.
+            // and we would need to join with the spec table.
+            if (cloudScopesTuple.size() > 1) {
+                this.joinWithSpecTable = true;
+            }
+            this.conditions = generateConditions(this.cloudScopesTuple);
         }
-        this.conditions = generateConditions(scopeIds, billingAccountIds, scopeEntityType);
      }
 
     /**
@@ -68,18 +81,12 @@ public class ReservedInstanceBoughtFilter extends ReservedInstanceFilter {
     /**
      * Generate a list of {@link Condition} based on different fields.
      *
-     * <p>Note that the where condition is only containing one filter clause at present.
-     * To have multiple filters, there would need to be AND's in the where clause.
-     *
      * @param scopeIds scope ids scope OIDs to filter by.  REGION/BA/AZ or other in the fiture.
-     * @param billingAccountIds The relevant business account OIDs, for the one or
-     * more billing families in scope.
      * @param scopeEntityType The scope(s) entity type.
      * @return a list of {@link Condition}.
      */
     @Override
     protected List<Condition> generateConditions(@Nonnull final Set<Long> scopeIds,
-                                                 @Nonnull final Set<Long> billingAccountIds,
                                                  int scopeEntityType) {
         final List<Condition> conditions = new ArrayList<>();
         if (scopeIds.isEmpty()) {
@@ -93,11 +100,57 @@ public class ReservedInstanceBoughtFilter extends ReservedInstanceFilter {
                 conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.AVAILABILITY_ZONE_ID.in(scopeIds));
                 break;
             case EntityType.BUSINESS_ACCOUNT_VALUE:
-                conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.BUSINESS_ACCOUNT_ID.in(billingAccountIds));
+                conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.BUSINESS_ACCOUNT_ID.in(scopeIds));
                 break;
-            // TODO:  Mixed scope of optimizable entities.
+            // Mixed scope of optimizable entities is handled by generateConditions(cloudScopesTuple).
             default:
                 break;
+        }
+        return conditions;
+    }
+
+    /**
+     * Generate a list of {@link Condition} based on different fields.
+     *
+     * @param cloudScopesTuple Cloud scopes Tuple of (Regions/AZ's/BA's/..) for the topology.
+     * @return a list of {@link Condition}.
+     */
+    protected List<Condition> generateConditions(
+                                         @Nonnull final Map<EntityType, Set<Long>> cloudScopesTuple) {
+        final List<Condition> conditions = new ArrayList<>();
+        if (cloudScopesTuple.isEmpty()) {
+            return conditions;
+        }
+        // TODO: Since there is business specific logic, a similar method may be needed for Azure
+        // with Azure specific entity types or this method extended.
+        Set<Long> entityRegionOids =  cloudScopesTuple.get(EntityType.REGION_VALUE);
+        Set<Long> entityAzOids = cloudScopesTuple.get(EntityType.AVAILABILITY_ZONE_VALUE);
+        boolean regionAndAzExist = entityRegionOids != null && entityAzOids != null;
+        Set<Long> entityBfOids = cloudScopesTuple.get(EntityType.BUSINESS_ACCOUNT_VALUE);
+        if (regionAndAzExist) {
+            Condition conditionRegion = Tables.RESERVED_INSTANCE_SPEC.REGION_ID.in(entityRegionOids);
+            Condition conditionAz = Tables.RESERVED_INSTANCE_BOUGHT.AVAILABILITY_ZONE_ID.in(entityAzOids);
+            conditions.add(conditionRegion.or(conditionAz));
+            if (entityBfOids != null) {
+                conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.BUSINESS_ACCOUNT_ID.in(entityBfOids));
+            }
+        } else {
+            for (Map.Entry<EntityType, Set<Long>> entry : cloudScopesTuple.entrySet()) {
+                Set<Long> entityOids = entry.getValue();
+                switch (entry.getKey().getNumber()) {
+                    case EntityType.REGION_VALUE:
+                        conditions.add(Tables.RESERVED_INSTANCE_SPEC.REGION_ID.in(entityOids));
+                        break;
+                    case EntityType.AVAILABILITY_ZONE_VALUE:
+                        conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.AVAILABILITY_ZONE_ID.in(entityOids));
+                        break;
+                    case EntityType.BUSINESS_ACCOUNT_VALUE:
+                        conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.BUSINESS_ACCOUNT_ID.in(entityOids));
+                        break;
+                    default:
+                        break;
+                }
+            }
         }
         return conditions;
     }
@@ -114,18 +167,17 @@ public class ReservedInstanceBoughtFilter extends ReservedInstanceFilter {
     public static class Builder {
         // The set of scope oids.
         private Set<Long> scopeIds = new HashSet<>();
-        // The scope's entity type.
         private int scopeEntityType = EntityType.UNKNOWN_VALUE;
-        // The relevant business account OIDs, for the one or more billing families in scope.
-        private Set<Long> billingAccountIds = new HashSet<>();
+        // Cloud scopes Tuple of (Regions/AZ's/BA's/..)
+        private Map<EntityType, Set<Long>> cloudScopesTuple = new HashMap<>();
         // Needs to set to true, if any filter needs to get from reserved instance spec table.
         private boolean joinWithSpecTable;
 
         private Builder() {}
 
         public ReservedInstanceBoughtFilter build() {
-            return new ReservedInstanceBoughtFilter(scopeIds, billingAccountIds,
-                                                    scopeEntityType, joinWithSpecTable);
+            return new ReservedInstanceBoughtFilter(scopeIds, scopeEntityType, cloudScopesTuple,
+                                                    joinWithSpecTable);
         }
 
         /**
@@ -154,18 +206,15 @@ public class ReservedInstanceBoughtFilter extends ReservedInstanceFilter {
         }
 
         /**
-         * Add all billing account OIDs that are relevant.
+         * Set the plan scopes tuple.
          *
-         * <p>In OCP plans, this would be all accounts/subscriptions in the billing family.
-         * In real-time it could be all accounts/subscriptions in the billing family, for
-         * billing family scope and a single sub-account for account scope.
-         *
-         * @param ids The relevant business account OIDs, for the one or more billing families in scope.
+         * @param cloudScopesTuple  The scopes tuple.
          * @return Builder for this class.
          */
         @Nonnull
-        public Builder addAllBillingAccountId(@Nonnull final List<Long> ids) {
-            this.billingAccountIds.addAll(ids);
+        public Builder setCloudScopesTuple(@Nonnull final Map<EntityType, Set<Long>>
+                                                                cloudScopesTuple) {
+            this.cloudScopesTuple.putAll(cloudScopesTuple);
             return this;
         }
 

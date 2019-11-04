@@ -26,6 +26,7 @@ import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
+import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
@@ -42,7 +43,8 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Top
         EntityCostConfig.class,
         DiscountConfig.class,
         ReservedInstanceConfig.class,
-        CostConfig.class})
+        CostConfig.class,
+        RepositoryClientConfig.class})
 public class TopologyListenerConfig {
     private static final Logger logger = LogManager.getLogger();
 
@@ -63,6 +65,9 @@ public class TopologyListenerConfig {
 
     @Autowired
     private ReservedInstanceConfig reservedInstanceConfig;
+
+    @Autowired
+    private RepositoryClientConfig repositoryClientConfig;
 
     @Autowired
     private CostConfig costConfig;
@@ -157,7 +162,10 @@ public class TopologyListenerConfig {
                 discountConfig.discountStore(),
                 reservedInstanceConfig.reservedInstanceBoughtStore(),
                 reservedInstanceConfig.reservedInstanceSpecStore(),
-                reservedInstanceConfig.entityReservedInstanceMappingStore());
+                reservedInstanceConfig.entityReservedInstanceMappingStore(),
+                repositoryClientConfig.repositoryClient(),
+                reservedInstanceConfig.supplyChainRpcService(),
+                realtimeTopologyContextId);
     }
 
     @Bean

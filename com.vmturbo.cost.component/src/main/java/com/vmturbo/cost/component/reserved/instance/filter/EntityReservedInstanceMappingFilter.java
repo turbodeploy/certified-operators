@@ -11,6 +11,7 @@ import javax.annotation.Nonnull;
 import org.jooq.Condition;
 
 import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * A filter used to extract data for a scoped set of Reserved Instance oids from EntityToReservedInstance
@@ -21,8 +22,9 @@ public class EntityReservedInstanceMappingFilter extends ReservedInstanceFilter 
     private final List<Condition> conditions;
 
     private EntityReservedInstanceMappingFilter(@Nonnull final Set<Long> scopeIds) {
-        super(scopeIds, Collections.emptySet(), 0);
-        this.conditions = generateConditions(scopeIds, Collections.emptySet(), 0);
+        // TODO: should this be EntityType.UNKNOWN_VALUE ?
+        super(scopeIds, EntityType.SWITCH_VALUE);
+        this.conditions = generateConditions(scopeIds, EntityType.SWITCH_VALUE);
     }
 
     /**
@@ -35,7 +37,7 @@ public class EntityReservedInstanceMappingFilter extends ReservedInstanceFilter 
     }
 
     @Override
-    List<Condition> generateConditions(@Nonnull Set<Long> scopeIds, @Nonnull Set<Long> billingAccountIds, int scopeEntityType) {
+    List<Condition> generateConditions(@Nonnull Set<Long> scopeIds, int scopeEntityType) {
         final List<Condition> conditions = new ArrayList<>();
         if (scopeIds.isEmpty()) {
             return conditions;

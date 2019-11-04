@@ -36,6 +36,8 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -48,6 +50,7 @@ import com.vmturbo.cost.component.db.tables.records.PlanProjectedEntityToReserve
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceCoverageRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceUtilizationRecord;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 @RunWith(SpringJUnit4ClassRunner.class)
@@ -64,6 +67,9 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
     private ReservedInstanceBoughtStore reservedInstanceBoughtStore = mock(ReservedInstanceBoughtStore.class);
     private ReservedInstanceSpecStore reservedInstanceSpecStore = mock(ReservedInstanceSpecStore.class);
     private RepositoryServiceMole repositoryService = spy(new RepositoryServiceMole());
+    private RepositoryClient repositoryClient = mock(RepositoryClient.class);
+    private SupplyChainServiceBlockingStub  supplyChainService;
+    private final Long realtimeTopologyContextId = 777777L;
     private GrpcTestServer testServer = GrpcTestServer.newServer(repositoryService);
     private PlanProjectedRICoverageAndUtilStore store;
     private static final EntityReservedInstanceCoverage ENTITY_RI_COVERAGE =
@@ -84,10 +90,13 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
         flyway.clean();
         flyway.migrate();
         testServer.start();
+        supplyChainService = SupplyChainServiceGrpc.newBlockingStub(testServer.getChannel());
         // set time out on topology available or failure for 1 seconds
         store = Mockito.spy(new PlanProjectedRICoverageAndUtilStore(dsl, 1, RepositoryServiceGrpc
-                .newBlockingStub(testServer.getChannel()), reservedInstanceBoughtStore,
-                reservedInstanceSpecStore, chunkSize));
+              .newBlockingStub(testServer.getChannel()), repositoryClient,
+               reservedInstanceBoughtStore, reservedInstanceSpecStore, supplyChainService, chunkSize,
+               realtimeTopologyContextId));
+
     }
 
     @After

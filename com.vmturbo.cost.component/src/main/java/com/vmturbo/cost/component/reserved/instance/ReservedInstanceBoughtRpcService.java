@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -30,6 +31,7 @@ import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountRespo
 import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceImplBase;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanceMappingFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -45,18 +47,22 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
 
     private final RepositoryClient repositoryClient;
 
+    private final SupplyChainServiceBlockingStub supplyChainServiceBlockingStub;
+
     private final Long realtimeTopologyContextId;
 
     public ReservedInstanceBoughtRpcService(
             @Nonnull final ReservedInstanceBoughtStore reservedInstanceBoughtStore,
             @Nonnull final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore,
-            @Nonnull final RepositoryClient repositoryClient,
+            final RepositoryClient repositoryClient,
+            final SupplyChainServiceBlockingStub supplyChainServiceBlockingStub,
             final Long realtimeTopologyContextId) {
         this.reservedInstanceBoughtStore =
                 Objects.requireNonNull(reservedInstanceBoughtStore);
         this.entityReservedInstanceMappingStore =
                 Objects.requireNonNull(entityReservedInstanceMappingStore);
-        this.repositoryClient = Objects.requireNonNull(repositoryClient);
+        this.repositoryClient = repositoryClient;
+        this.supplyChainServiceBlockingStub = supplyChainServiceBlockingStub;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
@@ -67,16 +73,16 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
         try {
             final List<Long> scopeOids = request.getScopeSeedOidsList();
             final int scopeEntityType = request.getScopeEntityType();
-            List<Long> relatedBusinessAccountOrSubscriptionOids = repositoryClient
-                            .getRelatedBusinessAccountOrSubscriptionOids(scopeOids,
-                                                         realtimeTopologyContextId, false);
+            Map<EntityType, Set<Long>> cloudScopesTuple = repositoryClient
+                            .getCloudScopes(scopeOids, realtimeTopologyContextId,
+                                            this.supplyChainServiceBlockingStub);
             final List<ReservedInstanceBought> reservedInstanceBoughts =
                            reservedInstanceBoughtStore
                                .getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter
                                                                   .newBuilder()
                                   .addAllScopeId(scopeOids)
                                   .setScopeEntityType(scopeEntityType)
-                                  .addAllBillingAccountId(relatedBusinessAccountOrSubscriptionOids)
+                                  .setCloudScopesTuple(cloudScopesTuple)
                                   .build());
             final List<Long> riOids = reservedInstanceBoughts.stream().map(riBought -> riBought.getId())
                             .collect(Collectors.toList());
