@@ -835,7 +835,7 @@ public class ActionSpecMapper {
 
         wrapperDto.setActionType(actionType);
         // Set entity DTO fields for target, source (if needed) and destination entities
-        final ActionEntity target = ActionDTOUtil.getPrimaryEntity(action);
+        final ActionEntity target = ActionDTOUtil.getPrimaryEntity(action, false);
         wrapperDto.setTarget(
             ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(target.getId())));
 

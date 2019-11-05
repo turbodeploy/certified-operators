@@ -184,21 +184,30 @@ public class ActionDTOUtil {
     }
 
     /**
-     * Get the ID of the "main" entity targeted by a specific action.
+     * Get the "main" entity targeted by a specific action.
      * This will be one of the entities involved in the action. It can be thought of as the entity
      * that the action is acting upon.
      *
      * @param action The action in question.
+     * @param returnVolumeForMoveVolumeAction This parameter affects Move Volume actions only. If
+     * it is set to {@code true} then Volume is returned instead of VM although target entity is
+     * still a virtual machine.
      * @return The ActionEntity of the entity targeted by the action.
      * @throws UnsupportedActionException If the type of the action is not supported.
      */
-    public static ActionEntity getPrimaryEntity(@Nonnull final Action action)
+    public static ActionEntity getPrimaryEntity(
+            @Nonnull final Action action,
+            // TODO: Get rid of this parameter. Move Volume actions must be associated with Volume
+            //  rather than VM.
+            final boolean returnVolumeForMoveVolumeAction)
             throws UnsupportedActionException {
         final ActionInfo actionInfo = action.getInfo();
 
         switch (actionInfo.getActionTypeCase()) {
             case MOVE:
-                return actionInfo.getMove().getTarget();
+                return returnVolumeForMoveVolumeAction
+                        ? getMoveActionTarget(action.getInfo().getMove())
+                        : actionInfo.getMove().getTarget();
             case SCALE:
                 return actionInfo.getScale().getTarget();
             case RECONFIGURE:
@@ -218,6 +227,20 @@ public class ActionDTOUtil {
             default:
                 throw new UnsupportedActionException(action);
         }
+    }
+
+    /**
+     * Get the "main" entity targeted by a specific action.
+     * This will be one of the entities involved in the action. It can be thought of as the entity
+     * that the action is acting upon.
+     *
+     * @param action The action in question.
+     * @return The ActionEntity of the entity targeted by the action.
+     * @throws UnsupportedActionException If the type of the action is not supported.
+     */
+    public static ActionEntity getPrimaryEntity(@Nonnull final Action action)
+            throws UnsupportedActionException {
+        return getPrimaryEntity(action, true);
     }
 
     /**
@@ -315,8 +338,8 @@ public class ActionDTOUtil {
         switch (actionInfo.getActionTypeCase()) {
             case MOVE:
             case SCALE:
-                List<ActionEntity> retList = new ArrayList<>();
-                retList.add(getPrimaryEntity(action));
+                final List<ActionEntity> retList = new ArrayList<>();
+                retList.add(getPrimaryEntity(action, false));
                 for (ChangeProvider change : getChangeProviderList(action)) {
                     if (change.getSource().getId() != 0) {
                         retList.add(change.getSource());

@@ -254,7 +254,7 @@ public class ActionDescriptionBuilder {
         final ChangeProvider primaryChange = ActionDTOUtil.getPrimaryChangeProvider(recommendation);
         final boolean hasSource = !initialPlacement && primaryChange.hasSource();
         final long destinationEntityId = primaryChange.getDestination().getId();
-        final long targetEntityId = ActionDTOUtil.getPrimaryEntity(recommendation).getId();
+        final long targetEntityId = ActionDTOUtil.getPrimaryEntity(recommendation, false).getId();
 
         Optional<ActionPartialEntity> optTargetEntity = entitiesSnapshot.getEntityFromOid(targetEntityId);
         if( !optTargetEntity.isPresent()) {

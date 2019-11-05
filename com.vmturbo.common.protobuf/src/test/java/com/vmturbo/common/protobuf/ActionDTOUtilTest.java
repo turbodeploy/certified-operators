@@ -7,7 +7,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -53,7 +52,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Unit tests for {@link ActionDTOUtil}.
@@ -428,25 +427,37 @@ public class ActionDTOUtilTest {
     }
 
     /**
-     * Test for invocation of {@link ActionDTOUtil#getPrimaryEntity(Action)} method for Move and
-     * Scale actions.
+     * Test for invocation of {@link ActionDTOUtil#getPrimaryEntity(Action, boolean)} method for
+     * Move and Scale actions.
      */
     @Test
     public void testGetPrimaryEntityForMoveAndScale() throws UnsupportedActionException {
-        final ActionEntity target = createActionEntity(11);
-        final ActionInfo move =
-                ActionInfo.newBuilder().setMove(Move.newBuilder().setTarget(target)).build();
-        final ActionInfo scale =
-                ActionInfo.newBuilder().setScale(Scale.newBuilder().setTarget(target)).build();
-        for (final ActionInfo actionInfo : Arrays.asList(move, scale)) {
-            final Action action = Action.newBuilder()
-                    .setId(123121)
-                    .setExplanation(Explanation.getDefaultInstance())
-                    .setInfo(actionInfo)
-                    .setDeprecatedImportance(1)
-                    .build();
-            assertSame(target, ActionDTOUtil.getPrimaryEntity(action));
-        }
+        final ActionEntity vm = createActionEntity(11);
+        final ActionEntity volume = createActionEntity(22);
+        final ActionEntity storageTier = createActionEntity(33, EntityType.STORAGE_TIER_VALUE);
+        final ChangeProvider changeProvider = ChangeProvider.newBuilder()
+                .setSource(storageTier)
+                .setDestination(storageTier)
+                .setResource(volume)
+                .build();
+        final ActionInfo moveInfo = ActionInfo.newBuilder()
+                .setMove(Move.newBuilder()
+                        .setTarget(vm)
+                        .addChanges(changeProvider))
+                .build();
+        final Action move = createAction(moveInfo);
+        final ActionInfo scaleInfo = ActionInfo.newBuilder()
+                .setScale(Scale.newBuilder()
+                        .setTarget(vm)
+                        .addChanges(changeProvider))
+                .build();
+        final Action scale = createAction(scaleInfo);
+
+        assertSame(volume, ActionDTOUtil.getPrimaryEntity(move, true));
+        assertSame(vm, ActionDTOUtil.getPrimaryEntity(move, false));
+
+        assertSame(vm, ActionDTOUtil.getPrimaryEntity(scale, true));
+        assertSame(vm, ActionDTOUtil.getPrimaryEntity(scale, false));
     }
 
     /**
@@ -529,11 +540,23 @@ public class ActionDTOUtilTest {
 
     private static ActionEntity createActionEntity(long id) {
         // set some fake type for now
-        final int defaultEntityType = 1;
+        return createActionEntity(id, 1);
+    }
+
+    private static ActionEntity createActionEntity(long id, int type) {
         return ActionEntity.newBuilder()
-            .setId(id)
-            .setType(defaultEntityType)
-            .build();
+                .setId(id)
+                .setType(type)
+                .build();
+    }
+
+    private static Action createAction(final ActionInfo actionInfo) {
+        return Action.newBuilder()
+                .setId(123121)
+                .setExplanation(Explanation.getDefaultInstance())
+                .setInfo(actionInfo)
+                .setDeprecatedImportance(1)
+                .build();
     }
 
     private static ReasonCommodity createReasonCommodity(int baseType) {

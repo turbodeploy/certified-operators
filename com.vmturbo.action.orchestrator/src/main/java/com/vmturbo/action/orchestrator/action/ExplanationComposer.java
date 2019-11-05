@@ -214,7 +214,7 @@ public class ExplanationComposer {
             .map(provider -> {
                 try {
                     return changeExplanationBuilder(optionalSourceEntity,
-                        ActionDTOUtil.getPrimaryEntity(action), provider, keepItShort,
+                        ActionDTOUtil.getPrimaryEntity(action, false), provider, keepItShort,
                         settingPolicyIdToSettingPolicyName);
                 } catch (UnsupportedActionException e) {
                     logger.error("Cannot build action explanation", e);
