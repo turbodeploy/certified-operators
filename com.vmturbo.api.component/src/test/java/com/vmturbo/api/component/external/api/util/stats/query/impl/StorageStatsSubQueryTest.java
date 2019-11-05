@@ -4,6 +4,10 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isOneOf;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -17,14 +21,16 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-
-import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
@@ -425,6 +431,39 @@ public class StorageStatsSubQueryTest {
     }
 
     /**
+     * Tests aggregation of stats in the case where there is no groupBy element.
+     * @throws OperationFailedException only if something is seriously wrong.
+     */
+    @Test
+    public void testGetAggregateStatsNoGroupBy() throws OperationFailedException {
+        StatsQueryScope statsQueryScope = mock(StatsQueryScope.class);
+        when(statsQueryScope.getEntities())
+            .thenReturn(ImmutableSet.of(123L, 456L, 789L));
+        final StatsQueryContext context = mock(StatsQueryContext.class);
+        when(context.isGlobalScope()).thenReturn(false);
+        when(context.getQueryScope()).thenReturn(statsQueryScope);
+
+        SearchRequest searchRequest = mock(SearchRequest.class);
+        when(repositoryApi.newSearchRequest(any())).thenReturn(searchRequest);
+        when(searchRequest.count()).thenReturn(3L);
+
+        Set<StatApiInputDTO> requestedStats =
+            Sets.newHashSet(createStatApiInputDTO(NUM_VOLUMES, null, Collections.emptyList()));
+
+        Map<Long, List<StatApiDTO>> results = query.getAggregateStats(requestedStats, context);
+
+        assertEquals(1, results.size());
+        final List<StatApiDTO> resultStatList = results.values().iterator().next();
+        assertEquals(1, resultStatList.size());
+        final StatApiDTO resultStat = resultStatList.get(0);
+        assertEquals(NUM_VOLUMES, resultStat.getName());
+
+        assertTrue(resultStat.getFilters().isEmpty());
+        assertEquals(3, resultStat.getValue(), 0);
+        assertNull(resultStat.getRelatedEntityType());
+    }
+
+    /**
      * Test GetAggregateStats() method for context is not Global with a VV without ST.
      *
      * @throws OperationFailedException unable to operate
@@ -599,11 +638,13 @@ public class StorageStatsSubQueryTest {
      * @return {@link StatApiInputDTO}
      */
     private StatApiInputDTO createStatApiInputDTO(@Nonnull final String name,
-                                                  @Nonnull final UIEntityType relatedEntityType,
+                                                  @Nullable final UIEntityType relatedEntityType,
                                                   @Nonnull final List<String> groupBy) {
         StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
         statApiInputDTO.setName(name);
-        statApiInputDTO.setRelatedEntityType(relatedEntityType.apiStr());
+        if (relatedEntityType != null) {
+            statApiInputDTO.setRelatedEntityType(relatedEntityType.apiStr());
+        }
         statApiInputDTO.setGroupBy(groupBy);
         return statApiInputDTO;
     }
