@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.group.settings;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -13,6 +14,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
@@ -79,7 +81,7 @@ public class EntitySettingsApplicator {
                     }
                 }
 
-                for (SettingApplicator applicator: buildApplicators(topologyInfo)) {
+                for (SettingApplicator applicator: buildApplicators(topologyInfo, graphWithSettings)) {
                     applicator.apply(entity, settingsForEntity);
                 }
             });
@@ -89,11 +91,12 @@ public class EntitySettingsApplicator {
      * Get the list of applicators for a particular {@link TopologyInfo}.
      *
      * @param topologyInfo The {@link TopologyInfo} of an in-progress topology broadcast.
-     *
+     * @param graphWithSettings {@link GraphWithSettings} of the in-progress topology
      * @return A list of {@link SettingApplicator}s for settings that apply to this topology.
      */
-    private static List<SettingApplicator> buildApplicators(@Nonnull final TopologyInfo topologyInfo) {
-        return ImmutableList.of(new MoveApplicator(),
+    private static List<SettingApplicator> buildApplicators(@Nonnull final TopologyInfo topologyInfo,
+                                                            @Nonnull final GraphWithSettings graphWithSettings) {
+        return ImmutableList.of(new MoveApplicator(graphWithSettings),
                 new VMShopTogetherApplicator(topologyInfo),
                 new SuspendApplicator(),
                 new ProvisionApplicator(),
@@ -199,16 +202,48 @@ public class EntitySettingsApplicator {
      */
     private static class MoveApplicator extends SingleSettingApplicator {
 
-        private MoveApplicator() {
+        private final GraphWithSettings graphWithSettings;
+
+        private MoveApplicator(@Nonnull final GraphWithSettings graphWithSettings) {
             super(EntitySettingSpecs.Move);
+            this.graphWithSettings = Objects.requireNonNull(graphWithSettings);
         }
 
         @Override
         protected void apply(@Nonnull final TopologyEntityDTO.Builder entity,
                           @Nonnull final Setting setting) {
-            final boolean movable =
-                    !setting.getEnumSettingValue().getValue().equals(ActionMode.DISABLED.name());
+            final boolean movable = !setting.getEnumSettingValue().getValue().equals(ActionMode.DISABLED.name());
 
+            // for VV, move action should apply to its associated VM's ST commodity
+            if (EntityType.VIRTUAL_VOLUME_VALUE == entity.getEntityType()) {
+                logger.debug("Entity Type is VirtualVolume.  Setting will be applied to its VM");
+                List<TopologyEntityDTO.Builder> vmEntityList = getConnectedVMForVV(entity, graphWithSettings);
+                if (!vmEntityList.isEmpty()) {
+                    vmEntityList.stream().forEach(vmEntity ->
+                        // VM may have more than one VV with the same ST.  Only apply to the one with the associated VV
+                        applyMovableToCommodities(vmEntity, movable,
+                            commBought -> commBought.getProviderEntityType() == EntityType.STORAGE_TIER_VALUE &&
+                                          commBought.getVolumeId() == entity.getOid())
+                    );
+                } else {
+                    logger.debug("Unattached Virtual Volume {}. No move settings applied", entity.getOid());
+                }
+            } else {
+                applyMovableToCommodities(entity, movable, commBought -> shouldOverrideMovable(commBought, entity.getEntityType()));
+            }
+        }
+
+        /**
+         * Apply the movable flag to the commodity(s) of the entity
+         *    which satisfies the provided override condition.
+         *
+         * @param entity to apply the setting
+         * @param movable is movable or not
+         * @param commodityOverrideMovable condition function which the commodity should apply the movable or not.
+         */
+        private static void applyMovableToCommodities(@Nonnull TopologyEntityDTO.Builder entity,
+                                                      boolean movable,
+                                                      @Nonnull Predicate<CommoditiesBoughtFromProvider.Builder> commodityOverrideMovable) {
             entity.getCommoditiesBoughtFromProvidersBuilderList().stream()
                 // Only disable moves for placed entities (i.e. those that have providers).
                 // Doesn't make sense to disable them for unplaced ones.
@@ -218,8 +253,33 @@ public class EntitySettingsApplicator {
                 // providers(disk array, logical pool). We want to set the VM group of commodities
                 // bought from hosts (physical machines) to non-movable and Storage group of
                 // commodities bought from its providers to non-movable.
-                .filter(commBought -> shouldOverrideMovable(commBought, entity.getEntityType()))
+                .filter(commBought -> commodityOverrideMovable.apply(commBought))
                 .forEach(commBought -> commBought.setMovable(movable));
+        }
+
+
+        /**
+         * Find the VM(s) which contains the VV provided.
+         *
+         * @param vvEntityDto Virtual Volume which requires to lookup for VM which connected to it
+         * @param graphWithSettings {@link GraphWithSettings} topology graph with settings; Used to lookup the VM in the graph
+         * @return VM(s) which contains VV.  Empty list for unattached volume.
+         */
+        @Nonnull
+        private static List<TopologyEntityDTO.Builder> getConnectedVMForVV(@Nonnull final TopologyEntityDTO.Builder vvEntityDto,
+                                                                           @Nonnull final GraphWithSettings graphWithSettings) {
+            final TopologyGraph<TopologyEntity> topologyGraph = graphWithSettings.getTopologyGraph();
+            final Optional<TopologyEntity> vvEntityOpt = topologyGraph.getEntity(vvEntityDto.getOid());
+
+            if (vvEntityOpt.isPresent()) {
+                return topologyGraph.getConnectedFromEntities(vvEntityOpt.get())
+                    .filter(connectedEntity -> connectedEntity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                    .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                    .collect(Collectors.toList());
+            } else {
+                logger.error("Cannot find virtual volume {} from topologyGraph", vvEntityDto.getOid());
+                return Collections.emptyList();
+            }
         }
     }
 

@@ -22,7 +22,6 @@ import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
-import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
@@ -36,6 +35,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -58,6 +59,11 @@ public class EntitySettingsApplicatorTest {
             .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
             .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
             .build();
+
+    private static final Setting MOVE_RECOMMEND_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.RECOMMEND.name()))
+        .build();
 
     private static final Setting RESIZE_DISABLED_SETTING = Setting.newBuilder()
                     .setSettingSpecName(EntitySettingSpecs.Resize.getSettingName())
@@ -210,6 +216,72 @@ public class EntitySettingsApplicatorTest {
                         .setMovable(true));
         applySettings(TOPOLOGY_INFO, entity, MOVE_DISABLED_SETTING);
         assertThat(entity.getCommoditiesBoughtFromProviders(0).getMovable(), is(false));
+    }
+
+    /**
+     * Test Move Volume should apply movable to its connected VM's associated ST.
+     */
+    @Test
+    public void testMoveApplicatorForVolume() {
+        final long vvId = 123456L;
+        final long vmId = 234567L;
+        final long stId = 345678L;
+        final TopologyEntityDTO.Builder vmEntity = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setOid(vmId)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(PARENT_ID)
+                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                .setVolumeId(vvId)
+                .setMovable(false))
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(PARENT_ID + 1)
+                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                .setVolumeId(stId)
+                .setMovable(false))
+            .addConnectedEntityList(ConnectedEntity.newBuilder()
+                .setConnectedEntityId(vvId)
+                .setConnectedEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setConnectionType(ConnectionType.NORMAL_CONNECTION)
+                .build());
+
+        final TopologyEntityDTO.Builder vvEntity = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+            .addConnectedEntityList(ConnectedEntity.newBuilder()
+                .setConnectedEntityId(vmId)
+                .setConnectedEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setConnectionType(ConnectionType.NORMAL_CONNECTION)
+                .build())
+            .setOid(vvId);
+
+        applySettings(TOPOLOGY_INFO, vvEntity, vmEntity, applicator, MOVE_RECOMMEND_SETTING);
+        assertThat(vmEntity.getCommoditiesBoughtFromProvidersList().size(), is(2));
+        assertThat(vmEntity.getCommoditiesBoughtFromProviders(0).getMovable(), is(true));
+        assertThat(vmEntity.getCommoditiesBoughtFromProviders(1).getMovable(), is(false));
+    }
+
+    /**
+     * Test Move Unattached Volume.
+     */
+    @Test
+    public void testMoveApplicatorForUnattachedVolume() {
+        final long vvId = 123456L;
+        final long stId = 345678L;
+        final TopologyEntityDTO.Builder vmEntity = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(PARENT_ID)
+                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                .setVolumeId(stId)
+                .setMovable(false));
+
+        final TopologyEntityDTO.Builder vvEntity = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+            .setOid(vvId);
+
+        applySettings(TOPOLOGY_INFO, vvEntity, vmEntity, applicator, MOVE_RECOMMEND_SETTING);
+        assertThat(vmEntity.getCommoditiesBoughtFromProvidersList().size(), is(1));
+        assertThat(vmEntity.getCommoditiesBoughtFromProviders(0).getMovable(), is(false));
     }
 
     @Test
@@ -746,6 +818,42 @@ public class EntitySettingsApplicatorTest {
         final GraphWithSettings graphWithSettings = new GraphWithSettings(graph,
                 Collections.singletonMap(entityId, settingsBuilder.build()),
                 Collections.singletonMap(DEFAULT_SETTING_ID, policy));
+        applicator.applySettings(topologyInfo, graphWithSettings);
+    }
+
+    /**
+     * Applies the specified settings to the specified topology builder. Add additional entity
+     * to construct topology graph.
+     *
+     * @param topologyInfo {@link TopologyInfo}
+     * @param entity {@link TopologyEntityDTO} the entity to apply the setting
+     * @param otherEntity Other entity in TopologyGraph
+     * @param applicator the applicator to apply the setting
+     * @param settings setting to be applied
+     */
+    private static void applySettings(@Nonnull final TopologyInfo topologyInfo,
+                               @Nonnull TopologyEntityDTO.Builder entity,
+                               @Nonnull TopologyEntityDTO.Builder otherEntity,
+                               @Nonnull EntitySettingsApplicator applicator,
+                               @Nonnull Setting... settings) {
+        final long entityId = entity.getOid();
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(ImmutableMap.of(
+            entityId, topologyEntityBuilder(entity),
+            PARENT_ID, topologyEntityBuilder(PARENT_OBJECT.toBuilder()),
+            otherEntity.getOid(), topologyEntityBuilder(otherEntity)));
+        final EntitySettings.Builder settingsBuilder = EntitySettings.newBuilder()
+            .setEntityOid(entityId)
+            .setDefaultSettingPolicyId(DEFAULT_SETTING_ID);
+        for (Setting setting : settings) {
+            settingsBuilder.addUserSettings(SettingToPolicyId.newBuilder()
+                .setSetting(setting)
+                .addSettingPolicyId(1L)
+                .build());
+        }
+        final SettingPolicy policy = SettingPolicy.newBuilder().setId(DEFAULT_SETTING_ID).build();
+        final GraphWithSettings graphWithSettings = new GraphWithSettings(graph,
+            Collections.singletonMap(entityId, settingsBuilder.build()),
+            Collections.singletonMap(DEFAULT_SETTING_ID, policy));
         applicator.applySettings(topologyInfo, graphWithSettings);
     }
 }
