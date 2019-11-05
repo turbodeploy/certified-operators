@@ -189,6 +189,8 @@ data:
                 websocket.pong.timeout: 120000
                 # this setting is for mediation-aws, mediation-awsbilling, and mediation-awscost
                 turbonomic.ratecards.persistent.path: /home/turbonomic/data/
+                # Setting the directory that the diagnostics will be collected from
+                diags_tmpdir_path: /tmp/diags/
             ml-datastore:
                 influxdbHealthCheckIntervalSeconds: 60
                 influxHost: influxdb

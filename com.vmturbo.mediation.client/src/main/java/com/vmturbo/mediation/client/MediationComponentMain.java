@@ -1,28 +1,24 @@
 package com.vmturbo.mediation.client;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
-import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.stereotype.Component;
 
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.ExecutionStatus;
@@ -31,17 +27,17 @@ import com.vmturbo.mediation.common.ProbeProperties;
 import com.vmturbo.mediation.common.ProbesConfig;
 import com.vmturbo.mediation.common.RemoteComposer;
 import com.vmturbo.mediation.common.WorkerLifecycleListener;
+import com.vmturbo.mediation.diagnostic.MediationDiagnosticsConfig;
 
 /**
  * Main component of mediation client microservice.
  */
 @Configuration("theComponent")
-@Import({MediationComponentConfig.class})
+@Import({MediationComponentConfig.class,
+         MediationDiagnosticsConfig.class})
+@Component
 public class MediationComponentMain extends BaseVmtComponent {
 
-    @Value("${diags_tmpdir_path:/tmp/diags}")
-    @Nonnull
-    private String envTmpDiagsDir;
     @Value("${probe-directory:probe-jars}")
     private File probeDirectory;
     @Value("${keep-alive-interval-sec:5}")
@@ -55,8 +51,10 @@ public class MediationComponentMain extends BaseVmtComponent {
     @Value("${chunk.timeout.sec:900}")
     private long chunkTimeoutSec;
 
+    @Autowired
+    private MediationDiagnosticsConfig diagnosticsConfig;
+
     private Logger log = LogManager.getLogger();
-    private int streamBufferSize = (int)FileUtils.ONE_KB;
 
     /**
      * Starts the component.
@@ -65,12 +63,6 @@ public class MediationComponentMain extends BaseVmtComponent {
      */
     public static void main(String[] args) {
         startContext(MediationComponentMain.class);
-    }
-
-    @VisibleForTesting
-    @Nonnull
-    protected String getEnvTmpDiagsDir() {
-        return envTmpDiagsDir;
     }
 
     @Bean
@@ -158,36 +150,8 @@ public class MediationComponentMain extends BaseVmtComponent {
      */
     @Override
     protected void onDumpDiags(@Nonnull final ZipOutputStream diagnosticZip) {
-        iterateOverAllInPath(diagnosticZip, new File(getEnvTmpDiagsDir()));
+        diagnosticsConfig.diagsHandler().dump(diagnosticZip);
         log.info("Done collecting diags from {}", instanceId);
-    }
-
-    private void iterateOverAllInPath(final ZipOutputStream diagnosticZip, File path) {
-        File[] probeDiagsFiles = path.listFiles();
-        if (probeDiagsFiles != null) {
-            for (File probeDiagsFile : probeDiagsFiles) {
-                if (probeDiagsFile.isDirectory()) {
-                    iterateOverAllInPath(diagnosticZip, probeDiagsFile);
-                } else {
-                    writeDiagsFileToStream(probeDiagsFile.getName(), diagnosticZip);
-                }
-            }
-        }
-    }
-
-    private void writeDiagsFileToStream(String diagsFile, ZipOutputStream diagsZip) {
-        try {
-            diagsZip.putNextEntry(new ZipEntry(diagsFile));
-            FileInputStream inputStream =
-                new FileInputStream(Paths.get(getEnvTmpDiagsDir(), diagsFile).toString());
-            byte[] bytes = new byte[streamBufferSize];
-            int length;
-            while ((length = inputStream.read(bytes)) >= 0) {
-                diagsZip.write(bytes, 0, length);
-            }
-        } catch (IOException e) {
-            log.error("Failed to collect diags {} from {}", diagsFile, instanceId, e);
-        }
     }
 
 }

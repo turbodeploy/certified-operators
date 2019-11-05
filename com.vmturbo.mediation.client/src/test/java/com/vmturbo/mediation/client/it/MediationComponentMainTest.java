@@ -19,7 +19,6 @@ import com.vmturbo.mediation.client.MediationComponentMain;
 public class MediationComponentMainTest extends MediationComponentMain {
 
     private static String ZIP_STREAM_ENTRIES_FIELD = "names";
-    private static String DUMP_DIAGS_DIR_VARIABLE = "envTmpDiagsDir";
     private static String TMP_AWS_BILLING_PATH = "/tmp/diags/aws/billing/";
     private static String MOCK_DIAGS_FILE = "mockBillingDiags";
 
@@ -30,8 +29,8 @@ public class MediationComponentMainTest extends MediationComponentMain {
      */
     @Before
     public final void init() throws IOException {
-        Whitebox.setInternalState(this, DUMP_DIAGS_DIR_VARIABLE, TMP_AWS_BILLING_PATH);
-        String fullDiagsPath = getEnvTmpDiagsDir() + MOCK_DIAGS_FILE;
+        Whitebox.setInternalState(this, "diagnosticsConfig", new MediationDiagnosticsConfigTest());
+        String fullDiagsPath = TMP_AWS_BILLING_PATH + MOCK_DIAGS_FILE;
         createDir(fullDiagsPath);
         createFile(fullDiagsPath);
     }
@@ -49,7 +48,7 @@ public class MediationComponentMainTest extends MediationComponentMain {
         });
         onDumpDiags(zos);
         Set zipEntries = (Set<String>)Whitebox.getInternalState(zos, ZIP_STREAM_ENTRIES_FIELD);
-        Assert.assertTrue(zipEntries.contains(MOCK_DIAGS_FILE));
+        Assert.assertTrue(zipEntries.contains(TMP_AWS_BILLING_PATH + MOCK_DIAGS_FILE));
     }
 
     private void createFile(String fileName) throws IOException {
