@@ -199,6 +199,37 @@ public class GroupDaoTest {
     }
 
     /**
+     * Test the case where a group is created by system and then gets updated.
+     * @throws Exception if exceptions occurred.
+     */
+    @Test
+    public void testUpdateSystemGroup() throws Exception {
+        final GroupDefinition groupDefinition = createGroupDefinition();
+        final Origin origin = createSystemOrigin();
+        final Set<MemberType> memberTypes = Collections.singleton(MemberType.newBuilder()
+            .setEntity(1).build());
+
+        final long oid = groupStore.createGroup(origin, groupDefinition, memberTypes, true);
+
+        final Grouping originalGroup = groupStore.getGroup(oid).get();
+
+        GroupDefinition updatedGroupDefinition = GroupDefinition.newBuilder(groupDefinition)
+            .setDisplayName("Updated display name").build();
+
+        Grouping updatedGrouping = groupStore.updateGroup(oid, updatedGroupDefinition, memberTypes,
+            true);
+
+        Assert.assertEquals("Updated display name",
+            updatedGrouping.getDefinition().getDisplayName());
+
+        Assert.assertEquals(originalGroup.getOrigin(), updatedGrouping.getOrigin());
+        Assert.assertEquals(originalGroup.getExpectedTypesList(),
+            updatedGrouping.getExpectedTypesList());
+        Assert.assertEquals(groupDefinition, updatedGrouping.getDefinition().toBuilder()
+            .setDisplayName(groupDefinition.getDisplayName()).build());
+    }
+
+    /**
      * Tests creation of system group.
      *
      * @throws Exception if exceptions occurred.

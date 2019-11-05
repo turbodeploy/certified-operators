@@ -219,7 +219,6 @@ public class GroupDAO implements IGroupStore, Diagnosable {
     private Grouping createGroupFromDefinition(@Nonnull GroupDefinition groupDefinition)
             throws StoreOperationException {
         final Grouping groupPojo = new Grouping();
-        requireTrue(groupDefinition.hasType(), "Group type not set");
         groupPojo.setGroupType(groupDefinition.getType());
         requireTrue(groupDefinition.hasDisplayName(), "Group display name not set");
         groupPojo.setDisplayName(groupDefinition.getDisplayName());
@@ -664,7 +663,9 @@ public class GroupDAO implements IGroupStore, Diagnosable {
         pojo.setSupportsMemberReverseLookup(supportReverseLookups);
         try {
             updateGroup(dslContext, pojo, groupDefinition, supportedMemberTypes);
-            return null;
+            return getGroupInternal(dslContext, groupId)
+                .orElseThrow(() -> new StoreOperationException(Status.INTERNAL, "Cannot find the " +
+                    "updated group."));
         } catch (DataAccessException e) {
             GROUP_STORE_ERROR_COUNT.labels(UPDATE_LABEL).increment();
             throw e;
@@ -717,6 +718,11 @@ public class GroupDAO implements IGroupStore, Diagnosable {
         children.addAll(insertGroupDefinitionDependencies(context, groupId, groupDefinition));
         children.addAll(insertExpectedMembers(context, groupId, expectedMemberTypes,
                 groupDefinition.getStaticGroupMembers()));
+
+        // Set the values that don't get updated as a part of update
+        group.setOriginSystemDescription(record.value1());
+        group.setOriginUserCreator(record.value2());
+
         createGroupUpdate(context, group).execute();
         context.batchInsert(children).execute();
     }

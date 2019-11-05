@@ -435,7 +435,7 @@ public class GroupRpcService extends GroupServiceImplBase {
      */
     private SearchFilter convertClusterMemberFilter(@Nonnull IGroupStore groupStore,
             @Nonnull SearchFilter inputFilter) {
-        if (! inputFilter.hasClusterMembershipFilter()) {
+        if (!inputFilter.hasClusterMembershipFilter()) {
             return inputFilter;
         }
         // this has a cluster membership filter -- resolve plz
@@ -970,9 +970,6 @@ public class GroupRpcService extends GroupServiceImplBase {
     @VisibleForTesting
     void validateGroupDefinition(@Nonnull GroupDefinition groupDefinition)
                     throws InvalidGroupDefinitionException {
-        if (!groupDefinition.hasType()) {
-            throw new InvalidGroupDefinitionException("Group type is not set.");
-        }
 
         if (!groupDefinition.hasDisplayName()
                         || StringUtils.isEmpty(groupDefinition.getDisplayName())) {

@@ -40,6 +40,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
+import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
@@ -282,6 +283,7 @@ public class FailedCloudVMGroupProcessor {
                 .setGroupFilter(GroupFilter.newBuilder()
                     .setGroupType(GroupType.REGULAR)
                     .addPropertyFilters(PropertyFilter.newBuilder()
+                        .setPropertyName(SearchableProperties.DISPLAY_NAME)
                         .setStringFilter(
                             StringFilter.newBuilder()
                                 .setStringPropertyRegex(FAILED_GROUP_CLOUD_VMS))

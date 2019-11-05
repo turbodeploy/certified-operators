@@ -40,6 +40,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -52,10 +53,26 @@ import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.Search;
+import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class FailedCloudVMGroupProcessorTest {
+    private static final String FAILED_GROUP_CLOUD_VMS = "Cloud VMs with Failed Sizing";
+    private static final GetGroupsRequest GET_GROUP_REQUEST = GetGroupsRequest.newBuilder()
+        .setGroupFilter(GroupDTO.GroupFilter.newBuilder()
+            .setGroupType(CommonDTO.GroupDTO.GroupType.REGULAR)
+            .addPropertyFilters(Search.PropertyFilter.newBuilder()
+                .setPropertyName(SearchableProperties.DISPLAY_NAME)
+                .setStringFilter(
+                    Search.PropertyFilter.StringFilter.newBuilder()
+                        .setStringPropertyRegex(FAILED_GROUP_CLOUD_VMS))
+            )
+        )
+        .build();
+
     private final long actionId = 123456;
     private final EntitiesAndSettingsSnapshotFactory entitySettingsCache = mock(EntitiesAndSettingsSnapshotFactory.class);
     private final ActionDTO.Action recommendationOnCloud = ActionDTO.Action.newBuilder()
@@ -140,7 +157,7 @@ public class FailedCloudVMGroupProcessorTest {
      */
     @Test
     public void onPremTypeAction() {
-        when(testGroupService.getGroups(any(GetGroupsRequest.class))).thenReturn(Collections.emptyList());
+        when(testGroupService.getGroups(eq(GET_GROUP_REQUEST))).thenReturn(Collections.emptyList());
         Action testAction = makeAction(recommendationOnPrem);
         failedCloudVMGroupProcessor.handleActionFailure(testAction);
         verify(testGroupService, never()).getGroups(any());
@@ -151,7 +168,7 @@ public class FailedCloudVMGroupProcessorTest {
      */
     @Test
     public void notAMoveOrResizeAction() {
-        when(testGroupService.getGroups(any(GetGroupsRequest.class))).thenReturn(Collections.emptyList());
+        when(testGroupService.getGroups(eq(GET_GROUP_REQUEST))).thenReturn(Collections.emptyList());
         Action testAction = makeAction(recommendation_reconfigure);
         failedCloudVMGroupProcessor.handleActionFailure(testAction);
         verify(testGroupService, never()).getGroups(any());
@@ -159,7 +176,7 @@ public class FailedCloudVMGroupProcessorTest {
 
     @Test
     public void isValidActionTest() {
-        when(testGroupService.getGroups(any(GetGroupsRequest.class))).thenReturn(Collections.emptyList());
+        when(testGroupService.getGroups(eq(GET_GROUP_REQUEST))).thenReturn(Collections.emptyList());
         Action testAction = makeAction(recommendationOnCloud);
         failedCloudVMGroupProcessor.handleActionFailure(testAction);
         assertThat("Incorrect set size ", failedCloudVMGroupProcessor.getFailedOidsSet(), containsInAnyOrder(1L));
@@ -170,7 +187,7 @@ public class FailedCloudVMGroupProcessorTest {
      */
     @Test
     public void addMultipleVMInSet() {
-        when(testGroupService.getGroups(any(GetGroupsRequest.class))).thenReturn(Collections.emptyList());
+        when(testGroupService.getGroups(eq(GET_GROUP_REQUEST))).thenReturn(Collections.emptyList());
         Action testAction = makeAction(recommendationOnCloud);
         Action testAction_2 = makeAction(recommendationOnCloud_2);
         failedCloudVMGroupProcessor.handleActionFailure(testAction);
@@ -185,7 +202,7 @@ public class FailedCloudVMGroupProcessorTest {
      */
     @Test
     public void addDuplicateVMsInSetTest() {
-        when(testGroupService.getGroups(any(GetGroupsRequest.class))).thenReturn(Collections.emptyList());
+        when(testGroupService.getGroups(eq(GET_GROUP_REQUEST))).thenReturn(Collections.emptyList());
         Action testAction = makeAction(recommendationOnCloud);
         failedCloudVMGroupProcessor.handleActionFailure(testAction);
         assertThat("Failed Set size incorrect after adding 1 action ", failedCloudVMGroupProcessor.getFailedOidsSet(), containsInAnyOrder(1L));
@@ -216,7 +233,7 @@ public class FailedCloudVMGroupProcessorTest {
     @Test
     public void whenGroupRPCServiceIsDownTest() {
         failedCloudVMGroupProcessor.recordVmActionWithLock(1L, true);
-        when(testGroupService.getGroups(any(GetGroupsRequest.class))).thenThrow(new RuntimeException("Intentional exception"));
+        when(testGroupService.getGroups(eq(GET_GROUP_REQUEST))).thenThrow(new RuntimeException("Intentional exception"));
         verify(scheduledExecutorService, atLeast(1)).scheduleWithFixedDelay(scheduledRunnableCaptor.capture(), eq(0L), eq(10L), eq(TimeUnit.SECONDS));
         scheduledRunnableCaptor.getValue().run();
         verify(testGroupService, atLeast(1)).getGroups(any());
@@ -242,7 +259,7 @@ public class FailedCloudVMGroupProcessorTest {
                         .addExpectedTypes(MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
                         .setDefinition(groupDefinition).build();
 
-        when(testGroupService.getGroups(any(GetGroupsRequest.class))).thenReturn(Collections.singletonList(group));
+        when(testGroupService.getGroups(eq(GET_GROUP_REQUEST))).thenReturn(Collections.singletonList(group));
         failedCloudVMGroupProcessor.recordVmActionWithLock(1L, true);
         failedCloudVMGroupProcessor.recordVmActionWithLock(2L, true);
         failedCloudVMGroupProcessor.recordVmActionWithLock(3L, true);
@@ -290,7 +307,7 @@ public class FailedCloudVMGroupProcessorTest {
                                         .setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
                         .build();
 
-        when(testGroupService.getGroups(any(GetGroupsRequest.class)))
+        when(testGroupService.getGroups(eq(GET_GROUP_REQUEST)))
             .thenReturn(Collections.singletonList(group));
         when(testGroupService.createGroup(any(CreateGroupRequest.class)))
                 .thenReturn(CreateGroupResponse.newBuilder().setGroup(group).build());
@@ -302,7 +319,7 @@ public class FailedCloudVMGroupProcessorTest {
         verify(testGroupService, atLeast(1)).getGroups(any());
         verify(testGroupService, never()).createGroup(any());
 
-        when(testGroupService.getGroups(any(GetGroupsRequest.class))).thenReturn(Collections.emptyList());
+        when(testGroupService.getGroups(eq(GET_GROUP_REQUEST))).thenReturn(Collections.emptyList());
         failedCloudVMGroupProcessor.recordVmActionWithLock(1L, true);
         scheduledRunnableCaptor.getValue().run();
         verify(testGroupService, atLeast(1)).getGroups(any());
@@ -328,7 +345,7 @@ public class FailedCloudVMGroupProcessorTest {
                         .addExpectedTypes(MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
                         .setDefinition(groupDefinition).build();
 
-        when(testGroupService.getGroups(any(GetGroupsRequest.class))).thenReturn(Collections.singletonList(group));
+        when(testGroupService.getGroups(eq(GET_GROUP_REQUEST))).thenReturn(Collections.singletonList(group));
         failedCloudVMGroupProcessor.recordVmActionWithLock(1L, true);
         failedCloudVMGroupProcessor.recordVmActionWithLock(2L, true);
         verify(scheduledExecutorService, atLeast(1)).scheduleWithFixedDelay(scheduledRunnableCaptor.capture(), eq(0L), eq(10L), eq(TimeUnit.SECONDS));
@@ -355,7 +372,7 @@ public class FailedCloudVMGroupProcessorTest {
                         .addExpectedTypes(MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
                         .setDefinition(groupDefinition).build();
 
-        when(testGroupService.getGroups(any(GetGroupsRequest.class))).thenReturn(Collections.singletonList(group));
+        when(testGroupService.getGroups(eq(GET_GROUP_REQUEST))).thenReturn(Collections.singletonList(group));
         when(testGroupService.updateGroup(any(UpdateGroupRequest.class))).thenThrow(StatusRuntimeException.class);
         failedCloudVMGroupProcessor.recordVmActionWithLock(1L, true);
         failedCloudVMGroupProcessor.recordVmActionWithLock(2L, true);
@@ -385,7 +402,7 @@ public class FailedCloudVMGroupProcessorTest {
                         .addExpectedTypes(MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
                         .setDefinition(groupDefinition).build();
 
-        when(testGroupService.getGroups(any(GetGroupsRequest.class))).thenReturn(Collections.singletonList(group));
+        when(testGroupService.getGroups(eq(GET_GROUP_REQUEST))).thenReturn(Collections.singletonList(group));
         failedCloudVMGroupProcessor.recordVmActionWithLock(1L, true);
         failedCloudVMGroupProcessor.recordVmActionWithLock(2L, true);
         assertTrue("Success oid set not empty", failedCloudVMGroupProcessor.getSuccessOidsSet().isEmpty());

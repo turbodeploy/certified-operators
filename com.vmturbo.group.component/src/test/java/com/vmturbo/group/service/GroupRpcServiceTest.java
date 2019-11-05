@@ -92,11 +92,8 @@ import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.components.common.identity.OidSet;
-import com.vmturbo.group.common.DuplicateNameException;
-import com.vmturbo.group.common.ItemNotFoundException.GroupNotFoundException;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
-import com.vmturbo.group.group.InvalidGroupException;
 import com.vmturbo.group.group.TemporaryGroupCache;
 import com.vmturbo.group.group.TemporaryGroupCache.InvalidTempGroupException;
 import com.vmturbo.group.service.GroupRpcService.InvalidGroupDefinitionException;
@@ -1607,14 +1604,14 @@ public class GroupRpcServiceTest {
 
     /**
      * Tests the case update group service is called but the new group does not have
-     * the updated group type.
+     * the updated display.
      * @throws Exception is thrown when something goes wrong.
      */
     @Test
-    public void testUpdateGroupMissingGroupType() throws Exception {
+    public void testUpdateGroupMissingDisplayName() throws Exception {
         GroupDefinition group = GroupDefinition
                         .newBuilder(testGrouping)
-                        .clearType()
+                        .clearDisplayName()
                         .build();
         final StreamObserver<GroupDTO.UpdateGroupResponse> mockObserver =
                         mock(StreamObserver.class);
@@ -1639,7 +1636,7 @@ public class GroupRpcServiceTest {
 
         final StatusException exception = exceptionCaptor.getValue();
         assertThat(exception, GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
-                .descriptionContains("Group type is not set"));
+                .descriptionContains("Group display name is blank or not set."));
     }
 
     /**
