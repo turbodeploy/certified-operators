@@ -148,10 +148,6 @@ public class ReservedInstancesService implements IReservedInstancesService {
 
         //TODO: support multiple scopes.
         final ApiId scope = uuidMapper.fromUuid(inputDto.getScopes().get(0));
-        if (!scope.isRealtimeMarket() && !scope.isGroup() && !scope.isEntity() && !scope.isTarget()) {
-            throw new UnknownObjectException(
-                "Object with id " + inputDto.getScopes().get(0) + " does not exist");
-        }
         final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
         entityStatsApiDTO.setUuid(scope.uuid());
         entityStatsApiDTO.setDisplayName(scope.getDisplayName());
