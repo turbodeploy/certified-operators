@@ -172,18 +172,22 @@ public class RepositoryClient {
         // Get the business families in scope and the sub-accounts under them.
         for (long scopeId : scopeIds) {
            for(TopologyEntityDTO ba : allBusinessAccounts) {
-                List<Long> subAccountOidsList =
-                      ba.getConnectedEntityListList()
-                          .stream()
-                          .filter(v -> v.getConnectedEntityType()
+               List<ConnectedEntity> subAccountsList = ba.getConnectedEntityListList()
+                           .stream()
+                           .filter(v -> v.getConnectedEntityType()
                                   == EntityType.BUSINESS_ACCOUNT_VALUE)
-                          .map(ConnectedEntity::getConnectedEntityId)
-                          .collect(Collectors.toList());
+                           .collect(Collectors.toList());
+               List<Long> connectedOidsList = ba.getConnectedEntityListList()
+                                                  .stream()
+                                                  .map(ConnectedEntity::getConnectedEntityId)
+                                                  .collect(Collectors.toList());
                 // if scope is a sub-account
-                if (subAccountOidsList.contains(scopeId)
+                if (connectedOidsList.contains(scopeId)
                     // scope is a master account
                     || ba.getOid() == scopeId) {
-                    relatedBusinessAccountsOrSubscriptions.addAll(subAccountOidsList);
+                    relatedBusinessAccountsOrSubscriptions.addAll(subAccountsList.stream()
+                                                  .map(ConnectedEntity::getConnectedEntityId)
+                                                  .collect(Collectors.toList()));
                     relatedBusinessAccountsOrSubscriptions.add(ba.getOid());
                 }
             };
@@ -219,7 +223,7 @@ public class RepositoryClient {
             GetSupplyChainRequest request = requestBuilder
                             .setContextId(realtimeTopologyContextId)
                             .addAllStartingEntityOid(scopeIds)
-                            // TODO uncomment after testing
+                            // TODO: Uncomment after testing
                             //.addAllEntityTypesToInclude(cloudEntityTypesToScopeNames)
                             .setEnvironmentType(EnvironmentType.CLOUD)
                             .build();
@@ -238,16 +242,13 @@ public class RepositoryClient {
 
             // Make adjustment for Business Accounts/Subscriptions.  Get all related
             // accounts in the family.
-            Set<Long> baOidsInScope = topologyMap.get(EntityType.BUSINESS_ACCOUNT);
-            if (baOidsInScope != null) {
-                List<Long> allRelatedBaOids =
+            List<Long> allRelatedBaOids =
                                         getRelatedBusinessAccountOrSubscriptionOids(
-                                            baOidsInScope.stream().collect(Collectors.toList()),
-                                            realtimeTopologyContextId);
-                topologyMap.put(EntityType.BUSINESS_ACCOUNT,
-                                allRelatedBaOids.stream()
-                                                .collect(Collectors.toSet()));
-            }
+                                                                scopeIds.stream()
+                                                                .collect(Collectors.toList()),
+                                                                realtimeTopologyContextId);
+            topologyMap.put(EntityType.BUSINESS_ACCOUNT, allRelatedBaOids.stream()
+                                            .collect(Collectors.toSet()));
             return topologyMap;
         } catch (Exception e) {
             StringBuilder errMsg = new StringBuilder();
@@ -286,7 +287,6 @@ public class RepositoryClient {
                 for (SupplyChainNode.MemberList members : relatedEntitiesByType.values()) {
                     String entityTypeName = node.getEntityType();
                     EntityType entityType = getEntityTypeIfPresent(entityTypeName);
-                    //int entityTypeValue = entityType.getNumber();
                     List<Long> memberOids = members.getMemberOidsList();
                     if (cloudEntityTypesToScope.contains(entityType)) {
                             entitiesMap.put(entityType, memberOids.stream()
