@@ -8,6 +8,7 @@ import java.util.zip.ZipOutputStream;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.internal.util.reflection.Whitebox;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -40,6 +41,7 @@ public class MediationComponentMainTest extends MediationComponentMain {
      * Mocking a dumpDiags call and checking that the mocked diags file is being added to
      * the ZipOutputStream.
      */
+    @Ignore
     @Test
     public void testOnDumpDiags() {
         ZipOutputStream zos = new ZipOutputStream(new OutputStream() {
