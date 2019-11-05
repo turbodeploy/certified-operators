@@ -95,8 +95,11 @@ public class StorageStatsSubQuery implements StatsSubQuery {
         Predicate<StatApiInputDTO> supportedGroupBy = dto -> dto.getGroupBy() != null && dto.getGroupBy().size() == 1 &&
             (dto.getGroupBy().contains(StringConstants.ATTACHMENT) || dto.getGroupBy().contains(UIEntityType.STORAGE_TIER.apiStr()));
 
+        Predicate<StatApiInputDTO> noGroupBy = dto ->
+            dto.getGroupBy() == null || dto.getGroupBy().isEmpty();
+
         Set<StatApiInputDTO> supportedStats = supportedStatsType.stream()
-            .filter(supportedGroupBy)
+            .filter(supportedGroupBy.or(noGroupBy))
             .collect(Collectors.toSet());
 
         logger.debug("Number of supportedStats from request={}", supportedStats.size());
@@ -118,14 +121,9 @@ public class StorageStatsSubQuery implements StatsSubQuery {
         List<StatApiDTO> results = new ArrayList<>();
         for (StatApiInputDTO requestedStat : requestedStats) {
             // search for attachment string
-            if (requestedStat.getGroupBy() == null || requestedStat.getGroupBy().isEmpty()) {
-                // only support group by attachment and storage tier for now
-                logger.warn("requestedStat has no groupBy which StorageStatsSubQuery does not supported. This should not happen as getHandledStats() already handled the case.");
-                break;
-            }
 
             // When requested for groupBy Virtual Volume attachment status
-            if (requestedStat.getGroupBy().contains(StringConstants.ATTACHMENT) &&
+            if (requestedStat.getGroupBy() != null && requestedStat.getGroupBy().contains(StringConstants.ATTACHMENT) &&
                 requestedStat.getRelatedEntityType().equals(UIEntityType.VIRTUAL_VOLUME.apiStr())) {
 
                 final SearchFilter.Builder connectedToVVSearchFilter =
@@ -159,7 +157,7 @@ public class StorageStatsSubQuery implements StatsSubQuery {
                     results.addAll(stats);
                 }
                 // when request for stat group by storage tier of Virtual volume
-            } else if (requestedStat.getGroupBy().contains(UIEntityType.STORAGE_TIER.apiStr()) &&
+            } else if (requestedStat.getGroupBy() != null && requestedStat.getGroupBy().contains(UIEntityType.STORAGE_TIER.apiStr()) &&
                 requestedStat.getRelatedEntityType().equals(UIEntityType.VIRTUAL_VOLUME.apiStr())) {
                 // Get all the storage tier in the scope
                 // Storage tier is for Cloud only
@@ -224,6 +222,11 @@ public class StorageStatsSubQuery implements StatsSubQuery {
 
                     results.addAll(stats);
                 }
+            } else {
+                final SearchParameters searchParameters =
+                    getSearchScopeBuilder(context, requestedStat).build();
+                final long total = repositoryApi.newSearchRequest(searchParameters).count();
+                results.add(makeCountStatDto(requestedStat, total));
             }
         }
 
@@ -303,18 +306,7 @@ public class StorageStatsSubQuery implements StatsSubQuery {
                                                        @Nonnull Map<String, Long> countsByGroup) {
 
          return countsByGroup.entrySet().stream().map(entry -> {
-            final StatApiDTO statApiDTO = new StatApiDTO();
-            statApiDTO.setName(statApiInputDTO.getName());
-
-            final StatValueApiDTO converted = new StatValueApiDTO();
-            float countInFloat = entry.getValue().floatValue();
-            converted.setAvg(countInFloat);
-            converted.setMax(countInFloat);
-            converted.setMin(countInFloat);
-            converted.setTotal(countInFloat);
-
-            statApiDTO.setValues(converted);
-            statApiDTO.setValue(countInFloat);
+            final StatApiDTO statApiDTO = makeCountStatDto(statApiInputDTO, entry.getValue());
 
             final List<StatFilterApiDTO> filters = new ArrayList<>();
             final StatFilterApiDTO resultsTypeFilter = new StatFilterApiDTO();
@@ -323,12 +315,27 @@ public class StorageStatsSubQuery implements StatsSubQuery {
             filters.add(resultsTypeFilter);
 
             statApiDTO.setFilters(filters);
-            if (statApiInputDTO.getRelatedEntityType() != null) {
-                statApiDTO.setRelatedEntityType(statApiInputDTO.getRelatedEntityType());
-            }
-
 
             return statApiDTO;
         }).collect(Collectors.toList());
+    }
+
+    private static StatApiDTO makeCountStatDto(@Nonnull final StatApiInputDTO statApiInputDTO, final long count) {
+        final StatApiDTO statApiDTO = new StatApiDTO();
+        statApiDTO.setName(statApiInputDTO.getName());
+
+        final StatValueApiDTO converted = new StatValueApiDTO();
+        float countInFloat = (float)count;
+        converted.setAvg(countInFloat);
+        converted.setMax(countInFloat);
+        converted.setMin(countInFloat);
+        converted.setTotal(countInFloat);
+
+        statApiDTO.setValues(converted);
+        statApiDTO.setValue(countInFloat);
+        if (statApiInputDTO.getRelatedEntityType() != null) {
+            statApiDTO.setRelatedEntityType(statApiInputDTO.getRelatedEntityType());
+        }
+        return statApiDTO;
     }
 }
