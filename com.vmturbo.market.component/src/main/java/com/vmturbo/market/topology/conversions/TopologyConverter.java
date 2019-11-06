@@ -1488,6 +1488,7 @@ public class TopologyConverter {
      * Calculates the weighted usage which will be used for resize down for cloud resource.
      *
      * @param commodity the {@link TopologyDTO.CommoditySoldDTO}
+     * @return weighted used value calculated from avg, peak and max
      */
     @SuppressWarnings("unused")
     private double getWeightedUsed(@Nonnull final TopologyDTO.CommoditySoldDTO commodity) {
