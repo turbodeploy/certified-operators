@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -13,9 +14,14 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.validation.Errors;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 
+import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.BusinessUnitMapper;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiInputDTO;
@@ -44,15 +50,20 @@ import com.vmturbo.common.protobuf.cost.Cost.GetDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 
 /**
  * {@inheritDoc}
  */
 public class BusinessUnitsService implements IBusinessUnitsService {
 
+    // Error message for missing business unit DTO.
     public static final String INVALID_BUSINESS_UNIT_DTO = "Business unit input DTO is missing associated account id: ";
 
     private static final Logger logger = LogManager.getLogger();
+
+    private final long realtimeTopologyContextId;
 
     private final CostServiceBlockingStub costService;
 
@@ -60,12 +71,30 @@ public class BusinessUnitsService implements IBusinessUnitsService {
 
     private final ITargetsService targetsService;
 
+    private final UuidMapper uuidMapper;
+
+    private final EntitiesService entitiesService;
+
+    private final RepositoryApi repositoryApi;
+
+    private final SupplyChainFetcherFactory supplyChainFetcherFactory;
+
     public BusinessUnitsService(@Nonnull final CostServiceBlockingStub costServiceBlockingStub,
                                 @Nonnull final BusinessUnitMapper mapper,
-                                @Nonnull final ITargetsService targetsService) {
+                                @Nonnull final ITargetsService targetsService,
+                                final long realtimeTopologyContextId,
+                                @Nonnull final UuidMapper uuidMapper,
+                                @Nonnull final EntitiesService entitiesService,
+                                @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
+                                @Nonnull final RepositoryApi repositoryApi) {
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.costService = Objects.requireNonNull(costServiceBlockingStub);
         this.mapper = Objects.requireNonNull(mapper);
         this.targetsService = Objects.requireNonNull(targetsService);
+        this.uuidMapper = Objects.requireNonNull(uuidMapper);
+        this.entitiesService = entitiesService;
+        this.supplyChainFetcherFactory = supplyChainFetcherFactory;
+        this.repositoryApi = Objects.requireNonNull(repositoryApi);
     }
 
     /**
@@ -217,13 +246,24 @@ public class BusinessUnitsService implements IBusinessUnitsService {
     public ActionPaginationResponse getActions(final String uuid,
                                                final ActionApiInputDTO inputDto,
                                                final ActionPaginationRequest paginationRequest) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+        return entitiesService.getActionsByEntityUuid(uuid, inputDto, paginationRequest);
     }
 
     @Override
     public List<StatSnapshotApiDTO> getActionCountStatsByUuid(final String uuid,
-                                                              final ActionApiInputDTO paginationRequest) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+                                                              final ActionApiInputDTO inputDto) throws Exception {
+        SingleEntityRequest singleRequest = repositoryApi.entityRequest(uuidMapper.fromUuid(uuid).oid());
+        TopologyEntityDTO topologyEntityDTO = singleRequest.getFullEntity().get();
+
+        List<String> relatedEntityTypes = topologyEntityDTO.getConnectedEntityListList()
+                        .stream()
+                        .map(connEnt -> connEnt.getConnectedEntityType())
+                        .distinct()
+                        .map(type ->  UIEntityType.fromType(type).apiStr())
+                        .collect(Collectors.toList());
+
+        inputDto.setRelatedEntityTypes(relatedEntityTypes);
+        return entitiesService.getActionCountStatsByUuid(uuid, inputDto);
     }
 
     @Override
@@ -239,7 +279,12 @@ public class BusinessUnitsService implements IBusinessUnitsService {
                                                   @Nullable final List<EntityState> entityStates,
                                                   @Nullable final EntityDetailType detailTypes,
                                                   @Nullable final Boolean healthSummary) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+        return supplyChainFetcherFactory.newApiDtoFetcher()
+                        .topologyContextId(realtimeTopologyContextId)
+                        .addSeedUuids(Lists.newArrayList(uuid))
+                        .includeHealthSummary(false)
+                        .entityDetailType(EntityDetailType.entity)
+                        .fetch();
     }
 
     /**
