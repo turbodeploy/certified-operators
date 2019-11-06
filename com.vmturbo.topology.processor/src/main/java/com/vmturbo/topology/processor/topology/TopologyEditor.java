@@ -249,10 +249,6 @@ public class TopologyEditor {
                     TopologyEntityDTO.Builder clone =
                         clone(entity.getEntityBuilder(), identityProvider, i, topology)
                             .setOrigin(entityOrigin);
-                    // Set shop together true for added VMs
-                    if (clone.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-                        clone.getAnalysisSettingsBuilder().setShopTogether(true);
-                    }
                     topology.put(clone.getOid(), TopologyEntity.newBuilder(clone));
                 }
             }

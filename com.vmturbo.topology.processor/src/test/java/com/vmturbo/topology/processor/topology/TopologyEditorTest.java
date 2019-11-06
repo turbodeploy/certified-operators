@@ -280,7 +280,6 @@ public class TopologyEditorTest {
         }
         // Assert that the commodity sold usages are the same.
         assertEquals(vm.getEntityBuilder().getCommoditySoldListList(), oneClone.getCommoditySoldListList());
-        assertTrue(oneClone.getAnalysisSettings().getShopTogether());
     }
 
     /**
@@ -626,7 +625,6 @@ public class TopologyEditorTest {
             is(PlanScenarioOrigin.newBuilder()
                 .setPlanId(topologyInfo.getTopologyContextId())
                 .build()));
-        assertTrue(cloneBuilder.getEntityBuilder().getAnalysisSettings().getShopTogether());
     }
 
     @Test

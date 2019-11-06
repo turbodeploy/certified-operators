@@ -203,12 +203,8 @@ public class ServiceConfig {
         return new BusinessUnitsService(
                 communicationConfig.costServiceBlockingStub(),
                 mapperConfig.businessUnitMapper(),
-                targetService(),
-                communicationConfig.getRealtimeTopologyContextId(),
-                mapperConfig.uuidMapper(),
-                entitiesService(),
-                communicationConfig.supplyChainFetcher(),
-                communicationConfig.repositoryApi());
+                targetService()
+        );
     }
 
     @Bean
@@ -239,8 +235,7 @@ public class ServiceConfig {
                 communicationConfig.settingPolicyRpcService(),
                 mapperConfig.settingsMapper(),
                 actionSearchUtil(),
-                communicationConfig.repositoryApi(),
-                entitySettingQueryExecutor());
+                communicationConfig.repositoryApi(), entitySettingQueryExecutor());
     }
 
     @Bean
