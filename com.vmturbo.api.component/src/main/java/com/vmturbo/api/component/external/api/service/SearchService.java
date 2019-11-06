@@ -536,15 +536,19 @@ public class SearchService implements ISearchService {
                 .map(ImmutableSet::copyOf)
                 .orElse(ImmutableSet.of());
         final boolean isGlobalScope = containsGlobalScope(scopeList);
+
         final List<String> entityTypes = inputDTO.getClassName() == null
             ? Collections.emptyList() : Collections.singletonList(inputDTO.getClassName());
-        final Set<Long> expandedIds = groupsService.expandUuids(scopeList, entityTypes, null);
+        EnvironmentType envType = inputDTO.getEnvironmentType();
+        final Set<Long> expandedIds = groupsService.expandUuids(scopeList, entityTypes, envType);
+
         if (!isGlobalScope && expandedIds.isEmpty()) {
             // return empty response since there is no related entities in given scope
             return paginationRequest.allResultsResponse(Collections.emptyList());
         }
+
         // use empty set for global scope so it fetches all
-        final Set<Long> allEntityOids = isGlobalScope ? Collections.emptySet() : expandedIds;
+        final Set<Long> allEntityOids = (envType == null && isGlobalScope) ? Collections.emptySet() : expandedIds;
         if (paginationRequest.getOrderBy().equals(SearchOrderBy.SEVERITY)) {
             final SearchEntityOidsRequest searchOidsRequest = SearchEntityOidsRequest.newBuilder()
                     .addAllSearchParameters(searchParameters)
