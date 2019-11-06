@@ -16,11 +16,8 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -29,6 +26,11 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
@@ -71,7 +73,6 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanEntityStats;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse.TypeCase;
@@ -90,10 +91,9 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
-
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
  * Service implementation of Stats
@@ -165,17 +165,25 @@ public class StatsService implements IStatsService {
 
     // CLUSTER_STATS is a collection of the cluster-headroom stats calculated from nightly plans.
     // TODO: we should share the enum instead of keeping a separate copy.
-    private static final Set<String> CLUSTER_STATS =
-            ImmutableSet.of(StringConstants.CPU_HEADROOM,
+    private static final Set<String> CLUSTER_EXCLUSIVE_STATS = ImmutableSet.of(
+                    StringConstants.CPU_HEADROOM,
                     StringConstants.MEM_HEADROOM,
                     StringConstants.STORAGE_HEADROOM,
                     StringConstants.CPU_EXHAUSTION,
                     StringConstants.MEM_EXHAUSTION,
                     StringConstants.STORAGE_EXHAUSTION,
-                    StringConstants.VM_GROWTH,
                     StringConstants.HEADROOM_VMS,
+                    StringConstants.VM_GROWTH);
+
+    // stats that can be retrieved as cluster stats, but may also be available on other entities.
+    private static final Set<String> CLUSTER_NONEXCLUSIVE_STATS = ImmutableSet.of(
+                    StringConstants.CPU,
+                    StringConstants.MEM,
+                    StringConstants.NUM_SOCKETS,
+                    StringConstants.NUM_CPUS,
                     StringConstants.NUM_VMS,
                     StringConstants.NUM_HOSTS,
+                    StringConstants.HOST,
                     StringConstants.NUM_STORAGES);
 
     private static final String STAT_FILTER_PREFIX = "current";
@@ -463,25 +471,54 @@ public class StatsService implements IStatsService {
     private EntityStatsPaginationResponse getClusterEntityStats(
                 @Nonnull final StatScopesApiInputDTO inputDto,
                 @Nonnull final EntityStatsPaginationRequest paginationRequest) {
-        // we are being asked for headroom stats -- we'll retrieve these from getClusterStats()
+        // we are being asked for cluster stats -- we'll retrieve these from getClusterStats()
         // without expanding the scopes.
-        logger.debug("Request is for headroom stats -- will not expand clusters");
-        // NOTE: if headroom stats are being requested, we expect that all uuids are clusters,
+        logger.debug("Request is for cluster stats -- will not expand clusters");
+
+        // NOTE: if cluster stats are being requested, we expect that all uuids are clusters,
         // since these stats are only relevant for clusters. If any non-clusters are detected,
         // a warning will be logged and that entry will not be included in the results.
+        final Iterator<Grouping> groups;
 
-        if (inputDto.getScopes().isEmpty() || inputDto.getScopes().stream()
-                .anyMatch(scope -> scope.equals(MarketMapper.MARKET))) {
-            throw new IllegalArgumentException("Request with invalid scope : " +
-                (inputDto.getScopes().isEmpty() ? "empty" :  MarketMapper.MARKET));
+        // if the input scope is "Market" and is asking for related entity type "cluster", then
+        // we'll find all clusters the user has access to and ask for stats on those.
+        // otherwise, the scope contains specific id's and we'll request stats for the groups
+        // specifically requested.
+        final GetGroupsRequest groupRequest;
+        if (isMarketScoped(inputDto)) {
+            // a market scope request for cluster entity stats is only valid if the related entity
+            // type is set to cluster
+            if (!StringConstants.CLUSTER.equalsIgnoreCase(inputDto.getRelatedType())) {
+                throw new IllegalArgumentException("Request with invalid scope : " +
+                        (inputDto.getScopes().isEmpty() ? "empty" :  MarketMapper.MARKET));
+            }
+
+            // unfortunately it doesn't seem like we can get all clusters in one fetch, so we have
+            // to fetch one type at a time.
+            // TODO: update the group retrieval to support multiple group types in the request.
+            final List<Grouping> allClusters = new ArrayList<>();
+            GroupProtoUtil.CLUSTER_GROUP_TYPES
+                    .stream()
+                    .map(type -> groupServiceRpc.getGroups(
+                                    GetGroupsRequest.newBuilder()
+                                            .setGroupFilter(GroupFilter.newBuilder()
+                                                    .setGroupType(type))
+                                            .build())
+                    ).forEach(it -> {
+                it.forEachRemaining(allClusters::add);
+            });
+
+            groups = allClusters.iterator();
+
+        } else {
+            // get the specified groups by id
+            groups = groupServiceRpc.getGroups(GetGroupsRequest.newBuilder()
+                    .setGroupFilter(GroupFilter.newBuilder()
+                        .addAllId(inputDto.getScopes().stream()
+                            .map(Long::valueOf)
+                            .collect(Collectors.toList())))
+                    .build());
         }
-
-        final Iterator<Grouping> groups = groupServiceRpc.getGroups(GetGroupsRequest.newBuilder()
-                        .setGroupFilter(GroupFilter.newBuilder()
-                                        .addAllId(inputDto.getScopes().stream()
-                                                        .map(Long::valueOf)
-                                                        .collect(Collectors.toList())))
-                        .build());
 
         // request the cluster stats for each group
         // TODO: We are fetching the cluster stats one-at-a-time here. We should consider
@@ -543,7 +580,7 @@ public class StatsService implements IStatsService {
                 // Treat unknown type as non-existent.
                 .filter(type -> !type.equals(UIEntityType.UNKNOWN.apiStr()));
         // Market stats request must be the only uuid in the scopes list
-        if (inputDto.getScopes().size() == 1 && (inputDto.getScopes().get(0).equals(UuidMapper.UI_REAL_TIME_MARKET_STR))) {
+        if (isMarketScoped(inputDto)) {
             // 'relatedType' is required for full market entity stats
             if (!relatedType.isPresent()) {
                 throw new IllegalArgumentException("Cannot request individual stats for full " +
@@ -622,8 +659,7 @@ public class StatsService implements IStatsService {
                 // Treat unknown type as non-existent.
                 .filter(type -> !type.equals(UIEntityType.UNKNOWN.apiStr()));
         // Market stats request must be the only uuid in the scopes list
-        if (inputDto.getScopes().size() == 1 &&
-                (inputDto.getScopes().get(0).equals(UuidMapper.UI_REAL_TIME_MARKET_STR))) {
+        if (isMarketScoped(inputDto)) {
             // 'relatedType' is required for full market entity stats
             if (!relatedType.isPresent()) {
                 throw new IllegalArgumentException("Cannot request individual stats for full " +
@@ -912,6 +948,7 @@ public class StatsService implements IStatsService {
      *
      * @param inputDto contains the query arguments; the 'scopes' property indicates a
      *                 list of items to query - might be Group, Cluster, or ServiceEntity.
+     * @param paginationRequest the pagination request object
      * @return a list of {@link EntityStatsApiDTO} objects representing the entities in the search
      * with the commodities values filled in
      */
@@ -936,9 +973,7 @@ public class StatsService implements IStatsService {
         final Optional<PlanInstance> planInstance = getRequestedPlanInstance(inputDto);
         if (planInstance.isPresent()) {
             return getPlanEntityStats(planInstance.get(), inputDto, paginationRequest);
-        } else if (containsAnyClusterStats(Optional.ofNullable(inputDto.getPeriod())
-                                            .map(StatPeriodApiInputDTO::getStatistics)
-                                            .orElse(Collections.emptyList()))) {
+        } else if (isClusterStatsRequest(inputDto)) {
             return getClusterEntityStats(inputDto, paginationRequest);
         } else {
             return getLiveEntityStats(inputDto, paginationRequest);
@@ -946,14 +981,98 @@ public class StatsService implements IStatsService {
     }
 
     /**
-     * Does the input request contain any headroom stats?
+     * Does the input request contain any cluster stats?
      *
+     * @param inputDto the {@link StatScopesApiInputDTO} to check.
      * @return true if any of the input stats are headroom stats, false otherwise.
      */
-    private boolean containsAnyClusterStats(List<StatApiInputDTO> statsRequested) {
-        return CollectionUtils.isNotEmpty(statsRequested) && statsRequested.stream()
+    @VisibleForTesting
+    protected boolean isClusterStatsRequest(StatScopesApiInputDTO inputDto) {
+        if (inputDto.getPeriod() == null
+                || CollectionUtils.isEmpty(inputDto.getPeriod().getStatistics())) {
+            return false;
+        }
+
+        List<String> statsRequested = inputDto.getPeriod().getStatistics().stream()
                 .map(StatApiInputDTO::getName)
-                .anyMatch(CLUSTER_STATS::contains);
+                .collect(Collectors.toList());
+        List<String> scopes = inputDto.getScopes();
+
+        // the request MIGHT want cluster stats if it requests any stats available for clusters
+        // but that are not exclusive to clusters. If we detect any of these, then we will check
+        // the inputs to see if they are clusters or not.
+        boolean mightContainClusterStats = false;
+        // we'll set this if we find any non-cluster stats in the set. Retrieval of these stats would
+        // require expansion of the cluster since they are definitely not available on the cluster
+        // directly. If we find any of these, and there are no cluster-exclusive stats, we will
+        // mark the whole request as not containing cluster stats so that the host stat aggregation
+        // will take place. (ideally, we could handle both cluster-direct stats and cluster-derived
+        // stats together in the same call, but that will require a larger refactoring)
+        boolean containsNonClusterStats = false;
+        if (CollectionUtils.isEmpty(statsRequested)) {
+            return false;
+        }
+        // check for any cluster stats
+        for (String stat : statsRequested) {
+            if (CLUSTER_EXCLUSIVE_STATS.contains(stat)) {
+                // this stat is only available on clusters -- this request is DEFINITELY a
+                // cluster stats request.
+                return true;
+            }
+            if (CLUSTER_NONEXCLUSIVE_STATS.contains(stat)) {
+                // this stat is available on clusters. So MAYBE this request is a cluster stats
+                // request.
+                mightContainClusterStats = true;
+            } else {
+                containsNonClusterStats = true;
+            }
+        }
+        // if the request is asking for ANY stats that are not available directly on the cluster,
+        // mark this request as "no cluster stats"
+        if (containsNonClusterStats) {
+            return false;
+        }
+        // if the request is for stats that MIGHT be cluster stats, check if the request scope
+        // actually contains clusters. If it does, then we'll mark this as a cluster stats request.
+        if (mightContainClusterStats) {
+            if (StringUtils.isNotEmpty(inputDto.getRelatedType())
+                    && inputDto.getRelatedType().equals(StringConstants.CLUSTER)) {
+                return true;
+            }
+
+            if (!CollectionUtils.isEmpty(scopes)) {
+                for (String scopeEntry : scopes) {
+                    try {
+                        long oid = Long.valueOf(scopeEntry);
+                        ApiId apiId = uuidMapper.fromOid(oid);
+                        if (apiId.isGroup()) {
+                            Optional<GroupType> groupType = apiId.getGroupType();
+                            if (groupType.isPresent()
+                                    && GroupProtoUtil.CLUSTER_GROUP_TYPES.contains(groupType.get())) {
+                                return true;
+                            }
+                        }
+                    } catch (NumberFormatException e) {
+                        // not a number, this is not a cluster.
+                        return false;
+                    }
+                }
+            }
+        }
+
+        // this was not a cluster stats request after all.
+        return false;
+    }
+
+    /**
+     * Is the {@link StatScopesApiInputDTO} a market-scoped request?
+     *
+     * @param inputDto the request object ot check
+     * @return true, if the request is found to be a market-scoped rqeuest. false otherwise.
+     */
+    public boolean isMarketScoped(StatScopesApiInputDTO inputDto) {
+        return (inputDto.getScopes().isEmpty() || inputDto.getScopes().stream()
+                .anyMatch(scope -> scope.equals(MarketMapper.MARKET)));
     }
 
     /**

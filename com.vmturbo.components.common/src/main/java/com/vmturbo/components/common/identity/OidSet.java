@@ -27,6 +27,57 @@ public interface OidSet extends OidFilter, Iterable<Long> {
     int size();
 
     /**
+     * A default implementation of hashcode() for an OidSet. This is designed to be order-independent.
+     *
+     * @return hashcode
+     */
+    default int defaultHashCode() {
+        // the roaring bitmap hash code is not stable. We'll provide one here that will work
+        // like the standard Set hashcode does.
+        int hash = 0;
+        PrimitiveIterator.OfLong iterator = iterator();
+        while (iterator.hasNext()) {
+            long l = iterator.next();
+            hash += (int)l ^ (l >>> 32);
+        }
+        return hash;
+    }
+
+
+
+    /**
+     * A default implementation of equals() for comparing two OidSets. Two OidSets will be considered
+     * equals if the members of the set are the same.
+     *
+     * @param obj the other object to compare against.
+     * @return true, if the members of the oidsets are the same. False, if obj is null, is not an
+     * OidSet, or contains a different set of members.
+     */
+    default boolean defaultEquals(final Object obj) {
+        if (obj == this) {
+            return true;
+        }
+
+        if (obj == null) {
+            return false;
+        }
+
+        if (!(obj instanceof OidSet)) {
+            return false;
+        }
+
+        // we're going to have a tolerant equals -- as long as all the members are the same, we'll
+        // call them equal
+        OidSet otherSet = (OidSet)obj;
+        if (this.contains(otherSet) && (this.size() == otherSet.size())) {
+            return true;
+        }
+        return false;
+    }
+
+
+
+    /**
      * Merge this OidSet with another one, returning the result.
      *
      * There is no need for an intersection operation, because the filter() method is effectively an
@@ -36,7 +87,6 @@ public interface OidSet extends OidFilter, Iterable<Long> {
      * @return
      */
     OidSet union(OidSet other);
-
 
     /**
      * Converts an OidSet to a {@link Set<Long>}.

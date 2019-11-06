@@ -43,6 +43,18 @@ public class RoaringBitmapOidSet implements OidSet {
         return (int) roaringBitmap.getLongCardinality();
     }
 
+    @Override
+    public int hashCode() {
+        return defaultHashCode();
+    }
+
+    @Override
+    public boolean equals(final Object obj) {
+        return defaultEquals(obj);
+    }
+
+
+
     /**
      * {@inheritDoc}
      *

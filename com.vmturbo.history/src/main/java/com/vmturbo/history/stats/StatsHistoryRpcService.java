@@ -4,11 +4,13 @@ import static com.vmturbo.components.common.stats.StatsUtils.collectCommodityNam
 import static org.apache.commons.lang.time.DateUtils.MILLIS_PER_DAY;
 
 import java.math.BigDecimal;
+import java.sql.Date;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +18,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -28,6 +31,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -35,6 +39,7 @@ import io.prometheus.client.Summary;
 import io.prometheus.client.Summary.Timer;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Record;
@@ -87,11 +92,12 @@ import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
-import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRecord;
-import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByMonthRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.SystemLoadRecord;
+import com.vmturbo.history.stats.ClusterStatsReader.ClusterStatsByDayRecordReader;
+import com.vmturbo.history.stats.ClusterStatsReader.ClusterStatsByMonthRecordReader;
+import com.vmturbo.history.stats.ClusterStatsReader.ClusterStatsRecordReader;
 import com.vmturbo.history.stats.live.SystemLoadReader;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 import com.vmturbo.history.stats.readers.LiveStatsReader;
@@ -128,19 +134,31 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
 
     private final int systemLoadRecordsPerChunk;
 
-    private static final Set<String> HEADROOM_STATS =
-                    ImmutableSet.of(StringConstants.CPU_HEADROOM,
-                            StringConstants.MEM_HEADROOM,
-                            StringConstants.STORAGE_HEADROOM,
-                            StringConstants.CPU_EXHAUSTION,
-                            StringConstants.MEM_EXHAUSTION,
-                            StringConstants.STORAGE_EXHAUSTION,
-                            StringConstants.VM_GROWTH,
-                            StringConstants.HEADROOM_VMS,
-                            StringConstants.NUM_VMS,
-                            StringConstants.NUM_HOSTS,
-                            StringConstants.NUM_STORAGES,
-                            StringConstants.VM_GROWTH);
+    // Stats written from cluster headroom plan results
+    protected static final Set<String> HEADROOM_STATS = ImmutableSet.of(
+                    StringConstants.CPU_HEADROOM,
+                    StringConstants.MEM_HEADROOM,
+                    StringConstants.STORAGE_HEADROOM,
+                    StringConstants.CPU_EXHAUSTION,
+                    StringConstants.MEM_EXHAUSTION,
+                    StringConstants.STORAGE_EXHAUSTION,
+                    StringConstants.VM_GROWTH,
+                    StringConstants.HEADROOM_VMS,
+                    StringConstants.NUM_VMS,
+                    StringConstants.NUM_HOSTS,
+                    StringConstants.NUM_STORAGES,
+                    StringConstants.VM_GROWTH);
+
+    // Stats written during the cluster rollup process
+    protected static final Set<String> CLUSTER_ROLLUP_STATS = ImmutableSet.of(
+                    StringConstants.MEM,
+                    StringConstants.CPU,
+                    StringConstants.NUM_SOCKETS,
+                    StringConstants.NUM_CPUS,
+                    StringConstants.HOST);
+
+    // all cluster stats
+    protected static final Set<String> CLUSTER_STATS = Sets.union(HEADROOM_STATS, CLUSTER_ROLLUP_STATS);
 
     private static final Summary GET_STATS_SNAPSHOT_DURATION_SUMMARY = Summary.build()
         .name("history_get_stats_snapshot_duration_seconds")
@@ -545,72 +563,82 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         try {
             Multimap<java.sql.Date, StatRecord> resultMap = HashMultimap.create();
 
+            final Stream<ClusterStatsRecordReader> statDBRecords;
             if (isUseMonthlyData(startDate, endDate)) {
-                final List<ClusterStatsByMonthRecord> statDBRecordsByMonth =
-                        clusterStatsReader.getStatsRecordsByMonth(clusterId, startDate, endDate, commodityNames);
+                statDBRecords = clusterStatsReader.getStatsRecordsByMonth(clusterId, startDate, endDate, commodityNames)
+                        .stream()
+                            .map(ClusterStatsByMonthRecordReader::new);
 
-                // Group records by date.
-                for (ClusterStatsByMonthRecord record : statDBRecordsByMonth) {
-                    resultMap.put(record.getRecordedOn(), createStatRecordForClusterStatsByMonth(record));
-                }
             } else {
-                // If the date range is shorter than a month, or a date range is not provided,
-                // get the most recent snapshot from the cluster_stats_by_day table.
-                final List<ClusterStatsByDayRecord> statDBRecordsByDay =
-                        clusterStatsReader.getStatsRecordsByDay(clusterId, startDate, endDate, commodityNames);
-
-                // For CPUHeadroom, MemHeadroom and StorageHeadroom "property type" we have
-                // rows with "sub-property type" : used and capacity. Both of them have
-                // to be merged to create one stat record with read used and capacity.
-                Map<String, List<ClusterStatsByDayRecord>> headroomStats = statDBRecordsByDay.stream()
-                    .filter(record -> HEADROOM_STATS.contains(record.getPropertyType()))
-                    .collect(Collectors.groupingBy(ClusterStatsByDayRecord::getPropertyType));
-
-                // Handle Headroom stats
-                headroomStats
-                    .forEach((propertyType, recordsOnDifferentDates) -> {
-                        // GroupBy records based on date
-                        recordsOnDifferentDates.stream().collect(Collectors.groupingBy(ClusterStatsByDayRecord::getRecordedOn))
-                            .values().forEach(records -> {
-                                if (CollectionUtils.isEmpty(records))  {
-                                    return;
-                                }
-                                switch (records.size()) {
-                                    // CPUExhaustion, MemExhaustion and StorageExhaustion expected to have one record each.
-                                    case 1 :
-                                        resultMap.put(records.get(0).getRecordedOn(),
-                                                        createStatRecordForClusterStatsByDay(records.get(0)));
-                                        break;
-                                     // CPUHeadroom, MemHeadroom and StorageHeadroom expected to have two records each.
-                                    case 2 :
-                                        ClusterStatsByDayRecord firstRecord =  records.get(0);
-                                        ClusterStatsByDayRecord secondRecord =  records.get(1);
-                                        if (firstRecord.getPropertySubtype().equals(StringConstants.CAPACITY)) {
-                                            resultMap.put(secondRecord.getRecordedOn(),
-                                                createStatRecordForClusterStatsByDay(secondRecord,
-                                                                firstRecord.getValue().floatValue()));
-                                        } else {
-                                            resultMap.put(secondRecord.getRecordedOn(),
-                                                createStatRecordForClusterStatsByDay(firstRecord,
-                                                                secondRecord.getValue().floatValue()));
-                                        }
-                                    break;
-                                    // Print an error if none of the cases satisfied above.
-                                    default:
-                                        logger.error("Skipping entry of headroom records because of unexpected  "
-                                                        + "records size : " + records.size());
-                                        break;
-                                }
-                                // Remove headroom records because we have already processed them.
-                                statDBRecordsByDay.removeAll(records);
-                        });
-                    });
-
-                // Group records by date.
-                for (ClusterStatsByDayRecord record : statDBRecordsByDay) {
-                    resultMap.put(record.getRecordedOn(), createStatRecordForClusterStatsByDay(record));
-                }
+                statDBRecords = clusterStatsReader.getStatsRecordsByDay(clusterId, startDate, endDate, commodityNames)
+                        .stream()
+                        .map(ClusterStatsByDayRecordReader::new);
             }
+
+            // group related records by property type and date. We will be creating a single
+            // StatRecord per PropertyType, and we'll need to merge these related records together.
+            Map<Pair<Date, String>, List<ClusterStatsRecordReader>> recordsByPropertyType =
+                    statDBRecords.collect(
+                            Collectors.groupingBy(r -> Pair.of(r.getRecordedOn(), r.getPropertyType())));
+
+            // a map that may contain counts of unexpected records by property type + subtype. For
+            // error tracking
+            final Map<String, AtomicInteger> unexpectedRecordCounts = new HashMap();
+
+            // consolidate each db record list into a single stat record.
+            recordsByPropertyType.forEach((key, records) -> {
+                final Date recordedOn = key.getLeft();
+                final String propertyType = key.getRight();
+
+                // we'll fill these in as we iterate through the records. They're nullable.
+                String propertySubtype = null;
+                Float value = null;
+                Float capacity = null;
+
+                // the record collection will generally be either 1 or 2 records long.
+                if (records.size() == 1) {
+                    // the stats with one record are single-value stats, so we are going to set the
+                    // value and property sub-type.
+                    ClusterStatsRecordReader record = records.get(0);
+                    propertySubtype = record.getPropertySubType();
+                    value = record.getValue();
+                } else {
+                    // stats with multiiple records are expected to be usage-related, with one
+                    // record containing the "used" value and another containing "capacity". We will
+                    // know which record is which based on the property sub-type.
+                    for (ClusterStatsRecordReader record : records) {
+                        switch (record.getPropertySubType()) {
+                            case StringConstants.USED:
+                                value = record.getValue();
+                                break;
+                            case StringConstants.CAPACITY:
+                                capacity = record.getValue();
+                                break;
+                            default:
+                                // we don't expect to be here, but we also don't want to spam the log.
+                                // let's count it in the warning map.
+                                unexpectedRecordCounts.computeIfAbsent(
+                                        propertyType + ":" + record.getPropertySubType(),
+                                        k -> new AtomicInteger()).incrementAndGet();
+                        }
+                    }
+                }
+
+                resultMap.put(recordedOn, statRecordBuilder.buildStatRecord(
+                        propertyType,
+                        propertySubtype,
+                        capacity,
+                        (Float)null,
+                        null,
+                        null,
+                        value, // avg
+                        value, // min
+                        value, // max
+                        null,
+                        value, // total
+                        null));
+
+            });
 
             // Sort stats data by date.
             List<java.sql.Date> sortedStatsDates = Lists.newArrayList(resultMap.keySet());
@@ -623,6 +651,15 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                 resultMap.get(recordDate).forEach(statSnapshotResponseBuilder::addStatRecords);
                 statSnapshotResponseBuilder.setSnapshotDate(recordDate.getTime());
                 responseObserver.onNext(statSnapshotResponseBuilder.build());
+            }
+
+            // if we encountered any unexpected records, log them.
+            if (!CollectionUtils.isEmpty(unexpectedRecordCounts)) {
+                StringBuilder sb = new StringBuilder("Unexpected cluster stat records: ");
+                unexpectedRecordCounts.forEach((recordKey, count) -> {
+                    sb.append(recordKey).append("(").append(count).append(") ");
+                });
+                logger.warn(sb.toString());
             }
 
             responseObserver.onCompleted();
@@ -650,58 +687,6 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         return false;
     }
 
-    private StatRecord createStatRecordForClusterStatsByDay(ClusterStatsByDayRecord dbRecord, float capacity) {
-        return statRecordBuilder.buildStatRecord(
-                        dbRecord.getPropertyType(),
-                        dbRecord.getPropertySubtype(),
-                        capacity,
-                        (Float)null,
-                        null,
-                        null,
-                        dbRecord.getValue().floatValue(),
-                        dbRecord.getValue().floatValue(),
-                        dbRecord.getValue().floatValue(),
-                        null,
-                        dbRecord.getValue().floatValue(),
-                        null);
-    }
-    /**
-     * Helper method to create StatRecord objects, which nest inside StatSnapshot objects.
-     *
-     * @param dbRecord the database record to begin with
-     * @return a newly initialized {@link StatRecord} protobuf
-     */
-    private StatRecord createStatRecordForClusterStatsByDay(ClusterStatsByDayRecord dbRecord) {
-        return statRecordBuilder.buildStatRecord(
-                dbRecord.getPropertyType(),
-                dbRecord.getPropertySubtype(),
-                (Float)null,
-                (Float)null,
-                null,
-                null,
-                dbRecord.getValue().floatValue(),
-                dbRecord.getValue().floatValue(),
-                dbRecord.getValue().floatValue(),
-                null,
-                dbRecord.getValue().floatValue(),
-                null);
-    }
-
-    private StatRecord createStatRecordForClusterStatsByMonth(ClusterStatsByMonthRecord dbRecord) {
-        return statRecordBuilder.buildStatRecord(
-                dbRecord.getPropertyType(),
-                dbRecord.getPropertySubtype(),
-                (Float)null,
-                (Float)null,
-                null,
-                null,
-                dbRecord.getValue().floatValue(),
-                dbRecord.getValue().floatValue(),
-                dbRecord.getValue().floatValue(),
-                null,
-                dbRecord.getValue().floatValue(),
-                null);
-    }
     /**
      * Calculate a Cluster Stats Rollup, if necessary, and persist to the appropriate stats table.
      *

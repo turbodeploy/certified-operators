@@ -243,6 +243,7 @@ public class UuidMapperTest {
 
     @Test
     public void testGroupId() throws OperationFailedException {
+
         when(groupExpander.getMembersForGroup(any())).thenReturn(
             ImmutableGroupAndMembers.builder().group(Grouping.newBuilder().build())
                 .members(Collections.emptyList()).entities(Collections.emptyList()).build());
@@ -407,7 +408,7 @@ public class UuidMapperTest {
     @Test
     public void testGroupIdNotGroup() throws OperationFailedException {
         doReturn(GetGroupResponse.getDefaultInstance())
-            .when(groupServiceBackend).getGroup(GroupID.newBuilder()
+                .when(groupServiceBackend).getGroup(GroupID.newBuilder()
                 .setId(123)
                 .build());
 
@@ -422,6 +423,7 @@ public class UuidMapperTest {
 
     @Test
     public void testGroupIdError() throws OperationFailedException {
+
         when(groupExpander.getMembersForGroup(any())).thenReturn(
             ImmutableGroupAndMembers.builder().group(Grouping.newBuilder().build())
                 .members(Collections.emptyList()).entities(Collections.emptyList()).build());

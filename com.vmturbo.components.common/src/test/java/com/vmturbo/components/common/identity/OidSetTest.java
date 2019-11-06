@@ -11,7 +11,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * Generic base tests for OidSet implementations
+ * Generic base tests for OidSet implementations.
  */
 public abstract class OidSetTest<T extends OidSet> {
 
@@ -109,5 +109,37 @@ public abstract class OidSetTest<T extends OidSet> {
         Assert.assertEquals(4L, iterator.nextLong());
         Assert.assertEquals(5L, iterator.nextLong());
         Assert.assertFalse(iterator.hasNext());
+    }
+
+    /**
+     * test to ensure that the oid set hash code is order-independent.
+     */
+    @Test
+    public void testHashCodeStability() {
+        // make sure that the hash code is the same for two sets with the same contents regardless of
+        // order.
+        T testSetA = createOidSet(new long[]{1, 2, 3, 4});
+        T testSetB = createOidSet(new long[]{4, 3, 2, 1});
+        Assert.assertEquals(testSetA.hashCode(), testSetB.hashCode());
+    }
+
+    /**
+     * test to ensure that the oid set equals() is order-independent.
+     */
+    @Test
+    public void testEqualsStability() {
+        T testSetA = createOidSet(new long[]{1, 2, 3, 4});
+        T testSetB = createOidSet(new long[]{4, 3, 2, 1});
+        Assert.assertEquals(testSetA, testSetB);
+    }
+
+    /**
+     * test to ensure that the oid set equals() will fail if one set is contained within the other.
+     */
+    @Test
+    public void testNotEquals() {
+        T testSetA = createOidSet(new long[]{1, 2, 3, 4});
+        T testSetB = createOidSet(new long[]{1, 2, 3});
+        Assert.assertNotEquals(testSetA, testSetB);
     }
 }

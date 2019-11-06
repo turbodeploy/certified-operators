@@ -7,6 +7,7 @@ import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_TYPE;
 import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsByDay.CLUSTER_STATS_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsByMonth.CLUSTER_STATS_BY_MONTH;
 
+import java.sql.Date;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -112,5 +113,131 @@ class ClusterStatsReader {
         return historydbIO.execute(Style.FORCED,
             historydbIO.JooqBuilder().selectFrom(CLUSTER_STATS_BY_MONTH)
                 .where(conditions).getQuery()).into(ClusterStatsByMonthRecord.class);
+    }
+
+    /**
+     * A utility class for reading {@link ClusterStatsByDayRecord} and {@link ClusterStatsByMonthRecord}
+     * records using a common interface, since the schemas are very similar (except for the
+     * "aggregated" and "# samples" fields).
+     */
+    public interface ClusterStatsRecordReader {
+        /**
+         * Get the recorded-on date from the cluster stat record.
+         *
+         * @return the recorded-on date
+         */
+        Date getRecordedOn();
+
+        /**
+         * get the internal name from the cluster stat record.
+         *
+         * @return the internal name
+         */
+        String getInternalName();
+
+        /**
+         * Get the property type from the cluster stat record.
+         *
+         * @return the property type
+         */
+        String getPropertyType();
+
+        /**
+         * Get the property subtype from the cluster stat record.
+         *
+         * @return the property subtype
+         */
+        String getPropertySubType();
+
+        /**
+         * Get the property value from the cluster stat record.
+         *
+         * @return value
+         */
+        float getValue();
+    }
+
+    /**
+     * A {@link ClusterStatsRecordReader} that wraps access to a {@link ClusterStatsByDayRecord}.
+     */
+    public static class ClusterStatsByDayRecordReader implements ClusterStatsRecordReader {
+        @Nonnull final ClusterStatsByDayRecord record;
+
+        /**
+         * Create an instance that wraps the specified record.
+         *
+         * @param record the record to read from
+         */
+        ClusterStatsByDayRecordReader(@Nonnull ClusterStatsByDayRecord record) {
+            Objects.requireNonNull(record);
+            this.record = record;
+        }
+
+        @Override
+        public Date getRecordedOn() {
+            return record.getRecordedOn();
+        }
+
+        @Override
+        public String getInternalName() {
+            return record.getInternalName();
+        }
+
+        @Override
+        public String getPropertyType() {
+            return record.getPropertyType();
+        }
+
+        @Override
+        public String getPropertySubType() {
+            return record.getPropertySubtype();
+        }
+
+        @Override
+        public float getValue() {
+            return record.getValue().floatValue();
+        }
+    }
+
+    /**
+     * A {@link ClusterStatsRecordReader} that wraps access to a {@link ClusterStatsByMonthRecord}.
+     */
+    public static class ClusterStatsByMonthRecordReader implements ClusterStatsRecordReader {
+        @Nonnull final ClusterStatsByMonthRecord record;
+
+        /**
+         * Create an instance that provides reads from the specified record.
+         *
+         * @param record the record to read from
+         */
+        ClusterStatsByMonthRecordReader(@Nonnull ClusterStatsByMonthRecord record) {
+            Objects.requireNonNull(record);
+            this.record = record;
+        }
+
+        @Override
+        public Date getRecordedOn() {
+            return record.getRecordedOn();
+        }
+
+        @Override
+        public String getInternalName() {
+            return record.getInternalName();
+        }
+
+        @Override
+        public String getPropertyType() {
+            return record.getPropertyType();
+        }
+
+        @Override
+        public String getPropertySubType() {
+            return record.getPropertySubtype();
+        }
+
+        @Override
+        public float getValue() {
+            return record.getValue().floatValue();
+        }
     }
 }

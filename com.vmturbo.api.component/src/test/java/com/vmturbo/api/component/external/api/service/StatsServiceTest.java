@@ -33,6 +33,10 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -43,9 +47,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
@@ -701,7 +702,7 @@ public class StatsServiceTest {
     }
 
     /**
-     * Test that the 'relatedType' argument is required if the scope is "Market"
+     * Test that the 'relatedType' argument is required if the scope is "Market".
      *
      * @throws Exception as expected, with IllegalArgumentException since no 'relatedType'
      */
@@ -717,8 +718,9 @@ public class StatsServiceTest {
     }
 
     /**
-     * Test that the 'relatedType' argument is required if the scope is "Market"
-     * This should behave equivalently to the same call with a default period object
+     * Test that the 'relatedType' argument is required if the scope is "Market".
+     * This should behave equivalently to the same call with a default period object.
+     *
      * @throws Exception as expected, with IllegalArgumentException since no 'relatedType'
      */
     @Test(expected = IllegalArgumentException.class)
@@ -833,7 +835,6 @@ public class StatsServiceTest {
         Assert.assertEquals(1, entityList.getEntities(0));
     }
 
-
     /**
      * Test the case that scope is a DC group, relatedType is DataCenter, it should expand to DCs
      * first, then expand each DC to PMs, and fetch aggregated stats for each DC using the related
@@ -866,16 +867,16 @@ public class StatsServiceTest {
         Set<Long> dcMembers = Sets.newHashSet(dcOid1, dcOid2);
         when(groupExpander.expandUuids(eq(seedUuids))).thenReturn(dcMembers);
         when(supplyChainFetcherFactory.expandScope(eq(Sets.newHashSet(dcOid1, dcOid2)), any()))
-            .thenReturn(Sets.newHashSet(dcOid1, dcOid2));
+                .thenReturn(Sets.newHashSet(dcOid1, dcOid2));
         when(supplyChainFetcherFactory.expandScope(eq(Sets.newHashSet(dcOid1)), any())).thenReturn(pmsForDC1);
         when(supplyChainFetcherFactory.expandScope(eq(Sets.newHashSet(dcOid2)), any())).thenReturn(pmsForDC2);
 
         when(statsMapper.toEntityStatsRequest(any(), any(), any())).thenReturn(
-            GetEntityStatsRequest.getDefaultInstance());
+                GetEntityStatsRequest.getDefaultInstance());
         when(statsHistoryServiceSpy.getEntityStats(any())).thenReturn(
-            GetEntityStatsResponse.newBuilder()
-                .addEntityStats(ENTITY_STATS)
-                .build());
+                GetEntityStatsResponse.newBuilder()
+                        .addEntityStats(ENTITY_STATS)
+                        .build());
 
         final List<StatSnapshotApiDTO> statDtos = Collections.singletonList(new StatSnapshotApiDTO());
         when(statsMapper.toStatsSnapshotApiDtoList(ENTITY_STATS)).thenReturn(statDtos);
@@ -902,9 +903,82 @@ public class StatsServiceTest {
         List<EntityGroup> groupsList = entityStatsScope.getEntityGroupList().getGroupsList();
         assertThat(groupsList.size(), is(2));
         final Map<Long, List<Long>> aggregatedEntitiesMap = groupsList.stream()
-            .collect(Collectors.toMap(EntityGroup::getSeedEntity, EntityGroup::getEntitiesList));
+                .collect(Collectors.toMap(EntityGroup::getSeedEntity, EntityGroup::getEntitiesList));
         assertThat(aggregatedEntitiesMap.get(dcOid1), containsInAnyOrder(pmsForDC1.toArray()));
         assertThat(aggregatedEntitiesMap.get(dcOid2), containsInAnyOrder(pmsForDC2.toArray()));
+    }
+
+    /**
+     * test "is cluster stats request" logic on a cluster-exclusive stat.
+     */
+    @Test
+    public void testIsClusterStatsRequest() {
+        Assert.assertTrue(statsService.isClusterStatsRequest(
+                createClusterStatsRequest(Arrays.asList("1"), StringConstants.CPU_HEADROOM)));
+    }
+
+    /**
+     * test "is cluster stats request" logic on a non-cluster stats.
+     */
+    @Test
+    public void testIsClusterStatsRequestNonClusterStat() {
+        Assert.assertFalse(statsService.isClusterStatsRequest(
+                createClusterStatsRequest(Arrays.asList("1"), StringConstants.PRICE_INDEX)));
+    }
+
+    /**
+     * test "is cluster stats request" logic on a "possible" cluster stat.
+     */
+    @Test
+    public void testIsClusterStatsRequestAmbiguous() {
+        long clusterId = 1;
+        long nonclusterId = 2;
+        ApiId clusterApiId = mock(ApiId.class);
+        when(clusterApiId.isGroup()).thenReturn(true);
+        when(clusterApiId.getGroupType()).thenReturn(Optional.of(GroupType.COMPUTE_HOST_CLUSTER));
+        when(uuidMapper.fromOid(clusterId)).thenReturn(clusterApiId);
+
+        ApiId nonClusterApiId = mock(ApiId.class);
+        when(nonClusterApiId.isGroup()).thenReturn(false);
+        when(uuidMapper.fromOid(nonclusterId)).thenReturn(nonClusterApiId);
+
+        // requesting CPU for a cluster is a cluster stat request
+        Assert.assertTrue(statsService.isClusterStatsRequest(
+                createClusterStatsRequest(Arrays.asList("1"), StringConstants.CPU)));
+
+        // requesting CPU for a non-cluster is NOT a cluster stat request
+        Assert.assertFalse(statsService.isClusterStatsRequest(
+                createClusterStatsRequest(Arrays.asList("2"), StringConstants.CPU)));
+
+        // requesting CPU (which is a cluster stat) and NetThroughput (which is not) should NOT
+        // be treated as a cluster stats request.
+        Assert.assertFalse(statsService.isClusterStatsRequest(
+                createClusterStatsRequest(Arrays.asList("1"),
+                        StringConstants.CPU, StringConstants.NET_THROUGHPUT)));
+    }
+
+    /**
+     * test "is cluster stats request" logic on a non-numeric input.
+     */
+    @Test
+    public void testIsClusterStatsRequestAmbiguousNonnumeric() {
+        Assert.assertFalse(statsService.isClusterStatsRequest(
+                createClusterStatsRequest(Arrays.asList("Market"), StringConstants.CPU)));
+    }
+
+    private StatScopesApiInputDTO createClusterStatsRequest(List<String> scopes, String...args) {
+        StatScopesApiInputDTO request = new StatScopesApiInputDTO();
+        request.setScopes(scopes);
+        StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
+        period.setStatistics(Arrays.stream(args)
+                .map(name -> {
+                    StatApiInputDTO input = new StatApiInputDTO();
+                    input.setName(name);
+                    return input;
+                })
+                .collect(Collectors.toList()));
+        request.setPeriod(period);
+        return request;
     }
 
     private void expectedEntityIdsAfterSupplyChainTraversal(Set<Long> entityIds)

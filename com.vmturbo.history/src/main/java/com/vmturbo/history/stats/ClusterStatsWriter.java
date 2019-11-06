@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
 import org.jooq.InsertSetMoreStep;
 import org.jooq.InsertValuesStep5;
 import org.jooq.Query;
@@ -75,15 +74,16 @@ class ClusterStatsWriter {
      * PROPERTY_SUBTYPE values to use in writing the CLUSTER_STATS_BY_DAY row.
      */
     private static Map<String, List<PMClusterStatsValue>> computeClusterStatTransforms = ImmutableMap.of(
-            "CPU", ImmutableList.of(
-                    new PMClusterStatsValue("CPU", "currentUtilization", SUM_OF_CAPACITY)),
-            "numCPUs", ImmutableList.of(
-                    new PMClusterStatsValue("CPU", "numCPUs", SUM_OF_AVERAGE)),
-            "numSockets", ImmutableList.of(
-                    new PMClusterStatsValue("CPU", "numSockets", SUM_OF_AVERAGE)),
-            "Mem", ImmutableList.of(
-                    new PMClusterStatsValue("Mem", "capacity", SUM_OF_CAPACITY),
-                    new PMClusterStatsValue("Mem", "currentUtilization", SUM_OF_AVERAGE))
+            StringConstants.CPU, ImmutableList.of(
+                    new PMClusterStatsValue(StringConstants.CPU, StringConstants.USED, SUM_OF_AVERAGE),
+                    new PMClusterStatsValue(StringConstants.CPU, StringConstants.CAPACITY, SUM_OF_CAPACITY)),
+            StringConstants.NUM_CPUS, ImmutableList.of(
+                    new PMClusterStatsValue(StringConstants.NUM_CPUS, StringConstants.NUM_CPUS, SUM_OF_AVERAGE)),
+            StringConstants.NUM_SOCKETS, ImmutableList.of(
+                    new PMClusterStatsValue(StringConstants.NUM_SOCKETS, StringConstants.NUM_SOCKETS, SUM_OF_AVERAGE)),
+            StringConstants.MEM, ImmutableList.of(
+                    new PMClusterStatsValue(StringConstants.MEM, StringConstants.CAPACITY, SUM_OF_CAPACITY),
+                    new PMClusterStatsValue(StringConstants.MEM, StringConstants.USED, SUM_OF_AVERAGE))
     );
 
     private static final Logger logger = LogManager.getLogger();
@@ -217,8 +217,8 @@ class ClusterStatsWriter {
             .delete(CLUSTER_STATS_BY_DAY)
             .where(CLUSTER_STATS_BY_DAY.RECORDED_ON.equal(dbToday)
                 .and(CLUSTER_STATS_BY_DAY.INTERNAL_NAME.equal(clusterOid)))
-                .and(CLUSTER_STATS_BY_DAY.PROPERTY_TYPE.in(clusterData.rowKeySet())
-                .and(CLUSTER_STATS_BY_DAY.PROPERTY_SUBTYPE.in(clusterData.columnKeySet()))));
+                .and(CLUSTER_STATS_BY_DAY.PROPERTY_TYPE.in(StatsHistoryRpcService.HEADROOM_STATS))
+                .and(CLUSTER_STATS_BY_DAY.PROPERTY_SUBTYPE.in(clusterData.columnKeySet())));
 
         // Insert new values with current date for this cluster.
         final InsertValuesStep5<ClusterStatsByDayRecord, Date, String, String, String, BigDecimal> insertStmt =

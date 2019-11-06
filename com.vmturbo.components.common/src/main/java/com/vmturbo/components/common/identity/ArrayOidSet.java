@@ -122,6 +122,16 @@ public class ArrayOidSet implements OidSet {
     }
 
     @Override
+    public int hashCode() {
+        return defaultHashCode();
+    }
+
+    @Override
+    public boolean equals(final Object obj) {
+        return defaultEquals(obj);
+    }
+
+    @Override
     public OidSet union(final OidSet other) {
         // creating the union of the two sets is not going to be super-efficient.
         // we can either create a new worst-case-sized array with the merge results, and

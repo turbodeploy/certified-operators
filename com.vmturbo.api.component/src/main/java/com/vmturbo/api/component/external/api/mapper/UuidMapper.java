@@ -15,11 +15,11 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.springframework.util.CollectionUtils;
-
 import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
+
+import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.util.DefaultCloudGroup;
@@ -81,8 +81,8 @@ public class UuidMapper {
     /**
      * We cache the {@link ApiId}s associated with specific OIDs, so that we can save the
      * information about each ID and avoid extra RPCs to determine whether type the ID refers to.
-     * <p>
-     * We don't expect this map to be huge, because most entities (probably) aren't going to be
+     *
+     * <p>We don't expect this map to be huge, because most entities (probably) aren't going to be
      * addressed by ID.
      */
     private final Map<Long, ApiId> cachedIds = Collections.synchronizedMap(new HashMap<>());
