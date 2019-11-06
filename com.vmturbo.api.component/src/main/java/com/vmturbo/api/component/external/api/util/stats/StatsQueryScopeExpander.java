@@ -27,10 +27,6 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
-import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
-import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 
@@ -188,11 +184,6 @@ public class StatsQueryScopeExpander {
         final Set<Long> expandedOidsInScope;
 
         if (!relatedTypes.isEmpty()) {
-            // case where VM oids need to be added separately to the scope, i.e. for Volume commodity queries
-            if (shouldConnectedVmBeSeparatelyAdded(scope, relatedTypes)) {
-                final Set<Long> connectedVmOids = findConnectedVmOids(immediateOidsInScope);
-                immediateOidsInScope.addAll(connectedVmOids);
-            }
             // We replace the proxy entities after first finding related type entities, so that the
             // supply chain search for related entities has the correct starting point (the original
             // entities in the request, rather than the replacement entities).
@@ -212,27 +203,5 @@ public class StatsQueryScopeExpander {
         }
 
         return StatsQueryScope.some(expandedOidsInScope);
-    }
-
-    private Set<Long> findConnectedVmOids(@Nonnull final Set<Long> volumeOids) {
-        final TraversalFilter vmFrom = SearchProtoUtil.traverseToType(
-            TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_MACHINE.apiStr());
-        final TraversalFilter vmTo = SearchProtoUtil.traverseToType(
-            TraversalDirection.CONNECTED_TO, UIEntityType.VIRTUAL_MACHINE.apiStr());
-        final PropertyFilter startFilter = SearchProtoUtil.idFilter(volumeOids);
-
-        final SearchParameters searchParams = SearchProtoUtil.makeSearchParameters(startFilter)
-            .addSearchFilter(SearchProtoUtil.searchFilterTraversal(vmFrom))
-            .addSearchFilter(SearchProtoUtil.searchFilterTraversal(vmTo))
-            .build();
-        return repositoryApi.newSearchRequest(searchParams).getOids();
-    }
-
-    private boolean shouldConnectedVmBeSeparatelyAdded(@Nonnull final ApiId scope,
-                                                       @Nonnull final List<UIEntityType> relatedTypes) {
-        return relatedTypes.contains(UIEntityType.VIRTUAL_MACHINE) &&
-            scope.getScopeTypes()
-                .filter(set -> set.contains(UIEntityType.VIRTUAL_VOLUME))
-                .isPresent();
     }
 }

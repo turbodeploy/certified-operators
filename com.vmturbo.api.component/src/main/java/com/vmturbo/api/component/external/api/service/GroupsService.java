@@ -991,7 +991,7 @@ public class GroupsService implements IGroupsService {
             .filter(groupWithMembers -> !isHiddenGroup(groupWithMembers.group()))
             .map(groupAndMembers -> {
                 GroupApiDTO groupApiDTO = groupMapper.toGroupApiDtoWithoutActiveEntities(groupAndMembers,
-                    EnvironmentType.UNKNOWN);
+                    EnvironmentType.ONPREM);
                 if (populateSeverity) {
                     groupApiDTO.setSeverity(groupSeverities.get(groupAndMembers.group().getId()).name());
                 }

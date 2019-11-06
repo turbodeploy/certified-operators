@@ -523,7 +523,7 @@ public class GroupMapper {
      */
     @Nonnull
     public GroupApiDTO toGroupApiDtoWithoutActiveEntities(@Nonnull final GroupAndMembers groupAndMembers,
-                                     @Nonnull EnvironmentType environmentType) {
+                                     @Nonnull final EnvironmentType environmentType) {
         final GroupApiDTO outputDTO;
         final Grouping group = groupAndMembers.group();
         outputDTO = toGroupApiDto(groupAndMembers.group());
@@ -533,11 +533,6 @@ public class GroupMapper {
         outputDTO.setMemberUuidList(groupAndMembers.members().stream()
             .map(oid -> Long.toString(oid))
             .collect(Collectors.toList()));
-
-        if (EnvironmentType.UNKNOWN.equals(environmentType)) {
-            environmentType = getEnvironmentTypeForGroup(groupAndMembers);
-        }
-
         outputDTO.setEnvironmentType(getEnvironmentTypeForTempGroup(environmentType));
         outputDTO.setEntitiesCount(groupAndMembers.entities().size());
 

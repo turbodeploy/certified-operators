@@ -305,7 +305,6 @@ public class StatsQueryScopeExpanderTest {
         when(scope.isTarget()).thenReturn(false);
         when(scope.isPlan()).thenReturn(false);
         when(scope.isEntity()).thenReturn(true);
-        when(scope.getScopeTypes()).thenReturn(Optional.empty());
 
         final StatApiInputDTO inputStat = new StatApiInputDTO();
         inputStat.setName("foo");
@@ -336,7 +335,6 @@ public class StatsQueryScopeExpanderTest {
         when(scope.isTarget()).thenReturn(false);
         when(scope.isPlan()).thenReturn(false);
         when(scope.isEntity()).thenReturn(true);
-        when(scope.getScopeTypes()).thenReturn(Optional.empty());
 
         final SupplyChainNodeFetcherBuilder fetcherBuilder = ApiTestUtils.mockNodeFetcherBuilder(
                 ImmutableMap.of(
