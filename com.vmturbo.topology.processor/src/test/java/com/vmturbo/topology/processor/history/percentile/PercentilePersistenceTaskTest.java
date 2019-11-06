@@ -52,7 +52,7 @@ public class PercentilePersistenceTaskTest {
                                                       18,
                                                       10,
                                                       chunkSizeKb,
-                                                      Collections.emptyMap());
+                                                      Collections.emptyMap(), null);
     private static final long oid1 = 1;
     private static final long oid2 = 2;
     private static final long oid3 = 3;

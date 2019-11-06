@@ -2,11 +2,12 @@ package com.vmturbo.topology.processor.history.percentile;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
-
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -14,6 +15,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.history.CachingHistoricalEditorConfig;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
 
@@ -26,6 +28,11 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
      */
     public static int defaultMaintenanceWindowHours = 24;
 
+    /**
+     * The property name in the topology processor key value store whose value
+     * represents the OID of the entity for which percentile counts are logged.
+     */
+    private static final String OID_FOR_PERCENTILE_COUNTS_LOG_PROPERTY = "oidForPercentileCountsLog";
     private static final Logger logger = LogManager.getLogger();
     private static final Map<EntityType, EntitySettingSpecs> TYPE_AGGRESSIVENESS = ImmutableMap
                     .of(EntityType.BUSINESS_USER,
@@ -42,6 +49,8 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
     private final int maintenanceWindowHours;
     private final int grpcStreamTimeoutSec;
     private final int blobReadWriteChunkSizeKb;
+    private final KVConfig kvConfig;
+
 
     /**
      * Initialize the percentile configuration values.
@@ -51,10 +60,12 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
      * @param grpcStreamTimeoutSec the timeout for history access streaming operations
      * @param blobReadWriteChunkSizeKb the size of chunks for reading and writing from persistent store
      * @param commType2Buckets map of commodity type to percentile buckets specification
+     * @param kvConfig the config to access the topology processor key value store.
      */
     public PercentileHistoricalEditorConfig(int calculationChunkSize, int maintenanceWindowHours,
                                             int grpcStreamTimeoutSec, int blobReadWriteChunkSizeKb,
-                                            @Nonnull Map<CommodityType, String> commType2Buckets) {
+                                            @Nonnull Map<CommodityType, String> commType2Buckets,
+                                            @Nullable KVConfig kvConfig) {
         super(0, calculationChunkSize);
         // maintenance window cannot exceed minimum observation window
         int minObservationPeriod = (int)EntitySettingSpecs.PercentileObservationPeriodVirtualMachine
@@ -67,6 +78,7 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
         this.blobReadWriteChunkSizeKb = blobReadWriteChunkSizeKb;
         commType2Buckets.forEach((commType, bucketsSpec) -> buckets
                         .put(commType, new PercentileBuckets(bucketsSpec)));
+        this.kvConfig = kvConfig;
     }
 
     /**
@@ -128,6 +140,18 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
      */
     public int getBlobReadWriteChunkSizeKb() {
         return blobReadWriteChunkSizeKb;
+    }
+
+    /**
+     * The configured OID whose percentile counts needs to be logged when debug enabled.
+     *
+     * @return the configured OID.
+     */
+    public Optional<String> getOidToBeTracedInLog() {
+        return Optional.ofNullable(kvConfig)
+                .map(KVConfig::keyValueStore)
+                .map(store -> store.get(OID_FOR_PERCENTILE_COUNTS_LOG_PROPERTY))
+                .orElse(Optional.empty());
     }
 
     private static int getDefaultAggressiveness() {

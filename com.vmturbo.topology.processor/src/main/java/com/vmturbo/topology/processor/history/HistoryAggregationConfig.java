@@ -7,7 +7,6 @@ import java.util.concurrent.ThreadFactory;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -21,6 +20,7 @@ import com.vmturbo.commons.Units;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.topology.processor.ClockConfig;
+import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.history.percentile.PercentileEditor;
 import com.vmturbo.topology.processor.history.percentile.PercentileHistoricalEditorConfig;
 import com.vmturbo.topology.processor.topology.HistoryAggregator;
@@ -29,7 +29,7 @@ import com.vmturbo.topology.processor.topology.HistoryAggregator;
  * Configuration for historical values aggregation sub-package.
  */
 @Configuration
-@Import({HistoryClientConfig.class, ClockConfig.class})
+@Import({HistoryClientConfig.class, ClockConfig.class, KVConfig.class})
 public class HistoryAggregationConfig {
     @Value("${historyAggregationMaxPoolSize}")
     private int historyAggregationMaxPoolSize = Runtime.getRuntime().availableProcessors();
@@ -64,6 +64,9 @@ public class HistoryAggregationConfig {
 
     @Autowired
     private ClockConfig clockConfig;
+
+    @Autowired
+    private KVConfig kvConfig;
 
     /**
      * History component blocking client interface.
@@ -117,14 +120,15 @@ public class HistoryAggregationConfig {
     @Bean
     public PercentileHistoricalEditorConfig percentileEditorConfig() {
         return new PercentileHistoricalEditorConfig(historyAggregationCalculationChunkSize,
-                                    percentileMaintenanceWindowHours,
-                                    grpcStreamTimeoutSec,
-                                    blobReadWriteChunkSizeKb,
-                                    ImmutableMap.of(CommodityType.VCPU, percentileBucketsVcpu,
-                                                    CommodityType.VMEM, percentileBucketsVmem,
-                                                    CommodityType.IMAGE_CPU, percentileBucketsImageCpu,
-                                                    CommodityType.IMAGE_MEM, percentileBucketsImageMem,
-                                                    CommodityType.IMAGE_STORAGE, percentileBucketsImageStorage));
+                percentileMaintenanceWindowHours,
+                grpcStreamTimeoutSec,
+                blobReadWriteChunkSizeKb,
+                ImmutableMap.of(CommodityType.VCPU, percentileBucketsVcpu,
+                        CommodityType.VMEM, percentileBucketsVmem,
+                        CommodityType.IMAGE_CPU, percentileBucketsImageCpu,
+                        CommodityType.IMAGE_MEM, percentileBucketsImageMem,
+                        CommodityType.IMAGE_STORAGE, percentileBucketsImageStorage),
+                kvConfig);
     }
 
     /**

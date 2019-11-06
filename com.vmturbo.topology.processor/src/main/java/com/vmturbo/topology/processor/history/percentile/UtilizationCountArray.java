@@ -196,4 +196,13 @@ public class UtilizationCountArray {
     public String toString() {
         return UtilizationCountArray.class.getSimpleName() + "{capacity=" + capacity + '}';
     }
+
+    /**
+     * This uses the toDebugString in order to include the counts in the resulting string.
+     * @return the string representation of the utilization store including the counts data.
+     */
+    public String toDebugString() {
+        return UtilizationCountArray.class.getSimpleName() + "{capacity=" + capacity  + ",counts="
+                + Arrays.toString(counts) + '}';
+    }
 }

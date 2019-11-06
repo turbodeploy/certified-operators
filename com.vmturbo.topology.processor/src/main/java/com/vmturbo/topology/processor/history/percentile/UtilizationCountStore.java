@@ -192,4 +192,16 @@ public class UtilizationCountStore {
                 ", full=" + full + ", latestStoredTimestamp=" + latestStoredTimestamp +
                 ", periodDays=" + periodDays + '}';
     }
+
+    /**
+     * This uses the toDebugString to be used for debug logging with more details.
+     * @return the string representation of the utilization store.
+     */
+    public String toDebugString() {
+        return UtilizationCountStore.class.getSimpleName() + "{fieldReference=" + fieldReference +
+                ", full=" + full.toDebugString() +
+                ", latest=" + latest.toDebugString() +
+                ", latestStoredTimestamp=" + latestStoredTimestamp +
+                ", periodDays=" + periodDays + '}';
+    }
 }

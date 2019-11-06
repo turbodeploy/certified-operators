@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.function.Function;
@@ -16,9 +17,9 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
-
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -202,6 +203,21 @@ public class PercentileEditor extends
 
         // perform daily maintenance if needed - synchronously within broadcast (consider scheduling)
         maintenance();
+        // print the utilization counts from cache for the configured OID in logs
+        // if debug is enabled.
+        debugLogPercentileValues();
+    }
+
+    private void debugLogPercentileValues() {
+        if (logger.isDebugEnabled()) {
+            Optional<Long> oid = getConfig().getOidToBeTracedInLog().map(Long::valueOf);
+            if (oid.isPresent()) {
+                getCache().entrySet().stream()
+                        .filter(e -> e.getKey().getEntityOid() == oid.get())
+                        .forEach(data -> logger.debug("Percentile utilization counts: {}",
+                                data.getValue().getUtilizationCountStore().toDebugString()));
+            }
+        }
     }
 
     private PercentilePersistenceTask createTask(long startTimestamp) {

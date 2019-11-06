@@ -75,7 +75,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     private static final PercentileHistoricalEditorConfig PERCENTILE_HISTORICAL_EDITOR_CONFIG =
             new PercentileHistoricalEditorConfig(1, MAINTENANCE_WINDOW_HOURS, 10, 100,
                     ImmutableMap.of(CommodityType.VCPU, PERCENTILE_BUCKETS_SPEC,
-                            CommodityType.IMAGE_CPU, PERCENTILE_BUCKETS_SPEC));
+                            CommodityType.IMAGE_CPU, PERCENTILE_BUCKETS_SPEC), null);
 
     private static final long VIRTUAL_MACHINE_OID = 1;
     private static final long BUSINESS_USER_OID = 10;

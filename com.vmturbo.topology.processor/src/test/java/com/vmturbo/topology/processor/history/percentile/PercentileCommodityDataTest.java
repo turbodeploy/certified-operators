@@ -31,7 +31,7 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
                                                           24,
                                                           10,
                                                           100,
-                                                          Collections.emptyMap());
+                                                          Collections.emptyMap(), null);
 
     /**
      * Test that init method stores passed db values.
