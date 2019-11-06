@@ -1,5 +1,6 @@
 package com.vmturbo.plan.orchestrator.templates;
 
+import static com.vmturbo.plan.orchestrator.db.tables.ClusterToHeadroomTemplateId.CLUSTER_TO_HEADROOM_TEMPLATE_ID;
 import static com.vmturbo.plan.orchestrator.db.tables.Template.TEMPLATE;
 
 import java.io.IOException;
@@ -18,6 +19,12 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Sets;
+import com.google.gson.Gson;
+import com.google.gson.JsonParseException;
+import com.google.gson.reflect.TypeToken;
+
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -27,12 +34,6 @@ import org.jooq.DSLContext;
 import org.jooq.Result;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Sets;
-import com.google.gson.Gson;
-import com.google.gson.JsonParseException;
-import com.google.gson.reflect.TypeToken;
 
 import com.vmturbo.common.protobuf.plan.TemplateDTO;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template.Type;
@@ -301,6 +302,32 @@ public class TemplatesDaoImpl implements TemplatesDao {
     public long getTemplatesCount(@Nonnull Set<Long> ids) {
         return dsl.fetchCount(dsl.selectFrom(TEMPLATE)
                 .where(TEMPLATE.ID.in(ids)));
+    }
+
+    @Nonnull
+    @Override
+    public Optional<TemplateDTO.Template> getClusterHeadroomTemplateForGroup(long groupId) {
+        TemplateRecord templateInstance = dsl.selectFrom(TEMPLATE)
+            .where(TEMPLATE.ID.eq(
+                dsl.select(CLUSTER_TO_HEADROOM_TEMPLATE_ID.TEMPLATE_ID)
+                    .from(CLUSTER_TO_HEADROOM_TEMPLATE_ID)
+                    .where(CLUSTER_TO_HEADROOM_TEMPLATE_ID.GROUP_ID.eq(groupId))
+            ))
+            .fetchOne();
+
+        return Optional.ofNullable(templateInstance)
+            .map(templateRecord -> templateRecord.into(Template.class))
+            .map(this::templateToProto);
+    }
+
+    @Override
+    public void setOrUpdateHeadroomTemplateForCluster(long groupId, long templateId) {
+        dsl.insertInto(CLUSTER_TO_HEADROOM_TEMPLATE_ID, CLUSTER_TO_HEADROOM_TEMPLATE_ID.GROUP_ID,
+            CLUSTER_TO_HEADROOM_TEMPLATE_ID.TEMPLATE_ID)
+            .values(groupId, templateId)
+            .onDuplicateKeyUpdate()
+            .set(CLUSTER_TO_HEADROOM_TEMPLATE_ID.TEMPLATE_ID, templateId)
+            .execute();
     }
 
     private Optional<TemplateDTO.Template> getTemplateInTransaction(@Nonnull final DSLContext dsl, final long id) {

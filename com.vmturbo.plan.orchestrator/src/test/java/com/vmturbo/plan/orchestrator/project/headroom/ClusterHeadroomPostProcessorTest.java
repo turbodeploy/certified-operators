@@ -206,7 +206,6 @@ public class ClusterHeadroomPostProcessorTest {
      * @param setValidValues whether to set valid values or not
      * @param setHostActive whether to set host active or not
      */
-
     private void prepareForHeadroomCalculation(boolean setValidValues, boolean setHostActive) {
         when(groupRpcServiceMole.getGroups(any()))
             .thenReturn(Collections.singletonList(Grouping.newBuilder().setId(CLUSTER_ID).build()));
@@ -221,7 +220,7 @@ public class ClusterHeadroomPostProcessorTest {
             .setTopologyId(projectedTopologyId)
             .build())).thenReturn(getProjectedTopology(setHostActive));
 
-        when(templatesDao.getTemplate(Mockito.anyLong()))
+        when(templatesDao.getClusterHeadroomTemplateForGroup(Mockito.anyLong()))
             .thenReturn(Optional.of(getTemplateForHeadroom(setValidValues)));
 
         final List<GetMultiSupplyChainsResponse> supplyChainResponses = ImmutableList.of(

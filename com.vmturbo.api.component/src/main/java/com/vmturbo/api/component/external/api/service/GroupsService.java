@@ -1,8 +1,11 @@
 package com.vmturbo.api.component.external.api.service;
 
+import static com.vmturbo.components.common.utils.StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -72,6 +75,7 @@ import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
@@ -89,6 +93,7 @@ import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.TemplateProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCategoryStatsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
@@ -112,8 +117,9 @@ import com.vmturbo.common.protobuf.group.GroupDTO.OriginFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateRequest;
-import com.vmturbo.common.protobuf.plan.TemplateDTO.SingleTemplateResponse;
+import com.vmturbo.common.protobuf.plan.TemplateDTO;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.GetHeadroomTemplateRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.GetHeadroomTemplateResponse;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
@@ -405,9 +411,11 @@ public class GroupsService implements IGroupsService {
         GetGroupResponse response = groupServiceRpc.getGroup(groupID);
 
         Grouping group = response.getGroup();
+        Template template = getHeadroomTemplate(group.getId());
 
-        //TODO (mahdi) The head room template id should no longer be kept in group component. This
-        // has been tracked in OM-51613
+        SettingsManagerApiDTO settingsManagerApiDto = settingsMapper.toSettingsManagerApiDTO(template);
+
+        mgrs.add(settingsManagerApiDto);
 
         return mgrs;
     }
@@ -431,29 +439,77 @@ public class GroupsService implements IGroupsService {
         return Collections.singletonList(settingsManager);
     }
 
+    private Template getHeadroomTemplate(final long groupId) throws UnknownObjectException {
+        // Get the headroom template with the ID in ClusterInfo if available.
+        Optional<Template> templateOpt = getClusterHeadroomTemplate(groupId);
+        if (templateOpt.isPresent()) {
+            return templateOpt.get();
+        }
+
+        // If the headroom template ID is not set in clusterInfo, or the template with the ID is
+        // not found, get the default headroom template.
+        final Optional<Template> headroomTemplates = TemplateProtoUtil.flattenGetResponse(
+            templateService.getTemplates(TemplateDTO.GetTemplatesRequest.newBuilder()
+                    .setFilter(TemplateDTO.TemplatesFilter.newBuilder()
+                        .addTemplateName(CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME))
+                    .build()))
+                .map(TemplateDTO.SingleTemplateResponse::getTemplate)
+                .filter(template -> template.getType().equals(Template.Type.SYSTEM))
+                // Stable sort of results. Normally there will only be one.
+                .sorted(Comparator.comparingLong(Template::getId))
+                .findFirst();
+        if (!headroomTemplates.isPresent()) {
+            throw new UnknownObjectException("No system headroom VM found!");
+        } else {
+            return headroomTemplates.get();
+        }
+    }
+
     /**
-     * Gets the template with the given template ID.
+     * Gets the template ID and name from the template service, and return the values in a
+     * SettingsApiDTO object.
      *
-     * @param templateId template ID
+     * @param groupId the ID of Group object for which the headroom template is to be found.
+     * @return the VM headroom template information of the given cluster.
+     * @throws UnknownObjectException No headroom template found for this group.
+     */
+    @Nonnull
+    private SettingApiDTO<String> getTemplateSetting(long groupId) throws UnknownObjectException {
+        Template headroomTemplate = getHeadroomTemplate(groupId);
+
+
+        String templateName = headroomTemplate.getTemplateInfo().getName();
+        String templateId = Long.toString(headroomTemplate.getId());
+
+        SettingApiDTO<String> setting = new SettingApiDTO<>();
+        setting.setUuid(CLUSTER_HEADROOM_TEMPLATE_SETTING_UUID);
+        setting.setValue(templateId);
+        setting.setValueDisplayName(templateName);
+        setting.setValueType(InputValueType.STRING);
+        setting.setEntityType(UIEntityType.PHYSICAL_MACHINE.apiStr());
+
+        return setting;
+    }
+
+    /**
+     * Gets the template for the given group Id.
+     *
+     * @param groupId group ID
      * @return the Template if found. Otherwise, return an empty Optional object.
      */
-    private Optional<Template> getClusterHeadroomTemplate(Long templateId) {
+    private Optional<Template> getClusterHeadroomTemplate(Long groupId) {
         try {
-            SingleTemplateResponse response = templateService.getTemplate(GetTemplateRequest.newBuilder()
-                .setTemplateId(templateId)
-                .build());
-            if (response.hasTemplate()) {
-                return Optional.of(response.getTemplate());
+            GetHeadroomTemplateResponse response = templateService.getHeadroomTemplateForCluster(
+                GetHeadroomTemplateRequest.newBuilder().setGroupId(groupId).build());
+            if (response.hasHeadroomTemplate()) {
+                return Optional.of(response.getHeadroomTemplate());
             } else {
                 return Optional.empty();
             }
         } catch (StatusRuntimeException e) {
-            if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
-                // return empty to indicate that the system headroom plan should be used.
-                return Optional.empty();
-            } else {
-                throw e;
-            }
+            logger.error("There was exception while getting headroom template for group `{}`",
+                groupId, e);
+            throw e;
         }
     }
 
@@ -463,12 +519,19 @@ public class GroupsService implements IGroupsService {
                                                  String settingUuid,
                                                  SettingApiDTO<String> setting)
             throws Exception {
-
         // Update the cluster headroom template ID
         if (settingUuid.equals(CLUSTER_HEADROOM_TEMPLATE_SETTING_UUID) &&
-            managerName.equals(CLUSTER_HEADROOM_SETTINGS_MANAGER)) {
-            // TODO (mahdi) We will implement this setting in OM-51613
-            throw ApiUtils.notImplementedInXL();
+                managerName.equals(CLUSTER_HEADROOM_SETTINGS_MANAGER)) {
+            try {
+                 templateService.updateHeadroomTemplateForCluster(
+                     TemplateDTO.UpdateHeadroomTemplateRequest.newBuilder()
+                                        .setGroupId(Long.parseLong(groupUuid))
+                                        .setTemplateId(Long.parseLong(setting.getValue()))
+                                        .build());
+                return getTemplateSetting(Long.parseLong(groupUuid));
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Invalid group ID or cluster headroom template ID");
+            }
         }
 
         // The implementation for updating settings other than cluster headroom template is not available.

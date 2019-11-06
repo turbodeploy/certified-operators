@@ -22,7 +22,6 @@ import java.util.Set;
 import io.grpc.Channel;
 
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -102,6 +101,9 @@ public class PlanProjectExecutorTest {
                     .setAvgValue(10)
                     .setRelationType(0))
                 .build()));
+
+        when(templatesDao.getClusterHeadroomTemplateForGroup(anyLong()))
+            .thenReturn(Optional.empty());
     }
 
     @Test
@@ -194,7 +196,6 @@ public class PlanProjectExecutorTest {
      * @throws Exception if exception occurs
      */
     @Test
-    @Ignore
     public void testCreatePlanInstanceWithClusterSelectedTemplate() throws Exception {
         long selectedTemplateId = 3333;
         Grouping groupWithHeadroomTemplateId = Grouping.newBuilder()
@@ -216,6 +217,7 @@ public class PlanProjectExecutorTest {
         verify(templatesDao, never()).getFilteredTemplates(any());
         // usedTemplate is not updated, thus the part of the code where usedTemplate != null
         // is not executed and updateClusterHeadroomTemplate() is not called
+        verify(templatesDao, never()).setOrUpdateHeadroomTemplateForCluster(anyLong(), anyLong());
     }
 
 
@@ -229,13 +231,13 @@ public class PlanProjectExecutorTest {
      * @throws Exception if exception occurs
      */
     @Test
-    @Ignore
     public void testCreatePlanInstanceWithClusterHeadroomTemplate() throws Exception {
         long averageTemplateId = 3333;
         Grouping groupWithHeadroomTemplateId = Grouping.newBuilder()
-            .setId(12345)
+            .setId(12345L)
             .addExpectedTypes(MemberType.newBuilder().setEntity(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
             .setDefinition(GroupDefinition.newBuilder()
+                            .setDisplayName("TestCluster")
                             .setType(GroupType.COMPUTE_HOST_CLUSTER))
             .build();
 
@@ -250,6 +252,9 @@ public class PlanProjectExecutorTest {
 
         when(templatesDao.getTemplate(averageTemplateId)).thenReturn(Optional.of(template));
 
+        when(templatesDao.getClusterHeadroomTemplateForGroup(eq(12345L)))
+            .thenReturn(Optional.of(template));
+
         planProjectExecutor.createClusterPlanInstance(Collections.singleton(groupWithHeadroomTemplateId),
                 PlanProjectScenario.getDefaultInstance(), PlanProjectType.CLUSTER_HEADROOM);
         // The user selects a template which is an average one thus the respective code is executed (where
@@ -257,7 +262,8 @@ public class PlanProjectExecutorTest {
         verify(templatesDao).editTemplate(eq(averageTemplateId), any());
         verify(templatesDao, never()).getFilteredTemplates(any());
         // usedTemplate is not updated, thus the part of code where usedTemplate != null is not executed and
-        // updateClusterHeadroomTemplate() is not called
+        // setOrUpdateHeadroomTemplateForCluster() is not called
+        verify(templatesDao, never()).setOrUpdateHeadroomTemplateForCluster(anyLong(), anyLong());
     }
 
 
@@ -269,12 +275,12 @@ public class PlanProjectExecutorTest {
      * @throws Exception
      */
     @Test
-    @Ignore
     public void testCreatePlanInstanceWithoutClusterInfo() throws Exception {
         Grouping groupWithoutHeadroomClusterInfo = Grouping.newBuilder()
             .setId(12345)
             .addExpectedTypes(MemberType.newBuilder().setEntity(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
             .setDefinition(GroupDefinition.newBuilder()
+                            .setDisplayName("TestCluster")
                             .setType(GroupType.COMPUTE_HOST_CLUSTER))
             .build();
 
@@ -291,7 +297,6 @@ public class PlanProjectExecutorTest {
      * @throws Exception
      */
     @Test
-    @Ignore
     public void testCreatePlanInstanceWithoutClusterHeadroomTemplate() throws Exception {
         Grouping groupWithHeadroomTemplateId = Grouping.newBuilder()
                         .setId(12345)
@@ -303,8 +308,9 @@ public class PlanProjectExecutorTest {
 
         planProjectExecutor.createClusterPlanInstance(Collections.singleton(groupWithHeadroomTemplateId),
                 PlanProjectScenario.getDefaultInstance(), PlanProjectType.CLUSTER_HEADROOM);
-        verify(templatesDao).getTemplate(anyLong());
+        verify(templatesDao).getClusterHeadroomTemplateForGroup(anyLong());
         verify(templatesDao).createTemplate(any());
+        verify(templatesDao).setOrUpdateHeadroomTemplateForCluster(anyLong(), anyLong());
     }
 
     /**

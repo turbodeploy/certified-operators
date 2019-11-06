@@ -432,10 +432,8 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         @Nonnull final ImmutableEntityCountData entityCounts,
         final float vmDailyGrowth) {
 
-        Optional<Template> template = templatesDao
-        //TODO (mahdi) The head room template id should no longer be kept in group component. This
-        // has been tracked in OM-51613
-            .getTemplate(0);
+        Optional<Template> template =
+            templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId());
 
         if (!template.isPresent()) {
             logger.error("Template not found for : " + cluster.getDefinition().getDisplayName() +

@@ -28,7 +28,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -64,6 +63,7 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
+import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -93,6 +93,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.plan.TemplateDTO;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesResponse;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.SingleTemplateResponse;
@@ -365,7 +366,6 @@ public class GroupsServiceTest {
      * @throws Exception it's thrown by groups service at the top level in case of any error.
      */
     @Test
-    @Ignore
     public void testGetClustersByClusterHeadroomGroupUuid() throws Exception {
         GroupApiDTO clusterApiDto = new GroupApiDTO();
         clusterApiDto.setUuid("mycluster");
@@ -376,6 +376,10 @@ public class GroupsServiceTest {
         when(groupMapper.toGroupApiDto(clusterAndMembers, EnvironmentType.ONPREM, true)).thenReturn(clusterApiDto);
         when(severityPopulator.calculateSeverity(CONTEXT_ID, Collections.singleton(7L)))
             .thenReturn(Optional.of(Severity.NORMAL));
+        when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.COMPUTE_HOST_CLUSTER),
+            eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
+                .setGroupType(GroupType.COMPUTE_HOST_CLUSTER)
+                .build());
 
         final String clusterHeadroomGroupUuid = "GROUP-PhysicalMachineByCluster";
         GroupMembersPaginationRequest memberRequest = new GroupMembersPaginationRequest(null,
@@ -401,7 +405,6 @@ public class GroupsServiceTest {
      * @throws Exception it's thrown by groups service at the top level in case of any error.
      */
     @Test
-    @Ignore
     public void testGetClustersByStorageClusterHeadroomGroupUuid() throws Exception {
         GroupApiDTO clusterApiDto = new GroupApiDTO();
         clusterApiDto.setUuid("mycluster");
@@ -412,6 +415,10 @@ public class GroupsServiceTest {
         when(groupMapper.toGroupApiDto(clusterAndMembers, EnvironmentType.ONPREM, true)).thenReturn(clusterApiDto);
         when(severityPopulator.calculateSeverity(CONTEXT_ID, Collections.singleton(7L)))
             .thenReturn(Optional.of(Severity.NORMAL));
+        when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.STORAGE_CLUSTER),
+            eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
+            .setGroupType(GroupType.STORAGE_CLUSTER)
+            .build());
 
         final String clusterHeadroomGroupUuid = "GROUP-StorageByStorageCluster";
         GroupMembersPaginationRequest memberRequest = new GroupMembersPaginationRequest("0",
@@ -424,6 +431,38 @@ public class GroupsServiceTest {
         assertThat(clustersList, containsInAnyOrder(clusterApiDto));
         final GetGroupsRequest request = getGroupsRequestCaptor.getValue();
         assertEquals(GroupType.STORAGE_CLUSTER, request.getGroupFilter().getGroupType());
+    }
+
+    /**
+     * Tests the putting setting for group API.
+     * @throws Exception when something goes wrong.
+     */
+    @Test
+    public void testPutSettingByUuidAndName() throws Exception {
+        String groupUuid = "1234";
+        String templateId = "3333";
+
+        SettingApiDTO<String> setting = new SettingApiDTO<>();
+        setting.setValue(templateId);
+
+        Template template = Template.newBuilder()
+                .setId(Long.parseLong(templateId))
+                .setType(Template.Type.SYSTEM)
+                .setTemplateInfo(TemplateInfo.newBuilder()
+                        .setName("template name"))
+                .build();
+        when(templateServiceSpy.getTemplates(any(GetTemplatesRequest.class)))
+                .thenReturn(Arrays.asList(GetTemplatesResponse.newBuilder()
+                    .addTemplates(SingleTemplateResponse.newBuilder()
+                        .setTemplate(template))
+                    .build()));
+        groupsService.putSettingByUuidAndName(groupUuid, "capacityplandatamanager",
+                "templateName", setting);
+        verify(templateServiceSpy).updateHeadroomTemplateForCluster(TemplateDTO.UpdateHeadroomTemplateRequest
+                .newBuilder()
+                .setGroupId(Long.parseLong(groupUuid))
+                .setTemplateId(Long.parseLong(setting.getValue()))
+                .build());
     }
 
     @Test(expected = UnknownObjectException.class)

@@ -402,11 +402,11 @@ public class PlanProjectExecutor {
         Template usedTemplate = null;
         long clusterHRoomTemplateId = 0L;
 
-        //TODO (mahdi) The head room template id should no longer be kept in group component. This
-        // has been tracked in OM-51613
-        clusterHRoomTemplateId = 0;
-
-        Optional<Template> clusterHRoomTemplate = Optional.empty();
+        Optional<Template> clusterHRoomTemplate =
+            templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId());
+        if (clusterHRoomTemplate.isPresent()) {
+            clusterHRoomTemplateId = clusterHRoomTemplate.get().getId();
+        }
 
         // Case 1: When user has not selected anything and no data in DB to calculate average
         // Case 2: When user has not selected anything and we have data in DB to calculate average
@@ -458,8 +458,7 @@ public class PlanProjectExecutor {
         }
         if (usedTemplate != null) {
             // Update template with current headroomTemplate
-            //TODO (mahdi) Previously, we updated the headroom template here in group store.
-            // We need update the headroom template in the new place stored here. JIRA (OM-51613)
+            templatesDao.setOrUpdateHeadroomTemplateForCluster(cluster.getId(), usedTemplate.getId());
         }
     }
 

@@ -89,4 +89,21 @@ public interface TemplatesDao extends Diagnosable {
      * @return the count of matched templates.
      */
     long getTemplatesCount(@Nonnull Set<Long> ids);
+
+    /**
+     * Returns the headroom template associated to a cluster.
+     *
+     * @param groupId the id of the cluster.
+     * @return the template if there a headroom template for the cluster otherwise empty.
+     */
+    @Nonnull
+    Optional<Template> getClusterHeadroomTemplateForGroup(long groupId);
+
+    /**
+     * Sets the headroom template for a cluster or update existing template associated to the group.
+     *
+     * @param groupId The group that we are setting or updating template for.
+     * @param templateId the new template id for the group.
+     */
+    void setOrUpdateHeadroomTemplateForCluster(long groupId, long templateId);
 }

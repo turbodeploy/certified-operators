@@ -13,6 +13,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.junit.After;
@@ -25,8 +27,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-
-import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
@@ -308,5 +308,40 @@ public class TemplatesDaoImplTest {
         assertEquals(result.getTemplateInfo(), templateInfo);
         expectedException.expect(DuplicateTemplateException.class);
         templatesDao.createTemplate(templateInfo);
+    }
+
+    /**
+     * Tests saving and retrieving of a headroom template.
+     * @throws Exception when something goes wrong.
+     */
+    @Test
+    public void setAndGetHeadroomTemplateForAGroup() throws Exception {
+        TemplateInfo templateInfo1 = TemplateInfo.newBuilder()
+            .setName("template-instance1")
+            .build();
+        Template template1 = templatesDao.createTemplate(templateInfo1);
+
+        final long groupId = 5L;
+
+        templatesDao.setOrUpdateHeadroomTemplateForCluster(groupId, template1.getId());
+
+        Optional<Template> retrievedTemplate =
+            templatesDao.getClusterHeadroomTemplateForGroup(groupId);
+
+        assertTrue(retrievedTemplate.isPresent());
+        assertEquals(template1, retrievedTemplate.get());
+
+        TemplateInfo templateInfo2 = TemplateInfo.newBuilder()
+            .setName("template-instance2")
+            .build();
+        Template template2 = templatesDao.createTemplate(templateInfo2);
+
+        templatesDao.setOrUpdateHeadroomTemplateForCluster(groupId, template2.getId());
+
+        retrievedTemplate =
+            templatesDao.getClusterHeadroomTemplateForGroup(groupId);
+
+        assertTrue(retrievedTemplate.isPresent());
+        assertEquals(template2, retrievedTemplate.get());
     }
 }

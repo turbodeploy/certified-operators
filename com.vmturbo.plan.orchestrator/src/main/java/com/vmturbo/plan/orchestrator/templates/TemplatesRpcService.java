@@ -24,11 +24,15 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.CreateTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.DeleteTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.DeleteTemplatesByTargetRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.EditTemplateRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.GetHeadroomTemplateRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.GetHeadroomTemplateResponse;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesResponse;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.SingleTemplateResponse;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.UpdateHeadroomTemplateRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.UpdateHeadroomTemplateResponse;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceImplBase;
 import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileDaoImpl;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
@@ -222,6 +226,57 @@ public class TemplatesRpcService extends TemplateServiceImplBase {
             responseObserver.onError(Status.INVALID_ARGUMENT
                 .withDescription(e.getLocalizedMessage())
                 .asException());
+        }
+    }
+
+    @Override
+    public void getHeadroomTemplateForCluster(GetHeadroomTemplateRequest request,
+                                  StreamObserver<GetHeadroomTemplateResponse> responseObserver) {
+        if (!request.hasGroupId()) {
+            final String errMsg = "Group ID is missing.";
+            logger.error(errMsg);
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asRuntimeException());
+            return;
+        }
+
+        try {
+            Optional<Template> template =
+                templatesDao.getClusterHeadroomTemplateForGroup(request.getGroupId());
+            GetHeadroomTemplateResponse.Builder response = GetHeadroomTemplateResponse.newBuilder();
+            template.ifPresent(response::setHeadroomTemplate);
+            responseObserver.onNext(response.build());
+            responseObserver.onCompleted();
+        } catch (DataAccessException e) {
+            logger.error("Failed to headroom because of data access exception: Group `{}`",
+                request.getGroupId(), e);
+            responseObserver.onError(Status.INTERNAL
+                .withDescription(e.getLocalizedMessage()).asException());
+        }
+    }
+
+    @Override
+    public void updateHeadroomTemplateForCluster(UpdateHeadroomTemplateRequest request,
+                                 StreamObserver<UpdateHeadroomTemplateResponse> responseObserver) {
+        if (!request.hasGroupId() || !request.hasTemplateId()) {
+            final String errMsg = "Group ID or cluster headroom template ID is missing.";
+            logger.error(errMsg);
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asRuntimeException());
+            return;
+        }
+
+        logger.info("Updating cluster headroom template ID for group `{}` with `{}`",
+            request.getGroupId(), request.getTemplateId());
+
+        try {
+            templatesDao.setOrUpdateHeadroomTemplateForCluster(request.getGroupId(),
+                request.getTemplateId());
+            responseObserver.onNext(UpdateHeadroomTemplateResponse.getDefaultInstance());
+            responseObserver.onCompleted();
+        } catch (DataAccessException e) {
+            logger.error("Failed to update group because of data access exception: Group `{}`",
+                request.getGroupId(), e);
+            responseObserver.onError(Status.INTERNAL
+                .withDescription(e.getLocalizedMessage()).asException());
         }
     }
 }

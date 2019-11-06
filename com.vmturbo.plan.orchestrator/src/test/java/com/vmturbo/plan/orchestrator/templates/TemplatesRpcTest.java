@@ -5,9 +5,13 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -18,7 +22,9 @@ import java.util.Set;
 import com.google.common.collect.Sets;
 
 import io.grpc.Status.Code;
+import io.grpc.StatusRuntimeException;
 
+import org.jooq.exception.DataAccessException;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -29,17 +35,16 @@ import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfile;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.CreateTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.DeleteTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.EditTemplateRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.GetHeadroomTemplateRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.GetHeadroomTemplateResponse;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesRequest;
-import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory;
-import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.SingleTemplateResponse;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
-import com.vmturbo.common.protobuf.plan.TemplateDTO.Template.Type;
-import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
-import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.UpdateHeadroomTemplateRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.UpdateHeadroomTemplateResponse;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
@@ -273,5 +278,131 @@ public class TemplatesRpcTest {
         when(templatesDao.deleteTemplateById(123)).thenReturn(template);
         Template result = templateServiceBlockingStub.deleteTemplate(request);
         assertEquals(result, template);
+    }
+
+    /**
+     * Tests getting the template for a cluster.
+     */
+    @Test
+    public void testGetHeadroomTemplateForCluster() {
+        final long groupId = 5L;
+        final GetHeadroomTemplateRequest request = GetHeadroomTemplateRequest.newBuilder()
+            .setGroupId(groupId).build();
+
+        Template template = Template.newBuilder()
+            .setId(123)
+            .setTemplateInfo(TemplateInfo.newBuilder().setName("test").build())
+            .build();
+
+        when(templatesDao.getClusterHeadroomTemplateForGroup(groupId))
+            .thenReturn(Optional.of(template));
+
+        GetHeadroomTemplateResponse result = templateServiceBlockingStub
+            .getHeadroomTemplateForCluster(request);
+
+        assertEquals(template, result.getHeadroomTemplate());
+    }
+
+    /**
+     * Tests getting the template for a cluster when the request does not have
+     * any group id.
+     */
+    @Test
+    public void testGetHeadroomTemplateForClusterNoGroupId() {
+        final GetHeadroomTemplateRequest request = GetHeadroomTemplateRequest.newBuilder()
+            .build();
+
+        try {
+            templateServiceBlockingStub
+                .getHeadroomTemplateForCluster(request);
+        } catch (StatusRuntimeException exception) {
+            assertThat(exception, GrpcRuntimeExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
+                .descriptionContains("Group ID is missing"));
+            return;
+        }
+        fail("exception was expected");
+    }
+
+    /**
+     * Tests getting the template for a cluster when there is data access exception.
+     */
+    @Test
+    public void testGetHeadroomTemplateForClusterDAException() {
+        final long groupId = 5L;
+        final GetHeadroomTemplateRequest request = GetHeadroomTemplateRequest.newBuilder()
+            .setGroupId(groupId).build();
+
+        when(templatesDao.getClusterHeadroomTemplateForGroup(groupId))
+            .thenThrow(new DataAccessException("ERR1"));
+
+        try {
+            templateServiceBlockingStub
+                .getHeadroomTemplateForCluster(request);
+        } catch (StatusRuntimeException exception) {
+            assertThat(exception, GrpcRuntimeExceptionMatcher.hasCode(Code.INTERNAL)
+                .descriptionContains("ERR1"));
+            return;
+        }
+        fail("exception was expected");
+    }
+
+    /**
+     * Tests updating the template for a cluster.
+     */
+    @Test
+    public void testUpdateHeadroomTemplateForCluster() {
+        final long groupId = 5L;
+        final long templateId = 10;
+        final UpdateHeadroomTemplateRequest request = UpdateHeadroomTemplateRequest.newBuilder()
+            .setGroupId(groupId).setTemplateId(templateId).build();
+
+        UpdateHeadroomTemplateResponse result =
+            templateServiceBlockingStub.updateHeadroomTemplateForCluster(request);
+
+        verify(templatesDao).setOrUpdateHeadroomTemplateForCluster(eq(groupId), eq(templateId));
+    }
+
+    /**
+     * Tests updating headroom template when no template id has been set.
+     */
+    @Test
+    public void testUpdateHeadroomTemplateForClusterNoTemplateId() {
+        final long groupId = 5L;
+        final UpdateHeadroomTemplateRequest request = UpdateHeadroomTemplateRequest.newBuilder()
+            .setGroupId(groupId).build();
+
+        try {
+            templateServiceBlockingStub
+                .updateHeadroomTemplateForCluster(request);
+        } catch (StatusRuntimeException exception) {
+            assertThat(exception, GrpcRuntimeExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
+                .descriptionContains("template"));
+            return;
+        }
+        fail("exception was expected");
+    }
+
+    /**
+     * Tests setting the template id for a cluster when there is data access exception.
+     */
+    @Test
+    public void testUpdateHeadroomTemplateForClusterDAException() {
+        final long groupId = 5L;
+        final long templateId = 10;
+        final UpdateHeadroomTemplateRequest request = UpdateHeadroomTemplateRequest.newBuilder()
+            .setGroupId(groupId).setTemplateId(templateId).build();
+
+        doThrow(new DataAccessException("ERR1")).when(templatesDao)
+            .setOrUpdateHeadroomTemplateForCluster(groupId, templateId);
+
+        try {
+            templateServiceBlockingStub
+                .updateHeadroomTemplateForCluster(request);
+        } catch (StatusRuntimeException exception) {
+            assertThat(exception, GrpcRuntimeExceptionMatcher.hasCode(Code.INTERNAL)
+                .descriptionContains("ERR1"));
+            return;
+        }
+        fail("exception was expected");
     }
 }

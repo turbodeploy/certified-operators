@@ -236,6 +236,30 @@ message DeleteTemplateRequest {
     optional int64 template_id = 1;
 }
 
+// Request for getting the headroom template for a cluster
+message GetHeadroomTemplateRequest {
+    // Id of the group for which we need the headroom template
+    optional int64 group_id = 1;
+}
+
+// Response for getting the headroom template for a cluster
+message GetHeadroomTemplateResponse {
+    // The headroom template for the cluster
+    optional Template headroom_template = 1;
+}
+
+// Request for updating the headroom template for a cluster
+message UpdateHeadroomTemplateRequest {
+    // Id of the group for which we need the headroom template
+    optional int64 group_id = 1;
+    // Id of the template associated to the group
+    optional int64 template_id = 2;
+}
+
+// Response for updating the headroom template for a cluster
+message UpdateHeadroomTemplateResponse {
+}
+
 message GetTemplatesResponse {
     // The templates that matched the filter in the request, as well as their associated
     // deployment profiles, if requested.
@@ -269,6 +293,14 @@ service TemplateService {
 
     // Delete the existing template
     rpc DeleteTemplate(DeleteTemplateRequest) returns (Template);
+
+    // Get headroom template for cluster
+    rpc GetHeadroomTemplateForCluster(GetHeadroomTemplateRequest)
+        returns (GetHeadroomTemplateResponse);
+
+    // Updates the headroom template for a group
+    rpc UpdateHeadroomTemplateForCluster(UpdateHeadroomTemplateRequest)
+        returns (UpdateHeadroomTemplateResponse);
 }
 
 // Get all template specs
