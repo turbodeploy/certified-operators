@@ -80,7 +80,7 @@ public class DataTransfer {
      */
     @VisibleForTesting
     static String BASE_PATH = System.getProperty("datatransfer.base",
-                                                 "/home/turbonomic/data/transfer");
+                                                 "/tmp/transfer");
 
     /**
      * The execution thread.

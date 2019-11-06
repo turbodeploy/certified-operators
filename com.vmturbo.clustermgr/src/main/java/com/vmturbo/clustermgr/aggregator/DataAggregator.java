@@ -38,7 +38,7 @@ public class DataAggregator {
      */
     @VisibleForTesting
     static String BASE_PATH = System.getProperty("aggregator.base",
-                                                 "/home/turbonomic/data/datapoint");
+                                                 "/tmp/datapoint");
 
     /**
      * The logger.
