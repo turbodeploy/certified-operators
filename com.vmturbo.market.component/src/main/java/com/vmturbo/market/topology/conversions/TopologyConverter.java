@@ -1907,13 +1907,15 @@ public class TopologyConverter {
         }
         final long id = shoppingListId++;
         // Check if the provider of the shopping list is UNKNOWN. If true, set movable false.
-        final boolean isProviderUnknown = skippedEntities.containsKey(providerOid) &&
-            skippedEntities.get(providerOid).getEntityState() == TopologyDTO.EntityState.UNKNOWN;
-        if (isProviderUnknown) {
-            logger.debug("Making movable false for shoppingList of entity {} which has provider {} in UNKNOWN state",
+        final boolean isProviderUnknownOrFailover = skippedEntities.containsKey(providerOid) &&
+                (skippedEntities.get(providerOid).getEntityState() == TopologyDTO.EntityState.UNKNOWN
+                || skippedEntities.get(providerOid).getEntityState() == EntityState.FAILOVER);
+        if (isProviderUnknownOrFailover) {
+            logger.debug("Making movable false for shoppingList of entity {} which has provider " +
+                "{} in UNKNOWN/FAILOVER state",
                 buyer.getDisplayName(), skippedEntities.get(providerOid).getDisplayName());
         }
-        final boolean isMovable = !isProviderUnknown && (commBoughtGrouping.hasMovable()
+        final boolean isMovable = !isProviderUnknownOrFailover && (commBoughtGrouping.hasMovable()
             ? commBoughtGrouping.getMovable()
             : AnalysisUtil.MOVABLE_TYPES.contains(entityType));
         // if the buyer of the shopping list is in control state(controllable = false), or if the

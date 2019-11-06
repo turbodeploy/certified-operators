@@ -561,6 +561,30 @@ public class TopologyConverterToMarketTest {
     }
 
     /**
+     * Shopping lists with FAILOVER providers are movable false.
+     */
+    @Test
+    public void testShoppingListsWithFailoverProviderNotMovable() {
+        TopologyDTO.TopologyEntityDTO failOverProvider = TopologyDTO.TopologyEntityDTO.newBuilder()
+                .setOid(1005L).setEntityType(2).setEntityState(EntityState.FAILOVER).build();
+        TopologyEntityDTO vmConsumer = TopologyEntityDTO.newBuilder()
+                .setEntityType(10)
+                .setOid(123)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setMovable(true)
+                        .setProviderId(1005L)
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                .setCommodityType(CommodityType.newBuilder()
+                                        .setType(CommodityDTO.CommodityType.CPU_VALUE))))
+                .build();
+        TraderTO vmTrader = convertToMarketTO(Sets.newHashSet(failOverProvider, vmConsumer), REALTIME_TOPOLOGY_INFO).stream()
+                .filter(t -> t.getOid() == 123L)
+                .findFirst()
+                .get();
+        assertFalse(vmTrader.getShoppingLists(0).getMovable());
+    }
+
+    /**
      * If the fields in Analysis setting have been set, they will be directly used in trader settings.
      */
     @Test
