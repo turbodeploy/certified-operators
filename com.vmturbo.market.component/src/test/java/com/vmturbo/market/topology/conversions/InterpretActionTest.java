@@ -130,8 +130,8 @@ public class InterpretActionTest {
     public void testCommodityIdsAreInvertible() {
         final TopologyConverter converter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                AnalysisUtil.QUOTE_FACTOR,
-                AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                MarketAnalysisUtils.QUOTE_FACTOR,
+                MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory);
 
         final CommodityType segmentationFoo = CommodityType.newBuilder()
@@ -171,7 +171,7 @@ public class InterpretActionTest {
             ImmutableMap.of(modelSeller, entity(modelSeller, modelType, EnvironmentType.ON_PREM));
         final TopologyConverter converter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory);
         CommodityDTOs.CommoditySpecificationTO cs = converter.getCommodityConverter().commoditySpecification(CommodityType.newBuilder()
                 .setKey("Seg")
@@ -226,7 +226,7 @@ public class InterpretActionTest {
 
         final TopologyConverter converter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory);
 
         final Set<TraderTO> traderTOs =
@@ -329,7 +329,7 @@ public class InterpretActionTest {
                 entityDto.getOid(), entity(entityDto.getOid(), entityDto.getEntityType(), EnvironmentType.CLOUD));
         final TopologyConverter converter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory);
 
         final Set<TraderTO> traderTOs =
@@ -364,7 +364,7 @@ public class InterpretActionTest {
                 entityDto.getOid(), entity(entityDto.getOid(), entityDto.getEntityType(), EnvironmentType.CLOUD));
         final TopologyConverter converter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory);
 
         final Set<TraderTO> traderTOs =
@@ -395,7 +395,7 @@ public class InterpretActionTest {
             ImmutableMap.of(modelSeller, entity(modelSeller, modelType, EnvironmentType.CLOUD));
         final TopologyConverter converter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory);
         CommodityDTOs.CommoditySpecificationTO cs = converter.getCommodityConverter()
                 .commoditySpecification(CommodityType.newBuilder()
@@ -428,7 +428,7 @@ public class InterpretActionTest {
         final CommodityConverter commConverter = mock(CommodityConverter.class);
         final TopologyConverter converter = spy(
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, commConverter, CommodityIndex.newFactory(), tierExcluderFactory));
         Mockito.doReturn(Optional.of(topologyCommodity1))
                .when(commConverter).economyToTopologyCommodity(eq(economyCommodity1));
@@ -465,7 +465,7 @@ public class InterpretActionTest {
         final CommodityConverter commConverter = mock(CommodityConverter.class);
         final TopologyConverter converter = spy(
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, commConverter, CommodityIndex.newFactory(), tierExcluderFactory));
         // Insert the commodity type into the converter's mapping
         final CommodityType expectedCommodityType = CommodityType.newBuilder()
@@ -519,7 +519,7 @@ public class InterpretActionTest {
         final CommodityConverter commConverter = mock(CommodityConverter.class);
         final TopologyConverter converter = spy(
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, commConverter, CommodityIndex.newFactory(), tierExcluderFactory));
         Mockito.doReturn(Optional.of(topologyCommodity1))
                 .when(commConverter).economyToTopologyCommodity(eq(economyCommodity1));

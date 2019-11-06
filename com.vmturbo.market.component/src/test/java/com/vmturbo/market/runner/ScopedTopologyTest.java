@@ -71,6 +71,7 @@ import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
+import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.market.topology.conversions.CommodityIndex;
 import com.vmturbo.market.topology.conversions.TierExcluder;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
@@ -129,8 +130,8 @@ public class ScopedTopologyTest {
     public void setup() throws FileNotFoundException, InvalidProtocolBufferException {
         topologyDTOBuilderSet = Objects.requireNonNull(readTopologyFromJsonFile());
         IdentityGenerator.initPrefix(ID_GENERATOR_PREFIX);
-        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(AnalysisUtil.QUOTE_FACTOR,
-            AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
+            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
             Collections.emptyMap())
             .setIncludeVDC(INCLUDE_VDC)
             .build();
@@ -318,8 +319,8 @@ public class ScopedTopologyTest {
             .map(dtoBuilder -> dtoBuilder.build()).collect(Collectors.toSet());
 
         // Act
-        AnalysisConfig.Builder configBuilder = AnalysisConfig.newBuilder(AnalysisUtil.QUOTE_FACTOR,
-            AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
+        AnalysisConfig.Builder configBuilder = AnalysisConfig.newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
+            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
             Collections.emptyMap());
         when(analysisFactory.newAnalysis(eq(topologyInfo), eq(topologyDTOs), any()))
             .thenAnswer(invocation -> {

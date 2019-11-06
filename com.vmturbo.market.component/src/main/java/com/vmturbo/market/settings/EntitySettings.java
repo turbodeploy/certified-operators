@@ -1,7 +1,7 @@
 package com.vmturbo.market.settings;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.commons.analysis.AnalysisUtil;
+import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 
 /**
  * Entity settings.
@@ -19,7 +19,7 @@ public class EntitySettings {
         ENABLE_PROVISION(false) {
             @Override
             public boolean value(TopologyEntityDTO entity) {
-                return AnalysisUtil.CLONABLE_TYPES.contains(entity.getEntityType());
+                return MarketAnalysisUtils.CLONABLE_TYPES.contains(entity.getEntityType());
             }
         },
         ENABLE_SUSPEND(true),

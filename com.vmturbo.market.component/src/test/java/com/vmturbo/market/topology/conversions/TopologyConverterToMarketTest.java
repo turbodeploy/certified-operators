@@ -58,7 +58,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
@@ -75,8 +74,12 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
+import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.PriceFunctionTypeCase;
+import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.UpdatingFunctionTypeCase;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+
+import jersey.repackaged.com.google.common.collect.Lists;
 
 /**
  * Unit tests for {@link TopologyConverter}.
@@ -133,8 +136,8 @@ public class TopologyConverterToMarketTest {
     public void testConvertCommodityCloneWithNewType() {
         TopologyDTO.TopologyEntityDTO entityDto = DTOWithProvisionedAndCloneWithNewTypeComm();
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-            AnalysisUtil.QUOTE_FACTOR,
-            AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+            MarketAnalysisUtils.QUOTE_FACTOR,
+            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             marketPriceTable,
             ccd,
             CommodityIndex.newFactory(), tierExcluderFactory);
@@ -163,8 +166,8 @@ public class TopologyConverterToMarketTest {
     public void testProvisionedCommodityResizable() {
         TopologyDTO.TopologyEntityDTO entityDto = DTOWithProvisionedAndCloneWithNewTypeComm();
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-            AnalysisUtil.QUOTE_FACTOR,
-            AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+            MarketAnalysisUtils.QUOTE_FACTOR,
+            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory);
         TraderTO traderTO = converter.convertToMarket(ImmutableMap.of(entityDto.getOid(), entityDto)).iterator().next();
         assertFalse(traderTO.getCommoditiesSold(0).getSettings().getResizable());
@@ -376,8 +379,8 @@ public class TopologyConverterToMarketTest {
         // Since we create a new TopologyConverter here that's fine, as long
         // as the implementation of the ID allocator doesn't change.
         final TopologyConverter converter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, AnalysisUtil.QUOTE_FACTOR,
-                AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, MarketAnalysisUtils.QUOTE_FACTOR,
+                MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable,
                 ccd,
                 CommodityIndex.newFactory(), tierExcluderFactory);
@@ -407,8 +410,8 @@ public class TopologyConverterToMarketTest {
     @Nonnull
     private Set<TraderTO> convertToMarketTO(@Nonnull final Set<TopologyDTO.TopologyEntityDTO> topology,
                                          @Nonnull final TopologyInfo topologyInfo) {
-        return new TopologyConverter(topologyInfo, true, AnalysisUtil.QUOTE_FACTOR,
-            AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+        return new TopologyConverter(topologyInfo, true, MarketAnalysisUtils.QUOTE_FACTOR,
+            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             marketPriceTable,
             ccd, CommodityIndex.newFactory(), tierExcluderFactory)
             .convertToMarket(topology.stream()
@@ -428,8 +431,8 @@ public class TopologyConverterToMarketTest {
                 messageFromJsonFile("protobuf/messages/vm-2.dto.json"))
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
         Set<TraderTO> traderTOs = new TopologyConverter(REALTIME_TOPOLOGY_INFO, false,
-            AnalysisUtil.QUOTE_FACTOR,
-            AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+            MarketAnalysisUtils.QUOTE_FACTOR,
+            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             marketPriceTable,
             ccd, CommodityIndex.newFactory(), tierExcluderFactory)
             .convertToMarket(topologyDTOs);
@@ -589,8 +592,8 @@ public class TopologyConverterToMarketTest {
             is(((70.0f - (20.0f / 2.0f)) / 100.0f)));
         assertThat(trader.getSettings().getMaxDesiredUtilization(),
             is(((70.0f + (20.0f / 2.0f)) / 100.0f)));
-        assertEquals(trader.getSettings().getQuoteFactor(), AnalysisUtil.QUOTE_FACTOR, 0.0001);
-        assertEquals(trader.getSettings().getMoveCostFactor(), AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR, 0.0001);
+        assertEquals(trader.getSettings().getQuoteFactor(), MarketAnalysisUtils.QUOTE_FACTOR, 0.0001);
+        assertEquals(trader.getSettings().getMoveCostFactor(), MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR, 0.0001);
 
         final TopologyEntityDTO oppositeEntityDTO = TopologyEntityDTO.newBuilder()
             .setEntityType(1)
@@ -612,7 +615,7 @@ public class TopologyConverterToMarketTest {
         assertTrue(traderTwo.getSettings().getIsShopTogether());
         assertTrue(traderTwo.getSettings().getClonable());
         assertTrue(traderTwo.getSettings().getSuspendable());
-        assertEquals(traderTwo.getSettings().getQuoteFactor(), AnalysisUtil.QUOTE_FACTOR, epsilon);
+        assertEquals(traderTwo.getSettings().getQuoteFactor(), MarketAnalysisUtils.QUOTE_FACTOR, epsilon);
     }
 
     @Test
@@ -747,7 +750,7 @@ public class TopologyConverterToMarketTest {
                                         .setType(CommodityDTO.CommodityType.CPU_VALUE))))
                 .build();
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-            AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+            MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory);
         Map<Long, TopologyEntityDTO> topology = new HashMap<>();
         topology.put(pmEntityDTO.getOid(), pmEntityDTO);
@@ -969,8 +972,8 @@ public class TopologyConverterToMarketTest {
                 .build();
         final TopologyConverter converter =
                 new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                    AnalysisUtil.QUOTE_FACTOR,
-                    AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                    MarketAnalysisUtils.QUOTE_FACTOR,
+                    MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                     marketPriceTable,
                     ccd,
                     CommodityIndex.newFactory(), tierExcluderFactory);
@@ -1085,7 +1088,7 @@ public class TopologyConverterToMarketTest {
                         ConnectionType.OWNS_CONNECTION, EntityType.VIRTUAL_MACHINE_VALUE)),
                 null);
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory);
 
         final Set<TraderTO> traders =
@@ -1126,7 +1129,7 @@ public class TopologyConverterToMarketTest {
                         ConnectionType.OWNS_CONNECTION, EntityType.VIRTUAL_MACHINE_VALUE)),
                 null);
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory);
 
         final Set<TraderTO> traders =
@@ -1222,7 +1225,7 @@ public class TopologyConverterToMarketTest {
                         .build())
                 .build();
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory);
         Map<Long, TopologyEntityDTO> entityMap = new HashMap<>();
         entityMap.put(entityDTO.getOid(), entityDTO);
@@ -1231,5 +1234,63 @@ public class TopologyConverterToMarketTest {
         CommoditySpecificationTO csTO = converter.getCommSpecForCommodity(mem);
         assertEquals(entityTO.getCommoditiesSold(0).getSpecification().getBaseType(), csTO.getBaseType());
         assertEquals(entityTO.getCommoditiesSold(0).getSpecification().getType(), csTO.getType());
+    }
+
+    /**
+     * Setup a host as a {@link TopologyEntityDTO} with flow commodities sold
+     * and check the price function and update function applied to commodities.
+     */
+    @Test
+    public void testExternalPfForNCM() {
+        // Create a VM TopoEntityDTO with flow commodities
+        List<CommoditySoldDTO> flows = Lists.newArrayList();
+        CommodityType randomBought = CommodityType.newBuilder().setType(1).build();
+        CommodityType flow0 =
+                        CommodityType.newBuilder().setType(CommodityDTO.CommodityType.FLOW_VALUE)
+                                        .setKey(MarketAnalysisUtils.FLOW_ZERO_KEY).build();
+
+        CommodityType flow1 =
+                        CommodityType.newBuilder().setType(CommodityDTO.CommodityType.FLOW_VALUE)
+                                        .setKey(MarketAnalysisUtils.FLOW_ONE_KEY).build();
+        CommodityType flow2 =
+                        CommodityType.newBuilder().setType(CommodityDTO.CommodityType.FLOW_VALUE)
+                                        .setKey(MarketAnalysisUtils.FLOW_TWO_KEY).build();
+        flows.add(CommoditySoldDTO.newBuilder().setCommodityType(flow0).build());
+        flows.add(CommoditySoldDTO.newBuilder().setCommodityType(flow1).build());
+        flows.add(CommoditySoldDTO.newBuilder().setCommodityType(flow2).build());
+
+        final TopologyEntityDTO pm = TopologyEntityDTO.newBuilder()
+                        .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE).setOid(10)
+                        // commodities sold so it is not top of the supply chain
+                        .addAllCommoditySoldList(flows)
+                        // commodities bought so it is not bottom of the supply chain
+                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider
+                                        .newBuilder().setProviderId(12L)
+                                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                                        .setCommodityType(randomBought)))
+                        .build();
+
+        // Call convertToMarket
+        TraderTO pmTrader = convertToMarketTO(Sets.newHashSet(pm), REALTIME_TOPOLOGY_INFO)
+                        .iterator().next();
+
+        // Get all commodities with external and constant price functions
+        List<CommoditySoldTO> externalPfComms = pmTrader.getCommoditiesSoldList().stream()
+                        .filter(commSold -> commSold.getSettings().getPriceFunction()
+                                        .getPriceFunctionTypeCase() == PriceFunctionTypeCase.EXTERNAL_PRICE_FUNCTION)
+                        .collect(Collectors.toList());
+        List<CommoditySoldTO> constantPfComms = pmTrader.getCommoditiesSoldList().stream()
+                        .filter(commSold -> commSold.getSettings().getPriceFunction()
+                                        .getPriceFunctionTypeCase() == PriceFunctionTypeCase.CONSTANT)
+                        .collect(Collectors.toList());
+        // Get all commodities with external update function
+        List<CommoditySoldTO> externalUfComms = pmTrader.getCommoditiesSoldList().stream()
+                        .filter(commSold -> commSold.getSettings().getUpdateFunction()
+                                        .getUpdatingFunctionTypeCase() == UpdatingFunctionTypeCase.EXTERNAL_UPDATE)
+                        .collect(Collectors.toList());
+        // check the price and update function associated with flows
+        assertTrue(externalPfComms.size() == 1);
+        assertTrue(constantPfComms.size() == 2);
+        assertTrue(externalUfComms.size() == 3);
     }
 }

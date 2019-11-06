@@ -50,7 +50,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
@@ -61,6 +60,7 @@ import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.Builder;
 import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle;
+import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.market.topology.conversions.CommodityIndex;
 import com.vmturbo.market.topology.conversions.TierExcluder;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
@@ -212,7 +212,7 @@ public class TopologyEntitiesHandlerTest {
                         .map(TopologyEntityDTO.Builder::build)
                         .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
         TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                        AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                        MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                         marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory);
         Set<TraderTO> economyDTOs = converter.convertToMarket(topoDTOs);
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyContextId(7L)
@@ -222,8 +222,8 @@ public class TopologyEntitiesHandlerTest {
         mockCommsToAdjustForOverhead(analysis, converter);
         when(analysis.getReplayActions()).thenReturn(replayActions);
         final AnalysisConfig analysisConfig = AnalysisConfig
-                        .newBuilder(AnalysisUtil.QUOTE_FACTOR,
-                                        AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                        .newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
+                                        MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                                         SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap())
                         .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                         .setRightsizeUpperWatermark(rightsizeUpperWatermark)
@@ -287,7 +287,7 @@ public class TopologyEntitiesHandlerTest {
         List<TopologyEntityDTO.Builder> topoDTOs =
                         SdkToTopologyEntityConverter.convertToTopologyEntityDTOs(map);
         TopologyConverter topoConverter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                        AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                        MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                         marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory);
 
         Set<TraderTO> traderDTOs = topoConverter.convertToMarket(topoDTOs.stream()
@@ -563,8 +563,8 @@ public class TopologyEntitiesHandlerTest {
         mockCommsToAdjustForOverhead(analysis, converter);
 
         final AnalysisConfig analysisConfig = AnalysisConfig
-                        .newBuilder(AnalysisUtil.QUOTE_FACTOR,
-                                        AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                        .newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
+                                        MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                                         SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap())
                         .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                         .setRightsizeUpperWatermark(rightsizeUpperWatermark)
@@ -667,8 +667,8 @@ public class TopologyEntitiesHandlerTest {
             mockCommsToAdjustForOverhead(analysis, converter);
 
             final AnalysisConfig analysisConfig = AnalysisConfig
-                            .newBuilder(AnalysisUtil.QUOTE_FACTOR,
-                                            AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                            .newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
+                                            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                                             SuspensionsThrottlingConfig.DEFAULT,
                                             Collections.emptyMap())
                             .setRightsizeLowerWatermark(rightsizeLowerWatermark)
@@ -692,7 +692,7 @@ public class TopologyEntitiesHandlerTest {
     }
 
     private void mockCommsToAdjustForOverhead(Analysis analysis, TopologyConverter converter) {
-        Iterator<Integer> iter = AnalysisUtil.COMM_TYPES_TO_ALLOW_OVERHEAD.iterator();
+        Iterator<Integer> iter = MarketAnalysisUtils.COMM_TYPES_TO_ALLOW_OVERHEAD.iterator();
         while (iter.hasNext()) {
             int type = iter.next();
             TopologyDTO.CommodityType commType = TopologyDTO.CommodityType.newBuilder().setType(type).build();
@@ -776,7 +776,7 @@ public class TopologyEntitiesHandlerTest {
         editTopologyDTOMockPipleine(topoDTOs);
 
         TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory);
         Set<TraderTO> economyDTOs = converter.convertToMarket(topoDTOs);
         mockCommsToAdjustForOverhead(analysis, converter);
@@ -784,8 +784,8 @@ public class TopologyEntitiesHandlerTest {
                         .setTopologyType(TopologyType.PLAN).setTopologyId(1L).build();
 
         final AnalysisConfig analysisConfig = AnalysisConfig
-                        .newBuilder(AnalysisUtil.QUOTE_FACTOR,
-                                        AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                        .newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
+                                        MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                                         SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap())
                         .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                         .setRightsizeUpperWatermark(rightsizeUpperWatermark)

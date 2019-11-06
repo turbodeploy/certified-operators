@@ -26,6 +26,7 @@ import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.market.runner.Analysis;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
+import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.Activate;
@@ -359,7 +360,7 @@ public class TopologyEntitiesHandler {
     }
 
     private static void populateCommToAdjustOverheadInClone(Topology topology, Analysis analysis) {
-        AnalysisUtil.COMM_TYPES_TO_ALLOW_OVERHEAD.stream()
+        MarketAnalysisUtils.COMM_TYPES_TO_ALLOW_OVERHEAD.stream()
                 .map(type -> TopologyDTO.CommodityType.newBuilder().setType(type).build())
                 .map(analysis::getCommSpecForCommodity)
                 .map(cs -> new CommoditySpecification(cs.getType(), cs.getBaseType(), 0, Integer.MAX_VALUE))

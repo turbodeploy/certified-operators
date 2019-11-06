@@ -10,7 +10,6 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
 /**
  * Any constants which need to be shared across the classes in TopologyConversions can be

@@ -6,7 +6,6 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.anySet;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
@@ -42,7 +41,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
@@ -56,6 +54,7 @@ import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
+import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.market.topology.conversions.TierExcluder;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
@@ -110,8 +109,8 @@ public class MarketRunnerTest {
 
         topologyContextId += 100;
 
-        AnalysisConfig.Builder configBuilder = AnalysisConfig.newBuilder(AnalysisUtil.QUOTE_FACTOR,
-            AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
+        AnalysisConfig.Builder configBuilder = AnalysisConfig.newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
+            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
             Collections.emptyMap());
         doAnswer(invocation -> {
             TopologyInfo topologyInfo = invocation.getArgumentAt(0, TopologyInfo.class);

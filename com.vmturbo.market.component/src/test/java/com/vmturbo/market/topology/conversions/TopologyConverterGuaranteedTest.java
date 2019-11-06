@@ -142,7 +142,7 @@ public class TopologyConverterGuaranteedTest {
     public void testIncludeVDCs() {
         TopologyConverter converter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory);
         Set<TraderTO> traders = converter.convertToMarket(entities);
         assertEquals(6, traders.size());

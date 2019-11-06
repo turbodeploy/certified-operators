@@ -62,6 +62,7 @@ import com.vmturbo.market.runner.Analysis.AnalysisState;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
+import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.market.topology.conversions.TierExcluder;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
@@ -244,7 +245,7 @@ public class AnalysisDebuggingTest {
     @Nonnull
     private Analysis analysisFromInput(@Nonnull final AnalysisInput analysisInput) {
         AnalysisConfig.Builder analysisConfig = AnalysisConfig.newBuilder(analysisInput.getQuoteFactor(),
-            AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             analysisInput.getSuspensionThrottlingPerCluster() ? SuspensionsThrottlingConfig.CLUSTER : SuspensionsThrottlingConfig.DEFAULT,
                     analysisInput.getSettingsMap())
                 .setIncludeVDC(analysisInput.getIncludeVdc())

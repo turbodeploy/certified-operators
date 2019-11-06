@@ -2,7 +2,6 @@ package com.vmturbo.market.topology.conversions;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -26,7 +25,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.market.topology.conversions.ConversionErrorCounts.ErrorCategory;
-import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO.Builder;
@@ -84,8 +82,8 @@ public class CommodityConverter {
                 .filter(commSold -> commSold.getActive())
                 .filter(commSold -> !isBicliqueCommodity(commSold.getCommodityType()))
                 .filter(commSold -> includeGuaranteedBuyer
-                        || !AnalysisUtil.GUARANTEED_SELLER_TYPES.contains(topologyDTO.getEntityType())
-                        || !AnalysisUtil.VDC_COMMODITY_TYPES.contains(commSold.getCommodityType().getType()))
+                        || !MarketAnalysisUtils.GUARANTEED_SELLER_TYPES.contains(topologyDTO.getEntityType())
+                        || !MarketAnalysisUtils.VDC_COMMODITY_TYPES.contains(commSold.getCommodityType().getType()))
                 .map(commoditySoldDTO -> createCommonCommoditySoldTO(commoditySoldDTO, topologyDTO))
                 .collect(Collectors.toList());
         return list;
@@ -142,7 +140,7 @@ public class CommodityConverter {
             }
             used = 0f;
         } else if (used > capacity) {
-            if (AnalysisUtil.COMMODITIES_TO_CAP.contains(type)) {
+            if (MarketAnalysisUtils.COMMODITIES_TO_CAP.contains(type)) {
                 float cappedUsed = capacity * TopologyConversionConstants.CAPACITY_FACTOR;
                 conversionErrorCounts.recordError(ErrorCategory.USED_GT_CAPACITY_MEDIATION,
                                                   comName);
@@ -151,15 +149,15 @@ public class CommodityConverter {
                              + " This is a mediation error and should be looked at.",
                              comName, dto.getDisplayName(), used, capacity, cappedUsed);
                 used = cappedUsed;
-            } else if (AnalysisUtil.VALID_COMMODITIES_TO_CAP.contains(type)) {
+            } else if (MarketAnalysisUtils.VALID_COMMODITIES_TO_CAP.contains(type)) {
                 float cappedUsed = capacity * TopologyConversionConstants.CAPACITY_FACTOR;
                 logger.trace("Used > Capacity for {} of entity {}. "
                              + " Used: {}, Capacity: {}, Capped used: {}."
                              + " Capping the used to be less than capacity.",
                              comName, dto.getDisplayName(), used, capacity, cappedUsed);
                 used = cappedUsed;
-            } else if (!(AnalysisUtil.COMMODITIES_TO_SKIP.contains(type) ||
-                    AnalysisUtil.ACCESS_COMMODITY_TYPES.contains(type))) {
+            } else if (!(MarketAnalysisUtils.COMMODITIES_TO_SKIP.contains(type) ||
+                    MarketAnalysisUtils.ACCESS_COMMODITY_TYPES.contains(type))) {
                 conversionErrorCounts.recordError(ErrorCategory.USED_GT_CAPACITY, comName);
                 logger.trace("Used > Capacity for {} of entity {}. Used: {}, Capacity: {}",
                              comName, dto.getDisplayName(), used, capacity);
@@ -167,7 +165,7 @@ public class CommodityConverter {
         }
         final CommodityDTOs.CommoditySoldSettingsTO economyCommSoldSettings =
                 CommodityDTOs.CommoditySoldSettingsTO.newBuilder()
-                        .setResizable(resizable && !AnalysisUtil.PROVISIONED_COMMODITIES.contains(type)
+                        .setResizable(resizable && !MarketAnalysisUtils.PROVISIONED_COMMODITIES.contains(type)
                                 && !TopologyConversionUtils.isEntityConsumingCloud(dto))
                         .setCapacityIncrement(topologyCommSold.getCapacityIncrement())
                         .setCapacityUpperBound(capacity)
@@ -247,12 +245,11 @@ public class CommodityConverter {
             @Nonnull CommodityType commodityType,
             float capacity,
             float used, @Nonnull UpdatingFunctionTO uf) {
-        final int type = commodityType.getType();
         final CommodityDTOs.CommoditySoldSettingsTO economyCommSoldSettings =
                 CommodityDTOs.CommoditySoldSettingsTO.newBuilder()
                         .setResizable(false)
                         .setCapacityUpperBound(capacity)
-                        .setPriceFunction(priceFunction(type))
+                        .setPriceFunction(priceFunction(commodityType))
                         .setUpdateFunction(uf)
                         .build();
 
@@ -300,7 +297,7 @@ public class CommodityConverter {
                         .setType(toMarketCommodityId(topologyCommodity))
                         .setBaseType(topologyCommodity.getType())
                         .setDebugInfoNeverUseInCode(commodityDebugInfo(topologyCommodity))
-                        .setCloneWithNewType(AnalysisUtil.CLONE_COMMODITIES_WITH_NEW_TYPE
+                        .setCloneWithNewType(MarketAnalysisUtils.CLONE_COMMODITIES_WITH_NEW_TYPE
                                 .contains(topologyCommodity.getType()))
                         .build();
         commoditySpecMap.put(getKeyFromCommoditySpecification(economyCommodity), topologyCommodity);
@@ -391,20 +388,22 @@ public class CommodityConverter {
      * @return a (reusable) instance of PriceFunctionTO to use in the commodity sold settings.
      */
     @Nonnull
-    private static PriceFunctionDTOs.PriceFunctionTO priceFunction(
-            @Nonnull final TopologyDTO.CommoditySoldDTO topologyCommSold) {
-        return AnalysisUtil.priceFunction(topologyCommSold.getCommodityType().getType());
+    private static PriceFunctionDTOs.PriceFunctionTO
+                    priceFunction(@Nonnull final TopologyDTO.CommoditySoldDTO topologyCommSold) {
+        // Call price function with commodity type
+        return priceFunction(topologyCommSold.getCommodityType());
     }
 
     /**
      * Select the right {@link PriceFunctionTO} based on the commodity sold type.
      *
-     * @param commodityType type of commodity for which to add an price function
+     * @param commType a commodity type for which to add a price function
      * @return a (reusable) instance of PriceFunctionTO to use in the commodity sold settings.
      */
     @Nonnull
-    private static PriceFunctionDTOs.PriceFunctionTO priceFunction(int commodityType) {
-        return AnalysisUtil.priceFunction(commodityType);
+    private static PriceFunctionDTOs.PriceFunctionTO priceFunction(CommodityType commType) {
+        // logic to choose correct price function is based on commodity type
+        return MarketAnalysisUtils.priceFunction(commType);
     }
 
     /**
@@ -414,20 +413,20 @@ public class CommodityConverter {
      * @return a (reusable) instance of UpdatingFunctionTO to use in the commodity sold settings.
      */
     @Nonnull
-    private static UpdatingFunctionTO updateFunction(
-            TopologyDTO.CommoditySoldDTO topologyCommSold) {
-        return AnalysisUtil.updateFunction(topologyCommSold.getCommodityType().getType());
+    private static UpdatingFunctionTO
+                    updateFunction(TopologyDTO.CommoditySoldDTO topologyCommSold) {
+        return updateFunction(topologyCommSold.getCommodityType());
     }
 
     /**
      * Select the right {@link UpdatingFunctionTO} based on the commodity sold type.
      *
-     * @param commodityType type of commodity for which to add an updating function
+     * @param commodityType {@link CommodityType} for which to add an updating function
      * @return a (reusable) instance of UpdatingFunctionTO to use in the commodity sold settings.
      */
     @Nonnull
-    private static UpdatingFunctionTO updateFunction(int commodityType) {
-        return AnalysisUtil.updateFunction(commodityType);
+    private static UpdatingFunctionTO updateFunction(CommodityType commodityType) {
+        return MarketAnalysisUtils.updateFunction(commodityType);
     }
 
     /**
@@ -441,7 +440,7 @@ public class CommodityConverter {
     private CommodityDTOs.CommoditySoldTO newBiCliqueCommoditySoldDTO(String bcKey) {
         return CommodityDTOs.CommoditySoldTO.newBuilder()
                 .setSpecification(bcSpec(bcKey))
-                .setSettings(AnalysisUtil.BC_SETTING_TO)
+                .setSettings(MarketAnalysisUtils.BC_SETTING_TO)
                 .build();
     }
 

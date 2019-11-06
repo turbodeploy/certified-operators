@@ -16,11 +16,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
-import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.market.settings.EntitySettings;
 import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class TopologyConversionUtils {
@@ -29,33 +29,37 @@ public class TopologyConversionUtils {
 
     private static final Logger logger = LogManager.getLogger();
 
+    /**
+     * Return state of trader in market analysis based
+     * on state of entity in topology.
+     *
+     * @param entity {@link TopologyEntityDTO} being converted
+     * @return {@link TraderStateTO} for economy
+     */
     @Nonnull
-    public static EconomyDTOs.TraderStateTO traderState(
-            @Nonnull final TopologyEntityDTO entity) {
+    public static EconomyDTOs.TraderStateTO traderState(@Nonnull final TopologyEntityDTO entity) {
         EntityState entityState = entity.getEntityState();
-        return entityState == TopologyDTO.EntityState.POWERED_ON
-                ? EconomyDTOs.TraderStateTO.ACTIVE
-                : entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
-                ? EconomyDTOs.TraderStateTO.IDLE
-                : EconomyDTOs.TraderStateTO.INACTIVE;
+        return entityState == TopologyDTO.EntityState.POWERED_ON ? EconomyDTOs.TraderStateTO.ACTIVE
+                        : entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
+                                        ? EconomyDTOs.TraderStateTO.IDLE
+                                        : EconomyDTOs.TraderStateTO.INACTIVE;
     }
 
     /**
      * Creates {@link TraderSettingsTO.Builder} for any {@link TopologyEntityDTO} entity.
      *
-     * @param entity
-     * @param topology
+     * @param entity {@link TopologyEntityDTO} entity being coverted to trader
+     * @param topology topology map
      * @return {@link TraderSettingsTO.Builder}
      */
-    static TraderSettingsTO.Builder createCommonTraderSettingsTOBuilder(
-            TopologyEntityDTO entity, @Nonnull Map<Long, TopologyEntityDTO> topology) {
+    static TraderSettingsTO.Builder createCommonTraderSettingsTOBuilder(TopologyEntityDTO entity,
+                    @Nonnull Map<Long, TopologyEntityDTO> topology) {
         final boolean shopTogether = entity.getAnalysisSettings().getShopTogether();
-        final EconomyDTOs.TraderSettingsTO.Builder settingsBuilder =
-                EconomyDTOs.TraderSettingsTO.newBuilder()
-                .setMinDesiredUtilization(getMinDesiredUtilization(entity))
-                .setMaxDesiredUtilization(getMaxDesiredUtilization(entity))
-                .setGuaranteedBuyer(isGuaranteedBuyer(entity, topology))
-                .setIsShopTogether(shopTogether);
+        final EconomyDTOs.TraderSettingsTO.Builder settingsBuilder = EconomyDTOs.TraderSettingsTO
+                        .newBuilder().setMinDesiredUtilization(getMinDesiredUtilization(entity))
+                        .setMaxDesiredUtilization(getMaxDesiredUtilization(entity))
+                        .setGuaranteedBuyer(isGuaranteedBuyer(entity, topology))
+                        .setIsShopTogether(shopTogether);
         return settingsBuilder;
     }
 
@@ -64,8 +68,9 @@ public class TopologyConversionUtils {
      */
     public static boolean isEntityConsumingCloud(TopologyEntityDTO entity) {
         return entity.getCommoditiesBoughtFromProvidersList().stream()
-                .anyMatch(g -> TopologyDTOUtil.isTierEntityType(g.getProviderEntityType()));
+                        .anyMatch(g -> TopologyDTOUtil.isTierEntityType(g.getProviderEntityType()));
     }
+
     /**
      * An entity is a guaranteed buyer if it is a VDC that consumes (directly) from
      * storage or PM, or if it is a DPod.
@@ -73,63 +78,57 @@ public class TopologyConversionUtils {
      * @param topologyDTO the entity to examine
      * @return whether the entity is a guaranteed buyer
      */
-    static boolean isGuaranteedBuyer(
-            TopologyDTO.TopologyEntityDTO topologyDTO,
-            @Nonnull Map<Long, TopologyEntityDTO> topology) {
+    static boolean isGuaranteedBuyer(TopologyDTO.TopologyEntityDTO topologyDTO,
+                    @Nonnull Map<Long, TopologyEntityDTO> topology) {
         int entityType = topologyDTO.getEntityType();
         return (entityType == EntityType.VIRTUAL_DATACENTER_VALUE)
-                && topologyDTO.getCommoditiesBoughtFromProvidersList()
-                .stream()
-                .filter(CommoditiesBoughtFromProvider::hasProviderId)
-                .map(CommoditiesBoughtFromProvider::getProviderId)
-                .collect(Collectors.toSet())
-                .stream()
-                .map(topology::get)
-                .map(TopologyDTO.TopologyEntityDTO::getEntityType)
-                .anyMatch(type -> AnalysisUtil.GUARANTEED_SELLER_TYPES.contains(type))
-                || entityType == EntityType.DPOD_VALUE
-                || entityType == EntityType.VIRTUAL_APPLICATION_VALUE;
+                        && topologyDTO.getCommoditiesBoughtFromProvidersList().stream()
+                                        .filter(CommoditiesBoughtFromProvider::hasProviderId)
+                                        .map(CommoditiesBoughtFromProvider::getProviderId)
+                                        .collect(Collectors.toSet()).stream().map(topology::get)
+                                        .map(TopologyDTO.TopologyEntityDTO::getEntityType)
+                                        .anyMatch(type -> MarketAnalysisUtils.GUARANTEED_SELLER_TYPES
+                                                        .contains(type))
+                        || entityType == EntityType.DPOD_VALUE
+                        || entityType == EntityType.VIRTUAL_APPLICATION_VALUE;
     }
 
     @VisibleForTesting
-    static float getMinDesiredUtilization(
-            @Nonnull final TopologyEntityDTO topologyDTO) {
+    static float getMinDesiredUtilization(@Nonnull final TopologyEntityDTO topologyDTO) {
 
         final TopologyEntityDTO.AnalysisSettings analysisSettings =
-                topologyDTO.getAnalysisSettings();
+                        topologyDTO.getAnalysisSettings();
 
-        if (analysisSettings.hasDesiredUtilizationTarget() &&
-                analysisSettings.hasDesiredUtilizationRange()) {
+        if (analysisSettings.hasDesiredUtilizationTarget()
+                        && analysisSettings.hasDesiredUtilizationRange()) {
 
             return limitFloatRange((analysisSettings.getDesiredUtilizationTarget()
                             - (analysisSettings.getDesiredUtilizationRange() / 2.0f)) / 100.0f,
-                    MIN_DESIRED_UTILIZATION_VALUE, MAX_DESIRED_UTILIZATION_VALUE);
+                            MIN_DESIRED_UTILIZATION_VALUE, MAX_DESIRED_UTILIZATION_VALUE);
         } else {
             return EntitySettings.NumericKey.DESIRED_UTILIZATION_MIN.value(topologyDTO);
         }
     }
 
     @VisibleForTesting
-    static float getMaxDesiredUtilization(
-            @Nonnull final TopologyEntityDTO topologyDTO) {
+    static float getMaxDesiredUtilization(@Nonnull final TopologyEntityDTO topologyDTO) {
 
         final TopologyEntityDTO.AnalysisSettings analysisSettings =
-                topologyDTO.getAnalysisSettings();
+                        topologyDTO.getAnalysisSettings();
 
-        if (analysisSettings.hasDesiredUtilizationTarget() &&
-                analysisSettings.hasDesiredUtilizationRange()) {
+        if (analysisSettings.hasDesiredUtilizationTarget()
+                        && analysisSettings.hasDesiredUtilizationRange()) {
 
             return limitFloatRange((analysisSettings.getDesiredUtilizationTarget()
                             + (analysisSettings.getDesiredUtilizationRange() / 2.0f)) / 100.0f,
-                    MIN_DESIRED_UTILIZATION_VALUE, MAX_DESIRED_UTILIZATION_VALUE);
+                            MIN_DESIRED_UTILIZATION_VALUE, MAX_DESIRED_UTILIZATION_VALUE);
         } else {
             return EntitySettings.NumericKey.DESIRED_UTILIZATION_MAX.value(topologyDTO);
         }
     }
 
     public static float limitFloatRange(float value, float min, float max) {
-        Preconditions.checkArgument(min <= max,
-                "Min: %s must be <= max: %s", min, max);
+        Preconditions.checkArgument(min <= max, "Min: %s must be <= max: %s", min, max);
         return Math.min(max, Math.max(value, min));
     }
 
@@ -147,6 +146,7 @@ public class TopologyConversionUtils {
      * @return true if the entity type should be converted to trader, false otherwise
      */
     public static boolean shouldConvertToTrader(int entityType) {
-        return !TopologyConversionConstants.ENTITY_TYPES_TO_SKIP_TRADER_CREATION.contains(entityType);
+        return !TopologyConversionConstants.ENTITY_TYPES_TO_SKIP_TRADER_CREATION
+                        .contains(entityType);
     }
 }

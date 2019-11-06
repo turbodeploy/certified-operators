@@ -36,7 +36,6 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -245,8 +244,8 @@ public class TopologyConverter {
 
     private final CloudEntityResizeTracker cert = new CloudEntityResizeTracker();
 
-    private float quoteFactor = AnalysisUtil.QUOTE_FACTOR;
-    private float liveMarketMoveCostFactor = AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR;
+    private float quoteFactor = MarketAnalysisUtils.QUOTE_FACTOR;
+    private float liveMarketMoveCostFactor = MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR;
 
     // Add a cost of moving from source to destination.
     public static final float PLAN_MOVE_COST_FACTOR = 0.0f;
@@ -396,7 +395,7 @@ public class TopologyConverter {
         try {
             for (TopologyDTO.TopologyEntityDTO entity : topology.values()) {
                 int entityType = entity.getEntityType();
-                if (AnalysisUtil.SKIPPED_ENTITY_TYPES.contains(entityType)
+                if (MarketAnalysisUtils.SKIPPED_ENTITY_TYPES.contains(entityType)
                         || !includeByType(entityType)) {
                     logger.debug("Skipping trader creation for entity name = {}, entity type = {}, " +
                             "entity state = {}", entity.getDisplayName(),
@@ -1490,6 +1489,7 @@ public class TopologyConverter {
      *
      * @param commodity the {@link TopologyDTO.CommoditySoldDTO}
      */
+    @SuppressWarnings("unused")
     private double getWeightedUsed(@Nonnull final TopologyDTO.CommoditySoldDTO commodity) {
         final Double maxQuantity =
                 commodity.hasHistoricalUsed() && commodity.getHistoricalUsed().hasMaxQuantity() ?
@@ -1831,7 +1831,7 @@ public class TopologyConverter {
      */
     private boolean includeByType(int entityType) {
         return includeGuaranteedBuyer
-            || !AnalysisUtil.GUARANTEED_BUYER_TYPES.contains(entityType);
+            || !MarketAnalysisUtils.GUARANTEED_BUYER_TYPES.contains(entityType);
     }
 
     /**

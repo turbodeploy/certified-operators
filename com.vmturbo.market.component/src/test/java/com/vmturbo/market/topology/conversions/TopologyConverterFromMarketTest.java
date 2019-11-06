@@ -54,7 +54,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.commons.Units;
-import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.market.runner.ReservedCapacityAnalysis;
@@ -155,8 +154,8 @@ public class TopologyConverterFromMarketTest {
         converter = Mockito.spy(new TopologyConverter(
             REALTIME_TOPOLOGY_INFO,
             false,
-            AnalysisUtil.QUOTE_FACTOR,
-            AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+            MarketAnalysisUtils.QUOTE_FACTOR,
+            MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
             marketPriceTable,
             mockCommodityConverter,
             mockCCD,
@@ -684,7 +683,7 @@ public class TopologyConverterFromMarketTest {
 
         // converter under test
         TopologyConverter converter = Mockito.spy(new TopologyConverter(REALTIME_TOPOLOGY_INFO,
-                false, AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                false, MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, mockCommodityConverter, indexFactory, tierExcluderFactory));
 
         // warning: introspection follows...
@@ -823,7 +822,7 @@ public class TopologyConverterFromMarketTest {
 
         TopologyConverter converter = Mockito.spy(new TopologyConverter(
                         TopologyInfo.newBuilder().setTopologyType(TopologyType.PLAN).build(), false,
-                        AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                        MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                         marketPriceTable, mockCommodityConverter, mockCCD, indexFactory,
                         tierExcluderFactory));
 
@@ -1258,7 +1257,7 @@ public class TopologyConverterFromMarketTest {
                 .setTopologyType(TopologyType.PLAN).build();
 
         TopologyConverter converter = Mockito.spy(new TopologyConverter(topoInfo, false,
-                AnalysisUtil.QUOTE_FACTOR, AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, mockCommodityConverter, mockCCD, indexFactory, tierExcluderFactory));
         converter.cloudTc = mockCloudTc;
 
