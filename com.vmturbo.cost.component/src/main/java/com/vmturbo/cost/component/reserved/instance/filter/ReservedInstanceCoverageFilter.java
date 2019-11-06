@@ -7,6 +7,7 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.jooq.Condition;
 import org.jooq.Table;
 
 import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
@@ -21,6 +22,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * in the tables.
  */
 public class ReservedInstanceCoverageFilter extends ReservedInstanceStatsFilter {
+
+    private final List<Condition> conditions;
 
     /**
      * Constructor for ReservedInstanceCoverageFilter.
@@ -38,6 +41,7 @@ public class ReservedInstanceCoverageFilter extends ReservedInstanceStatsFilter 
                                            @Nullable final TimeFrame timeFrame) {
         super(scopeIds, scopeEntityType, startDateMillis, endDateMillis,
               timeFrame);
+        this.conditions = generateConditions(scopeIds, scopeEntityType);
     }
 
     @Override

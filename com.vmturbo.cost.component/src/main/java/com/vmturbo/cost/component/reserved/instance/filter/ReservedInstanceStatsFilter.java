@@ -70,9 +70,6 @@ public abstract class ReservedInstanceStatsFilter extends ReservedInstanceFilter
     protected List<Condition> generateConditions(@Nonnull final Set<Long> scopeIds,
                                                  final int scopeEntityType) {
         final List<Condition> conditions = new ArrayList<>();
-        if (scopeIds.isEmpty()) {
-            return conditions;
-        }
         final Table<?> table = getTableName();
         switch (scopeEntityType) {
             case EntityType.REGION_VALUE:
