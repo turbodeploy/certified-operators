@@ -23,6 +23,9 @@ import org.mockito.internal.matchers.CapturesArguments;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.Status;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -177,7 +180,6 @@ public class PlanNotificationsTest {
             .setTopologyContextId(planId)
             .build());
         Mockito.verify(listener, Mockito.never()).onPlanStatusChanged(planSucceeded());
-
         final StatusMatcher inprogressMatcher = new StatusMatcher(PlanStatus.WAITING_FOR_RESULT);
         Mockito.verify(listener, Mockito.timeout(TIMEOUT))
                 .onPlanStatusChanged(inprogressMatcher.capture());
@@ -185,13 +187,21 @@ public class PlanNotificationsTest {
         Assert.assertEquals(PlanStatus.WAITING_FOR_RESULT, inprogressMatcher.getValue().getStatus());
 
         actionsListener.onActionsUpdated(
-            ActionsUpdated.newBuilder()
-                .setActionPlanId(ACT_PLAN_ID)
-                .setActionPlanInfo(ActionPlanInfo.newBuilder()
-                    .setMarket(MarketActionPlanInfo.newBuilder()
-                        .setSourceTopologyInfo(TopologyInfo.newBuilder()
-                            .setTopologyContextId(planId))))
-                .build());
+                ActionsUpdated.newBuilder()
+                        .setActionPlanId(ACT_PLAN_ID)
+                        .setActionPlanInfo(ActionPlanInfo.newBuilder()
+                                .setMarket(MarketActionPlanInfo.newBuilder()
+                                        .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                                                .setTopologyContextId(planId)))).build());
+        actionsListener
+                .onStatsAvailable(StatsAvailable.newBuilder().setTopologyContextId(1).build());
+        actionsListener.onProjectedTopologyAvailable(TOPOLOGY_ID, planId);
+        actionsListener.onSourceTopologyAvailable(TOPOLOGY_ID, planId);
+        actionsListener.onCostNotificationReceived(CostNotification.newBuilder()
+                .setProjectedRiCoverageUpdate(StatusUpdate.newBuilder().setStatus(Status.SUCCESS)
+                        .build()).setProjectedCostUpdate(StatusUpdate.newBuilder()
+                        .setStatus(Status.SUCCESS).build()).build());
+
         final StatusMatcher matcher = new StatusMatcher(PlanStatus.SUCCEEDED);
         Mockito.verify(listener, Mockito.timeout(TIMEOUT)).onPlanStatusChanged(matcher.capture());
         final PlanInstance plan = matcher.getValue();
@@ -235,6 +245,11 @@ public class PlanNotificationsTest {
         actionsListener.onStatsAvailable(StatsAvailable.newBuilder()
             .setTopologyContextId(planId)
             .build());
+        actionsListener.onSourceTopologyAvailable(TOPOLOGY_ID, planId);
+        actionsListener.onCostNotificationReceived(CostNotification.newBuilder()
+                .setProjectedRiCoverageUpdate(StatusUpdate.newBuilder().setStatus(Status.SUCCESS)
+                        .build()).setProjectedCostUpdate(StatusUpdate.newBuilder()
+                        .setStatus(Status.SUCCESS).build()).build());
 
         final StatusMatcher captor = new StatusMatcher(PlanStatus.SUCCEEDED);
         Mockito.verify(listener, Mockito.timeout(TIMEOUT)).onPlanStatusChanged(captor.capture());
@@ -268,6 +283,12 @@ public class PlanNotificationsTest {
 
         actionsListener.onProjectedTopologyAvailable(TOPOLOGY_ID, planId);
         final StatusMatcher captor = new StatusMatcher(PlanStatus.SUCCEEDED);
+        actionsListener.onSourceTopologyAvailable(TOPOLOGY_ID, planId);
+        actionsListener.onCostNotificationReceived(CostNotification.newBuilder()
+                .setProjectedRiCoverageUpdate(StatusUpdate.newBuilder().setStatus(Status.SUCCESS)
+                        .build()).setProjectedCostUpdate(StatusUpdate.newBuilder()
+                        .setStatus(Status.SUCCESS).build()).build());
+
         Mockito.verify(listener, Mockito.timeout(TIMEOUT)).onPlanStatusChanged(captor.capture());
         final PlanInstance plan = captor.getValue();
         assertPlan(plan, planId);
@@ -317,6 +338,19 @@ public class PlanNotificationsTest {
             actionsListener.onStatsAvailable(StatsAvailable.newBuilder()
                 .setTopologyContextId(planId)
                 .build());
+            return null;
+        });
+        final Future<?> sourceTopologyAvailable = threadPool.submit(() -> {
+            latch.await();
+            actionsListener.onSourceTopologyAvailable(TOPOLOGY_ID, planId);
+            return null;
+        });
+        final Future<?> costNotificationAvailable = threadPool.submit(() -> {
+            latch.await();
+            actionsListener.onCostNotificationReceived(CostNotification.newBuilder()
+                    .setProjectedRiCoverageUpdate(StatusUpdate.newBuilder().setStatus(Status.SUCCESS)
+                            .build()).setProjectedCostUpdate(StatusUpdate.newBuilder()
+                            .setStatus(Status.SUCCESS).build()).build());
             return null;
         });
         latch.countDown();

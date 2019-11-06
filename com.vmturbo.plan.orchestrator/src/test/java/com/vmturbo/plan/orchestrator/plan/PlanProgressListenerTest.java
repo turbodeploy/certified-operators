@@ -15,7 +15,10 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProgress.Builder;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.RISetting;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.utils.StringConstants;
 
 /**
@@ -29,113 +32,176 @@ public class PlanProgressListenerTest {
     /**
      * Projected topology ID.
      */
-    public static final int PROJECTED_TOPOLOGY_ID = 5;
+    private static final int PROJECTED_TOPOLOGY_ID = 5;
     /**
-     * Action plan ID>
+     * Source topology ID.
      */
-    public static final int ACTION_PLAN_ID = 7;
+    private static final int SOURCE_TOPOLOGY_ID = 2;
+    /**
+     * Action plan ID.
+     */
+    private static final int ACTION_PLAN_ID = 7;
     /**
      * Notification success.
      */
-    public static final Status SUCCESS = Status.SUCCESS;
+    private static final Status SUCCESS = Status.SUCCESS;
     /**
      * Notification fail.
      */
-    public static final Status FAIL = Status.FAIL;
+    private static final Status FAIL = Status.FAIL;
     /**
      * Plan succeeded.
      */
-    public static final PlanStatus SUCCEEDED = PlanStatus.SUCCEEDED;
+    private static final PlanStatus SUCCEEDED = PlanStatus.SUCCEEDED;
     /**
      * Plan failed.
      */
-    public static final PlanStatus FAILED = PlanStatus.FAILED;
+    private static final PlanStatus FAILED = PlanStatus.FAILED;
 
     /**
-     * Tests get OCP with buy RI successfully.
+     * Tests get OCP with buy RI and optimize services successfully.
      */
     @Test
-    public void testGetOCPWithBuyRIPlanStatus() {
+    public void testGetOCPWithBuyRIAndOptimizeServicesPlanStatus() {
         PlanStatus planStatus = PlanProgressListener.getOCPWithBuyRIPlanStatus(getPlan(
-                getPlanProgress(SUCCESS, SUCCESS), true, PROJECTED_TOPOLOGY_ID,
-                ACTION_PLAN_ID, null, null));
+                getPlanProgress(SUCCESS, SUCCESS), true, SOURCE_TOPOLOGY_ID,
+                PROJECTED_TOPOLOGY_ID, ACTION_PLAN_ID, null, null),
+                true);
         Assert.assertEquals(SUCCEEDED, planStatus);
     }
 
     /**
-     * Tests get OCP with buy RI failure because of projected cost notification.
+     * Tests get OCP buy RI only.
      */
     @Test
-    public void testGetOCPWithBuyRIPlanStatusNoProjectedCostNotification() {
+    public void testGetOCPBuyRIOnlyPlanStatus() {
+        PlanStatus planStatus = PlanProgressListener.getOCPWithBuyRIPlanStatus(getPlan(
+                getPlanProgress(null, null),
+                true, SOURCE_TOPOLOGY_ID, PROJECTED_TOPOLOGY_ID, ACTION_PLAN_ID,
+                null, null), false);
+        Assert.assertEquals(SUCCEEDED, planStatus);
+    }
+
+    /**
+     * Tests get OCP with buy RI and optimize services failure because of projected cost
+     * notification.
+     */
+    @Test
+    public void testGetOCPWithBuyRIAndOptimizeServicesPlanStatusNoProjectedCostNotification() {
         PlanStatus planStatus = PlanProgressListener.getOCPWithBuyRIPlanStatus(getPlan(
                 getPlanProgress(null, SUCCESS), null,
-                null, null, null, null));
+                null, null, null, null,
+                null), true);
         Assert.assertEquals(PlanStatus.WAITING_FOR_RESULT, planStatus);
     }
 
     /**
-     * Tests get OCP with buy RI failure because of projected RI coverage notification.
+     * Tests get OCP with buy RI and optimize services failure because of projected RI coverage
+     * notification.
      */
     @Test
-    public void testGetOCPWithBuyRIPlanStatusNoProjectedRICoverageNotification() {
+    public void testGetOCPWithBuyRIAndOptimizeServicesPlanStatusNoProjectedRICoverageNotification() {
         PlanStatus planStatus = PlanProgressListener.getOCPWithBuyRIPlanStatus(getPlan(
                 getPlanProgress(SUCCESS, null), null,
-                null, null, null, null));
+                null, null, null, null,
+                null), true);
         Assert.assertEquals(PlanStatus.WAITING_FOR_RESULT, planStatus);
     }
 
     /**
-     * Tests get OCP with buy RI failure because stats is not available.
+     * Tests get OCP with buy RI and optimize services failure because stats is not available.
+     */
+    @Test
+    public void testGetOCPWithBuyRIAndOptimizeServicesPlanStatusNoStats() {
+        PlanStatus planStatus = PlanProgressListener.getOCPWithBuyRIPlanStatus(getPlan(
+                getPlanProgress(SUCCESS, SUCCESS), null,
+                SOURCE_TOPOLOGY_ID, PROJECTED_TOPOLOGY_ID, ACTION_PLAN_ID, null,
+                null), true);
+        Assert.assertEquals(PlanStatus.WAITING_FOR_RESULT, planStatus);
+    }
+
+    /**
+     * Tests get OCP buy RI only failure because stats is not available.
      */
     @Test
     public void testGetOCPWithBuyRIPlanStatusNoStats() {
         PlanStatus planStatus = PlanProgressListener.getOCPWithBuyRIPlanStatus(getPlan(
-                getPlanProgress(SUCCESS, SUCCESS), null,
-                PROJECTED_TOPOLOGY_ID, ACTION_PLAN_ID, null, null));
+                getPlanProgress(null, null),
+                null, SOURCE_TOPOLOGY_ID, PROJECTED_TOPOLOGY_ID, ACTION_PLAN_ID,
+                null, null), false);
         Assert.assertEquals(PlanStatus.WAITING_FOR_RESULT, planStatus);
     }
 
     /**
-     * Tests get OCP with buy RI failure because there is no projected topology.
+     * Tests get OCP with buy RI and optimize services failure because there is no projected
+     * topology.
+     */
+    @Test
+    public void testGetOCPWithBuyRIAndOptimizeServicesPlanStatusNoProjectedTopology() {
+        PlanStatus planStatus = PlanProgressListener.getOCPWithBuyRIPlanStatus(getPlan(
+                getPlanProgress(SUCCESS, SUCCESS), true, SOURCE_TOPOLOGY_ID,
+                null, ACTION_PLAN_ID, null, null),
+                true);
+        Assert.assertEquals(PlanStatus.WAITING_FOR_RESULT, planStatus);
+    }
+
+    /**
+     * Tests get OCP buy RI only failure because there is no projected topology.
      */
     @Test
     public void testGetOCPWithBuyRIPlanStatusNoProjectedTopology() {
         PlanStatus planStatus = PlanProgressListener.getOCPWithBuyRIPlanStatus(getPlan(
-                getPlanProgress(SUCCESS, SUCCESS), true, null,
-                ACTION_PLAN_ID, null, null));
+                getPlanProgress(null, null),
+                true, SOURCE_TOPOLOGY_ID, null, ACTION_PLAN_ID,
+                null, null), false);
         Assert.assertEquals(PlanStatus.WAITING_FOR_RESULT, planStatus);
     }
 
     /**
-     * Tests get OCP with buy RI failure because action ID list is empty.
+     * Tests get OCP with buy RI and optimize services failure because action ID list is empty.
+     */
+    @Test
+    public void testGetOCPWithBuyRIAndOptimizeServicesPlanStatusEmptyActionIdList() {
+        PlanStatus planStatus = PlanProgressListener.getOCPWithBuyRIPlanStatus(getPlan(
+                getPlanProgress(SUCCESS, SUCCESS), true, SOURCE_TOPOLOGY_ID,
+                null, ACTION_PLAN_ID, null, null),
+                true);
+        Assert.assertEquals(PlanStatus.WAITING_FOR_RESULT, planStatus);
+    }
+
+    /**
+     * Tests get OCP buy RI only failure because action ID list is empty.
      */
     @Test
     public void testGetOCPWithBuyRIPlanStatusEmptyActionIdList() {
         PlanStatus planStatus = PlanProgressListener.getOCPWithBuyRIPlanStatus(getPlan(
-                getPlanProgress(SUCCESS, SUCCESS), true, null,
-                ACTION_PLAN_ID, null, null));
+                getPlanProgress(null, null),
+                true, SOURCE_TOPOLOGY_ID, null, ACTION_PLAN_ID,
+                null, null), false);
         Assert.assertEquals(PlanStatus.WAITING_FOR_RESULT, planStatus);
     }
 
     /**
-     * Plan fails because projected cost failed.
+     * Plan OCP type 1 fails because projected cost failed.
      */
     @Test
-    public void testGetOCPWithBuyRIPlanStatusProjectedCostFail() {
+    public void testGetOCPWithBuyRIAndOptimizeServicesPlanStatusProjectedCostFail() {
         PlanStatus planStatus = PlanProgressListener.getOCPWithBuyRIPlanStatus(getPlan(
                 getPlanProgress(FAIL, null), null,
-                null, null, null, null));
+                SOURCE_TOPOLOGY_ID, null, null, null,
+                null), true);
         Assert.assertEquals(FAILED, planStatus);
     }
 
     /**
-     * Plan fails because projected RI coverage failed.
+     * Plan OCP type 1 fails because projected RI coverage failed.
      */
     @Test
-    public void testGetOCPWithBuyRIPlanStatusProjectedRICoverageFail() {
+    public void testGetOCPWithBuyRIAndOptimizeServicesPlanStatusProjectedRICoverageFail() {
         PlanStatus planStatus = PlanProgressListener.getOCPWithBuyRIPlanStatus(getPlan(
                 getPlanProgress(null, FAIL), null,
-                null, null, null, null));
+                SOURCE_TOPOLOGY_ID, null, null, null,
+                null), true);
         Assert.assertEquals(FAILED, planStatus);
     }
 
@@ -146,18 +212,18 @@ public class PlanProgressListenerTest {
     public void testGetPlanStatusBasedOnPlanTypeSuccess() {
         PlanStatus planStatus = PlanProgressListener.getPlanStatusBasedOnPlanType(getPlan(
                 null, null, null, null,
-                SUCCEEDED, null));
+                null, SUCCEEDED, null));
         Assert.assertEquals(SUCCEEDED, planStatus);
     }
 
     /**
-     * Returns success if the plan already failed.
+     * Returns failed if the plan already failed.
      */
     @Test
     public void testGetPlanStatusBasedOnPlanTypeFail() {
         PlanStatus planStatus = PlanProgressListener.getPlanStatusBasedOnPlanType(getPlan(
                 null, null, null, null,
-                FAILED, null));
+                null, FAILED, null));
         Assert.assertEquals(FAILED, planStatus);
     }
 
@@ -167,16 +233,42 @@ public class PlanProgressListenerTest {
      */
     @Test
     public void testGetPlanStatusBasedOnPlanTypeOCPType1Success() {
-        RISetting.Builder riSetting = RISetting.newBuilder();
+        final RISetting.Builder riSetting = RISetting.newBuilder();
+        final ScenarioChange.Builder scenarioChangeRI =
+                ScenarioChange.newBuilder().setRiSetting(riSetting);
+        final Setting.Builder setting =
+                Setting.newBuilder().setSettingSpecName(EntitySettingSpecs.Resize.getSettingName());
+        final SettingOverride.Builder scaleSetting =
+                SettingOverride.newBuilder().setSetting(setting);
+        final ScenarioChange.Builder scenarioChangeScale =
+                ScenarioChange.newBuilder().setSettingOverride(scaleSetting);
+        final ScenarioInfo.Builder scenarioInfo = ScenarioInfo.newBuilder()
+                .setType(StringConstants.OPTIMIZE_CLOUD_PLAN).addChanges(scenarioChangeRI)
+                .addChanges(scenarioChangeScale);
+        final Scenario.Builder scenario = Scenario.newBuilder().setScenarioInfo(scenarioInfo);
+        final PlanStatus planStatus = PlanProgressListener.getPlanStatusBasedOnPlanType(
+                getPlan(getPlanProgress(SUCCESS, SUCCESS), true, SOURCE_TOPOLOGY_ID,
+                        PROJECTED_TOPOLOGY_ID, ACTION_PLAN_ID, null, scenario));
+        Assert.assertEquals(SUCCEEDED, planStatus);
+    }
+
+    /**
+     * Returns success if plan orchestrator receives all the notifications successfully in OCP
+     * type 3.
+     */
+    @Test
+    public void testGetPlanStatusBasedOnPlanTypeOCPType3Success() {
+        final RISetting.Builder riSetting = RISetting.newBuilder();
         final ScenarioChange.Builder scenarioChange =
                 ScenarioChange.newBuilder().setRiSetting(riSetting);
         final ScenarioInfo.Builder scenarioInfo = ScenarioInfo.newBuilder()
                 .setType(StringConstants.OPTIMIZE_CLOUD_PLAN).addChanges(scenarioChange);
         final Scenario.Builder scenario = Scenario.newBuilder()
                 .setScenarioInfo(scenarioInfo);
-        PlanStatus planStatus = PlanProgressListener.getPlanStatusBasedOnPlanType(getPlan
-                (getPlanProgress(SUCCESS, SUCCESS), true, PROJECTED_TOPOLOGY_ID,
-                        ACTION_PLAN_ID, null, scenario));
+        final PlanStatus planStatus = PlanProgressListener.getPlanStatusBasedOnPlanType(getPlan
+                (getPlanProgress(null, null),
+                        true, SOURCE_TOPOLOGY_ID, PROJECTED_TOPOLOGY_ID, ACTION_PLAN_ID,
+                        null, scenario));
         Assert.assertEquals(SUCCEEDED, planStatus);
     }
 
@@ -186,16 +278,23 @@ public class PlanProgressListenerTest {
      */
     @Test
     public void testGetPlanStatusBasedOnPlanTypeOCPType1FailProjectedCost() {
-        RISetting.Builder riSetting = RISetting.newBuilder();
-        final ScenarioChange.Builder scenarioChange =
+        final RISetting.Builder riSetting = RISetting.newBuilder();
+        final ScenarioChange.Builder scenarioChangeRI =
                 ScenarioChange.newBuilder().setRiSetting(riSetting);
+        final Setting.Builder setting =
+                Setting.newBuilder().setSettingSpecName(EntitySettingSpecs.Resize.getSettingName());
+        final SettingOverride.Builder scaleSetting =
+                SettingOverride.newBuilder().setSetting(setting);
+        final ScenarioChange.Builder scenarioChangeScale =
+                ScenarioChange.newBuilder().setSettingOverride(scaleSetting);
         final ScenarioInfo.Builder scenarioInfo = ScenarioInfo.newBuilder()
-                .setType(StringConstants.OPTIMIZE_CLOUD_PLAN).addChanges(scenarioChange);
+                .setType(StringConstants.OPTIMIZE_CLOUD_PLAN).addChanges(scenarioChangeRI)
+                .addChanges(scenarioChangeScale);
         final Scenario.Builder scenario = Scenario.newBuilder()
                 .setScenarioInfo(scenarioInfo);
-        PlanStatus planStatus = PlanProgressListener.getPlanStatusBasedOnPlanType(getPlan
-                (getPlanProgress(FAIL, SUCCESS), true, PROJECTED_TOPOLOGY_ID,
-                        ACTION_PLAN_ID, null, scenario));
+        final PlanStatus planStatus = PlanProgressListener.getPlanStatusBasedOnPlanType(getPlan
+                (getPlanProgress(FAIL, SUCCESS), true, SOURCE_TOPOLOGY_ID,
+                        PROJECTED_TOPOLOGY_ID, ACTION_PLAN_ID, null, scenario));
         Assert.assertEquals(FAILED, planStatus);
     }
 
@@ -205,17 +304,132 @@ public class PlanProgressListenerTest {
      */
     @Test
     public void testGetPlanStatusBasedOnPlanTypeOCPType1FailProjectedRICoverage() {
-        RISetting.Builder riSetting = RISetting.newBuilder();
+        final RISetting.Builder riSetting = RISetting.newBuilder();
+        final ScenarioChange.Builder scenarioChangeRI =
+                ScenarioChange.newBuilder().setRiSetting(riSetting);
+        final Setting.Builder setting =
+                Setting.newBuilder().setSettingSpecName(EntitySettingSpecs.Resize.getSettingName());
+        final SettingOverride.Builder scaleSetting =
+                SettingOverride.newBuilder().setSetting(setting);
+        final ScenarioChange.Builder scenarioChangeScale =
+                ScenarioChange.newBuilder().setSettingOverride(scaleSetting);
+        final ScenarioInfo.Builder scenarioInfo = ScenarioInfo.newBuilder()
+                .setType(StringConstants.OPTIMIZE_CLOUD_PLAN).addChanges(scenarioChangeRI)
+                .addChanges(scenarioChangeScale);
+        final Scenario.Builder scenario = Scenario.newBuilder()
+                .setScenarioInfo(scenarioInfo);
+        final PlanStatus planStatus = PlanProgressListener.getPlanStatusBasedOnPlanType(getPlan
+                (getPlanProgress(SUCCESS, FAIL), true, SOURCE_TOPOLOGY_ID,
+                        PROJECTED_TOPOLOGY_ID, ACTION_PLAN_ID, null, scenario));
+        Assert.assertEquals(FAILED, planStatus);
+    }
+
+    /**
+     * Tests if the is OCP recognizes the OCP plans correctly.
+     */
+    @Test
+    public void testIsOCP() {
+        final ScenarioInfo.Builder scenarioInfo = ScenarioInfo.newBuilder()
+                .setType(StringConstants.OPTIMIZE_CLOUD_PLAN);
+        final Scenario.Builder scenario = Scenario.newBuilder()
+                .setScenarioInfo(scenarioInfo);
+        Assert.assertTrue(PlanProgressListener.isOCP(getPlan(getPlanProgress(null,
+                null), true, null,
+                null, null, null, scenario)));
+    }
+
+    /**
+     * Tests if the is OCP recognizes non-OCP plans correctly.
+     */
+    @Test
+    public void testIsOCPNegative() {
+        final ScenarioInfo.Builder scenarioInfo = ScenarioInfo.newBuilder()
+                .setType(StringConstants.CLOUD_MIGRATION_PLAN);
+        final Scenario.Builder scenario = Scenario.newBuilder()
+                .setScenarioInfo(scenarioInfo);
+        Assert.assertFalse(PlanProgressListener.isOCP(getPlan(getPlanProgress(null,
+                null), true, null,
+                null, null, null, scenario)));
+    }
+
+    /**
+     * Recognizes if is buy RI and optimize services recognizes OCP type 1 correctly.
+     */
+    @Test
+    public void isBuyRIAndOptimizeServices() {
+        final RISetting.Builder riSetting = RISetting.newBuilder();
+        final ScenarioChange.Builder scenarioChangeRI =
+                ScenarioChange.newBuilder().setRiSetting(riSetting);
+        final Setting.Builder setting =
+                Setting.newBuilder().setSettingSpecName(EntitySettingSpecs.Resize.getSettingName());
+        final SettingOverride.Builder scaleSetting =
+                SettingOverride.newBuilder().setSetting(setting);
+        final ScenarioChange.Builder scenarioChangeScale =
+                ScenarioChange.newBuilder().setSettingOverride(scaleSetting);
+        final ScenarioInfo.Builder scenarioInfo = ScenarioInfo.newBuilder()
+                .setType(StringConstants.OPTIMIZE_CLOUD_PLAN).addChanges(scenarioChangeRI)
+                .addChanges(scenarioChangeScale);
+        final Scenario.Builder scenario = Scenario.newBuilder()
+                .setScenarioInfo(scenarioInfo);
+        Assert.assertTrue(PlanProgressListener.isOCPOptimizeAndBuyRI(getPlan
+                (getPlanProgress(null, null),
+                        true, null, null,
+                        null, null, scenario)));
+    }
+
+    /**
+     * Recognizes if is buy RI and optimize services recognizes plan other than OCP type 1
+     * correctly.
+     */
+    @Test
+    public void isBuyRIAndOptimizeServicesNegative() {
+        final Setting.Builder setting =
+                Setting.newBuilder().setSettingSpecName(EntitySettingSpecs.Resize.getSettingName());
+        final SettingOverride.Builder scaleSetting =
+                SettingOverride.newBuilder().setSetting(setting);
+        final ScenarioChange.Builder scenarioChangeScale =
+                ScenarioChange.newBuilder().setSettingOverride(scaleSetting);
+        final ScenarioInfo.Builder scenarioInfo = ScenarioInfo.newBuilder()
+                .setType(StringConstants.OPTIMIZE_CLOUD_PLAN).addChanges(scenarioChangeScale);
+        final Scenario.Builder scenario = Scenario.newBuilder()
+                .setScenarioInfo(scenarioInfo);
+        Assert.assertFalse(PlanProgressListener.isOCPOptimizeAndBuyRI(getPlan
+                (getPlanProgress(null, null),
+                        true, null, null,
+                        null, null, scenario)));
+    }
+
+    /**
+     * Recognizes if is buy RI only recognizes OCP type 3 correctly.
+     */
+    @Test
+    public void testIsBuyRIOnly() {
+        final RISetting.Builder riSetting = RISetting.newBuilder();
         final ScenarioChange.Builder scenarioChange =
                 ScenarioChange.newBuilder().setRiSetting(riSetting);
         final ScenarioInfo.Builder scenarioInfo = ScenarioInfo.newBuilder()
                 .setType(StringConstants.OPTIMIZE_CLOUD_PLAN).addChanges(scenarioChange);
         final Scenario.Builder scenario = Scenario.newBuilder()
                 .setScenarioInfo(scenarioInfo);
-        PlanStatus planStatus = PlanProgressListener.getPlanStatusBasedOnPlanType(getPlan
-                (getPlanProgress(SUCCESS, FAIL), true, PROJECTED_TOPOLOGY_ID,
-                        ACTION_PLAN_ID, null, scenario));
-        Assert.assertEquals(FAILED, planStatus);
+        Assert.assertTrue(PlanProgressListener.isOCPBuyRIOnly(getPlan
+                (getPlanProgress(null, null),
+                        true, null, null,
+                        null, null, scenario)));
+    }
+
+    /**
+     * Recognizes if is buy RI only recognizes plans other than OCP type 3 correctly.
+     */
+    @Test
+    public void testIsBuyRIOnlyNegative() {
+        final ScenarioInfo.Builder scenarioInfo = ScenarioInfo.newBuilder()
+                .setType(StringConstants.OPTIMIZE_CLOUD_PLAN);
+        final Scenario.Builder scenario = Scenario.newBuilder()
+                .setScenarioInfo(scenarioInfo);
+        Assert.assertFalse(PlanProgressListener.isOCPBuyRIOnly(getPlan
+                (getPlanProgress(null, null),
+                        true, null, null,
+                        null, null, scenario)));
     }
 
     /**
@@ -251,6 +465,7 @@ public class PlanProgressListenerTest {
      */
     private static PlanInstance.Builder getPlan(final PlanProgress.Builder planProgress,
                                                 final Boolean isStatsAvailable,
+                                                final Integer sourceTopologyID,
                                                 final Integer projectedTopologyID,
                                                 final Integer actionPlanID,
                                                 final PlanStatus planStatus,
@@ -261,6 +476,9 @@ public class PlanProgressListenerTest {
         }
         if (isStatsAvailable != null) {
             planInstance.setStatsAvailable(isStatsAvailable);
+        }
+        if (sourceTopologyID != null) {
+            planInstance.setSourceTopologyId(sourceTopologyID);
         }
         if (projectedTopologyID != null) {
             planInstance.setProjectedTopologyId(projectedTopologyID);

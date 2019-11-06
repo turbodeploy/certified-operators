@@ -20,7 +20,6 @@ import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotificat
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.Builder;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.cost.api.CostNotificationListener;
@@ -235,6 +234,7 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
         if (topologyContextId != realtimeTopologyContextId) {
             try {
                 final PlanInstance plan = planDao.updatePlanInstance(topologyContextId, planBuilder -> {
+                    // TODO: (OM-51227) Integrate the OCP plan failure logic
                     planBuilder.setStatus(PlanStatus.FAILED);
                     planBuilder.setStatusMessage(
                             "Failed to save source topology in the repository: " +
@@ -288,10 +288,7 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
     private static void processSourceTopology(@Nonnull final PlanInstance.Builder plan,
                                               final long topologyId) {
         plan.setSourceTopologyId(topologyId);
-        String planSubType = PlanRpcServiceUtil.getPlanSubType(plan.getScenario().getScenarioInfo());
-        if (StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_ONLY.equals(planSubType)) {
-            plan.setStatus(PlanStatus.SUCCEEDED);
-        }
+        plan.setStatus(getPlanStatusBasedOnPlanType(plan));
     }
 
     private void processActionsUpdated(@Nonnull final PlanInstance.Builder plan,
@@ -392,7 +389,6 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
     /**
      * Returns the status of the plan based on the plan type. For example, optimize cloud plan
      * with buy RI or optimize cloud plan without buy RI.
-     * TODO: (OM-50691) Add OCP type 3 to the logic.
      *
      * @param plan The plan
      * @return The plan new status
@@ -405,24 +401,28 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
                 PlanStatus.SUCCEEDED.equals(existingStatus)) {
             return existingStatus;
         }
-        @Nullable ScenarioInfo scenarioInfo = plan.hasScenario() ? plan.getScenario()
-                .getScenarioInfo() : null;
-        if (scenarioInfo != null &&
-                StringConstants.OPTIMIZE_CLOUD_PLAN.equals(scenarioInfo.getType()) &&
-                scenarioInfo.getChangesList().stream().anyMatch(ScenarioChange::hasRiSetting)) {
-            // OCP with buy RI (type 1 and 3).
-            final PlanStatus newStatus = getOCPWithBuyRIPlanStatus(plan);
+        if (isOCP(plan)) {
+            // The optimize cloud plan (OCP)
+            PlanStatus newStatus = existingStatus;
+            if (isOCPOptimizeAndBuyRI(plan)) {
+                // OCP buy RI and optimize services (OCP type 1).
+                newStatus = getOCPWithBuyRIPlanStatus(plan, true);
+            } else if (isOCPOptimizeServices(plan) || isOCPBuyRIOnly(plan)) {
+                // OCP buy RI only or optimize services (OCP type 2 and 3).
+                newStatus = getOCPWithBuyRIPlanStatus(plan, false);
+            } else {
+                logger.warn("This OCP wasn't OCP type 1, 2 or 3. Plan ID: " + plan.getPlanId());
+            }
             if (!newStatus.equals(existingStatus)) {
                 logger.debug("The plan status has been changed from {} to {}- plan ID: " +
                         "{}", existingStatus, newStatus, plan.getPlanId());
             }
             return newStatus;
-        } else {
-            // Plans other than OCP with buy RI (type 1 and 3).
-            return (plan.getStatsAvailable() && !plan.getActionPlanIdList().isEmpty() &&
-                    plan.hasProjectedTopologyId()) ?
-                    PlanStatus.SUCCEEDED : PlanStatus.WAITING_FOR_RESULT;
         }
+        // Plans other than OCPs.
+        return (plan.getStatsAvailable() && !plan.getActionPlanIdList().isEmpty() &&
+                plan.hasProjectedTopologyId()) && plan.hasSourceTopologyId() ?
+                PlanStatus.SUCCEEDED : PlanStatus.WAITING_FOR_RESULT;
     }
 
     /**
@@ -431,11 +431,13 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
      * TODO: (OM-51279) Add the timeout logic to this method.
      *
      * @param plan The plan
+     * @param isOCPOptimizeAndBuyRI If the plan is OCP type 1 or not
      * @return The status of the plan
      */
     @Nonnull
     @VisibleForTesting
-    static PlanStatus getOCPWithBuyRIPlanStatus(@Nonnull final PlanInstance.Builder plan) {
+    static PlanStatus getOCPWithBuyRIPlanStatus(@Nonnull final PlanInstance.Builder plan,
+                                                final boolean isOCPOptimizeAndBuyRI) {
         final Status planProgressProjectedCostStatus = plan.getPlanProgress()
                 .getProjectedCostStatus();
         final Status planProgressProjectedRiCoverageStatus = plan.getPlanProgress()
@@ -444,13 +446,74 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
                 Status.FAIL.equals(planProgressProjectedRiCoverageStatus)) {
             return PlanStatus.FAILED;
         }
+        // Optimize cloud plan (OCP)
         if (plan.getStatsAvailable() && !plan.getActionPlanIdList().isEmpty() &&
-                plan.hasProjectedTopologyId() &&
-                Status.SUCCESS.equals(planProgressProjectedCostStatus) &&
-                Status.SUCCESS.equals(planProgressProjectedRiCoverageStatus)) {
+                plan.hasProjectedTopologyId() && plan.hasSourceTopologyId()) {
+            if (isOCPOptimizeAndBuyRI) {
+                // OCP buy RI and optimize services
+                return Status.SUCCESS.equals(planProgressProjectedCostStatus) &&
+                        Status.SUCCESS.equals(planProgressProjectedRiCoverageStatus) ?
+                        PlanStatus.SUCCEEDED : PlanStatus.WAITING_FOR_RESULT;
+            }
+            // OCP buy RI only
             return PlanStatus.SUCCEEDED;
         }
         return PlanStatus.WAITING_FOR_RESULT;
+    }
+
+    /**
+     * If the plan is OCP or not.
+     *
+     * @param plan The plan
+     * @return If the plan is OCP or not
+     */
+    @VisibleForTesting
+    static boolean isOCP(@Nonnull final Builder plan) {
+        @Nullable ScenarioInfo scenarioInfo = plan.hasScenario() ? plan.getScenario()
+                .getScenarioInfo() : null;
+        if (scenarioInfo == null) {
+            return false;
+        }
+        return StringConstants.OPTIMIZE_CLOUD_PLAN.equals(scenarioInfo.getType());
+    }
+
+    /**
+     * If the plan is optimize services and buy RI or not.
+     *
+     * @param plan the OCP plan
+     * @return If the plan is optimize services and buy RI or not
+     */
+    @VisibleForTesting
+    static boolean isOCPOptimizeAndBuyRI(@Nonnull final PlanInstance.Builder plan) {
+        String planSubType = PlanRpcServiceUtil.getPlanSubType(plan.getScenario()
+                .getScenarioInfo());
+        return StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_AND_OPTIMIZE_SERVICES.equals(planSubType);
+    }
+
+    /**
+     * If the plan is OCP optimize services or not.
+     *
+     * @param plan The OCP plan
+     * @return If the plan is OCP optimize services or not
+     */
+    @VisibleForTesting
+    static boolean isOCPOptimizeServices(@Nonnull final PlanInstance.Builder plan) {
+        String planSubType = PlanRpcServiceUtil.getPlanSubType(plan.getScenario()
+                .getScenarioInfo());
+        return StringConstants.OPTIMIZE_CLOUD_PLAN__OPTIMIZE_SERVICES.equals(planSubType);
+    }
+
+    /**
+     * If the plan is OCP buy RI only or not.
+     *
+     * @param plan The OCP plan
+     * @return If the plan is OCP buy RI only or not
+     */
+    @VisibleForTesting
+    static boolean isOCPBuyRIOnly(@Nonnull final PlanInstance.Builder plan) {
+        String planSubType = PlanRpcServiceUtil.getPlanSubType(plan.getScenario()
+                .getScenarioInfo());
+        return StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_ONLY.equals(planSubType);
     }
 
 }

@@ -15,9 +15,11 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.BuyRIActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.Status;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProgress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 
 /**
@@ -31,6 +33,10 @@ public class ActionListenerTest {
 
     private static final long ACTION_PLAN_ID = 12345L;
     private static final long PROJ_TOPO_ID = 34567L;
+    /**
+     * Source topology ID.
+     */
+    private static final int SOURCE_TOPOLOGY_ID = 2;
 
     @Autowired
     private PlanDao planDao;
@@ -115,15 +121,18 @@ public class ActionListenerTest {
     public void testFinishedPlanPlan() throws Exception {
         planDao.updatePlanInstance(planId, builder -> builder.setStatus(PlanStatus.WAITING_FOR_RESULT)
                 .setStatsAvailable(true)
-                .setProjectedTopologyId(PROJ_TOPO_ID));
-
+                .setSourceTopologyId(SOURCE_TOPOLOGY_ID)
+                .setProjectedTopologyId(PROJ_TOPO_ID)
+                .setPlanProgress(PlanProgress.newBuilder()
+                        .setProjectedRiCoverageStatus(Status.SUCCESS)
+                        .setProjectedCostStatus(Status.SUCCESS)));
         final ActionsUpdated actionsUpdated = ActionsUpdated.newBuilder()
-            .setActionPlanId(ACTION_PLAN_ID)
-            .setActionPlanInfo(ActionPlanInfo.newBuilder()
-                .setMarket(MarketActionPlanInfo.newBuilder()
-                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
-                        .setTopologyContextId(planId))))
-            .build();
+                .setActionPlanId(ACTION_PLAN_ID)
+                .setActionPlanInfo(ActionPlanInfo.newBuilder()
+                        .setMarket(MarketActionPlanInfo.newBuilder()
+                                .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                                        .setTopologyContextId(planId))))
+                .build();
         actionsListener.onActionsUpdated(actionsUpdated);
         final PlanInstance instance = planDao.getPlanInstance(planId).get();
         Assert.assertTrue(ACTION_PLAN_ID == instance.getActionPlanIdList().get(0));
