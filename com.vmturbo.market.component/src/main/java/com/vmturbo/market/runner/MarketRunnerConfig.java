@@ -23,6 +23,8 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.api.CostClientConfig;
+import com.vmturbo.cost.api.impl.CostSubscription;
+import com.vmturbo.cost.api.impl.CostSubscription.Topic;
 import com.vmturbo.cost.calculation.CloudCostCalculator;
 import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFactory;
 import com.vmturbo.cost.calculation.DiscountApplicator;
@@ -35,6 +37,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
 import com.vmturbo.group.api.GroupClientConfig;
+import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.api.MarketApiConfig;
 import com.vmturbo.market.rpc.MarketRpcConfig;
 import com.vmturbo.market.runner.AnalysisFactory.DefaultAnalysisFactory;
@@ -129,7 +132,7 @@ public class MarketRunnerConfig {
                 standardQuoteFactor,
                 liveMarketMoveCostFactor,
                 suspensionThrottlingPerCluster,
-                tierExcluderFactory());
+                tierExcluderFactory(), analysisRICoverageListener());
     }
 
     /**
@@ -198,5 +201,19 @@ public class MarketRunnerConfig {
     @Bean
     public MarketCloudCostDataProvider marketCloudCostDataProvider() {
         return new MarketCloudCostDataProvider(costClientConfig.costChannel());
+    }
+
+    /**
+     * Factory method for creating AnalysisRICoverageListener instances. The created instance is
+     * registered with the CostComponent to listen to the Cost status notification topic.
+     *
+     * @return an instance of AnalysisRICoverageListener.
+     */
+    @Bean
+    public AnalysisRICoverageListener analysisRICoverageListener() {
+        final AnalysisRICoverageListener listener = new AnalysisRICoverageListener();
+        costClientConfig.costComponent(CostSubscription.forTopic(Topic.COST_STATUS_NOTIFICATION))
+                .addCostNotificationListener(listener);
+        return listener;
     }
 }

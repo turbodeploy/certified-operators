@@ -4,7 +4,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -14,6 +13,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -36,6 +36,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.Status;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -48,6 +51,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.SetOnce;
@@ -57,6 +61,7 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
@@ -134,7 +139,7 @@ public class Analysis {
 
     private final String logPrefix;
 
-    private final TopologyConverter converter;
+    private TopologyConverter converter;
 
     private Map<Long, TopologyEntityDTO> scopeEntities = Collections.emptyMap();
 
@@ -171,15 +176,19 @@ public class Analysis {
 
     private final TopologyEntityCloudTopologyFactory cloudTopologyFactory;
 
-    private final TopologyCostCalculator topologyCostCalculator;
+    private final TierExcluderFactory tierExcluderFactory;
 
-    private final MarketPriceTable marketPriceTable;
+    private final TopologyCostCalculatorFactory topologyCostCalculatorFactory;
+
+    private final MarketPriceTableFactory marketPriceTableFactory;
 
     private final WastedFilesAnalysisFactory wastedFilesAnalysisFactory;
 
+    private final AnalysisRICoverageListener listener;
+
     // a set of on-prem application entity type
-    private static final Set<Integer> entityTypesToSkip = new HashSet<>(Arrays
-            .asList(EntityType.BUSINESS_APPLICATION_VALUE));
+    private static final Set<Integer> entityTypesToSkip =
+            new HashSet<>(Collections.singletonList(EntityType.BUSINESS_APPLICATION_VALUE));
 
     /**
      * Create and execute a context for a Market Analysis given a topology, an optional 'scope' to
@@ -198,6 +207,7 @@ public class Analysis {
      * @param priceTableFactory price table factory
      * @param wastedFilesAnalysisFactory wasted file analysis handler
      * @param tierExcluderFactory the tier excluder factory
+     * @param listener that receives entity ri coverage information availability.
      */
     public Analysis(@Nonnull final TopologyInfo topologyInfo,
                     @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
@@ -208,7 +218,8 @@ public class Analysis {
                     @Nonnull final TopologyCostCalculatorFactory cloudCostCalculatorFactory,
                     @Nonnull final MarketPriceTableFactory priceTableFactory,
                     @Nonnull final WastedFilesAnalysisFactory wastedFilesAnalysisFactory,
-                    @Nonnull final TierExcluderFactory tierExcluderFactory) {
+                    @Nonnull final TierExcluderFactory tierExcluderFactory,
+                    @Nonnull final AnalysisRICoverageListener listener) {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs.stream()
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
@@ -222,20 +233,12 @@ public class Analysis {
         this.clock = Objects.requireNonNull(clock);
         this.config = analysisConfig;
         this.cloudTopologyFactory = cloudTopologyFactory;
-        this.topologyCostCalculator = cloudCostCalculatorFactory.newCalculator(topologyInfo);
         this.originalCloudTopology = this.cloudTopologyFactory.newCloudTopology(topologyDTOs.stream());
-
-        // Use the cloud cost data we use for cost calculations for the price table.
-        this.marketPriceTable = priceTableFactory.newPriceTable(
-                this.originalCloudTopology, this.topologyCostCalculator.getCloudCostData());
-        this.converter = new TopologyConverter(topologyInfo,
-            analysisConfig.getIncludeVdc(), analysisConfig.getQuoteFactor(),
-            analysisConfig.getLiveMarketMoveCostFactor(),
-            this.marketPriceTable,
-            null,
-            this.topologyCostCalculator.getCloudCostData(),
-            CommodityIndex.newFactory(), tierExcluderFactory);
         this.wastedFilesAnalysisFactory = wastedFilesAnalysisFactory;
+        this.topologyCostCalculatorFactory = cloudCostCalculatorFactory;
+        this.marketPriceTableFactory = priceTableFactory;
+        this.tierExcluderFactory = tierExcluderFactory;
+        this.listener = listener;
     }
 
     private static final DataMetricSummary RESULT_PROCESSING = DataMetricSummary.builder()
@@ -262,6 +265,54 @@ public class Analysis {
             logger.error(" {} Completed or Stopped or being computed", logPrefix);
             return false;
         }
+
+        if (topologyInfo.getTopologyType() == TopologyType.REALTIME
+                && !originalCloudTopology.getEntities().isEmpty()) {
+            final long waitStartTime = System.currentTimeMillis();
+            try {
+                final CostNotification notification =
+                        listener.receiveCostNotification(this).get();
+                final StatusUpdate statusUpdate = notification.getStatusUpdate();
+                final Status status = statusUpdate.getStatus();
+                if (status != Status.SUCCESS) {
+                    logger.error("Cost notification reception failed for analysis with context id" +
+                            " : {}, topology id: {} with status: {} and message: {}",
+                            this.getContextId(), this.getTopologyId(), status,
+                            statusUpdate.getStatusDescription());
+                    return false;
+                } else {
+                    logger.debug("Cost notification with a success status received for analysis " +
+                            "with context id: {}, topology id: {}", this.getContextId(),
+                            this.getTopologyId());
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logger.error(
+                        String.format("Error while receiving cost notification for analysis %s",
+                                getTopologyInfo()), e);
+                return false;
+            } catch (ExecutionException e) {
+                logger.error(
+                        String.format("Error while receiving cost notification for analysis %s",
+                                getTopologyInfo()), e);
+                return false;
+            } finally {
+                final long waitEndTime = System.currentTimeMillis();
+                logger.debug("Analysis with context id: {}, topology id: {} waited {} ms for the " +
+                                "cost notification.", this.getContextId(), this.getTopologyId(),
+                        waitEndTime - waitStartTime);
+            }
+        }
+
+        final TopologyCostCalculator topologyCostCalculator = topologyCostCalculatorFactory
+                .newCalculator(topologyInfo);
+        // Use the cloud cost data we use for cost calculations for the price table.
+        final MarketPriceTable marketPriceTable = marketPriceTableFactory.newPriceTable(
+                this.originalCloudTopology, topologyCostCalculator.getCloudCostData());
+        this.converter = new TopologyConverter(topologyInfo, config.getIncludeVdc(),
+                config.getQuoteFactor(), config.getLiveMarketMoveCostFactor(),
+                marketPriceTable, null, topologyCostCalculator.getCloudCostData(),
+                CommodityIndex.newFactory(), tierExcluderFactory);
         state = AnalysisState.IN_PROGRESS;
         startTime = clock.instant();
         logger.info("{} Started", logPrefix);

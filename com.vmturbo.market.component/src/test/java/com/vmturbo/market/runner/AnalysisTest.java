@@ -18,10 +18,13 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -33,6 +36,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.Status;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -56,6 +63,7 @@ import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
@@ -76,6 +84,8 @@ public class AnalysisTest {
     private long topologyId = 2222;
     private static final float DEFAULT_RATE_OF_RESIZE = 2.0f;
     private TopologyType topologyType = TopologyType.PLAN;
+    private AnalysisRICoverageListener listener;
+
 
     private final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
             .setTopologyContextId(topologyContextId)
@@ -120,6 +130,7 @@ public class AnalysisTest {
                 .thenReturn(END_INSTANT);
         groupServiceClient = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
+        listener = mock(AnalysisRICoverageListener.class);
     }
 
     private Map<String, Setting> getRateOfResizeSettingMap(float resizeValue) {
@@ -147,7 +158,14 @@ public class AnalysisTest {
         when(cloudCostCalculatorFactory.newCalculator(topoInfo)).thenReturn(cloudCostCalculator);
         final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
         when(priceTableFactory.newPriceTable(any(), eq(CloudCostData.empty()))).thenReturn(mock(MarketPriceTable.class));
-        when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
+        final TopologyEntityCloudTopology cloudTopology = mock(TopologyEntityCloudTopology.class);
+        final long vmOid = 123L;
+        final TopologyEntityDTO cloudVm = TopologyEntityDTO.newBuilder()
+                .setEnvironmentType(EnvironmentType.CLOUD).setOid(vmOid)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .build();
+        when(cloudTopology.getEntities()).thenReturn(ImmutableMap.of(vmOid, cloudVm));
+        when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(cloudTopology);
         final WastedFilesAnalysisFactory wastedFilesAnalysisFactory =
             mock(WastedFilesAnalysisFactory.class);
         final WastedFilesAnalysis wastedFilesAnalysis = mock(WastedFilesAnalysis.class);
@@ -160,7 +178,8 @@ public class AnalysisTest {
         return new Analysis(topoInfo, topologySet,
             groupServiceClient, mockClock, analysisConfig,
             cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
-            wastedFilesAnalysisFactory, tierExcluderFactory);
+            wastedFilesAnalysisFactory, tierExcluderFactory,
+                listener);
     }
     /**
      * Convenience method to get an Analysis based on an analysisConfig and a set of
@@ -405,4 +424,59 @@ public class AnalysisTest {
         assertEquals(type, fakeEntityDTO.getCommoditiesBoughtFromProvidersList().get(0)
                 .getCommodityBought(0).getCommodityType());
     }
+
+    /**
+     * If cost notification status is not success then Analysis execution should return false.
+     *
+     * @throws ExecutionException if exception is encountered by the task.
+     * @throws InterruptedException if interruption is encountered on the task.
+     */
+    @Test
+    public void testAnalysisFalseOnFailNotification() throws ExecutionException,
+            InterruptedException {
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR,
+                MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
+                getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
+                .setIncludeVDC(true)
+                .build();
+
+        final Analysis analysis = getAnalysis(analysisConfig, Collections.emptySet(),
+                TopologyInfo.newBuilder().setTopologyType(TopologyType.REALTIME)
+                        .build());
+        final Future<CostNotification> costNotificationFuture = mock(Future.class);
+        final CostNotification costNotification = CostNotification.newBuilder()
+                .setStatusUpdate(StatusUpdate.newBuilder().setStatus(Status.FAIL).build())
+                .build();
+        when(costNotificationFuture.get()).thenReturn(costNotification);
+        when(listener.receiveCostNotification(analysis)).thenReturn(costNotificationFuture);
+        Assert.assertFalse(analysis.execute());
+    }
+
+    /**
+     * If cost notification status is success then Analysis should execution return true.
+     *
+     * @throws ExecutionException if exception is encountered by the task.
+     * @throws InterruptedException if interruption is encountered on the task.
+     */
+    @Test
+    public void testAnalysisTrueOnSuccessNotification() throws ExecutionException,
+            InterruptedException {
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR,
+                MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
+                getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
+                .setIncludeVDC(true)
+                .build();
+
+        final Analysis analysis = getAnalysis(analysisConfig, Collections.emptySet(),
+                TopologyInfo.newBuilder().setTopologyType(TopologyType.REALTIME)
+                        .build());
+        final Future<CostNotification> costNotificationFuture = mock(Future.class);
+        final CostNotification costNotification = CostNotification.newBuilder()
+                .setStatusUpdate(StatusUpdate.newBuilder().setStatus(Status.SUCCESS).build())
+                .build();
+        when(costNotificationFuture.get()).thenReturn(costNotification);
+        when(listener.receiveCostNotification(analysis)).thenReturn(costNotificationFuture);
+        Assert.assertTrue(analysis.execute());
+    }
+
 }

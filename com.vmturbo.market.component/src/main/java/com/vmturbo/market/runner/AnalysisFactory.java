@@ -12,7 +12,6 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
@@ -30,6 +29,7 @@ import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
@@ -86,6 +86,8 @@ public interface AnalysisFactory {
 
         private final CloudCostDataProvider cloudCostDataProvider;
 
+        private final AnalysisRICoverageListener listener;
+
         /**
          * The quote factor to use for allevate pressure plans. See {@link AnalysisConfig}.
          */
@@ -113,7 +115,8 @@ public interface AnalysisFactory {
                   final float standardQuoteFactor,
                   final float liveMarketMoveCostFactor,
                   final boolean suspensionThrottlingPerCluster,
-                  @NonNull final TierExcluderFactory tierExcluderFactory) {
+                  @Nonnull final TierExcluderFactory tierExcluderFactory,
+                  @Nonnull AnalysisRICoverageListener listener) {
             Preconditions.checkArgument(alleviatePressureQuoteFactor >= 0f);
             Preconditions.checkArgument(alleviatePressureQuoteFactor <= 1.0f);
             Preconditions.checkArgument(standardQuoteFactor >= 0f);
@@ -133,6 +136,7 @@ public interface AnalysisFactory {
             this.suspensionsThrottlingConfig = suspensionThrottlingPerCluster ?
                     SuspensionsThrottlingConfig.CLUSTER : SuspensionsThrottlingConfig.DEFAULT;
             this.tierExcluderFactory = tierExcluderFactory;
+            this.listener = listener;
         }
 
         /**
@@ -153,7 +157,7 @@ public interface AnalysisFactory {
                 groupServiceClient, clock,
                 configBuilder.build(), cloudTopologyFactory,
                 topologyCostCalculatorFactory, priceTableFactory, wastedFilesAnalysisFactory,
-                tierExcluderFactory);
+                tierExcluderFactory, listener);
         }
 
         /**

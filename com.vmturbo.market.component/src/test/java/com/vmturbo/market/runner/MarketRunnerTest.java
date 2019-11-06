@@ -48,6 +48,7 @@ import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
@@ -135,7 +136,8 @@ public class MarketRunnerTest {
                     GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                     Clock.systemUTC(), configBuilder.build(),
                     cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
-                    wastedFilesAnalysisFactory, tierExcluderFactory);
+                    wastedFilesAnalysisFactory, tierExcluderFactory,
+                    mock(AnalysisRICoverageListener.class));
         }).when(analysisFactory).newAnalysis(any(), any(), any());
     }
 

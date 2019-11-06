@@ -56,7 +56,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
@@ -66,6 +65,7 @@ import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
@@ -158,7 +158,7 @@ public class ScopedTopologyTest {
             cloudCostCalculatorFactory,
             priceTableFactory,
             wastedFilesAnalysisFactory,
-            tierExcluderFactory);
+            tierExcluderFactory, mock(AnalysisRICoverageListener.class));
     }
 
     /**
@@ -334,7 +334,8 @@ public class ScopedTopologyTest {
                 return new Analysis(topologyInfo, topologyDTOs,
                         groupServiceClient, Clock.systemUTC(), configBuilder.build(),
                         cloudTopologyFactory, topologyCostCalculatorFactory, priceTableFactory,
-                        wastedFilesAnalysisFactory, tierExcluderFactory);
+                        wastedFilesAnalysisFactory, tierExcluderFactory,
+                        mock(AnalysisRICoverageListener.class));
             });
 
         Analysis analysis =
