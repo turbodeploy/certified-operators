@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.service;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
@@ -200,13 +201,18 @@ public class MarketsServiceTest {
                 .andReturn();
         final Collection<MarketApiDTO> resp = Arrays.asList(
                 GSON.fromJson(result.getResponse().getContentAsString(), MarketApiDTO[].class));
-        assertEquals(2, resp.size());
+        // Three markets are expected because the results include the realtime market
+        assertEquals(3, resp.size());
         final MarketApiDTO market1 =
                 resp.stream().filter(market -> market.getUuid().equals("1")).findFirst().get();
         final MarketApiDTO market2 =
                 resp.stream().filter(market -> market.getUuid().equals("2")).findFirst().get();
         comparePlanAndMarket(plan1, market1);
         comparePlanAndMarket(plan2, market2);
+        // Also check that the realtime market was returned.
+        final MarketApiDTO realtimeMarket =
+                resp.stream().filter(market -> market.getUuid().equals("777777")).findFirst().get();
+        assertNotNull(realtimeMarket);
     }
 
     /**

@@ -288,6 +288,9 @@ public class MarketsService implements IMarketsService {
         final Iterator<PlanInstance> plans =
                 planRpcService.getAllPlans(GetPlansOptions.getDefaultInstance());
         final List<MarketApiDTO> result = new ArrayList<>();
+        // Add the realtime market api dto to the list of markets
+        result.add(createRealtimeMarketApiDTO());
+        // Get the plan markets and create api dtos for these
         while (plans.hasNext()) {
             final PlanInstance plan = plans.next();
             final MarketApiDTO dto = marketMapper.dtoFromPlanInstance(plan);
@@ -331,18 +334,7 @@ public class MarketsService implements IMarketsService {
 
         final ApiId apiId = uuidMapper.fromUuid(uuid);
         if (apiId.isRealtimeMarket()) {
-            // TODO (roman, Dec 21 2016): Not sure what the API
-            // expects from the real-time market as far as state,
-            // unplaced entities, state progress, and all that jazz.
-            MarketApiDTO realtimeDto = new MarketApiDTO();
-            realtimeDto.setUuid(apiId.uuid());
-            realtimeDto.setDisplayName("Market");
-            realtimeDto.setClassName(apiId.uuid());
-            realtimeDto.setState("RUNNING");
-            realtimeDto.setUnplacedEntities(false);
-            realtimeDto.setStateProgress(100);
-            realtimeDto.setEnvironmentType(envType);
-            return realtimeDto;
+           return createRealtimeMarketApiDTO();
         } else {
             OptionalPlanInstance response = planRpcService.getPlan(PlanId.newBuilder()
                     .setPlanId(Long.valueOf(uuid))
@@ -1187,6 +1179,25 @@ public class MarketsService implements IMarketsService {
     }
 
     /**
+     * Create a dto for the realtime market
+     * @return a dto with data including the oid and name of the realtime market
+     */
+    private MarketApiDTO createRealtimeMarketApiDTO() {
+        // TODO (roman, Dec 21 2016): Not sure what the API
+        // expects from the real-time market as far as state,
+        // unplaced entities, state progress, and all that jazz.
+        MarketApiDTO realtimeDto = new MarketApiDTO();
+        realtimeDto.setUuid(new Long(realtimeTopologyContextId).toString());
+        realtimeDto.setDisplayName("Market");
+        realtimeDto.setClassName("Market");
+        realtimeDto.setState("RUNNING");
+        realtimeDto.setUnplacedEntities(false);
+        realtimeDto.setStateProgress(100);
+        realtimeDto.setEnvironmentType(EnvironmentType.HYBRID);
+        return realtimeDto;
+    }
+
+    /**
      * Class to handle all the operation related to merge data center policy.
      */
     private class MergeDataCenterPolicyHandler {
@@ -1342,5 +1353,6 @@ public class MarketsService implements IMarketsService {
                 .map(MinimalEntity::getDisplayName)
                 .collect(Collectors.toList());
         }
+
     }
 }
