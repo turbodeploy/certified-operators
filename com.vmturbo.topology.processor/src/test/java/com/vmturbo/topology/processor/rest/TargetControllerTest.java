@@ -521,7 +521,7 @@ public class TargetControllerTest {
         adder.setAccountField("mandatory", "prop");
         final TargetInfo result = adder.postAndExpect(HttpStatus.OK);
         Assert.assertNotNull(result.getTargetId());
-        Assert.assertEquals("Unknown", result.getStatus());
+        Assert.assertEquals(TargetController.VALIDATING, result.getStatus());
         Assert.assertNull(result.getLastValidationTime());
 
         Mockito.when(operationManager.getLastDiscoveryForTarget(Mockito.anyLong()))
@@ -534,7 +534,7 @@ public class TargetControllerTest {
                 .thenReturn(Optional.of(validation));
         {
             final TargetInfo target2 = getTarget(result.getId());
-            Assert.assertThat(target2.getStatus(), CoreMatchers.containsString("Unknown"));
+            Assert.assertThat(target2.getStatus(), CoreMatchers.containsString(TargetController.VALIDATING));
             Assert.assertNull(target2.getLastValidationTime());
 
             validation.setUserInitiated(true);

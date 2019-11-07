@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
 import io.swagger.annotations.Api;
@@ -61,7 +62,11 @@ import com.vmturbo.topology.processor.topology.TopologyHandler;
 @RestController
 public class TargetController {
 
+    @VisibleForTesting
     public static final String VALIDATED = "Validated";
+
+    @VisibleForTesting
+    public static final String VALIDATING = "Validating";
 
     private final TargetStore targetStore;
 
@@ -249,7 +254,8 @@ public class TargetController {
         } else if (!isProbeConnected) {
             status = "Failed to connect to probe. Check if probe is running";
         } else {
-            status = "Unknown";
+            // If the target status is unknown, show as "Validating"
+            status = VALIDATING;
         }
         return status;
     }
