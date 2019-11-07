@@ -3,12 +3,10 @@ package com.vmturbo.cost.component.reserved.instance;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
-import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.junit.After;
@@ -122,19 +120,9 @@ public class ReservedInstanceCoverageStoreTest {
     public void testGetReservedInstanceCoverageStatsRecords() {
         reservedInstanceCoverageStore.updateReservedInstanceCoverageStore(dsl,
                 Arrays.asList(firstEntity, secondEntity, thirdEntity));
-        List<Long> ids = new ArrayList<>();
-        ids.add(123L);
-        ids.add(124L);
-        ids.add(125L);
-        final ReservedInstanceCoverageFilter filter = ReservedInstanceCoverageFilter
-                .newBuilder()
-                .setStartDateMillis(0)
-                .setEndDateMillis(System.currentTimeMillis() + 10000000)
-                .setTimeFrame(TimeFrameCalculator.TimeFrame.LATEST)
-                .addAllScopeId(ids)
-                .build();
+        final ReservedInstanceCoverageFilter filer = ReservedInstanceCoverageFilter.newBuilder().build();
         final List<ReservedInstanceStatsRecord> riStatsRecords =
-                reservedInstanceCoverageStore.getReservedInstanceCoverageStatsRecords(filter);
+                reservedInstanceCoverageStore.getReservedInstanceCoverageStatsRecords(filer);
         assertEquals(1L, riStatsRecords.size());
         final ReservedInstanceStatsRecord riStatsRecord = riStatsRecords.get(0);
         assertEquals(200L, riStatsRecord.getCapacity().getMax(), DELTA);
