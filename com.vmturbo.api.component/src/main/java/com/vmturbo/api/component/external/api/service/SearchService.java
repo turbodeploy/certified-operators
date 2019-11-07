@@ -295,6 +295,8 @@ public class SearchService implements ISearchService {
 
         // Determine which of many (many) types of searches is requested.
         // NB: this method is heavily overloaded.  The REST endpoint to be redefined
+        // TODO most of the cases below only handle one type of scope.  We need to generalize scope
+        // handling to handle target, market, entity, or group for all use cases.
         if (types == null && scopes == null && state == null && groupType == null) {
             return paginationRequest.allResultsResponse(searchAll());
         } else if (StringUtils.isNotEmpty(groupType)) {
@@ -337,8 +339,10 @@ public class SearchService implements ISearchService {
                 final Collection<TargetApiDTO> targets = targetsService.getTargets(null);
                 return paginationRequest.allResultsResponse(Lists.newArrayList(targets));
             } else if (types.contains(UIEntityType.BUSINESS_ACCOUNT.apiStr())) {
+                // TODO handle different scopes (not just target scope)
                 final Collection<BusinessUnitApiDTO> businessAccounts =
-                        businessUnitMapper.getAndConvertDiscoveredBusinessUnits(targetsService);
+                        businessUnitMapper.getAndConvertDiscoveredBusinessUnits(targetsService,
+                            scopes);
                 return paginationRequest.allResultsResponse(Lists.newArrayList(businessAccounts));
             } else if (types.contains(StringConstants.BILLING_FAMILY)) {
                 return paginationRequest.allResultsResponse(fetchBillingFamilyApiDTOs());

@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +37,7 @@ import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.ServicePricingModel;
 import com.vmturbo.api.exceptions.InvalidOperationException;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.ITargetsService;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.cost.Cost.Discount;
@@ -73,11 +75,11 @@ public class BusinessUnitMapper {
 
     private static final String FAILED_TO_GET_TARGET_INFORMATION_BY_TARGET_ORIGIN_ID = "Failed to get target information by target originId: ";
 
+    private static final String TARGET_TYPE_UNKNOWN = "UNKNOWN";
+
     private static final double ZERO = 0.0;
 
     private static final Logger logger = LogManager.getLogger();
-
-    private static final Set<String> AWS_PROBE = ImmutableSet.of("AWS", "AWS Billing", "AWS Cost");
 
     private static final Set<Integer> TIER_TYPES = ImmutableSet.of(
             EntityType.COMPUTE_TIER_VALUE,
@@ -369,28 +371,65 @@ public class BusinessUnitMapper {
      * @return discovered business unit with discount type
      * @throws InvalidOperationException if search operation failed
      */
-    public List<BusinessUnitApiDTO> getAndConvertDiscoveredBusinessUnits(@Nonnull final ITargetsService targetsService)
-            throws Exception {
-        final List<TopologyEntityDTO> entities = repositoryApi.newSearchRequest(
+    public List<BusinessUnitApiDTO> getAndConvertDiscoveredBusinessUnits(
+        @Nonnull final ITargetsService targetsService)
+        throws Exception {
+        return this.getAndConvertDiscoveredBusinessUnits(targetsService, Collections.emptyList());
+    }
+
+
+    /**
+     * Find all discovered business units discovered by targets in the scope.  If scope is null
+     * or empty, return all discovered business units.
+     *
+     * @param targetsService target service needed to enforce scope and populate target information
+     *                       in the {@link BusinessUnitApiDTO}.
+     * @param scopes a list of target ids.
+     * @return Set of discovered business units.
+     */
+    public List<BusinessUnitApiDTO> getAndConvertDiscoveredBusinessUnits(
+        @Nonnull final ITargetsService targetsService,
+        List<String> scopes) {
+        final Set<Long> scopeTargets = new HashSet<>();
+        final Set<String> validTargetIds = new HashSet<>();
+        if (scopes != null && !scopes.isEmpty()) {
+            try {
+                targetsService.getTargets(EnvironmentType.CLOUD)
+                    .forEach(targetApiDTO -> validTargetIds.add(targetApiDTO.getUuid()));
+            } catch (UnknownObjectException e) {
+                logger.warn("Could not get target list due to exception {}.  Cannot enforce scope.", e);
+            }
+        }
+        if (!validTargetIds.isEmpty()) {
+            scopes.forEach(targetId -> {
+                try {
+                    if (validTargetIds.contains(targetId)) {
+                        scopeTargets.add(Long.parseLong(targetId));
+                    } else {
+                        logger.warn("No target matching target ID {} found."
+                            + "  {} will not be added to scope.", targetId, targetId);
+                    }
+                } catch (NumberFormatException nfe) {
+                    // should never happen
+                    logger.warn("Could not parse target id: {}", targetId);
+                }
+            });
+        }
+        final List<TopologyEntityDTO> businessAccounts = repositoryApi.newSearchRequest(
             SearchProtoUtil.makeSearchParameters(SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT))
                 .build())
-                .getFullEntities()
-                .collect(Collectors.toList());
+            .getFullEntities()
+            .collect(Collectors.toList());
 
-        if (entities.size() > 0) {
-            final long firstTopologyEntityOid = entities.get(0).getOid();
-            final CloudType type = normalize(getTargetType(firstTopologyEntityOid)
-                    .map(TargetApiDTO::getType)
-                    .orElse("UNKNOWN"));
-
-            return entities.stream()
-                .map(tpDto -> buildDiscoveredBusinessUnitApiDTO(tpDto, type, targetsService))
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .collect(Collectors.toList());
-        } else {
-            return Collections.emptyList();
-        }
+        return businessAccounts.stream()
+            .filter(entity -> scopeTargets.isEmpty()
+                || entity.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList()
+                .stream()
+                .anyMatch(scopeTargets::contains))
+            .map(tpDto -> buildDiscoveredBusinessUnitApiDTO(tpDto, targetsService))
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .collect(Collectors.toList());
     }
 
     /**
@@ -412,38 +451,22 @@ public class BusinessUnitMapper {
                         .findAny()
                         .orElseThrow(() -> new UnsupportedOperationException("Cannot find Business Unit with OID: " + oid));
 
-        final CloudType type = normalize(getTargetType(Long.parseLong(oid))
-                        .map(TargetApiDTO::getType)
-                        .orElse("UNKNOWN"));
-
-        return buildDiscoveredBusinessUnitApiDTO(outputDTO, type, targetsService)
+        return buildDiscoveredBusinessUnitApiDTO(outputDTO, targetsService)
                         .orElseThrow(() -> new UnsupportedOperationException("Invalid Business Unit for OID: " + oid));
-    }
-
-    // From UI perspective, AWS is one Cloud type, but in implementation, we have AWS, AWS billing
-    // and AWS Cost probe, and business unit from these are all from AWS Cloud type.
-    private CloudType normalize(@Nonnull final String type) {
-        if (AWS_PROBE.contains(type)) {
-            return CloudType.AWS;
-        }
-        try {
-            return CloudType.valueOf(type);
-        } catch (IllegalArgumentException exception) {
-            return CloudType.UNKNOWN;
-        }
     }
 
     /**
      * Build discovered business unit API DTO.
      *
      * @param topologyEntityDTO topology entity DTOP for the business account
-     * @param cloudType         account Cloud type
      * @param targetsService    target service to get the account's target
      * @return BusinessUnitApiDTO
      */
     private Optional<BusinessUnitApiDTO> buildDiscoveredBusinessUnitApiDTO(@Nonnull final TopologyEntityDTO topologyEntityDTO,
-                                                                           @Nonnull final CloudType cloudType,
                                                                            @Nonnull final ITargetsService targetsService) {
+        final CloudType cloudType = CloudType.fromProbeType(getTargetType(topologyEntityDTO.getOid())
+            .map(TargetApiDTO::getType)
+            .orElse(TARGET_TYPE_UNKNOWN));
         final BusinessUnitApiDTO businessUnitApiDTO = new BusinessUnitApiDTO();
         businessUnitApiDTO.setBusinessUnitType(BusinessUnitType.DISCOVERED);
         businessUnitApiDTO.setUuid(Long.toString(topologyEntityDTO.getOid()));
@@ -484,42 +507,28 @@ public class BusinessUnitMapper {
                     PricingIdentifier::getIdentifierValue)));
         }
         businessUnitApiDTO.setMaster(accounts.size() > 0);
-        if (accounts.size() > 0) {
-            final List<TargetApiDTO> targetApiDTOS = topologyEntityDTO
-                    .getOrigin()
-                    .getDiscoveryOrigin()
-                    .getDiscoveringTargetIdsList()
-                    .stream()
-                    .map(oid -> getTargetAPIDTO(oid, targetsService, cloudType))
-                    .collect(Collectors.toList());
-            businessUnitApiDTO.setTargets(targetApiDTOS);
-        }
-        return Optional.of(businessUnitApiDTO);
-    }
-
-    /**
-     * Set business account's targets.
-     *
-     * @param targetId       target id
-     * @param targetsService target service to find target information
-     * @param cloudType      type of the target
-     * @return TargetApiDTO
-     */
-    private TargetApiDTO getTargetAPIDTO(@Nonnull final Long targetId,
-                                         @Nonnull final ITargetsService targetsService,
-                                         @Nonnull final CloudType cloudType) {
+        final Map<String, TargetApiDTO> targetApiDtoByTargetId = new HashMap<>();
         try {
-            final TargetApiDTO targetApiDTO = targetsService.getTarget(String.valueOf(targetId));
-            targetApiDTO.setType(cloudType.name());
-            targetApiDTO.setDisplayName(targetApiDTO.getInputFields().stream()
-                    .filter(apiDTO -> apiDTO.getName().equalsIgnoreCase(TARGET_ADDRESS))
-                    .findFirst()
-                    .orElseThrow(() -> new MissingTargetNameException(FAILED_TO_GET_TARGET_NAME_FROM_TARGET + targetApiDTO)).getValue());
-            return targetApiDTO;
-        } catch (Exception e) {
-            logger.error(e.getMessage());
-            return new TargetApiDTO();
+            targetsService.getTargets(EnvironmentType.CLOUD)
+                .forEach(targetApiDTO -> {
+                    targetApiDTO.setType(cloudType.name());
+                    targetApiDtoByTargetId.put(targetApiDTO.getUuid(), targetApiDTO);
+                });
+        } catch (UnknownObjectException e) {
+            logger.warn("Could not get target list due to exception {}.  "
+                + "Cannot populate targets in BusinessUnitApiDTO.", e);
         }
+        final List<TargetApiDTO> targetApiDTOS = topologyEntityDTO
+                .getOrigin()
+                .getDiscoveryOrigin()
+                .getDiscoveringTargetIdsList()
+                .stream()
+                .map(String::valueOf)
+                .map(targetApiDtoByTargetId::get)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        businessUnitApiDTO.setTargets(targetApiDTOS);
+        return Optional.of(businessUnitApiDTO);
     }
 
     /**

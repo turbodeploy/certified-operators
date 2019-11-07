@@ -31,6 +31,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
@@ -64,6 +65,7 @@ import com.vmturbo.api.component.external.api.util.ImmutableGroupAndMembers;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder;
 import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
@@ -112,6 +114,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
@@ -257,7 +260,7 @@ public class SearchServiceTest {
         verify(targetsService).getTargets(null);
 
         getSearchResults(searchService, null, Lists.newArrayList("BusinessAccount"), null, null, null, EnvironmentType.CLOUD, null, null);
-        verify(businessUnitMapper).getAndConvertDiscoveredBusinessUnits(targetsService);
+        verify(businessUnitMapper).getAndConvertDiscoveredBusinessUnits(targetsService, null);
     }
 
     @Test
@@ -462,6 +465,24 @@ public class SearchServiceTest {
 
         //THEN
         verify(req, times(0)).useAspectMapper(entityAspectMapper);
+    }
+
+    /**
+     * Test that SearchService.getSearchResults calls businessUnitMapper with the right args when
+     * BusinessAccount is the type and scope is sent.
+     *
+     * @throws Exception if getSearchResults throws an Exception.
+     */
+    @Test
+    public void testBusinesUnitsWithScope() throws Exception {
+        BusinessUnitApiDTO businessUnitApiDTO = new BusinessUnitApiDTO();
+        businessUnitApiDTO.setDisplayName("Test Business Account");
+        final List<String> scopes = ImmutableList.of("target1", "target2");
+        final List<String> types = ImmutableList.of(UIEntityType.BUSINESS_ACCOUNT.apiStr());
+        Collection<BaseApiDTO> results = getSearchResults(searchService, null, types, scopes,
+            null, null, null, null, null);
+        verify(businessUnitMapper).getAndConvertDiscoveredBusinessUnits(targetsService,
+            scopes);
     }
 
     @Test

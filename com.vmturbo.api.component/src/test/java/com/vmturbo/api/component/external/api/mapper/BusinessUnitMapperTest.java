@@ -1,23 +1,23 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyList;
-import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Stream;
+import java.util.stream.Collectors;
+
+import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -27,23 +27,19 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
-import com.vmturbo.api.component.external.api.mapper.BusinessUnitMapper.MissingTopologyEntityException;
 import com.vmturbo.api.component.external.api.service.SearchService;
 import com.vmturbo.api.component.external.api.service.TargetsService;
-import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitPriceAdjustmentApiDTO;
 import com.vmturbo.api.dto.businessunit.CloudServicePriceAdjustmentApiDTO;
 import com.vmturbo.api.dto.businessunit.EntityPriceDTO;
 import com.vmturbo.api.dto.businessunit.TemplatePriceAdjustmentDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
-import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.BusinessUnitType;
 import com.vmturbo.api.enums.CloudType;
+import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.ServicePricingModel;
-import com.vmturbo.api.pagination.SearchPaginationRequest;
-import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.ISearchService;
 import com.vmturbo.common.protobuf.cost.Cost.Discount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
@@ -59,7 +55,6 @@ import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier.PricingIdentifierName;
-import com.vmturbo.repository.api.RepositoryClient;
 
 /**
  * Unit tests for the {@link BusinessUnitMapper}.
@@ -84,6 +79,13 @@ public class BusinessUnitMapperTest {
     public static final String BUSINESS_ACCOUNT = "BusinessAccount";
     private static final long id = 1234L;
     private static final long id2 = 1235L;
+    private static final long target_id1 = 11L;
+    private static final long target_id2 = 22L;
+    private static final long target_id3 = 33L;
+    private static final TargetApiDTO target1 = new TargetApiDTO();
+    private static final TargetApiDTO target2 = new TargetApiDTO();
+    private static final TargetApiDTO target3 = new TargetApiDTO();
+
     final DiscountInfo discountInfo1 = DiscountInfo.newBuilder()
         .setAccountLevelDiscount(DiscountInfo
             .AccountLevelDiscount
@@ -130,39 +132,11 @@ public class BusinessUnitMapperTest {
 
     @Before
     public void setup() throws Exception {
-//        TopologyEntityDTO entity = TopologyEntityDTO.newBuilder()
-//                .setOid(ENTITY_OID)
-//                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
-//                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(
-//                        DiscoveryOrigin.newBuilder().addDiscoveringTargetIds(id2)))
-//                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setBusinessAccount(
-//                        BusinessAccountInfo.newBuilder().setHasAssociatedTarget(true)))
-//                .build();
-//        Stream<TopologyEntityDTO> responseStream = Stream.of(TopologyEntityDTO.newBuilder()
-//                .setOid(ENTITY_OID)
-//                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
-//                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(
-//                        DiscoveryOrigin.newBuilder().addDiscoveringTargetIds(id2)))
-//                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setBusinessAccount(
-//                        BusinessAccountInfo.newBuilder().setHasAssociatedTarget(true)))
-//                .build());
-//
-//        when(repositoryClient.retrieveTopologyEntities(anyList(), anyLong()))
-//                .thenAnswer(i -> Stream.of(entity));
-//        final TargetApiDTO targetApiDTO = new TargetApiDTO();
-//        targetApiDTO.setUuid(TARGET_UUID);
-//        targetApiDTO.setType(AWS);
-//        targetApiDTO.setDisplayName(ENGINEERING_AWS_AMAZON_COM);
-//        BusinessUnitApiDTO businessUnitApiDTO = new BusinessUnitApiDTO();
-//        businessUnitApiDTO.setChildrenBusinessUnits(ImmutableSet.of(CHILDREN_BUSINESS_UNITS));
-//        targetApiDTO.setCurrentBusinessAccount(businessUnitApiDTO);
-//        when(targetsService.getTarget(anyString())).thenReturn(targetApiDTO);
-//        GroupApiDTO groupApiDTO = new GroupApiDTO();
-//        groupApiDTO.setUuid(String.valueOf(ENTITY_OID));
-//        List<BaseApiDTO> results = ImmutableList.of(groupApiDTO);
-//        final SearchPaginationRequest searchPaginationRequest = new SearchPaginationRequest(null, null, false, null);
-//        final SearchPaginationResponse searchPaginationResponse = searchPaginationRequest.allResultsResponse(results);
-//        when(searchService.getMembersBasedOnFilter(anyString(), any(), any())).thenReturn(searchPaginationResponse);
+        target1.setUuid(String.valueOf(target_id1));
+        target2.setUuid(String.valueOf(target_id2));
+        target3.setUuid(String.valueOf(target_id3));
+        when(targetsService.getTargets(EnvironmentType.CLOUD))
+            .thenReturn(ImmutableList.of(target1, target2, target3));
     }
 
     @Test
@@ -227,10 +201,11 @@ public class BusinessUnitMapperTest {
             .setOid(ENTITY_OID)
             .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
             .setOrigin(Origin.newBuilder().setDiscoveryOrigin(
-                DiscoveryOrigin.newBuilder().addDiscoveringTargetIds(id2)))
+                DiscoveryOrigin.newBuilder().addDiscoveringTargetIds(target_id2)
+                    .addDiscoveringTargetIds(target_id1)))
             .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setBusinessAccount(
                 BusinessAccountInfo.newBuilder()
-                    .setAssociatedTargetId(id2)
+                    .setAssociatedTargetId(target_id2)
                     .setAccountId(accountId)
                     .addPricingIdentifiers(PricingIdentifier.newBuilder()
                         .setIdentifierName(PricingIdentifierName.ENROLLMENT_NUMBER)
@@ -243,60 +218,59 @@ public class BusinessUnitMapperTest {
         when(repositoryApi.newSearchRequest(any())).thenReturn(request);
 
         final ServiceEntityApiDTO associatedEntity = new ServiceEntityApiDTO();
-        associatedEntity.setDiscoveredBy(new TargetApiDTO());
+        associatedEntity.setDiscoveredBy(target2);
         associatedEntity.getDiscoveredBy().setType(AWS);
         SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(associatedEntity);
         when(repositoryApi.entityRequest(ENTITY_OID)).thenReturn(req);
 
         List<BusinessUnitApiDTO> businessUnitApiDTOs = businessUnitMapper.getAndConvertDiscoveredBusinessUnits(targetsService);
         assertEquals(1, businessUnitApiDTOs.size());
-        assertEquals(String.valueOf(ENTITY_OID), businessUnitApiDTOs.get(0).getUuid());
-        assertEquals(BusinessUnitType.DISCOVERED, businessUnitApiDTOs.get(0).getBusinessUnitType());
-        assertEquals(CloudType.AWS, businessUnitApiDTOs.get(0).getCloudType());
-        assertEquals(WORKLOAD, businessUnitApiDTOs.get(0).getMemberType());
-        assertEquals((Long)id2, businessUnitApiDTOs.get(0).getAssociatedTargetId());
-        assertEquals(2, businessUnitApiDTOs.get(0).getPricingIdentifiers().size());
-        assertEquals(offerId, businessUnitApiDTOs.get(0).getPricingIdentifiers()
+        final BusinessUnitApiDTO result = businessUnitApiDTOs.iterator().next();
+        assertEquals(String.valueOf(ENTITY_OID), result.getUuid());
+        assertEquals(BusinessUnitType.DISCOVERED, result.getBusinessUnitType());
+        assertEquals(CloudType.AWS, result.getCloudType());
+        assertEquals(WORKLOAD, result.getMemberType());
+        assertEquals((Long)target_id2, result.getAssociatedTargetId());
+        assertEquals(2, result.getPricingIdentifiers().size());
+        assertEquals(offerId, result.getPricingIdentifiers()
             .get(PricingIdentifierName.OFFER_ID.name()));
-        assertEquals(enrollmentNum, businessUnitApiDTOs.get(0).getPricingIdentifiers()
+        assertEquals(enrollmentNum, result.getPricingIdentifiers()
             .get(PricingIdentifierName.ENROLLMENT_NUMBER.name()));
-        assertEquals(accountId, businessUnitApiDTOs.get(0).getAccountId());
-        assertTrue(businessUnitApiDTOs.get(0).isHasRelatedTarget());
+        assertEquals(accountId, result.getAccountId());
+        assertTrue(result.isHasRelatedTarget());
+        assertEquals(2, result.getTargets().size());
+        assertThat(result.getTargets(), containsInAnyOrder(target1, target2));
     }
 
     @Test
     public void testToDiscoveredBusinessUnitDTOWithBillingProbe() throws Exception {
-        TopologyEntityDTO entity = TopologyEntityDTO.newBuilder()
-            .setOid(ENTITY_OID)
-            .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
-            .setOrigin(Origin.newBuilder().setDiscoveryOrigin(
-                DiscoveryOrigin.newBuilder().addDiscoveringTargetIds(id2)))
+        TopologyEntityDTO entity = createBusinessAccount(ENTITY_OID,
+            Collections.singletonList(target_id2))
             .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setBusinessAccount(
-                BusinessAccountInfo.newBuilder().setAssociatedTargetId(id2)))
+                BusinessAccountInfo.newBuilder().setAssociatedTargetId(target_id2)))
             .build();
 
         final SearchRequest request = ApiTestUtils.mockSearchFullReq(Collections.singletonList(entity));
         when(repositoryApi.newSearchRequest(any())).thenReturn(request);
 
         final ServiceEntityApiDTO associatedEntity = new ServiceEntityApiDTO();
-        associatedEntity.setDiscoveredBy(new TargetApiDTO());
+        associatedEntity.setDiscoveredBy(target2);
         associatedEntity.getDiscoveredBy().setType(AWS);
         SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(associatedEntity);
         when(repositoryApi.entityRequest(ENTITY_OID)).thenReturn(req);
 
-        TargetApiDTO targetApiDTO = new TargetApiDTO();
-        targetApiDTO.setUuid(TARGET_UUID);
-        targetApiDTO.setType("AWS Billing");
-        targetApiDTO.setDisplayName("engineering.billing.aws.amazon.com");
-        when(targetsService.getTarget(anyString())).thenReturn(targetApiDTO);
+        target1.setType("AWS Billing");
+        target1.setDisplayName("engineering.billing.aws.amazon.com");
+
         List<BusinessUnitApiDTO> businessUnitApiDTOs = businessUnitMapper.getAndConvertDiscoveredBusinessUnits(targetsService);
         assertEquals(1, businessUnitApiDTOs.size());
-        assertEquals(String.valueOf(ENTITY_OID), businessUnitApiDTOs.get(0).getUuid());
-        assertEquals(BusinessUnitType.DISCOVERED, businessUnitApiDTOs.get(0).getBusinessUnitType());
+        final BusinessUnitApiDTO result = businessUnitApiDTOs.iterator().next();
+        assertEquals(String.valueOf(ENTITY_OID), result.getUuid());
+        assertEquals(BusinessUnitType.DISCOVERED, result.getBusinessUnitType());
         // still AWS instead of billing probe
-        assertEquals(CloudType.AWS, businessUnitApiDTOs.get(0).getCloudType());
-        assertEquals(WORKLOAD, businessUnitApiDTOs.get(0).getMemberType());
-        assertTrue(businessUnitApiDTOs.get(0).getPricingIdentifiers().isEmpty());
+        assertEquals(CloudType.AWS, result.getCloudType());
+        assertEquals(WORKLOAD, result.getMemberType());
+        assertTrue(result.getPricingIdentifiers().isEmpty());
     }
 
     /**
@@ -306,33 +280,94 @@ public class BusinessUnitMapperTest {
      */
     @Test
     public void testEmptyBusinessAccountToDiscoveredBusinessUnitDTO() throws Exception {
-        TopologyEntityDTO entity = TopologyEntityDTO.newBuilder()
-            .setOid(ENTITY_OID)
-            .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
-            .setOrigin(Origin.newBuilder().setDiscoveryOrigin(
-                DiscoveryOrigin.newBuilder().addDiscoveringTargetIds(id2)))
-            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setBusinessAccount(
-                BusinessAccountInfo.newBuilder()))
-            .build();
-        final SearchRequest request = ApiTestUtils.mockSearchFullReq(Collections.singletonList(entity));
+        TopologyEntityDTO entity = createBusinessAccount(ENTITY_OID,
+            Collections.singletonList(target_id2)).build();
+       final SearchRequest request = ApiTestUtils.mockSearchFullReq(Collections.singletonList(entity));
         when(repositoryApi.newSearchRequest(any())).thenReturn(request);
 
         final ServiceEntityApiDTO associatedEntity = new ServiceEntityApiDTO();
-        associatedEntity.setDiscoveredBy(new TargetApiDTO());
+        associatedEntity.setDiscoveredBy(target2);
         associatedEntity.getDiscoveredBy().setType(AWS);
         SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(associatedEntity);
         when(repositoryApi.entityRequest(ENTITY_OID)).thenReturn(req);
 
         List<BusinessUnitApiDTO> businessUnitApiDTOs = businessUnitMapper.getAndConvertDiscoveredBusinessUnits(targetsService);
         assertEquals(1, businessUnitApiDTOs.size());
-        assertEquals(String.valueOf(ENTITY_OID), businessUnitApiDTOs.get(0).getUuid());
-        assertEquals(BusinessUnitType.DISCOVERED, businessUnitApiDTOs.get(0).getBusinessUnitType());
-        assertEquals(CloudType.AWS, businessUnitApiDTOs.get(0).getCloudType());
-        assertEquals(WORKLOAD, businessUnitApiDTOs.get(0).getMemberType());
-        assertNull(businessUnitApiDTOs.get(0).getAssociatedTargetId());
-        assertTrue(businessUnitApiDTOs.get(0).getPricingIdentifiers().isEmpty());
-        assertNull(businessUnitApiDTOs.get(0).getAccountId());
-        assertFalse(businessUnitApiDTOs.get(0).isHasRelatedTarget());
+        final BusinessUnitApiDTO result = businessUnitApiDTOs.iterator().next();
+        assertEquals(String.valueOf(ENTITY_OID), result.getUuid());
+        assertEquals(BusinessUnitType.DISCOVERED, result.getBusinessUnitType());
+        assertEquals(CloudType.AWS, result.getCloudType());
+        assertEquals(WORKLOAD, result.getMemberType());
+        assertNull(result.getAssociatedTargetId());
+        assertTrue(result.getPricingIdentifiers().isEmpty());
+        assertNull(result.getAccountId());
+        assertFalse(result.isHasRelatedTarget());
+        assertEquals(1, result.getTargets().size());
+        assertEquals(target2, result.getTargets().get(0));
+    }
+
+    /**
+     * Test that when we get all business accounts scoped to a set of targets, we get the right
+     * set of business accounts.
+     *
+     * @throws Exception when businessUnitMapper.getAndConvertDiscoveredBusinessUnits throws one.
+     */
+    @Test
+    public void testGetBusinessAccountByTargetScope() throws Exception {
+        final long entity1_id = 111L;
+        final long entity2_id = 222L;
+        final long entity3_id = 333L;
+
+        final TopologyEntityDTO businessAccount1 = createBusinessAccount(entity1_id,
+            ImmutableList.of(target_id1, target_id3)).build();
+        final TopologyEntityDTO businessAccount2 = createBusinessAccount(entity2_id,
+            ImmutableList.of(target_id2)).build();
+        final TopologyEntityDTO businessAccount3 = createBusinessAccount(entity3_id,
+            ImmutableList.of(target_id3)).build();
+        final SearchRequest request = ApiTestUtils.mockSearchFullReq(ImmutableList.of(businessAccount1,
+            businessAccount2, businessAccount3));
+        when(repositoryApi.newSearchRequest(any())).thenReturn(request);
+        final ServiceEntityApiDTO associatedEntity1 = new ServiceEntityApiDTO();
+        associatedEntity1.setDiscoveredBy(target1);
+        associatedEntity1.getDiscoveredBy().setType(AWS);
+        final ServiceEntityApiDTO associatedEntity2 = new ServiceEntityApiDTO();
+        associatedEntity2.setDiscoveredBy(target2);
+        associatedEntity2.getDiscoveredBy().setType(AWS);
+        final ServiceEntityApiDTO associatedEntity3 = new ServiceEntityApiDTO();
+        associatedEntity3.setDiscoveredBy(target3);
+        associatedEntity3.getDiscoveredBy().setType(AWS);
+        final SingleEntityRequest req1 = ApiTestUtils.mockSingleEntityRequest(associatedEntity1);
+        final SingleEntityRequest req2 = ApiTestUtils.mockSingleEntityRequest(associatedEntity2);
+        final SingleEntityRequest req3 = ApiTestUtils.mockSingleEntityRequest(associatedEntity3);
+        when(repositoryApi.entityRequest(entity1_id)).thenReturn(req1);
+        when(repositoryApi.entityRequest(entity2_id)).thenReturn(req2);
+        when(repositoryApi.entityRequest(entity3_id)).thenReturn(req3);
+        List<BusinessUnitApiDTO> businessUnitApiDTOs = businessUnitMapper
+            .getAndConvertDiscoveredBusinessUnits(targetsService,
+                Collections.singletonList(String.valueOf(target_id3)));
+        assertEquals(2, businessUnitApiDTOs.size());
+        assertThat(businessUnitApiDTOs.stream().map(BusinessUnitApiDTO::getUuid)
+            .collect(Collectors.toList()), containsInAnyOrder(String.valueOf(entity1_id),
+            String.valueOf(entity3_id)));
+
+        businessUnitApiDTOs = businessUnitMapper
+            .getAndConvertDiscoveredBusinessUnits(targetsService,
+                ImmutableList.of(String.valueOf(target_id1), String.valueOf(target_id2)));
+        assertEquals(2, businessUnitApiDTOs.size());
+        assertThat(businessUnitApiDTOs.stream().map(BusinessUnitApiDTO::getUuid)
+            .collect(Collectors.toList()), containsInAnyOrder(String.valueOf(entity1_id),
+            String.valueOf(entity2_id)));
+    }
+
+    private TopologyEntityDTO.Builder createBusinessAccount(long oid,
+                                                         @Nonnull List<Long> discoveringTargets) {
+        return TopologyEntityDTO.newBuilder()
+            .setOid(oid)
+            .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+            .setOrigin(Origin.newBuilder().setDiscoveryOrigin(
+                DiscoveryOrigin.newBuilder().addAllDiscoveringTargetIds(discoveringTargets)))
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setBusinessAccount(
+                BusinessAccountInfo.newBuilder()));
     }
 
     @Test
@@ -354,7 +389,8 @@ public class BusinessUnitMapperTest {
         targetApiDTO.setUuid(TARGET_UUID);
         targetApiDTO.setType("AWS Billing");
         targetApiDTO.setDisplayName("engineering.billing.aws.amazon.com");
-        when(targetsService.getTarget(anyString())).thenReturn(targetApiDTO);
+        when(targetsService.getTargets(EnvironmentType.CLOUD))
+            .thenReturn(ImmutableList.of(target1, target2, targetApiDTO));
 
         final ServiceEntityApiDTO associatedEntity = new ServiceEntityApiDTO();
         associatedEntity.setDiscoveredBy(targetApiDTO);
