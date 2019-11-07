@@ -341,6 +341,12 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
                                 .getEntities()
                                 .forEach(region -> regionByVolumeId.put(vol.getOid(), region));
                         break;
+                    case EntityType.REGION_VALUE:
+                        // in case of Azure, volume connected from Region directly.
+                        repositoryApi.entityRequest(connectedEntity.getConnectedEntityId())
+                            .getEntity()
+                            .ifPresent(region -> regionByVolumeId.put(vol.getOid(), region));
+                        break;
                     case EntityType.STORAGE_TIER_VALUE:
                         storageTierIdToVolumeOid.put(connectedEntity.getConnectedEntityId(), vol.getOid());
                         break;
