@@ -50,6 +50,26 @@ class DiscoveredGroupConstants {
 
     static final String PLACEHOLDER_PROP_NAME = "prop";
 
+    static final String SUBSCRIPTION_ID = "Test subscription id";
+
+    static final CommonDTO.GroupDTO RESOURCE_GROUP_DTO = CommonDTO.GroupDTO.newBuilder()
+            .setGroupType(GroupType.RESOURCE)
+            .setEntityType(EntityType.VIRTUAL_VOLUME)
+            .setDisplayName(DISPLAY_NAME)
+            .setGroupName(GROUP_NAME)
+            .setMemberList(MembersList.newBuilder().addMember("1").build())
+            .setOwner(SUBSCRIPTION_ID)
+            .build();
+
+    static final CommonDTO.GroupDTO RESOURCE_GROUP_DTO_WITHOUT_OWNER =
+            CommonDTO.GroupDTO.newBuilder()
+            .setGroupType(GroupType.RESOURCE)
+            .setEntityType(EntityType.VIRTUAL_VOLUME)
+            .setDisplayName(DISPLAY_NAME)
+            .setGroupName(GROUP_NAME)
+            .setMemberList(MembersList.newBuilder().addMember("1").build())
+            .build();
+
     static final PropertyFilter PLACEHOLDER_FILTER = PropertyFilter.newBuilder()
             .setPropertyName(PLACEHOLDER_PROP_NAME)
             .setStringFilter(StringFilter.newBuilder()
