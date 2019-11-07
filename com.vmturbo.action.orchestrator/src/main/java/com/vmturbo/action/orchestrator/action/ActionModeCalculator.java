@@ -29,13 +29,13 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
+
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
@@ -53,8 +53,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.Units;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -445,6 +443,9 @@ public class ActionModeCalculator {
                             }
                         })
                         .distinct();
+            case SCALE:
+                // For now we use Move policy for SCALE actions
+                return Stream.of(EntitySettingSpecs.Move);
             case RECONFIGURE:
                 return Stream.of(EntitySettingSpecs.Reconfigure);
             case PROVISION:
@@ -510,7 +511,6 @@ public class ActionModeCalculator {
          * @param resize the resize action
          * @param settingsForTargetEntity A map of the setting name and the setting for this entity
          * @return Optional of the applicable spec. If nothing applies, Optional.empty.
-         * @throws Exception
          */
         @Nonnull
         private Optional<EntitySettingSpecs> getSpecForRangeAwareCommResize(
@@ -566,7 +566,7 @@ public class ActionModeCalculator {
             }
             logger.debug("Range aware spec for resizing {} of commodity {} of entity {} is {} ",
                     changedAttribute, commType, resize.getTarget().getId(),
-                    applicableSpec.map(spec -> spec.getSettingName()).orElse("empty"));
+                    applicableSpec.map(EntitySettingSpecs::getSettingName).orElse("empty"));
             return applicableSpec;
         }
 

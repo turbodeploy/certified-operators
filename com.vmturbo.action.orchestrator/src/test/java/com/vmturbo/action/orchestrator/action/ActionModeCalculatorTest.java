@@ -8,15 +8,12 @@ import static org.mockito.Mockito.when;
 import java.util.Map;
 import java.util.Optional;
 
-import org.junit.Test;
-
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
-import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
+import org.junit.Test;
+
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -32,6 +29,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
@@ -41,7 +39,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.HotResizeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -222,6 +219,41 @@ public class ActionModeCalculatorTest {
 
         assertThat(actionModeCalculator.calculateActionMode(aoAction, null),
                 is(expectedDefaultMode));
+    }
+
+    @Test
+    public void testSettingScale() {
+        final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
+                .setScale(Scale.newBuilder()
+                        .setTarget(ActionEntity.newBuilder()
+                                .setId(7L)
+                                .setType(1))))
+                .build();
+        final String settingName = EntitySettingSpecs.Move.getSettingName();
+        when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
+                ImmutableMap.of(settingName,
+                        Setting.newBuilder()
+                                .setSettingSpecName(settingName)
+                                .setEnumSettingValue(EnumSettingValue.newBuilder()
+                                        .setValue(ActionMode.AUTOMATIC.name()))
+                                .build()));
+        final Action aoAction = new Action(action, 1L, actionModeCalculator);
+        aoAction.getActionTranslation().setPassthroughTranslationSuccess();
+        assertThat(actionModeCalculator.calculateActionMode(aoAction, entitiesCache),
+                is(ActionMode.AUTOMATIC));
+    }
+
+    @Test
+    public void testNoSettingScale() {
+        final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
+                .setScale(Scale.newBuilder()
+                        .setTarget(ActionEntity.newBuilder()
+                                .setId(7L)
+                                .setType(1))))
+                .build();
+        final Action aoAction = new Action(action, 1L, actionModeCalculator);
+        assertThat(actionModeCalculator.calculateActionMode(aoAction, null),
+                is(ActionMode.RECOMMEND));
     }
 
     @Test
