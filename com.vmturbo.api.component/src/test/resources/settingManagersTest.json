@@ -20,6 +20,12 @@
       "settings": [
         "excludedTemplatesOids"
       ]
+    },
+    "osmigrationmanager": {
+      "displayName": "OS Migration Manager",
+      "settings": [
+        "rhelTargetOs"
+      ]
     }
   }
 }

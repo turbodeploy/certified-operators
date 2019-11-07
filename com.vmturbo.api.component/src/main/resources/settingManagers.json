@@ -200,6 +200,24 @@
         "riCoverageOverride",
         "ri.demandType"
       ]
+    },
+    "osmigrationmanager": {
+      "displayName": "OS Migration Manager",
+      "settings": [
+        "selectedMigrationProfileOption",
+        "matchToSource",
+        "showMatchSourceToTargetOsOption",
+        "showByolOption",
+        "showCustomOsOption",
+        "linuxTargetOs",
+        "rhelTargetOs",
+        "slesTargetOs",
+        "windowsTargetOs",
+        "linuxByol",
+        "rhelByol",
+        "slesByol",
+        "windowsByol"
+      ]
     }
   }
 }

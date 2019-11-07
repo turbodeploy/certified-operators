@@ -95,6 +95,7 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBloc
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
+import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OperatingSystem;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import org.immutables.value.Value;
@@ -196,6 +197,16 @@ public class SettingsMapper {
             .put(GlobalSettingSpecs.RateOfResize.getSettingName(), UIEntityType.VIRTUAL_MACHINE.apiStr())
             .put(GlobalSettingSpecs.DisableAllActions.getSettingName(), SERVICE_ENTITY)
             .build();
+
+    /**
+     * map to get the predefined label for a given setting enum. if not found, we will use
+     * {@link com.vmturbo.common.protobuf.action.ActionDTOUtil#upperUnderScoreToMixedSpaces} to
+     * convert the enum to a beautiful string. we want to show "RHEL" rather than "Rhel" in UI.
+     */
+    private static final Map<String, String> SETTING_ENUM_NAME_TO_LABEL = ImmutableMap.of(
+            OperatingSystem.RHEL.name(), "RHEL",
+            OperatingSystem.SLES.name(), "SLES"
+    );
 
     public SettingsMapper(@Nonnull final SettingServiceBlockingStub settingService,
                           @Nonnull final GroupServiceBlockingStub groupService,
@@ -1331,9 +1342,8 @@ public class SettingsMapper {
                     dtoSkeleton.setOptions(enumType.getEnumValuesList().stream()
                             .map(enumValue -> {
                                 final SettingOptionApiDTO enumOption = new SettingOptionApiDTO();
-                                final String displayEnum =
-                                    ActionDTOUtil.upperUnderScoreToMixedSpaces(enumValue);
-                                enumOption.setLabel(displayEnum);
+                                enumOption.setLabel(SETTING_ENUM_NAME_TO_LABEL.getOrDefault(enumValue,
+                                        ActionDTOUtil.upperUnderScoreToMixedSpaces(enumValue)));
                                 enumOption.setValue(enumValue);
                                 return enumOption;
                             })

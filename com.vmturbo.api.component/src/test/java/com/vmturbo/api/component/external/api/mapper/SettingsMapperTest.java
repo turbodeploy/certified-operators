@@ -50,6 +50,7 @@ import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingSpecM
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
+import com.vmturbo.api.dto.setting.SettingOptionApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.api.dto.settingspolicy.RecurrenceApiDTO;
 import com.vmturbo.api.dto.settingspolicy.ScheduleApiDTO;
@@ -109,6 +110,8 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBloc
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
+import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OperatingSystem;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
@@ -150,6 +153,8 @@ public class SettingsMapperTest {
 
     private final SettingSpec settingSpec3 = EntitySettingSpecs.ExcludedTemplates.getSettingSpec();
 
+    private final SettingSpec settingSpec4 = GlobalSettingSpecs.RhelTargetOs.createSettingSpec();
+
     private SettingsManagerMapping settingMgrMapping = mock(SettingsManagerMapping.class);
 
     private SettingSpecStyleMapping settingStyleMapping = mock(SettingSpecStyleMapping.class);
@@ -184,10 +189,10 @@ public class SettingsMapperTest {
                 (new SettingsManagerMappingLoader("settingManagersTest.json")).getMapping(),
                 (new SettingSpecStyleMappingLoader("settingSpecStyleTest.json")).getMapping());
 
-        final Map<String, SettingsManagerApiDTO> mgrsByUuid =
-            mapper.toManagerDtos(Arrays.asList(settingSpec1, settingSpec3), Optional.empty()).stream()
+        final Map<String, SettingsManagerApiDTO> mgrsByUuid = mapper.toManagerDtos(
+                Arrays.asList(settingSpec1, settingSpec3, settingSpec4), Optional.empty()).stream()
                 .collect(Collectors.toMap(BaseApiDTO::getUuid, Function.identity()));
-        assertEquals(2, mgrsByUuid.size());
+        assertEquals(3, mgrsByUuid.size());
 
         final SettingsManagerApiDTO mgr = mgrsByUuid.get("automationmanager");
         assertEquals("automationmanager", mgr.getUuid());
@@ -230,6 +235,16 @@ public class SettingsMapperTest {
         assertThat(mktomgr.getSettings().stream().map(SettingApiDTO::getEntityType).collect(Collectors.toList()),
             containsInAnyOrder("VirtualMachine", "Database", "DatabaseServer"));
         assertEquals(InputValueType.LIST, teSettingApiDTO.getValueType());
+
+        // verify the label for osmigrationmanager is set correctly
+        final SettingsManagerApiDTO osMigrationMgr = mgrsByUuid.get("osmigrationmanager");
+        Map<String, String> labelByEnum = osMigrationMgr.getSettings().get(0).getOptions().stream()
+                .collect(Collectors.toMap(SettingOptionApiDTO::getValue,
+                        SettingOptionApiDTO::getLabel));
+        assertEquals("Linux", labelByEnum.get(OperatingSystem.LINUX.name()));
+        assertEquals("RHEL", labelByEnum.get(OperatingSystem.RHEL.name()));
+        assertEquals("SLES", labelByEnum.get(OperatingSystem.SLES.name()));
+        assertEquals("Windows", labelByEnum.get(OperatingSystem.WINDOWS.name()));
     }
 
     @Test

@@ -18,6 +18,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.components.common.mail.MailConfiguration.EncryptionType;
+import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OperatingSystem;
+import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OsMigrationProfileOption;
 
 /**
  * Enumeration for all the pre-built global settings.
@@ -178,6 +180,62 @@ public enum GlobalSettingSpecs {
             Collections.emptyList()),
 
     DisableAllActions("disableAllActions", "Disable All Actions",
+            new BooleanSettingDataType(false),
+            Collections.emptyList()),
+
+    /**
+     * Settings for OS migration.
+     */
+    SelectedMigrationProfileOption("selectedMigrationProfileOption", "Selected OS Migration Profile Option",
+            new EnumSettingDataType<>(OsMigrationProfileOption.MATCH_SOURCE_TO_TARGET_OS,
+                    OsMigrationProfileOption.class),
+            Collections.emptyList()),
+
+    MatchToSource("matchToSource", "Match source OS to target OS",
+            new BooleanSettingDataType(true),
+            Collections.emptyList()),
+
+    ShowMatchSourceToTargetOsOption("showMatchSourceToTargetOsOption", "Show Match Source To Target OS Option",
+            new BooleanSettingDataType(true),
+            Collections.emptyList()),
+
+    ShowByolOption("showByolOption", "Show BYOL Option",
+            new BooleanSettingDataType(true),
+            Collections.emptyList()),
+
+    ShowCustomOsOption("showCustomOsOption", "Show Custom OS Option",
+            new BooleanSettingDataType(true),
+            Collections.emptyList()),
+
+    LinuxTargetOs("linuxTargetOs", "Target OS for VMs with Linux OS",
+            new EnumSettingDataType<>(OperatingSystem.LINUX, OperatingSystem.class),
+            Collections.emptyList()),
+
+    RhelTargetOs("rhelTargetOs", "Target OS for VMs with RHEL OS",
+            new EnumSettingDataType<>(OperatingSystem.RHEL, OperatingSystem.class),
+            Collections.emptyList()),
+
+    SlesTargetOs("slesTargetOs", "Target OS for VMs with SLES OS",
+            new EnumSettingDataType<>(OperatingSystem.SLES, OperatingSystem.class),
+            Collections.emptyList()),
+
+    WindowsTargetOs("windowsTargetOs", "Target OS for VMs with Windows OS",
+            new EnumSettingDataType<>(OperatingSystem.WINDOWS, OperatingSystem.class),
+            Collections.emptyList()),
+
+    LinuxByol("linuxByol", "BYOL Target OS for VMs with Linux OS",
+            new BooleanSettingDataType(true),
+            Collections.emptyList()),
+
+    RhelByol("rhelByol", "BYOL Target OS for VMs with RHEL OS",
+            new BooleanSettingDataType(false),
+            Collections.emptyList()),
+
+    SlesByol("slesByol", "BYOL Target OS for VMs with SLES OS",
+            new BooleanSettingDataType(false),
+            Collections.emptyList()),
+
+    WindowsByol("windowsByol", "BYOL Target OS for VMs with Windows OS",
             new BooleanSettingDataType(false),
             Collections.emptyList());
 
