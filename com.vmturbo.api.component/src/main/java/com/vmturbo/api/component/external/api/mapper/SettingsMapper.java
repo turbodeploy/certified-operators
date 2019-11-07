@@ -25,11 +25,6 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
@@ -37,6 +32,12 @@ import com.google.common.collect.Sets;
 
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.immutables.value.Value;
 
 import com.vmturbo.api.component.external.api.mapper.SettingSpecStyleMappingLoader.SettingSpecStyleMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
@@ -98,7 +99,6 @@ import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OperatingSystem;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import org.immutables.value.Value;
 
 /**
  * Responsible for mapping Settings-related XL objects to their API counterparts.
@@ -579,13 +579,28 @@ public class SettingsMapper {
      */
     public List<SettingsPolicyApiDTO> convertSettingPolicies(
             @Nonnull final List<SettingPolicy> settingPolicies) {
+        return convertSettingPolicies(settingPolicies, Collections.emptySet());
+    }
+
+    /**
+     * Convert a list of {@link SettingPolicy} objects to {@link SettingsPolicyApiDTO}s that
+     * can be returned to API clients.
+     *
+     * @param settingPolicies The setting policies retrieved from the group components.
+     * @param managersToInclude the set of managers to include in the response, if
+     *                          managersToInclude is empty, return all managers
+     * @return A list of {@link SettingsPolicyApiDTO} objects in the same order as the input list.
+     */
+    public List<SettingsPolicyApiDTO> convertSettingPolicies(
+            @Nonnull final List<SettingPolicy> settingPolicies,
+            @Nonnull final Set<String> managersToInclude) {
         final Set<Long> involvedGroups = SettingDTOUtil.getInvolvedGroups(settingPolicies);
         final Map<Long, String> groupNames = new HashMap<>();
         if (!involvedGroups.isEmpty()) {
             groupService.getGroups(GetGroupsRequest.newBuilder()
-                            .setGroupFilter(GroupFilter.newBuilder()
-                                            .addAllId(involvedGroups))
-                            .build())
+                    .setGroupFilter(GroupFilter.newBuilder()
+                            .addAllId(involvedGroups))
+                    .build())
                     .forEachRemaining(group -> groupNames.put(group.getId(),
                             group.getDefinition().getDisplayName()));
         }
@@ -593,9 +608,9 @@ public class SettingsMapper {
         Map<String, Setting> globalSettingNameToSettingMap = getRelevantGlobalSettings(settingPolicies);
 
         return settingPolicies.stream()
-            .map(policy -> settingPolicyMapper.convertSettingPolicy(policy, groupNames,
-                    globalSettingNameToSettingMap))
-            .collect(Collectors.toList());
+                .map(policy -> settingPolicyMapper.convertSettingPolicy(policy, groupNames,
+                        globalSettingNameToSettingMap, managersToInclude))
+                .collect(Collectors.toList());
     }
 
     /**
@@ -681,11 +696,14 @@ public class SettingsMapper {
          *                   resulting {@link SettingsPolicyApiDTO}.
          * @param globalSettingNameToSettingMap required global settings (like disableAllActions) that need to be
          *                                      injected to shown in UI with entity settings.
+         * @param managersToInclude the set of managers to include in the response, if
+         *                          managersToInclude is empty, return all managers
          * @return The resulting {@link SettingsPolicyApiDTO}.
          */
         SettingsPolicyApiDTO convertSettingPolicy(@Nonnull final SettingPolicy settingPolicy,
                                                   @Nonnull final Map<Long, String> groupNames,
-                                                  @Nonnull final Map<String, Setting> globalSettingNameToSettingMap);
+                                                  @Nonnull final Map<String, Setting> globalSettingNameToSettingMap,
+                                                  @Nonnull final Set<String> managersToInclude);
     }
 
     /**
@@ -706,7 +724,8 @@ public class SettingsMapper {
         @Override
         public SettingsPolicyApiDTO convertSettingPolicy(@Nonnull final SettingPolicy settingPolicy,
                                                          @Nonnull final Map<Long, String> groupNames,
-                                                         @Nonnull final Map<String, Setting> globalSettingNameToSettingMap) {
+                                                         @Nonnull final Map<String, Setting> globalSettingNameToSettingMap,
+                                                         @Nonnull final Set<String> managersToInclude) {
             final SettingsPolicyApiDTO apiDto = new SettingsPolicyApiDTO();
             apiDto.setUuid(Long.toString(settingPolicy.getId()));
             final SettingPolicyInfo info = settingPolicy.getInfo();
@@ -776,6 +795,8 @@ public class SettingsMapper {
             apiDto.setSettingsManagers(settingsByMgr.entrySet().stream()
                     // Don't return the specs that don't have a Manager mapping
                     .filter(entry -> !entry.getKey().equals(NO_MANAGER))
+                    // only return settings for requested managers, if managers is empty, return all
+                    .filter(entry -> managersToInclude.isEmpty() || managersToInclude.contains(entry.getKey()))
                     .map(entry -> {
                         final SettingsManagerInfo mgrInfo = managerMapping.getManagerInfo(entry.getKey())
                                 .orElseThrow(() -> new IllegalStateException("Manager ID " +

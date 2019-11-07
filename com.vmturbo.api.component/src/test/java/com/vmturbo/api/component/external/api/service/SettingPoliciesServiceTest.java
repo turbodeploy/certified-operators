@@ -143,7 +143,8 @@ public class SettingPoliciesServiceTest {
                 .thenReturn(Collections.singletonList(DEFAULT_POLICY));
         // Map should be empty, since the policy is a default type.
         when(settingsMapper.convertSettingPolicies(eq(ImmutableList.of(DEFAULT_POLICY,
-                settingsPoliciesService.createSettingPolicyForGlobalActionMode()))))
+                settingsPoliciesService.createSettingPolicyForGlobalActionMode())),
+                eq(Collections.emptySet())))
             .thenReturn(Collections.singletonList(RET_SP_DTO));
         List<SettingsPolicyApiDTO> ret =
                 settingsPoliciesService.getSettingsPolicies(false, null);
@@ -165,7 +166,8 @@ public class SettingPoliciesServiceTest {
                 settingsPoliciesService.getSettingsPolicies(false, Collections.emptyList());
 
         // Verify stats mapper is called with two policies mentioned above.
-        verify(settingsMapper, Mockito.times(1)).convertSettingPolicies(settingPolicies);
+        verify(settingsMapper, Mockito.times(1)).convertSettingPolicies(settingPolicies,
+                Collections.emptySet());
     }
 
     @Test
@@ -173,7 +175,7 @@ public class SettingPoliciesServiceTest {
         when(settingPolicyBackend.listSettingPolicies(any()))
                 .thenReturn(Collections.singletonList(SCOPE_POLICY));
 
-        when(settingsMapper.convertSettingPolicies(any()))
+        when(settingsMapper.convertSettingPolicies(any(), eq(Collections.emptySet())))
                 .thenReturn(Collections.singletonList(RET_SP_DTO));
 
         List<SettingsPolicyApiDTO> ret =
@@ -195,8 +197,8 @@ public class SettingPoliciesServiceTest {
         when(settingPolicyBackend.listSettingPolicies(any()))
                 .thenReturn(Arrays.asList(DEFAULT_POLICY, wrongEntityTypePolicy));
         // Map should be empty, since the policy is a default type.
-        when(settingsMapper.convertSettingPolicies(eq(Collections.singletonList(DEFAULT_POLICY))))
-                .thenReturn(Collections.singletonList(RET_SP_DTO));
+        when(settingsMapper.convertSettingPolicies(eq(Collections.singletonList(DEFAULT_POLICY)),
+                eq(Collections.emptySet()))).thenReturn(Collections.singletonList(RET_SP_DTO));
 
         List<SettingsPolicyApiDTO> ret =
                 settingsPoliciesService.getSettingsPolicies(false,

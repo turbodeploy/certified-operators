@@ -424,7 +424,8 @@ public class ServiceConfig {
         return new SettingsService(communicationConfig.settingRpcService(),
                 communicationConfig.historyRpcService(),
                 mapperConfig.settingsMapper(),
-                mapperConfig.settingManagerMappingLoader().getMapping());
+                mapperConfig.settingManagerMappingLoader().getMapping(),
+                settingsPoliciesService());
     }
 
     @Bean

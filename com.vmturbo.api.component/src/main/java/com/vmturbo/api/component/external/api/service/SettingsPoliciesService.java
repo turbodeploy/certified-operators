@@ -9,15 +9,15 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.stereotype.Component;
-import org.springframework.validation.Errors;
-
 import com.google.common.annotations.VisibleForTesting;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.stereotype.Component;
+import org.springframework.validation.Errors;
 
 import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
@@ -82,19 +82,32 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
      * @param entityTypes Filter the list by entity type.
      * @return The list of {@link SettingsPolicyApiDTO}, one for each setting policy that exists
      *         in the system.
-     * @throws Exception If something goes wrong.
      */
     @Override
     public List<SettingsPolicyApiDTO> getSettingsPolicies(boolean onlyDefaults,
-                                                          List<String> entityTypes) throws Exception {
-        final Set<Integer> acceptableEntityTypes = entityTypes == null || entityTypes.isEmpty() ?
-                Collections.emptySet() :
-                entityTypes.stream()
+                                                          List<String> entityTypes) {
+        final Set<Integer> acceptableEntityTypes = entityTypes == null || entityTypes.isEmpty()
+                ? Collections.emptySet()
+                : entityTypes.stream()
                     .map(UIEntityType::fromString)
                     .map(UIEntityType::typeNumber)
                     .collect(Collectors.toSet());
+        return getSettingsPolicies(onlyDefaults, acceptableEntityTypes, Collections.emptySet());
+    }
 
-
+    /**
+     * Get the list of defined setting policies.
+     *
+     * @param onlyDefaults Show only the defaults.
+     * @param acceptableEntityTypes Filter the list by entity type.
+     * @param managersToInclude the set of managers to include in the response, if
+     *                          managersToInclude is empty, return all managers
+     * @return The list of {@link SettingsPolicyApiDTO}, one for each setting policy that exists
+     *         in the system.
+     */
+    public List<SettingsPolicyApiDTO> getSettingsPolicies(boolean onlyDefaults,
+                                                          @Nonnull Set<Integer> acceptableEntityTypes,
+                                                          @Nonnull Set<String> managersToInclude) {
         final ListSettingPoliciesRequest.Builder reqBuilder = ListSettingPoliciesRequest.newBuilder();
         if (onlyDefaults) {
             reqBuilder.setTypeFilter(Type.DEFAULT);
@@ -102,20 +115,20 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
 
         final List<SettingPolicy> settingPolicies = new LinkedList<>();
         settingPolicyService.listSettingPolicies(reqBuilder.build())
-            .forEachRemaining(policy -> {
-                // We use an empty acceptable set to indicate everything is accepted.
-                if (acceptableEntityTypes.isEmpty() ||
-                        acceptableEntityTypes.contains(policy.getInfo().getEntityType())) {
-                    settingPolicies.add(policy);
-                }
-            });
+                .forEachRemaining(policy -> {
+                    // We use an empty acceptable set to indicate everything is accepted.
+                    if (acceptableEntityTypes.isEmpty() ||
+                            acceptableEntityTypes.contains(policy.getInfo().getEntityType())) {
+                        settingPolicies.add(policy);
+                    }
+                });
 
         // Inject settings to make it visible in UI if no entity type was provided.
         if (acceptableEntityTypes.isEmpty()) {
             settingPolicies.add(createSettingPolicyForGlobalActionMode());
         }
 
-        return settingsMapper.convertSettingPolicies(settingPolicies);
+        return settingsMapper.convertSettingPolicies(settingPolicies, managersToInclude);
     }
 
     /**

@@ -12,9 +12,11 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.lang3.StringUtils;
-
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Sets;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
@@ -63,19 +65,23 @@ public class SettingsService implements ISettingsService {
 
     private final StatsHistoryServiceBlockingStub statsServiceClient;
 
-    public static final String PERSISTENCE_MANAGER = "persistencemanager";
+    private final SettingsPoliciesService settingsPoliciesService;
 
-    public static final String RESERVED_INSTANCE_MANAGER = "reservedinstancemanager";
+    /**
+     * name of the manager for persistence.
+     */
+    public static final String PERSISTENCE_MANAGER = "persistencemanager";
 
     public SettingsService(@Nonnull final SettingServiceBlockingStub settingServiceBlockingStub,
                     @Nonnull final StatsHistoryServiceBlockingStub statsServiceClient,
                     @Nonnull final SettingsMapper settingsMapper,
-                    @Nonnull final SettingsManagerMapping settingsManagerMapping) {
-
+                    @Nonnull final SettingsManagerMapping settingsManagerMapping,
+                    @Nonnull final SettingsPoliciesService settingsPoliciesService) {
         this.settingServiceBlockingStub = settingServiceBlockingStub;
         this.statsServiceClient = Objects.requireNonNull(statsServiceClient);
         this.settingsMapper = settingsMapper;
         this.settingsManagerMapping = settingsManagerMapping;
+        this.settingsPoliciesService = settingsPoliciesService;
     }
 
     @Override
@@ -114,40 +120,48 @@ public class SettingsService implements ISettingsService {
             //noinspection unchecked
             return (List<SettingApiDTO<?>>)(List<?>) settingApiDtos;
         } else {
-            SettingsManagerInfo managerInfo = settingsManagerMapping.getManagerInfo(uuid)
+            // check if the input manager is supported
+            final SettingsManagerInfo managerInfo = settingsManagerMapping.getManagerInfo(uuid)
                     .orElseThrow(() -> new UnknownObjectException("Setting with Manager Uuid: "
                             + uuid + " is not found."));
-            Iterable<Setting> settingIt = () -> settingServiceBlockingStub.getMultipleGlobalSettings(
-                    GetMultipleGlobalSettingsRequest.newBuilder()
-                            .addAllSettingSpecName(managerInfo.getSettings())
-                            .build());
-            List<SettingApiDTO<String>> settingApiDTOS = StreamSupport.stream(settingIt.spliterator(), false)
-                    .map(settingsMapper::toSettingApiDto)
-                    .map(SettingApiDTOPossibilities::getGlobalSetting)
-                    .filter(Optional::isPresent).map(Optional::get)
+            // go through all default policies and collect all the settings for the given manager
+            List<SettingApiDTO<?>> settingApiDTOs = settingsPoliciesService.getSettingsPolicies(
+                    true, Collections.emptySet(), Sets.newHashSet(uuid)).stream()
+                    .flatMap(sp -> CollectionUtils.emptyIfNull(sp.getSettingsManagers()).stream())
+                    .filter(manager -> StringUtils.equals(uuid, manager.getUuid()))
+                    .flatMap(manager -> CollectionUtils.emptyIfNull(manager.getSettings()).stream())
                     .collect(Collectors.toList());
-            //noinspection unchecked
-            return (List<SettingApiDTO<?>>)(List<?>) settingApiDTOS;
+            // if no settings found from default policies, then try to find from global settings
+            // (e.g. reservedintancemanager settings, emailmanager settings...) which are not
+            // associated with any entity type
+            if (settingApiDTOs.isEmpty()) {
+                Iterable<Setting> settingIt = () -> settingServiceBlockingStub.getMultipleGlobalSettings(
+                        GetMultipleGlobalSettingsRequest.newBuilder()
+                                .addAllSettingSpecName(managerInfo.getSettings())
+                                .build());
+                settingApiDTOs = StreamSupport.stream(settingIt.spliterator(), false)
+                        .map(settingsMapper::toSettingApiDto)
+                        .map(SettingApiDTOPossibilities::getGlobalSetting)
+                        .filter(Optional::isPresent).map(Optional::get)
+                        .collect(Collectors.toList());
+            }
+            return settingApiDTOs;
         }
     }
 
     @Override
     public <T extends Serializable> SettingApiDTO<T> getSettingByUuidAndName(String uuid, String name) throws Exception {
-        if (uuid.equals(RESERVED_INSTANCE_MANAGER)) {
-            final GetGlobalSettingResponse response =
-                    settingServiceBlockingStub.getGlobalSetting(
-                            GetSingleGlobalSettingRequest.newBuilder()
-                                    .setSettingSpecName(name)
-                                    .build());
-
-            SettingApiDTO<String> settingApiDTO = settingsMapper.toSettingApiDto(response.getSetting()).getGlobalSetting()
-                    .orElse(new SettingApiDTO<>());
-            //noinspection unchecked
-            return (SettingApiDTO<T>) settingApiDTO;
-        } else {
-            // TODO: implement other uuid type setting query.
-            throw ApiUtils.notImplementedInXL();
-        }
+        // this api should only be used for global settings which are not associated with any
+        // entity types (like: reservedintancemanager settings, emailmanager settings...), or is
+        // only associated with one type of entity (like marketsettingsmanager.targetBand).
+        // if it's used for entity settings which may apply to multiple entity types, there will
+        // be multiple settings for different entity types (like: transactionsCapacity), in which
+        // case the SettingsPolicies api should be used.
+        return (SettingApiDTO<T>)getSettingsByUuid(uuid).stream()
+                .filter(setting -> StringUtils.equals(name, setting.getUuid()))
+                .findAny()
+                .orElseThrow(() -> new IllegalArgumentException("Setting with manager uuid: "
+                        + uuid + " and name: " + name + " is not found"));
     }
 
     /**

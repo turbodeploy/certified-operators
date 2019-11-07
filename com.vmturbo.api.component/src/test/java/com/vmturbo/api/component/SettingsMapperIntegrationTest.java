@@ -5,20 +5,21 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.junit.Assert;
-import org.junit.Test;
-import org.mockito.Mockito;
-
 import io.grpc.Channel;
 import io.grpc.Server;
 import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
+
+import org.junit.Assert;
+import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.api.component.external.api.mapper.SettingSpecStyleMappingLoader;
 import com.vmturbo.api.component.external.api.mapper.SettingSpecStyleMappingLoader.SettingSpecStyleMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
+import com.vmturbo.api.component.external.api.service.SettingsPoliciesService;
 import com.vmturbo.api.component.external.api.service.SettingsService;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
@@ -28,15 +29,18 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
+import com.vmturbo.group.service.SettingRpcService;
 import com.vmturbo.group.setting.EnumBasedSettingSpecStore;
 import com.vmturbo.group.setting.SettingSpecStore;
 import com.vmturbo.group.setting.SettingStore;
-import com.vmturbo.group.service.SettingRpcService;
 
 /**
  * JUnit test to cover production shipped entity settings transformation in UI.
  */
 public class SettingsMapperIntegrationTest {
+
+    private SettingsPoliciesService settingsPoliciesService = Mockito.mock(
+            SettingsPoliciesService.class);
 
     /**
      * Test ensures, that all the settings from group component are seen in the UI through the
@@ -67,7 +71,7 @@ public class SettingsMapperIntegrationTest {
         final SettingsService settingService =
                 new SettingsService(SettingServiceGrpc.newBlockingStub(channel),
                         StatsHistoryServiceGrpc.newBlockingStub(channel),
-                        mapper, settingsManagerMapping);
+                        mapper, settingsManagerMapping, settingsPoliciesService);
 
         final List<SettingsManagerApiDTO> settingSpecs =
                 settingService.getSettingsSpecs(null, null, false);

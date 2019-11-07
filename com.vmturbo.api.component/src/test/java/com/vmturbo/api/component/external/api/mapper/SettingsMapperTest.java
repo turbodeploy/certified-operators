@@ -903,8 +903,8 @@ public class SettingsMapperTest {
                             .setOneTime(OneTime.newBuilder())))
                 .build();
 
-        final SettingsPolicyApiDTO retDto =
-                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(groupId, groupName), new HashMap<>());
+        final SettingsPolicyApiDTO retDto = policyMapper.convertSettingPolicy(settingPolicy,
+                ImmutableMap.of(groupId, groupName), new HashMap<>(), Collections.emptySet());
         assertEquals("foo", retDto.getDisplayName());
         assertEquals("1", retDto.getUuid());
         assertFalse(retDto.getDisabled());
@@ -938,8 +938,8 @@ public class SettingsMapperTest {
                         .build())
                 .build();
 
-        final SettingsPolicyApiDTO retDto =
-                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"), new HashMap<>());
+        final SettingsPolicyApiDTO retDto = policyMapper.convertSettingPolicy(settingPolicy,
+                ImmutableMap.of(7L, "goat"), new HashMap<>(), Collections.emptySet());
 
         final ScheduleApiDTO scheduleApiDTO = retDto.getSchedule();
         verifyBasicScheduleDTO(scheduleApiDTO);
@@ -962,8 +962,8 @@ public class SettingsMapperTest {
                         .build())
                 .build();
 
-        final SettingsPolicyApiDTO retDto =
-                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"), new HashMap<>());
+        final SettingsPolicyApiDTO retDto = policyMapper.convertSettingPolicy(settingPolicy,
+                ImmutableMap.of(7L, "goat"), new HashMap<>(), Collections.emptySet());
 
         final ScheduleApiDTO scheduleApiDTO = retDto.getSchedule();
         verifyBasicScheduleDTO(scheduleApiDTO);
@@ -986,8 +986,8 @@ public class SettingsMapperTest {
                                 .setLastDate(endDatestamp)))
                 .build();
 
-        final SettingsPolicyApiDTO retDto =
-                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"), new HashMap<>());
+        final SettingsPolicyApiDTO retDto = policyMapper.convertSettingPolicy(settingPolicy,
+                ImmutableMap.of(7L, "goat"), new HashMap<>(), Collections.emptySet());
 
         final ScheduleApiDTO scheduleApiDTO = retDto.getSchedule();
         verifyBasicScheduleDTO(scheduleApiDTO);
@@ -1011,9 +1011,8 @@ public class SettingsMapperTest {
                         .build())
                 .build();
 
-        final SettingsPolicyApiDTO retDto =
-                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"), new HashMap<>());
-
+        final SettingsPolicyApiDTO retDto = policyMapper.convertSettingPolicy(settingPolicy,
+                ImmutableMap.of(7L, "goat"), new HashMap<>(), Collections.emptySet());
 
         // Because no day of the week was specified, the day of the week will
         // be set based on the start timestamp.  We need to convert the start time
@@ -1049,8 +1048,8 @@ public class SettingsMapperTest {
                         .build())
                 .build();
 
-        final SettingsPolicyApiDTO retDto =
-                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"), new HashMap<>());
+        final SettingsPolicyApiDTO retDto = policyMapper.convertSettingPolicy(settingPolicy,
+                ImmutableMap.of(7L, "goat"), new HashMap<>(), Collections.emptySet());
 
         final ScheduleApiDTO scheduleApiDTO = retDto.getSchedule();
         verifyBasicScheduleDTO(scheduleApiDTO);
@@ -1076,8 +1075,8 @@ public class SettingsMapperTest {
                         .build())
                 .build();
 
-        final SettingsPolicyApiDTO retDto =
-                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"), new HashMap<>());
+        final SettingsPolicyApiDTO retDto = policyMapper.convertSettingPolicy(settingPolicy,
+                ImmutableMap.of(7L, "goat"), new HashMap<>(), Collections.emptySet());
 
         // Because no day of the month was specified, the day of the month will
         // be set based on the start timestamp.
@@ -1109,8 +1108,8 @@ public class SettingsMapperTest {
                         .build())
                 .build();
 
-        final SettingsPolicyApiDTO retDto =
-                policyMapper.convertSettingPolicy(settingPolicy, ImmutableMap.of(7L, "goat"), new HashMap<>());
+        final SettingsPolicyApiDTO retDto = policyMapper.convertSettingPolicy(settingPolicy,
+                ImmutableMap.of(7L, "goat"), new HashMap<>(), Collections.emptySet());
 
         final ScheduleApiDTO scheduleApiDTO = retDto.getSchedule();
         verifyBasicScheduleDTO(scheduleApiDTO);
@@ -1179,8 +1178,8 @@ public class SettingsMapperTest {
 
         final SettingPolicy policy = SettingPolicy.getDefaultInstance();
         final SettingsPolicyApiDTO retDto = new SettingsPolicyApiDTO();
-        when(policyMapper.convertSettingPolicy(policy, Collections.emptyMap(), new HashMap<>()))
-                .thenReturn(retDto);
+        when(policyMapper.convertSettingPolicy(policy, Collections.emptyMap(), new HashMap<>(),
+                Collections.emptySet())).thenReturn(retDto);
         final List<SettingsPolicyApiDTO> result =
                 mapper.convertSettingPolicies(Collections.singletonList(policy));
         assertThat(result, containsInAnyOrder(retDto));
@@ -1214,8 +1213,8 @@ public class SettingsMapperTest {
                 .build();
 
         final SettingsPolicyApiDTO retDto = new SettingsPolicyApiDTO();
-        when(policyMapper.convertSettingPolicy(policy, ImmutableMap.of(groupId, groupName), new HashMap<>()))
-                .thenReturn(retDto);
+        when(policyMapper.convertSettingPolicy(policy, ImmutableMap.of(groupId, groupName),
+                new HashMap<>(), Collections.emptySet())).thenReturn(retDto);
         when(groupBackend.getGroups(GetGroupsRequest.newBuilder()
                         .setGroupFilter(GroupFilter.newBuilder().addId(groupId)).build()))
             .thenReturn(Collections.singletonList(group));

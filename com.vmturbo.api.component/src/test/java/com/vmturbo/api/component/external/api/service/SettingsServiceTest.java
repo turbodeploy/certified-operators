@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.service;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
@@ -11,6 +12,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
@@ -19,11 +21,16 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
+import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
@@ -32,6 +39,7 @@ import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingApiDTOPossibilities;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
+import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.AllEntityType;
@@ -64,6 +72,12 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class SettingsServiceTest {
 
+    /**
+     * Used to test the expected exception type and the exception detail.
+     */
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
+
     private SettingServiceMole settingRpcServiceSpy = spy(new SettingServiceMole());
 
     private SettingServiceBlockingStub settingServiceStub;
@@ -77,6 +91,8 @@ public class SettingsServiceTest {
     private SettingsMapper settingsMapper = mock(SettingsMapper.class);
 
     private SettingsManagerMapping settingsManagerMapping = mock(SettingsManagerMapping.class);
+
+    private SettingsPoliciesService settingsPoliciesService = Mockito.mock(SettingsPoliciesService.class);
 
     private static final int ENTITY_TYPE = EntityType.VIRTUAL_MACHINE_VALUE;
 
@@ -101,9 +117,8 @@ public class SettingsServiceTest {
         settingServiceStub = SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
         statsServiceClient = StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel());
 
-        settingsService =
-            new SettingsService(settingServiceStub, statsServiceClient, settingsMapper,
-                settingsManagerMapping);
+        settingsService = spy(new SettingsService(settingServiceStub, statsServiceClient,
+                settingsMapper, settingsManagerMapping, settingsPoliciesService));
 
         when(settingRpcServiceSpy.searchSettingSpecs(any()))
                 .thenReturn(Collections.singletonList(vmSettingSpec));
@@ -206,10 +221,10 @@ public class SettingsServiceTest {
     /**
      * Test the invocation of the getSettingsByUuid API.
      *
-     * @throws Exception
+     * @throws Exception exception thrown if anything goes wrong
      */
     @Test
-    public void testGetSettingsByUuid() throws Exception {
+    public void testGetSettingsByUuidGlobalSettings() throws Exception {
         final String settingSpecName = "globalSetting";
         final String managerName = "emailmanager";
         final Setting globalSetting = Setting.newBuilder()
@@ -225,13 +240,95 @@ public class SettingsServiceTest {
         final SettingsManagerInfo managerInfo = mock(SettingsManagerInfo.class);
 
         when(settingsManagerMapping.getManagerInfo(eq(managerName))).thenReturn(Optional.of(managerInfo));
-
+        when(settingsPoliciesService.getSettingsPolicies(true, Collections.emptyList()))
+                .thenReturn(Collections.emptyList());
         when(settingRpcServiceSpy.getMultipleGlobalSettings(GetMultipleGlobalSettingsRequest.getDefaultInstance()))
                 .thenReturn(Collections.singletonList(globalSetting));
 
         List<? extends SettingApiDTO<?>> settingApiDTOList = settingsService.getSettingsByUuid(managerName);
         assertThat(settingApiDTOList, containsInAnyOrder(mappedDto));
         verify(settingRpcServiceSpy).getMultipleGlobalSettings(any(GetMultipleGlobalSettingsRequest.class));
+    }
+
+    /**
+     * Test the invocation of the getSettingsByUuid API for getting default settings.
+     * settingsPoliciesService for default settings is invoked, but rpc service
+     * (settingRpcServiceSpy) for global settings is not invoked.
+     *
+     * @throws Exception if any exception happens
+     */
+    @Test
+    public void testGetSettingsByUuidDefaultSettings() throws Exception {
+        final String managerName = "marketsettingsmanager";
+        final SettingApiDTO<String> mappedDto = new SettingApiDTO<>();
+        mappedDto.setUuid("usedIncrement_VMEM");
+        mappedDto.setValue("1024.0");
+        mappedDto.setEntityType("VirtualMachine");
+
+        final SettingsManagerApiDTO settingsManagerApiDTO = new SettingsManagerApiDTO();
+        settingsManagerApiDTO.setUuid(managerName);
+        settingsManagerApiDTO.setSettings(Lists.newArrayList(mappedDto));
+
+        final SettingsPolicyApiDTO settingsPolicyApiDTO = new SettingsPolicyApiDTO();
+        settingsPolicyApiDTO.setSettingsManagers(Lists.newArrayList(settingsManagerApiDTO));
+
+        final SettingsManagerInfo managerInfo = mock(SettingsManagerInfo.class);
+        when(settingsManagerMapping.getManagerInfo(eq(managerName))).thenReturn(Optional.of(managerInfo));
+        when(settingsPoliciesService.getSettingsPolicies(true, Collections.emptySet(),
+                Sets.newHashSet(managerName))).thenReturn(Lists.newArrayList(settingsPolicyApiDTO));
+
+        List<? extends SettingApiDTO<?>> settingApiDTOList = settingsService.getSettingsByUuid(managerName);
+        // verify result is as expected
+        assertThat(settingApiDTOList, containsInAnyOrder(mappedDto));
+        // verify settingsPoliciesService is invoked
+        verify(settingsPoliciesService).getSettingsPolicies(eq(true), eq(Collections.emptySet()),
+                eq(Sets.newHashSet(managerName)));
+        // verify settingRpcServiceSpy is not invoked
+        verifyZeroInteractions(settingRpcServiceSpy);
+        verifyZeroInteractions(settingsMapper);
+    }
+
+
+    /**
+     * Test getSettingsByUuidAndName. getSettingsByUuid should be invoked. if the setting does not
+     * exist, IllegalArgumentException should be thrown.
+     *
+     * @throws Exception if any exception happens
+     */
+    @Test
+    public void testGetSettingsByUuidAndName() throws Exception {
+        final String managerName = "marketsettingsmanager";
+        final String settingName = "utilTarget";
+        final String settingValue = "70.0";
+        final SettingApiDTO<String> mappedDto = new SettingApiDTO<>();
+        mappedDto.setUuid(settingName);
+        mappedDto.setValue(settingValue);
+
+        final SettingsManagerApiDTO settingsManagerApiDTO = new SettingsManagerApiDTO();
+        settingsManagerApiDTO.setUuid(managerName);
+        settingsManagerApiDTO.setSettings(Lists.newArrayList(mappedDto));
+
+        final SettingsPolicyApiDTO settingsPolicyApiDTO = new SettingsPolicyApiDTO();
+        settingsPolicyApiDTO.setSettingsManagers(Lists.newArrayList(settingsManagerApiDTO));
+
+        final SettingsManagerInfo managerInfo = mock(SettingsManagerInfo.class);
+        when(settingsManagerMapping.getManagerInfo(eq(managerName))).thenReturn(Optional.of(managerInfo));
+        when(settingsPoliciesService.getSettingsPolicies(true, Collections.emptySet(),
+                Sets.newHashSet(managerName))).thenReturn(Lists.newArrayList(settingsPolicyApiDTO));
+
+        SettingApiDTO<String> result = settingsService.getSettingByUuidAndName(managerName, settingName);
+
+        // verify getSettingsByUuid is invoked
+        verify(settingsService).getSettingsByUuid(managerName);
+        // verify result is as expected
+        assertThat(result.getUuid(), is(settingName));
+        assertThat(result.getValue(), is(settingValue));
+
+        // verify IllegalArgumentException is thrown since the setting does not exist
+        when(settingsPoliciesService.getSettingsPolicies(true, Collections.emptyList()))
+                .thenReturn(Collections.emptyList());
+        expectedException.expect(IllegalArgumentException.class);
+        settingsService.getSettingByUuidAndName(managerName, "foo");
     }
 
     /**
