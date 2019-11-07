@@ -57,6 +57,7 @@ import com.vmturbo.commons.Units;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -421,8 +422,9 @@ public class ActionModeCalculator {
      * @return The stream of applicable {@link EntitySettingSpecs}. This will be a stream of
      *         size one in most cases.
      */
+    @VisibleForTesting
     @Nonnull
-    private Stream<EntitySettingSpecs> specsApplicableToAction(
+    Stream<EntitySettingSpecs> specsApplicableToAction(
             @Nonnull final ActionDTO.Action action, Map<String, Setting> settingsForTargetEntity) {
         final ActionTypeCase type = action.getInfo().getActionTypeCase();
         switch (type) {
@@ -453,7 +455,11 @@ public class ActionModeCalculator {
             case RESIZE:
                 Optional<EntitySettingSpecs> rangeAwareSpec = rangeAwareSpecCalculator
                         .getSpecForRangeAwareCommResize(action.getInfo().getResize(), settingsForTargetEntity);
-                // Return the range aware spec if present. Otherwise return the regular resize spec.
+                // Return the range aware spec if present. Otherwise return the regular resize
+                // spec, or if it's a vm the default empty stream.
+                if (isVirtualMachine(action.getInfo().getResize()) && !rangeAwareSpec.isPresent()) {
+                    return Stream.empty();
+                }
                 return Stream.of(rangeAwareSpec.orElse(EntitySettingSpecs.Resize),
                                 EntitySettingSpecs.EnforceNonDisruptive);
             case ACTIVATE:
@@ -485,6 +491,15 @@ public class ActionModeCalculator {
     }
 
     /**
+     * Checks if the Resize action has an EntityType and it's a Virtual Machine .
+     * @param resize The {@link Resize} action
+     * @return boolean whether is a vm or not
+     * */
+    private boolean isVirtualMachine(Resize resize) {
+        return resize.getTarget().getType() == EntityType.VIRTUAL_MACHINE_VALUE;
+    }
+
+    /**
      * This class is used to find the spec that applies for a Resize action on a commodity which is
      * range aware.
      * For ex. vmem / vcpu resize of an on-prem VM.
@@ -494,8 +509,8 @@ public class ActionModeCalculator {
         private final Map<Integer, Map<Integer, RangeAwareResizeSettings>> resizeSettingsByEntityType =
                 ImmutableMap.of(EntityType.VIRTUAL_MACHINE_VALUE, populateResizeSettingsByCommodityForVM());
         /**
-         * Gets the spec applicable for range aware commodity resize. Currently VMem and VCpu
-         * resizes of on-prem VMs are considered range aware.
+         * Gets the spec applicable for range aware commodity resize. Currently VMem, VCpu
+         * resizes and limit and Mem, Cpu reservations of on-prem VMs are considered range aware.
          *
          * There is a minThreshold and a maxThreshold defined for the commodity resizing.
          * There are separate automation modes defined for these cases:
@@ -521,10 +536,8 @@ public class ActionModeCalculator {
             // Get the resizeSettingsByCommodity for this entity type
             Map<Integer, RangeAwareResizeSettings> resizeSettingsByCommodity = resizeSettingsByEntityType.get(entityType);
             Optional<EntitySettingSpecs> applicableSpec = Optional.empty();
-            // Range aware settings should only apply if the changed attribute is capacity and if
-            // it applies to this entity and commodity
-            if (changedAttribute == CommodityAttribute.CAPACITY
-                    && resizeSettingsByCommodity != null) {
+            // Range aware settings should only apply if it applies to this entity and commodity
+            if (resizeSettingsByCommodity != null) {
                 RangeAwareResizeSettings resizeSettings = resizeSettingsByCommodity.get(commType);
                 if (resizeSettings != null) {
                     Optional<Float> minThresholdOpt = getNumericSettingForEntity(
@@ -607,7 +620,8 @@ public class ActionModeCalculator {
         private ResizeCapacity getCapacityForModeCalculation(Resize resize) {
             float oldCapacityForMode = resize.getOldCapacity();
             float newCapacityForMode = resize.getNewCapacity();
-            if (resize.getCommodityType().getType() == CommodityDTO.CommodityType.VMEM_VALUE) {
+            if (resize.getCommodityType().getType() == CommodityDTO.CommodityType.VMEM_VALUE ||
+                resize.getCommodityType().getType() == CommodityType.MEM_VALUE) {
                 oldCapacityForMode /= Units.NUM_OF_KB_IN_MB;
                 newCapacityForMode /= Units.NUM_OF_KB_IN_MB;
             }
@@ -636,7 +650,8 @@ public class ActionModeCalculator {
                     .maxThreshold(EntitySettingSpecs.ResizeVmemMaxThreshold)
                     .minThreshold(EntitySettingSpecs.ResizeVmemMinThreshold).build();
             return ImmutableMap.of(CommodityDTO.CommodityType.VCPU_VALUE, vCpuSettings,
-                    CommodityDTO.CommodityType.VMEM_VALUE, vMemSettings);
+                CommodityDTO.CommodityType.VMEM_VALUE, vMemSettings, CommodityType.CPU_VALUE,
+                vCpuSettings, CommodityType.MEM_VALUE, vMemSettings);
         }
     }
 }

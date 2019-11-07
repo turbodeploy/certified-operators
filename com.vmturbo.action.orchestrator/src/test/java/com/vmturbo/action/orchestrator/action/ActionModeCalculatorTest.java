@@ -8,6 +8,8 @@ import static org.mockito.Mockito.when;
 import java.util.Map;
 import java.util.Optional;
 
+import org.junit.Test;
+
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
@@ -723,6 +725,40 @@ public class ActionModeCalculatorTest {
         when(entitiesCache.getEntityFromOid(vmId)).thenReturn(Optional.of(getVMEntity(vmId, hotAddSupported)));
 
         assertThat(actionModeCalculator.calculateActionMode(resizeUpAction, entitiesCache), is(ActionMode.DISABLED));
+    }
+
+    /**
+     * Test: Memory Resize for virtual machine for different commodities.
+     */
+    @Test
+    public void testSpecsApplicableToActionForVMs() {
+        long vmId = 122L;
+        final Map<String, Setting> settingsForEntity = getSettingsForVM(false,
+            com.vmturbo.api.enums.ActionMode.DISABLED);
+        final ActionDTO.Action vStorageAction = actionBuilder.setInfo(ActionInfo.newBuilder()
+            .setResize(Resize.newBuilder()
+                .setTarget(ActionEntity.newBuilder()
+                    .setId(7L)
+                    .setType(10)).setCommodityType(CommodityType.newBuilder()
+                    .setType(CommodityDTO.CommodityType.VSTORAGE_VALUE).build()))
+            ).build();
+        final ActionDTO.Action memReservationAction = actionBuilder.setInfo(ActionInfo.newBuilder()
+            .setResize(Resize.newBuilder()
+                .setTarget(ActionEntity.newBuilder()
+                    .setId(7L)
+                    .setType(10)).setCommodityType(CommodityType.newBuilder()
+                    .setType(CommodityDTO.CommodityType.MEM_VALUE).build()))
+        ).build();
+        when(entitiesCache.getSettingsForEntity(vmId)).thenReturn(settingsForEntity);
+
+        // VStorage commodities do not have a specific setting. We always return a RECOMMENDED
+        // action mode
+        assertThat(actionModeCalculator.specsApplicableToAction(vStorageAction, settingsForEntity).toArray().length,
+            is(0));
+        // We have two action modes because in addition to the one originated from the
+        // settings there is also a EnforceNonDisruptive.
+        assertThat(actionModeCalculator.specsApplicableToAction(memReservationAction, settingsForEntity).toArray().length,
+            is(2));
     }
 
     private Action getResizeDownAction(long vmId) {

@@ -49,7 +49,7 @@ public enum EntitySettingSpecs {
      * Also, if we resize reservation attribute instead of capacity attribute, then it will use this.
      */
     Resize("resize", "Resize", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
+            EnumSet.of(EntityType.STORAGE, EntityType.CONTAINER,
                             EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
                             EntityType.APPLICATION_SERVER, EntityType.DATABASE_SERVER), actionExecutionModeSetToManual(), true),
 
