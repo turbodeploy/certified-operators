@@ -42,7 +42,7 @@ spec:
               - uri:
                     prefix: /swagger
           rewrite:
-              uri: /swagger/external/index.html;
+              uri: /swagger/external/
           route:
               - destination:
                     host: api.{{ .Release.Namespace }}.svc.cluster.local
@@ -60,7 +60,7 @@ spec:
               - uri:
                     prefix: /doc
               - uri:
-                    prefix: /swagger/external/index.html
+                    prefix: /swagger/external/
               - uri:
                     prefix: /vmturbo/rest
               - uri:

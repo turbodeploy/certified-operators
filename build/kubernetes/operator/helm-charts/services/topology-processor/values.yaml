@@ -20,28 +20,20 @@ java:
             -Dnetworkaddress.cache.ttl=0 -Dnetworkaddress.cache.negative.ttl=0"
 
 env:
-  - name: clustermgr_host
-    value: clustermgr
-  - name: clustermgr_port
-    value: "8080"
-  - name: clustermgr_retry_delay_sec
-    value: "10"
   - name: component_type
     value: topology-processor
-  - name: consul_host
-    value: consul
   - name: instance_id
     value: topology-processor-1
   - name: instance_ip
     valueFrom:
       fieldRef:
         fieldPath: status.podIP
+  - name: clustermgr_host
+    value: clustermgr
+  - name: clustermgr_port
+    value: "8080"
   - name: kafkaServers
     value: kafka:9092
-  - name: node_name
-    value: default
-  - name: realtimeTopologyContextId
-    value: "777777"
 
 resources:
   limits:

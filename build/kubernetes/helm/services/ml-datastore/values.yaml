@@ -20,18 +20,8 @@ java:
             -Dnetworkaddress.cache.ttl=0 -Dnetworkaddress.cache.negative.ttl=0"
 
 env:
-  - name: METRON_ENABLED
-    value: "true"
-  - name: clustermgr_host
-    value: clustermgr
-  - name: clustermgr_port
-    value: "8080"
-  - name: clustermgr_retry_delay_sec
-    value: "10"
   - name: component_type
     value: ml-datastore
-  - name: consul_host
-    value: consul
   - name: instance_id
     valueFrom:
       fieldRef:
@@ -40,12 +30,18 @@ env:
     valueFrom:
       fieldRef:
         fieldPath: status.podIP
+  - name: clustermgr_host
+    value: clustermgr
+  - name: clustermgr_port
+    value: "8080"
   - name: kafkaServers
     value: kafka:9092
+  - name: METRON_ENABLED
+    value: "true"
 
 resources:
   limits:
-    memory: 512Mi
+    memory: 1Gi
 
 nodeSelector: {}
 
