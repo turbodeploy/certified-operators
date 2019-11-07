@@ -14,22 +14,21 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang.NotImplementedException;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.Lists;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang.NotImplementedException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
-import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
 import com.vmturbo.api.dto.action.ActionApiDTO;
@@ -62,8 +61,8 @@ import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 
 /**
- * Service Layer to implement Actions
- **/
+ * Service Layer to implement Actions.
+ */
 public class ActionsService implements IActionsService {
     private static final Logger logger = LogManager.getLogger();
 
@@ -379,21 +378,20 @@ public class ActionsService implements IActionsService {
     /**
      * Get details for an action.
      *
-     * @param uuid
-     * @return
-     * @throws Exception
+     * @param uuid Action ID.
+     * @return Action details DTO.
      */
     @Override
-    public ActionDetailsApiDTO getActionsDetailsByUuid(String uuid) throws Exception {
+    public ActionDetailsApiDTO getActionsDetailsByUuid(String uuid) {
         ActionOrchestratorAction action = actionOrchestratorRpc.getAction(actionRequest(uuid));
-        ActionDetailsApiDTO actionDetailsApiDTO;
         if (action.hasActionSpec()) {
-            // create action details dto based on action api dto which contains "explanation" with coverage information.
-            actionDetailsApiDTO = actionSpecMapper.createActionDetailsApiDTO(action);
-            if (actionDetailsApiDTO == null) {
-                return new NoDetailsApiDTO();
+            // create action details dto based on action api dto which contains "explanation" with
+            // coverage information.
+            ActionDetailsApiDTO actionDetailsApiDTO = actionSpecMapper.createActionDetailsApiDTO(
+                    action);
+            if (actionDetailsApiDTO != null) {
+                return actionDetailsApiDTO;
             }
-            return actionDetailsApiDTO;
         }
         return new NoDetailsApiDTO();
     }

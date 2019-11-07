@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import static com.vmturbo.common.protobuf.action.ActionDTO.ActionType.BUY_RI;
 import static com.vmturbo.common.protobuf.action.ActionDTO.ActionType.RESIZE;
+import static com.vmturbo.common.protobuf.action.ActionDTO.ActionType.SCALE;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.TRANSLATION_PATTERN;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.TRANSLATION_PREFIX;
 
@@ -428,7 +429,7 @@ public class ActionSpecMapper {
                 addBuyRIInfo(actionApiDTO, info.getBuyRi(), context);
                 break;
             default:
-                throw new IllegalArgumentException("Unsupported action type " + actionType);
+                throw new UnsupportedActionException(recommendation);
         }
 
         // record the times for this action
@@ -1397,6 +1398,7 @@ public class ActionSpecMapper {
      * @param action - ActionOrchestratorAction for the user sent action
      * @return actionDetailsApiDTO which contains extra information about a given action
      */
+    @Nullable
     public ActionDetailsApiDTO createActionDetailsApiDTO(final ActionDTO.ActionOrchestratorAction action) {
         final ActionSpec actionSpec = action.getActionSpec();
         if (actionSpec != null && actionSpec.hasRecommendation()) {
@@ -1421,12 +1423,12 @@ public class ActionSpecMapper {
                 detailsDto.setHistoricalDemandData(demandList);
                 return detailsDto;
             }
-            if (actionType.equals(RESIZE)) {
+            if (actionType == RESIZE || actionType == SCALE) {
                 long entityUuid;
                 try {
-                    entityUuid = ActionDTOUtil.getPrimaryEntity(action.getActionSpec().getRecommendation()).getId();
+                    entityUuid = ActionDTOUtil.getPrimaryEntityId(action.getActionSpec().getRecommendation());
                 } catch (UnsupportedActionException e) {
-                    logger.warn("Attempted to process unsupported action! Error: {}", e.getMessage());
+                    logger.warn("Cannot create action details due to unsupported action type", e);
                     return null;
                 }
                 return createCloudResizeActionDetailsDTO(entityUuid);
