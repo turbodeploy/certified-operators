@@ -21,6 +21,7 @@ import javax.annotation.Nonnull;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -222,9 +223,34 @@ class DiscoveredGroupInterpreter {
             groupDefinition.setTags(tagsBuilder.build());
         }
 
-        // todo:RG set owner entity (resource group), original sdk dto needs to be changed in probe to set owner entity
+        if (sdkDTO.hasOwner()) {
+            final Optional<Long> ownerForResourceGroup =
+                    getOwnerOIDForResourceGroup(sdkDTO, context.targetId);
+            ownerForResourceGroup.ifPresent(groupDefinition::setOwner);
+        }
 
         return Optional.of(groupDefinition);
+    }
+
+    private Optional<Long> getOwnerOIDForResourceGroup(final GroupDTO sdkDTO, final Long targetId) {
+        final String groupOwner = sdkDTO.getOwner();
+        if (!StringUtils.isBlank(groupOwner)) {
+            final Optional<Map<String, Long>> targetEntityIdMap =
+                    entityStore.getTargetEntityIdMap(targetId);
+            if (targetEntityIdMap.isPresent()) {
+                final Long ownerOID = targetEntityIdMap.get().get(groupOwner);
+                if (ownerOID == null) {
+                    logger.warn("OwnerID is null for '{}' group", sdkDTO.getGroupName());
+                }
+                return Optional.ofNullable(ownerOID);
+            } else {
+                logger.error("There are no entities for '{}' target ", targetId);
+            }
+        } else {
+            logger.error("Owner is not set for '{}' group", sdkDTO.getGroupName());
+        }
+
+        return Optional.empty();
     }
 
     /**
