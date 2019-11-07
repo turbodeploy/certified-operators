@@ -21,11 +21,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.lang.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.validation.Errors;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -35,6 +30,11 @@ import com.google.common.collect.Sets;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
+
+import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.validation.Errors;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
@@ -1054,7 +1054,7 @@ public class GroupsService implements IGroupsService {
             .filter(groupWithMembers -> !isHiddenGroup(groupWithMembers.group()))
             .map(groupAndMembers -> {
                 GroupApiDTO groupApiDTO = groupMapper.toGroupApiDtoWithoutActiveEntities(groupAndMembers,
-                    EnvironmentType.UNKNOWN);
+                    EnvironmentType.ONPREM);
                 if (populateSeverity) {
                     groupApiDTO.setSeverity(groupSeverities.get(groupAndMembers.group().getId()).name());
                 }

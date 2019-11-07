@@ -3,11 +3,8 @@ package com.vmturbo.topology.processor.group.discovery;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.CLUSTER_DTO;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.DISPLAY_NAME;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.PLACEHOLDER_FILTER;
-import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.RESOURCE_GROUP_DTO;
-import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.RESOURCE_GROUP_DTO_WITHOUT_OWNER;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.SELECTION_DTO;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.STATIC_MEMBER_DTO;
-import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.SUBSCRIPTION_ID;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.TARGET_ID;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
@@ -866,45 +863,4 @@ public class DiscoveredGroupInterpreterTest {
         assertThat(groupIdByEntityType.get(EntityType.PHYSICAL_MACHINE_VALUE), is(
             GroupProtoUtil.SELLERS_GROUP_ID_PREFIX + CONSTRAINT_ID));
     }
-
-    /**
-     * Test that groupDefinition successfully populated owner field (Entity OID)
-     * e.g BusinessAccount is ResourceGroup owner in Azure.
-     */
-    @Test
-    public void testSdkToGroupDefinitionPopulateOwner() {
-        final EntityStore store = mock(EntityStore.class);
-        final long groupOwnerOID = 1L;
-        when(store.getTargetEntityIdMap(TARGET_ID)).thenReturn(
-                Optional.of(ImmutableMap.of(SUBSCRIPTION_ID, groupOwnerOID)));
-        final PropertyFilterConverter propConverter = mock(PropertyFilterConverter.class);
-        final DiscoveredGroupInterpreter converter =
-                new DiscoveredGroupInterpreter(store, propConverter);
-        final GroupInterpretationContext context = new GroupInterpretationContext(TARGET_ID,
-                Collections.singletonList(RESOURCE_GROUP_DTO));
-        final Optional<GroupDefinition.Builder> groupDefOpt =
-                converter.sdkToGroupDefinition(RESOURCE_GROUP_DTO, context);
-        assertEquals(groupDefOpt.get().getOwner(), groupOwnerOID);
-    }
-
-    /**
-     * Test case when owner is not set in sdkDto, so groupDefinition don't have information about
-     * groupOwner.
-     */
-    @Test
-    public void testSdkToGroupDefinitionWithoutOwner() {
-        final EntityStore store = mock(EntityStore.class);
-        final long groupOwnerOID = 1L;
-        when(store.getTargetEntityIdMap(TARGET_ID)).thenReturn(
-                Optional.of(ImmutableMap.of(SUBSCRIPTION_ID, groupOwnerOID)));
-        final PropertyFilterConverter propConverter = mock(PropertyFilterConverter.class);
-        final DiscoveredGroupInterpreter converter =
-                new DiscoveredGroupInterpreter(store, propConverter);
-        final GroupInterpretationContext context = new GroupInterpretationContext(TARGET_ID,
-                Collections.singletonList(RESOURCE_GROUP_DTO_WITHOUT_OWNER));
-        final Optional<GroupDefinition.Builder> groupDefOpt =
-                converter.sdkToGroupDefinition(RESOURCE_GROUP_DTO_WITHOUT_OWNER, context);
-        assertFalse(groupDefOpt.get().hasOwner());
-    }
-
 }
