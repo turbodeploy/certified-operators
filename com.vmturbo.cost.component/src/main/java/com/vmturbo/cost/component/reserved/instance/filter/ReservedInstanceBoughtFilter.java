@@ -123,10 +123,10 @@ public class ReservedInstanceBoughtFilter extends ReservedInstanceFilter {
         }
         // TODO: Since there is business specific logic, a similar method may be needed for Azure
         // with Azure specific entity types or this method extended.
-        Set<Long> entityRegionOids =  cloudScopesTuple.get(EntityType.REGION_VALUE);
-        Set<Long> entityAzOids = cloudScopesTuple.get(EntityType.AVAILABILITY_ZONE_VALUE);
+        Set<Long> entityRegionOids =  cloudScopesTuple.get(EntityType.REGION);
+        Set<Long> entityAzOids = cloudScopesTuple.get(EntityType.AVAILABILITY_ZONE);
         boolean regionAndAzExist = entityRegionOids != null && entityAzOids != null;
-        Set<Long> entityBfOids = cloudScopesTuple.get(EntityType.BUSINESS_ACCOUNT_VALUE);
+        Set<Long> entityBfOids = cloudScopesTuple.get(EntityType.BUSINESS_ACCOUNT);
         if (regionAndAzExist) {
             Condition conditionRegion = Tables.RESERVED_INSTANCE_SPEC.REGION_ID.in(entityRegionOids);
             Condition conditionAz = Tables.RESERVED_INSTANCE_BOUGHT.AVAILABILITY_ZONE_ID.in(entityAzOids);
