@@ -192,7 +192,7 @@ public class SettingsMapperTest {
                 ScheduleServiceGrpc.newBlockingStub(grpcServer.getChannel()), scheduleMapper);
 
         final Map<String, SettingsManagerApiDTO> mgrsByUuid = mapper.toManagerDtos(
-                Arrays.asList(settingSpec1, settingSpec3, settingSpec4), Optional.empty()).stream()
+                Arrays.asList(settingSpec1, settingSpec3, settingSpec4), Optional.empty(), false).stream()
                 .collect(Collectors.toMap(BaseApiDTO::getUuid, Function.identity()));
         assertEquals(3, mgrsByUuid.size());
 
@@ -270,7 +270,7 @@ public class SettingsMapperTest {
         final SettingsMapper mapper = new SettingsMapper(mapping, settingStyleMapping, specMapper,
                 policyMapper, grpcServer.getChannel());
         Optional<SettingsManagerApiDTO> mgrDtoOpt =
-            mapper.toManagerDto(Collections.singletonList(settingSpec1), Optional.empty(), mgrId1);
+            mapper.toManagerDto(Collections.singletonList(settingSpec1), Optional.empty(), mgrId1, false);
         assertTrue(mgrDtoOpt.isPresent());
 
         SettingsManagerApiDTO mgrDto = mgrDtoOpt.get();
@@ -290,7 +290,7 @@ public class SettingsMapperTest {
         final SettingsMapper mapper = new SettingsMapper(mapping, settingStyleMapping, specMapper,
                 policyMapper, grpcServer.getChannel());
         assertFalse(mapper.toManagerDto(Collections.singleton(settingSpec1), Optional.empty(),
-                mgrId1).isPresent());
+                mgrId1, false).isPresent());
     }
 
     @Test
@@ -307,7 +307,8 @@ public class SettingsMapperTest {
         final SettingsMapper mapper = new SettingsMapper(mapping, settingStyleMapping, specMapper,
                 policyMapper, grpcServer.getChannel());
         Optional<SettingsManagerApiDTO> mgrDtoOpt =
-            mapper.toManagerDto(Arrays.asList(settingSpec1, settingSpec2), Optional.empty(), mgrId1);
+            mapper.toManagerDto(Arrays.asList(settingSpec1, settingSpec2), Optional.empty(),
+                mgrId1, false);
         assertTrue(mgrDtoOpt.isPresent());
 
         SettingsManagerApiDTO mgrDto = mgrDtoOpt.get();
@@ -347,7 +348,7 @@ public class SettingsMapperTest {
         final SettingsMapper mapper = new SettingsMapper(mapping, settingStyleMapping, specMapper,
                 policyMapper, grpcServer.getChannel());
         final Map<String, SettingsManagerApiDTO> results = mapper.toManagerDtos(
-                Arrays.asList(settingSpec1, settingSpec2), Optional.empty()).stream()
+                Arrays.asList(settingSpec1, settingSpec2), Optional.empty(), false).stream()
             .collect(Collectors.toMap(SettingsManagerApiDTO::getUuid, Function.identity()));
 
         assertTrue(results.containsKey(mgrId1));
@@ -375,7 +376,8 @@ public class SettingsMapperTest {
         final SettingsMapper mapper = new SettingsMapper(mapping, settingStyleMapping, specMapper,
                 policyMapper, grpcServer.getChannel());
         when(mapping.getManagerUuid(settingSpec1.getName())).thenReturn(Optional.empty());
-        assertTrue(mapper.toManagerDtos(Collections.singleton(settingSpec1), Optional.empty()).isEmpty());
+        assertTrue(mapper.toManagerDtos(Collections.singleton(settingSpec1), Optional.empty(),
+            false).isEmpty());
     }
 
     @Test

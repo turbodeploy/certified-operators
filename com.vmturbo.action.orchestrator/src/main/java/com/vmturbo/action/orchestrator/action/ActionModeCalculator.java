@@ -17,6 +17,10 @@ import static com.vmturbo.components.common.setting.EntitySettingSpecs.PreResize
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.PreSuspendActionWorkflow;
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.ProvisionActionWorkflow;
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.ResizeActionWorkflow;
+import static com.vmturbo.components.common.setting.EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds;
+import static com.vmturbo.components.common.setting.EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds;
+import static com.vmturbo.components.common.setting.EntitySettingSpecs.ResizeVmemDownInBetweenThresholds;
+import static com.vmturbo.components.common.setting.EntitySettingSpecs.ResizeVmemUpInBetweenThresholds;
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.SuspendActionWorkflow;
 
 import java.util.Collections;
@@ -57,6 +61,7 @@ import com.vmturbo.commons.Units;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -80,6 +85,24 @@ public class ActionModeCalculator {
         this.rangeAwareSpecCalculator = rangeAwareSpecCalculator;
     }
 
+    /**
+     * Map from commodity attribute and commodity type to the correct entitySettingSpec. This is
+     * only used for vms, since we have different type of resize based on the commodity and the
+     * attribute.
+     */
+    private static final Map<CommodityAttribute, Map<Integer, EntitySettingSpecs>> VMS_ACTION_MODE_SETTINGS =
+        new ImmutableMap.Builder<CommodityAttribute, Map<Integer, EntitySettingSpecs>>()
+            .put(CommodityAttribute.LIMIT,
+                new ImmutableMap.Builder<Integer, EntitySettingSpecs>()
+                    .put(CommodityType.VCPU.getNumber(), ResizeVcpuUpInBetweenThresholds)
+                    .put(CommodityType.VMEM.getNumber(), ResizeVmemUpInBetweenThresholds)
+                    .build())
+            .put(CommodityAttribute.RESERVED,
+                new ImmutableMap.Builder<Integer, EntitySettingSpecs>()
+                    .put(CommodityType.CPU.getNumber(), ResizeVcpuDownInBetweenThresholds)
+                    .put(CommodityType.MEM.getNumber(), ResizeVmemDownInBetweenThresholds)
+                    .build())
+            .build();
     /**
      * Map from an actionType -> corresponding Workflow Action EntitySettingsSpec if
      * the actionType may be overridden. Used to calculate the action mode for Workflow
@@ -442,8 +465,9 @@ public class ActionModeCalculator {
      * @return The stream of applicable {@link EntitySettingSpecs}. This will be a stream of
      *         size one in most cases.
      */
+    @VisibleForTesting
     @Nonnull
-    private Stream<EntitySettingSpecs> specsApplicableToAction(
+    Stream<EntitySettingSpecs> specsApplicableToAction(
             @Nonnull final ActionDTO.Action action, Map<String, Setting> settingsForTargetEntity) {
         final ActionTypeCase type = action.getInfo().getActionTypeCase();
         switch (type) {
@@ -477,7 +501,13 @@ public class ActionModeCalculator {
             case RESIZE:
                 Optional<EntitySettingSpecs> rangeAwareSpec = rangeAwareSpecCalculator
                         .getSpecForRangeAwareCommResize(action.getInfo().getResize(), settingsForTargetEntity);
-                // Return the range aware spec if present. Otherwise return the regular resize spec.
+                // Return the range aware spec if present. Otherwise return the regular resize
+                // spec, or if it's a vm the default empty stream, since the only resize action
+                // that should fall into this logic is for vStorages. Resize Vms for vStorage
+                // commodities should always translate to a RECOMMENDED mode .
+                if (isVirtualMachine(action.getInfo().getResize()) && !rangeAwareSpec.isPresent()) {
+                    return Stream.empty();
+                }
                 return Stream.of(rangeAwareSpec.orElse(EntitySettingSpecs.Resize),
                                 EntitySettingSpecs.EnforceNonDisruptive);
             case ACTIVATE:
@@ -509,6 +539,15 @@ public class ActionModeCalculator {
     }
 
     /**
+     * Checks if the Resize action has an EntityType and it's a Virtual Machine .
+     * @param resize The {@link Resize} action
+     * @return boolean whether is a vm or not
+     * */
+    private boolean isVirtualMachine(Resize resize) {
+        return resize.getTarget().getType() == EntityType.VIRTUAL_MACHINE_VALUE;
+    }
+
+    /**
      * This class is used to find the spec that applies for a Resize action on a commodity which is
      * range aware.
      * For ex. vmem / vcpu resize of an on-prem VM.
@@ -518,7 +557,7 @@ public class ActionModeCalculator {
         private final Map<Integer, Map<Integer, RangeAwareResizeSettings>> resizeSettingsByEntityType =
                 ImmutableMap.of(EntityType.VIRTUAL_MACHINE_VALUE, populateResizeSettingsByCommodityForVM());
         /**
-         * Gets the spec applicable for range aware commodity resize. Currently VMem and VCpu
+         * Gets the spec applicable for range aware commodity resize. Currently VMem, VCpu
          * resizes of on-prem VMs are considered range aware.
          *
          * There is a minThreshold and a maxThreshold defined for the commodity resizing.
@@ -587,6 +626,9 @@ public class ActionModeCalculator {
                         }
                     }
                 }
+            } else if (entityType == EntityType.VIRTUAL_MACHINE.getNumber()) {
+                applicableSpec = Optional.ofNullable(VMS_ACTION_MODE_SETTINGS.get(changedAttribute) != null ?
+                    VMS_ACTION_MODE_SETTINGS.get(changedAttribute).get(commType) : null );
             }
             logger.debug("Range aware spec for resizing {} of commodity {} of entity {} is {} ",
                     changedAttribute, commType, resize.getTarget().getId(),
@@ -648,19 +690,19 @@ public class ActionModeCalculator {
             RangeAwareResizeSettings vCpuSettings = ImmutableRangeAwareResizeSettings.builder()
                     .aboveMaxThreshold(EntitySettingSpecs.ResizeVcpuAboveMaxThreshold)
                     .belowMinThrewshold(EntitySettingSpecs.ResizeVcpuBelowMinThreshold)
-                    .upInBetweenThresholds(EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds)
+                    .upInBetweenThresholds(ResizeVcpuUpInBetweenThresholds)
                     .downInBetweenThresholds(EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds)
                     .maxThreshold(EntitySettingSpecs.ResizeVcpuMaxThreshold)
                     .minThreshold(EntitySettingSpecs.ResizeVcpuMinThreshold).build();
             RangeAwareResizeSettings vMemSettings = ImmutableRangeAwareResizeSettings.builder()
                     .aboveMaxThreshold(EntitySettingSpecs.ResizeVmemAboveMaxThreshold)
                     .belowMinThrewshold(EntitySettingSpecs.ResizeVmemBelowMinThreshold)
-                    .upInBetweenThresholds(EntitySettingSpecs.ResizeVmemUpInBetweenThresholds)
-                    .downInBetweenThresholds(EntitySettingSpecs.ResizeVmemDownInBetweenThresholds)
+                    .upInBetweenThresholds(ResizeVmemUpInBetweenThresholds)
+                    .downInBetweenThresholds(ResizeVmemDownInBetweenThresholds)
                     .maxThreshold(EntitySettingSpecs.ResizeVmemMaxThreshold)
                     .minThreshold(EntitySettingSpecs.ResizeVmemMinThreshold).build();
             return ImmutableMap.of(CommodityDTO.CommodityType.VCPU_VALUE, vCpuSettings,
-                    CommodityDTO.CommodityType.VMEM_VALUE, vMemSettings);
+                CommodityDTO.CommodityType.VMEM_VALUE, vMemSettings);
         }
     }
 }

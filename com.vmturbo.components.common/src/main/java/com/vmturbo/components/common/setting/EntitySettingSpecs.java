@@ -58,11 +58,12 @@ public enum EntitySettingSpecs {
     /**
      * Resize action automation mode.
      *
-     * For VM, lets say we generate an action to resize some other commodity of  a VM. then it will use this setting.
-     * Also, if we resize reservation attribute instead of capacity attribute, then it will use this.
+     * For VM, this setting is only being used for commodities other than cpu, vcpu, mem and vmem.
+     * The reason is that those commodities are handled by their specific settings,
+     * such as ResizeVcpuUpInBetweenThresholds.
      */
     Resize("resize", "Resize", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER,
+            EnumSet.of(EntityType.STORAGE, EntityType.CONTAINER,
                             EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
                             EntityType.APPLICATION_SERVER, EntityType.DATABASE_SERVER), actionExecutionModeSetToManual(), true),
 
@@ -1001,6 +1002,16 @@ public enum EntitySettingSpecs {
     @Nonnull
     public String getSettingName() {
         return name;
+    }
+
+    /**
+     * Returns setting name, identified by this enumeration value.
+     *
+     * @return setting name
+     */
+    @Nonnull
+    public String getDisplayName() {
+        return displayName;
     }
 
     /**

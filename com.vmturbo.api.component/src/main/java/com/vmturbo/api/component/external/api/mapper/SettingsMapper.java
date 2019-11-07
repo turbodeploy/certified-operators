@@ -323,10 +323,12 @@ public class SettingsMapper {
      * @param entityType An {@link Optional} containing the entity type to limit returned
      *                   {@link SettingApiDTO}s to. This is necessary because a {@link SettingSpec}
      *                   may be associated with multiple entity types.
+     * @param isPlan boolean representing if it's a plan.
      * @return The {@link SettingsManagerApiDTO}s.
      */
     public List<SettingsManagerApiDTO> toManagerDtos(@Nonnull final Collection<SettingSpec> specs,
-                                                     @Nonnull final Optional<String> entityType) {
+                                                     @Nonnull final Optional<String> entityType,
+                                                     Boolean isPlan) {
         final Map<String, List<SettingSpec>> specsByMgr = specs.stream()
                 .collect(Collectors.groupingBy(spec -> managerMapping.getManagerUuid(spec.getName())
                         .orElse(NO_MANAGER)));
@@ -348,7 +350,7 @@ public class SettingsMapper {
                             .orElseThrow(() -> new IllegalStateException("Manager ID " +
                                     entry.getKey() + " not found despite being in the mappings earlier."));
                     return createMgrDto(entry.getKey(), entityType, info,
-                        info.sortSettingSpecs(entry.getValue(), SettingSpec::getName));
+                        info.sortSettingSpecs(entry.getValue(), SettingSpec::getName), isPlan);
                 })
                 .collect(Collectors.toList());
     }
@@ -360,6 +362,7 @@ public class SettingsMapper {
      *
      * @param specs The {@link SettingSpec}s. These don't have to all be managed by the desired
      *              manager - the method will exclude the ones that are not.
+     * @param isPlan boolean representing if it's a plan.
      * @param desiredMgrId The ID of the desired manager ID.
      * @return An optional containing the {@link SettingsManagerApiDTO}, or an empty optional if
      *         the manager does not exist in the mappings.
@@ -367,13 +370,14 @@ public class SettingsMapper {
     public Optional<SettingsManagerApiDTO> toManagerDto(
             @Nonnull final Collection<SettingSpec> specs,
             @Nonnull final Optional<String> entityType,
-            @Nonnull final String desiredMgrId) {
+            @Nonnull final String desiredMgrId,
+            Boolean isPlan) {
         final Optional<SettingsManagerInfo> infoOpt = managerMapping.getManagerInfo(desiredMgrId);
         return infoOpt.map(info -> createMgrDto(desiredMgrId, entityType, info, specs.stream()
                 .filter(spec -> managerMapping.getManagerUuid(spec.getName())
                     .map(name -> name.equals(desiredMgrId))
                     .orElse(false))
-                .collect(Collectors.toList())));
+                .collect(Collectors.toList()), isPlan));
 
     }
 
@@ -590,18 +594,22 @@ public class SettingsMapper {
      * @param info  The information about the manager.
      * @param specs The {@link SettingSpec}s managed by this manager. This function assumes all
      *              the settings belong to the manager.
+     * @param isPlan boolean representing if it's a plan.
      * @return The {@link SettingsManagerApiDTO}.
      */
     @Nonnull
     private SettingsManagerApiDTO createMgrDto(@Nonnull final String mgrId,
                                                @Nonnull final Optional<String> entityType,
                                                @Nonnull final SettingsManagerInfo info,
-                                               @Nonnull final Collection<SettingSpec> specs) {
+                                               @Nonnull final Collection<SettingSpec> specs,
+                                               boolean isPlan) {
         final SettingsManagerApiDTO mgrApiDto = info.newApiDTO(mgrId);
         List<SettingSpec> sortedSpecs = info.sortSettingSpecs(specs, SettingSpec::getName);
 
-        mgrApiDto.setSettings(sortedSpecs.stream()
-                .map(settingSpec -> settingSpecMapper.settingSpecToApi(Optional.of(settingSpec), Optional.empty()))
+        List<SettingApiDTO<String>> settings = new ArrayList<>();
+        sortedSpecs.stream()
+            .map(settingSpec -> settingSpecMapper.settingSpecToApi(Optional.of(settingSpec),
+                Optional.empty()))
                 .flatMap(settingPossibilities -> {
                     if (entityType.isPresent()) {
                         return settingPossibilities.getSettingForEntityType(entityType.get())
@@ -610,8 +618,17 @@ public class SettingsMapper {
                     } else {
                         return settingPossibilities.getAll().stream();
                     }
-                })
-                .collect(Collectors.toList()));
+                }).forEach( settingApiDTO -> {
+            settings.add(settingApiDTO);
+        });
+
+        // If it's a plan we also need to return a UI setting for resize. This setting internally
+        // corresponds to the resizes for vcpu and vmem.
+        if (isPlan && entityType.isPresent() && entityType.get().equals(UIEntityType.VIRTUAL_MACHINE.apiStr())) {
+            SettingApiDTO resizeSetting = createResizeSetting();
+            settings.add(resizeSetting);
+        }
+        mgrApiDto.setSettings(settings);
 
         // configure UI presentation information
         for (SettingApiDTO apiDto : mgrApiDto.getSettings()) {
@@ -906,7 +923,7 @@ public class SettingsMapper {
      *         settings that could not be mapped will not be present.
      */
     @Nonnull
-    public Map<SettingApiDtoKey, Setting> toProtoSettings(@Nonnull final List<SettingApiDTO<String>> apiDtos) {
+    public Map<SettingApiDtoKey, Setting> toProtoSettings(@Nonnull final List<SettingApiDTO> apiDtos) {
         final Map<String, List<SettingApiDTO>> settingOverrides = apiDtos.stream()
                 .collect(Collectors.groupingBy(SettingApiDTO::getUuid));
 
@@ -1408,6 +1425,31 @@ public class SettingsMapper {
         settingApiDTO.setValueDisplayName(templateName);
         settingApiDTO.setEntityType(UIEntityType.PHYSICAL_MACHINE.apiStr());
         return settingApiDTO;
+    }
+
+    /**
+     * Create a resize setting for the UI.
+     *
+     * @return SettingApiDTO the resize setting
+     */
+    private SettingApiDTO createResizeSetting() {
+        List<String> labelList = Arrays.asList("Disabled", "Recommend", "Manual", "Automatic");
+        List<SettingOptionApiDTO> optionList = new ArrayList<>();
+        // Create the options with labels and values
+        labelList.stream().forEach(label -> {
+            SettingOptionApiDTO option = new SettingOptionApiDTO();
+            option.setLabel(label);
+            option.setValue(label.toUpperCase());
+            optionList.add(option);
+        });
+        SettingApiDTO resizeSetting = new SettingApiDTO();
+        resizeSetting.setOptions(labelList);
+        resizeSetting.setDefaultValue("MANUAL");
+        resizeSetting.setDisplayName("Resize");
+        resizeSetting.setEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        resizeSetting.setUuid(EntitySettingSpecs.Resize.getSettingName());
+        resizeSetting.setValueType(InputValueType.STRING);
+        return resizeSetting;
     }
 }
 

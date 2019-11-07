@@ -138,7 +138,7 @@ public class SettingsServiceTest {
         SettingsManagerApiDTO mgrDto = new SettingsManagerApiDTO();
         mgrDto.setUuid("test");
 
-        when(settingsMapper.toManagerDtos(anyCollectionOf(SettingSpec.class), any()))
+        when(settingsMapper.toManagerDtos(anyCollectionOf(SettingSpec.class), any(), any()))
             .thenReturn(Collections.singletonList(mgrDto));
 
         List<SettingsManagerApiDTO> result =
@@ -146,7 +146,7 @@ public class SettingsServiceTest {
         assertEquals(1, result.size());
         assertEquals("test", result.get(0).getUuid());
 
-        verify(settingsMapper).toManagerDtos(specCaptor.capture(), eq(Optional.empty()));
+        verify(settingsMapper).toManagerDtos(specCaptor.capture(), eq(Optional.empty()), any());
         assertThat(specCaptor.getValue(), containsInAnyOrder(vmSettingSpec));
     }
 
@@ -160,13 +160,13 @@ public class SettingsServiceTest {
         mgrDto.setUuid("test");
 
         final String mgrId = "mgrId";
-        when(settingsMapper.toManagerDto(any(), any(), eq(mgrId)))
+        when(settingsMapper.toManagerDto(any(), any(), eq(mgrId), any()))
             .thenReturn(Optional.of(mgrDto));
         List<SettingsManagerApiDTO> result =
                 settingsService.getSettingsSpecs(mgrId, null, false);
         assertEquals(1, result.size());
         assertEquals("test", result.get(0).getUuid());
-        verify(settingsMapper).toManagerDto(specCaptor.capture(), eq(Optional.empty()), eq(mgrId));
+        verify(settingsMapper).toManagerDto(specCaptor.capture(), eq(Optional.empty()), eq(mgrId), any());
         assertThat(specCaptor.getValue(), containsInAnyOrder(vmSettingSpec));
     }
 
@@ -177,12 +177,13 @@ public class SettingsServiceTest {
     public void testGetSingleEntityTypeSpecs() throws Exception {
         final SettingsManagerApiDTO mgrDto = new SettingsManagerApiDTO();
         mgrDto.setUuid("test");
-        when(settingsMapper.toManagerDtos(anyCollectionOf(SettingSpec.class), any()))
+        when(settingsMapper.toManagerDtos(anyCollectionOf(SettingSpec.class), any(), any()))
                 .thenReturn(Collections.singletonList(mgrDto));
 
         List<SettingsManagerApiDTO> result =
                 settingsService.getSettingsSpecs(null, "Container", false);
-        verify(settingsMapper).toManagerDtos(specCaptor.capture(), eq(Optional.of("Container")));
+        verify(settingsMapper).toManagerDtos(specCaptor.capture(), eq(Optional.of("Container")),
+            any());
         assertTrue(specCaptor.getValue().isEmpty());
     }
 

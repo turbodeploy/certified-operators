@@ -15,6 +15,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -95,6 +96,56 @@ public class EntitySettingsApplicatorTest {
                     .setSettingSpecName(EntitySettingSpecs.Resize.getSettingName())
                     .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
                     .build();
+
+    private static final Setting RESIZE_VCPU_DOWN_ENABLED_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.AUTOMATIC.name()))
+        .build();
+
+    private static final Setting RESIZE_VMEM_DOWN_ENABLED_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.AUTOMATIC.name()))
+        .build();
+
+    private static final Setting RESIZE_VCPU_DOWN_DISABLED_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
+        .build();
+
+    private static final Setting RESIZE_VCPU_UP_DISABLED_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
+        .build();
+
+    private static final Setting RESIZE_VCPU_BELOW_MIN_DISABLED_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.ResizeVcpuBelowMinThreshold.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
+        .build();
+
+    private static final Setting RESIZE_VCPU_ABOVE_MAX_DISABLED_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.ResizeVcpuAboveMaxThreshold.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
+        .build();
+
+    private static final Setting RESIZE_VMEM_DOWN_DISABLED_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.ResizeVmemDownInBetweenThresholds.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
+        .build();
+
+    private static final Setting RESIZE_VMEM_UP_DISABLED_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
+        .build();
+
+    private static final Setting RESIZE_VMEM_BELOW_MIN_DISABLED_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.ResizeVmemBelowMinThreshold.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
+        .build();
+
+    private static final Setting RESIZE_VMEM_ABOVE_MAX_DISABLED_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.ResizeVmemAboveMaxThreshold.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
+        .build();
 
     private static final Setting SUSPEND_DISABLED_SETTING = Setting.newBuilder()
                     .setSettingSpecName(EntitySettingSpecs.Suspend.getSettingName())
@@ -220,7 +271,7 @@ public class EntitySettingsApplicatorTest {
      */
     @Test
     public void testResizeSettingEnabled() {
-        final TopologyEntityDTO.Builder entity = getEntityForResizeableTest(ImmutableList.of(true, false));
+        final TopologyEntityDTO.Builder entity = getEntityForResizeableTest(ImmutableList.of(true, false), Optional.ofNullable(null));
         RESIZE_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
                 .setValue(ActionMode.MANUAL.name()));
         applySettings(TOPOLOGY_INFO, entity, RESIZE_SETTING_BUILDER.build());
@@ -234,7 +285,7 @@ public class EntitySettingsApplicatorTest {
      */
     @Test
     public void testResizeSettingDisabled() {
-        final TopologyEntityDTO.Builder entity = getEntityForResizeableTest(ImmutableList.of(true, false));
+        final TopologyEntityDTO.Builder entity = getEntityForResizeableTest(ImmutableList.of(true, false), Optional.ofNullable(null));
         RESIZE_SETTING_BUILDER.setEnumSettingValue(EnumSettingValue.newBuilder()
                 .setValue(ActionMode.DISABLED.name()));
         applySettings(TOPOLOGY_INFO, entity, RESIZE_SETTING_BUILDER.build());
@@ -242,11 +293,72 @@ public class EntitySettingsApplicatorTest {
         Assert.assertEquals(false, entity.getCommoditySoldList(1).getIsResizeable());
     }
 
-    private TopologyEntityDTO.Builder getEntityForResizeableTest(final List<Boolean> commoditiesResizeable) {
+    /**
+     * Tests application of resize setting with DISABLED value for VMEM, besides one setting.
+     * Commodities should not change
+     */
+    @Test
+    public void testResizeVmemSettingEnabled() {
+        final TopologyEntityDTO.Builder entity = getEntityForResizeableTest(ImmutableList.of(true, false), Optional.ofNullable(CommodityType.VMEM));
+        applySettings(TOPOLOGY_INFO, entity, RESIZE_VMEM_DOWN_ENABLED_SETTING,
+            RESIZE_VMEM_UP_DISABLED_SETTING, RESIZE_VMEM_ABOVE_MAX_DISABLED_SETTING,
+            RESIZE_VMEM_BELOW_MIN_DISABLED_SETTING);
+        Assert.assertEquals(true, entity.getCommoditySoldList(0).getIsResizeable());
+        Assert.assertEquals(false, entity.getCommoditySoldList(1).getIsResizeable());
+    }
+
+    /**
+     * Tests application of resize setting with DISABLED value for VCPU, besides one setting.
+     * Commodities should not change
+     */
+    @Test
+    public void testResizeVcpuSettingEnabled() {
+        final TopologyEntityDTO.Builder entity = getEntityForResizeableTest(ImmutableList.of(true, false), Optional.ofNullable(CommodityType.VCPU));
+        applySettings(TOPOLOGY_INFO, entity, RESIZE_VCPU_DOWN_ENABLED_SETTING,
+            RESIZE_VCPU_UP_DISABLED_SETTING, RESIZE_VCPU_ABOVE_MAX_DISABLED_SETTING,
+            RESIZE_VCPU_BELOW_MIN_DISABLED_SETTING);
+        Assert.assertEquals(true, entity.getCommoditySoldList(0).getIsResizeable());
+        Assert.assertEquals(false, entity.getCommoditySoldList(1).getIsResizeable());
+    }
+
+    /**
+     * Tests application of resize setting with DISABLED value for VCPU. Commodities which have
+     * isResizeable true should be changed, commodities with isResizeable=false shouldn't be
+     * changed.
+     */
+    @Test
+    public void testResizeVmemSettingDisabled() {
+        final TopologyEntityDTO.Builder entity = getEntityForResizeableTest(ImmutableList.of(true, false), Optional.ofNullable(CommodityType.VMEM));
+        applySettings(TOPOLOGY_INFO, entity, RESIZE_VMEM_DOWN_DISABLED_SETTING,
+            RESIZE_VMEM_UP_DISABLED_SETTING, RESIZE_VMEM_ABOVE_MAX_DISABLED_SETTING,
+            RESIZE_VMEM_BELOW_MIN_DISABLED_SETTING);
+        Assert.assertEquals(false, entity.getCommoditySoldList(0).getIsResizeable());
+        Assert.assertEquals(false, entity.getCommoditySoldList(1).getIsResizeable());
+    }
+
+    /**
+     * Tests application of resize setting with DISABLED value for VCPU. Commodities which have
+     * isResizeable true should be changed, commodities with isResizeable=false shouldn't be
+     * changed.
+     */
+    @Test
+    public void testResizeVcpuSettingDisabled() {
+        final TopologyEntityDTO.Builder entity = getEntityForResizeableTest(ImmutableList.of(true, false), Optional.ofNullable(CommodityType.VCPU));
+        applySettings(TOPOLOGY_INFO, entity, RESIZE_VCPU_DOWN_DISABLED_SETTING,
+            RESIZE_VCPU_UP_DISABLED_SETTING, RESIZE_VCPU_ABOVE_MAX_DISABLED_SETTING,
+            RESIZE_VCPU_BELOW_MIN_DISABLED_SETTING);
+        Assert.assertEquals(false, entity.getCommoditySoldList(0).getIsResizeable());
+        Assert.assertEquals(false, entity.getCommoditySoldList(1).getIsResizeable());
+    }
+
+    private TopologyEntityDTO.Builder getEntityForResizeableTest(final List<Boolean> commoditiesResizeable,
+                                                                 Optional<CommodityType> commodityType) {
         final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder();
         for (boolean isResizeable : commoditiesResizeable) {
             entity.addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                    .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(1).build())
+                    .setCommodityType(TopologyDTO.CommodityType
+                        .newBuilder()
+                        .setType(commodityType.map(CommodityType::getNumber).orElse(1)).build())
                     .setIsResizeable(isResizeable).build());
         }
         return entity;

@@ -31,6 +31,7 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -54,8 +55,10 @@ public class ActionTest {
     private final long actionPlanId = 1;
     private ActionDTO.Action moveRecommendation;
     private Action moveAction;
-    private ActionDTO.Action resizeRecommendation;
-    private Action resizeAction;
+    private ActionDTO.Action vmResizeRecommendation;
+    private ActionDTO.Action storageResizeRecommendation;
+    private Action resizeStorageAction;
+    private Action resizeVmAction;
     private ActionDTO.Action deactivateRecommendation;
     private Action deactivateAction;
     private ActionDTO.Action activateRecommendation;
@@ -75,7 +78,9 @@ public class ActionTest {
         moveRecommendation =
                 makeRec(TestActionBuilder.makeMoveInfo(11L, 22L/*srcId*/, 1/*srcType*/, 33L/*destId*/, 1/*destType*/),
                             SupportLevel.SUPPORTED).build();
-        resizeRecommendation = makeRec(makeResizeInfo(11L), SupportLevel.SUPPORTED).build();
+        vmResizeRecommendation = makeRec(makeVmResizeInfo(11L), SupportLevel.SUPPORTED).build();
+        storageResizeRecommendation =
+            makeRec(makeStorageResizeInfo(11L), SupportLevel.SUPPORTED).build();
         deactivateRecommendation =
                 makeRec(makeDeactivateInfo(11L), SupportLevel.SUPPORTED).build();
         activateRecommendation = makeRec(makeActivateInfo(11L), SupportLevel.SUPPORTED).build();
@@ -92,9 +97,12 @@ public class ActionTest {
         moveAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator);
         moveAction.getActionTranslation().setPassthroughTranslationSuccess();
         moveAction.refreshAction(entitySettingsCache);
-        resizeAction = new Action(resizeRecommendation, actionPlanId, actionModeCalculator);
-        resizeAction.getActionTranslation().setPassthroughTranslationSuccess();
-        resizeAction.refreshAction(entitySettingsCache);
+        resizeStorageAction = new Action(storageResizeRecommendation, actionPlanId,
+            actionModeCalculator);
+        resizeStorageAction.getActionTranslation().setPassthroughTranslationSuccess();
+        resizeStorageAction.refreshAction(entitySettingsCache);
+        resizeVmAction = new Action(vmResizeRecommendation, actionPlanId, actionModeCalculator);
+        resizeVmAction.refreshAction(entitySettingsCache);
         deactivateAction = new Action(deactivateRecommendation, actionPlanId, actionModeCalculator);
         deactivateAction.getActionTranslation().setPassthroughTranslationSuccess();
         deactivateAction.refreshAction(entitySettingsCache);
@@ -230,12 +238,14 @@ public class ActionTest {
     public void testGetModeDefault() {
         //default is MANUAL
         assertThat(moveAction.getMode(), is(ActionMode.MANUAL));
-        assertThat(resizeAction.getMode(), is(ActionMode.MANUAL));
         assertThat(activateAction.getMode(), is(ActionMode.MANUAL));
         assertThat(deactivateAction.getMode(), is(ActionMode.MANUAL));
         assertThat(reconfigureAction.getMode(), is(ActionMode.RECOMMEND));
+        assertThat(resizeStorageAction.getMode(), is(ActionMode.MANUAL));
         //default is RECOMMEND for stMove
         assertThat(storageMoveAction.getMode(), is(ActionMode.RECOMMEND));
+        // For vms and commodity types that are not vmem, mem, cpu or vcpu the default is RECOMMEND
+        assertThat(resizeVmAction.getMode(), is(ActionMode.RECOMMEND));
     }
 
     @Test
@@ -251,9 +261,9 @@ public class ActionTest {
         activateRecommendation =
                 makeRec(makeActivateInfo(11L), SupportLevel.SHOW_ONLY).build();
         activateAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator);
-        resizeRecommendation =
-                makeRec(makeResizeInfo(11L), SupportLevel.SHOW_ONLY).build();
-        resizeAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator);
+        storageResizeRecommendation =
+                makeRec(makeStorageResizeInfo(11L), SupportLevel.SHOW_ONLY).build();
+        resizeStorageAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator);
         storageMoveRecommendation =
                 makeRec(TestActionBuilder.makeMoveInfo(11L, 44L, 2, 55L, 2),
                         SupportLevel.SHOW_ONLY).build();
@@ -275,7 +285,7 @@ public class ActionTest {
         when(entitySettingsCache.getSettingsForEntity(eq(11L)))
                 .thenReturn(settings);
         assertEquals(moveAction.getMode(), ActionMode.RECOMMEND);
-        assertEquals(resizeAction.getMode(), ActionMode.RECOMMEND);
+        assertEquals(resizeStorageAction.getMode(), ActionMode.RECOMMEND);
         assertEquals(activateAction.getMode(), ActionMode.RECOMMEND);
         assertEquals(deactivateAction.getMode(), ActionMode.RECOMMEND);
         assertEquals(storageMoveAction.getMode(), ActionMode.RECOMMEND);
@@ -295,8 +305,8 @@ public class ActionTest {
         activateRecommendation =
                 makeRec(makeActivateInfo(11L), SupportLevel.UNSUPPORTED).build();
         activateAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator);
-        resizeRecommendation = makeRec(makeResizeInfo(11L), SupportLevel.UNSUPPORTED).build();
-        resizeAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator);
+        storageResizeRecommendation = makeRec(makeStorageResizeInfo(11L), SupportLevel.UNSUPPORTED).build();
+        resizeStorageAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator);
         storageMoveRecommendation =
                 makeRec(TestActionBuilder.makeMoveInfo(11L, 44L, 2, 55L, 2),
                         SupportLevel.UNSUPPORTED).build();
@@ -320,13 +330,13 @@ public class ActionTest {
                 .thenReturn(settings);
 
         moveAction.refreshAction(entitySettingsCache);
-        resizeAction.refreshAction(entitySettingsCache);
+        storageMoveAction.refreshAction(entitySettingsCache);
         activateAction.refreshAction(entitySettingsCache);
         deactivateAction.refreshAction(entitySettingsCache);
         storageMoveAction.refreshAction(entitySettingsCache);
         reconfigureAction.refreshAction(entitySettingsCache);
         assertEquals(moveAction.getMode(), ActionMode.DISABLED);
-        assertEquals(resizeAction.getMode(), ActionMode.DISABLED);
+        assertEquals(storageMoveAction.getMode(), ActionMode.DISABLED);
         assertEquals(activateAction.getMode(), ActionMode.DISABLED);
         assertEquals(deactivateAction.getMode(), ActionMode.DISABLED);
         assertEquals(storageMoveAction.getMode(), ActionMode.DISABLED);
@@ -350,12 +360,12 @@ public class ActionTest {
                 .thenReturn(settings);
 
         moveAction.refreshAction(entitySettingsCache);
-        resizeAction.refreshAction(entitySettingsCache);
+        storageMoveAction.refreshAction(entitySettingsCache);
         activateAction.refreshAction(entitySettingsCache);
         deactivateAction.refreshAction(entitySettingsCache);
         storageMoveAction.refreshAction(entitySettingsCache);
         reconfigureAction.refreshAction(entitySettingsCache);
-        assertEquals(resizeAction.getMode(), ActionMode.AUTOMATIC);
+        assertEquals(storageMoveAction.getMode(), ActionMode.AUTOMATIC);
         assertEquals(activateAction.getMode(), ActionMode.AUTOMATIC);
         assertEquals(deactivateAction.getMode(), ActionMode.AUTOMATIC);
         assertEquals(moveAction.getMode(), ActionMode.AUTOMATIC);
@@ -400,13 +410,26 @@ public class ActionTest {
                 .setInfo(infoBuilder).setExplanation(Explanation.newBuilder().build());
     }
 
-    private ActionInfo.Builder makeResizeInfo(long targetId) {
+    private ActionInfo.Builder makeVmResizeInfo(long targetId) {
         return ActionInfo.newBuilder().setResize(Resize.newBuilder()
                 .setCommodityType(CommodityType.newBuilder()
                         .setType(0).build())
                 .setNewCapacity(20)
                 .setOldCapacity(10)
                 .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId)));
+    }
+
+    private ActionInfo.Builder makeStorageResizeInfo(long targetId) {
+        return ActionInfo.newBuilder().setResize(Resize.newBuilder()
+            .setCommodityType(CommodityType.newBuilder()
+                .setType(0).build())
+            .setNewCapacity(20)
+            .setOldCapacity(10)
+            .setTarget(ActionEntity.newBuilder()
+                .setId(targetId)
+                // set some fake type for now
+                .setType(EntityType.STORAGE.getNumber())
+                .build()));
     }
 
     private ActionInfo.Builder makeDeactivateInfo(long targetId) {

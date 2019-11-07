@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.group.settings;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -112,6 +114,8 @@ public class EntitySettingsApplicator {
                         TopologyDTOUtil.STORAGE_TYPES),
                 new MoveCommoditiesFromProviderTypesApplicator(EntitySettingSpecs.BusinessUserMove,
                         Collections.singleton(EntityType.DESKTOP_POOL)),
+                new VirtualMachineResizeVcpuApplicator(),
+                new VirtualMachineResizeVmemApplicator(),
                 new DeleteApplicator(),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.IoThroughput,
                         CommodityType.IO_THROUGHPUT),
@@ -214,6 +218,53 @@ public class EntitySettingsApplicator {
             if (settingObject != null) {
                 apply(entity, settingObject);
             }
+        }
+    }
+
+    /**
+     * The applicator of multiple {@link Setting}s to a single {@link TopologyEntityDTO.Builder}.
+     */
+    private abstract static class MultipleSettingsApplicator implements SettingApplicator {
+
+        private final List<EntitySettingSpecs> settings;
+
+        private MultipleSettingsApplicator(@Nonnull List<EntitySettingSpecs> settings) {
+            this.settings = Objects.requireNonNull(settings);
+        }
+
+        protected List<EntitySettingSpecs> getEntitySettingSpecs() {
+            return settings;
+        }
+
+        protected abstract void apply(@Nonnull TopologyEntityDTO.Builder entity,
+                                      @Nonnull Collection<Setting> settings);
+
+        @Override
+        public void apply(@Nonnull TopologyEntityDTO.Builder entity,
+                          @Nonnull Map<EntitySettingSpecs, Setting> settings) {
+            List<Setting> settingObjects = new ArrayList();
+            for (EntitySettingSpecs setting : this.settings) {
+                final Setting settingObject = settings.get(setting);
+                //The settings passed to the method should contain ALL the settings of the
+                // applicator
+                if (settingObject == null) {
+                    return;
+                } else {
+                    settingObjects.add(settingObject);
+                }
+            }
+            apply(entity, settingObjects);
+        }
+
+        protected void updateCommodities(TopologyEntityDTO.Builder entity,
+                                         CommodityType commodityType) {
+            entity.getCommoditySoldListBuilderList()
+                .forEach(commSoldBuilder -> {
+                    if (commSoldBuilder.getCommodityType().getType() == commodityType.getNumber() &&
+                        commSoldBuilder.getIsResizeable()) {
+                        commSoldBuilder.setIsResizeable(false);
+                    }
+                });
         }
     }
 
@@ -504,6 +555,55 @@ public class EntitySettingsApplicator {
                             commSoldBuilder.setIsResizeable(resizeable);
                         }
                     });
+        }
+    }
+
+    /**
+     * Applies a Vcpu resize to the virtual machine represented in
+     * {@link TopologyEntityDTO.Builder}.
+     */
+    private static class VirtualMachineResizeVcpuApplicator extends MultipleSettingsApplicator {
+
+        private VirtualMachineResizeVcpuApplicator() {
+            super(Arrays.asList(EntitySettingSpecs.ResizeVcpuBelowMinThreshold,
+                EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds,
+                EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds,
+                EntitySettingSpecs.ResizeVcpuAboveMaxThreshold));
+        }
+
+        @Override
+        protected void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+                             @Nonnull final Collection<Setting> settings) {
+            boolean allSettingsDisabled = settings.stream()
+                .filter(setting -> setting.getEnumSettingValue().getValue().equals(ActionMode.DISABLED.name()))
+                .collect(Collectors.toList()).size() == this.getEntitySettingSpecs().size();
+            if (allSettingsDisabled) {
+                updateCommodities(entity, CommodityType.VCPU);
+            }
+        }
+    }
+
+    /**
+     * Applies a Vmem resize to the virtual machine represented in
+     * {@link TopologyEntityDTO.Builder}.
+     */
+    private static class VirtualMachineResizeVmemApplicator extends MultipleSettingsApplicator {
+
+        private VirtualMachineResizeVmemApplicator() {
+            super(Arrays.asList(EntitySettingSpecs.ResizeVmemBelowMinThreshold,
+                EntitySettingSpecs.ResizeVmemDownInBetweenThresholds,
+                EntitySettingSpecs.ResizeVmemUpInBetweenThresholds,
+                EntitySettingSpecs.ResizeVmemAboveMaxThreshold));
+        }
+
+        @Override
+        protected void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+                             @Nonnull final Collection<Setting> settings) {
+            boolean allSettingsDisabled = settings.stream()
+                .filter(setting -> setting.getEnumSettingValue().getValue().equals(ActionMode.DISABLED.name())).count() == this.getEntitySettingSpecs().size();
+            if (allSettingsDisabled) {
+                updateCommodities(entity, CommodityType.VMEM);
+            }
         }
     }
 

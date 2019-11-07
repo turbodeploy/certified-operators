@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -32,8 +34,10 @@ import com.google.gson.Gson;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.GsonPostProcessable;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 
 /**
  * Responsible for loading the {@link SettingsManagerMapping}s from a file at system startup.
@@ -49,6 +53,16 @@ public class SettingsManagerMappingLoader {
     private static final Logger logger = LogManager.getLogger();
 
     private final SettingsManagerMapping mapping;
+
+    private static final Set<EntitySettingSpecs> virtualMachineResizeSettings =
+        new HashSet<>(Arrays.asList(EntitySettingSpecs.ResizeVcpuAboveMaxThreshold,
+            EntitySettingSpecs.ResizeVcpuBelowMinThreshold,
+            EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds,
+            EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds,
+            EntitySettingSpecs.ResizeVmemAboveMaxThreshold,
+            EntitySettingSpecs.ResizeVmemBelowMinThreshold,
+            EntitySettingSpecs.ResizeVmemDownInBetweenThresholds,
+            EntitySettingSpecs.ResizeVmemUpInBetweenThresholds));
 
     public SettingsManagerMappingLoader(@Nonnull final String settingsMgrJsonFileName) throws IOException {
         this.mapping = loadManagerMappings(settingsMgrJsonFileName);
@@ -215,20 +229,95 @@ public class SettingsManagerMappingLoader {
          */
         @Nonnull
         public List<SettingsManagerApiDTO> convertToPlanSettingSpecs(
-                @Nonnull final List<SettingsManagerApiDTO> settingMgrs) {
+            @Nonnull final List<SettingsManagerApiDTO> settingMgrs) {
             final ImmutableList.Builder<SettingsManagerApiDTO> retBuilder = ImmutableList.builder();
             settingMgrs.forEach(settingMgr ->
                 getManagerInfo(settingMgr.getUuid()).ifPresent(mgrInfo -> {
                     final SettingsManagerApiDTO newMgr = mgrInfo.newApiDTO(settingMgr.getUuid());
                     mgrInfo.getPlanSettingInfo().ifPresent(planSettingInfo -> {
                         newMgr.setSettings(settingMgr.getSettings().stream()
-                                .filter(planSettingInfo::isPlanRelevant)
-                                .collect(Collectors.toList()));
+                            .filter(planSettingInfo::isPlanRelevant)
+                            .collect(Collectors.toList()));
                         retBuilder.add(newMgr);
                     });
                 })
             );
             return retBuilder.build();
+        }
+
+
+        /**
+         * Convert "regular" setting values into settings applicable in the plan UI.
+         * See {@link PlanSettingInfo}.
+         *
+         * @param realtimeSettings A collection of setting values in realtime terms.
+         * @return The settings from regularSettings that can be displayed in the plan UI,
+         *         with the plan-specific values.
+         */
+        @Nonnull
+        public List<SettingApiDTO<String>> convertToPlanSetting(
+            @Nonnull final List<SettingApiDTO<String>> realtimeSettings) {
+            final List<SettingApiDTO<String>> convertedSettings = new ArrayList<>();
+            String resizeConvertedValue = null;
+            Set<String> virtualMachineResizeSettingNames = virtualMachineResizeSettings
+                .stream().map(EntitySettingSpecs::getSettingName).collect(Collectors.toSet());
+            for (SettingApiDTO realtimeSetting : realtimeSettings) {
+                if (virtualMachineResizeSettingNames.contains(realtimeSetting.getUuid())
+                    && realtimeSetting.getEntityType().equals(UIEntityType.VIRTUAL_MACHINE.apiStr())) {
+                    resizeConvertedValue = realtimeSetting.getValue().toString();
+                } else {
+                    convertedSettings.add(realtimeSetting);
+                }
+            }
+            addPlanResizeSetting(convertedSettings, resizeConvertedValue);
+            return convertedSettings;
+        }
+
+
+        /**
+         * Convert settings values set in the plan UI, generated from the specs returned by
+         * {@link SettingsManagerMapping#convertToPlanSettingSpecs(List)}, into settings parseable
+         * in the rest of the system.
+         *
+         *<p>See {@link PlanSettingInfo}.
+         *
+         * @param planSettings A collection of setting values from the plan UI.
+         * @return The settings from planSettings that can be used in the rest of the system.
+         */
+        @Nonnull
+        public List<SettingApiDTO> convertFromPlanSetting(
+                @Nonnull final List<SettingApiDTO<String>> planSettings) {
+            final ImmutableList.Builder<SettingApiDTO> retBuilder = ImmutableList.builder();
+            planSettings.forEach(planSetting ->
+                getManagerForSetting(planSetting.getUuid()).ifPresent(mgrInfo ->
+                    retBuilder.addAll(mgrInfo.getPlanSettingInfo()
+                        .flatMap(planSettingInfo -> planSettingInfo.fromPlanSetting(planSetting))
+                        .orElse(Arrays.asList(planSetting)))));
+            return retBuilder.build();
+        }
+
+        /**
+         * Add a Resize setting for the UI. This is needed since resize for vms doesn't exist as
+         * an internal settings, but it maps to the settings defined in virtualMachineResizeSettings
+         *
+         * @param retBuilder Builder for a collection of setting.
+         * @param resizeConvertedValue The converted value for the plan ui for the resize setting.
+         */
+        @VisibleForTesting
+        void addPlanResizeSetting(List<SettingApiDTO<String>> retBuilder,
+                                  String resizeConvertedValue) {
+            if (resizeConvertedValue != null && getManagerForSetting(EntitySettingSpecs.Resize.getSettingName()).isPresent()) {
+                SettingsManagerInfo mgr =
+                    getManagerForSetting(EntitySettingSpecs.Resize.getSettingName()).get();
+                if (mgr.getPlanSettingInfo().isPresent()) {
+                    final SettingApiDTO resizeDto = new SettingApiDTO();
+                    resizeDto.setUuid(EntitySettingSpecs.Resize.getSettingName());
+                    resizeDto.setEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
+                    resizeDto.setDisplayName(EntitySettingSpecs.Resize.getDisplayName());
+                    resizeDto.setValue(resizeConvertedValue);
+                    retBuilder.add(resizeDto);
+                }
+            }
         }
     }
 
@@ -260,6 +349,44 @@ public class SettingsManagerMappingLoader {
         }
 
         /**
+         * Convert a {@link SettingApiDTO} representing a value set in a plan setting to a "real"
+         * plan setting that is consistent with the backend values.
+         *
+         * @param planSetting The plan setting
+         * @return A {@link SettingApiDTO} to use to convert to a {@link Setting}.
+         *         This may be the input planSetting if the input was not created from a model
+         *         generated by {@link PlanSettingInfo}.
+         * @throws IllegalArgumentException If the plan setting is illegal - most notably
+         *         if has a value that's not convertible.
+         */
+        @Nonnull
+        public Optional<List<SettingApiDTO>> fromPlanSetting(@Nonnull final SettingApiDTO planSetting)
+            throws IllegalArgumentException {
+            if (!supportedSettingDefaults.contains(planSetting.getEntityType(),
+                planSetting.getUuid())) {
+                return Optional.empty();
+            }
+
+            final String convertedValue = planSetting.getValue().toString();
+            List<SettingApiDTO> newDtos = new ArrayList<>();
+            if (UIEntityType.fromString(planSetting.getEntityType()).equals(UIEntityType.VIRTUAL_MACHINE)
+                && planSetting.getUuid().equals(EntitySettingSpecs.Resize.getSettingName())) {
+                virtualMachineResizeSettings.forEach(resizeSetting -> {
+                    final SettingApiDTO newResizeDto = new SettingApiDTO();
+                    newResizeDto.setUuid(resizeSetting.getSettingName());
+                    newResizeDto.setEntityType(planSetting.getEntityType());
+                    newResizeDto.setDisplayName(resizeSetting.getDisplayName());
+                    newResizeDto.setValue(convertedValue);
+                    newDtos.add(newResizeDto);
+                });
+            } else {
+                newDtos.add(planSetting);
+
+            }
+            return Optional.of(newDtos);
+        }
+
+         /**
          * Checks if setting is allowed in Plan UI.
          * Not all settings are supported and allowed to be configurable in Plans
          * and we filter out all not supported
@@ -369,7 +496,6 @@ public class SettingsManagerMappingLoader {
          *
          * @param unordered The unordered objects (e.g. setting specs).
          * @param nameExtractor Function to extract the name from the object type.
-         * @param T The type of items that have to be ordered.
          * @return An ordered list of the input objects according to the order specified in
          *         this manager's entry in settingManagers.json.
          */

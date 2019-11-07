@@ -665,12 +665,14 @@ public class ScenarioMapper {
         if (CollectionUtils.isEmpty(settingsList)) {
             return Collections.emptyList();
         }
-
+        // First we convert them back to "real" settings.
+        final List<SettingApiDTO> convertedSettingOverrides =
+            settingsManagerMapping.convertFromPlanSetting(settingsList);
         final Map<SettingsMapper.SettingApiDtoKey, Setting> settingProtoOverrides =
-                settingsMapper.toProtoSettings(settingsList);
+                settingsMapper.toProtoSettings(convertedSettingOverrides);
 
         final ImmutableList.Builder<ScenarioChange> retChanges = ImmutableList.builder();
-        settingsList.forEach(apiDto -> {
+        convertedSettingOverrides.forEach(apiDto -> {
             Setting protoSetting = settingProtoOverrides.get(SettingsMapper.getSettingApiDtoKey(apiDto));
             if (protoSetting == null) {
                 String dtoDescription;
@@ -1114,7 +1116,8 @@ public class ScenarioMapper {
         final ConfigChangesApiDTO outputChanges = new ConfigChangesApiDTO();
 
         outputChanges.setRemoveConstraintList(removeConstraintApiDTOS);
-        outputChanges.setAutomationSettingList(settingChanges);
+        outputChanges.setAutomationSettingList(settingsManagerMapping
+            .convertToPlanSetting(settingChanges));
         outputChanges.setAddPolicyList(Lists.newArrayList());
         outputChanges.setRemovePolicyList(Lists.newArrayList());
         outputChanges.setRiSettingList(riSetting);
@@ -1162,10 +1165,14 @@ public class ScenarioMapper {
 
         if (settingOverride.hasEntityType()) {
             final String entityType = UIEntityType.fromType(settingOverride.getEntityType()).apiStr();
-            return Collections.singletonList(possibilities.getSettingForEntityType(entityType)
-                .orElseThrow(() -> new IllegalStateException("Entity type " + entityType +
-                        " not supported by the setting " +
-                        settingOverride.getSetting().getSettingSpecName() + " being overriden.")));
+            if (possibilities.getSettingForEntityType(entityType).isPresent()) {
+                return Collections.singletonList(possibilities.getSettingForEntityType(entityType).get());
+            } else {
+                logger.warn("Entity type " + entityType +
+                    " not supported by the setting " +
+                    settingOverride.getSetting().getSettingSpecName() + " being overriden.");
+                return Collections.emptyList();
+            }
         } else {
             return possibilities.getAll();
         }

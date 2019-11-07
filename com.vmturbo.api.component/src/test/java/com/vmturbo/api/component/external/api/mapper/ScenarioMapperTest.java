@@ -418,8 +418,9 @@ public class ScenarioMapperTest {
         final SettingApiDTO<String> setting = createStringSetting("foo", "value");
 
         SettingsMapper.SettingApiDtoKey key = SettingsMapper.getSettingApiDtoKey(setting);
-
-        when(settingsMapper.toProtoSettings(Collections.singletonList(setting)))
+        List<SettingApiDTO> settingList = Collections.singletonList(setting);
+        when(settingsManagerMapping.convertFromPlanSetting(Collections.singletonList(setting))).thenReturn(settingList);
+        when(settingsMapper.toProtoSettings(settingList))
             .thenReturn(ImmutableMap.of(key, Setting.newBuilder()
                     .setSettingSpecName("foo")
                     .setStringSettingValue(StringSettingValue.newBuilder().setValue("value"))
@@ -441,7 +442,8 @@ public class ScenarioMapperTest {
         final SettingApiDTO<String> setting = createStringSetting("foo", "value");
 
         SettingsMapper.SettingApiDtoKey key = SettingsMapper.getSettingApiDtoKey(setting);
-
+        when(settingsManagerMapping.convertFromPlanSetting(Collections.singletonList(setting)))
+            .thenReturn(Collections.singletonList(setting));
         when(settingsMapper.toProtoSettings(Collections.singletonList(setting)))
                 .thenReturn(ImmutableMap.of(key, Setting.newBuilder()
                         .setSettingSpecName("foo")
@@ -477,6 +479,7 @@ public class ScenarioMapperTest {
         final SettingApiDTOPossibilities possibilities = mock(SettingApiDTOPossibilities.class);
         when(possibilities.getAll()).thenReturn(Collections.singletonList(apiDto));
         when(settingsMapper.toSettingApiDto(any())).thenReturn(possibilities);
+        when(settingsManagerMapping.convertToPlanSetting(Collections.singletonList(apiDto))).thenReturn(Collections.singletonList(apiDto));
         // Pass-through plan settings conversion
 
         final ScenarioApiDTO scenarioApiDTO = scenarioMapper.toScenarioApiDTO(scenario);

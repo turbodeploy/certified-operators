@@ -163,13 +163,16 @@ public class RangeAwareResizeParameterizedTests {
                         EntityType.VIRTUAL_MACHINE_VALUE, 1, 3, ActionMode.MANUAL},
                 // Limit change
                 {CommodityAttribute.LIMIT, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 300000, 500000, ActionMode.DISABLED},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 300000, 500000, ActionMode.MANUAL},
+                // Reservation change
+                {CommodityAttribute.RESERVED, CommodityDTO.CommodityType.MEM_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 300000, 500000, ActionMode.RECOMMEND},
                 // Non-VM resize
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
                         EntityType.CONTAINER_VALUE, 300000, 500000, ActionMode.DISABLED},
                 // Other commodity resize
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VSTORAGE_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 300000, 500000, ActionMode.DISABLED},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 300000, 500000, ActionMode.RECOMMEND},
         });
     }
 

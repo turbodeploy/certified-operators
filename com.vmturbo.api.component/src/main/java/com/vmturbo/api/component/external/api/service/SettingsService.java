@@ -72,6 +72,12 @@ public class SettingsService implements ISettingsService {
      */
     public static final String PERSISTENCE_MANAGER = "persistencemanager";
 
+    /**
+     * name of the manager for automation.
+     */
+    private static final String AUTOMATION_MANAGER = "automationmanager";
+
+
     public SettingsService(@Nonnull final SettingServiceBlockingStub settingServiceBlockingStub,
                     @Nonnull final StatsHistoryServiceBlockingStub statsServiceClient,
                     @Nonnull final SettingsMapper settingsMapper,
@@ -297,11 +303,12 @@ public class SettingsService implements ISettingsService {
         final List<SettingsManagerApiDTO> retMgrs;
 
         if (managerUuid != null) {
-            retMgrs = settingsMapper.toManagerDto(specs, Optional.ofNullable(entityType), managerUuid)
+            retMgrs = settingsMapper.toManagerDto(specs, Optional.ofNullable(entityType),
+                managerUuid, isPlan)
                     .map(Collections::singletonList)
                     .orElse(Collections.emptyList());
         } else {
-            retMgrs = settingsMapper.toManagerDtos(specs, Optional.ofNullable(entityType));
+            retMgrs = settingsMapper.toManagerDtos(specs, Optional.ofNullable(entityType), isPlan);
         }
 
         return isPlan ? settingsManagerMapping.convertToPlanSettingSpecs(retMgrs) : retMgrs;
@@ -330,5 +337,4 @@ public class SettingsService implements ISettingsService {
         return scope.hasAllEntityType() ||
             scope.getEntityTypeSet().getEntityTypeList().contains(targetEntityType);
     }
-
 }
