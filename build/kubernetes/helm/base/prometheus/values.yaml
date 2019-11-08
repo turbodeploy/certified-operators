@@ -149,7 +149,6 @@ alertmanager:
   ## ref: https://kubernetes.io/docs/tasks/administer-cluster/configure-multiple-schedulers/
   ##
   # schedulerName:
-
   persistentVolume:
     ## If true, alertmanager will create/use a Persistent Volume Claim
     ## If false, use emptyDir
@@ -1353,6 +1352,9 @@ serverFiles:
         - targets: ['market:8080']
           labels:
             service: market
+        - targets: ['ml-datastore:8080']
+          labels:
+            service: ml-datastore
         - targets: ['plan-orchestrator:8080']
           labels:
             service: plan-orchestrator
