@@ -61,10 +61,11 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
     public void getReservedInstanceUtilizationStats(
             GetReservedInstanceUtilizationStatsRequest request,
             StreamObserver<GetReservedInstanceUtilizationStatsResponse> responseObserver) {
-        if (!request.hasStartDate() || !request.hasEndDate()) {
+        if (request.hasStartDate() != request.hasEndDate()) {
             logger.error("Missing start date and end date for query reserved instance utilization stats!");
             responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("Must provide start date " +
                     "and end date for query reserved instance utilization stats").asException());
+            return;
         }
 
         try {
@@ -100,6 +101,7 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
             logger.error("Missing start date and end date for query reserved instance coverage stats!");
             responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("Must provide start date " +
                     " and end date for query reserved instance coverage stats").asException());
+            return;
         }
         try {
             final ReservedInstanceCoverageFilter filter =

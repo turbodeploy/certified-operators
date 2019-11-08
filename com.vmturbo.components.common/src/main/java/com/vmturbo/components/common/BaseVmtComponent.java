@@ -199,7 +199,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      * Indicate whether this component should contact ClusterMgr for configuration information
      * on startup or shut-down.
      */
-    private static Boolean standalone = EnvironmentUtils.getOptionalEnvProperty(PROP_STANDALONE)
+    private Boolean standalone = EnvironmentUtils.getOptionalEnvProperty(PROP_STANDALONE)
         .map(Boolean::parseBoolean)
         .orElse(false);
 

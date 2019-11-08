@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -20,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -109,6 +111,7 @@ public class LiveActionsTest {
         final Action action2 = ActionOrchestratorTestUtils.createMoveAction(2, 2);
         final Action action3 = ActionOrchestratorTestUtils.createMoveAction(3, 2);
         final EntitiesAndSettingsSnapshot entityCacheSnapshot = mock(EntitiesAndSettingsSnapshot.class);
+        when(entityCacheSnapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entityCacheSnapshot,action1);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entityCacheSnapshot,action2);

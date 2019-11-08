@@ -158,6 +158,7 @@ public class ActionExecutionRpcTest {
             return actions.collect(Collectors.toMap(ActionDTO.Action::getId, action -> targetInfo));
         });
         when(actionTargetSelector.getTargetForAction(any())).thenReturn(targetInfo);
+        when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
         actionStoreSpy =
             Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
@@ -186,8 +187,8 @@ public class ActionExecutionRpcTest {
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
         actionStorehouse.storeActions(plan);
@@ -214,8 +215,8 @@ public class ActionExecutionRpcTest {
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
         actionStorehouse.storeActions(plan);
@@ -252,8 +253,8 @@ public class ActionExecutionRpcTest {
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
         EntitySeverityCache severityCacheMock = mock(EntitySeverityCache.class);
@@ -278,8 +279,8 @@ public class ActionExecutionRpcTest {
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
         actionStorehouse.storeActions(plan);
@@ -308,8 +309,8 @@ public class ActionExecutionRpcTest {
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
         actionStorehouse.storeActions(plan);
@@ -335,8 +336,8 @@ public class ActionExecutionRpcTest {
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
         actionStorehouse.storeActions(plan);

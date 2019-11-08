@@ -13,9 +13,12 @@ import static org.mockito.Mockito.when;
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.collect.ImmutableMap;
 
 import org.jooq.DSLContext;
 import org.jooq.SQLDialect;
@@ -33,14 +36,12 @@ import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
-
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-
-import com.google.common.collect.ImmutableMap;
 
 /**
  * Test transaction failures with the {@link PlanActionStore}.
@@ -87,6 +88,7 @@ public class PlanActionStoreTransactionTest {
         when(entitiesSnapshotFactory.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         // Hack: if plan source topology is not available, the fall back on realtime.
         when(entitiesSnapshotFactory.lastestRealtimeSnapshot(any())).thenReturn(snapshot);
+        when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         when(snapshot.getEntityFromOid(eq(vm1)))
             .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(vm1,
                 EntityType.VIRTUAL_MACHINE.getNumber()));

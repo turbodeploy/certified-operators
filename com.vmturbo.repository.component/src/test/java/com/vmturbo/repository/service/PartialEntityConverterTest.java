@@ -16,11 +16,14 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.TypeSpecificPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
@@ -53,6 +56,12 @@ public class PartialEntityConverterTest {
         .setOid(1777L)
         .build();
 
+    private static final TopologyEntityDTO OWNS = TopologyEntityDTO.newBuilder()
+        .setEntityType(UIEntityType.VIRTUAL_VOLUME.typeNumber())
+        .setDisplayName("owns")
+        .setOid(17777L)
+        .build();
+
     private static final TopologyEntityDTO ENTITY = TopologyEntityDTO.newBuilder()
         .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
         .setDisplayName("foo")
@@ -74,7 +83,12 @@ public class PartialEntityConverterTest {
             .setProviderEntityType(PROVIDER.getEntityType()))
         .addConnectedEntityList(ConnectedEntity.newBuilder()
             .setConnectedEntityId(CONNECTED_TO.getOid())
+            .setConnectionType(ConnectionType.NORMAL_CONNECTION)
             .setConnectedEntityType(CONNECTED_TO.getEntityType()))
+        .addConnectedEntityList(ConnectedEntity.newBuilder()
+            .setConnectedEntityId(OWNS.getOid())
+            .setConnectionType(ConnectionType.OWNS_CONNECTION)
+            .setConnectedEntityType(OWNS.getEntityType()))
         .addCommoditySoldList(VMEM_SOLD)
         .addCommoditySoldList(CommoditySoldDTO.newBuilder()
             .setCommodityType(CommodityType.newBuilder()
@@ -88,9 +102,11 @@ public class PartialEntityConverterTest {
     public void setup() {
         RepoGraphEntity.Builder providerBldr = RepoGraphEntity.newBuilder(PROVIDER);
         RepoGraphEntity.Builder connectedToBldr = RepoGraphEntity.newBuilder(CONNECTED_TO);
+        RepoGraphEntity.Builder ownsBldr = RepoGraphEntity.newBuilder(OWNS);
         RepoGraphEntity.Builder graphBldr = RepoGraphEntity.newBuilder(ENTITY);
         graphBldr.addProvider(providerBldr);
         graphBldr.addOutboundAssociation(connectedToBldr);
+        graphBldr.addOwnedEntity(ownsBldr);
 
         graphEntity = graphBldr.build();
     }
@@ -129,10 +145,35 @@ public class PartialEntityConverterTest {
             .setEntityType(PROVIDER.getEntityType())
             .setOid(PROVIDER.getOid())
             .build()));
-        assertThat(apiEntity.getConnectedToList(), contains(RelatedEntity.newBuilder()
-            .setEntityType(CONNECTED_TO.getEntityType())
-            .setOid(CONNECTED_TO.getOid())
-            .build()));
+        assertThat(apiEntity.getConnectedToList(), contains(
+            RelatedEntity.newBuilder()
+                .setEntityType(CONNECTED_TO.getEntityType())
+                .setOid(CONNECTED_TO.getOid())
+                .build(),
+            RelatedEntity.newBuilder()
+                .setEntityType(OWNS.getEntityType())
+                .setOid(OWNS.getOid())
+                .build()));
+    }
+
+    @Test
+    public void testTopoEntityToTypeSpecific() {
+        final TypeSpecificPartialEntity typeSpecificPartialEntity =
+            converter.createPartialEntity(ENTITY, Type.TYPE_SPECIFIC).getTypeSpecific();
+
+        assertThat(typeSpecificPartialEntity.getTypeSpecificInfo(), is(ENTITY.getTypeSpecificInfo()));
+        assertThat(typeSpecificPartialEntity.getOid(), is(ENTITY.getOid()));
+        assertThat(typeSpecificPartialEntity.getDisplayName(), is(ENTITY.getDisplayName()));
+    }
+
+    @Test
+    public void testTopoEntityToWithConnections() {
+        final EntityWithConnections withConnections =
+            converter.createPartialEntity(ENTITY, Type.WITH_CONNECTIONS).getWithConnections();
+
+        assertThat(withConnections.getOid(), is(ENTITY.getOid()));
+        assertThat(withConnections.getDisplayName(), is(ENTITY.getDisplayName()));
+        assertThat(withConnections.getConnectedEntitiesList(), is(ENTITY.getConnectedEntityListList()));
     }
 
     @Test
@@ -175,10 +216,35 @@ public class PartialEntityConverterTest {
             .setEntityType(PROVIDER.getEntityType())
             .setOid(PROVIDER.getOid())
             .build()));
-        assertThat(apiEntity.getConnectedToList(), contains(RelatedEntity.newBuilder()
-            .setEntityType(CONNECTED_TO.getEntityType())
-            .setOid(CONNECTED_TO.getOid())
-            .build()));
+        assertThat(apiEntity.getConnectedToList(), contains(
+            RelatedEntity.newBuilder()
+                .setEntityType(CONNECTED_TO.getEntityType())
+                .setOid(CONNECTED_TO.getOid())
+                .build(),
+            RelatedEntity.newBuilder()
+                .setEntityType(OWNS.getEntityType())
+                .setOid(OWNS.getOid())
+                .build()));
+    }
+
+    @Test
+    public void testGraphEntityToTypeSpecific() {
+        final TypeSpecificPartialEntity typeSpecificPartialEntity =
+            converter.createPartialEntity(graphEntity, Type.TYPE_SPECIFIC).getTypeSpecific();
+
+        assertThat(typeSpecificPartialEntity.getTypeSpecificInfo(), is(ENTITY.getTypeSpecificInfo()));
+        assertThat(typeSpecificPartialEntity.getOid(), is(ENTITY.getOid()));
+        assertThat(typeSpecificPartialEntity.getDisplayName(), is(ENTITY.getDisplayName()));
+    }
+
+    @Test
+    public void testGraphEntityToWithConnections() {
+        final EntityWithConnections withConnections =
+            converter.createPartialEntity(graphEntity, Type.WITH_CONNECTIONS).getWithConnections();
+
+        assertThat(withConnections.getOid(), is(ENTITY.getOid()));
+        assertThat(withConnections.getDisplayName(), is(ENTITY.getDisplayName()));
+        assertThat(withConnections.getConnectedEntitiesList(), is(ENTITY.getConnectedEntityListList()));
     }
 
     @Test

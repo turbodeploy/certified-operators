@@ -25,10 +25,6 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEnti
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
-import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
-import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
@@ -40,12 +36,15 @@ import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.repository.api.RepositoryListener;
 import com.vmturbo.repository.api.TopologyAvailabilityTracker;
 import com.vmturbo.repository.api.TopologyAvailabilityTracker.TopologyUnavailableException;
+import com.vmturbo.topology.graph.OwnershipGraph;
 
 /**
  * The {@link EntitiesAndSettingsSnapshotFactory} is a way to create a
@@ -96,20 +95,17 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
     public static class EntitiesAndSettingsSnapshot {
         private final Map<Long, Map<String, Setting>> settingsByEntityAndSpecName;
         private final Map<Long, ActionPartialEntity> oidToEntityMap;
+        private final OwnershipGraph<EntityWithConnections> ownershipGraph;
         private final long topologyContextId;
 
-        // TODO this is a temporary implementation.  Roman will have the Business Account in the Snapshot
-        //      so that no explicitly call need to be made.
-        private final SearchServiceBlockingStub searchService;
-
         public EntitiesAndSettingsSnapshot(@Nonnull final Map<Long, Map<String, Setting>> settings,
-                                           @Nonnull final Map<Long, ActionPartialEntity> entityMap,
-                                           @Nonnull final long topologyContextId,
-                                           @Nonnull final SearchServiceBlockingStub searchService) {
+                @Nonnull final Map<Long, ActionPartialEntity> entityMap,
+                @Nonnull final OwnershipGraph<EntityWithConnections> ownershipGraph,
+                final long topologyContextId) {
             this.settingsByEntityAndSpecName = settings;
             this.oidToEntityMap = entityMap;
+            this.ownershipGraph = ownershipGraph;
             this.topologyContextId = topologyContextId;
-            this.searchService = searchService;
         }
 
         /**
@@ -139,24 +135,15 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         }
 
         /**
-         * TODO this method will be updated such that we don't need
-         *      to make explicitly call to SearchService.  This is only a temporary implementation
+         * Get the owner business account of an entity.
          *
          * @param entityId the entity which is looking for the owner
-         * @return Business Account
+         * @return A {@link EntityWithConnections} describing the account.
          */
         @Nonnull
-        public Optional<TopologyEntityDTO> getOwnerAccountOfEntity(final long entityId) {
-
-            SearchParameters params = SearchProtoUtil.neighborsOfType(entityId,
-                TraversalDirection.CONNECTED_FROM,
-                UIEntityType.BUSINESS_ACCOUNT);
-
-            SearchEntitiesRequest request = SearchEntitiesRequest.newBuilder().addSearchParameters(params).build();
-
-            return RepositoryDTOUtil.topologyEntityStream(searchService.searchEntitiesStream(request))
-                .map(PartialEntity::getFullEntity)
-                .collect(Collectors.toList()).stream().findFirst();
+        public Optional<EntityWithConnections> getOwnerAccountOfEntity(final long entityId) {
+            // The first owner is the immediate owner.
+            return ownershipGraph.getOwners(entityId).stream().findFirst();
         }
 
     }
@@ -204,9 +191,35 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
                                                             @Nullable final Long topologyId) {
         final Map<Long, Map<String, Setting>> newSettings = retrieveEntityToSettingListMap(entities,
             topologyContextId, topologyId);
-        final Map<Long, ActionPartialEntity> entityMap =
-            retrieveOidToEntityMap(entities, topologyContextId, topologyId);
-        return new EntitiesAndSettingsSnapshot(newSettings, entityMap, topologyContextId, searchService);
+        final Map<Long, ActionPartialEntity> entityMap = retrieveOidToEntityMap(entities,
+            topologyContextId, topologyId);
+        final OwnershipGraph<EntityWithConnections> ownershipGraph =
+            retrieveOwnershipGraph(entities, topologyContextId, topologyId);
+        return new EntitiesAndSettingsSnapshot(newSettings, entityMap, ownershipGraph,
+            topologyContextId);
+    }
+
+    @Nonnull
+    private OwnershipGraph<EntityWithConnections> retrieveOwnershipGraph(@Nonnull final Set<Long> entities,
+                                                                         final long topologyContextId,
+                                                                         final long topologyId) {
+        final OwnershipGraph.Builder<EntityWithConnections> graphBuilder =
+            OwnershipGraph.newBuilder(EntityWithConnections::getOid);
+
+        // Get all the business accounts and add them to the ownership graph.
+        RepositoryDTOUtil.topologyEntityStream(
+            repositoryService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
+                .setReturnType(Type.WITH_CONNECTIONS)
+                .setTopologyContextId(topologyContextId)
+                .setTopologyId(topologyId)
+                .addEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber())
+                .build()))
+            .map(PartialEntity::getWithConnections)
+            .forEach(ba -> ba.getConnectedEntitiesList().stream()
+                .filter(connectedEntity -> connectedEntity.getConnectionType() == ConnectionType.OWNS_CONNECTION)
+                .filter(connectedEntity -> entities.contains(connectedEntity.getConnectedEntityId()))
+                .forEach(relevantEntity -> graphBuilder.addOwner(ba, relevantEntity.getConnectedEntityId())));
+        return graphBuilder.build();
     }
 
     /**
@@ -217,7 +230,8 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
      */
     @Nonnull
     public EntitiesAndSettingsSnapshot emptySnapshot(final long topologyContextId) {
-        return new EntitiesAndSettingsSnapshot(Collections.emptyMap(), Maps.newHashMap(), topologyContextId, searchService);
+        return new EntitiesAndSettingsSnapshot(Collections.emptyMap(), Maps.newHashMap(),
+            OwnershipGraph.empty(), topologyContextId);
     }
 
     /**

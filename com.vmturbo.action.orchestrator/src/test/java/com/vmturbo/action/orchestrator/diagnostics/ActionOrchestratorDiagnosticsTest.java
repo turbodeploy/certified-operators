@@ -20,6 +20,11 @@ import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+
+import io.prometheus.client.CollectorRegistry;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -27,11 +32,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-
-import io.prometheus.client.CollectorRegistry;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
@@ -51,14 +51,9 @@ import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.
 import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
 import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
-import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
-import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.components.common.DiagnosticsWriter;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Unit tests for {@link ActionOrchestratorDiagnostics}.
@@ -273,6 +268,7 @@ public class ActionOrchestratorDiagnosticsTest {
         final ActionDTO.Action rec = ActionOrchestratorTestUtils.createMoveRecommendation(1);
         final Action action = actionFactory.newAction(rec, 0L);
         final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
+        when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot, action);
 

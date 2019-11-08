@@ -49,22 +49,22 @@ public class ComponentHealthCheckTest {
 
     @Before
     public void setup() throws Exception {
-        System.setProperty(BaseVmtComponent.PROP_COMPONENT_TYPE, "SimpleTestComponent");
-        System.setProperty(PROP_STANDALONE, "true");
-        System.setProperty("connRetryIntervalSeconds", "10");
-        System.setProperty(BaseVmtComponent.PROP_PROPERTIES_YAML_PATH,
+        environmentVariables.set(BaseVmtComponent.PROP_COMPONENT_TYPE, "SimpleTestComponent");
+        environmentVariables.set(PROP_STANDALONE, "true");
+        environmentVariables.set("connRetryIntervalSeconds", "10");
+        environmentVariables.set(BaseVmtComponent.PROP_PROPERTIES_YAML_PATH,
             "configmap/empty_properties.yaml");
-        System.setProperty(BaseVmtComponent.PROP_serverHttpPort, "8282");
-        System.setProperty(BaseVmtComponent.PROP_INSTANCE_ID, "instance");
-        System.setProperty(BaseVmtComponent.PROP_INSTANCE_IP, "10.10.10.10");
-        System.setProperty("serverGrpcPort", "9001");
-        System.setProperty("consul_host", "consul");
-        System.setProperty("consul_port", "5");
-        System.setProperty("kvStoreRetryIntervalMillis", "4");
+        environmentVariables.set(BaseVmtComponent.PROP_serverHttpPort, "8282");
+        environmentVariables.set(BaseVmtComponent.PROP_INSTANCE_ID, "instance");
+        environmentVariables.set(BaseVmtComponent.PROP_INSTANCE_IP, "10.10.10.10");
+        environmentVariables.set("serverGrpcPort", "9001");
+        environmentVariables.set("consul_host", "consul");
+        environmentVariables.set("consul_port", "5");
+        environmentVariables.set("kvStoreRetryIntervalMillis", "4");
         environmentVariables.set(BaseVmtComponent.ENV_CLUSTERMGR_PORT, "8889");
         environmentVariables.set(BaseVmtComponent.ENV_CLUSTERMGR_RETRY_S, "10");
         environmentVariables.set(BaseVmtComponent.ENV_CLUSTERMGR_HOST, "clustermgr");
-        System.setProperty(ConsulRegistrationConfig.ENABLE_CONSUL_REGISTRATION, "false");
+        environmentVariables.set(ConsulRegistrationConfig.ENABLE_CONSUL_REGISTRATION, "false");
         context = SimpleTestComponent.start();
         mockMvc = MockMvcBuilders.webAppContextSetup(context).build();
         testComponent = context.getBean(SimpleTestComponent.class);

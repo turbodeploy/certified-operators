@@ -108,6 +108,15 @@ public class GroupByFilters {
             UIEntityType.fromType(entityType).apiStr());
     }
 
+    /**
+     * Add a filter with a particular business account ID.
+     *
+     * @param businessAccountId The ID of the business account.
+     */
+    public void setBusinessAccountId(final long businessAccountId) {
+        setValue(StringConstants.BUSINESS_UNIT, String.valueOf(businessAccountId));
+    }
+
     public void setTargetEntityId(final long entityId) {
         setValue(StringConstants.TARGET_UUID_CC, String.valueOf(entityId));
     }

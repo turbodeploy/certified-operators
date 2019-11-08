@@ -40,7 +40,7 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -776,7 +776,7 @@ public class ActionDescriptionBuilderTest {
                 EntityType.STORAGE_TIER.getNumber(),
                 ST_SOURCE_DISPLAY_NAME)));
         when(entitySettingsCache.getOwnerAccountOfEntity(eq(VV_ID)))
-            .thenReturn(Optional.of(TopologyEntityDTO.newBuilder()
+            .thenReturn(Optional.of(EntityWithConnections.newBuilder()
                 .setOid(businessAccountOid)
                 .setEntityType(EntityType.BUSINESS_ACCOUNT.getNumber())
                 .setDisplayName(businessAccountName)
@@ -803,7 +803,7 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(ST_SOURCE_ID)))
             .thenReturn(Optional.empty());
         when(entitySettingsCache.getOwnerAccountOfEntity(eq(VV_ID)))
-            .thenReturn(Optional.of(TopologyEntityDTO.newBuilder()
+            .thenReturn(Optional.of(EntityWithConnections.newBuilder()
                 .setOid(businessAccountOid)
                 .setEntityType(EntityType.BUSINESS_ACCOUNT.getNumber())
                 .setDisplayName(businessAccountName)
@@ -828,7 +828,7 @@ public class ActionDescriptionBuilderTest {
                 EntityType.VIRTUAL_VOLUME.getNumber(),
                 VV_DISPLAY_NAME)));
         when(entitySettingsCache.getOwnerAccountOfEntity(eq(VV_ID)))
-            .thenReturn(Optional.of(TopologyEntityDTO.newBuilder()
+            .thenReturn(Optional.of(EntityWithConnections.newBuilder()
                 .setOid(businessAccountOid)
                 .setEntityType(EntityType.BUSINESS_ACCOUNT.getNumber())
                 .setDisplayName(businessAccountName)

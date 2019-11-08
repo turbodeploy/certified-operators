@@ -13,6 +13,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Lists;
+
 import org.apache.commons.collections4.MultiValuedMap;
 import org.apache.commons.collections4.multimap.HashSetValuedHashMap;
 import org.apache.logging.log4j.LogManager;
@@ -22,13 +24,11 @@ import org.jooq.Record2;
 import org.jooq.Result;
 import org.stringtemplate.v4.ST;
 
-import com.google.common.collect.Lists;
-
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
-import com.vmturbo.cost.component.db.enums.EntityToReservedInstanceMappingRiSourceCoverage;
 import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.db.enums.EntityToReservedInstanceMappingRiSourceCoverage;
 import com.vmturbo.cost.component.db.tables.pojos.EntityToReservedInstanceMapping;
 import com.vmturbo.cost.component.db.tables.records.EntityToReservedInstanceMappingRecord;
 import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanceMappingFilter;
@@ -121,16 +121,14 @@ public class EntityReservedInstanceMappingStore {
      * @return a map which key is reserved instance id, value is the sum of used coupons.
      */
     public Map<Long, Double> getReservedInstanceUsedCouponsMap(@Nonnull final DSLContext context) {
-        final Result<Record2<Long, Double>> riUsedCouponsMap =
-                context.select(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID,
-                        (sum(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.USED_COUPONS))
-                                .cast(Double.class).as(RI_SUM_COUPONS))
-                        .from(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING)
-                        .groupBy(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID)
-                        .fetch();
-        return riUsedCouponsMap.intoMap(
-                riUsedCouponsMap.field(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID),
-                riUsedCouponsMap.field(RI_SUM_COUPONS).cast(Double.class));
+        final Map<Long, Double> retMap = new HashMap<>();
+        context.select(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID,
+                (sum(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.USED_COUPONS)).as(RI_SUM_COUPONS))
+            .from(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING)
+            .groupBy(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID)
+            .fetch()
+            .forEach(record -> retMap.put(record.value1(), record.value2().doubleValue()));
+        return retMap;
     }
 
     /**
