@@ -253,32 +253,33 @@ spec:
   - {{ .Values.global.externalIP }}
     {{ end }}
   ports:
-  - name: status-port
-    port: 15020
-  - name: http2
-    port: 80
-  - name: https
-    port: 443
-  - name: tls
-    port: 15443
+    - name: status-port
+      port: 15020
+    - name: http2
+      port: 80
+    - name: https
+      port: 443
+    - name: tls
+      port: 15443
 ---
   {{- end }}
   {{- if .Values.global.certmanager }}
-apiVersion: cert-manager.io/v1alpha2
+apiVersion: certmanager.k8s.io/v1alpha1
 kind: Certificate
 metadata:
-  name: t8c-istio-gateway
+    name: t8c-istio-gateway
 spec:
-  secretName: istio-ingressgateway-certs
-  issuerRef:
-    name: letsencrypt-prod
-  commonName: {{ .Values.global.ingress.domain | default "*.turbonomic.com" | quote }}
-  acme:
-    config:
-    - dns01:
-        provider: cloud-dns
-      domains:
-        - {{ .Values.global.ingress.domain | default "*.turbonomic.com" | quote }}
+    secretName: istio-ingressgateway-certs
+    issuerRef:
+        name: letsencrypt-prod
+    commonName: {{ .Values.global.ingress.domain | default "*.turbonomic.com" | quote }}
+    acme:
+        config:
+            - dns01:
+                  provider: cloud-dns
+              domains:
+                  - {{ .Values.global.ingress.domain | default "*.turbonomic.com" | quote }}
+
 ---
   {{ else }}
     {{- if .Values.global }}
