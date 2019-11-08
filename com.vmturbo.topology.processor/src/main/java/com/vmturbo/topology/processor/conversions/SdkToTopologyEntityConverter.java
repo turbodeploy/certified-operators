@@ -60,6 +60,7 @@ import com.vmturbo.topology.processor.conversions.typespecific.DesktopPoolInfoMa
 import com.vmturbo.topology.processor.conversions.typespecific.DiskArrayInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.LogicalPoolInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.PhysicalMachineInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.RegionInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.StorageControllerInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.StorageInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.TypeSpecificInfoMapper;
@@ -85,6 +86,7 @@ public class SdkToTopologyEntityConverter {
                     .put(EntityType.DATABASE_SERVER, new ApplicationInfoMapper())
                     .put(EntityType.DATABASE, new ApplicationInfoMapper())
                     .put(EntityType.BUSINESS_ACCOUNT, new BusinessAccountInfoMapper())
+                    .put(EntityType.REGION, new RegionInfoMapper())
                     .put(EntityType.COMPUTE_TIER, new ComputeTierInfoMapper())
                     // CONTAINER_DATA
                     // CONTAINER_POD_DATA
