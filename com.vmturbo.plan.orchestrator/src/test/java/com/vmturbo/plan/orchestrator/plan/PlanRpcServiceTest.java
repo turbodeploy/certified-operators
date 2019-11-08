@@ -8,6 +8,10 @@ import static org.mockito.Mockito.verify;
 
 import java.util.concurrent.ExecutorService;
 
+import com.google.common.util.concurrent.MoreExecutors;
+
+import io.grpc.stub.StreamObserver;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -16,12 +20,12 @@ import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostMoles.BuyRIAnalysisServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.RISetting;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.RISetting;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.AnalysisDTOMoles.AnalysisServiceMole;
@@ -30,12 +34,13 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.utils.StringConstants;
 
-import io.grpc.stub.StreamObserver;
-
 public class PlanRpcServiceTest {
 
     private final AnalysisServiceMole testAnalysisRpcService = spy(new AnalysisServiceMole());
     private final BuyRIAnalysisServiceMole testBuyRiRpcService = spy(new BuyRIAnalysisServiceMole());
+
+    //Runs tasks on same thread that's invoking execute/submit
+    private ExecutorService sameThreadExecutor = MoreExecutors.newDirectExecutorService();
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(testAnalysisRpcService,
@@ -50,7 +55,7 @@ public class PlanRpcServiceTest {
         planService = new PlanRpcService(mock(PlanDao.class),
                                          AnalysisServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                                          mock(PlanNotificationSender.class),
-                                         mock(ExecutorService.class),
+                                         sameThreadExecutor,
                                          mock(UserSessionContext.class),
                                          BuyRIAnalysisServiceGrpc.newBlockingStub(grpcServer.getChannel()));
     }

@@ -9,15 +9,15 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.authorization.UserContextUtils;
@@ -38,8 +38,8 @@ import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceImplBase;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisRequest;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisResponse;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceBlockingStub;
-import com.vmturbo.plan.orchestrator.api.PlanUtils;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.plan.orchestrator.api.PlanUtils;
 
 /**
  * Plan gRPC service implementation.
@@ -244,7 +244,9 @@ public class PlanRpcService extends PlanServiceImplBase {
         try {
             StartBuyRIAnalysisRequest request = PlanRpcServiceUtil.createBuyRIRequest(scenarioInfo,
                     riScenario, planId);
-            buyRIService.startBuyRIAnalysis(request);
+            analysisExecutor.submit(() -> {
+                buyRIService.startBuyRIAnalysis(request);
+            });
             planDao.updatePlanInstance(planId, oldInstance ->
                     oldInstance.setStatus(PlanStatus.STARTING_BUY_RI));
             logger.info("Started buy RI for plan {} on region {} account {}", planId,
