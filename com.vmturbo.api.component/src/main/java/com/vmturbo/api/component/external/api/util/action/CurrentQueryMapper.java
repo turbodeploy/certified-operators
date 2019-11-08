@@ -325,6 +325,8 @@ class CurrentQueryMapper {
                             return Optional.of(GroupBy.TARGET_ENTITY_ID);
                         case StringConstants.REASON_COMMODITY:
                             return Optional.of(GroupBy.REASON_COMMODITY);
+                        case StringConstants.BUSINESS_UNIT:
+                            return Optional.of(GroupBy.BUSINESS_ACCOUNT_ID);
                         default:
                             logger.error("Unhandled action stats group-by criteria: {}", groupByStr);
                             return Optional.<GroupBy>empty();

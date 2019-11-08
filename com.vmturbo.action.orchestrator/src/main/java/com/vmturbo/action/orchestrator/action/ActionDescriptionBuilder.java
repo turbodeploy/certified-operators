@@ -37,6 +37,7 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.Units;
@@ -402,7 +403,8 @@ public class ActionDescriptionBuilder {
         if (recommendation.getInfo().getDelete().getTarget().getEnvironmentType() == EnvironmentType.CLOUD) {
             ActionPartialEntity targetEntity = entitiesSnapshot.getEntityFromOid(targetEntityId).get();
 
-            Optional<TopologyEntityDTO> businessAccountTopologyEntityOpt = entitiesSnapshot.getOwnerAccountOfEntity(targetEntityId);
+            final Optional<EntityWithConnections> businessAccountTopologyEntityOpt =
+                entitiesSnapshot.getOwnerAccountOfEntity(targetEntityId);
             String sourceDisplayName = "";
 
             if (recommendation.getInfo().getDelete().hasSource()) {

@@ -5,6 +5,7 @@ import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -14,6 +15,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Map;
+import java.util.Optional;
+
+import com.google.common.collect.ImmutableMap;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -82,6 +86,8 @@ public class ActionTest {
                     SupportLevel.SUPPORTED).build();
         reconfigureRecommendation = makeRec(makeReconfigureInfo(11L, 22L), SupportLevel.SUPPORTED).build();
 
+
+        when(entitySettingsCache.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
         setEntitiesOIDs();
         moveAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator);

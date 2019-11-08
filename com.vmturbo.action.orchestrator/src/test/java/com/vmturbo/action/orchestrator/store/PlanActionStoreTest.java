@@ -18,17 +18,21 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 
 import org.apache.commons.collections4.ListUtils;
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,9 +40,6 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
@@ -103,9 +104,9 @@ public class PlanActionStoreTest {
 
         @Nonnull
         @Override
-        public Action newAction(@Nonnull ActionDTO.Action recommendation, @Nonnull LocalDateTime recommendationTime,
-                                long actionPlanId, String description) {
-            return spy(new Action(recommendation, recommendationTime, actionPlanId, actionModeCalculator, description));
+        public Action newPlanAction(@Nonnull ActionDTO.Action recommendation, @Nonnull LocalDateTime recommendationTime,
+                                    long actionPlanId, String description, @Nullable final Long associatedAccountId) {
+            return spy(new Action(recommendation, recommendationTime, actionPlanId, actionModeCalculator, description, associatedAccountId));
         }
     }
 
@@ -133,12 +134,12 @@ public class PlanActionStoreTest {
 
         // Enforce that all actions created with this factory get the same recommendation time
         // so that actions can be easily compared.
-        when(actionFactory.newAction(any(ActionDTO.Action.class),
-                any(LocalDateTime.class), anyLong(), anyString())).thenAnswer(
+        when(actionFactory.newPlanAction(any(ActionDTO.Action.class),
+                any(LocalDateTime.class), anyLong(), anyString(), any())).thenAnswer(
             invocation -> {
                 Object[] args = invocation.getArguments();
                 return new Action((ActionDTO.Action) args[0], actionRecommendationTime, (Long) args[2],
-                        actionModeCalculator,"Move VM from H1 to H2");
+                        actionModeCalculator, "Move VM from H1 to H2", 321L);
             });
         setEntitiesOIDs();
     }
@@ -155,6 +156,7 @@ public class PlanActionStoreTest {
     private void createMockEntity(long id, int type) {
         when(snapshot.getEntityFromOid(eq(id)))
             .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(id, type));
+        when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
     }
 
     @After
@@ -247,7 +249,7 @@ public class PlanActionStoreTest {
         actionStore.populateRecommendedActions(actionPlan);
 
         ActionOrchestratorTestUtils.assertActionsEqual(
-            actionFactory.newAction(action, actionRecommendationTime, firstPlanId,""),
+            actionFactory.newPlanAction(action, actionRecommendationTime, firstPlanId, "", null),
             actionStore.getAction(1L).get()
         );
     }
@@ -266,7 +268,7 @@ public class PlanActionStoreTest {
         Map<Long, Action> actionsMap = actionStore.getActions();
         actionList.forEach(action ->
             ActionOrchestratorTestUtils.assertActionsEqual(
-                actionFactory.newAction(action, actionRecommendationTime, firstPlanId, ""),
+                actionFactory.newPlanAction(action, actionRecommendationTime, firstPlanId, "", null),
                 actionsMap.get(action.getId())
             )
         );
@@ -275,8 +277,8 @@ public class PlanActionStoreTest {
     @Test
     public void testOverwriteActionsEmptyStore() throws Exception {
         final List<Action> actionList = actionList(3).stream()
-            .map(marketAction -> actionFactory.newAction(marketAction, actionRecommendationTime,
-                    firstPlanId, ""))
+            .map(marketAction -> actionFactory.newPlanAction(marketAction, actionRecommendationTime,
+                    firstPlanId, "", null))
             .collect(Collectors.toList());
 
         actionStore.overwriteActions(ImmutableMap.of(ActionPlanType.MARKET, actionList));
@@ -298,12 +300,12 @@ public class PlanActionStoreTest {
 
         final int numOverwriteActions = 2;
         final List<Action> marketOverwriteActions = actionList(numOverwriteActions).stream()
-            .map(marketAction -> actionFactory.newAction(marketAction, actionRecommendationTime,
-                firstPlanId, ""))
+            .map(marketAction -> actionFactory.newPlanAction(marketAction, actionRecommendationTime,
+                firstPlanId, "", null))
             .collect(Collectors.toList());
         final List<Action> buyRIOverwriteActions = actionList(numOverwriteActions).stream()
-            .map(buyRIAction -> actionFactory.newAction(buyRIAction, actionRecommendationTime,
-                secondPlanId, ""))
+            .map(buyRIAction -> actionFactory.newPlanAction(buyRIAction, actionRecommendationTime,
+                secondPlanId, "", null))
             .collect(Collectors.toList());
 
         actionStore.overwriteActions(ImmutableMap.of(

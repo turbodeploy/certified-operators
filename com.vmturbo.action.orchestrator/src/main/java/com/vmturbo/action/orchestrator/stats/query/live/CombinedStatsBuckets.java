@@ -62,7 +62,7 @@ class CombinedStatsBuckets {
      * @param actionInfo The {@link SingleActionInfo} for the action.
      */
     public void addActionInfo(@Nonnull final SingleActionInfo actionInfo) {
-        final GroupByBucketKey bucketKey = bucketKeyForAction(actionInfo);
+        final GroupByBucketKey bucketKey = bucketKeysForAction(actionInfo);
         final CombinedStatsBucket bucket = bucketForGroup.computeIfAbsent(bucketKey,
             k -> {
                 final StatGroup.Builder bldr = StatGroup.newBuilder();
@@ -73,24 +73,78 @@ class CombinedStatsBuckets {
                 bucketKey.targetEntityType().ifPresent(bldr::setTargetEntityType);
                 bucketKey.targetEntityId().ifPresent(bldr::setTargetEntityId);
                 bucketKey.reasonCommodityBaseType().ifPresent(bldr::setReasonCommodityBaseType);
+                bucketKey.businessAccountId().ifPresent(bldr::setBusinessAccountId);
                 return new CombinedStatsBucket(entityPredicate, bldr.build());
             });
         bucket.add(actionInfo);
     }
 
+    /**
+     * Identifies the "key" of a bucket used to group action stats.
+     * The "key" is the unique combination of bucket identifiers.
+     */
     @Value.Immutable
     public interface GroupByBucketKey {
+
+        /**
+         * The {@link ActionState} for this bucket.
+         *
+         * @return Value, or {@link Optional} if the requested group-by included the state.
+         */
         Optional<ActionState> state();
+
+        /**
+         * The {@link ActionCategory} for this bucket.
+         *
+         * @return Value, or {@link Optional} if the requested group-by included the category.
+         */
         Optional<ActionCategory> category();
+
+        /**
+         * The short-form explanation for this bucket.
+         *
+         * @return Value, or {@link Optional} if the requested group-by included the explanation.
+         */
         Optional<String> explanation();
+
+        /**
+         * The {@link ActionType} for this bucket.
+         *
+         * @return Value, or {@link Optional} if the requested group-by included the type.
+         */
         Optional<ActionType> type();
+
+        /**
+         * The type of the primary/target entity for this bucket.
+         *
+         * @return Value, or {@link Optional} if the requested group-by included the target entity type.
+         */
         Optional<Integer> targetEntityType();
+
+        /**
+         * The id of the primary/target entity for this bucket.
+         *
+         * @return Value, or {@link Optional} if the requested group-by included the target entity id.
+         */
         Optional<Long> targetEntityId();
+
+        /**
+         * The type of the reason commodity for this bucket.
+         *
+         * @return Value, or {@link Optional} if the requested group-by included the reason commodity.
+         */
         Optional<Integer> reasonCommodityBaseType();
+
+        /**
+         * The business account associated with the actions in this bucket.
+         *
+         * @return Value, or {@link Optional} if the requested group-by included the business account.
+         */
+        Optional<Long> businessAccountId();
     }
 
     @Nonnull
-    private GroupByBucketKey bucketKeyForAction(@Nonnull final SingleActionInfo actionInfo) {
+    private GroupByBucketKey bucketKeysForAction(@Nonnull final SingleActionInfo actionInfo) {
         // When processing lots of actions creating all of these keys may be inefficient.
         // If necessary we can consider a "faster" implementation, or recycling the keys.
         final ImmutableGroupByBucketKey.Builder keyBuilder = ImmutableGroupByBucketKey.builder();
@@ -132,6 +186,13 @@ class CombinedStatsBuckets {
                     e.getMessage());
             }
         }
+
+        if (groupBy.contains(GroupBy.BUSINESS_ACCOUNT_ID)) {
+            keyBuilder.businessAccountId(actionInfo.action().getAssociatedAccount()
+                // Use an explicit 0 for actions not associated with accounts.
+                .orElse(0L));
+        }
+
         return keyBuilder.build();
     }
 

@@ -4,6 +4,7 @@ import static com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils.makeAc
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -87,6 +88,8 @@ public class ActionStateUpdaterTest {
     public void setup() throws UnsupportedActionException {
         when(entitySettingsCache.getSettingsForEntity(eq(3L)))
             .thenReturn(makeActionModeSetting(ActionMode.MANUAL));
+        when(entitySettingsCache.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
+        testAction = new Action(recommendation, 4, actionModeCalculator);
         when(actionStorehouse.getStore(eq(realtimeTopologyContextId))).thenReturn(Optional.of(actionStore));
         when(actionStore.getAction(eq(notFoundId))).thenReturn(Optional.empty());
         testAction = makeTestAction(actionId);
@@ -152,7 +155,9 @@ public class ActionStateUpdaterTest {
                 serializedAction.getRecommendationTime(),
                 serializedAction.getActionDecision(),
                 serializedAction.getExecutionStep(),
-                serializedAction.getCurrentState().getNumber(), serializedAction.getActionDetailData());
+                serializedAction.getCurrentState().getNumber(),
+                serializedAction.getActionDetailData(),
+                serializedAction.getAssociatedAccountId());
     }
 
 
@@ -180,12 +185,14 @@ public class ActionStateUpdaterTest {
         verify(notificationSender).notifyActionFailure(failure);
         SerializationState serializedAction = new SerializationState(testAction);
         verify(actionHistoryDao).persistActionHistory(recommendation.getId(),
-                recommendation,
-                realtimeTopologyContextId,
-                serializedAction.getRecommendationTime(),
-                serializedAction.getActionDecision(),
-                serializedAction.getExecutionStep(),
-                serializedAction.getCurrentState().getNumber(), serializedAction.getActionDetailData());
+            recommendation,
+            realtimeTopologyContextId,
+            serializedAction.getRecommendationTime(),
+            serializedAction.getActionDecision(),
+            serializedAction.getExecutionStep(),
+            serializedAction.getCurrentState().getNumber(),
+            serializedAction.getActionDetailData(),
+            serializedAction.getAssociatedAccountId());
     }
 
     /**
@@ -219,7 +226,7 @@ public class ActionStateUpdaterTest {
             serializedAction.getRecommendationTime(),
             serializedAction.getActionDecision(),
             serializedAction.getExecutionStep(),
-            serializedAction.getCurrentState().getNumber(), serializedAction.getActionDetailData());
+            serializedAction.getCurrentState().getNumber(), serializedAction.getActionDetailData(), null);
     }
 
     /**
@@ -264,7 +271,7 @@ public class ActionStateUpdaterTest {
             serializedAction.getRecommendationTime(),
             serializedAction.getActionDecision(),
             serializedAction.getExecutionStep(),
-            serializedAction.getCurrentState().getNumber(), serializedAction.getActionDetailData());
+            serializedAction.getCurrentState().getNumber(), serializedAction.getActionDetailData(), null);
         SerializationState serializedAction2 = new SerializationState(testAction);
         verify(actionHistoryDao).persistActionHistory(recommendation.getId(),
             recommendation,
@@ -272,7 +279,7 @@ public class ActionStateUpdaterTest {
             serializedAction2.getRecommendationTime(),
             serializedAction2.getActionDecision(),
             serializedAction2.getExecutionStep(),
-            serializedAction2.getCurrentState().getNumber(), serializedAction2.getActionDetailData());
+            serializedAction2.getCurrentState().getNumber(), serializedAction2.getActionDetailData(), null);
     }
 
     /**

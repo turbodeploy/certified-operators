@@ -31,7 +31,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
 import org.jooq.DSLContext;
-import org.jooq.InsertValuesStep5;
+import org.jooq.InsertValuesStep6;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.action.orchestrator.action.Action;
@@ -51,6 +51,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 
 /**
  * {@inheritDoc}
@@ -221,9 +222,9 @@ public class PlanActionStore implements ActionStore {
     @Override
     public Optional<Action> getAction(long actionId) {
         return loadAction(actionId)
-            .map(action -> actionFactory.newAction(action.getRecommendation(),
+            .map(action -> actionFactory.newPlanAction(action.getRecommendation(),
                 recommendationTimeByActionPlanId.get(action.getActionPlanId()),
-                action.getActionPlanId(), action.getDescription()));
+                action.getActionPlanId(), action.getDescription(), action.getAssociatedAccountId()));
     }
 
     /**
@@ -244,10 +245,12 @@ public class PlanActionStore implements ActionStore {
     @Nonnull
     @Override
     public Map<Long, Action> getActions() {
-        Map<Long, Action> actions = loadActions().stream().map(action ->
-            actionFactory.newAction(action.getRecommendation(),
+        final Map<Long, Action> actions = loadActions().stream()
+            .map(action -> actionFactory.newPlanAction(action.getRecommendation(),
                 recommendationTimeByActionPlanId.get(action.getActionPlanId()),
-                action.getActionPlanId(), action.getDescription()))
+                action.getActionPlanId(),
+                action.getDescription(),
+                action.getAssociatedAccountId()))
             .collect(Collectors.toMap(Action::getId, Function.identity()));
         return actions;
     }
@@ -256,12 +259,13 @@ public class PlanActionStore implements ActionStore {
     @Override
     public Map<ActionPlanType, Collection<Action>> getActionsByActionPlanType() {
         return actionPlanIdByActionPlanType.entrySet().stream()
-            .collect(Collectors.toMap(
-                Entry::getKey,
-                e -> loadActions(e.getValue()).stream().map(
-                    action -> actionFactory.newAction(action.getRecommendation(),
-                        recommendationTimeByActionPlanId.get(action.getActionPlanId()),
-                        action.getActionPlanId(), action.getDescription())).collect(Collectors.toList())));
+            .collect(Collectors.toMap(Entry::getKey, e -> loadActions(e.getValue()).stream()
+                .map(action -> actionFactory.newPlanAction(action.getRecommendation(),
+                    recommendationTimeByActionPlanId.get(action.getActionPlanId()),
+                    action.getActionPlanId(),
+                    action.getDescription(),
+                    action.getAssociatedAccountId()))
+                .collect(Collectors.toList())));
     }
 
     /**
@@ -347,7 +351,7 @@ public class PlanActionStore implements ActionStore {
     private boolean replaceAllActions(@Nonnull final List<ActionDTO.Action> actions,
                                       @Nonnull final com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan planData) {
         try {
-            final List<ActionAndDescription> translatedActionsToAdd = translatePlanActions(actions, planData);
+            final List<ActionAndInfo> translatedActionsToAdd = translatePlanActions(actions, planData);
             dsl.transaction(configuration -> {
                 DSLContext transactionDsl = DSL.using(configuration);
                 // Delete existing action plan if it exists for the incoming action plan type
@@ -365,20 +369,22 @@ public class PlanActionStore implements ActionStore {
                     Iterators.partition(translatedActionsToAdd.iterator(), BATCH_SIZE).forEachRemaining(actionBatch -> {
                         // If we expand the Market Action table we need to modify this insert
                         // statement and the subsequent "values" bindings.
-                        InsertValuesStep5<MarketActionRecord, Long, Long, Long, ActionDTO.Action,String> step =
+                        InsertValuesStep6<MarketActionRecord, Long, Long, Long, ActionDTO.Action, String, Long> step =
                             transactionDsl.insertInto(MARKET_ACTION,
                                 MARKET_ACTION.ID,
                                 MARKET_ACTION.ACTION_PLAN_ID,
                                 MARKET_ACTION.TOPOLOGY_CONTEXT_ID,
                                 MARKET_ACTION.RECOMMENDATION,
-                                MARKET_ACTION.DESCRIPTION);
+                                MARKET_ACTION.DESCRIPTION,
+                                MARKET_ACTION.ASSOCIATED_ACCOUNT_ID);
 
-                        for (ActionAndDescription actionAndDescription : actionBatch) {
-                            step = step.values(actionAndDescription.translatedAction().getId(),
+                        for (ActionAndInfo actionAndInfo : actionBatch) {
+                            step = step.values(actionAndInfo.translatedAction().getId(),
                                 planData.getId(),
                                 planData.getTopologyContextId(),
-                                actionAndDescription.translatedAction(),
-                                actionAndDescription.description());
+                                actionAndInfo.translatedAction(),
+                                actionAndInfo.description(),
+                                actionAndInfo.associatedAccountId().orElse(null));
                         }
                         step.execute();
                     });
@@ -402,7 +408,7 @@ public class PlanActionStore implements ActionStore {
      * @param planData Data for the plan whose actions are being populated.
      * @return A list of translated actions and their descriptions.
      */
-    private List<ActionAndDescription> translatePlanActions(@Nonnull final List<ActionDTO.Action> actions,
+    private List<ActionAndInfo> translatePlanActions(@Nonnull final List<ActionDTO.Action> actions,
                                                             @Nonnull final com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan planData) {
         final Set<Long> entitiesToRetrieve =
                 new HashSet<>(ActionDTOUtil.getInvolvedEntityIds(actions));
@@ -420,35 +426,31 @@ public class PlanActionStore implements ActionStore {
             .map(recommendedAction -> actionFactory.newAction(recommendedAction, planData.getId())),
             snapshot);
 
-        final List<Action> translatedActionsToAdd = new ArrayList<>();
+        final List<ActionAndInfo> translatedActionsToAdd = new ArrayList<>();
 
+        final Set<ActionTypeCase> unsupportedActionTypes = new HashSet<>();
         translatedActions.forEach(action -> {
             // Ignoring actions with failed translation
             if (action.getActionTranslation().getTranslationStatus() != TranslationStatus.TRANSLATION_FAILED) {
-                translatedActionsToAdd.add(action);
+                final ActionDTO.Action recommendation = action.getActionTranslation().getTranslationResultOrOriginal();
+                try {
+                    final long primaryEntity = ActionDTOUtil.getPrimaryEntityId(recommendation);
+                    translatedActionsToAdd.add(ImmutableActionAndInfo.builder()
+                        .translatedAction(recommendation)
+                        .description(ActionDescriptionBuilder.buildActionDescription(snapshot, recommendation))
+                        .associatedAccountId(snapshot.getOwnerAccountOfEntity(primaryEntity)
+                            .map(EntityWithConnections::getOid))
+                        .build());
+                } catch (UnsupportedActionException e) {
+                    unsupportedActionTypes.add(recommendation.getInfo().getActionTypeCase());
+                }
             }
         });
 
-        // Forming the actions descriptions
-        final List<ActionAndDescription> result = new ArrayList<>();
-        final Set<ActionTypeCase> unsupportedActionTypes = new HashSet<>();
-        for (final Action action : translatedActionsToAdd) {
-            final ActionDTO.Action recommendation = action.getTranslationResultOrOriginal();
-            try {
-                final String  description = ActionDescriptionBuilder.buildActionDescription(
-                        snapshot, recommendation);
-                result.add(ImmutableActionAndDescription.builder()
-                        .translatedAction(recommendation)
-                        .description(description)
-                        .build());
-            } catch (UnsupportedActionException e) {
-                unsupportedActionTypes.add(recommendation.getInfo().getActionTypeCase());
-            }
-        }
         if (!unsupportedActionTypes.isEmpty()) {
             logger.error("Action plan contained unsupported action types: {}", unsupportedActionTypes);
         }
-        return result;
+        return translatedActionsToAdd;
     }
 
     /**
@@ -645,11 +647,32 @@ public class PlanActionStore implements ActionStore {
     }
 
     /**
-     * An Immutable interface that holds both the translated action and its description
+     * An Immutable interface that holds both the translated action and other information we need
+     * to persist alongside it.
      */
     @Value.Immutable
-    public interface ActionAndDescription {
+    public interface ActionAndInfo {
+
+        /**
+         * The translated action.
+         *
+         * @return {@link ActionDTO.Action}
+         */
         ActionDTO.Action translatedAction();
+
+        /**
+         * The action description created by {@link ActionDescriptionBuilder}.
+         *
+         * @return The action description.
+         */
         String description();
+
+        /**
+         * The ID of the business account associated with the action (cloud only).
+         *
+         * @return {@link Optional} containing the account ID, if the action can be associated
+         * with an account.
+         */
+        Optional<Long> associatedAccountId();
     }
 }

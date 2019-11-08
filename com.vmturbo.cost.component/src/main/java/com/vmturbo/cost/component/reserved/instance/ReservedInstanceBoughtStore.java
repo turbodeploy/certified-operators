@@ -4,6 +4,7 @@ import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_BOUGHT;
 import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_SPEC;
 import static org.jooq.impl.DSL.sum;
 
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -110,16 +111,17 @@ public class ReservedInstanceBoughtStore {
      * which belong to this type computer tier.
      */
     public Map<Long, Long> getReservedInstanceCountMap(@Nonnull final ReservedInstanceBoughtFilter filter) {
-        final Result<Record2<Long, Long>> riCountMap = dsl.select(RESERVED_INSTANCE_SPEC.TIER_ID,
-                (sum(RESERVED_INSTANCE_BOUGHT.COUNT)).cast(Long.class).as(RI_SUM_COUNT))
-                .from(RESERVED_INSTANCE_BOUGHT)
-                .join(RESERVED_INSTANCE_SPEC)
-                .on(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID.eq(RESERVED_INSTANCE_SPEC.ID))
-                .where(filter.getConditions())
-                .groupBy(RESERVED_INSTANCE_SPEC.TIER_ID)
-                .fetch();
-        return riCountMap.intoMap(riCountMap.field(RESERVED_INSTANCE_SPEC.TIER_ID),
-                (riCountMap.field(RI_SUM_COUNT)).cast(Long.class));
+        final Map<Long, Long> retMap = new HashMap<>();
+        dsl.select(RESERVED_INSTANCE_SPEC.TIER_ID,
+            (sum(RESERVED_INSTANCE_BOUGHT.COUNT)).as(RI_SUM_COUNT))
+            .from(RESERVED_INSTANCE_BOUGHT)
+            .join(RESERVED_INSTANCE_SPEC)
+            .on(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID.eq(RESERVED_INSTANCE_SPEC.ID))
+            .where(filter.getConditions())
+            .groupBy(RESERVED_INSTANCE_SPEC.TIER_ID)
+            .fetch()
+            .forEach(record -> retMap.put(record.value1(), record.value2().longValue()));
+        return retMap;
     }
 
     /**
@@ -129,13 +131,12 @@ public class ReservedInstanceBoughtStore {
      * which belong to this spec.
      */
     public Map<String, Long> getReservedInstanceCountByRISpecIdMap() {
-        final Result<Record2<ReservedInstanceBoughtInfo, Long>> riCountMap =
+        final Result<Record2<ReservedInstanceBoughtInfo, BigDecimal>> riCountMap =
                 dsl.select(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_BOUGHT_INFO,
-                        (sum(RESERVED_INSTANCE_BOUGHT.COUNT)).cast(Long.class).as(RI_SUM_COUNT))
-        .from(RESERVED_INSTANCE_BOUGHT).groupBy(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID).fetch();
-        Map<ReservedInstanceBoughtInfo, Long> riSpecMap = riCountMap.intoMap(riCountMap
-                        .field(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_BOUGHT_INFO),
-                (riCountMap.field(RI_SUM_COUNT).cast(Long.class)));
+                        (sum(RESERVED_INSTANCE_BOUGHT.COUNT)).as(RI_SUM_COUNT))
+            .from(RESERVED_INSTANCE_BOUGHT).groupBy(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID).fetch();
+        Map<ReservedInstanceBoughtInfo, Long> riSpecMap = new HashMap<>();
+        riCountMap.forEach(record -> riSpecMap.put(record.value1(), record.value2().longValue()));
         Map<String, Long> countsByTemplate = new HashMap<>();
         for (ReservedInstanceBoughtInfo riInfo: riSpecMap.keySet()) {
             String key = riInfo.getDisplayName();
