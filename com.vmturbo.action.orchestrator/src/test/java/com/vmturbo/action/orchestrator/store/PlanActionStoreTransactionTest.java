@@ -85,6 +85,8 @@ public class PlanActionStoreTransactionTest {
 
     public void setEntitiesOIDs() {
         when(entitiesSnapshotFactory.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        // Hack: if plan source topology is not available, the fall back on realtime.
+        when(entitiesSnapshotFactory.lastestRealtimeSnapshot(any())).thenReturn(snapshot);
         when(snapshot.getEntityFromOid(eq(vm1)))
             .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(vm1,
                 EntityType.VIRTUAL_MACHINE.getNumber()));

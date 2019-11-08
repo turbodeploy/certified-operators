@@ -27,6 +27,7 @@ import com.google.common.collect.Maps;
 
 import io.prometheus.client.Summary;
 
+import org.apache.commons.collections4.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
@@ -406,15 +407,24 @@ public class PlanActionStore implements ActionStore {
                                                             @Nonnull final com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan planData) {
         final Set<Long> entitiesToRetrieve =
                 new HashSet<>(ActionDTOUtil.getInvolvedEntityIds(actions));
-        // snapshot object will contain the entities information that is required to
-        // form the actions descriptions
+        // snapshot contains the entities information that is required for the actions descriptions
         long planId = planData.getTopologyContextId();
-        // TODO: a temp fix to get the source entities used for buy RI.
+        // TODO: a temp fix to get the  entities used for buy RI.
         if (planData.getActionPlanType() == ActionPlanType.BUY_RI.getNumber()) {
             planId = realtimeTopologyContextId;
         }
-        final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(
+        // TODO: remove hack to go to realtime if source plan topology is not available.  Needed to
+        // compute action descriptions.
+        EntitiesAndSettingsSnapshot snapshotHack = entitySettingsCache.newSnapshot(
             entitiesToRetrieve, planId, planData.getTopologyId());
+        if (MapUtils.isEmpty(snapshotHack.getEntityMap())) {
+            // Hack: if the plan source topology is not ready, use realtime.
+            // This should only occur initially when the plan  created.
+            logger.warn("translatePlanActions: failed for topologyContextId={} topologyId={}, try realtime",
+                planId, planData.getTopologyId());
+            snapshotHack = entitySettingsCache.lastestRealtimeSnapshot(entitiesToRetrieve);
+        }
+        final EntitiesAndSettingsSnapshot snapshot = snapshotHack;
 
         final Stream<Action> translatedActions = actionTranslator.translate(actions.stream()
             .map(recommendedAction -> actionFactory.newAction(recommendedAction, planData.getId())),

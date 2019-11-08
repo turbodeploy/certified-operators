@@ -53,7 +53,9 @@ public class ActionDescriptionBuilder {
     private static final String UP = "up";
     private static final String DOWN = "down";
     private static final String OF = " of ";
-    private static final String ENTITY_NOT_FOUND_WARN_MSG = "Entity {} doesn't exist in the entities snapshot";
+    // pass in methodName, name of entity, and entity OID
+    private static final String ENTITY_NOT_FOUND_WARN_MSG = "{} {} Entity {} doesn't exist in the entities snapshot";
+
 
 
     // Static patterns used for dynamically-constructed message contents.
@@ -163,7 +165,7 @@ public class ActionDescriptionBuilder {
         Long entityId = resize.getTarget().getId();
         Optional<ActionPartialEntity> optEntity = entitiesSnapshot.getEntityFromOid(entityId);
         if (!optEntity.isPresent()) {
-            logger.debug(ENTITY_NOT_FOUND_WARN_MSG, entityId);
+            logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getResizeActionDescription ", "entityId", entityId);
             return "";
         }
 
@@ -205,7 +207,7 @@ public class ActionDescriptionBuilder {
         final Long entityId = reconfigure.getTarget().getId();
         Optional<ActionPartialEntity> targetEntityDTO = entitiesSnapshot.getEntityFromOid(entityId);
         if (!targetEntityDTO.isPresent()) {
-            logger.debug(ENTITY_NOT_FOUND_WARN_MSG, entityId);
+            logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getReconfigureActionDescription", "entityId", entityId);
             return "";
         }
         if (reconfigure.hasSource()) {
@@ -213,7 +215,7 @@ public class ActionDescriptionBuilder {
             Optional<ActionPartialEntity> currentEntityDTO = entitiesSnapshot.getEntityFromOid(
                 sourceId);
             if (!currentEntityDTO.isPresent()) {
-                logger.debug(ENTITY_NOT_FOUND_WARN_MSG, sourceId);
+                logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getReconfigureActionDescription", "sourceId", sourceId);
                 return "";
             }
             Explanation explanation = recommendation.getExplanation();
@@ -258,12 +260,12 @@ public class ActionDescriptionBuilder {
 
         Optional<ActionPartialEntity> optTargetEntity = entitiesSnapshot.getEntityFromOid(targetEntityId);
         if( !optTargetEntity.isPresent()) {
-            logger.debug(ENTITY_NOT_FOUND_WARN_MSG, targetEntityId);
+            logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getMoveActionDescription", "targetEntityId", targetEntityId);
             return "";
         }
         Optional<ActionPartialEntity> optDestinationEntity = entitiesSnapshot.getEntityFromOid(destinationEntityId);
         if( !optDestinationEntity.isPresent()) {
-            logger.debug(ENTITY_NOT_FOUND_WARN_MSG, destinationEntityId);
+            logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getMoveActionDescription", "destinationEntityId", destinationEntityId);
             return "";
         }
         // All Move/RightSize actions should have a target entity and a destination.
@@ -312,7 +314,7 @@ public class ActionDescriptionBuilder {
         String count = String.valueOf(buyRI.getCount());
         long computeTierId =  buyRI.getComputeTier().getId();
         if (!entitiesSnapshot.getEntityFromOid(computeTierId).isPresent()) {
-            logger.debug(ENTITY_NOT_FOUND_WARN_MSG, computeTierId);
+            logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getRIBuyActionDescription", "computeTierId", computeTierId);
             return "";
         }
         ActionPartialEntity computeTier = entitiesSnapshot.getEntityFromOid(computeTierId).get();
@@ -320,7 +322,7 @@ public class ActionDescriptionBuilder {
 
         long masterAccountId =  buyRI.getMasterAccount().getId();
         if (!entitiesSnapshot.getEntityFromOid(masterAccountId).isPresent()) {
-            logger.debug(ENTITY_NOT_FOUND_WARN_MSG, masterAccountId);
+            logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getRIBuyActionDescription", "masterAccountId", masterAccountId);
             return "";
         }
         ActionPartialEntity masterAccount = entitiesSnapshot.getEntityFromOid(masterAccountId).get();
@@ -328,7 +330,7 @@ public class ActionDescriptionBuilder {
 
         long regionId = buyRI.getRegion().getId();
         if (!entitiesSnapshot.getEntityFromOid(regionId).isPresent()) {
-            logger.debug(ENTITY_NOT_FOUND_WARN_MSG, regionId);
+            logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getRIBuyActionDescription", "regionId", regionId);
             return "";
         }
         ActionPartialEntity region = entitiesSnapshot.getEntityFromOid(regionId).get();
@@ -355,7 +357,7 @@ public class ActionDescriptionBuilder {
                                                         @Nonnull final ActionDTO.Action recommendation) {
         long entityId = recommendation.getInfo().getProvision().getEntityToClone().getId();
         if (!entitiesSnapshot.getEntityFromOid(entityId).isPresent()) {
-            logger.debug(ENTITY_NOT_FOUND_WARN_MSG, entityId);
+            logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getProvisionActionDescription", "entityId", entityId);
             return "";
         }
 
@@ -395,7 +397,7 @@ public class ActionDescriptionBuilder {
 
         long targetEntityId = recommendation.getInfo().getDelete().getTarget().getId();
         if (!entitiesSnapshot.getEntityFromOid(targetEntityId).isPresent()) {
-            logger.debug(ENTITY_NOT_FOUND_WARN_MSG, targetEntityId);
+            logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getDeleteActionDescription", "targetEntityId", targetEntityId);
             return "";
         }
 
@@ -412,7 +414,7 @@ public class ActionDescriptionBuilder {
                 if (sourceEntityOpt.isPresent()) {
                     sourceDisplayName = sourceEntityOpt.get().getDisplayName();
                 } else {
-                    logger.debug(ENTITY_NOT_FOUND_WARN_MSG, sourceEntityId);
+                    logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getDeleteActionDescription", "sourceEntityId", sourceEntityId);
                 }
 
             } else {
@@ -457,7 +459,7 @@ public class ActionDescriptionBuilder {
                                                      @Nonnull final ActionDTO.Action recommendation) {
         long entityId = recommendation.getInfo().getActivate().getTarget().getId();
         if (!entitiesSnapshot.getEntityFromOid(entityId).isPresent()) {
-            logger.debug(ENTITY_NOT_FOUND_WARN_MSG, entityId);
+            logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getActivateActionDescription", "entityId", entityId);
             return "";
         }
         return ActionMessageFormat.ACTION_DESCRIPTION_ACTIVATE.format(
@@ -476,7 +478,7 @@ public class ActionDescriptionBuilder {
                                                        @Nonnull final ActionDTO.Action recommendation) {
         long entityId = recommendation.getInfo().getDeactivate().getTarget().getId();
         if (!entitiesSnapshot.getEntityFromOid(entityId).isPresent()) {
-            logger.debug(ENTITY_NOT_FOUND_WARN_MSG, entityId);
+            logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getDeactivateActionDescription", "entityId", entityId);
             return "";
         }
         return ActionMessageFormat.ACTION_DESCRIPTION_DEACTIVATE.format(
