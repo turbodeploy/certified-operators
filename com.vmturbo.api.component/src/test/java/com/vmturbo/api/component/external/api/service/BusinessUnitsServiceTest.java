@@ -9,7 +9,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.Before;
@@ -22,6 +24,7 @@ import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.BusinessUnitMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
@@ -34,10 +37,13 @@ import com.vmturbo.api.dto.businessunit.BusinessUnitApiInputDTO;
 import com.vmturbo.api.dto.businessunit.CloudServicePriceAdjustmentApiDTO;
 import com.vmturbo.api.dto.businessunit.EntityPriceDTO;
 import com.vmturbo.api.dto.businessunit.TemplatePriceAdjustmentDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.BusinessUnitType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.ServicePricingModel;
+import com.vmturbo.api.pagination.EntityPaginationRequest;
+import com.vmturbo.api.pagination.EntityPaginationRequest.EntityPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IBusinessUnitsService;
 import com.vmturbo.api.serviceinterfaces.ITargetsService;
 import com.vmturbo.api.utils.DateTimeUtil;
@@ -46,6 +52,7 @@ import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
@@ -271,6 +278,50 @@ public class BusinessUnitsServiceTest {
         verify(entitiesService).getActionCountStatsByUuid(UUID_STRING, actionDTO);
 
         assertThat(statsByUuid, is(listStatDTO));
+    }
+
+    /**
+     * Testing get entities by business unit.
+     * @throws Exception If one of the necessary steps/RPCs failed.
+     */
+    @Test
+    public void testGetEntities() throws Exception {
+        final ApiId apiId = ApiTestUtils.mockGroupId(UUID_STRING, uuidMapper);
+        when(uuidMapper.fromUuid(UUID_STRING)).thenReturn(apiId);
+
+        final SingleEntityRequest mockReq = ApiTestUtils.mockSingleEntityRequest(MinimalEntity.newBuilder()
+                        .setOid(OID_LONG)
+                        .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                        .build());
+        when(repositoryApi.entityRequest(OID_LONG)).thenReturn(mockReq);
+
+        ConnectedEntity connectedEntity = ConnectedEntity.newBuilder().setConnectedEntityId(OID_LONG).build();
+        TopologyEntityDTO entityDTO = TopologyEntityDTO.newBuilder()
+                        .setOid(OID_LONG)
+                        .setDisplayName("foo")
+                        .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                        .addConnectedEntityList(connectedEntity)
+                        .build();
+        when(mockReq.getFullEntity()).thenReturn(Optional.of(entityDTO));
+
+        final ServiceEntityApiDTO serviceEntityDTO = new ServiceEntityApiDTO();
+        serviceEntityDTO.setUuid(UUID_STRING);
+        serviceEntityDTO.setEnvironmentType(EnvironmentType.CLOUD);
+        serviceEntityDTO.setDisplayName("VM");
+        Map<Long, ServiceEntityApiDTO> entityMap = new HashMap<>();
+        entityMap.put(OID_LONG, serviceEntityDTO);
+
+        MultiEntityRequest multiEntityRequest = ApiTestUtils.mockMultiEntityReqEmpty();
+
+        when(repositoryApi.entitiesRequest(ImmutableSet.of(OID_LONG))).thenReturn(multiEntityRequest);
+        when(multiEntityRequest.getSEMap()).then(invocation -> entityMap);
+
+        EntityPaginationRequest paginationRequest = new EntityPaginationRequest(null, null, false, null);
+
+        EntityPaginationResponse paginationResponse = businessUnitsService.getEntities(UUID_STRING, paginationRequest);
+
+        assertThat(paginationResponse.getRestResponse().getBody().size(), is(1));
+        assertThat(paginationResponse.getRestResponse().getBody().get(0), is(serviceEntityDTO));
     }
 
 }
