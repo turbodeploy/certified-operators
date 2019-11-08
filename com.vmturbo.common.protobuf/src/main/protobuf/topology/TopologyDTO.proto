@@ -288,7 +288,6 @@ message PartialEntity {
         FULL = 1;
         MINIMAL = 2;
         TYPE_SPECIFIC = 3;
-        WITH_CONNECTIONS = 5;
 
         // The following are component-specific.
         // Some components require fairly specific subsets of the TopologyEntityDTO, and it would be
@@ -309,29 +308,6 @@ message PartialEntity {
         optional .common.EnvironmentType environment_type = 4;
 
         repeated int64 discovering_target_ids = 5;
-    }
-
-    // The type specific info of the Topology entity DTO.
-    message TypeSpecificPartialEntity {
-        required int64 oid = 1;
-
-        optional string display_name = 2;
-
-        optional int32 entity_type = 3;
-
-        optional TypeSpecificInfo type_specific_info = 4;
-    }
-
-    // The entity, as well as the entitie
-    message EntityWithConnections {
-        required int64 oid = 1;
-
-        optional string display_name = 2;
-
-        optional int32 entity_type = 3;
-
-        // The entities this entity is connected to.
-        repeated TopologyEntityDTO.ConnectedEntity connected_entities = 10;
     }
 
     // Contains the fields required by the action orchestrator to calculate action modes.
@@ -391,13 +367,23 @@ message PartialEntity {
         }
     }
 
+    // The type specific info of the Topology entity DTO.
+    message TypeSpecificPartialEntity {
+        required int64 oid = 1;
+
+        optional string display_name = 2;
+
+        optional int32 entity_type = 3;
+
+        optional TypeSpecificInfo type_specific_info = 4;
+    }
+
     // The type of the entity.
     // The index should align with the Type value.
     oneof type {
         .topology.TopologyEntityDTO full_entity = 1;
         MinimalEntity minimal = 2;
         TypeSpecificPartialEntity type_specific = 3;
-        EntityWithConnections with_connections = 4;
 
         ActionPartialEntity action = 10;
         ApiPartialEntity api = 11;

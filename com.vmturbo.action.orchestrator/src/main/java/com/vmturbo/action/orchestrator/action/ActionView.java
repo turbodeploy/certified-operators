@@ -135,19 +135,6 @@ public interface ActionView {
     ActionCategory getActionCategory();
 
     /**
-     * Get the OIDs of business accounts this action is associated with.
-     * This will be the business accounts that own the entities targetted by the action.
-     *
-     * @return A list of business account OIDs. This will be empty for on-prem actions.
-     *         The list will be ordered by "proximity" - i.e. the first account in the list will
-     *         be the immediate owner of the target entity. The second account will be the owner
-     *         of the immediate owner, and so on, until the "master" account, which will appear
-     *         last.
-     */
-    @Nonnull
-    Optional<Long> getAssociatedAccount();
-
-    /**
      * Determine whether the action is executable.
      * An action is generally executable when its recommendation is marked as executable
      * by the market and its state is ready.

@@ -46,11 +46,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep.Status;
-import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -156,8 +154,6 @@ public class Action implements ActionView {
 
     private String description = null;
 
-    private Optional<Long> associatedAccountId = Optional.empty();
-
     /**
      * The state of the action. The state of an action transitions due to certain system events.
      * The initial state is determined by the action mode.
@@ -237,8 +233,7 @@ public class Action implements ActionView {
                   @Nonnull final LocalDateTime recommendationTime,
                   final long actionPlanId,
                   @Nonnull final ActionModeCalculator actionModeCalculator,
-                  @Nullable final String description,
-                  @Nullable final Long associatedAccountId) {
+                  @Nullable final String description) {
         this.recommendation = recommendation;
         this.actionTranslation = new ActionTranslation(this.recommendation);
         this.actionPlanId = actionPlanId;
@@ -250,15 +245,13 @@ public class Action implements ActionView {
                 recommendation.getExplanation());
         this.actionModeCalculator = actionModeCalculator;
         this.description = description;
-        this.associatedAccountId = Optional.ofNullable(associatedAccountId);
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
                   final long actionPlanId, @Nonnull final ActionModeCalculator actionModeCalculator) {
         // This constructor is used by LiveActionStore, so passing null to 'description' argument
-        // or the 'associatedAccountId' is not hurtful since the description will be formed at a
-        // later stage during refreshAction.
-        this(recommendation, LocalDateTime.now(), actionPlanId, actionModeCalculator, null, null);
+        // is not hurtful since the description will be formed on a later stage.
+        this(recommendation, LocalDateTime.now(), actionPlanId, actionModeCalculator, null);
     }
 
     /**
@@ -375,18 +368,6 @@ public class Action implements ActionView {
         synchronized (recommendationLock) {
             actionMode = actionModeCalculator.calculateActionMode(this, entitiesSnapshot);
             workflowSettingsForState = actionModeCalculator.calculateWorkflowSettings(recommendation, entitiesSnapshot);
-
-            try {
-                final long primaryEntity = ActionDTOUtil.getPrimaryEntityId(recommendation);
-                associatedAccountId = entitiesSnapshot.getOwnerAccountOfEntity(primaryEntity)
-                    .map(EntityWithConnections::getOid);
-            } catch (UnsupportedActionException e) {
-                // Shouldn't ever happen here, because we would have rejected this action
-                // if it was unsupported.
-                logger.error("Unexpected unsupported action exception while refreshing action:" +
-                    " {}. Error: {}", recommendation, e.getMessage());
-            }
-
             setDescription(ActionDescriptionBuilder.buildActionDescription(entitiesSnapshot,
                 actionTranslation.getTranslationResultOrOriginal()));
         }
@@ -518,12 +499,6 @@ public class Action implements ActionView {
     @Nonnull
     public ActionCategory getActionCategory() {
         return actionCategory;
-    }
-
-    @Override
-    @Nonnull
-    public Optional<Long> getAssociatedAccount() {
-        return associatedAccountId;
     }
 
     /**
@@ -1026,28 +1001,19 @@ public class Action implements ActionView {
         }
 
         @Nullable
-        public Long getAssociatedAccountId() {
-            return associatedAccountId;
-        }
+        public byte[] getActionDetailData() { return actionDetailData; }
 
-        @Nullable
-        public byte[] getActionDetailData() {
-            return actionDetailData;
-        }
+        final LocalDateTime recommendationTime;
 
-        private final LocalDateTime recommendationTime;
+        final ActionDecision actionDecision;
 
-        private final ActionDecision actionDecision;
+        final ExecutionStep executionStep;
 
-        private final ExecutionStep executionStep;
+        final ActionState currentState;
 
-        private final ActionState currentState;
+        final ActionTranslation actionTranslation;
 
-        private final ActionTranslation actionTranslation;
-
-        private final Long associatedAccountId;
-
-        private final byte[] actionDetailData;
+        final byte[] actionDetailData;
 
         /**
          * We don't really need to save the category because it can be extracted from the
@@ -1065,7 +1031,6 @@ public class Action implements ActionView {
             this.currentState = action.stateMachine.getState();
             this.actionTranslation = action.actionTranslation;
             this.actionCategory = action.getActionCategory();
-            this.associatedAccountId = action.getAssociatedAccount().orElse(null);
             this.actionDetailData = action.getDescription() == null
                 ? null : action.getDescription().getBytes();
         }
@@ -1077,7 +1042,6 @@ public class Action implements ActionView {
                                   @Nullable ExecutionStep executableStep,
                                   @Nonnull ActionState actionState,
                                   @Nonnull ActionTranslation actionTranslation,
-                                  @Nullable Long associatedAccountId,
                                   @Nullable byte[] actionDetailData) {
             this.actionPlanId = actionPlanId;
             this.recommendation = recommendation;
@@ -1088,7 +1052,6 @@ public class Action implements ActionView {
             this.actionTranslation = actionTranslation;
             this.actionCategory =
                     ActionCategoryExtractor.assignActionCategory(recommendation.getExplanation());
-            this.associatedAccountId = associatedAccountId;
             this.actionDetailData = actionDetailData;
         }
     }

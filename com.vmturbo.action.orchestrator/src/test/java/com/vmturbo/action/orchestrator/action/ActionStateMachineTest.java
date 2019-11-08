@@ -1,21 +1,18 @@
 package com.vmturbo.action.orchestrator.action;
 
 import static junit.framework.TestCase.assertEquals;
-import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
 
 import org.junit.Assert;
-import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
@@ -51,7 +48,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 public class ActionStateMachineTest {
 
-    private EntitiesAndSettingsSnapshot entitySettingsCache;
+    private final EntitiesAndSettingsSnapshot entitySettingsCache = mock(EntitiesAndSettingsSnapshot.class);
 
     private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
 
@@ -68,15 +65,6 @@ public class ActionStateMachineTest {
     private final long clearingPlanId = 6;
     private final long probeId = 7;
     private final long targetId = 8;
-
-    /**
-     * Common setup before all tests.
-     */
-    @Before
-    public void setup() {
-        entitySettingsCache = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
-    }
 
     private void setEntitiesOIDs() {
         when(entitySettingsCache.getEntityFromOid(eq(1L)))

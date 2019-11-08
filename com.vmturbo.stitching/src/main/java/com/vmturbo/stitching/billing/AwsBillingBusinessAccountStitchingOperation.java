@@ -2,6 +2,7 @@ package com.vmturbo.stitching.billing;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -9,6 +10,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -24,7 +27,6 @@ import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.utilities.MergeEntities;
-import com.vmturbo.topology.graph.OwnershipGraph;
 
 /**
  * Responsible for stitching business accounts discovered by the AWS Billing probe and business
@@ -80,7 +82,7 @@ public class AwsBillingBusinessAccountStitchingOperation implements StitchingOpe
     public TopologicalChangelog<StitchingEntity> stitch(
             @Nonnull final Collection<StitchingPoint> stitchingPoints,
             @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder) {
-        final OwnershipGraph.Builder<Long> ownershipGraph = OwnershipGraph.newBuilder(id -> id);
+        final OwnershipGraph ownershipGraph = new OwnershipGraph();
         final Map<StitchingEntity, StitchingEntity> billingToAwsMap = new IdentityHashMap<>();
         // Go through the stitching points and build up the ownership graph from the
         // AWS accounts.
@@ -151,4 +153,60 @@ public class AwsBillingBusinessAccountStitchingOperation implements StitchingOpe
             .collect(Collectors.toMap(StitchingEntity::getOid, Function.identity()));
     }
 
+    /**
+     * Utility class used to track ownership relationships between business accounts, and detect
+     * invalid ownership relationships reported by probes.
+     */
+    @VisibleForTesting
+    static class OwnershipGraph {
+
+        private final Map<Long, Long> ownerToOwned = new HashMap<>();
+
+        private final Map<Long, Long> ownedToOwner = new HashMap<>();
+
+        /**
+         * Add an ownership relation to the graph, if it doesn't conflict with any ownership
+         * relations already in the graph.
+         *
+         * @param owner The owner entity ID.
+         * @param owned The ID of the owned entity.
+         * @return True if the relationship does not conflict with any existing ones. False otherwise.
+         */
+        boolean addOwner(final long owner, final long owned) {
+            // Check if there is a path from the owned entity to the owner - in which case
+            // adding this relationship would introduce a cycle.
+            if (checkPath(owned, owner)) {
+                return false;
+            }
+
+            // Check if the owned entity already has an owner.
+            // An entity should have only one owner.
+            Long curOwner = ownedToOwner.get(owned);
+            if (curOwner != null && curOwner != owner) {
+                return false;
+            }
+
+            ownerToOwned.put(owner, owned);
+            ownedToOwner.put(owned, owner);
+            return true;
+        }
+
+        /**
+         * Check for an existing path in the graph.
+         *
+         * @param from The id of the "from" vertex.
+         * @param to The id of the "to" vertex.
+         * @return true if there is a path from "from" vertex to "to".
+         */
+        private boolean checkPath(final long from, final long to) {
+            Long nextHop = from;
+            while (nextHop != null) {
+                if (nextHop == to) {
+                    return true;
+                }
+                nextHop = ownerToOwned.get(nextHop);
+            }
+            return false;
+        }
+    }
 }

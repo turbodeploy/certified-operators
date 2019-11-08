@@ -3,7 +3,6 @@ package com.vmturbo.action.orchestrator.store;
 import java.time.LocalDateTime;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
@@ -34,12 +33,10 @@ public class ActionFactory implements IActionFactory {
      */
     @Override
     @Nonnull
-    public Action newPlanAction(@Nonnull final ActionDTO.Action recommendation,
-                                @Nonnull final LocalDateTime recommendationTime,
-                                final long actionPlanId,
-                                String description,
-                                @Nullable final Long associatedAccountId) {
+    public Action newAction(@Nonnull final ActionDTO.Action recommendation,
+                            @Nonnull final LocalDateTime recommendationTime,
+                            final long actionPlanId, String description) {
         return new Action(recommendation, recommendationTime, actionPlanId,
-            actionModeCalculator, description, associatedAccountId);
+            actionModeCalculator, description);
     }
 }

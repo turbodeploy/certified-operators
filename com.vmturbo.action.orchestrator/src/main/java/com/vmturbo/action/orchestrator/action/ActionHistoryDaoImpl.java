@@ -23,6 +23,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
 import com.vmturbo.proactivesupport.DataMetricGauge;
+import com.vmturbo.proactivesupport.DataMetricTimer;
 
 /**
  * DAO backed by RDBMS to hold action history.
@@ -77,8 +78,7 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
             @Nonnull final ActionDecision decision,
             @Nonnull final ExecutionStep executionStep,
             @Nonnull final int currentState,
-            @Nullable final byte[] actionDetailData,
-            @Nullable final Long associatedAccountId) {
+            @Nullable final byte[] actionDetailData) {
         final LocalDateTime curTime = LocalDateTime.now();
         String userName = SecurityConstant.USER_ID_CTX_KEY.get();
         if (userName == null) {
@@ -94,8 +94,7 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
                 executionStep,
                 currentState,
                 userName,
-                actionDetailData,
-                associatedAccountId);
+                actionDetailData);
         dsl.newRecord(ACTION_HISTORY, actionHistory).store();
         return actionHistory;
     }
@@ -122,15 +121,15 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
     }
 
     private ActionView mapDbActionHistoryToAction(final ActionHistoryRecord actionHistory) {
-        return new Action(new SerializationState(
-            actionHistory.getId(),
-            actionHistory.getRecommendation(),
-            actionHistory.getRecommendationTime(),
-            actionHistory.getActionDecision(),
-            actionHistory.getExecutionStep(),
-            ActionDTO.ActionState.forNumber(actionHistory.getCurrentState()),
-            new ActionTranslation(actionHistory.getRecommendation()),
-            actionHistory.getAssociatedAccountId(),
-            actionHistory.getActionDetailData()), actionModeCalculator);
+        return new Action(
+                new SerializationState(
+                        actionHistory.getId(),
+                        actionHistory.getRecommendation(),
+                        actionHistory.getRecommendationTime(),
+                        actionHistory.getActionDecision(),
+                        actionHistory.getExecutionStep(),
+                        ActionDTO.ActionState.forNumber(actionHistory.getCurrentState()),
+                        new ActionTranslation(actionHistory.getRecommendation()),
+                        actionHistory.getActionDetailData()), actionModeCalculator);
     }
 }

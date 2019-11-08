@@ -10,7 +10,6 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -19,7 +18,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -213,22 +211,6 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
     }
 
     /**
-     * Like {@link TopologyGraphEntity#getConnectedToEntities()}, but groups the entities by
-     * connection type.
-     *
-     * @return A map of {@link ConnectionType} to the list of entities this entity is connected
-     *         to by a connection of that type.
-     *
-     */
-    @Nonnull
-    default Map<ConnectionType, List<E>> getConnectedToEntitiesByConnectionType() {
-        return ImmutableMap.of(
-            ConnectionType.NORMAL_CONNECTION, getOutboundAssociatedEntities(),
-            ConnectionType.AGGREGATES_CONNECTION, getAggregatedEntities(),
-            ConnectionType.OWNS_CONNECTION, getOwnedEntities());
-    }
-
-    /**
      * Get all {@link TopologyGraphEntity}s that connect to this, including owner and aggregators.
      *
      * @return all entities that connect to this entity (inbound associations, owner, and aggregators)
@@ -238,24 +220,6 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
         return Stream.of(getInboundAssociatedEntities(), getAggregators(), ownerAsList())
                 .flatMap(List::stream)
                 .collect(Collectors.toList());
-    }
-
-    /**
-     * Like {@link TopologyGraphEntity#getConnectedFromEntities()}, but groups the entities by
-     * connection type.
-     *
-     * @return A map of {@link ConnectionType} to the list of entities this entity is connected
-     *         from by a connection of that type.
-     *
-     */
-    @Nonnull
-    default Map<ConnectionType, List<E>> getConnectedFromEntitiesByConnectionType() {
-        return ImmutableMap.of(
-            ConnectionType.NORMAL_CONNECTION, getInboundAssociatedEntities(),
-            ConnectionType.AGGREGATES_CONNECTION, getAggregators(),
-            ConnectionType.OWNS_CONNECTION, getOwner()
-                .map(Collections::singletonList)
-                .orElse(Collections.emptyList()));
     }
 
     /**

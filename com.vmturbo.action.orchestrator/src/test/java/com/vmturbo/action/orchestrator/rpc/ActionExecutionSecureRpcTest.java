@@ -13,7 +13,6 @@ import java.io.PrintStream;
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -216,7 +215,6 @@ public class ActionExecutionSecureRpcTest {
             return actions.collect(Collectors.toMap(ActionDTO.Action::getId, action -> targetInfo));
         });
         when(actionTargetSelector.getTargetForAction(any())).thenReturn(targetInfo);
-        when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
         // mock action store
         actionStoreSpy = Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
@@ -246,8 +244,8 @@ public class ActionExecutionSecureRpcTest {
                 .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
-        when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
         actionStorehouse.storeActions(plan);
@@ -280,8 +278,8 @@ public class ActionExecutionSecureRpcTest {
                 .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
-        when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
         actionStorehouse.storeActions(plan);
@@ -311,8 +309,8 @@ public class ActionExecutionSecureRpcTest {
                 .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
-        when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
         actionStorehouse.storeActions(plan);
@@ -336,8 +334,8 @@ public class ActionExecutionSecureRpcTest {
                 .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
-        when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
         actionStorehouse.storeActions(plan);
@@ -380,8 +378,8 @@ public class ActionExecutionSecureRpcTest {
                 .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
-        when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
         actionStorehouse.storeActions(plan);
@@ -417,7 +415,6 @@ public class ActionExecutionSecureRpcTest {
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
-        when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         // a user WITH access CAN execute the action
         EntityAccessScope accessScopeOK = new EntityAccessScope(null, null,
                 new ArrayOidSet(Arrays.asList(10L, 0L, 1L)), null);

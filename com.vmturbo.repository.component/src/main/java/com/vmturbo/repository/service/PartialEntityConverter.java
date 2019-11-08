@@ -17,11 +17,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.TypeSpecificPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 
@@ -54,31 +52,6 @@ public class PartialEntityConverter {
                     .setEnvironmentType(repoGraphEntity.getEnvironmentType())
                     .addAllDiscoveringTargetIds(
                         repoGraphEntity.getDiscoveringTargetIds().collect(Collectors.toList())));
-                break;
-            case TYPE_SPECIFIC:
-                final TypeSpecificPartialEntity.Builder typeSpecificBuilder =
-                    TypeSpecificPartialEntity.newBuilder()
-                        .setOid(repoGraphEntity.getOid())
-                        .setDisplayName(repoGraphEntity.getDisplayName())
-                        .setEntityType(repoGraphEntity.getEntityType())
-                        .setTypeSpecificInfo(repoGraphEntity.getTypeSpecificInfo());
-                partialEntityBldr.setTypeSpecific(typeSpecificBuilder);
-                break;
-            case WITH_CONNECTIONS:
-                final EntityWithConnections.Builder withConnectionsBuilder =
-                    EntityWithConnections.newBuilder()
-                        .setOid(repoGraphEntity.getOid())
-                        .setDisplayName(repoGraphEntity.getDisplayName());
-                repoGraphEntity.getConnectedToEntitiesByConnectionType()
-                    .forEach((connectionType, connectedEntities) -> {
-                        connectedEntities.forEach(connectedEntity -> {
-                            withConnectionsBuilder.addConnectedEntities(ConnectedEntity.newBuilder()
-                                .setConnectedEntityId(connectedEntity.getOid())
-                                .setConnectedEntityType(connectedEntity.getEntityType())
-                                .setConnectionType(connectionType));
-                        });
-                    });
-                partialEntityBldr.setWithConnections(withConnectionsBuilder);
                 break;
             case ACTION:
                 // Information required by the action orchestrator.
@@ -126,6 +99,15 @@ public class PartialEntityConverter {
                 });
                 partialEntityBldr.setApi(apiBldr);
                 break;
+            case TYPE_SPECIFIC:
+                final TypeSpecificPartialEntity.Builder typeSpecificBuilder =
+                    TypeSpecificPartialEntity.newBuilder()
+                        .setOid(repoGraphEntity.getOid())
+                        .setDisplayName(repoGraphEntity.getDisplayName())
+                        .setEntityType(repoGraphEntity.getEntityType())
+                        .setTypeSpecificInfo(repoGraphEntity.getTypeSpecificInfo());
+                partialEntityBldr.setTypeSpecific(typeSpecificBuilder);
+                break;
             default:
                 throw new IllegalArgumentException("Invalid partial entity type: " + type);
         }
@@ -159,23 +141,6 @@ public class PartialEntityConverter {
                     .setEnvironmentType(topoEntity.getEnvironmentType())
                     .addAllDiscoveringTargetIds(
                         topoEntity.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList()));
-                break;
-            case TYPE_SPECIFIC:
-                final TypeSpecificPartialEntity.Builder typeSpecificBuilder =
-                    TypeSpecificPartialEntity.newBuilder()
-                        .setOid(topoEntity.getOid())
-                        .setDisplayName(topoEntity.getDisplayName())
-                        .setEntityType(topoEntity.getEntityType())
-                        .setTypeSpecificInfo(topoEntity.getTypeSpecificInfo());
-                partialEntityBldr.setTypeSpecific(typeSpecificBuilder);
-                break;
-            case WITH_CONNECTIONS:
-                final EntityWithConnections.Builder withConnectionsBuilder =
-                    EntityWithConnections.newBuilder()
-                        .setOid(topoEntity.getOid())
-                        .setDisplayName(topoEntity.getDisplayName())
-                        .addAllConnectedEntities(topoEntity.getConnectedEntityListList());
-                partialEntityBldr.setWithConnections(withConnectionsBuilder);
                 break;
             case ACTION:
                 // Information required by the action orchestrator.
@@ -224,6 +189,15 @@ public class PartialEntityConverter {
                         .build());
                 });
                 partialEntityBldr.setApi(apiBldr);
+                break;
+            case TYPE_SPECIFIC:
+                final TypeSpecificPartialEntity.Builder typeSpecificBuilder =
+                    TypeSpecificPartialEntity.newBuilder()
+                        .setOid(topoEntity.getOid())
+                        .setDisplayName(topoEntity.getDisplayName())
+                        .setEntityType(topoEntity.getEntityType())
+                        .setTypeSpecificInfo(topoEntity.getTypeSpecificInfo());
+                partialEntityBldr.setTypeSpecific(typeSpecificBuilder);
                 break;
             default:
                 throw new IllegalArgumentException("Invalid partial entity type: " + type);

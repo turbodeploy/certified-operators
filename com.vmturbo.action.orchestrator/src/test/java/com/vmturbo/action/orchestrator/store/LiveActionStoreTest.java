@@ -27,10 +27,6 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -41,8 +37,12 @@ import org.mockito.Captor;
 import org.mockito.Mockito;
 import org.mockito.internal.matchers.apachecommons.ReflectionEquals;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
+import com.vmturbo.action.orchestrator.action.ActionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
@@ -110,10 +110,9 @@ public class LiveActionStoreTest {
 
         @Nonnull
         @Override
-        public Action newPlanAction(@Nonnull ActionDTO.Action recommendation, @Nonnull LocalDateTime recommendationTime,
-                                    long actionPlanId, String description, @Nullable final Long associatedAccountId) {
-            return spy(new Action(recommendation, recommendationTime, actionPlanId,
-                actionModeCalculator, description, associatedAccountId));
+        public Action newAction(@Nonnull ActionDTO.Action recommendation, @Nonnull LocalDateTime recommendationTime,
+                                long actionPlanId, String description) {
+            return spy(new Action(recommendation, recommendationTime, actionPlanId, actionModeCalculator, description));
         }
     }
 
@@ -154,7 +153,6 @@ public class LiveActionStoreTest {
                     .supportingLevel(SupportLevel.SUPPORTED)
                     .build()));
         });
-        when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         setEntitiesOIDs();
         IdentityGenerator.initPrefix(0);
     }
