@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResp
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
@@ -44,6 +45,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -55,13 +57,12 @@ public class RepositoryClient {
 
     private final RepositoryServiceBlockingStub repositoryService;
 
-    private static final Set<EntityType> cloudEntityTypesToScope =
-                    ImmutableSet.of(EntityType.REGION,
-                                    EntityType.BUSINESS_ACCOUNT,
-                                    EntityType.AVAILABILITY_ZONE,
-                                    EntityType.VIRTUAL_MACHINE,
-                                    EntityType.DATABASE,
-                                    EntityType.DATABASE_SERVER);
+    /**
+     * nonSupplyChainEntityTypesToInclude Set of non-supplychain entities to include by querying
+     * repository for instance, each would require its implementation to retrieve.
+     */
+    protected static final Set<EntityType> supportedNonSupplyChainEntitiesByType =
+                    ImmutableSet.of(EntityType.BUSINESS_ACCOUNT);
 
     public RepositoryClient(@Nonnull Channel repositoryChannel) {
         repositoryService = RepositoryServiceGrpc.newBlockingStub(Objects.requireNonNull(repositoryChannel));
@@ -135,7 +136,7 @@ public class RepositoryClient {
      * @param scopeIds The seed plan scopes OIDs.
      * @param realtimeTopologyContextId The real-time topology context id used to get all accounts in the
      * environment, and figure out relevant accounts for plans and real-time.
-     * @return Oids of business families in scope - master and sub-accounts.
+     * @return OIDs of business families in scope - master and sub-accounts.
      * TODO: This may need to be revisited.  Check with Vasile and team.
      */
     public List<Long> getRelatedBusinessAccountOrSubscriptionOids(final List<Long> scopeIds,
@@ -152,6 +153,8 @@ public class RepositoryClient {
                                          .setTopologyType(TopologyType.SOURCE)
                                          .addEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
                                          .build()))
+                                          // It has to be FULL here, or something more than MINIMAL,
+                                          // as the TopologyEntityDTO is needed.
                                           .map(PartialEntity::getFullEntity)
                                       .collect(Collectors.toList());
         return parseRelatedBusinessAccountOrSubscriptionOids(scopeIds, allBusinessAccounts);
@@ -193,7 +196,6 @@ public class RepositoryClient {
             };
         }
         // real-time or plan global scope, return all Business Accounts/ Substriptions.
-        // TODO:  OM-50904 For real-time, no scopes need be returned and global RIs will be fetched.
         if (scopeIds.isEmpty()) {
             List<Long> allBaOids =  allBusinessAccounts.stream().map(TopologyEntityDTO::getOid)
                             .collect(Collectors.toList());
@@ -203,7 +205,7 @@ public class RepositoryClient {
     }
 
     /**
-     * Get the scopes map associated with a scoped or global topology (cloud plans or real-time).
+     * Get the entities map associated with a scoped or global topology (cloud plans or real-time).
      *
      * @param scopeIds  The topology scope seed IDs.
      * @param realtimeTopologyContextId The real-time context id.
@@ -212,19 +214,14 @@ public class RepositoryClient {
      * @return A Map containing the relevant cloud scopes, keyed by scope type and mapped to scope OIDs.
      */
     @Nonnull
-    public Map<EntityType, Set<Long>> getCloudScopes(@Nonnull final List<Long> scopeIds,
+    public Map<EntityType, Set<Long>> getEntityOidsByType(@Nonnull final List<Long> scopeIds,
                           final Long realtimeTopologyContextId,
                           @Nonnull final SupplyChainServiceBlockingStub supplyChainServiceBlockingStub) {
         try {
             final GetSupplyChainRequest.Builder requestBuilder = GetSupplyChainRequest.newBuilder();
-            final List<String> cloudEntityTypesToScopeNames = cloudEntityTypesToScope.stream()
-                                            .map(EntityType::name)
-                                            .collect(Collectors.toList());
             GetSupplyChainRequest request = requestBuilder
                             .setContextId(realtimeTopologyContextId)
                             .addAllStartingEntityOid(scopeIds)
-                            // TODO: Uncomment after testing
-                            //.addAllEntityTypesToInclude(cloudEntityTypesToScopeNames)
                             .setEnvironmentType(EnvironmentType.CLOUD)
                             .build();
 
@@ -237,18 +234,26 @@ public class RepositoryClient {
                             response.getSupplyChain().getMissingStartingEntitiesList());
             }
             Map<EntityType, Set<Long>> topologyMap =
-                            parseSupplyChainResponse(response,
+                            parseSupplyChainResponseToEntityOidsMap(response,
                                                      realtimeTopologyContextId);
-
-            // Make adjustment for Business Accounts/Subscriptions.  Get all related
-            // accounts in the family.
-            List<Long> allRelatedBaOids =
-                                        getRelatedBusinessAccountOrSubscriptionOids(
-                                                                scopeIds.stream()
-                                                                .collect(Collectors.toList()),
-                                                                realtimeTopologyContextId);
-            topologyMap.put(EntityType.BUSINESS_ACCOUNT, allRelatedBaOids.stream()
-                                            .collect(Collectors.toSet()));
+            // Include supported non-supplychain entities in response.
+            for (EntityType entityType : supportedNonSupplyChainEntitiesByType) {
+                switch (entityType) {
+                    case BUSINESS_ACCOUNT:
+                        // Make adjustment for Business Accounts/Subscriptions.  Get all related
+                        // accounts in the family.
+                        List<Long> allRelatedBaOids =
+                                                    getRelatedBusinessAccountOrSubscriptionOids(
+                                                            scopeIds.stream()
+                                                            .collect(Collectors.toList()),
+                                                            realtimeTopologyContextId);
+                        topologyMap.put(EntityType.BUSINESS_ACCOUNT, allRelatedBaOids.stream()
+                                        .collect(Collectors.toSet()));
+                        break;
+                    default:
+                        break;
+                }
+            }
             return topologyMap;
         } catch (Exception e) {
             StringBuilder errMsg = new StringBuilder();
@@ -271,8 +276,9 @@ public class RepositoryClient {
      * @return The Map of topology entities of interest, grouped by type.
      */
     @Nonnull
-    public Map<EntityType, Set<Long>> parseSupplyChainResponse(@Nonnull final GetSupplyChainResponse response,
-                                                            final Long realtimeTopologyContextId) {
+    public Map<EntityType, Set<Long>>
+           parseSupplyChainResponseToEntityOidsMap(@Nonnull final GetSupplyChainResponse response,
+                                                   final Long realtimeTopologyContextId) {
         if (response == null) {
             logger.warn("No Supply Chain retrieved to parse");
             return Collections.emptyMap();
@@ -286,12 +292,10 @@ public class RepositoryClient {
                                 .getMembersByStateMap();
                 for (SupplyChainNode.MemberList members : relatedEntitiesByType.values()) {
                     String entityTypeName = node.getEntityType();
-                    EntityType entityType = getEntityTypeIfPresent(entityTypeName);
+                    EntityType entityType = UIEntityType.fromString(entityTypeName).sdkType();
                     List<Long> memberOids = members.getMemberOidsList();
-                    if (cloudEntityTypesToScope.contains(entityType)) {
-                            entitiesMap.put(entityType, memberOids.stream()
+                    entitiesMap.put(entityType, memberOids.stream()
                                             .collect(Collectors.toSet()));
-                    }
                 }
             }
             return entitiesMap;
@@ -301,26 +305,5 @@ public class RepositoryClient {
                          e);
             return Collections.emptyMap();
         }
-    }
-
-    /**
-     * Get the value of an EntityType {@link com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType} if it exists,
-     * else return UNKNOWN_VALUE.
-     *
-     * @param className The className to look up.
-     * @return The EntityType that maps to the className.
-     * TODO: there's a task for Groups in general.  May need to get scope_entity_type from contained members.
-     * However ResourceGroup is heterogeneous, hence it requires something like MIXED_SCOPE, to handle a more
-     * complex query.
-     */
-    private EntityType getEntityTypeIfPresent(@Nonnull String className) {
-        // Map EntityType.BSINESS_ACCOUNT to "BusinessAccount" as an example.
-        String classNameInEnum = className.replaceAll("(.)([A-Z])", "$1_$2");
-        for (EntityType type : EntityType.values()) {
-            if (type.name().equalsIgnoreCase(classNameInEnum)) {
-                return type;
-            }
-        }
-        return EntityType.UNKNOWN;
     }
 }

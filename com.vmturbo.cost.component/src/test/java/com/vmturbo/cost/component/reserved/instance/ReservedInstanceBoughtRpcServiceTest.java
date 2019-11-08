@@ -210,7 +210,7 @@ public class ReservedInstanceBoughtRpcServiceTest {
                         .setSupplyChain(supplyChain)
                         .build();
 
-        final Map<EntityType, Set<Long>> topologyMap = repositoryClient.parseSupplyChainResponse(response,
+        final Map<EntityType, Set<Long>> topologyMap = repositoryClient.parseSupplyChainResponseToEntityOidsMap(response,
                                                                                               777777L);
 
         assertTrue(topologyMap.size() > 0);

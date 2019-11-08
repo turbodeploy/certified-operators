@@ -648,7 +648,8 @@ public class Stages {
             // TODO:  Check with API if its possible to pass the scope type instead.
             String scopeClassName = planScopeEntries.get(0).getClassName();
             int scopeEntityType = (planScopeEntries.isEmpty() || scopeClassName == null)
-                ? EntityType.UNKNOWN_VALUE : getEntityTypeIfPresent(scopeClassName).getNumber();
+                            ? EntityType.UNKNOWN_VALUE
+                            : UIEntityType.fromString(scopeClassName).sdkType().getNumber();
             // now add the new seed entities to the list, and the scope type for OCP plans.
             getContext().editTopologyInfo(topologyInfoBuilder -> {
                 topologyInfoBuilder.clearScopeSeedOids();
@@ -659,27 +660,6 @@ public class Stages {
 
             return Status.success("Added " + seedEntities.size() +
                     " seed entities to topology info.");
-        }
-
-        /**
-         * Get the value of an EntityType {@link com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType} if it exists,
-         * else return UNKNOWN_VALUE.
-         *
-         * @param className The className to look up.
-         * @return The EntityType that maps to the className.
-         * TODO: there's a task for Groups in general.  May need to get scope_entity_type from contained members.
-         * However ResourceGroup is heterogeneous, hence it requires something like MIXED_SCOPE, to handle a more
-         * complex query.
-         */
-        private EntityType getEntityTypeIfPresent(@Nonnull String className) {
-            // Map EntityType.BSINESS_ACCOUNT to "BusinessAccount" as an example.
-            String classNameInEnum = className.replaceAll("(.)([A-Z])", "$1_$2");
-            for (EntityType type : EntityType.values()) {
-                if (type.name().equalsIgnoreCase(classNameInEnum)) {
-                    return type;
-                }
-            }
-            return EntityType.UNKNOWN;
         }
     }
 

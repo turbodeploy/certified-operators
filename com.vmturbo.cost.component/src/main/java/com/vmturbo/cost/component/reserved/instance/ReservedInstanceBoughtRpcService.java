@@ -54,8 +54,8 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
     public ReservedInstanceBoughtRpcService(
             @Nonnull final ReservedInstanceBoughtStore reservedInstanceBoughtStore,
             @Nonnull final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore,
-            final RepositoryClient repositoryClient,
-            final SupplyChainServiceBlockingStub supplyChainServiceBlockingStub,
+            @Nonnull final RepositoryClient repositoryClient,
+            @Nonnull final SupplyChainServiceBlockingStub supplyChainServiceBlockingStub,
             final Long realtimeTopologyContextId) {
         this.reservedInstanceBoughtStore =
                 Objects.requireNonNull(reservedInstanceBoughtStore);
@@ -74,8 +74,8 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
             final List<Long> scopeOids = request.getScopeSeedOidsList();
             final int scopeEntityType = request.getScopeEntityType();
             Map<EntityType, Set<Long>> cloudScopesTuple = repositoryClient
-                            .getCloudScopes(scopeOids, realtimeTopologyContextId,
-                                            this.supplyChainServiceBlockingStub);
+                            .getEntityOidsByType(scopeOids, realtimeTopologyContextId,
+                                                 this.supplyChainServiceBlockingStub);
             final List<ReservedInstanceBought> reservedInstanceBoughts =
                            reservedInstanceBoughtStore
                                .getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter

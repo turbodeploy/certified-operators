@@ -177,7 +177,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
                         reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(
                                               reservedInstanceBoughtFilterBuilder
                                               .setCloudScopesTuple(
-                           repositoryClient.getCloudScopes(topoInfo.getScopeSeedOidsList(),
+                           repositoryClient.getEntityOidsByType(topoInfo.getScopeSeedOidsList(),
                                                            realtimeTopologyContextId,
                                                            this.supplyChainServiceBlockingStub))
                                                   .build());
@@ -314,8 +314,8 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
                 reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter
                         .newBuilder()
                         .setCloudScopesTuple(
-                        repositoryClient.getCloudScopes(topoInfo.getScopeSeedOidsList(),
-                                            realtimeTopologyContextId, this.supplyChainServiceBlockingStub))
+                        repositoryClient.getEntityOidsByType(topoInfo.getScopeSeedOidsList(),
+                                realtimeTopologyContextId, this.supplyChainServiceBlockingStub))
                         .build())
                 .stream()
                 .filter(ri -> riUsedCouponMap.containsKey(ri.getId()))

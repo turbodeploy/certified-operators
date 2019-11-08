@@ -30,6 +30,11 @@ public class ReservedInstanceBoughtFilter extends ReservedInstanceFilter {
     private boolean joinWithSpecTable;
 
     // The cloud scopes. Map keyed by EntityType to List of OIDs for each EntityType in scope.
+    // For example REGION --> (Region1Oid, Region2Oid)
+    // VIRTUAL_MACHINE --> (VM1Oid, VM2Oid, VM3Oid)
+    // For real-time and global plans it stays empty as we don't need to filter by these types (
+    // if we were to need this in the future,  we could fetch all entities and populate the map).
+    // For a scoped plan, it will contain a mapping of entities in scope.
     private Map<EntityType, Set<Long>> cloudScopesTuple;
 
     /**
@@ -137,19 +142,7 @@ public class ReservedInstanceBoughtFilter extends ReservedInstanceFilter {
         } else {
             for (Map.Entry<EntityType, Set<Long>> entry : cloudScopesTuple.entrySet()) {
                 Set<Long> entityOids = entry.getValue();
-                switch (entry.getKey().getNumber()) {
-                    case EntityType.REGION_VALUE:
-                        conditions.add(Tables.RESERVED_INSTANCE_SPEC.REGION_ID.in(entityOids));
-                        break;
-                    case EntityType.AVAILABILITY_ZONE_VALUE:
-                        conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.AVAILABILITY_ZONE_ID.in(entityOids));
-                        break;
-                    case EntityType.BUSINESS_ACCOUNT_VALUE:
-                        conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.BUSINESS_ACCOUNT_ID.in(entityOids));
-                        break;
-                    default:
-                        break;
-                }
+                conditions.addAll(generateConditions(entityOids, entry.getKey().getNumber()));
             }
         }
         return conditions;
