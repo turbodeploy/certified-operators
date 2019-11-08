@@ -55,7 +55,7 @@ rules:
   verbs:
     - '*'
 - apiGroups:
-    - certmanager.k8s.io
+    - cert-manager.io
   resources:
     - certificates
   verbs:
