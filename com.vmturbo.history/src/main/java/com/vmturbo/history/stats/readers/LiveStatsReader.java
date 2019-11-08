@@ -26,13 +26,7 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.ImmutableBiMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Multimap;
-import com.google.common.collect.Sets;
 import com.google.protobuf.TextFormat;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
@@ -42,6 +36,12 @@ import org.jooq.Record;
 import org.jooq.Result;
 import org.jooq.Select;
 import org.jooq.Table;
+
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
@@ -286,13 +286,6 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
 
         // find out of which types those entities are ...(Map<oid, type>)
         final Map<String, String> entityClsMap = historydbIO.getTypesForEntities(entityIds);
-        // handle any missing records
-        final Set<String> notFoundIds = Sets.difference(entityIds, entityClsMap.keySet());
-        if (!notFoundIds.isEmpty()) {
-            logger.warn(
-                    "Entity OIDs not found in DB (probably for an entity type that is not saved): {}",
-                    notFoundIds);
-        }
         // ... and create a reverse map (type -> list of oid)
         final Multimap<String, String> entityIdsByType = HashMultimap.create();
         for (final String serviceEntityId : entityIds) {
@@ -307,12 +300,12 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
         for (final Map.Entry<String, Collection<String>> entityTypeAndId : entityIdsByType.asMap().entrySet()) {
             final String entityClsName = entityTypeAndId.getKey();
             logger.debug("fetch stats for entity type {}", entityClsName);
+
             // get the entity type
             final Optional<EntityType> entityTypeOpt = EntityType.getTypeForName(entityClsName);
             if (!entityTypeOpt.isPresent()) {
                 // no entity type found for this class name; not supposed to happen
-                logger.warn("DB Entity type not found for entity class name {}, oids {}",
-                        entityClsName, entityTypeAndId.getValue());
+                logger.warn("DB Entity type not found for clsName {}", entityClsName);
                 continue;
             }
             final EntityType entityType = entityTypeOpt.get();

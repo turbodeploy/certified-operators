@@ -32,7 +32,6 @@ message TypeSpecificInfo {
         StorageControllerInfo storage_controller = 73;
         DesktopPoolInfo desktop_pool = 74;
         BusinessUserInfo business_user = 75;
-        RegionInfo region = 76;
     }
 
     message ApplicationInfo {
@@ -117,13 +116,6 @@ message TypeSpecificInfo {
         }
 
         optional CloudServiceProvider cloud_service_provider = 4;
-    }
-
-    // Specific data for region
-    message RegionInfo {
-
-        // region should have a geo data info
-        optional GeoDataInfo geo_data = 1;
     }
 
     // specific data for compute tier
@@ -268,6 +260,8 @@ message TypeSpecificInfo {
         // Map of the VM id to the session duration
         map<int64, int64> vm_oid_to_session_duration = 1;
     }
+
+
 }
 
 // A batch of Partial Entities.
@@ -1051,16 +1045,6 @@ message DiskTypeInfo {
     // Number of discovered VSeries disks.
     optional int64 num_v_series_disks = 5;
 }
-
-// Specific data for geo locations.
-message GeoDataInfo {
-    // latitude coordinates of geo location.
-    required double latitude = 1;
-
-    // longitude coordinates of geo location.
-    required double longitude = 2;
-}
-
 // A message containing the id of a projected topology
 message ProjectedTopologyInfo {
     optional int64 projected_topology_id = 1;

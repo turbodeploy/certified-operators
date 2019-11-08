@@ -22,7 +22,6 @@ import com.vmturbo.api.component.external.api.mapper.aspect.LogicalPoolAspectMap
 import com.vmturbo.api.component.external.api.mapper.aspect.MasterImageEntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.PhysicalMachineAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.PortsAspectMapper;
-import com.vmturbo.api.component.external.api.mapper.aspect.RegionAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.StorageAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.StorageControllerAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.StorageTierAspectMapper;
@@ -264,16 +263,6 @@ public class MapperConfig {
     }
 
     /**
-     * Get the {@link RegionAspectMapper}.
-     *
-     * @return the {@link RegionAspectMapper}
-     */
-    @Bean
-    public RegionAspectMapper regionAspectMapper() {
-        return new RegionAspectMapper();
-    }
-
-    /**
      * Get the {@link DesktopPoolAspectMapper}.
      *
      * @return the {@link DesktopPoolAspectMapper}
@@ -330,8 +319,7 @@ public class MapperConfig {
             cloudAspectMapper(), virtualMachineMapper(), desktopPoolAspectMapper(),
             masterImageEntityAspectMapper(), physicalMachineAspectMapper(),
             storageAspectMapper(), diskArrayAspectMapper(), logicalPoolAspectMapper(),
-            storageControllerAspectMapper(), portsAspectMapper(), databaseAspectMapper(),
-            regionAspectMapper());
+            storageControllerAspectMapper(), portsAspectMapper(), databaseAspectMapper());
     }
 
     @Bean

@@ -1,11 +1,9 @@
 package com.vmturbo.api.component.external.api.service;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -28,7 +26,6 @@ import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiInputDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitPriceAdjustmentApiDTO;
-import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
@@ -36,7 +33,6 @@ import com.vmturbo.api.enums.BusinessUnitType;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.HierarchicalRelationship;
-import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
 import com.vmturbo.api.pagination.EntityPaginationRequest;
@@ -243,22 +239,7 @@ public class BusinessUnitsService implements IBusinessUnitsService {
     @Override
     public EntityPaginationResponse getEntities(final String uuid,
                                                 final EntityPaginationRequest paginationRequest) throws Exception {
-        // expand the scope and get the oids for all individual entities
-
-        SingleEntityRequest singleRequest = repositoryApi.entityRequest(uuidMapper.fromUuid(uuid).oid());
-        TopologyEntityDTO topologyEntityDTO = singleRequest
-                        .getFullEntity()
-                        .orElseThrow(() -> new UnknownObjectException(uuid));;
-
-        // get the entities owned by BusinessAccount: BA.getConsistsOf
-        Set<Long> entitiesOid = topologyEntityDTO.getConnectedEntityListList()
-                        .stream()
-                        .map(connEnt -> connEnt.getConnectedEntityId())
-                        .collect(Collectors.toSet());;
-
-        List<ServiceEntityApiDTO> results = new ArrayList<>(repositoryApi.entitiesRequest(entitiesOid).getSEMap().values());
-
-        return paginationRequest.allResultsResponse(results);
+        throw ApiUtils.notImplementedInXL();
     }
 
     @Override
@@ -272,9 +253,7 @@ public class BusinessUnitsService implements IBusinessUnitsService {
     public List<StatSnapshotApiDTO> getActionCountStatsByUuid(final String uuid,
                                                               final ActionApiInputDTO inputDto) throws Exception {
         SingleEntityRequest singleRequest = repositoryApi.entityRequest(uuidMapper.fromUuid(uuid).oid());
-        TopologyEntityDTO topologyEntityDTO = singleRequest
-                        .getFullEntity()
-                        .orElseThrow(() -> new UnknownObjectException(uuid));;
+        TopologyEntityDTO topologyEntityDTO = singleRequest.getFullEntity().get();
 
         List<String> relatedEntityTypes = topologyEntityDTO.getConnectedEntityListList()
                         .stream()

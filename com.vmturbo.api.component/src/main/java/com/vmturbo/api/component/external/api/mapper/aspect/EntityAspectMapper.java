@@ -38,8 +38,7 @@ public class EntityAspectMapper {
                               @Nonnull final LogicalPoolAspectMapper logicalPoolAspectMapper,
                               @Nonnull final StorageControllerAspectMapper storageControllerAspectMapper,
                               @Nonnull final PortsAspectMapper portsAspectMapper,
-                              @Nonnull final DatabaseAspectMapper databaseAspectMapper,
-                              @Nonnull final RegionAspectMapper regionAspectMapper) {
+                              @Nonnull final DatabaseAspectMapper databaseAspectMapper) {
 
         ASPECT_MAPPERS = new ImmutableMap.Builder<Integer, List<IAspectMapper>>()
             .put(EntityType.DATABASE_VALUE, ImmutableList.of(
@@ -81,8 +80,6 @@ public class EntityAspectMapper {
                 masterImageEntityAspectMapper))
             .put(EntityType.VIRTUAL_VOLUME_VALUE, ImmutableList.of(
                 virtualVolumeAspectMapper))
-            .put(EntityType.REGION_VALUE, ImmutableList.of(
-                regionAspectMapper))
             .build();
     }
 
