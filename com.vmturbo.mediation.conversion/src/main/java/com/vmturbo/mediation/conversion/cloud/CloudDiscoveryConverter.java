@@ -256,7 +256,7 @@ public class CloudDiscoveryConverter {
                         EntityDTO.Builder volume = EntityDTO.newBuilder()
                             .setEntityType(EntityType.VIRTUAL_VOLUME)
                             .setId(volumeId)
-                            .setDisplayName(file.getPath());
+                            .setDisplayName(file.getVolumeName());
                         VirtualVolumeData.Builder vvData = VirtualVolumeData.newBuilder();
                         if (file.hasIopsProvisioned()) {
                             vvData.setStorageAccessCapacity(file.getIopsProvisioned());

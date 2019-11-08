@@ -347,7 +347,7 @@ public class AwsCloudDiscoveryConverterTest {
                                 EntityDTO.Builder volume = awsConverter.getNewEntityBuilder(volumeId);
 
                                 // check volume properties
-                                assertEquals(file.getPath(), volume.getDisplayName());
+                                assertEquals(file.getVolumeName(), volume.getDisplayName());
                                 assertEquals(file.getIopsProvisioned(),
                                         volume.getVirtualVolumeData().getStorageAccessCapacity(), 0);
                                 assertEquals(file.getSizeKb() / 1024,
