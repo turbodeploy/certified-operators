@@ -188,6 +188,31 @@ public class DiscoveredGroupUploaderTest {
                                 .build())));
     }
 
+    /**
+     * When there is no probe type, then OTHER should be uploaded.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testUploadProbeTypeUnknown() throws Exception {
+        when(converter.interpretSdkGroupList(any(), eq(TARGET_ID)))
+            .thenReturn(Collections.singletonList(PLACEHOLDER_INTERPRETED_GROUP));
+
+        // mock so that the probe type is unknown
+        when(targetStore.getProbeTypeForTarget(TARGET_ID)).thenReturn(Optional.empty());
+
+        recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
+        recorderSpy.uploadDiscoveredGroups(TOPOLOGY);
+
+        verify(groupServiceMole).storeDiscoveredGroupsPoliciesSettings(
+            eq(Collections.singletonList(
+                DiscoveredGroupsPoliciesSettings.newBuilder()
+                    .setTargetId(TARGET_ID)
+                    .setProbeType("OTHER")
+                    .addUploadedGroups(PLACEHOLDER_GROUP)
+                    .build())));
+    }
+
     @Test
     public void testAddDatacenterPrefixToCluster() throws Exception {
         // trigger the group discovery from the target (mocking the response from the converter)

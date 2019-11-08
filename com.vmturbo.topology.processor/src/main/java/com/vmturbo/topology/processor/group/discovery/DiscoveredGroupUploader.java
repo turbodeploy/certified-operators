@@ -73,6 +73,8 @@ import com.vmturbo.topology.processor.targets.TargetStore;
 @ThreadSafe
 public class DiscoveredGroupUploader {
 
+    private static final String PROBE_TYPE_OTHER = "OTHER";
+
     private final Logger logger = LogManager.getLogger();
 
     private final GroupServiceStub groupServiceStub;
@@ -293,16 +295,23 @@ public class DiscoveredGroupUploader {
             // create the upload requests
             // 1. upload all groups first since policies/settings refer to groups
             groupsToUploadByTarget.forEach((targetId, groups) -> {
-                final Optional<SDKProbeType> probeType = targetStore.getProbeTypeForTarget(targetId);
-                if (!probeType.isPresent()) {
-                    logger.error("Probe type for target {} not found, skipping uploading " +
-                            "groups/policies for it", targetId);
-                    return;
-                }
+                // OM-52323: Probe types are not necessarily in the SDKProbeType enum. For instance,
+                // the kubernetes probe creates a unique probe type like Kubernetes-2411221677 so
+                // that XL is able to route Kubernetes rediscoveries to the correct probe instance.
+                // Kubernetes will have an instance of the kubernetes probe per kubernetes cluster
+                // since it acts as an agent discovery for that cluster.
+                // Routing to probe instance only uses probe type. targetId is not used for routing
+                // to probe instance.
+                // A second use case is third party probes. When a third party implements their own
+                // SDK probe, their probe type will not be in the SDKProbeType enum.
+                final String probeType = targetStore.getProbeTypeForTarget(targetId)
+                    .map(SDKProbeType::toString)
+                    .orElseGet(() -> PROBE_TYPE_OTHER);
+
                 final DiscoveredGroupsPoliciesSettings.Builder req =
                         DiscoveredGroupsPoliciesSettings.newBuilder()
                                 .setTargetId(targetId)
-                                .setProbeType(probeType.get().toString());
+                                .setProbeType(probeType);
                 groups.forEach(interpretedDto -> interpretedDto.convertToUploadedGroup()
                         .ifPresent(req::addUploadedGroups));
                 Optional.ofNullable(latestPoliciesByTarget.get(targetId))
