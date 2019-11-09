@@ -1,6 +1,7 @@
 package com.vmturbo.mediation.client.it;
 
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import com.vmturbo.mediation.common.tests.probes.EternalWorkingProbe;
@@ -26,6 +27,7 @@ public class TransportCloseTest extends AbstractIntegrationTest {
      *
      * @throws Exception on exception occur
      */
+    @Ignore
     @Test
     public void testCloseWhenDiscovery() throws Exception {
         final IntegrationTestProbeConfiguration probeConfig =
@@ -55,6 +57,7 @@ public class TransportCloseTest extends AbstractIntegrationTest {
      *
      * @throws Exception on exception occur
      */
+    @Ignore
     @Test
     public void testCloseWhenValidation() throws Exception {
         final IntegrationTestProbeConfiguration probeConfig =
