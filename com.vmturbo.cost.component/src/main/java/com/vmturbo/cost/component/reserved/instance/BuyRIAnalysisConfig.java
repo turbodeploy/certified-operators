@@ -15,6 +15,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositorySe
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.cost.component.IdentityProviderConfig;
+import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.rpc.RIBuyContextFetchRpcService;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisInvoker;
@@ -27,12 +28,9 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
 @Import({ComputeTierDemandStatsConfig.class,
         ReservedInstanceAnalysisConfig.class,
         GroupClientConfig.class,
-        RepositoryClientConfig.class
-        })
+        RepositoryClientConfig.class,
+        PricingConfig.class})
 public class BuyRIAnalysisConfig {
-
-    @Value("${initialBuyRIAnalysisIntervalHours}")
-    private long initialBuyRIAnalysisIntervalHours;
 
     @Value("${normalBuyRIAnalysisIntervalHours}")
     private long normalBuyRIAnalysisIntervalHours;
@@ -61,11 +59,13 @@ public class BuyRIAnalysisConfig {
     @Autowired
     private ReservedInstanceConfig reservedInstanceConfig;
 
+    @Autowired
+    private PricingConfig pricingConfig;
+
     @Bean
     public BuyRIAnalysisScheduler buyReservedInstanceScheduler() {
         return new BuyRIAnalysisScheduler(Executors.newSingleThreadScheduledExecutor(),
-                reservedInstanceAnalysisInvoker(), initialBuyRIAnalysisIntervalHours,
-                normalBuyRIAnalysisIntervalHours);
+                reservedInstanceAnalysisInvoker(), normalBuyRIAnalysisIntervalHours);
     }
 
     @Bean
@@ -108,7 +108,7 @@ public class BuyRIAnalysisConfig {
         new ReservedInstanceAnalysisInvoker(reservedInstanceAnalysisConfig.reservedInstanceAnalyzer(),
                 repositoryServiceClient(), settingServiceClient(),
                 reservedInstanceAnalysisConfig.reservedInstanceBoughtStore(), actionContextRIBuyStore(),
-                realtimeTopologyContextId);
+                pricingConfig.businessAccountPriceTableKeyStore(), realtimeTopologyContextId);
         groupClientConfig.settingsClient().addSettingsListener(reservedInstanceAnalysisInvoker);
         return reservedInstanceAnalysisInvoker;
     }

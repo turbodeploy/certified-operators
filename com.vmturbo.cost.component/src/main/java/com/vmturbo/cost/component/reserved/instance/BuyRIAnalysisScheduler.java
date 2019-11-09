@@ -32,17 +32,12 @@ public class BuyRIAnalysisScheduler {
 
     private final ReservedInstanceAnalysisInvoker invoker;
 
-    // The delay milliseconds for the initial buy reserved instance analysis.
-    private static long INITIAL_DELAY_MILLIS = 300000;
-
     public BuyRIAnalysisScheduler(@Nonnull final ScheduledExecutorService schedulerExecutor,
                                   @Nonnull ReservedInstanceAnalysisInvoker invoker,
-                                  final long initialIntervalHours,
                                   final long normalIntervalHours) {
         this.schedulerExecutor = Objects.requireNonNull(schedulerExecutor);
         this.invoker = invoker;
-        this.scheduledTask = createInitialScheduledTask(initialIntervalHours,
-                normalIntervalHours);
+        this.scheduledTask = createNormalScheduledTask(normalIntervalHours);
     }
 
     /**
@@ -75,25 +70,6 @@ public class BuyRIAnalysisScheduler {
     }
 
     /**
-     * Create a {@link ScheduledFuture} for the first time to trigger buy reserved instance analysis.
-     *
-     * @param initialIntervalHours the interval value of initial run.
-     * @param normalIntervalHours the interval value of normal run.
-     * @return a {@link ScheduledFuture}.
-     */
-    private ScheduledFuture<?> createInitialScheduledTask(final long initialIntervalHours,
-                                                          final long normalIntervalHours) {
-        final long intervalMillis = TimeUnit.MILLISECONDS.convert(initialIntervalHours, TimeUnit.HOURS);
-        final ScheduledFuture<?> initialScheduledTask = schedulerExecutor.scheduleAtFixedRate(
-                () -> initialTriggerBuyRIAnalysis(normalIntervalHours),
-                INITIAL_DELAY_MILLIS,
-                intervalMillis,
-                TimeUnit.MILLISECONDS
-        );
-        return initialScheduledTask;
-    }
-
-    /**
      * Create a {@link ScheduledFuture} for the normally trigger buy reserved instance analysis.
      *
      * @param normalIntervalHours the interval value of normal run.
@@ -111,37 +87,15 @@ public class BuyRIAnalysisScheduler {
     }
 
     /**
-     * Trigger buy reserved instance analysis for the first time. If first time run succeed,
-     * it will change scheduler interval to normal frequency.
-     *
-     * @param normalIntervalHours the interval value of normal run.
-     */
-    @VisibleForTesting
-    public void initialTriggerBuyRIAnalysis(final long normalIntervalHours) {
-        try {
-            logger.info("Start running initially buy reserved instance analysis...");
-            invoker.invokeBuyRIAnalysis();
-            // if initially buy reserved instance analysis succeed, need to cancel the initial scheduled
-            // task, and also create a new scheduled task with different interval time.
-            scheduledTask.cancel(false);
-            scheduledTask = createNormalScheduledTask(normalIntervalHours);
-            logger.info("Finished initially buy reserved instance analysis...");
-        } catch (RuntimeException e) {
-            logger.error("Unable to run initially buy reserved instance analysis: {}", e);
-        }
-    }
-
-
-    /**
      * Trigger buy reserved instance analysis in normal frequency.
      */
-    private void normalTriggerBuyRIAnalysis() {
+    protected void normalTriggerBuyRIAnalysis() {
         try {
-            logger.info("Start running normally buy reserved instance analysis...");
+            logger.info("Triggering RI Buy Analysis.");
             invoker.invokeBuyRIAnalysis();
-            logger.info("Finished normally buy reserved instance analysis...");
+            logger.info("Finished RI Buy Analysis.");
         } catch (RuntimeException e) {
-            logger.error("Unable to run normally buy reserved instance analysis: {}", e);
+            logger.error("Unable to run RI Buy Analysis: {}", e);
         }
     }
 }

@@ -33,20 +33,6 @@ public class BuyRIAnalysisSchedulerTest {
             ComputeTierDemandStatsStore.class);
 
     @Test
-    public void testCreateInitialScheduleTask() {
-        final ScheduledFuture<?> initialMockFuture = Mockito.mock(ScheduledFuture.class);
-        final long initialIntervalMillis = TimeUnit.MILLISECONDS.convert(initialIntervalHours, TimeUnit.HOURS);
-        Mockito.doReturn(initialMockFuture).when(scheduledExecutorSpy).scheduleAtFixedRate(
-                any(), Mockito.anyLong(), eq(initialIntervalMillis), any()
-        );
-        final BuyRIAnalysisScheduler buyRIAnalysisScheduler = new BuyRIAnalysisScheduler(
-                scheduledExecutorSpy, Mockito.mock(ReservedInstanceAnalysisInvoker.class),
-                initialIntervalHours, normalIntervalHours);
-        verify(scheduledExecutorSpy).scheduleAtFixedRate(any(), Mockito.anyLong(),
-                eq(initialIntervalMillis), any());
-    }
-
-    @Test
     public void testCreateNormalScheduleTask() {
         int riMinimumDataPoint = 1;
         final ScheduledFuture<?> initialMockFuture = Mockito.mock(ScheduledFuture.class);
@@ -55,14 +41,12 @@ public class BuyRIAnalysisSchedulerTest {
         Mockito.doReturn(initialMockFuture).when(scheduledExecutorSpy).scheduleAtFixedRate(
                 any(), Mockito.anyLong(), eq(initialIntervalMillis), any()
         );
+        ReservedInstanceAnalysisInvoker invoker = Mockito.mock(ReservedInstanceAnalysisInvoker.class);
         Mockito.when(computeTierDemandStatsStoreMock.containsDataOverWeek(riMinimumDataPoint)).thenReturn(true);
         final BuyRIAnalysisScheduler buyRIAnalysisScheduler = new BuyRIAnalysisScheduler(
-                scheduledExecutorSpy, Mockito.mock(ReservedInstanceAnalysisInvoker.class),
-                initialIntervalHours, normalIntervalHours);
-        buyRIAnalysisScheduler.initialTriggerBuyRIAnalysis(normalIntervalHours);
-        verify(initialMockFuture).cancel(false);
-        verify(scheduledExecutorSpy).scheduleAtFixedRate(any(), Mockito.anyLong(),
-                eq(normalIntervalMillis), any());
+                scheduledExecutorSpy, invoker, normalIntervalHours);
+        buyRIAnalysisScheduler.normalTriggerBuyRIAnalysis();
+        verify(invoker).invokeBuyRIAnalysis();
     }
 
     /**

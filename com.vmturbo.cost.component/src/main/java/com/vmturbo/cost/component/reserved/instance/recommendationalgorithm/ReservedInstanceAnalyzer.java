@@ -221,6 +221,11 @@ public class ReservedInstanceAnalyzer {
                                 throws CommunicationException, InterruptedException {
         ActionPlan actionPlan;
         if (historicalDemandDataReader.containsDataOverWeek()) {
+            // If the analysis is for real time delete all entries for real time from
+            // action_context_ri_buy table.
+            if (topologyContextId == realtimeTopologyContextId) {
+                actionContextRIBuyStore.deleteRIBuyContextData(realtimeTopologyContextId);
+            }
             @Nullable ReservedInstanceAnalysisResult result = analyze(topologyContextId, scope,
                 historicalDemandDataType);
             if (result == null) {

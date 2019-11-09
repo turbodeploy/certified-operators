@@ -66,4 +66,9 @@ public class BusinessAccountHelper {
                 .map(Entry::getValue)
                 .collect(Collectors.toSet());
     }
+
+    @Nonnull
+    public Set<Long> getAllBusinessAccounts() {
+        return businessAccountToTargetIdMap.keySet();
+    }
 }

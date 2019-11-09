@@ -20,6 +20,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsWriter;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceCoverageUpdate;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisInvoker;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbException;
@@ -48,6 +49,8 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
 
     private final CostJournalRecorder journalRecorder;
 
+    private final ReservedInstanceAnalysisInvoker invoker;
+
     public LiveTopologyEntitiesListener(final long realtimeTopologyContextId,
                                         @Nonnull final ComputeTierDemandStatsWriter computeTierDemandStatsWriter,
                                         @Nonnull final TopologyEntityCloudTopologyFactory cloudTopologyFactory,
@@ -55,7 +58,8 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
                                         @Nonnull final EntityCostStore entityCostStore,
                                         @Nonnull final ReservedInstanceCoverageUpdate reservedInstanceCoverageUpdate,
                                         @Nonnull final BusinessAccountHelper businessAccountHelper,
-                                        @Nonnull final CostJournalRecorder journalRecorder) {
+                                        @Nonnull final CostJournalRecorder journalRecorder,
+                                        @Nonnull final ReservedInstanceAnalysisInvoker invoker) {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.computeTierDemandStatsWriter = Objects.requireNonNull(computeTierDemandStatsWriter);
         this.cloudTopologyFactory = cloudTopologyFactory;
@@ -64,6 +68,7 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
         this.reservedInstanceCoverageUpdate = Objects.requireNonNull(reservedInstanceCoverageUpdate);
         this.businessAccountHelper = Objects.requireNonNull(businessAccountHelper);
         this.journalRecorder = Objects.requireNonNull(journalRecorder);
+        this.invoker = Objects.requireNonNull(invoker);
     }
 
     @Override
@@ -88,8 +93,9 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
             // Store allocation demand in db
             computeTierDemandStatsWriter.calculateAndStoreRIDemandStats(topologyInfo, cloudTopology, false);
             // Consumption demand in stored in db in CostComponentProjectedEntityTopologyListener
-
             storeBusinessAccountIdToTargetIdMapping(cloudTopology.getEntities());
+
+            invoker.invokeRIBuyIfBusinessAccountsUpdated(businessAccountHelper.getAllBusinessAccounts());
 
             // update reserved instance coverage data. RI coverage must be updated
             // before cost calculation to accurately reflect costs based on up-to-date

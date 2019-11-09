@@ -1,17 +1,21 @@
 package com.vmturbo.cost.component.reserved.instance.recommendationalgorithm;
 
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -31,6 +35,7 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.setting.CategoryPathConstants;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.RISettingsEnum.PreferredTerm;
+import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.reserved.instance.ActionContextRIBuyStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore.ReservedInstanceBoughtChangeType;
@@ -67,7 +72,11 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
 
     private final ActionContextRIBuyStore actionContextRIBuyStore;
 
+    private final BusinessAccountPriceTableKeyStore keyStore;
+
     private static List<String> riSettingNames = new ArrayList<>();
+
+    private final Set<Long> businessAccountsWithCost = new HashSet<>();
 
     static  {
         for (GlobalSettingSpecs globalSettingSpecs : GlobalSettingSpecs.values()) {
@@ -77,18 +86,20 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
         }
     }
 
-    public ReservedInstanceAnalysisInvoker(ReservedInstanceAnalyzer reservedInstanceAnalyzer,
-                                    RepositoryServiceBlockingStub repositoryClient,
-                                    SettingServiceBlockingStub settingsServiceClient,
-                                    ReservedInstanceBoughtStore riBoughtStore,
-                                    ActionContextRIBuyStore actionContextRIBuyStore,
-                                    long realtimeTopologyContextId) {
+    public ReservedInstanceAnalysisInvoker(@Nonnull ReservedInstanceAnalyzer reservedInstanceAnalyzer,
+                                           @Nonnull RepositoryServiceBlockingStub repositoryClient,
+                                           @Nonnull SettingServiceBlockingStub settingsServiceClient,
+                                           @Nonnull ReservedInstanceBoughtStore riBoughtStore,
+                                           @Nonnull ActionContextRIBuyStore actionContextRIBuyStore,
+                                           @Nonnull BusinessAccountPriceTableKeyStore keyStore,
+                                           long realtimeTopologyContextId) {
         this.reservedInstanceAnalyzer = reservedInstanceAnalyzer;
         this.repositoryClient = repositoryClient;
         this.settingsServiceClient = settingsServiceClient;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.riBoughtStore = riBoughtStore;
         this.actionContextRIBuyStore = actionContextRIBuyStore;
+        this.keyStore = keyStore;
         this.riBoughtStore.getUpdateEventStream()
                 .filter(event -> event == ReservedInstanceBoughtChangeType.UPDATED)
                 .subscribe(this::onRIInventoryUpdated);
@@ -102,8 +113,6 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
         ReservedInstanceAnalysisScope reservedInstanceAnalysisScope =
                 new ReservedInstanceAnalysisScope(buyRiRequest);
         try {
-            // Delete all entries for real time from action_context_ri_buy table.
-            actionContextRIBuyStore.deleteRIBuyContextData(realtimeTopologyContextId);
             reservedInstanceAnalyzer.runRIAnalysisAndSendActions(realtimeTopologyContextId,
                     reservedInstanceAnalysisScope, ReservedInstanceHistoricalDemandDataType.CONSUMPTION);
         } catch (InterruptedException e) {
@@ -115,7 +124,7 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
     }
 
     /**
-     * Inovkes the RI Buy Algorithm when RI Buy Settings are updated.
+     * Invokes the RI Buy Algorithm when RI Buy Settings are updated.
      */
     @Override
     public void onSettingsUpdated(SettingNotification notification) {
@@ -125,9 +134,27 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
         }
      }
 
+    /**
+     * Invokes RI Buy Analysis if the RI Inventory is updated.
+     *
+     * @param type ReservedInstanceBoughtChangeType
+     */
     private void onRIInventoryUpdated(final ReservedInstanceBoughtChangeType type) {
         logger.info("RI Inventory has been changed. Triggering RI Buy Analysis.");
         invokeBuyRIAnalysis();
+    }
+
+    /**
+     * Invoke RI Buy Analysis if the number of BA's are updated.
+     *
+     * @param allBusinessAccounts OID's of all BA's present.
+     */
+    public void invokeRIBuyIfBusinessAccountsUpdated(Set<Long> allBusinessAccounts) {
+        if (isNewBusinessAccountWithCostFound(allBusinessAccounts) || isBusinessAccountDeleted(allBusinessAccounts)) {
+            logger.info("Invoking RI Buy Analysis because either a new BA with Cost was found" +
+                    " or a BA was deleted.");
+            invokeBuyRIAnalysis();
+        }
     }
 
     /**
@@ -215,5 +242,75 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
                 .build();
 
         return riSetting;
+    }
+
+    /**
+     * Returns whether a new BA with cost was found since last topology broadcast.
+     *
+     * @param allBusinessAccounts All Business Accounts in topology.
+     * @return whether a new BA with cost was found since last topology broadcast.
+     */
+    protected boolean isNewBusinessAccountWithCostFound(Set<Long> allBusinessAccounts) {
+        Set<Long> newBusinessAccountsWithCost = getNewBusinessAccountsWithCost(allBusinessAccounts);
+        addToBusinessAccountsWithCost(newBusinessAccountsWithCost);
+        return (newBusinessAccountsWithCost.size() > 0);
+    }
+
+    /**
+     * Returns whether a BA was deleted since last topology broadcast.
+     *
+     * @param allBusinessAccounts All Business Accounts in topology.
+     * @return whether a BA was deleted since last topology broadcast.
+     */
+    private boolean isBusinessAccountDeleted(Set<Long> allBusinessAccounts) {
+        Set<Long> deletedBusinessAccounts = Sets.difference(businessAccountsWithCost, allBusinessAccounts)
+                .immutableCopy();
+        removeFromBusinessAccountsWithCost(deletedBusinessAccounts);
+        return (deletedBusinessAccounts.size() > 0);
+    }
+
+    /**
+     * Returns a collection of BA's which didn't have cost till last topology broadcast.
+     *
+     * @param allBusinessAccounts All Business Accounts in topology.
+     * @return collection of BA's which didn't have cost till last topology broadcast.
+     */
+    @VisibleForTesting
+    public Set<Long> getNewBusinessAccountsWithCost(Set<Long> allBusinessAccounts) {
+        // Get all new discovered BA's since last broadcast.
+        final ImmutableSet<Long> newBusinessAccounts = Sets
+                .difference(allBusinessAccounts, businessAccountsWithCost).immutableCopy();
+
+        // Get all BA's which have cost(includes old and new) .
+        final Map<Long, Long> allBusinessAccountsWithCost = keyStore
+                .fetchPriceTableKeyOidsByBusinessAccount(newBusinessAccounts);
+
+        Set<Long> newBusinessAccountsWithCost = new HashSet<>();
+        // Find which of the new BA's have cost.
+        for (Long businessAccountId : newBusinessAccounts) {
+            if (allBusinessAccountsWithCost.containsKey(businessAccountId)) {
+                newBusinessAccountsWithCost.add(businessAccountId);
+            }
+        }
+        return newBusinessAccountsWithCost;
+    }
+
+    /**
+     * Adds the new Business Accounts With Cost to current Business Accounts With Cost.
+     *
+     * @param newBusinessAccountsWithCost a collection of BA's which didn't have cost till last
+     *                                    topology broadcast.
+     */
+    private void addToBusinessAccountsWithCost(Set<Long> newBusinessAccountsWithCost) {
+        businessAccountsWithCost.addAll(newBusinessAccountsWithCost);
+    }
+
+    /**
+     * Removes the deleted Business Accounts With Cost from current Business Accounts With Cost.
+     *
+     * @param deletedBusinessAccounts a collection of BA's which have been deleted.
+     */
+    private void removeFromBusinessAccountsWithCost(Set<Long> deletedBusinessAccounts) {
+        businessAccountsWithCost.removeAll(deletedBusinessAccounts);
     }
 }

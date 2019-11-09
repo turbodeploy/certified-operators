@@ -24,6 +24,7 @@ import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.discount.DiscountConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.pricing.PricingConfig;
+import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
@@ -44,7 +45,8 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Top
         DiscountConfig.class,
         ReservedInstanceConfig.class,
         CostConfig.class,
-        RepositoryClientConfig.class})
+        RepositoryClientConfig.class,
+        BuyRIAnalysisConfig.class})
 public class TopologyListenerConfig {
     private static final Logger logger = LogManager.getLogger();
 
@@ -72,6 +74,9 @@ public class TopologyListenerConfig {
     @Autowired
     private CostConfig costConfig;
 
+    @Autowired
+    private BuyRIAnalysisConfig buyRIAnalysisConfig;
+
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
@@ -87,7 +92,7 @@ public class TopologyListenerConfig {
                         entityCostConfig.entityCostStore(),
                         reservedInstanceConfig.reservedInstanceCoverageUpload(),
                         costConfig.businessAccountHelper(),
-                        costJournalRecorder());
+                        costJournalRecorder(), buyRIAnalysisConfig.reservedInstanceAnalysisInvoker());
         if (enabled) {
             logger.info("Enabling topology listener for liveTopologies.");
             topologyProcessor().addLiveTopologyListener(entitiesListener);

@@ -118,7 +118,7 @@ public class ReservedInstanceAnalyzerHistoricalData {
             long availabilityZoneId = riStatRecord.getAvailabilityZone();
             Optional<TopologyEntityDTO> computeTierDTO = cloudTopology.getEntity(computeTierId);
             if (!computeTierDTO.isPresent()) {
-                logger.warn("ComputeTier {} not present in the real-time topology.", computeTierId);
+                logger.debug("ComputeTier {} not present in the real-time topology.", computeTierId);
                 continue;
             }
             TopologyEntityDTO computeTier = computeTierDTO.get();

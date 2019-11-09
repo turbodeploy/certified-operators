@@ -9,15 +9,15 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.CostServiceConfig;
 import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.pricing.PricingConfig;
-import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.reserved.instance.action.ReservedInstanceActionsSenderConfig;
-import com.vmturbo.cost.component.topology.TopologyListenerConfig;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 
@@ -29,8 +29,7 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
         PricingConfig.class,
         RepositoryClientConfig.class,
         ReservedInstanceConfig.class,
-        ReservedInstanceActionsSenderConfig.class,
-        TopologyListenerConfig.class})
+        ReservedInstanceActionsSenderConfig.class})
 public class ReservedInstanceAnalysisConfig {
 
     @Value("${realtimeTopologyContextId}")
@@ -58,13 +57,7 @@ public class ReservedInstanceAnalysisConfig {
     private ReservedInstanceConfig reservedInstanceConfig;
 
     @Autowired
-    private BuyRIAnalysisConfig buyRIAnalysisConfig;
-
-    @Autowired
     private ReservedInstanceActionsSenderConfig reservedInstanceActionsSenderConfig;
-
-    @Autowired
-    private TopologyListenerConfig topologyListenerConfig;
 
     @Bean
     public SettingServiceBlockingStub settingServiceClient() {
@@ -85,7 +78,7 @@ public class ReservedInstanceAnalysisConfig {
                 reservedInstanceConfig.reservedInstanceSpecStore(),
                 pricingConfig.priceTableStore(),
                 computeTierDemandStatsConfig.riDemandStatsStore(),
-                topologyListenerConfig.cloudTopologyFactory(),
+                cloudTopologyFactory(),
                 reservedInstanceActionsSenderConfig.actionSender(),
                 reservedInstanceConfig.buyReservedInstanceStore(),
                 reservedInstanceConfig.actionContextRIBuyStore(),
@@ -95,5 +88,10 @@ public class ReservedInstanceAnalysisConfig {
 
     public ReservedInstanceBoughtStore reservedInstanceBoughtStore() {
         return reservedInstanceConfig.reservedInstanceBoughtStore();
+    }
+
+    @Bean
+    public TopologyEntityCloudTopologyFactory cloudTopologyFactory() {
+        return new DefaultTopologyEntityCloudTopologyFactory();
     }
 }

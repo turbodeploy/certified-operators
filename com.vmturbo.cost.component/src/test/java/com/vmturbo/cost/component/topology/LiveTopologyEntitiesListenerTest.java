@@ -19,6 +19,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsWriter;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceCoverageUpdate;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisInvoker;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
 
 public class LiveTopologyEntitiesListenerTest {
@@ -35,7 +36,7 @@ public class LiveTopologyEntitiesListenerTest {
             new LiveTopologyEntitiesListener(1L, computeTierDemandStatsWriter,
                 topologyCostCalculatorFactory, mock(TopologyCostCalculatorFactory.class),
                 mock(EntityCostStore.class), reservedInstanceCoverageUpdate, mock(BusinessAccountHelper.class),
-                mock(CostJournalRecorder.class));
+                mock(CostJournalRecorder.class), mock(ReservedInstanceAnalysisInvoker.class));
         RemoteIterator remoteIterator = mock(RemoteIterator.class);
         when(remoteIterator.hasNext()).thenReturn(false);
         when(topologyCostCalculatorFactory.newCloudTopology(1L, remoteIterator)).thenReturn(cloudTopology);
@@ -43,4 +44,6 @@ public class LiveTopologyEntitiesListenerTest {
         verify(topologyCostCalculatorFactory).newCloudTopology(1L, remoteIterator);
         verify(computeTierDemandStatsWriter, never()).calculateAndStoreRIDemandStats(any(), any(), anyBoolean());
     }
+
+
 }
