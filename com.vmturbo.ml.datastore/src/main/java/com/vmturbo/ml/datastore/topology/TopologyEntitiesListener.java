@@ -168,10 +168,11 @@ public class TopologyEntitiesListener implements EntitiesListener {
      * If no such connection exists, returns {@link Optional#empty()}
      *
      * @return the InfluxDB connection to be used to write metric data to influx.
+     * @throws InfluxUnavailableException if no connection to influx can be established.
      */
-        public Optional<InfluxDB> getInfluxConnection() {
-        return metricsWriter
-            .map(InfluxMetricsWriter::getInfluxConnection);
+    @Nonnull
+    public InfluxDB getInfluxConnection() throws InfluxUnavailableException {
+        return metricsWriter.orElseGet(() -> getOrCreateMetricsWriter()).getInfluxConnection();
     }
 
     /**
@@ -221,13 +222,13 @@ public class TopologyEntitiesListener implements EntitiesListener {
     }
 
     /**
-     * Return a metrics writer capable of writing to influx.
-     *
-     * If we already have such a metrics writer, re-use it, otherwise create a new one.
+     * Return a metrics writer capable of writing to influx.  If we already have such a metrics
+     * writer and the connection is healthy, re-use it, otherwise create a new one.
      *
      * @return a metrics writer capable of writing to influx.
      * @throws InfluxUnavailableException if no connection to influx can be established.
      */
+    @Nonnull
     private InfluxTopologyMetricsWriter getOrCreateMetricsWriter() throws InfluxUnavailableException {
         if (!metricsWriter.isPresent() || !connectionIsHealthy()) {
             metricsWriter = Optional.of(

@@ -48,7 +48,7 @@ public class InfluxMetricsWriter implements AutoCloseable {
                         @Nonnull final MetricsStoreWhitelist metricsStoreWhitelist) {
         this.database = Objects.requireNonNull(database);
         this.retentionPolicy = Objects.requireNonNull(retentionPolicy);
-        this.influxConnection = influxConnection;
+        this.influxConnection = Objects.requireNonNull(influxConnection);
         this.metricsStoreWhitelist = Objects.requireNonNull(metricsStoreWhitelist);
     }
 
@@ -57,6 +57,7 @@ public class InfluxMetricsWriter implements AutoCloseable {
      *
      * @return the influx connection used by the metrics writer.
      */
+    @Nonnull
     public InfluxDB getInfluxConnection() {
         return influxConnection;
     }

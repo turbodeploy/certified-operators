@@ -74,8 +74,7 @@ public class MLDatastoreComponent extends BaseVmtComponent {
         getHealthMonitor().addHealthCheck(
             new InfluxHealthMonitor(influxHealthCheckIntervalSeconds,
                 () -> listenerConfig.topologyEntitiesListener()
-                    .getInfluxConnection()
-                    .orElse(null)));
+                    .getInfluxConnection()));
     }
 
 
