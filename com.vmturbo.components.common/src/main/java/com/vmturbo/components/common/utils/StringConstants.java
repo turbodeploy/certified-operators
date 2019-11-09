@@ -346,6 +346,10 @@ public class StringConstants {
     public static final String VIRTUAL_VOLUME_ASPECT_NAME = "virtualDisksAspect";
     public static final String DESKTOP_POOL_ASPECT_NAME = "desktopPoolAspect";
     public static final String MASTER_IMAGE_ASPECT_NAME = "masterImageAspect";
+    /**
+     * Region aspect name. This is used to identify region aspect in api response.
+     */
+    public static final String REGION_ASPECT_NAME = "regionAspect";
 
     public static final String UNKNOWN = "Unknown";
 
