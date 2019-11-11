@@ -2,19 +2,16 @@ package com.vmturbo.history.stats.priceindex;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -23,7 +20,6 @@ import org.jooq.Query;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.components.common.stats.StatsUtils;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.EntityType;
@@ -49,8 +45,6 @@ public class DBPriceIndexVisitor implements TopologyPriceIndexVisitor {
 
     private final Map<EntityType, Map<EnvironmentType, MarketStatsData>> mktStatsByEntityTypeAndEnv =
         new HashMap<>();
-
-    private final Set<Integer> notFoundEntityTypes = new HashSet<>();
 
     // accumulate a batch of SQL statements to insert the commodity rows; execute in batches
     private List<Query> commodityInsertStatements = Lists.newArrayList();
@@ -102,8 +96,6 @@ public class DBPriceIndexVisitor implements TopologyPriceIndexVisitor {
                     commodityInsertStatements = new ArrayList<>(writeTopologyChunkSize);
                 }
             }
-        } else {
-            notFoundEntityTypes.add(entityType);
         }
     }
 
@@ -129,22 +121,6 @@ public class DBPriceIndexVisitor implements TopologyPriceIndexVisitor {
                     .map(EntityType::getClsName)
                     .collect(Collectors.joining(", ")));
             historydbIO.execute(BasedbIO.Style.FORCED, insertStmts);
-        }
-
-        // log not-found types for which we don't expect to save prices at trace level...
-        Set<Integer> expectedNotFoundTypes = notFoundEntityTypes.stream()
-            .filter(StatsUtils.SDK_ENTITY_TYPES_WITHOUT_SAVED_PRICES::contains)
-            .collect(Collectors.toSet());
-        if (!expectedNotFoundTypes.isEmpty()) {
-            logger.trace("History DB Entity Types not found for entity types (expected): {}",
-                expectedNotFoundTypes);
-        }
-        // ... and others others at error
-        Set<Integer> unexpectedNotFoundTypes = Sets.difference(
-            notFoundEntityTypes, expectedNotFoundTypes);
-        if (!unexpectedNotFoundTypes.isEmpty()) {
-            logger.error("History DB Entity Types not found for entity types: {}",
-                unexpectedNotFoundTypes);
         }
     }
 
