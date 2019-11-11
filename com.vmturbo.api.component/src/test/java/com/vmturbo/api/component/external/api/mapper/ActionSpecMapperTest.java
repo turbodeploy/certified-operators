@@ -45,8 +45,7 @@ import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMappingContextFactory.ActionSpecMappingContext;
-import com.vmturbo.api.component.external.api.mapper.aspect.CloudAspectMapper;
-import com.vmturbo.api.component.external.api.mapper.aspect.VirtualMachineAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
@@ -171,10 +170,6 @@ public class ActionSpecMapperTest {
 
     private ActionSpecMappingContextFactory actionSpecMappingContextFactory;
 
-    private CloudAspectMapper cloudAspectMapper;
-
-    private VirtualMachineAspectMapper vmAspectMapper;
-
     private VirtualVolumeAspectMapper volumeAspectMapper;
 
     private PolicyDTOMoles.PolicyServiceMole policyMole = spy(new PolicyServiceMole());
@@ -227,8 +222,6 @@ public class ActionSpecMapperTest {
         supplyChainService = SupplyChainServiceGrpc
             .newBlockingStub(supplyChainGrpcServer.getChannel());
 
-        cloudAspectMapper = mock(CloudAspectMapper.class);
-        vmAspectMapper = mock(VirtualMachineAspectMapper.class);
         volumeAspectMapper = mock(VirtualVolumeAspectMapper.class);
 
         final MultiEntityRequest emptyReq = ApiTestUtils.mockMultiEntityReqEmpty();
@@ -247,10 +240,9 @@ public class ActionSpecMapperTest {
         ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub reservedInstanceBoughtServiceBlockingStub =
                 ReservedInstanceBoughtServiceGrpc.newBlockingStub(grpcServer.getChannel());
         actionSpecMappingContextFactory = new ActionSpecMappingContextFactory(policyService,
-            Executors.newCachedThreadPool(new ThreadFactoryBuilder().build()),
-            repositoryApi, cloudAspectMapper, vmAspectMapper, volumeAspectMapper,
-            REAL_TIME_TOPOLOGY_CONTEXT_ID, null,
-            null, serviceEntityMapper, supplyChainService);
+                Executors.newCachedThreadPool(new ThreadFactoryBuilder().build()), repositoryApi,
+                mock(EntityAspectMapper.class), volumeAspectMapper, REAL_TIME_TOPOLOGY_CONTEXT_ID,
+                null, null, serviceEntityMapper, supplyChainService);
         mapper = new ActionSpecMapper(actionSpecMappingContextFactory,
             serviceEntityMapper, reservedInstanceMapper, riBuyContextFetchServiceStub, costServiceBlockingStub,
                 statsQueryExecutor, uuidMapper,

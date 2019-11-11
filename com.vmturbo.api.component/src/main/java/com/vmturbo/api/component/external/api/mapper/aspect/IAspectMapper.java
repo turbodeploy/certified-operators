@@ -6,20 +6,31 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 
+/**
+ * A class implementing this interface maps an entity or list of entities
+ * into a specific {@link EntityAspect}.
+ */
 public interface IAspectMapper {
-
     /**
-     * Map a single entity into one entity aspect object.
+     * Map a single {@link TopologyEntityDTO} into one entity aspect object.
      *
-     * @param entity the entity to get aspect for
+     * @param entity the {@link TopologyEntityDTO} to get aspect for
      * @return the entity aspect for the given entity, or null if no aspect for this entity
      */
     @Nullable
-    EntityAspect mapEntityToAspect(@Nonnull final TopologyEntityDTO entity);
+    EntityAspect mapEntityToAspect(@Nonnull TopologyEntityDTO entity);
+
+    /**
+     * Map a single {@link ApiPartialEntity} into one entity aspect object.
+     *
+     * @param entity the {@link ApiPartialEntity} to get aspect for
+     * @return the entity aspect for the given entity, or null if no aspect for this entity
+     */
+    @Nullable
+    EntityAspect mapEntityToAspect(@Nonnull ApiPartialEntity entity);
 
     /**
      * Map a list of entities into a single entity aspect object. This needs to be implemented if
@@ -67,32 +78,13 @@ public interface IAspectMapper {
     }
 
     /**
-     * Whether the given mapper implements {@link IAspectMapper#mapOneToManyAspects}
+     * Whether the given mapper implements {@link IAspectMapper#mapOneToManyAspects}.
      *
-     * @return true if a single aspect representing a group of entities can be generated, and mapped to many distinct
+     * @return true if a single aspect representing a group of entities can be generated, and mapped
+     * to many distinct
      * {@link EntityAspect} instances
      */
     default boolean supportsGroupAspectExpansion() {
         return false;
-    }
-
-    /**
-     * Static method to define whether or not the entity belongs to Cloud service.
-     *
-     * @return true if the entity is belonged to Cloud service
-     */
-    static boolean isCloudEntity(@Nonnull final TopologyEntityDTO entity) {
-        return entity.hasEnvironmentType() &&
-            entity.getEnvironmentType() == EnvironmentType.CLOUD;
-    }
-
-    /**
-     * Static method to define whether or not the entity belongs to Cloud service.
-     *
-     * @return true if the entity is belonged to Cloud service
-     */
-    static boolean isCloudEntity(@Nonnull final ApiPartialEntity entity) {
-        return entity.hasEnvironmentType() &&
-            entity.getEnvironmentType() == EnvironmentType.CLOUD;
     }
 }

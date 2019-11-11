@@ -19,10 +19,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
+
 /**
  * Topology Extension data related to Virtual Machine.
  **/
-public class VirtualMachineAspectMapper implements IAspectMapper {
+public class VirtualMachineAspectMapper extends AbstractAspectMapper {
     private final RepositoryApi repositoryApi;
 
     /**

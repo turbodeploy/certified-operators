@@ -6,7 +6,10 @@ import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.STEntityAspectApiDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 
-public class StorageTierAspectMapper implements IAspectMapper {
+/**
+ * Mapper for getting storage tier aspect.
+ */
+public class StorageTierAspectMapper extends AbstractAspectMapper {
 
     @Override
     public EntityAspect mapEntityToAspect(@Nonnull TopologyEntityDTO entity) {

@@ -14,14 +14,14 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.EnvironmentTypeMapper;
@@ -36,7 +36,6 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord.StatValue;
@@ -62,7 +61,10 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
 
-public class VirtualVolumeAspectMapper implements IAspectMapper {
+/**
+ * Mapper for getting virtual disks aspect.
+ */
+public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
 
     private static final Logger logger = LogManager.getLogger();
     // use for storage tier value for non cloud entities
@@ -461,7 +463,7 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
     private Map<Long, List<StatApiDTO>> getVolumeCostStats(@Nonnull List<TopologyEntityDTO> volumes,
                                                      @Nullable Long topologyContextId) {
         final Set<Long> cloudVolumeIds = volumes.stream()
-            .filter(IAspectMapper::isCloudEntity)
+            .filter(AbstractAspectMapper::isCloudEntity)
             .map(TopologyEntityDTO::getOid)
             .collect(Collectors.toSet());
 
@@ -671,7 +673,7 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
         // storage amount stats
         // Note: Different units are used for ON-PERM and CLOUD.  But for api requires
         //       the same commodity type.
-        if (EnvironmentTypeEnum.EnvironmentType.CLOUD.equals(volume.getEnvironmentType())) {
+        if (isCloudEntity(volume)) {
             statDTOs.add(createStatApiDTO(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase(),
                 CLOUD_STORAGE_AMOUNT_UNIT, convertStorageAmountToCloudStorageAmount(storageAmountUsed),
                 convertStorageAmountToCloudStorageAmount(storageAmountCapacity), storageTier, volume.getDisplayName()));

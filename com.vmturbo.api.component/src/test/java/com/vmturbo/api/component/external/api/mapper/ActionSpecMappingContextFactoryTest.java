@@ -9,15 +9,14 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.Lists;
+
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.google.common.collect.Lists;
-
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.external.api.mapper.aspect.CloudAspectMapper;
-import com.vmturbo.api.component.external.api.mapper.aspect.VirtualMachineAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.auth.api.Pair;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
@@ -113,8 +112,7 @@ public class ActionSpecMappingContextFactoryTest {
                             ActionSpecMappingContextFactory(policyService,
                             Mockito.mock(ExecutorService.class),
                             Mockito.mock(RepositoryApi.class),
-                            Mockito.mock(CloudAspectMapper.class),
-                            Mockito.mock(VirtualMachineAspectMapper.class),
+                            Mockito.mock(EntityAspectMapper.class),
                             Mockito.mock(VirtualVolumeAspectMapper.class),
                             777777,
                             buyRIServiceClient, riSpecService,

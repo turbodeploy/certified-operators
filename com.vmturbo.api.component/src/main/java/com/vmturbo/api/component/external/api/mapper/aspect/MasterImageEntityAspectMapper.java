@@ -25,7 +25,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 /**
  * Mapper for getting master image aspect.
  */
-public class MasterImageEntityAspectMapper implements IAspectMapper {
+public class MasterImageEntityAspectMapper extends AbstractAspectMapper {
     private static final Logger LOGGER = LogManager.getLogger();
 
     private final RepositoryApi repositoryApi;

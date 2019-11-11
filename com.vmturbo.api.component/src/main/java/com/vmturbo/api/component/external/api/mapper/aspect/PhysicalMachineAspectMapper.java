@@ -18,7 +18,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 /**
  * Topology Extension data related to Virtual Machine.
  **/
-public class PhysicalMachineAspectMapper implements IAspectMapper {
+public class PhysicalMachineAspectMapper extends AbstractAspectMapper {
     private final RepositoryApi repositoryApi;
 
     public PhysicalMachineAspectMapper(final RepositoryApi repositoryApi) {

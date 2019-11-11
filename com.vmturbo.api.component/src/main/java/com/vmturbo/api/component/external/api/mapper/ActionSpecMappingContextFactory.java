@@ -23,8 +23,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.external.api.mapper.aspect.CloudAspectMapper;
-import com.vmturbo.api.component.external.api.mapper.aspect.VirtualMachineAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -78,9 +77,7 @@ public class ActionSpecMappingContextFactory {
 
     private final RepositoryApi repositoryApi;
 
-    private final CloudAspectMapper cloudAspectMapper;
-
-    private final VirtualMachineAspectMapper vmAspectMapper;
+    private final EntityAspectMapper entityAspectMapper;
 
     private final VirtualVolumeAspectMapper volumeAspectMapper;
 
@@ -97,8 +94,7 @@ public class ActionSpecMappingContextFactory {
     public ActionSpecMappingContextFactory(@Nonnull PolicyServiceBlockingStub policyService,
                                            @Nonnull ExecutorService executorService,
                                            @Nonnull RepositoryApi repositoryApi,
-                                           @Nonnull CloudAspectMapper cloudAspectMapper,
-                                           @Nonnull VirtualMachineAspectMapper vmAspectMapper,
+                                           @Nonnull EntityAspectMapper entityAspectMapper,
                                            @Nonnull VirtualVolumeAspectMapper volumeAspectMapper,
                                            final long realtimeTopologyContextId,
                                            @Nonnull BuyReservedInstanceServiceBlockingStub buyRIServiceClient,
@@ -108,8 +104,7 @@ public class ActionSpecMappingContextFactory {
         this.policyService = Objects.requireNonNull(policyService);
         this.executorService = Objects.requireNonNull(executorService);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
-        this.cloudAspectMapper = Objects.requireNonNull(cloudAspectMapper);
-        this.vmAspectMapper = Objects.requireNonNull(vmAspectMapper);
+        this.entityAspectMapper = Objects.requireNonNull(entityAspectMapper);
         this.volumeAspectMapper = Objects.requireNonNull(volumeAspectMapper);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.buyRIServiceClient = buyRIServiceClient;
@@ -215,10 +210,11 @@ public class ActionSpecMappingContextFactory {
                 .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
 
         final Map<Long, EntityAspect> cloudAspects = new HashMap<>();
-        for (ApiPartialEntity topologyEntityDTO : entitiesById.values()) {
-            final EntityAspect cloudAspect = cloudAspectMapper.mapEntityToAspect(topologyEntityDTO);
+        for (ApiPartialEntity entity : entitiesById.values()) {
+            final EntityAspect cloudAspect =
+                    entityAspectMapper.getAspectByEntity(entity, StringConstants.CLOUD_ASPECT_NAME);
             if (cloudAspect != null) {
-                cloudAspects.put(topologyEntityDTO.getOid(), cloudAspectMapper.mapEntityToAspect(topologyEntityDTO));
+                cloudAspects.put(entity.getOid(), cloudAspect);
             }
         }
 
@@ -243,7 +239,9 @@ public class ActionSpecMappingContextFactory {
         repositoryApi.entitiesRequest(cloudVmIds)
             .getFullEntities()
             .forEach(cloudVmFullEntity -> {
-                final EntityAspect vmAspect = vmAspectMapper.mapEntityToAspect(cloudVmFullEntity);
+                final EntityAspect vmAspect =
+                        entityAspectMapper.getAspectByEntity(cloudVmFullEntity,
+                                StringConstants.VM_ASPECT_NAME);
                 vmAspects.put(cloudVmFullEntity.getOid(), vmAspect);
             });
 

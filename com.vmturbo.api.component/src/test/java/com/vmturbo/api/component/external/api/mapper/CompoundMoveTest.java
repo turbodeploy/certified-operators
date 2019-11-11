@@ -13,24 +13,21 @@ import java.util.concurrent.Executors;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
-import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
-import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.Mockito;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import org.junit.Before;
+import org.junit.Test;
+import org.mockito.Mockito;
+
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
-import com.vmturbo.api.component.external.api.mapper.aspect.CloudAspectMapper;
-import com.vmturbo.api.component.external.api.mapper.aspect.VirtualMachineAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
+import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.enums.ActionType;
@@ -47,7 +44,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider.Builder;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
@@ -148,12 +147,9 @@ public class CompoundMoveTest {
         repositoryApi = mock(RepositoryApi.class);
 
         actionSpecMappingContextFactory = new ActionSpecMappingContextFactory(policyService,
-            Executors.newCachedThreadPool(new ThreadFactoryBuilder().build()),
-            repositoryApi, mock(CloudAspectMapper.class),
-            mock(VirtualMachineAspectMapper.class),
-            mock(VirtualVolumeAspectMapper.class), REAL_TIME_TOPOLOGY_CONTEXT_ID,
-            null,
-            null, serviceEntityMapper, supplyChainService);
+                Executors.newCachedThreadPool(new ThreadFactoryBuilder().build()), repositoryApi,
+                mock(EntityAspectMapper.class), mock(VirtualVolumeAspectMapper.class),
+                REAL_TIME_TOPOLOGY_CONTEXT_ID, null, null, serviceEntityMapper, supplyChainService);
 
         CostServiceGrpc.CostServiceBlockingStub costServiceBlockingStub =
                 CostServiceGrpc.newBlockingStub(grpcServer.getChannel());

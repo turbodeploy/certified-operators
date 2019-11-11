@@ -13,9 +13,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -44,8 +41,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 /**
  * Map topology extension data that are related to ports.
  **/
-public class PortsAspectMapper implements IAspectMapper {
-    private static final Logger logger = LogManager.getLogger();
+public class PortsAspectMapper extends AbstractAspectMapper {
 
     private final RepositoryApi repositoryApi;
 

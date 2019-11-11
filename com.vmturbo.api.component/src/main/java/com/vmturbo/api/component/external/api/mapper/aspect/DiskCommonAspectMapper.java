@@ -9,7 +9,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.DiskTypeInfo;
  * Topology Extension data related to the shared data between disk array, logical pool,
  * storage controller.
  **/
-public abstract class DiskCommonAspectMapper implements IAspectMapper {
+public abstract class DiskCommonAspectMapper extends AbstractAspectMapper {
 
     protected void fillDiskTypeInfo(@Nonnull final STEntityAspectApiDTO aspect,
         @Nonnull final DiskTypeInfo diskTypeInfo) {

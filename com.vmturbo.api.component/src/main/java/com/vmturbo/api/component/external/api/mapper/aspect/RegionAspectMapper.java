@@ -15,7 +15,7 @@ import com.vmturbo.components.common.utils.StringConstants;
  * RegionAspectMapper to map region to its aspects.
  * At present we only have GeoData attached into region aspects.
  */
-public class RegionAspectMapper implements IAspectMapper {
+public class RegionAspectMapper extends AbstractAspectMapper {
 
     /**
      * Map the topology entity dto to RegionAspectApiDTO.

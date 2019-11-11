@@ -13,7 +13,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Storage
 /**
  * Topology Extension data related to Storage.
  **/
-public class StorageAspectMapper implements IAspectMapper {
+public class StorageAspectMapper extends AbstractAspectMapper {
     @Override
     public EntityAspect mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {
         STEntityAspectApiDTO aspect = new STEntityAspectApiDTO();

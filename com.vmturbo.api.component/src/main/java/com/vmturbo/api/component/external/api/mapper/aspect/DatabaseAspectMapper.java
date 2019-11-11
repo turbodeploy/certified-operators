@@ -11,7 +11,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Databas
 /**
  * Topology Extension data related to Database type-specific data.
  **/
-public class DatabaseAspectMapper implements IAspectMapper {
+public class DatabaseAspectMapper extends AbstractAspectMapper {
     @Nullable
     @Override
     public EntityAspect mapEntityToAspect(@Nonnull final TopologyEntityDTO entity) {

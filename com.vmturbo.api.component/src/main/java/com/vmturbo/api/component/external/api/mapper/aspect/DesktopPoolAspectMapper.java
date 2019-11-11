@@ -32,7 +32,7 @@ import com.vmturbo.platform.sdk.common.util.SDKUtil;
 /**
  * Mapper for getting desktop pool aspect.
  */
-public class DesktopPoolAspectMapper implements IAspectMapper {
+public class DesktopPoolAspectMapper extends AbstractAspectMapper {
     private final RepositoryApi repositoryApi;
     private final GroupServiceBlockingStub groupServiceBlockingStub;
 

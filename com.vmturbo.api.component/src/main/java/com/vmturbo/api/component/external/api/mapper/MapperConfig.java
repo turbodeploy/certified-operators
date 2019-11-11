@@ -95,8 +95,7 @@ public class MapperConfig {
             communicationConfig.policyRpcService(),
             executorService(),
             communicationConfig.repositoryApi(),
-            cloudAspectMapper(),
-            virtualMachineMapper(),
+            entityAspectMapper(),
             virtualVolumeAspectMapper(),
             communicationConfig.getRealtimeTopologyContextId(),
             BuyReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel()),
@@ -263,8 +262,7 @@ public class MapperConfig {
 
     @Bean
     public CloudAspectMapper cloudAspectMapper() {
-        return new CloudAspectMapper(serviceConfig.statsQueryExecutor(), mapperConfig.uuidMapper(),
-                communicationConfig.searchServiceBlockingStub());
+        return new CloudAspectMapper(communicationConfig.repositoryApi());
     }
 
     @Bean
