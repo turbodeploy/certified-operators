@@ -12,13 +12,13 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.collect.Maps;
 
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
@@ -202,18 +202,22 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
     @Nonnull
     private OwnershipGraph<EntityWithConnections> retrieveOwnershipGraph(@Nonnull final Set<Long> entities,
                                                                          final long topologyContextId,
-                                                                         final long topologyId) {
+                                                                         @Nullable final Long topologyId) {
         final OwnershipGraph.Builder<EntityWithConnections> graphBuilder =
             OwnershipGraph.newBuilder(EntityWithConnections::getOid);
 
-        // Get all the business accounts and add them to the ownership graph.
-        RepositoryDTOUtil.topologyEntityStream(
-            repositoryService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
+        final RetrieveTopologyEntitiesRequest.Builder entitiesReqBldr = RetrieveTopologyEntitiesRequest.newBuilder()
                 .setReturnType(Type.WITH_CONNECTIONS)
                 .setTopologyContextId(topologyContextId)
-                .setTopologyId(topologyId)
-                .addEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber())
-                .build()))
+                .addEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber());
+        // Set the topologyId if its non null. Else it defaults to real time.
+        if (topologyId != null) {
+            entitiesReqBldr.setTopologyId(topologyId);
+        }
+
+        // Get all the business accounts and add them to the ownership graph.
+        RepositoryDTOUtil.topologyEntityStream(
+            repositoryService.retrieveTopologyEntities(entitiesReqBldr.build()))
             .map(PartialEntity::getWithConnections)
             .forEach(ba -> ba.getConnectedEntitiesList().stream()
                 .filter(connectedEntity -> connectedEntity.getConnectionType() == ConnectionType.OWNS_CONNECTION)
