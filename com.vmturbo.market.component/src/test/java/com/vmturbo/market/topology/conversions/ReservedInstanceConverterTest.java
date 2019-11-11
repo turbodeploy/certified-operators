@@ -5,6 +5,8 @@ import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.REG
 import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.REGION_ID_2;
 import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.REGION_NAME;
 import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.REGION_NAME_2;
+import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.RI_BOUGHT_ID;
+import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.RI_BOUGHT_ID_2;
 import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.TIER_ID;
 import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.TIER_ID_2;
 import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.TIER_NAME;
@@ -14,11 +16,13 @@ import static com.vmturbo.market.topology.conversions.CloudTestEntityFactory.moc
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -27,12 +31,13 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.google.common.collect.HashBasedTable;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -62,6 +67,9 @@ public class ReservedInstanceConverterTest {
 
     private ReservedInstanceConverter converter;
     private CommodityConverter commodityConverter;
+
+    private static final int couponCapacity = 8;
+    private static final double delta = 0.001;
 
     /**
      * Initializes ReservedInstanceConverter instance.
@@ -117,7 +125,7 @@ public class ReservedInstanceConverterTest {
      */
     @Test
     public void testNonIsfTemplateAccessCommodityConversion() {
-        final List<TraderTO> traders = createMarketTierTraderTOs(false, false);
+        final List<TraderTO> traders = createMarketTierTraderTOs(false, false, false);
         final TraderTO traderTO = traders.iterator().next();
         final List<CommodityBoughtTO> boughtTemplateAccessCommodities =
                 extractCommodityOfType(traderTO, CommodityDTO.CommodityType.TEMPLATE_ACCESS_VALUE);
@@ -131,7 +139,7 @@ public class ReservedInstanceConverterTest {
      */
     @Test
     public void testIsfTemplateAccessCommodityConversion() {
-        final List<TraderTO> traders = createMarketTierTraderTOs(true, false);
+        final List<TraderTO> traders = createMarketTierTraderTOs(true, false, true);
         final TraderTO traderTO = traders.iterator().next();
         final List<CommodityBoughtTO> boughtTemplateAccessCommodities =
                 extractCommodityOfType(traderTO, CommodityDTO.CommodityType.TEMPLATE_ACCESS_VALUE);
@@ -145,7 +153,7 @@ public class ReservedInstanceConverterTest {
      */
     @Test
     public void testZoneInformationInCbtpCostDto() {
-        final List<TraderTO> traders = createMarketTierTraderTOs(true, true);
+        final List<TraderTO> traders = createMarketTierTraderTOs(true, true, false);
         final TraderTO traderTO = traders.iterator().next();
         final CostDTO costDTO =
                 traderTO.getSettings().getQuoteFunction().getRiskBased().getCloudCost();
@@ -162,7 +170,7 @@ public class ReservedInstanceConverterTest {
      */
     @Test
     public void testRegionInformationInCbtpCostDto() {
-        final List<TraderTO> traders = createMarketTierTraderTOs(true, false);
+        final List<TraderTO> traders = createMarketTierTraderTOs(true, false, false);
         final TraderTO traderTO = traders.iterator().next();
         final CostDTO costDTO =
                 traderTO.getSettings().getQuoteFunction().getRiskBased().getCloudCost();
@@ -174,7 +182,22 @@ public class ReservedInstanceConverterTest {
         Assert.assertFalse(costTuple.hasZoneId());
     }
 
-
+    /**
+     * Test that coupon commodity sold used value is set correctly.
+     */
+    @Test
+    public void testCouponCommoditySold() {
+        final List<TraderTO> traders = createMarketTierTraderTOs(true, false, false);
+        final TraderTO traderTO = traders.iterator().next();
+        final Optional<CommoditySoldTO> soldCouponCommodity =
+                traderTO.getCommoditiesSoldList().stream().filter(c ->
+                c.getSpecification().getBaseType() == CommodityDTO.CommodityType.COUPON_VALUE)
+                .findAny();
+        Assert.assertTrue(soldCouponCommodity.isPresent());
+        final CommoditySoldTO couponCommodity = soldCouponCommodity.get();
+        Assert.assertEquals(couponCapacity, couponCommodity.getCapacity(), delta);
+        Assert.assertEquals(couponCapacity, couponCommodity.getQuantity(), delta);
+    }
 
     private void verifyTemplateAccessCommodities(Set<String> expectedKeys,
                                                  List<CommodityBoughtTO> boughtCommodities) {
@@ -193,12 +216,16 @@ public class ReservedInstanceConverterTest {
                 .collect(Collectors.toList());
     }
 
-    private List<TraderTO> createMarketTierTraderTOs(boolean isf, boolean zonal) {
+    private List<TraderTO> createMarketTierTraderTOs(boolean isf, boolean zonal,
+                                                     boolean includeRiWithBadRegion) {
         final CloudCostData cloudCostData = mock(CloudCostData.class);
-        final List<ReservedInstanceData> riDataList = ImmutableList.of(
-                createRiData(isf, zonal, TIER_ID, REGION_ID, ZONE_ID),
-                createRiData(isf, zonal, TIER_ID_2, REGION_ID_2, 0L));
+        final List<ReservedInstanceData> riDataList = new ArrayList<>();
+        riDataList.add(createRiData(isf, zonal, TIER_ID, REGION_ID, ZONE_ID, RI_BOUGHT_ID));
+        if (includeRiWithBadRegion) {
+            riDataList.add(createRiData(isf, zonal, TIER_ID_2, REGION_ID_2, 0L, RI_BOUGHT_ID_2));
+        }
         when(cloudCostData.getExistingRiBought()).thenReturn(riDataList);
+        when(cloudCostData.getCurrentRiCoverage()).thenReturn(getRiCoverageMap());
         final Map<Long, TopologyEntityDTO> topology = ImmutableMap.of(
                 REGION_ID, mockRegion(REGION_ID, REGION_NAME),
                 REGION_ID_2, mockRegion(REGION_ID_2, REGION_NAME_2),
@@ -209,14 +236,26 @@ public class ReservedInstanceConverterTest {
                 .collect(Collectors.toList());
     }
 
+    private Map<Long, EntityReservedInstanceCoverage> getRiCoverageMap() {
+        return ImmutableMap.of(123L, EntityReservedInstanceCoverage
+                .newBuilder().putCouponsCoveredByRi(RI_BOUGHT_ID, 4).build(), 234L,
+                EntityReservedInstanceCoverage.newBuilder().putCouponsCoveredByRi(RI_BOUGHT_ID,
+                        4).build());
+    }
+
     private static ReservedInstanceData createRiData(boolean isf, boolean zonal, long tierId,
-                                                     long regionId, long zoneId) {
+                                                     long regionId, long zoneId, long boughtId) {
         final OSType osType = isf ? OSType.LINUX : OSType.WINDOWS;
-        final ReservedInstanceBought.Builder boughtRiBuilder = ReservedInstanceBought.newBuilder();
+        final ReservedInstanceBought.Builder boughtRiBuilder = ReservedInstanceBought
+                .newBuilder().setId(boughtId);
+        final ReservedInstanceBoughtInfo.Builder boughtInfoBuilder =
+                ReservedInstanceBoughtInfo.newBuilder();
         if (zonal) {
-            boughtRiBuilder.setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
-                    .setAvailabilityZoneId(zoneId).build());
+            boughtInfoBuilder.setAvailabilityZoneId(zoneId);
         }
+        boughtInfoBuilder.setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons
+                .newBuilder().setNumberOfCoupons(couponCapacity).build());
+        boughtRiBuilder.setReservedInstanceBoughtInfo(boughtInfoBuilder.build());
         final ReservedInstanceSpecInfo riInfo = ReservedInstanceSpecInfo.newBuilder()
                 .setPlatformFlexible(false)
                 .setOs(osType)

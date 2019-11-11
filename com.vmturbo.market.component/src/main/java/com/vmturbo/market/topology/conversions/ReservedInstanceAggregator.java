@@ -5,6 +5,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -13,6 +14,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
@@ -71,6 +73,11 @@ class ReservedInstanceAggregator {
 
         final Map<ReservedInstanceKey, ReservedInstanceAggregate> riAggregates
                 = new HashMap<>();
+        final Map<Long, Double> couponsUsedByRi = cloudCostData.getCurrentRiCoverage().values()
+                .stream().map(Cost.EntityReservedInstanceCoverage::getCouponsCoveredByRiMap)
+                .flatMap(map -> map.entrySet().stream())
+                .collect(Collectors.toMap(Entry::getKey, Entry::getValue, Double::sum));
+        logger.trace("Coupons used by RI map dump: {}", () -> couponsUsedByRi);
         for (ReservedInstanceData riData : riCollection) {
             if (riData.isValid(topology)) {
                 final String family = topology.get(riData.getReservedInstanceSpec()
@@ -80,11 +87,16 @@ class ReservedInstanceAggregator {
                 final Optional<TopologyEntityDTO> computeTier = findComputeTier(riKey, riData,
                         familyToComputeTiers);
                 if (computeTier.isPresent()) {
-                    riDataMap.put(riData.getReservedInstanceBought().getId(), riData);
+                    final long riBoughtId = riData.getReservedInstanceBought().getId();
+                    riDataMap.put(riBoughtId, riData);
                     final ReservedInstanceAggregate riAggregate = riAggregates
                             .computeIfAbsent(riKey, key -> new ReservedInstanceAggregate(riData,
                                     riKey, computeTier.get()));
-                    riAggregate.addConstituentRi(riData);
+                    final double usedCoupons = couponsUsedByRi.getOrDefault(riBoughtId, 0d);
+                    logger.trace("Adding constituent RI: {} with usedCoupons: {} to RI Aggregate:" +
+                                    " {}", riData::getReservedInstanceBought, () -> usedCoupons,
+                            riAggregate::getDisplayName);
+                    riAggregate.addConstituentRi(riData, usedCoupons);
                 } else {
                     logger.warn("Compute Tier not found for RI with spec: {}, bought info: {}",
                             riData.getReservedInstanceSpec(),

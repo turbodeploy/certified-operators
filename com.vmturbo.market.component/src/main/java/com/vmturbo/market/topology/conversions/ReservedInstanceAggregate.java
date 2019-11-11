@@ -73,7 +73,8 @@ public class ReservedInstanceAggregate {
         return constituentRIs;
     }
 
-    void addConstituentRi(ReservedInstanceData riData) {
+    void addConstituentRi(ReservedInstanceData riData,
+                          final double couponsUsed) {
         if (!riKey.isInstanceSizeFlexible() && !constituentRIs.isEmpty()) {
             logger.error("Attempting to add more than 1 constituent RI to {} which is " +
                     "not instance size flexible", getDisplayName());
@@ -81,7 +82,7 @@ public class ReservedInstanceAggregate {
         }
         constituentRIs.add(riData);
         riCouponInfoMap.put(riData.getReservedInstanceBought().getId(), new RICouponInfo(
-                riData.getReservedInstanceBought()));
+                riData.getReservedInstanceBought(), couponsUsed));
     }
 
     TopologyEntityDTO getComputeTier() {
@@ -230,11 +231,10 @@ public class ReservedInstanceAggregate {
         private int totalNumberOfCoupons;
         private double numberOfCouponsUsed;
 
-        private RICouponInfo(ReservedInstanceBought riBought) {
+        private RICouponInfo(ReservedInstanceBought riBought, double usedCoupons) {
             totalNumberOfCoupons = riBought.getReservedInstanceBoughtInfo()
                     .getReservedInstanceBoughtCoupons().getNumberOfCoupons();
-            numberOfCouponsUsed = riBought.getReservedInstanceBoughtInfo()
-                    .getReservedInstanceBoughtCoupons().getNumberOfCouponsUsed();
+            numberOfCouponsUsed = usedCoupons;
         }
 
         private double getRemainingCoupons() {
