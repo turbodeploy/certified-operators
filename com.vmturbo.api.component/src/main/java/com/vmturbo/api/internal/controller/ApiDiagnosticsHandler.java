@@ -26,7 +26,7 @@ import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.Sup
 import com.vmturbo.api.dto.admin.ProductVersionDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
-import com.vmturbo.components.common.DiagnosticsWriter;
+import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.proactivesupport.metrics.TelemetryMetricDefinitions;
 
@@ -77,7 +77,8 @@ public class ApiDiagnosticsHandler {
 
         // Version information (capture regardless of whether telemetry is enabled or not)
         try {
-            diagnosticsWriter.writeZipEntry(VERSION_FILE_NAME, versionInfo(versionDTO), diagnosticZip);
+            diagnosticsWriter.writeZipEntry(VERSION_FILE_NAME, versionInfo(versionDTO).stream(),
+                diagnosticZip);
         } catch (Exception e) {
             logger.error("Error writing version information: ", e);
             errors.add(e.getMessage());
@@ -96,7 +97,7 @@ public class ApiDiagnosticsHandler {
 
         if (!errors.isEmpty()) {
             try {
-                diagnosticsWriter.writeZipEntry(ERRORS_FILE, errors, diagnosticZip);
+                diagnosticsWriter.writeZipEntry(ERRORS_FILE, errors.stream(), diagnosticZip);
             } catch (DiagnosticsException e) {
                 logger.error("Error writing the zip errors file", e);
             }

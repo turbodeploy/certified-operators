@@ -8,6 +8,7 @@ import javax.annotation.Nonnull;
 
 import org.springframework.core.env.Environment;
 
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.health.CompositeHealthMonitor;
 
 /**
@@ -116,7 +117,9 @@ public interface IVmtComponent {
      * Java application itself. Each aspect of the diagnostics should be written into a  {@link java.util.zip.ZipEntry}.
      * Thus the resulting .zip file will easy to "unzip" and analyze for the receiving client.
      *
-     * @param diagnosticZip a {@link ZipOutputStream} to which the individual diagnostic information aspects should be written
-     */
-    void dumpDiags(@Nonnull final ZipOutputStream diagnosticZip);
+     * @param diagnosticZip a {@link ZipOutputStream} to which the individual diagnostic information
+     *                      aspects should be written
+     * @exception DiagnosticsException if there is an error creating the collection or writing to
+     * to the stream     */
+    void dumpDiags(@Nonnull ZipOutputStream diagnosticZip) throws DiagnosticsException;
 }

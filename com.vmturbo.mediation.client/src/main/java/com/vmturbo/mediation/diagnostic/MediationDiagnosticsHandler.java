@@ -12,7 +12,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.components.common.DiagnosticsWriter;
+import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
 
 /**
  * Class for handling the mediation components diagnostics.

@@ -812,11 +812,11 @@ public class SettingStore implements Diagnosable {
      */
     @Nonnull
     @Override
-    public List<String> collectDiags() throws DiagnosticsException {
+    public Stream<String> collectDiagsStream() throws DiagnosticsException {
         final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
 
         try {
-            return Arrays.asList(
+            return Stream.of(
                 gson.toJson(getAllGlobalSettings()),
                 gson.toJson(getSettingPolicies(SettingPolicyFilter.newBuilder().build())
                     .collect(Collectors.toList())));

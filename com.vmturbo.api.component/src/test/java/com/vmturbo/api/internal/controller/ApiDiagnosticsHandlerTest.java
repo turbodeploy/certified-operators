@@ -27,7 +27,7 @@ import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.internal.controller.ApiDiagnosticsHandler.VersionAndRevision;
 import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
-import com.vmturbo.components.common.DiagnosticsWriter;
+import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.proactivesupport.metrics.TelemetryMetricUtilities;
 

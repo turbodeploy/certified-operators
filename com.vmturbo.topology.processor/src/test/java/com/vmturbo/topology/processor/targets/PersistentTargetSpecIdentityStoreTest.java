@@ -11,6 +11,11 @@ import static org.junit.Assert.assertFalse;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
+import com.google.gson.Gson;
 
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
@@ -26,9 +31,6 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Sets;
-import com.google.gson.Gson;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
@@ -183,7 +185,9 @@ public class PersistentTargetSpecIdentityStoreTest {
     public void testDiagsCollectAndRestore() throws DiagnosticsException {
         final PersistentIdentityStore testIdentityStore = new PersistentTargetSpecIdentityStore(dsl);
         persistTargetSpecOids();
-        final List<String> diags = testIdentityStore.collectDiags();
+        final List<String> diags = testIdentityStore
+            .collectDiagsStream()
+            .collect(Collectors.toList());
         assertEquals(2, diags.size());
         // Clean up db before restore
         dsl.delete(TARGETSPEC_OID).execute();

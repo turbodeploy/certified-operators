@@ -5,6 +5,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyListOf;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -16,15 +17,18 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.ZipOutputStream;
-
-import org.junit.Test;
 
 import io.prometheus.client.CollectorRegistry;
 
-import com.vmturbo.components.common.DiagnosticsWriter;
+import org.junit.Test;
+import org.mockito.ArgumentCaptor;
+
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.Diags;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
@@ -62,8 +66,8 @@ public class PlanOrchestratorDiagnosticsHandlerTest {
     @Test
     public void testDump() throws DiagnosticsException {
         for (Diagnosable diagMock : diagMocks) {
-            when(diagMock.collectDiags())
-                .thenReturn(SUCCESS_MSG);
+            when(diagMock.collectDiagsStream())
+                .thenReturn(SUCCESS_MSG.stream());
         }
 
         final PlanOrchestratorDiagnosticsHandler handler =
@@ -77,19 +81,22 @@ public class PlanOrchestratorDiagnosticsHandlerTest {
 
         for (Diagnosable diagMock : diagMocks) {
             final String filename = handler.filenameToDiagnosableMap.inverse().get(diagMock);
-            verify(mockWriter).writeZipEntry(filename, SUCCESS_MSG, mockZos);
+            ArgumentCaptor<Stream> streamCaptor = ArgumentCaptor.forClass(Stream.class);
+            verify(mockWriter).writeZipEntry(eq(filename), streamCaptor.capture(), eq(mockZos));
+            assertEquals(SUCCESS_MSG, streamCaptor.getValue().collect(Collectors.toList()));
         }
         verify(mockWriter, never())
             .writeZipEntry(eq(PlanOrchestratorDiagnosticsHandler.ERRORS_FILE),
-                anyListOf(String.class), any());
+                any(Stream.class), any());
         verify(mockWriter).writePrometheusMetrics(any(CollectorRegistry.class), eq(mockZos));
     }
 
     @Test
     public void testDumpFail() throws DiagnosticsException {
         for (Diagnosable diagMock : diagMocks) {
-            when(diagMock.collectDiags())
-                .thenThrow(new DiagnosticsException(Collections.singletonList(ERROR_MSG)));
+            doAnswer(invocation -> {
+                throw new DiagnosticsException(Collections.singletonList(ERROR_MSG));
+            }).when(diagMock).collectDiagsStream();
         }
 
         final PlanOrchestratorDiagnosticsHandler handler =
@@ -106,10 +113,12 @@ public class PlanOrchestratorDiagnosticsHandlerTest {
 
         for (Diagnosable diagMock : diagMocks) {
             final String filename = handler.filenameToDiagnosableMap.inverse().get(diagMock);
-            verify(mockWriter, never()).writeZipEntry(eq(filename), anyListOf(String.class), any());
+            verify(mockWriter, never()).writeZipEntry(eq(filename), any(Stream.class), any());
         }
+        ArgumentCaptor<Stream> streamArgumentCaptor = ArgumentCaptor.forClass(Stream.class);
         verify(mockWriter).writeZipEntry(eq(PlanOrchestratorDiagnosticsHandler.ERRORS_FILE),
-                eq(errors), eq(mockZos));
+            streamArgumentCaptor.capture(), eq(mockZos));
+        assertEquals(errors, streamArgumentCaptor.getValue().collect(Collectors.toList()));
     }
 
     @Test

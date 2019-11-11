@@ -1,4 +1,4 @@
-package com.vmturbo.components.common;
+package com.vmturbo.components.common.diagnostics;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;

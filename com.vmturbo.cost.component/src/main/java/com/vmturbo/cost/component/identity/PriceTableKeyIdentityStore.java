@@ -13,7 +13,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -41,7 +41,7 @@ import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.sql.utils.DbException;
 
 /**
- * Persistence for price table key oids for {@link Tables.PRICE_TABLE}.
+ * Persistence for price table key oids for {@link Tables#PRICE_TABLE}.
  */
 public class PriceTableKeyIdentityStore implements Diagnosable {
 
@@ -70,7 +70,7 @@ public class PriceTableKeyIdentityStore implements Diagnosable {
      * Fetch all the price Table OIDs, priceTableKey rows.
      *
      * @return Map of generated {@link SimpleMatchingAttributes} to OIDs
-     * from {@link Tables.PRICE_TABLE_KEY_OID}.
+     * from {@link Tables#PRICE_TABLE_KEY_OID}.
      * @throws DbException if DB access fails.
      */
     @Nonnull
@@ -156,7 +156,7 @@ public class PriceTableKeyIdentityStore implements Diagnosable {
 
     /**
      * Removes oid mapping to price table keys.
-     * Also cascade deletes row from {@link Tables.PRICE_TABLE}.
+     * Also cascade deletes row from {@link Tables#PRICE_TABLE}.
      *
      * @param oidsToRemove set of oids to remove.
      * @throws DbException if unable to remove OID from DB.
@@ -167,7 +167,7 @@ public class PriceTableKeyIdentityStore implements Diagnosable {
 
     /**
      * Removes oid mapping to price table keys.
-     * Also cascade deletes row from {@link Tables.PRICE_TABLE}.
+     * Also cascade deletes row from {@link Tables#PRICE_TABLE}.
      *
      * @param oidsToRemove set of oids to remove.
      * @param dsl transaction dsl context.
@@ -219,7 +219,7 @@ public class PriceTableKeyIdentityStore implements Diagnosable {
      */
     @Override
     @Nonnull
-    public List<String> collectDiags() throws DiagnosticsException {
+    public Stream<String> collectDiagsStream() throws DiagnosticsException {
         final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
         try {
             return fetchAllOidMappings().entrySet().stream()
@@ -233,8 +233,7 @@ public class PriceTableKeyIdentityStore implements Diagnosable {
                         }
                     })
                     .filter(Objects::nonNull)
-                    .map(priceTableKeyOid -> gson.toJson(priceTableKeyOid, PriceTableKeyOid.class))
-                    .collect(Collectors.toList());
+                    .map(priceTableKeyOid -> gson.toJson(priceTableKeyOid, PriceTableKeyOid.class));
         } catch (DbException e) {
             throw new DiagnosticsException(String.format("Retrieving workflow identifiers from database "
                     + "failed. %s", e));

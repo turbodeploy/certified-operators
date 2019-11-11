@@ -1,4 +1,11 @@
-package com.vmturbo.components.common;
+package com.vmturbo.components.common.diagnostics;
+
+import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertThat;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -18,9 +25,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertThat;
-import static org.mockito.Mockito.*;
+
+import com.vmturbo.components.common.IVmtComponent;
+import com.vmturbo.components.common.OsCommandProcessRunner;
+import com.vmturbo.components.common.OsProcessFactory;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration("classpath:diagnostic-service-test.xml")
@@ -53,11 +61,11 @@ public class DiagnosticServiceTest {
         ZipOutputStream mockZipOutputStream = Mockito.mock(ZipOutputStream.class);
 
         DiagnosticService svc = spy(diagnosticService);
-        doReturn(true).when(svc).getDiags();
+        doReturn(true).when(svc).getSystemDiags();
         when(theComponent.getComponentName()).thenReturn("component-a");
 
         // Act
-        svc.dumpDiags(mockZipOutputStream);
+        svc.dumpSystemDiags(mockZipOutputStream);
 
         // Assert
         verify(mockFileFolderZipper).zipFilesInFolder(PropertyTestConfiguration.testInstanceId,

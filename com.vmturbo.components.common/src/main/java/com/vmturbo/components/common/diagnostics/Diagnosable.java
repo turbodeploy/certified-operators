@@ -1,6 +1,7 @@
 package com.vmturbo.components.common.diagnostics;
 
 import java.util.List;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -20,20 +21,19 @@ import javax.annotation.Nonnull;
  */
 public interface Diagnosable {
     /**
-     * Save the diags as a list of strings {@link Diagnosable#restoreDiags(List<String>)}.
+     * Save the diags as a Stream of strings {@link Diagnosable#restoreDiags}.
      *
+     * @return The diags as a Stream of strings. The strings should NOT have newline characters.
      * @throws DiagnosticsException When an exception occurs during diagnostics collection.
-     *
-     * @return The diags as a list of strings. The strings should NOT have newline characters.
      */
     @Nonnull
-    List<String> collectDiags() throws DiagnosticsException;
+    Stream<String> collectDiagsStream() throws DiagnosticsException;
 
     /**
-     * Restore the diags saved by {@link Diagnosable#collectDiags()}.
+     * Restore the diags saved by {@link Diagnosable#collectDiagsStream()}.
      *
      * @param collectedDiags The diags collected from a previous call to
-     *      {@link Diagnosable#collectDiags()}. Must be in the same order.
+     *      {@link Diagnosable#collectDiagsStream()}. Must be in the same order.
      * @throws DiagnosticsException When an exception occurs during diagnostics restoration.
      */
     void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException;

@@ -40,6 +40,7 @@ import org.junit.Test;
  * TODO: Note that because this is not a self-contained test (requires web access), this should be
  * changed to an integration test once that capability exists in our build system.
  */
+@Ignore
 public class SwaggerValidationTest extends Assert {
 
     private static final String SWAGGER_RESOURCE = "/external/swagger.json";

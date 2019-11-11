@@ -9,16 +9,18 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.persistence.Column;
+
+import com.google.common.collect.Maps;
+import com.google.gson.Gson;
 
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
-import com.google.common.collect.Maps;
-import com.google.gson.Gson;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
@@ -62,8 +64,7 @@ public class PersistentWorkflowIdentityStore implements PersistentIdentityStore 
      * {@inheritDoc}
      */
     @Override
-    public void saveOidMappings(@Nonnull Map<IdentityMatchingAttributes, Long> attrsToOidMap)
-            throws IdentityStoreException {
+    public void saveOidMappings(@Nonnull Map<IdentityMatchingAttributes, Long> attrsToOidMap) {
         // run the update as a transaction; if there is an exception, the transaction will be rolled back
         dsl.transaction(configuration -> {
             DSLContext transactionDsl = DSL.using(configuration);
@@ -142,7 +143,7 @@ public class PersistentWorkflowIdentityStore implements PersistentIdentityStore 
     }
 
     @Override
-    public List<String> collectDiags() throws DiagnosticsException {
+    public Stream<String> collectDiagsStream() throws DiagnosticsException {
         try {
             return fetchAllOidMappings().entrySet().stream()
                     .map(entry -> {
@@ -153,8 +154,7 @@ public class PersistentWorkflowIdentityStore implements PersistentIdentityStore 
                         }
                     })
                     .filter(Objects::nonNull)
-                    .map(workflowHeader -> GSON.toJson(workflowHeader, WorkflowHeader.class))
-                    .collect(Collectors.toList());
+                    .map(workflowHeader -> GSON.toJson(workflowHeader, WorkflowHeader.class));
         } catch (IdentityStoreException e) {
             throw new DiagnosticsException(String.format("Retrieving workflow identifiers from database "
                     + "failed. %s", e));

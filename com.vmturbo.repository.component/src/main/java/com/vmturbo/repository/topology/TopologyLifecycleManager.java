@@ -16,6 +16,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -160,12 +161,11 @@ public class TopologyLifecycleManager implements Diagnosable {
 
     @Nonnull
     @Override
-    public List<String> collectDiags() throws DiagnosticsException {
+    public Stream<String> collectDiagsStream() throws DiagnosticsException {
         return topologyIdByContextAndType.values().stream()
                 .flatMap(idsByType -> idsByType.values().stream())
                 // Save the database names in the diags.
-                .map(TopologyID::toDatabaseName)
-                .collect(Collectors.toList());
+                .map(TopologyID::toDatabaseName);
     }
 
     @Override

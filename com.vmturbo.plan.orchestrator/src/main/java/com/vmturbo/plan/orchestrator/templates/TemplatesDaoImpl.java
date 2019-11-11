@@ -15,6 +15,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -511,13 +512,12 @@ public class TemplatesDaoImpl implements TemplatesDao {
      */
     @Nonnull
     @Override
-    public List<String> collectDiags() throws DiagnosticsException {
+    public Stream<String> collectDiagsStream() {
         final Set<TemplateDTO.Template> templates =
             getFilteredTemplates(TemplatesFilter.getDefaultInstance());
         logger.info("Collecting diagnostics for {} templates", templates.size());
         return templates.stream()
-            .map(template -> GSON.toJson(template, TemplateDTO.Template.class))
-            .collect(Collectors.toList());
+            .map(template -> GSON.toJson(template, TemplateDTO.Template.class));
     }
 
     /**
@@ -527,7 +527,7 @@ public class TemplatesDaoImpl implements TemplatesDao {
      * templates from diagnostics.
      *
      * @param collectedDiags The diags collected from a previous call to
-     *      {@link Diagnosable#collectDiags()}. Must be in the same order.
+     *      {@link Diagnosable#collectDiagsStream()}. Must be in the same order.
      * @throws DiagnosticsException if the db already contains templates, or in response
      *                              to any errors that may occur deserializing or restoring a
      *                              template.

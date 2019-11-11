@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -389,7 +390,7 @@ public class PlanDaoImplTest {
             planDao.createPlanInstance(CreatePlanRequest.newBuilder().setTopologyId(2).build());
         final List<PlanInstance> expected = Arrays.asList(first, second);
 
-        final List<String> result = planDao.collectDiags();
+        final List<String> result = planDao.collectDiagsStream().collect(Collectors.toList());
         assertEquals(2, result.size());
         assertTrue(result.stream().map(string -> PlanDaoImpl.GSON.fromJson(string, PlanInstance.class))
             .allMatch(expected::contains));

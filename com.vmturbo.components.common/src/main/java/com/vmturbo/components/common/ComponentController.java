@@ -5,13 +5,9 @@ import java.util.zip.ZipOutputStream;
 
 import javax.servlet.http.HttpServletResponse;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
@@ -24,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.health.CompositeHealthMonitor;
 
 /**
@@ -145,7 +142,10 @@ public class ComponentController {
         } catch (IOException e) {
             throw new RuntimeException("Error accessing the servlet response output stream", e);
         }
-        theComponent.dumpDiags(diagnosticZip);
+        try {
+            theComponent.dumpDiags(diagnosticZip);
+        } catch (DiagnosticsException e) {
+            throw new RuntimeException("Error dumping diagnostics", e);
+        }
     }
-
 }

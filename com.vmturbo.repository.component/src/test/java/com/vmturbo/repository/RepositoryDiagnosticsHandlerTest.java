@@ -24,12 +24,14 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipOutputStream;
 
 import io.prometheus.client.CollectorRegistry;
 
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClientException;
@@ -37,8 +39,8 @@ import org.springframework.web.client.RestTemplate;
 
 import com.vmturbo.arangodb.tool.ArangoDump;
 import com.vmturbo.arangodb.tool.ArangoRestore;
-import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.Diags;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
@@ -79,8 +81,10 @@ public class RepositoryDiagnosticsHandlerTest {
     private RestTemplate restTemplate = mock(RestTemplate.class);
 
     private final List<String> idMgrDiagLines = Collections.singletonList("idMgr");
+    private final Stream<String> idMgrDiagLinesStream = idMgrDiagLines.stream();
     private final List<String> globalSupplyChainOutput =
             Collections.singletonList("global-supply-chain");
+    private final Stream<String> globalSupplyChainOutputStream = globalSupplyChainOutput.stream();
     private final String endpoint = "endpoint";
     private final String dbName = "db";
     private final String expectedUrl = endpoint + "/" + dbName;
@@ -105,7 +109,9 @@ public class RepositoryDiagnosticsHandlerTest {
         assertEquals(2, errors.size());
 
         // Make sure the errors get written to the diags.
-        verify(diagnosticsWriter).writeZipEntry(eq(ERRORS_FILE), eq(errors), eq(zos));
+        ArgumentCaptor<Stream> errorStreamCaptor = ArgumentCaptor.forClass(Stream.class);
+        verify(diagnosticsWriter).writeZipEntry(eq(ERRORS_FILE), errorStreamCaptor.capture(), eq(zos));
+        assertEquals(errors, errorStreamCaptor.getValue().collect(Collectors.toList()));
     }
     @Test
     public void testDump() throws DiagnosticsException {
@@ -123,11 +129,14 @@ public class RepositoryDiagnosticsHandlerTest {
                 eq(sourceTopoDump), eq(zos));
         verify(diagnosticsWriter).writeZipEntry(eq(PROJECTED_TOPOLOGY_DUMP_FILE),
                 eq(projectedTopoDump), eq(zos));
+        ArgumentCaptor<Stream> streamCaptor = ArgumentCaptor.forClass(Stream.class);
         verify(diagnosticsWriter).writeZipEntry(eq(GLOBAL_SUPPLY_CHAIN_DIAGS_FILE),
-                eq(globalSupplyChainOutput), eq(zos));
-        verify(diagnosticsWriter).writeZipEntry(eq(ID_MGR_FILE), eq(idMgrDiagLines), eq(zos));
+            streamCaptor.capture(), eq(zos));
+        assertEquals(globalSupplyChainOutput, streamCaptor.getValue().collect(Collectors.toList()));
+        verify(diagnosticsWriter).writeZipEntry(eq(ID_MGR_FILE), streamCaptor.capture(), eq(zos));
+        assertEquals(idMgrDiagLines, streamCaptor.getValue().collect(Collectors.toList()));
         verify(diagnosticsWriter).writePrometheusMetrics(any(CollectorRegistry.class), eq(zos));
-        verify(diagnosticsWriter, times(0)).writeZipEntry(eq(ERRORS_FILE), any(List.class), any());
+        verify(diagnosticsWriter, times(0)).writeZipEntry(eq(ERRORS_FILE), any(Stream.class), any());
     }
 
     @Test
@@ -144,7 +153,7 @@ public class RepositoryDiagnosticsHandlerTest {
         when(globalSupplyChainManager.getGlobalSupplyChain(sourceTopologyId))
                 .thenReturn(Optional.of(globalSupplyChain));
 
-        when(globalSupplyChain.collectDiags()).thenReturn(globalSupplyChainOutput);
+        when(globalSupplyChain.collectDiagsStream()).thenReturn(globalSupplyChainOutputStream);
 
         final RepositoryDiagnosticsHandler handler =
                 new RepositoryDiagnosticsHandler(globalSupplyChainManager, lifecycleManager,
@@ -160,11 +169,15 @@ public class RepositoryDiagnosticsHandlerTest {
                 .writeZipEntry(eq(SOURCE_TOPOLOGY_DUMP_FILE), any(byte[].class), eq(zos));
         verify(diagnosticsWriter).writeZipEntry(eq(PROJECTED_TOPOLOGY_DUMP_FILE),
                 eq(projectedTopoDump), eq(zos));
+        ArgumentCaptor<Stream> streamCaptor = ArgumentCaptor.forClass(Stream.class);
         verify(diagnosticsWriter).writeZipEntry(eq(GLOBAL_SUPPLY_CHAIN_DIAGS_FILE),
-                eq(globalSupplyChainOutput), eq(zos));
-        verify(diagnosticsWriter).writeZipEntry(eq(ID_MGR_FILE), eq(idMgrDiagLines), eq(zos));
+            streamCaptor.capture(), eq(zos));
+        assertEquals(globalSupplyChainOutput, streamCaptor.getValue().collect(Collectors.toList()));
+        verify(diagnosticsWriter).writeZipEntry(eq(ID_MGR_FILE), streamCaptor.capture(), eq(zos));
+        assertEquals(idMgrDiagLines, streamCaptor.getValue().collect(Collectors.toList()));
         // Make sure the errors get written to the diags.
-        verify(diagnosticsWriter).writeZipEntry(eq(ERRORS_FILE), eq(errors), eq(zos));
+        verify(diagnosticsWriter).writeZipEntry(eq(ERRORS_FILE), streamCaptor.capture(), eq(zos));
+        assertEquals(errors, streamCaptor.getValue().collect(Collectors.toList()));
     }
 
     @Test
@@ -191,11 +204,15 @@ public class RepositoryDiagnosticsHandlerTest {
                 .writeZipEntry(eq(PROJECTED_TOPOLOGY_DUMP_FILE), any(byte[].class), eq(zos));
         verify(diagnosticsWriter).writeZipEntry(eq(SOURCE_TOPOLOGY_DUMP_FILE),
                 eq(sourceTopoDump), eq(zos));
+        ArgumentCaptor<Stream> streamCaptor = ArgumentCaptor.forClass(Stream.class);
         verify(diagnosticsWriter).writeZipEntry(eq(GLOBAL_SUPPLY_CHAIN_DIAGS_FILE),
-                eq(globalSupplyChainOutput), eq(zos));
-        verify(diagnosticsWriter).writeZipEntry(eq(ID_MGR_FILE), eq(idMgrDiagLines), eq(zos));
+            streamCaptor.capture(), eq(zos));
+        assertEquals(globalSupplyChainOutput, streamCaptor.getValue().collect(Collectors.toList()));
+        verify(diagnosticsWriter).writeZipEntry(eq(ID_MGR_FILE), streamCaptor.capture(), eq(zos));
+        assertEquals(idMgrDiagLines, streamCaptor.getValue().collect(Collectors.toList()));
         // Make sure the errors get written to the diags.
-        verify(diagnosticsWriter).writeZipEntry(eq(ERRORS_FILE), eq(errors), eq(zos));
+        verify(diagnosticsWriter).writeZipEntry(eq(ERRORS_FILE), streamCaptor.capture(), eq(zos));
+        assertEquals(errors, streamCaptor.getValue().collect(Collectors.toList()));
     }
 
     @Test
@@ -472,11 +489,11 @@ public class RepositoryDiagnosticsHandlerTest {
         when(globalSupplyChainManager.getGlobalSupplyChain(sourceTopologyId))
                 .thenReturn(Optional.of(globalSupplyChain));
 
-        when(globalSupplyChain.collectDiags()).thenReturn(globalSupplyChainOutput);
+        when(globalSupplyChain.collectDiagsStream()).thenReturn(globalSupplyChainOutputStream);
         when(topologyDiagnostics.dumpTopology(eq(sourceTopologyId))).thenReturn(sourceTopoDump);
         when(topologyDiagnostics.dumpTopology(eq(projectedTopologyId))).thenReturn(projectedTopoDump);
 
-        when(lifecycleManager.collectDiags()).thenReturn(idMgrDiagLines);
+        when(lifecycleManager.collectDiagsStream()).thenReturn(idMgrDiagLinesStream);
 
         SourceRealtimeTopology sourceRealtimeTopology = mock(SourceRealtimeTopology.class);
         ProjectedRealtimeTopology projectedRealtimeTopology = mock(ProjectedRealtimeTopology.class);

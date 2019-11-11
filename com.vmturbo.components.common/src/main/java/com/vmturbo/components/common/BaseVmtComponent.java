@@ -82,6 +82,8 @@ import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.common.config.ConfigMapPropertiesReader;
+import com.vmturbo.components.common.diagnostics.DiagnosticService;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.health.CompositeHealthMonitor;
 import com.vmturbo.components.common.health.ConsulHealthcheckRegistration;
 import com.vmturbo.components.common.health.HealthStatus;
@@ -479,14 +481,25 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      * {@inheritDoc}
      */
     @Override
-    public final void dumpDiags(@Nonnull final ZipOutputStream diagnosticZip) {
-        onDumpDiags(diagnosticZip);
+    public final void dumpDiags(@Nonnull final ZipOutputStream diagnosticZip) throws DiagnosticsException {
+        try {
+            // diagnosticService must be injected by the particular component. Check that happened correctly.
+            if (baseVmtComponentConfig.diagnosticService() == null) {
+                throw new RuntimeException("DiagnosticService missing");
+            }
+            baseVmtComponentConfig.diagnosticService().dumpSystemDiags(diagnosticZip);
 
-        // diagnosticService must be injected by the particular component. Check that happened correctly.
-        if (baseVmtComponentConfig.diagnosticService() == null) {
-            throw new RuntimeException("DiagnosticService missing");
+            // call the component's dump diags handler override, if any
+            onDumpDiags(diagnosticZip);
+
+        } finally {
+            try {
+                diagnosticZip.finish();
+            } catch (IOException e) {
+                logger.error("Error finishing diagnostic zip", e);
+                throw new DiagnosticsException("Error finishing diagnostic zip", e);
+            }
         }
-        baseVmtComponentConfig.diagnosticService().dumpDiags(diagnosticZip);
     }
 
     // START: Methods to allow component implementations to hook into

@@ -10,6 +10,7 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
@@ -286,25 +287,26 @@ public class IdentityProviderImpl implements IdentityProvider {
 
     @Nonnull
     @Override
-    public List<String> collectDiags() {
+    public Stream<String> collectDiagsStream() {
         logger.info("Collecting diagnostics from the Identity Provider...");
         // No-pretty-print is important, because we want one line per item so that we
         // can restore properly.
         final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
-        // Synchronize on the probeIdLock so that probes that register
-        // during a diags dump don't cause any issues or inconsistencies.
-        final List<String> retList;
-        synchronized (probeIdLock) {
-            final StringWriter writer = new StringWriter();
-            identityService.backup(writer);
+        try {
+            // Synchronize on the probeIdLock so that probes that register
+            // during a diags dump don't cause any issues or inconsistencies.
+            synchronized (probeIdLock) {
+                final StringWriter writer = new StringWriter();
+                identityService.backup(writer);
 
-            retList = new ArrayList<>(NUM_DIAGS_ENTRIES);
-            retList.add(DIAGS_PROBE_TYPE_IDX, gson.toJson(probeTypeToId));
-            retList.add(DIAGS_PROBE_METADATA_IDX, gson.toJson(perProbeMetadata));
-            retList.add(DIAGS_ID_SVC_IDX, writer.toString());
+                return Stream.of(
+                    gson.toJson(probeTypeToId),
+                    gson.toJson(perProbeMetadata),
+                    writer.toString());
+            }
+        } finally {
+            logger.info("Finished collecting diagnostics from the Identity Provider.");
         }
-        logger.info("Finished collecting diagnostics from the Identity Provider.");
-        return retList;
     }
 
     @Override

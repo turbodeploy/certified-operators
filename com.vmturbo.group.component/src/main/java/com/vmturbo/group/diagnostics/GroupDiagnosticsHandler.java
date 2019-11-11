@@ -19,9 +19,9 @@ import io.prometheus.client.CollectorRegistry;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.Diags;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
@@ -101,21 +101,24 @@ public class GroupDiagnosticsHandler {
 
         // Groups
         try {
-            diagnosticsWriter.writeZipEntry(GROUPS_DUMP_FILE, groupStore.collectDiags(), diagnosticZip);
+            diagnosticsWriter.writeZipEntry(GROUPS_DUMP_FILE, groupStore.collectDiagsStream(),
+                diagnosticZip);
         } catch (DiagnosticsException e) {
             errors.addAll(e.getErrors());
         }
 
         // Policies
         try {
-            diagnosticsWriter.writeZipEntry(POLICIES_DUMP_FILE, policyStore.collectDiags(), diagnosticZip);
+            diagnosticsWriter.writeZipEntry(POLICIES_DUMP_FILE, policyStore.collectDiagsStream(),
+                diagnosticZip);
         } catch (DiagnosticsException e) {
             errors.addAll(e.getErrors());
         }
 
         // Settings
         try {
-            diagnosticsWriter.writeZipEntry(SETTINGS_DUMP_FILE, settingStore.collectDiags(), diagnosticZip);
+            diagnosticsWriter.writeZipEntry(SETTINGS_DUMP_FILE, settingStore.collectDiagsStream(),
+                diagnosticZip);
         } catch (DiagnosticsException e) {
             errors.addAll(e.getErrors());
         }
@@ -128,7 +131,7 @@ public class GroupDiagnosticsHandler {
 
         if (!errors.isEmpty()) {
             try {
-                diagnosticsWriter.writeZipEntry(ERRORS_FILE, errors, diagnosticZip);
+                diagnosticsWriter.writeZipEntry(ERRORS_FILE, errors.stream(), diagnosticZip);
             } catch (DiagnosticsException e) {
                 logger.error("Error writing {}: {}", ERRORS_FILE, errors);
             }

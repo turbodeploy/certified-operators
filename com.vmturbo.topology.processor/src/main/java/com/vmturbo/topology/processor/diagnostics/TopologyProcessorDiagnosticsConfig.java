@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.components.common.DiagnosticsWriter;
+import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
 import com.vmturbo.proactivesupport.DataCollectorFramework;
 import com.vmturbo.proactivesupport.bridge.TCPAggregatorBridge;
 import com.vmturbo.topology.processor.KVConfig;

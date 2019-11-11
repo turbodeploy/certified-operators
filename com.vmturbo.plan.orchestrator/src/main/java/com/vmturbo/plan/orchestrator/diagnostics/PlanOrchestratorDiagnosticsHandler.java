@@ -17,7 +17,7 @@ import io.prometheus.client.CollectorRegistry;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.components.common.DiagnosticsWriter;
+import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.Diags;
@@ -97,7 +97,7 @@ public class PlanOrchestratorDiagnosticsHandler {
 
         if (!errors.isEmpty()) {
             try {
-                diagnosticsWriter.writeZipEntry(ERRORS_FILE, errors, diagnosticZip);
+                diagnosticsWriter.writeZipEntry(ERRORS_FILE, errors.stream(), diagnosticZip);
             } catch (DiagnosticsException e) {
                 logger.error("Error dumping " + ERRORS_FILE, e);
             }
@@ -118,7 +118,8 @@ public class PlanOrchestratorDiagnosticsHandler {
                                     @Nonnull final Diagnosable diagnosable,
                                     @Nonnull final ZipOutputStream diagnosticZip) {
         try {
-            diagnosticsWriter.writeZipEntry(filename, diagnosable.collectDiags(), diagnosticZip);
+            diagnosticsWriter.writeZipEntry(filename, diagnosable.collectDiagsStream(),
+                diagnosticZip);
         } catch (DiagnosticsException e) {
             return e.getErrors();
         }

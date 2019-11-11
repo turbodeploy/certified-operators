@@ -22,6 +22,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
 
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
@@ -37,8 +41,6 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Sets;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
@@ -234,7 +236,8 @@ public class PersistentWorkflowIdentityStoreTest {
     public void testDiagsCollectAndRestore() throws DiagnosticsException {
         PersistentWorkflowIdentityStore testIdentityStore = new PersistentWorkflowIdentityStore(dsl);
         persistBothWorkflowOids();
-        final List<String> diags = testIdentityStore.collectDiags();
+        final List<String> diags = testIdentityStore.collectDiagsStream()
+            .collect(Collectors.toList());
         assertEquals(2, diags.size());
         // Clean up db before restore
         dsl.delete(WORKFLOW_OID).execute();

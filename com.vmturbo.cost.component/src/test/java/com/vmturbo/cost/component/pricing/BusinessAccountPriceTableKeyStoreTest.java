@@ -10,6 +10,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.Sets;
 
@@ -191,7 +192,8 @@ public class BusinessAccountPriceTableKeyStoreTest {
                 .putBusinessAccountPriceTableKey(456L, barPriceTableKey)
                 .build();
         businessAccountPriceTableKeyStore.uploadBusinessAccount(businessAccountPriceTableKey);
-        List<String> collectDiags = businessAccountPriceTableKeyStore.collectDiags();
+        List<String> collectDiags = businessAccountPriceTableKeyStore.collectDiagsStream()
+            .collect(Collectors.toList());
         dsl.truncate(Tables.BUSINESS_ACCOUNT_PRICE_TABLE_KEY).execute();
         businessAccountPriceTableKeyStore.restoreDiags(collectDiags);
         Map<Long, Long> priceTableKeyMap = businessAccountPriceTableKeyStore.fetchPriceTableKeyOidsByBusinessAccount(Collections.emptySet());

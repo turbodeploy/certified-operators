@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.cost;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -8,22 +7,22 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.StampedLock;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
-import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.NonMarketDTO.CostDataDTO;
 import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO;
@@ -70,6 +69,8 @@ public class DiscoveredCloudCostUploader implements Diagnosable {
     private final AccountExpensesUploader accountExpensesUploader;
 
     private final PriceTableUploader priceTableUploader;
+
+    private final static Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
 
     // a cache of all the cloud service non-market entities and cost dto's discovered by cloud
     // probes. The concurrent map is probably overkill, but the idea is to support concurrent writes.
@@ -243,37 +244,29 @@ public class DiscoveredCloudCostUploader implements Diagnosable {
      */
     @Nonnull
     @Override
-    public List<String> collectDiags() throws DiagnosticsException {
+    public Stream<String> collectDiagsStream() {
         final Map<Long, String> strProbeTypesForTargetId = probeTypesForTargetId.entrySet().stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getProbeType()));
 
-        // 1 row for the type -> targets map, and 1 row for each cost data.
-        final List<String> retList = new ArrayList<>(1 + costDataByTargetId.size());
+        // return the type -> targets map serialized, and then each cost data item serialized
+        return Stream.concat(
+            Stream.of(GSON.toJson(strProbeTypesForTargetId)),
+            costDataByTargetId.values().stream().map(GSON::toJson));
 
-        final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
-
-        retList.add(gson.toJson(strProbeTypesForTargetId));
-
-        costDataByTargetId.values().stream()
-            .map(gson::toJson)
-            .forEach(retList::add);
-        return retList;
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull final List<String> collectedDiags) {
         if (collectedDiags.isEmpty()) {
             logger.info("Empty diags - not restoring anything.");
             return;
         }
 
-        final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
-
         final Map<Long, String> strProbeTypesForTargetId =
-            gson.fromJson(collectedDiags.get(0), new TypeToken<Map<Long, String>>() {}.getType());
+            GSON.fromJson(collectedDiags.get(0), new TypeToken<Map<Long, String>>() {}.getType());
         strProbeTypesForTargetId.forEach((targetId, probeType) -> {
             final SDKProbeType sdkProbeType = SDKProbeType.create(probeType);
             if (sdkProbeType != null) {
@@ -284,7 +277,7 @@ public class DiscoveredCloudCostUploader implements Diagnosable {
         });
 
         for (int i = 1; i < collectedDiags.size(); ++i) {
-            final TargetCostData costData = gson.fromJson(collectedDiags.get(i), TargetCostData.class);
+            final TargetCostData costData = GSON.fromJson(collectedDiags.get(i), TargetCostData.class);
             costDataByTargetId.put(costData.targetId, costData);
         }
     }

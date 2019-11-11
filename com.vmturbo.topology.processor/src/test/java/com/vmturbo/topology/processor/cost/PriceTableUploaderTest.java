@@ -9,6 +9,7 @@ import java.time.Clock;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -324,7 +325,7 @@ public class PriceTableUploaderTest {
         assertThat(originalSrcTables.get(SDKProbeType.AZURE_COST), is(sourcePriceTable));
 
         // ACT
-        List<String> diags = priceTableUploader.collectDiags();
+        List<String> diags = priceTableUploader.collectDiagsStream().collect(Collectors.toList());
 
         PriceTableUploader newUploader = new PriceTableUploader(priceServiceClient, Clock.systemUTC(), 100);
         newUploader.restoreDiags(diags);

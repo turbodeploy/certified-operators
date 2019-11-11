@@ -8,6 +8,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -38,7 +39,7 @@ import com.vmturbo.sql.utils.DbException;
 
 /**
  * Persistence for Business Account oids to their respective price table key.
- * persisted in {@link Tables.BUSINESS_ACCOUNT_PRICE_TABLE_KEY}.
+ * persisted in {@link Tables#BUSINESS_ACCOUNT_PRICE_TABLE_KEY}.
  */
 @ThreadSafe
 public class BusinessAccountPriceTableKeyStore implements Diagnosable {
@@ -64,12 +65,11 @@ public class BusinessAccountPriceTableKeyStore implements Diagnosable {
      */
     @Nonnull
     @Override
-    public List<String> collectDiags() throws DiagnosticsException {
+    public Stream<String> collectDiagsStream() {
         return fetchPriceTableKeyOidsByBusinessAccount(Collections.emptySet()).entrySet().stream()
                 .map(entry -> new BusinessAccountOidToPriceTableKey(entry.getKey(),
                         entry.getValue()))
-                .map(priceTableKeyOid -> GSON.toJson(priceTableKeyOid, BusinessAccountOidToPriceTableKey.class))
-                .collect(Collectors.toList());
+                .map(priceTableKeyOid -> GSON.toJson(priceTableKeyOid, BusinessAccountOidToPriceTableKey.class));
     }
 
     /**
@@ -162,7 +162,7 @@ public class BusinessAccountPriceTableKeyStore implements Diagnosable {
     }
 
     /**
-     * Remove BA oid from {@link Tables.BUSINESS_ACCOUNT_PRICE_TABLE_KEY}.
+     * Remove BA oid from {@link Tables#BUSINESS_ACCOUNT_PRICE_TABLE_KEY}.
      * Also remove the priceTableKeys which are not used by any other BA OIDs.
      * @param businessAccountOIDs businessAccount to be removed.
      * @throws DbException if

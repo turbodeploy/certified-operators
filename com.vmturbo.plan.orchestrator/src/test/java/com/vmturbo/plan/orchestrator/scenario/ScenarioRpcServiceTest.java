@@ -274,7 +274,7 @@ public class ScenarioRpcServiceTest {
                 com.vmturbo.plan.orchestrator.db.tables.pojos.Scenario.class))
             .collect(Collectors.toList());
 
-        final List<String> result = scenarioDao.collectDiags();
+        final List<String> result = scenarioDao.collectDiagsStream().collect(Collectors.toList());
 
         assertEquals(2, result.size());
         assertEquals(scenarios, result);

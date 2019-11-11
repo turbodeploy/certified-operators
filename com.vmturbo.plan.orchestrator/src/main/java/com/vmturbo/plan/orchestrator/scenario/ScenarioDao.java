@@ -7,18 +7,19 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.gson.Gson;
+import com.google.gson.JsonParseException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.gson.Gson;
-import com.google.gson.JsonParseException;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
@@ -132,12 +133,12 @@ public class ScenarioDao implements Diagnosable {
      */
     @Nonnull
     @Override
-    public List<String> collectDiags() throws DiagnosticsException {
+    public Stream<String> collectDiagsStream() {
         final List<Scenario> scenarios = getScenarios();
 
         logger.info("Collecting diagnostics for {} scenarios", scenarios.size());
-        return scenarios.stream().map(scenario -> GSON.toJson(scenario, Scenario.class))
-            .collect(Collectors.toList());
+        return scenarios.stream()
+            .map(scenario -> GSON.toJson(scenario, Scenario.class));
     }
 
     /**
@@ -147,7 +148,7 @@ public class ScenarioDao implements Diagnosable {
      * scenarios from diagnostics.
      *
      * @param collectedDiags The diags collected from a previous call to
-     *      {@link Diagnosable#collectDiags()}. Must be in the same order.
+     *      {@link Diagnosable#collectDiagsStream()}. Must be in the same order.
      * @throws DiagnosticsException if the db already contains scenarios, or in response
      *                              to any errors that may occur deserializing or restoring a
      *                              scenario.

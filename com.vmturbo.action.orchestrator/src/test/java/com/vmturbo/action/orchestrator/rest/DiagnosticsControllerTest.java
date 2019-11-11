@@ -1,11 +1,21 @@
 package com.vmturbo.action.orchestrator.rest;
 
+import static org.mockito.Mockito.mock;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 import java.io.ByteArrayOutputStream;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
 import java.util.zip.ZipOutputStream;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.gson.Gson;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -35,18 +45,14 @@ import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.gson.Gson;
-
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.diagnostics.ActionOrchestratorDiagnostics;
 import com.vmturbo.action.orchestrator.diagnostics.ActionOrchestratorDiagnosticsTest;
 import com.vmturbo.action.orchestrator.diagnostics.DiagnosticsController;
-import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.diagnostics.DiagnosticsController.RestoreResponse;
+import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.store.ActionFactory;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
@@ -55,13 +61,7 @@ import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.components.common.DiagnosticsWriter;
-
-import static org.mockito.Mockito.mock;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
 
 /**
  * Tests for the {@link DiagnosticsController}. Mainly to test
@@ -119,7 +119,7 @@ public class DiagnosticsControllerTest {
         @Bean
         public ActionOrchestratorDiagnostics diagnostics() {
             return Mockito.spy(new ActionOrchestratorDiagnostics(actionStorehouse(),
-                    actionFactory(), diagnosticsWriter(), actionModeCalculator()));
+                    diagnosticsWriter(), actionModeCalculator()));
         }
 
         @Bean
@@ -226,7 +226,7 @@ public class DiagnosticsControllerTest {
         final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         final ZipOutputStream zipOutputStream = new ZipOutputStream(byteArrayOutputStream);
         diagnosticsWriter.writeZipEntry(ActionOrchestratorDiagnostics.SERIALIZED_FILE_NAME,
-                Collections.singletonList(wrongJson), zipOutputStream);
+                Stream.of(wrongJson), zipOutputStream);
         zipOutputStream.close();
 
         final MvcResult postResult = mockMvc.perform(post("/internal-state")
@@ -253,7 +253,8 @@ public class DiagnosticsControllerTest {
 
         final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         final ZipOutputStream zipOutputStream = new ZipOutputStream(byteArrayOutputStream);
-        diagnosticsWriter.writeZipEntry(ActionOrchestratorDiagnostics.SERIALIZED_FILE_NAME, Collections.singletonList(wrongJson), zipOutputStream);
+        diagnosticsWriter.writeZipEntry(ActionOrchestratorDiagnostics.SERIALIZED_FILE_NAME,
+            Stream.of(wrongJson), zipOutputStream);
         zipOutputStream.close();
 
         final MvcResult postResult = mockMvc.perform(post("/internal-state")

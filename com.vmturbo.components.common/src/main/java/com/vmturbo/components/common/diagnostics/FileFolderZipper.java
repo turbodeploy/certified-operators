@@ -1,4 +1,4 @@
-package com.vmturbo.components.common;
+package com.vmturbo.components.common.diagnostics;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -10,14 +10,16 @@ import java.nio.file.Paths;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-import com.google.common.io.ByteStreams;
+import javax.annotation.Nonnull;
+
+import org.apache.commons.io.IOUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
  * Dump all the files in a given folder into a ZipOutputStream. The file path for each file in
  * the zip will be prefixed with a base folder name. The ZipOutputStream will be
- * {@link ZipOutputStream#finished}, which means the underlying stream will <em>not</em> be closed.
+ * {@link ZipOutputStream#}, which means the underlying stream will <em>not</em> be closed.
  */
 public class FileFolderZipper {
     /**
@@ -36,8 +38,9 @@ public class FileFolderZipper {
      * @param src           the source directory from which files will be zipped
      * @throws IOException if an I/O error occurs
      */
-    public void zipFilesInFolder(String basePath, ZipOutputStream diagnosticZip,
-                                 Path src)
+    public void zipFilesInFolder(@Nonnull String basePath,
+                                 @Nonnull ZipOutputStream diagnosticZip,
+                                 @Nonnull Path src)
             throws IOException {
         try (DirectoryStream<Path> paths = Files.newDirectoryStream(src)) {
             for (Path diagnosticFilePath : paths) {
@@ -47,21 +50,19 @@ public class FileFolderZipper {
                 String zipFilePath = basePath + "/" + srcName;
                 logger_.debug("adding zip file entry for: " + zipFilePath);
 
-                // Handle the directory.
                 if (diagnosticFilePath.toFile().isDirectory()) {
+                    // recursively handle the directory.
+                    logger_.info("recurse into directory {}", Paths.get(srcPath));
                     zipFilesInFolder(zipFilePath, diagnosticZip, Paths.get(srcPath));
-                    continue;
-                }
-
-                try {
+                } else {
+                    // handle a single file
                     diagnosticZip.putNextEntry(new ZipEntry(zipFilePath));
                     try (FileInputStream diagnosticFile = new FileInputStream(srcPath)) {
-                        ByteStreams.copy(diagnosticFile, diagnosticZip);
+                        IOUtils.copy(diagnosticFile, diagnosticZip);
+                        diagnosticZip.closeEntry();
                     } catch (IOException e) {
                         logger_.error("Unable to add " + fPath + " to archive", e);
                     }
-                } finally {
-                    diagnosticZip.closeEntry();
                 }
             }
         }

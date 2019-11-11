@@ -18,7 +18,6 @@ import static org.mockito.Mockito.when;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -26,6 +25,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
@@ -37,8 +37,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.gson.Gson;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -69,9 +67,9 @@ import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.components.common.DiagnosticsWriter;
+import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
-import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.identity.store.PersistentIdentityStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
@@ -137,7 +135,6 @@ import com.vmturbo.topology.processor.scheduling.TargetDiscoverySchedule;
 import com.vmturbo.topology.processor.targets.InvalidTargetException;
 import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.Target;
-import com.vmturbo.topology.processor.targets.TargetDeserializationException;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -148,8 +145,6 @@ import com.vmturbo.topology.processor.util.Probes;
  *
  */
 public class TopologyProcessorDiagnosticsHandlerTest {
-
-    private static final Logger logger = LogManager.getLogger();
 
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
 
@@ -188,7 +183,6 @@ public class TopologyProcessorDiagnosticsHandlerTest {
     private final Map<Long, Map<DeploymentProfileInfo, Set<EntityProfileDTO>>> discoveredProfileMap
         = new HashMap<>();
     private final Map<Long, ProbeInfo> probeMap = new HashMap<>();
-    private final List<String> identifierDiags = new ArrayList<>();
 
     private static final String DISCOVERED_CLOUD_COST = "foo";
     private static final String DISCOVERED_PRICE_TABLE = "bar";
@@ -208,9 +202,10 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         doReturn(discoveredProfileMap).when(templateDeploymentProfileUploader)
             .getDiscoveredDeploymentProfilesByTarget();
         when(probeStore.getProbes()).thenReturn(probeMap);
-        when(targetPersistentIdentityStore.collectDiags()).thenReturn(identifierDiags);
-        when(discoveredCloudCostUploader.collectDiags()).thenReturn(Collections.singletonList(DISCOVERED_CLOUD_COST));
-        when(priceTableUploader.collectDiags()).thenReturn(Collections.singletonList(DISCOVERED_PRICE_TABLE));
+        when(identityProvider.collectDiagsStream()).thenReturn(Stream.of());
+        when(targetPersistentIdentityStore.collectDiagsStream()).thenReturn(Stream.of());
+        when(discoveredCloudCostUploader.collectDiagsStream()).thenReturn(Stream.of(DISCOVERED_CLOUD_COST));
+        when(priceTableUploader.collectDiagsStream()).thenReturn(Stream.of(DISCOVERED_PRICE_TABLE));
     }
 
     private ZipInputStream dumpDiags() throws IOException {
@@ -278,7 +273,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
 
     @Test
     public void testTargetSecretFields()
-            throws InvalidTargetException, IOException {
+        throws InvalidTargetException, IOException, DiagnosticsException {
         final long targetId = 1;
         final long probeId = 2;
 
@@ -312,7 +307,8 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             .withTarget(new Target(targetId, probeStore, targetSpec, true));
 
         targets.add(withSecretFields.target);
-        identifierDiags.add("test diags");
+
+        when(targetPersistentIdentityStore.collectDiagsStream()).thenReturn(Stream.of("persistent-identities"));
 
         final ZipInputStream zis = dumpDiags();
 
@@ -327,6 +323,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
 
         ze = zis.getNextEntry();
         assertEquals("Target.identifiers.diags", ze.getName());
+        bytes = new byte[1024];
         assertNotEquals(-1, zis.read(bytes));
 
         ze = zis.getNextEntry();
@@ -340,7 +337,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
 
     @Test
     public void testRestoreTargetsInvalidJson()
-        throws IOException, TargetDeserializationException, InvalidTargetException, IdentityStoreException, TargetNotFoundException {
+        throws InvalidTargetException, TargetNotFoundException {
         final long targetId = 1;
         final TargetInfo validTarget = TargetInfo.newBuilder()
                 .setId(targetId)

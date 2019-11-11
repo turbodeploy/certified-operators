@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -98,7 +99,7 @@ public class DiscoveredCloudCostUploaderTest {
 
         final Map<Long, TargetCostData> originalMap = cloudCostUploader.getCostDataByTargetIdSnapshot();
 
-        List<String> diags = cloudCostUploader.collectDiags();
+        List<String> diags = cloudCostUploader.collectDiagsStream().collect(Collectors.toList());
 
         final DiscoveredCloudCostUploader newUploader =
             new DiscoveredCloudCostUploader(riCostDataUploader, accountExpensesUploader, priceTableUploader, targetStore);

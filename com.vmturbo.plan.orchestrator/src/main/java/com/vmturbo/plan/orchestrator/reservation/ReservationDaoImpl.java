@@ -15,18 +15,19 @@ import java.util.Set;
 import java.util.TimeZone;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.gson.Gson;
+import com.google.gson.JsonParseException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.gson.Gson;
-import com.google.gson.JsonParseException;
 
 import com.vmturbo.common.protobuf.plan.ReservationDTO;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
@@ -395,12 +396,11 @@ public class ReservationDaoImpl implements ReservationDao {
      */
     @Nonnull
     @Override
-    public List<String> collectDiags() throws DiagnosticsException {
+    public Stream<String> collectDiagsStream() throws DiagnosticsException {
         final Set<ReservationDTO.Reservation> reservations = getAllReservations();
         logger.info("Collecting diagnostics for {} reservations", reservations.size());
         return reservations.stream()
-            .map(reservation -> GSON.toJson(reservation, ReservationDTO.Reservation.class))
-            .collect(Collectors.toList());
+            .map(reservation -> GSON.toJson(reservation, ReservationDTO.Reservation.class));
     }
 
     /**
@@ -410,7 +410,7 @@ public class ReservationDaoImpl implements ReservationDao {
      * serialized reservations from diagnostics.
      *
      * @param collectedDiags The diags collected from a previous call to
-     *      {@link Diagnosable#collectDiags()}. Must be in the same order.
+     *      {@link Diagnosable#collectDiagsStream()}. Must be in the same order.
      * @throws DiagnosticsException if the db already contains reservations, or in response
      *                              to any errors that may occur deserializing or restoring a
      *                              reservation.

@@ -116,7 +116,7 @@ public class PlanProjectDaoImplTest {
         planProjectDao.createPlanProject(planProjectInfo1);
         planProjectDao.createPlanProject(planProjectInfo2);
 
-        final List<String> result = planProjectDao.collectDiags();
+        final List<String> result = planProjectDao.collectDiagsStream().collect(Collectors.toList());
         final List<String> expected = planProjectDao.getAllPlanProjects().stream()
             .map(project -> PlanProjectDaoImpl.GSON.toJson(project, PlanProject.class))
             .collect(Collectors.toList());

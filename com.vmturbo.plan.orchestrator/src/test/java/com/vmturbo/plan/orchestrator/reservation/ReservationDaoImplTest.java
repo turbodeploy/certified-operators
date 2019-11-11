@@ -294,7 +294,7 @@ public class ReservationDaoImplTest {
             reservationDao.createReservation(createReservationWithTemplate(testFirstReservation));
         Reservation createdSecondReservation =
             reservationDao.createReservation(createReservationWithTemplate(testSecondReservation));
-        final List<String> result = reservationDao.collectDiags();
+        final List<String> result = reservationDao.collectDiagsStream().collect(Collectors.toList());
 
         final List<String> expected = Stream.of(createdFirstReservation, createdSecondReservation)
             .map(profile -> ReservationDaoImpl.GSON.toJson(profile, Reservation.class))

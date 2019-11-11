@@ -19,6 +19,7 @@ import com.google.common.collect.Sets;
 
 import io.grpc.Status;
 
+import org.assertj.core.util.Lists;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.junit.Assert;
@@ -661,7 +662,8 @@ public class GroupDaoTest {
         final Collection<GroupDTO.Grouping> allGroups1 =
                 groupStore.getGroups(GroupDTO.GroupFilter.newBuilder().build());
         Assert.assertEquals(4, allGroups1.size());
-        final List<String> dumpedData = groupStore.collectDiags();
+        final List<String> dumpedData = groupStore.collectDiagsStream()
+            .collect(Collectors.toList());
 
         groupStore.deleteGroup(oid1);
         groupStore.updateDiscoveredGroups(Collections.singleton(groupNew), Collections.emptyList(),

@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
 
@@ -263,7 +264,7 @@ public class TemplatesDaoImplTest {
         final List<Template> expected = Arrays.asList(foo, bar);
 
 
-        final List<String> diags = templatesDao.collectDiags();
+        final List<String> diags = templatesDao.collectDiagsStream().collect(Collectors.toList());
         System.out.println(diags);
         assertEquals(2, diags.size());
 

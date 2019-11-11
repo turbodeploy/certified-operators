@@ -1,13 +1,13 @@
 package com.vmturbo.group.policy;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -247,7 +247,7 @@ public class PolicyStore implements Diagnosable {
                             .where(Tables.POLICY_GROUP.GROUP_ID.eq(groupId))
                             .fetch()
                             .stream()
-                            .map(r -> new Pair<Long, Long>(r.get(Tables.POLICY_GROUP.POLICY_ID),
+                            .map(r -> new Pair<>(r.get(Tables.POLICY_GROUP.POLICY_ID),
                                     r.get(Tables.POLICY.DISCOVERED_BY_ID)))
                             .collect(Collectors.toList());
             for (final Pair<Long, Long> policyInfo : associatedPolicies) {
@@ -323,12 +323,12 @@ public class PolicyStore implements Diagnosable {
      */
     @Nonnull
     @Override
-    public List<String> collectDiags() throws DiagnosticsException {
+    public Stream<String> collectDiagsStream() throws DiagnosticsException {
         final Collection<PolicyDTO.Policy> policies = getAll();
         logger.info("Collected diags for {} policies.", policies.size());
 
-        return Collections.singletonList(ComponentGsonFactory
-            .createGsonNoPrettyPrint().toJson(policies));
+        return Stream.of(ComponentGsonFactory.createGsonNoPrettyPrint()
+            .toJson(policies));
     }
 
     /**
@@ -336,7 +336,7 @@ public class PolicyStore implements Diagnosable {
      * Restore policies to the {@link PolicyStore} from the collected diags.
      *
      * @param collectedDiags The diags collected from a previous call to
-     *      {@link Diagnosable#collectDiags()}. Must be in the same order.
+     *      {@link Diagnosable#collectDiagsStream()}. Must be in the same order.
      * @throws DiagnosticsException If there is a problem writing the policies
      *         to the store.
      */

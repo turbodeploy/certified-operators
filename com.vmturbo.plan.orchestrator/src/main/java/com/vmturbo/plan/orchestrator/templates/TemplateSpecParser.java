@@ -5,20 +5,20 @@ import java.io.InputStream;
 import java.lang.reflect.Type;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-
-import org.apache.commons.io.IOUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 import com.google.gson.reflect.TypeToken;
+
+import org.apache.commons.io.IOUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpec;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -78,9 +78,9 @@ public class TemplateSpecParser implements Diagnosable {
      */
     @Nonnull
     @Override
-    public List<String> collectDiags() throws DiagnosticsException {
+    public Stream<String> collectDiagsStream() {
         log.info("Collecting diagnostics for map of {} template specs", getTemplateSpecMap().size());
-        return Collections.singletonList(GSON.toJson(getTemplateSpecMap(), TYPE));
+        return Stream.of(GSON.toJson(getTemplateSpecMap(), TYPE));
     }
 
     /**
@@ -91,7 +91,7 @@ public class TemplateSpecParser implements Diagnosable {
      * if the correct diags file is being read.
      *
      * @param collectedDiags The diags collected from a previous call to
-     *      {@link Diagnosable#collectDiags()}. Must be in the same order.
+     *      {@link Diagnosable#collectDiagsStream()}. Must be in the same order.
      * @throws DiagnosticsException if template specs are already present, or in response
      *                              to any errors that may occur deserializing or restoring the
      *                              template spec map.

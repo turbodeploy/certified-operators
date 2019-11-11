@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.persistence.Column;
@@ -131,20 +132,20 @@ public class PersistentTargetSpecIdentityStore implements PersistentIdentityStor
     }
 
     @Override
-    public List<String> collectDiags() throws DiagnosticsException {
+    @Nonnull
+    public Stream<String> collectDiagsStream() throws DiagnosticsException {
         try {
             return fetchAllOidMappings().entrySet().stream()
                     .map(entry -> new TargetSpecHeader(entry.getValue(),
                             serializeTargetSpecIdentityMatchingAttrs(entry.getKey())))
-                    .map(targetSpecHeader -> GSON.toJson(targetSpecHeader, TargetSpecHeader.class))
-                    .collect(Collectors.toList());
+                    .map(targetSpecHeader -> GSON.toJson(targetSpecHeader, TargetSpecHeader.class));
         } catch (IdentityStoreException e) {
             throw new DiagnosticsException("Retrieving target identifiers from database failed. " + e);
         }
     }
 
     @Override
-    public void restoreDiags(List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull List<String> collectedDiags) throws DiagnosticsException {
         dsl.transaction(configuration -> {
             final Map<IdentityMatchingAttributes, Long> attrToOidMap = Maps.newHashMap();
             try {
@@ -197,7 +198,7 @@ public class PersistentTargetSpecIdentityStore implements PersistentIdentityStor
      * A DB Bean to represent the unique columns for a target spec item header.
      * This includes the unique id and the identity matching attributes.
      */
-    private static class TargetSpecHeader {
+    public static class TargetSpecHeader {
 
         @Column(name = "ID")
         public long id;

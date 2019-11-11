@@ -11,6 +11,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -382,7 +383,7 @@ public class GlobalSupplyChain implements Diagnosable {
 
     @Nonnull
     @Override
-    public List<String> collectDiags() {
+    public Stream<String> collectDiagsStream() {
         List<String> diagsJson = new ArrayList<>();
         diagsJson.add(ComponentGsonFactory.createGsonNoPrettyPrint()
                 .toJson(globalSupplyChainProviderRels.asMap()));
@@ -404,7 +405,7 @@ public class GlobalSupplyChain implements Diagnosable {
         diagsJson.add(ComponentGsonFactory.createGsonNoPrettyPrint()
                 .toJson(oidToEntityInfoMap));
 
-        return diagsJson;
+        return diagsJson.stream();
     }
 
     @Override

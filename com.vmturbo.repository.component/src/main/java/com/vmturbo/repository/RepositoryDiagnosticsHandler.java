@@ -28,7 +28,7 @@ import org.springframework.web.client.RestTemplate;
 
 import com.vmturbo.arangodb.tool.ArangoDump;
 import com.vmturbo.arangodb.tool.ArangoRestore;
-import com.vmturbo.components.common.DiagnosticsWriter;
+import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.Diags;
@@ -159,7 +159,7 @@ public class RepositoryDiagnosticsHandler {
         logger.info("Dumping topology IDs and database names");
         try {
             diagnosticsWriter.writeZipEntry(ID_MGR_FILE,
-                    topologyLifecycleManager.collectDiags(), diagnosticZip);
+                topologyLifecycleManager.collectDiagsStream(), diagnosticZip);
         } catch (DiagnosticsException e) {
             errors.addAll(e.getErrors());
         }
@@ -198,7 +198,7 @@ public class RepositoryDiagnosticsHandler {
                 logger.info("Dumping global supply chain");
                 try {
                     diagnosticsWriter.writeZipEntry(GLOBAL_SUPPLY_CHAIN_DIAGS_FILE,
-                        globalSupplyChain.get().collectDiags(), diagnosticZip);
+                        globalSupplyChain.get().collectDiagsStream(), diagnosticZip);
                 } catch (DiagnosticsException e) {
                     errors.addAll(e.getErrors());
                 }
@@ -249,7 +249,7 @@ public class RepositoryDiagnosticsHandler {
 
         if (!errors.isEmpty()) {
             try {
-                diagnosticsWriter.writeZipEntry(ERRORS_FILE, errors, diagnosticZip);
+                diagnosticsWriter.writeZipEntry(ERRORS_FILE, errors.stream(), diagnosticZip);
             } catch (DiagnosticsException e) {
                 logger.error("Error writing {}: errors: {}", ERRORS_FILE, errors, e);
             }

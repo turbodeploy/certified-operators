@@ -9,7 +9,7 @@
     <context:annotation-config />
 
     <!-- the object under test: DiagnosticService -->
-    <bean id="diagnosticService" class="com.vmturbo.components.common.DiagnosticService"/>
+    <bean id="diagnosticService" class="com.vmturbo.components.common.diagnostics.DiagnosticService"/>
 
     <bean id="theComponent" class="org.mockito.Mockito" factory-method="mock">
         <constructor-arg value="com.vmturbo.components.common.IVmtComponent"/>
@@ -24,9 +24,9 @@
     </bean>
 
     <bean id="mockFileFolderZipper" class="org.mockito.Mockito" factory-method="mock">
-        <constructor-arg value="com.vmturbo.components.common.FileFolderZipper"/>
+        <constructor-arg value="com.vmturbo.components.common.diagnostics.FileFolderZipper"/>
     </bean>
 
-    <bean name="testconfig" class="com.vmturbo.components.common.PropertyTestConfiguration"/>
+    <bean name="testconfig" class="com.vmturbo.components.common.diagnostics.PropertyTestConfiguration"/>
 
 </beans>

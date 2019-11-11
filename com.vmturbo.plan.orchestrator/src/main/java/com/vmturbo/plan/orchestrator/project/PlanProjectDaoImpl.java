@@ -8,8 +8,13 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.gson.Gson;
+import com.google.gson.JsonParseException;
 
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
@@ -17,16 +22,9 @@ import org.jooq.impl.DSL;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.gson.Gson;
-import com.google.gson.JsonParseException;
-
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
-import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoRequest;
-import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
-import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -176,12 +174,11 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
      */
     @Nonnull
     @Override
-    public List<String> collectDiags() throws DiagnosticsException {
+    public Stream<String> collectDiagsStream() {
         final List<PlanDTO.PlanProject> planProjects = getAllPlanProjects();
         logger.info("Collecting diagnostics for {} plan projects", planProjects.size());
         return planProjects.stream()
-            .map(planProject -> GSON.toJson(planProject, PlanDTO.PlanProject.class))
-            .collect(Collectors.toList());
+            .map(planProject -> GSON.toJson(planProject, PlanDTO.PlanProject.class));
     }
 
     /**
@@ -191,7 +188,7 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
      * serialized plan projects from diagnostics.
      *
      * @param collectedDiags The diags collected from a previous call to
-     *      {@link Diagnosable#collectDiags()}. Must be in the same order.
+     *      {@link Diagnosable#collectDiagsStream()}. Must be in the same order.
      * @throws DiagnosticsException if the db already contains plan projects, or in response
      *                              to any errors that may occur deserializing or restoring a
      *                              plan project.

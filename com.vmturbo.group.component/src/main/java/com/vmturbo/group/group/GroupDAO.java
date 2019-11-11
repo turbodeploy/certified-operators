@@ -1281,7 +1281,7 @@ public class GroupDAO implements IGroupStore, Diagnosable {
      */
     @Nonnull
     @Override
-    public List<String> collectDiags() throws DiagnosticsException {
+    public Stream<String> collectDiagsStream() throws DiagnosticsException {
         try {
             final Collection<GroupDTO.Grouping> discovered = getGroups(
                     GroupDTO.GroupFilter.newBuilder()
@@ -1298,7 +1298,7 @@ public class GroupDAO implements IGroupStore, Diagnosable {
             logger.info("Collected diags for {} discovered groups and {} created groups.",
                     discovered.size(), notDiscovered.size());
 
-            return Arrays.asList(ComponentGsonFactory.createGsonNoPrettyPrint().toJson(discovered),
+            return Stream.of(ComponentGsonFactory.createGsonNoPrettyPrint().toJson(discovered),
                     ComponentGsonFactory.createGsonNoPrettyPrint().toJson(notDiscovered));
         } catch (DataAccessException e) {
             throw new DiagnosticsException(e);

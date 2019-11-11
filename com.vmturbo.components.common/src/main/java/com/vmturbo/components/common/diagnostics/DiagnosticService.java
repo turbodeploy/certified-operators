@@ -1,4 +1,4 @@
-package com.vmturbo.components.common;
+package com.vmturbo.components.common.diagnostics;
 
 import java.io.File;
 import java.io.IOException;
@@ -11,6 +11,7 @@ import java.util.Comparator;
 import java.util.zip.ZipOutputStream;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.commons.io.IOUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,7 +28,7 @@ public class DiagnosticService {
     /**
      * The logger.
      */
-    Logger logger_ = LogManager.getLogger(DiagnosticService.class);
+    private Logger logger_ = LogManager.getLogger(DiagnosticService.class);
 
     /**
      * The pre-set diags URL
@@ -35,7 +36,7 @@ public class DiagnosticService {
     private static final String DIAGS_URL = "http://127.128.129.130:58888/diags";
 
     /**
-     * The time to wait for the diags to be collected.
+     * The time to wait for the diags to be collected = 30 minutes
      */
     private static final int DIAGS_WAIT_SEC = 30 * 60;
 
@@ -71,7 +72,7 @@ public class DiagnosticService {
      *                     available.
      */
     @VisibleForTesting
-    boolean getDiags() throws IOException {
+    boolean getSystemDiags() throws IOException {
         URL url = new URL(DIAGS_URL);
         URLConnection connection = null;
         try {
@@ -104,15 +105,16 @@ public class DiagnosticService {
      * resulting files from the predefined temp folder onto a ZipOutputStream.
      *
      * @param diagnosticZip zip output stream that the individual files are written onto
+     * @throws DiagnosticsException if there is an error writing data to the diagnostics zip stream
      */
-    void dumpDiags(ZipOutputStream diagnosticZip) {
+    public void dumpSystemDiags(ZipOutputStream diagnosticZip) throws DiagnosticsException {
         Path diagsDir = Paths.get(DIAGS_DIRECTORY);
         // zip files in the temp directory onto the diagnosticZip stream
         try {
-            getDiags();
+            getSystemDiags();
             // We've collected all diagnostics, now zip and ship.
             fileFolderZipper.zipFilesInFolder(instanceId, diagnosticZip, diagsDir);
-            diagnosticZip.finish();
+
             // Delete the results if they are available.
             // During the testing they will not be.
             if (!Files.isDirectory(diagsDir)) {
@@ -125,7 +127,8 @@ public class DiagnosticService {
                  .peek(s -> logger_.info("File/Directory {} is being deleted", s))
                  .forEach(File::delete);
         } catch (IOException e) {
-            throw new RuntimeException(
+            logger_.error("Error zipping temp diag files", e);
+            throw new DiagnosticsException(
                     "Error zipping temp diagnostic files onto diagnosticZip stream", e);
         }
     }

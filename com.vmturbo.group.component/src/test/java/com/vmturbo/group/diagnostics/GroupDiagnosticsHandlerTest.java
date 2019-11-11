@@ -2,9 +2,9 @@ package com.vmturbo.group.diagnostics;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -18,6 +18,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
@@ -26,12 +28,13 @@ import io.prometheus.client.CollectorRegistry;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 
-import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.Diags;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
@@ -75,25 +78,29 @@ public class GroupDiagnosticsHandlerTest {
         final ZipOutputStream zos = mock(ZipOutputStream.class);
         handler.dump(zos);
 
+        ArgumentCaptor<Stream> streamArg = ArgumentCaptor.forClass(Stream.class);
         verify(diagnosticsWriter).writeZipEntry(eq(GroupDiagnosticsHandler.GROUPS_DUMP_FILE),
-            eq(groupLines), eq(zos));
+            streamArg.capture(), eq(zos));
+        assertEquals(groupLines, streamArg.getValue().collect(Collectors.toList()));
         verify(diagnosticsWriter).writeZipEntry(eq(GroupDiagnosticsHandler.POLICIES_DUMP_FILE),
-            eq(policyLines), eq(zos));
+            streamArg.capture(), eq(zos));
+        assertEquals(policyLines, streamArg.getValue().collect(Collectors.toList()));
         verify(diagnosticsWriter).writeZipEntry(eq(GroupDiagnosticsHandler.SETTINGS_DUMP_FILE),
-            eq(settingLines), eq(zos));
+            streamArg.capture(), eq(zos));
+        assertEquals(settingLines, streamArg.getValue().collect(Collectors.toList()));
         verify(diagnosticsWriter).writePrometheusMetrics(any(CollectorRegistry.class),
             eq(zos));
         verify(diagnosticsWriter, times(0)).writeZipEntry(
-            eq(GroupDiagnosticsHandler.ERRORS_FILE), anyList(), any());
+            eq(GroupDiagnosticsHandler.ERRORS_FILE), any(Stream.class), any());
     }
 
     @Test
     public void testDumpException() throws DiagnosticsException {
         setupDump();
 
-        when(groupStore.collectDiags())
+        when(groupStore.collectDiagsStream())
             .thenThrow(new DiagnosticsException(Collections.singletonList("GROUP ERRORS")));
-        when(policyStore.collectDiags())
+        when(policyStore.collectDiagsStream())
             .thenThrow(new DiagnosticsException(Collections.singletonList("POLICY ERRORS")));
 
         final GroupDiagnosticsHandler handler =
@@ -106,18 +113,21 @@ public class GroupDiagnosticsHandlerTest {
 
         // Group Dump file shouldn't get written.
         verify(diagnosticsWriter, never())
-            .writeZipEntry(eq(GroupDiagnosticsHandler.GROUPS_DUMP_FILE), anyList(), eq(zos));
+            .writeZipEntry(eq(GroupDiagnosticsHandler.GROUPS_DUMP_FILE), any(Stream.class), eq(zos));
 
         // Policy Dump file shouldn't get written.
         verify(diagnosticsWriter, never())
-            .writeZipEntry(eq(GroupDiagnosticsHandler.GROUPS_DUMP_FILE), anyList(), eq(zos));
+            .writeZipEntry(eq(GroupDiagnosticsHandler.GROUPS_DUMP_FILE), any(Stream.class), eq(zos));
 
         // Setting Dump file SHOULD get written because it does not generate errors.
+        ArgumentCaptor<Stream> streamArg = ArgumentCaptor.forClass(Stream.class);
         verify(diagnosticsWriter).writeZipEntry(eq(GroupDiagnosticsHandler.SETTINGS_DUMP_FILE),
-            eq(settingLines), eq(zos));
+            streamArg.capture(), eq(zos));
+        assertEquals(settingLines, streamArg.getValue().collect(Collectors.toList()));
 
         verify(diagnosticsWriter).writeZipEntry(
-            eq(GroupDiagnosticsHandler.ERRORS_FILE), eq(errors), eq(zos));
+            eq(GroupDiagnosticsHandler.ERRORS_FILE), streamArg.capture(), eq(zos));
+        assertEquals(errors, streamArg.getValue().collect(Collectors.toList()));
     }
 
     @Test
@@ -160,9 +170,9 @@ public class GroupDiagnosticsHandlerTest {
      * throw an exception) can do that setup after calling this method.
      */
     private void setupDump() throws DiagnosticsException {
-        doReturn(groupLines).when(groupStore).collectDiags();
-        doReturn(policyLines).when(policyStore).collectDiags();
-        doReturn(settingLines).when(settingStore).collectDiags();
+        doReturn(groupLines.stream()).when(groupStore).collectDiagsStream();
+        doReturn(policyLines.stream()).when(policyStore).collectDiagsStream();
+        doReturn(settingLines.stream()).when(settingStore).collectDiagsStream();
     }
 
     private void setupRestore(Diags diags, Diags... otherDiags) {

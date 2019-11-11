@@ -3,12 +3,12 @@ package com.vmturbo.action.orchestrator.diagnostics;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
@@ -30,13 +30,12 @@ import com.vmturbo.action.orchestrator.action.Action.SerializationState;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
-import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.InvalidRestoreInputException;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
 
 /**
  * Represents the diagnostics of the action
@@ -55,18 +54,14 @@ public class ActionOrchestratorDiagnostics {
 
     private final ActionStorehouse actionStorehouse;
 
-    private final IActionFactory actionFactory;
-
     private final DiagnosticsWriter diagnosticsWriter;
 
     private final ActionModeCalculator actionModeCalculator;
 
     public ActionOrchestratorDiagnostics(@Nonnull final ActionStorehouse actionStorehouse,
-                                         @Nonnull final IActionFactory actionFactory,
                                          @Nonnull final DiagnosticsWriter diagnosticsWriter,
                                          @Nonnull final ActionModeCalculator actionModeCalculator) {
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
-        this.actionFactory = Objects.requireNonNull(actionFactory);
         this.diagnosticsWriter = Objects.requireNonNull(diagnosticsWriter);
         this.actionModeCalculator = Objects.requireNonNull(actionModeCalculator);
     }
@@ -84,16 +79,15 @@ public class ActionOrchestratorDiagnostics {
                 .map(entry -> {
                     final Long topologyContextId = entry.getKey();
                     final ActionStore actionStore = entry.getValue();
-
                     return new ActionStoreData(topologyContextId, actionStore);
                 }).collect(Collectors.toList())
         );
-
         try {
             diagnosticsWriter.writeZipEntry(SERIALIZED_FILE_NAME,
-                Collections.singletonList(GSON.toJson(storehouseData)),
+                Stream.of(storehouseData), ActionStorehouseData.class,
                 zipOutputStream);
-            diagnosticsWriter.writePrometheusMetrics(CollectorRegistry.defaultRegistry, zipOutputStream);
+            diagnosticsWriter.writePrometheusMetrics(CollectorRegistry.defaultRegistry,
+                zipOutputStream);
         } catch (DiagnosticsException e) {
             logger.error("Dump diags error:", e);
         }

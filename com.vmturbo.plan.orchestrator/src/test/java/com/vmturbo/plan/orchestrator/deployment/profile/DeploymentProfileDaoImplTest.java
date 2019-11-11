@@ -218,7 +218,8 @@ public class DeploymentProfileDaoImplTest {
         DeploymentProfile first = deploymentProfileDao.createDeploymentProfile(firstInfo);
         DeploymentProfile second = deploymentProfileDao.createDeploymentProfile(secondInfo);
 
-        final List<String> result = deploymentProfileDao.collectDiags();
+        final List<String> result = deploymentProfileDao.collectDiagsStream()
+            .collect(Collectors.toList());
         final List<String> expected = Stream.of(first, second)
             .map(profile -> DeploymentProfileDaoImpl.GSON.toJson(profile, DeploymentProfile.class))
             .collect(Collectors.toList());

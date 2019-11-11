@@ -6,7 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
-import com.vmturbo.components.common.DiagnosticsWriter;
+import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
 
 /**
  * The Diagnostics package deals with dumping and restoring
@@ -24,7 +24,7 @@ public class ActionOrchestratorDiagnosticsConfig {
     @Bean
     public ActionOrchestratorDiagnostics diagnostics() {
         return new ActionOrchestratorDiagnostics(storeConfig.actionStorehouse(),
-                storeConfig.actionFactory(), diagnosticsWriter(), storeConfig.actionModeCalculator());
+                diagnosticsWriter(), storeConfig.actionModeCalculator());
     }
 
     @Bean

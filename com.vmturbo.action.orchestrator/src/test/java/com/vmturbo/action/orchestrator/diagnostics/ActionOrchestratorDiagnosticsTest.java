@@ -53,7 +53,7 @@ import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
-import com.vmturbo.components.common.DiagnosticsWriter;
+import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
 
 /**
  * Unit tests for {@link ActionOrchestratorDiagnostics}.
@@ -68,7 +68,7 @@ public class ActionOrchestratorDiagnosticsTest {
     private final IActionStoreFactory storeFactory = mock(IActionStoreFactory.class);
     private final DiagnosticsWriter diagnosticsWriter = Mockito.spy(new DiagnosticsWriter());
     private final ActionOrchestratorDiagnostics diagnostics =
-            new ActionOrchestratorDiagnostics(actionStorehouse, actionFactory, diagnosticsWriter, actionModeCalculator);
+            new ActionOrchestratorDiagnostics(actionStorehouse, diagnosticsWriter, actionModeCalculator);
     private final long realtimeTopologyContextId = 1234L;
 
     @Captor

@@ -11,6 +11,8 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 
 import com.vmturbo.common.protobuf.logging.LoggingREST.LogConfigurationServiceController;
 import com.vmturbo.common.protobuf.logging.LoggingREST.TracingConfigurationServiceController;
+import com.vmturbo.components.common.diagnostics.DiagnosticService;
+import com.vmturbo.components.common.diagnostics.FileFolderZipper;
 import com.vmturbo.components.common.health.DeadlockHealthMonitor;
 import com.vmturbo.components.common.health.MemoryMonitor;
 import com.vmturbo.components.common.logging.LogConfigurationService;

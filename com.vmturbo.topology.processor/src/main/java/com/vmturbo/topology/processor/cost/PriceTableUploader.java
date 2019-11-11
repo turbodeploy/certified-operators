@@ -10,11 +10,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -22,12 +20,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ArrayListMultimap;
@@ -36,6 +31,10 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
 import io.grpc.stub.StreamObserver;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableChecksumRequest;
@@ -78,7 +77,7 @@ public class PriceTableUploader implements Diagnosable {
 
     private static final Logger logger = LogManager.getLogger();
 
-    protected static final DataMetricSummary PRICE_TABLE_HASH_CALCULATION_TIME = DataMetricSummary.builder()
+    private static final DataMetricSummary PRICE_TABLE_HASH_CALCULATION_TIME = DataMetricSummary.builder()
             .withName("tp_price_table_hash_calculation_seconds")
             .withHelp("Time taken to calculate the hash code for a potential price table upload.")
             .build()
@@ -526,25 +525,41 @@ public class PriceTableUploader implements Diagnosable {
     }
 
     /**
-     * {@inheritDoc}
+     * Create a stream of pairs of JSON-formatted String values corresponding to the probe type and
+     * corresponding priceTable to be saved to the diagnostics file.
      */
     @Nonnull
     @Override
-    public List<String> collectDiags() throws DiagnosticsException {
-        final List<String> retList = new ArrayList<>(sourcePriceTableByProbeType.size() * 2);
+    public Stream<String> collectDiagsStream() throws DiagnosticsException {
         synchronized (sourcePriceTableByProbeType) {
             final JsonFormat.Printer printer = JsonFormat.printer().omittingInsignificantWhitespace();
-            sourcePriceTableByProbeType.forEach((probeType, priceTable) -> {
-                try {
-                    final String priceTableStr = printer.print(priceTable);
-                    retList.add(probeType.getProbeType());
-                    retList.add(priceTableStr);
-                } catch (InvalidProtocolBufferException e) {
-                    logger.error("Failed to serialize price table for probe: {}. Error: {}", probeType, e.getMessage());
-                }
-            });
+            try {
+                return sourcePriceTableByProbeType.entrySet().stream()
+                    .map(probeTypePriceTableEntry -> {
+                        final SDKProbeType probeType = probeTypePriceTableEntry.getKey();
+                        final PricingDTO.PriceTable priceTable = probeTypePriceTableEntry.getValue();
+                        try {
+                            return Stream.of(probeType.getProbeType(),
+                                printer.print(priceTable));
+                        } catch (InvalidProtocolBufferException ex) {
+                            throw new ProtoDtoPrintError("Error mapping probe type " + probeType +
+                                " priceTable " + priceTable, ex);
+                        }
+                    })
+                    .flatMap(Function.identity());
+            } catch (ProtoDtoPrintError e) {
+                throw new DiagnosticsException(e);
+            }
         }
-        return retList;
+    }
+
+    /**
+     * Private unchecked exception used to break out of the 'collectDiagsStream()' lambda above.
+     */
+    private static class ProtoDtoPrintError extends RuntimeException {
+        private ProtoDtoPrintError(String reason, Throwable t) {
+            super(reason, t);
+        }
     }
 
     /**
@@ -598,8 +613,9 @@ public class PriceTableUploader implements Diagnosable {
 
             ProbePriceData otherProbePriceData = (ProbePriceData)other;
 
-            return this.probeType == otherProbePriceData.probeType && this.priceTable == otherProbePriceData.priceTable
-                    && this.riSpecPrices == otherProbePriceData.riSpecPrices;
+            return this.probeType.equals(otherProbePriceData.probeType) &&
+                this.priceTable.equals(otherProbePriceData.priceTable)
+                    && this.riSpecPrices.equals(otherProbePriceData.riSpecPrices);
         }
 
         @Override

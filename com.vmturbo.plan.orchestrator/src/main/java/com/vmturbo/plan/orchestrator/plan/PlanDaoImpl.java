@@ -13,6 +13,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
@@ -798,14 +799,13 @@ public class PlanDaoImpl implements PlanDao {
      */
     @Nonnull
     @Override
-    public List<String> collectDiags() throws DiagnosticsException {
+    public Stream<String> collectDiagsStream() throws DiagnosticsException {
 
         final Set<PlanDTO.PlanInstance> planInstances = getAllPlanInstances();
         logger.info("Collecting diags for {} plan instances", planInstances.size());
 
         return planInstances.stream()
-            .map(planInstance -> GSON.toJson(planInstance, PlanDTO.PlanInstance.class))
-            .collect(Collectors.toList());
+            .map(planInstance -> GSON.toJson(planInstance, PlanDTO.PlanInstance.class));
     }
 
     /**

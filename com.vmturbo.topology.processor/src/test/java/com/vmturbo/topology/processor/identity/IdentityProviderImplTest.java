@@ -12,14 +12,15 @@ import java.io.Writer;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+
+import com.google.common.collect.ImmutableList;
 
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
-
-import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.kvstore.KeyValueStore;
@@ -41,7 +42,7 @@ import com.vmturbo.topology.processor.util.Probes;
  */
 public class IdentityProviderImplTest {
 
-    public static final String SAME_ID = "same-id";
+    private static final String SAME_ID = "same-id";
     @Rule
     public final ExpectedException exception = ExpectedException.none();
 
@@ -114,11 +115,14 @@ public class IdentityProviderImplTest {
 
     @Test(expected = IdentityProviderException.class)
     public void testGetProbeIdIncompatible() throws Exception {
-        long probeId = identityProvider.getProbeId(baseProbeInfo);
+        // pre-register the base probe
+        identityProvider.getProbeId(baseProbeInfo);
+        // copy the base probe and just change the category
         ProbeInfo incompatible = ProbeInfo.newBuilder(baseProbeInfo)
             .setProbeCategory("otherCat").build();
-
+        // setup the "compatible false" result
         when(compatibilityChecker.areCompatible(baseProbeInfo, incompatible)).thenReturn(false);
+        // act
         identityProvider.getProbeId(incompatible);
     }
 
@@ -307,7 +311,7 @@ public class IdentityProviderImplTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void testBadJsonRestore1() throws Exception {
+    public void testBadJsonRestore1() {
         final IdentityService identityService = mock(IdentityService.class);
         final IdentityProviderImpl providerImpl = new IdentityProviderImpl(identityService,
                 new MapKeyValueStore(), compatibilityChecker, 0);
@@ -315,7 +319,7 @@ public class IdentityProviderImplTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void testBadJsonRestore2() throws Exception {
+    public void testBadJsonRestore2() {
         final IdentityService identityService = mock(IdentityService.class);
         final IdentityProviderImpl providerImpl = new IdentityProviderImpl(identityService,
                 new MapKeyValueStore(), compatibilityChecker, 0);
@@ -323,7 +327,7 @@ public class IdentityProviderImplTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void testWrongLinesRestore() throws Exception {
+    public void testWrongLinesRestore() {
         final IdentityService identityService = mock(IdentityService.class);
         final IdentityProviderImpl providerImpl = new IdentityProviderImpl(identityService,
                 new MapKeyValueStore(), compatibilityChecker, 0);
@@ -357,7 +361,7 @@ public class IdentityProviderImplTest {
         assertEquals(entity, idMap.get(7L));
 
         // Collect the diags
-        final List<String> diags = providerImpl.collectDiags();
+        final List<String> diags = providerImpl.collectDiagsStream().collect(Collectors.toList());
         verify(identityService).backup(any(Writer.class));
 
         // Create a new provider, restore the diags, and make sure

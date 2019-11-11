@@ -6,8 +6,8 @@ import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
@@ -21,8 +21,8 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.Cursor;
 import org.jooq.Field;
 
-import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.abstraction.Tables;
@@ -99,7 +99,7 @@ public class HistoryDiagnostics {
 
         if (!diagErrors.isEmpty()) {
             try {
-                diagnosticsWriter.writeZipEntry("Diag Errors", diagErrors, zipOutputStream);
+                diagnosticsWriter.writeZipEntry("Diag Errors", diagErrors.stream(), zipOutputStream);
             } catch (DiagnosticsException e) {
                 logger.error("Diagnostics errors: {}", diagErrors);
             }
@@ -123,16 +123,15 @@ public class HistoryDiagnostics {
                 }
                 prefixBuilder.append("\n---------------------\n");
 
-                final List<String> aggregationPerfLines = new ArrayList<>();
-                aggregationPerfLines.add(prefixBuilder.toString());
-
-                cursor.fetchInto(ApplPerformance.class)
-                    .stream()
-                    .map(ApplPerformance::toString)
-                    .forEach(aggregationPerfLines::add);
+                // create a stream with the header (prefixBuilder) and performance info from the DB
+                final Stream<String> performanceStream = Stream.concat(
+                    Stream.of(prefixBuilder.toString()),
+                    cursor.fetchInto(ApplPerformance.class)
+                        .stream()
+                        .map(ApplPerformance::toString));
 
                 diagnosticsWriter.writeZipEntry(AGGREGATION_PERFORMANCE,
-                    aggregationPerfLines, zipOutputStream);
+                    performanceStream, zipOutputStream);
             }
         } catch (RuntimeException | VmtDbException | SQLException e) {
             logger.error("Failed to write aggregation performance rows due to error: {}",
@@ -140,11 +139,8 @@ public class HistoryDiagnostics {
         }
     }
 
-    private void writeAggregationMetadata(@Nonnull final ZipOutputStream zipOutputStream)
-        throws DiagnosticsException {
+    private void writeAggregationMetadata(@Nonnull final ZipOutputStream zipOutputStream) throws DiagnosticsException {
         try {
-            final List<String> aggregationLines = new ArrayList<>();
-            aggregationLines.add("Current clock time: " + LocalDateTime.now(clock));
 
             final StringBuilder prefixBuilder = new StringBuilder().append("Fields : ");
             for (Field<?> field : Tables.AGGREGATION_META_DATA.fields()) {
@@ -152,18 +148,19 @@ public class HistoryDiagnostics {
             }
             prefixBuilder.append("\n---------------------\n");
 
-            aggregationLines.add(prefixBuilder.toString());
-
             try (Connection connection = historydbIO.connection()) {
-                historydbIO.using(connection)
+                Stream<String> metadataDumpStream = Stream.concat(
+                    Stream.of("Current clock time: " + LocalDateTime.now(clock),
+                        prefixBuilder.toString()),
+                    historydbIO.using(connection)
                     .selectFrom(Tables.AGGREGATION_META_DATA)
                     .fetchInto(AggregationMetaData.class)
                     .stream()
-                    .map(AggregationMetaData::toString)
-                    .forEach(aggregationLines::add);
+                    .map(AggregationMetaData::toString));
+                diagnosticsWriter.writeZipEntry(AGGREGATION_METADATA, metadataDumpStream,
+                    zipOutputStream);
             }
 
-            diagnosticsWriter.writeZipEntry(AGGREGATION_METADATA, aggregationLines, zipOutputStream);
         } catch (RuntimeException | VmtDbException | SQLException e) {
             logger.error("Failed to write aggregation metadata due to error.", e);
             throw new DiagnosticsException(e);

@@ -312,7 +312,7 @@ public class PolicyStoreTest {
         when(identityProvider.next()).thenReturn(POLICY_ID);
         final Policy policy = policyStore.newUserPolicy(POLICY_INFO);
 
-        final List<String> diags = policyStore.collectDiags();
+        final List<String> diags = policyStore.collectDiagsStream().collect(Collectors.toList());
 
         dbConfig.getDslContext().deleteFrom(Tables.POLICY);
 

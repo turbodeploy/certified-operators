@@ -14,6 +14,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -162,10 +163,9 @@ public class PriceTableKeyIdentityStoreTest {
      * Testing oids with unique identifiers.
      *
      * @throws IdentityStoreException if unable to assign new ID.
-     * @throws DbException if unable to fetch DB rows.
      */
     @Test
-    public void testOidWithUniqueIdentifiers() throws IdentityStoreException, DbException {
+    public void testOidWithUniqueIdentifiers() throws IdentityStoreException {
         PriceTableKey priceTableKey = mockPriceTableKey("azure");
         testIdentityStore.fetchOrAssignOid(priceTableKey);
 
@@ -252,13 +252,14 @@ public class PriceTableKeyIdentityStoreTest {
      * Testing collect diags ability for Table: price table key oid.
      *
      * @throws DiagnosticsException   if exception occurs while collecting diags.
-     * @throws IdentityStoreException An IdentityStore Exception.
+     * @throws DbException if there is an error fetching the IDs from the testIdentityStore
      */
     @Test
     public void testCollectDiags() throws DiagnosticsException, DbException {
         insertAzurePriceTable();
         //collecting diags
-        List<String> listOfString = testIdentityStore.collectDiags();
+        List<String> listOfString = testIdentityStore.collectDiagsStream()
+            .collect(Collectors.toList());
         final PriceTableKeyOid priceTableKeyOid =
                 GSON.fromJson(listOfString.iterator().next(), PriceTableKeyOid.class);
         final IdentityMatchingAttributes attrs = getMatchingAttributes(priceTableKeyOid.priceTableKeyIdentifiers);
@@ -271,16 +272,16 @@ public class PriceTableKeyIdentityStoreTest {
     }
 
     /**
-     * Testing restoring diags to {@link Tables.PRICE_TABLE_KEY_OID}.
+     * Testing restoring diags to {@link Tables#PRICE_TABLE_KEY_OID}.
      *
      * @throws DiagnosticsException   if exception occurs while collecting diags.
-     * @throws IdentityStoreException An IdentityStore Exception.
      */
     @Test
     public void testRestoreDiags() throws DiagnosticsException, DbException {
         insertAzurePriceTable();
         //collecting diags
-        final List<String> restoreList = testIdentityStore.collectDiags();
+        final List<String> restoreList = testIdentityStore.collectDiagsStream()
+            .collect(Collectors.toList());
         final Map<IdentityMatchingAttributes, Long> controlMatchingAttributesLongMap =
                 testIdentityStore.fetchAllOidMappings();
 
@@ -295,7 +296,6 @@ public class PriceTableKeyIdentityStoreTest {
     /**
      * Test collect and restore diags using a newer store.
      *
-     * @throws IdentityStoreException if unable to fetch oid mappings.
      * @throws DiagnosticsException   exception during collecting or restoring diags.
      */
     @Test
@@ -304,7 +304,8 @@ public class PriceTableKeyIdentityStoreTest {
 
         Map<IdentityMatchingAttributes, Long> originalMap = testIdentityStore
                 .fetchAllOidMappings();
-        final List<String> collectedDiags = testIdentityStore.collectDiags();
+        final List<String> collectedDiags = testIdentityStore.collectDiagsStream()
+            .collect(Collectors.toList());
 
         PriceTableKeyIdentityStore newPriceTableKeyIdentityStore = new PriceTableKeyIdentityStore(dsl,
                 new IdentityProvider(0));
