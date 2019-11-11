@@ -38,6 +38,7 @@ import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
+import com.vmturbo.topology.processor.topology.DemandOverriddenCommodityEditor;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
 import com.vmturbo.topology.processor.topology.HistoricalEditor;
 import com.vmturbo.topology.processor.topology.HistoryAggregator;
@@ -60,6 +61,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.GraphCreationStag
 import com.vmturbo.topology.processor.topology.pipeline.Stages.HistoricalUtilizationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.HistoryAggregationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.IgnoreConstraintsStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.OverrideWorkLoadDemandStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PlanScopingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PostStitchingStage;
@@ -148,6 +150,8 @@ public class TopologyPipelineFactory {
 
     private final HistoryAggregator historyAggregator;
 
+    private final DemandOverriddenCommodityEditor demandOverriddenCommodityEditor;
+
     public TopologyPipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
                                    @Nonnull final PolicyManager policyManager,
                                    @Nonnull final StitchingManager stitchingManager,
@@ -175,7 +179,8 @@ public class TopologyPipelineFactory {
                                    @Nonnull final HistoricalEditor historicalEditor,
                                    @Nonnull final MatrixInterface matrix,
                                    @Nonnull final ProbeActionCapabilitiesApplicatorEditor applicatorEditor,
-                                   @Nonnull HistoryAggregator historyAggregationStage) {
+                                   @Nonnull HistoryAggregator historyAggregationStage,
+                                   @Nonnull DemandOverriddenCommodityEditor demandOverriddenCommodityEditor) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -204,6 +209,7 @@ public class TopologyPipelineFactory {
         this.matrix = Objects.requireNonNull(matrix);
         this.applicatorEditor = Objects.requireNonNull(applicatorEditor);
         this.historyAggregator = Objects.requireNonNull(historyAggregationStage);
+        this.demandOverriddenCommodityEditor = demandOverriddenCommodityEditor;
     }
 
     /**
@@ -328,6 +334,7 @@ public class TopologyPipelineFactory {
                 .addStage(new ExtractTopologyGraphStage())
                 .addStage(new PlanScopingStage(planTopologyScopeEditor, scope, searchResolver, changes, groupServiceClient))
                 .addStage(new HistoricalUtilizationStage(historicalEditor, changes))
+                .addStage(new OverrideWorkLoadDemandStage(demandOverriddenCommodityEditor, searchResolver, groupServiceClient, changes))
                 .addStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager)))
                 .build();
     }

@@ -152,6 +152,11 @@ public class TopologyConfig {
     }
 
     @Bean
+    public DemandOverriddenCommodityEditor dmandOverriddenCommodityEditor() {
+        return new DemandOverriddenCommodityEditor(groupConfig.groupServiceBlockingStub());
+    }
+
+    @Bean
     public DiscoveredSettingPolicyScanner discoveredSettingPolicyScanner() {
         return new DiscoveredSettingPolicyScanner(probeConfig.probeStore(), targetConfig.targetStore());
     }
@@ -199,7 +204,8 @@ public class TopologyConfig {
                 historicalEditor(),
                 matrixInterface(),
                 probeActionCapabilitiesApplicatorEditor(),
-                historyAggregationConfig.historyAggregationStage()
+                historyAggregationConfig.historyAggregationStage(),
+                dmandOverriddenCommodityEditor()
         );
     }
 

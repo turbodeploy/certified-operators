@@ -82,6 +82,7 @@ import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger.KeyChangeOutcome;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor;
+import com.vmturbo.topology.processor.topology.DemandOverriddenCommodityEditor;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector.InjectionSummary;
 import com.vmturbo.topology.processor.topology.HistoricalEditor;
@@ -1250,6 +1251,38 @@ public class Stages {
 
             return new TopologyBroadcastInfo(resultSentCount, topologyInfo.getTopologyId(),
                 topologyInfo.getTopologyContextId());
+        }
+    }
+
+    /**
+     * The stage to override the usage of workload and its provider based on user configurations.
+     */
+    public static class OverrideWorkLoadDemandStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
+
+        private final DemandOverriddenCommodityEditor demandOverriddenCommodityEditor;
+        private final SearchResolver<TopologyEntity> searchResolver;
+        private final GroupServiceBlockingStub groupServiceClient;
+        private final List<ScenarioChange> changes;
+
+        public OverrideWorkLoadDemandStage(@Nonnull final DemandOverriddenCommodityEditor demandOverriddenCommodityEditor,
+                                           @Nonnull final SearchResolver<TopologyEntity> searchResolver,
+                                           @Nonnull final GroupServiceBlockingStub groupServiceClient,
+                                           @Nonnull final List<ScenarioChange> changes) {
+            this.demandOverriddenCommodityEditor = Objects.requireNonNull(demandOverriddenCommodityEditor);
+            this.searchResolver = searchResolver;
+            this.groupServiceClient = groupServiceClient;
+            this.changes = Objects.requireNonNull(changes);
+        }
+
+        @Override
+        public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
+            TopologyInfo topoInfo = getContext().getTopologyInfo();
+            if (!topoInfo.hasPlanInfo()) { // skip non plan cases
+                return Status.success();
+            }
+            final GroupResolver groupResolver = new GroupResolver(searchResolver, groupServiceClient);
+            demandOverriddenCommodityEditor.applyDemandUsageChange(graph, groupResolver, changes);
+            return Status.success();
         }
     }
 
