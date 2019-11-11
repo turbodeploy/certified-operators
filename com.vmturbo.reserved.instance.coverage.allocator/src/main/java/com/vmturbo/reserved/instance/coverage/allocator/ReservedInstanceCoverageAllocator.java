@@ -19,6 +19,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.Queues;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
@@ -79,8 +80,7 @@ public class ReservedInstanceCoverageAllocator {
                 Objects.requireNonNull(builder.coverageProvider);
         this.coverageJournal = ReservedInstanceCoverageJournal.createJournal(
                 coverageProvider.getAllCoverages(),
-                coverageProvider.getCapacityForEntities(),
-                coverageProvider.getCapacityForReservedInstances());
+                coverageTopology);
         this.firstPassFilter = new FirstPassCoverageFilter(coverageTopology,
                 builder.accountFilter,
                 builder.entityFilter,
@@ -91,7 +91,7 @@ public class ReservedInstanceCoverageAllocator {
                 .build();
         this.executorService = builder.concurrentProcessing ?
                 Executors.newCachedThreadPool(threadFactory) :
-                Executors.newSingleThreadExecutor(threadFactory);
+                MoreExecutors.newDirectExecutorService();
 
     }
 
@@ -147,7 +147,6 @@ public class ReservedInstanceCoverageAllocator {
      * if the {@link ExecutorService} of this allocator is single threaded.
      */
     private void allocateCoverageInternal() {
-
         Set<CloudProviderCoverageContext> cloudProviderCoverageContexts =
                 CloudProviderCoverageContext.createContexts(
                         coverageTopology,
@@ -155,12 +154,12 @@ public class ReservedInstanceCoverageAllocator {
                         firstPassFilter.getCoverableEntities(),
                         true);
 
+
         cloudProviderCoverageContexts.stream()
                 .map(coverageContext ->
                         executorService.submit(() -> processCoverageContext(coverageContext)))
                 .collect(Collectors.toSet())
                 .forEach(this::waitForFuture);
-
     }
 
     private void processCoverageContext(@Nonnull CloudProviderCoverageContext coverageContext) {
@@ -179,6 +178,8 @@ public class ReservedInstanceCoverageAllocator {
                 // to process concurrently
                 rule.coverageGroups()
                         .map(group -> executorService.submit(() -> processGroup(group)))
+                        // first collect in a terminal stage to allow all submissions
+                        // to the executor service to complete
                         .collect(Collectors.toSet())
                         .forEach(this::waitForFuture);
             } else {
@@ -222,13 +223,16 @@ public class ReservedInstanceCoverageAllocator {
                                     riOid, entityOid, coverageGroup.sourceKey(), requestedCoverage,
                                     availableCoverage, allocatedCoverage);
 
-                            coverageJournal.addCoverageEntry(
-                                    CoverageJournalEntry.of(coverageGroup.sourceName(),
-                                            riOid,
-                                            entityOid,
-                                            requestedCoverage,
-                                            availableCoverage,
-                                            allocatedCoverage));
+                            final CoverageJournalEntry coverageEntry = CoverageJournalEntry.of(
+                                    coverageGroup.cloudServiceProvider(),
+                                    coverageGroup.sourceName(),
+                                    riOid,
+                                    entityOid,
+                                    requestedCoverage,
+                                    availableCoverage,
+                                    allocatedCoverage);
+                            coverageJournal.addCoverageEntry(coverageEntry);
+
                         } else {
                             entityQueue.poll();
                         }
@@ -238,9 +242,9 @@ public class ReservedInstanceCoverageAllocator {
                 }).findFirst();
     }
 
-    private void waitForFuture(Future<?> future) {
+    private <T> T waitForFuture(Future<T> future) {
         try {
-            future.get();
+            return future.get();
         } catch (Exception e) {
             throw new FailedCoverageAllocationException(e);
         }

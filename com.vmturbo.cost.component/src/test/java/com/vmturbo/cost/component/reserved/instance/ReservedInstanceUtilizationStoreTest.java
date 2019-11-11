@@ -7,6 +7,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.flywaydb.core.Flyway;
@@ -20,6 +21,9 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import com.google.common.collect.ImmutableMap;
+
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
@@ -31,6 +35,7 @@ import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceSpecRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceUtilizationLatestRecord;
 import com.vmturbo.cost.component.identity.IdentityProvider;
+import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtilizationFilter;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.OfferingClass;
@@ -122,8 +127,7 @@ public class ReservedInstanceUtilizationStoreTest {
                 new IdentityProvider(0));
         reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl,
                 new IdentityProvider(0));
-        entityReservedInstanceMappingStore = new EntityReservedInstanceMappingStore(dsl,
-                reservedInstanceBoughtStore);
+        entityReservedInstanceMappingStore = new EntityReservedInstanceMappingStore(dsl);
         reservedInstanceUtilizationStore = new ReservedInstanceUtilizationStore(dsl, reservedInstanceBoughtStore,
                 reservedInstanceSpecStore, entityReservedInstanceMappingStore);
         insertDefaultReservedInstanceSpec();
@@ -141,7 +145,8 @@ public class ReservedInstanceUtilizationStoreTest {
         final List<EntityRICoverageUpload> entityCoverageLists =
                 Arrays.asList(coverageOne, coverageTwo);
         reservedInstanceBoughtStore.updateReservedInstanceBought(dsl, reservedInstancesBoughtInfo);
-        entityReservedInstanceMappingStore.updateEntityReservedInstanceMapping(dsl, entityCoverageLists);
+        entityReservedInstanceMappingStore.updateEntityReservedInstanceMapping(dsl,
+                stichRIOidToCoverageUploads(entityCoverageLists));
         reservedInstanceUtilizationStore.updateReservedInstanceUtilization(dsl);
         List<ReservedInstanceUtilizationLatestRecord> records =
                 dsl.selectFrom(Tables.RESERVED_INSTANCE_UTILIZATION_LATEST).fetch();
@@ -180,7 +185,8 @@ public class ReservedInstanceUtilizationStoreTest {
         final List<EntityRICoverageUpload> entityCoverageLists =
                 Arrays.asList(coverageOne, coverageTwo);
         reservedInstanceBoughtStore.updateReservedInstanceBought(dsl, reservedInstancesBoughtInfo);
-        entityReservedInstanceMappingStore.updateEntityReservedInstanceMapping(dsl, entityCoverageLists);
+        entityReservedInstanceMappingStore.updateEntityReservedInstanceMapping(dsl,
+                stichRIOidToCoverageUploads(entityCoverageLists));
         reservedInstanceUtilizationStore.updateReservedInstanceUtilization(dsl);
         // get all ri utilization records
         final ReservedInstanceUtilizationFilter filter = ReservedInstanceUtilizationFilter.newBuilder()
@@ -220,5 +226,37 @@ public class ReservedInstanceUtilizationStoreTest {
                         78L,
                         ReservedInstanceSpecInfo.getDefaultInstance()));
         dsl.batchInsert(Arrays.asList(specRecordOne, specRecordTwo)).execute();
+    }
+
+    /**
+     * This mirrors the behavior in RIAndExpenseUploadRpcService::updateCoverageWithLocalRIBoughtIds
+     * @param entityRICoverageUploads
+     * @return
+     */
+    private List<EntityRICoverageUpload> stichRIOidToCoverageUploads(
+            List<EntityRICoverageUpload> entityRICoverageUploads) {
+        final Map<String, Long> riProbeIdToOid = reservedInstanceBoughtStore
+                .getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter.SELECT_ALL_FILTER)
+                .stream()
+                .filter(ReservedInstanceBought::hasReservedInstanceBoughtInfo)
+                .collect(
+                        Collectors.toMap(
+                                ri -> ri.getReservedInstanceBoughtInfo()
+                                        .getProbeReservedInstanceId(),
+                                ReservedInstanceBought::getId
+                        ));
+
+        return entityRICoverageUploads.stream()
+                .map(entityRICoverage -> EntityRICoverageUpload.newBuilder(entityRICoverage))
+                // update the ReservedInstanceId for each Coverage record, mapping through
+                // the ProbeReservedInstanceId
+                .peek(entityRiCoverageBuilder -> entityRiCoverageBuilder
+                        .getCoverageBuilderList().stream()
+                        .forEach(coverageBuilder -> coverageBuilder
+                                .setReservedInstanceId(riProbeIdToOid.getOrDefault(
+                                        coverageBuilder.getProbeReservedInstanceId(), 0L))))
+                .map(EntityRICoverageUpload.Builder::build)
+                .collect(Collectors.toList());
+
     }
 }

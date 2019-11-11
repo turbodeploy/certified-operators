@@ -17,6 +17,7 @@ import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.Status;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdateType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.Builder;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
@@ -305,52 +306,51 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
 
     @Override
     public void onCostNotificationReceived(@Nonnull final CostNotification costNotification) {
-        // The context of the action plan is the plan that the actions apply to.
-        final long planId = costNotification.hasProjectedCostUpdate() ?
-                costNotification.getProjectedCostUpdate().getTopologyContextId() :
-                costNotification.getProjectedRiCoverageUpdate().getTopologyContextId();
-        if (planId != realtimeTopologyContextId) {
-            try {
-                // TODO: (OM-51227) Plan exception should be reflected in the status of the plan.
-                if (costNotification.hasProjectedCostUpdate()) {
-                    planDao.updatePlanInstance(planId, p -> {
-                        processProjectedCostUpdate(p, costNotification);
-                    });
-                    final StatusUpdate projectedCostUpdate = costNotification
-                            .getProjectedCostUpdate();
-                    final Status projectedCostUpdateStatus = projectedCostUpdate.getStatus();
-                    logger.info("Projected cost notification has been received from " +
-                                    "cost component- status: {} topology ID: {} topology " +
-                                    "context ID: {}",
-                            projectedCostUpdateStatus,
-                            projectedCostUpdate.getTopologyId(),
-                            projectedCostUpdate.getTopologyContextId());
-                } else if (costNotification.hasProjectedRiCoverageUpdate()) {
-                    planDao.updatePlanInstance(planId, p -> {
-                        processProjectedRiUpdate(p, costNotification);
-                    });
-                    final StatusUpdate projectedRiCoverageUpdate =
-                            costNotification.getProjectedRiCoverageUpdate();
-                    final Status projectedRiCoverageUpdateStatus = projectedRiCoverageUpdate
-                            .getStatus();
-                    logger.info("Projected RI coverage notification has been received " +
-                                    "from cost component- status:{} topology ID: {} topology " +
-                                    "context ID: {}",
-                            projectedRiCoverageUpdateStatus,
-                            projectedRiCoverageUpdate.getTopologyId(),
-                            projectedRiCoverageUpdate.getTopologyContextId());
-                } else {
-                    logger.error("This cost notification is not implemented yet.");
+
+        if (costNotification.hasStatusUpdate()) {
+
+            final StatusUpdate statusUpdate = costNotification.getStatusUpdate();
+            // The context of the action plan is the plan that the actions apply to.
+            final long planId = costNotification.getStatusUpdate().getTopologyContextId();
+            if (planId != realtimeTopologyContextId) {
+                try {
+                    // TODO: (OM-51227) Plan exception should be reflected in the status of the plan.
+                    if (statusUpdate.getType() == StatusUpdateType.PROJECTED_COST_UPDATE) {
+
+                        planDao.updatePlanInstance(planId, p -> {
+                            processProjectedCostUpdate(p, costNotification);
+                        });
+
+                        logger.info("Projected cost notification has been received from " +
+                                        "cost component- status: {} topology ID: {} topology " +
+                                        "context ID: {}",
+                                statusUpdate.getStatus(),
+                                statusUpdate.getTopologyId(),
+                                statusUpdate.getTopologyContextId());
+                    } else if (statusUpdate.getType() == StatusUpdateType.PROJECTED_RI_COVERAGE_UPDATE) {
+                        planDao.updatePlanInstance(planId, p -> {
+                            processProjectedRiUpdate(p, costNotification);
+                        });
+                        logger.info("Projected RI coverage notification has been received " +
+                                        "from cost component- status:{} topology ID: {} topology " +
+                                        "context ID: {}",
+                                statusUpdate.getStatus(),
+                                statusUpdate.getTopologyId(),
+                                statusUpdate.getTopologyContextId());
+                    } else {
+                        logger.debug("Ignoring cost notification status update (Type={})",
+                                statusUpdate.getType());
+                    }
+                } catch (IntegrityException e) {
+                    logger.error("Could not change plan's "
+                            + planId + " state according to cost notification.", e);
+                } catch (NoSuchObjectException e) {
+                    logger.warn("Could not find plan by topology context id {}",
+                            planId, e);
                 }
-            } catch (IntegrityException e) {
-                logger.error("Could not change plan's "
-                        + planId + " state according to cost notification.", e);
-            } catch (NoSuchObjectException e) {
-                logger.warn("Could not find plan by topology context id {}",
-                        planId, e);
+            } else {
+                logger.debug("Dropping real-time cost notification.");
             }
-        } else {
-            logger.debug("Dropping real-time cost notification.");
         }
     }
 
@@ -363,7 +363,7 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
     private static void processProjectedCostUpdate(@Nonnull final PlanInstance.Builder plan,
                                                    @Nonnull final CostNotification
                                                            projectedCostNotification) {
-        final Status projectedCostUpdateStatus = projectedCostNotification.getProjectedCostUpdate()
+        final Status projectedCostUpdateStatus = projectedCostNotification.getStatusUpdate()
                 .getStatus();
         plan.setPlanProgress(plan.getPlanProgress().toBuilder()
                 .setProjectedCostStatus(projectedCostUpdateStatus));
@@ -380,7 +380,7 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
                                                  @Nonnull final CostNotification
                                                          projectedRiCoverageNotification) {
         final Status projectedRiCoverageUpdateStatus = projectedRiCoverageNotification
-                .getProjectedRiCoverageUpdate().getStatus();
+                .getStatusUpdate().getStatus();
         plan.setPlanProgress(plan.getPlanProgress().toBuilder()
                 .setProjectedRiCoverageStatus(projectedRiCoverageUpdateStatus));
         plan.setStatus(getPlanStatusBasedOnPlanType(plan));

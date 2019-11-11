@@ -34,6 +34,9 @@ import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.common.health.KafkaProducerHealthMonitor;
 import com.vmturbo.cost.api.CostClientConfig;
+import com.vmturbo.cost.api.CostComponent;
+import com.vmturbo.cost.api.impl.CostSubscription;
+import com.vmturbo.cost.api.impl.CostSubscription.Topic;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
@@ -153,8 +156,14 @@ public class PlanConfig {
         aoClientConfig.actionOrchestratorClient().addActionsListener(listener);
         repositoryClientConfig.repository().addListener(listener);
         historyClientConfig.historyComponent().addStatsListener(listener);
-        costClientConfig.costComponent().addCostNotificationListener(listener);
+        costComponent().addCostNotificationListener(listener);
         return listener;
+    }
+
+    @Bean
+    public CostComponent costComponent() {
+        return costClientConfig.costComponent(
+                CostSubscription.forTopic(Topic.COST_STATUS_NOTIFICATION));
     }
 
     /**

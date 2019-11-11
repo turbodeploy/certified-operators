@@ -1,6 +1,7 @@
 package com.vmturbo.reserved.instance.coverage.allocator.topology;
 
 import java.util.Collection;
+import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
@@ -8,16 +9,18 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Static factory class for creating instances of {@link CoverageTopology}
  */
 public class CoverageTopologyFactory {
 
-    /**
-     * This is a static factory class. It shouldn't be constructed
-     */
-    private CoverageTopologyFactory() {}
+    private final ThinTargetCache targetCache;
+
+    public CoverageTopologyFactory(@Nonnull ThinTargetCache targetCache) {
+        this.targetCache = Objects.requireNonNull(targetCache);
+    }
 
     /**
      * Creates a new instance of {@link CoverageTopology}
@@ -31,11 +34,13 @@ public class CoverageTopologyFactory {
      * @return A newly created instance of {@link CoverageTopology}
      */
     @Nonnull
-    public static CoverageTopology createCoverageTopology(
+    public CoverageTopology createCoverageTopology(
             @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
             @Nonnull Collection<ReservedInstanceSpec> reservedInstanceSpecs,
             @Nonnull Collection<ReservedInstanceBought> reservedInstances) {
-        return new CoverageTopologyImpl(cloudTopology,
+        return new CoverageTopologyImpl(
+                cloudTopology,
+                targetCache,
                 reservedInstanceSpecs,
                 reservedInstances);
     }

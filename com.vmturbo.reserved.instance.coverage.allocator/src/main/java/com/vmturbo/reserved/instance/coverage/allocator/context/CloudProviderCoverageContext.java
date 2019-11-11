@@ -4,7 +4,9 @@ import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -16,17 +18,36 @@ import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo.CloudServiceProvider;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
 
 /**
- * Contains the relevant contextual data for allocating coverage of a specific {@link CloudServiceProvider}.
+ * Contains the relevant contextual data for allocating coverage of a specific {@link CloudServiceProvider},
+ * which will be a cloud service provider.
  * All {@link TopologyEntityDTO} instances and {@link ReservedInstanceBought} instances contained
  * within a context will be scoped to the corresponding {@link CloudServiceProvider}
  */
 @Immutable
 public class CloudProviderCoverageContext {
+
+    /**
+     * Represents a vendor/CSP as a single value of multiple probes. Note: this enum is a temporary
+     * stopgap measure until CSP is a discovered topology entity.
+     */
+    public enum CloudServiceProvider {
+        UNKNOWN,
+        AWS,
+        AZURE
+    };
+
+    private static final Map<SDKProbeType, CloudServiceProvider> PROBE_TYPE_TO_CSP =
+            ImmutableMap.<SDKProbeType, CloudServiceProvider>builder()
+                    .put(SDKProbeType.AWS, CloudServiceProvider.AWS)
+                    .put(SDKProbeType.AWS_BILLING, CloudServiceProvider.AWS)
+                    .put(SDKProbeType.AZURE, CloudServiceProvider.AZURE)
+                    .put(SDKProbeType.AZURE_SERVICE_PRINCIPAL, CloudServiceProvider.AZURE)
+                    .put(SDKProbeType.AZURE_EA, CloudServiceProvider.AZURE)
+                    .build();
 
     private final CloudServiceProvider cloudServiceProvider;
     private final CoverageTopology coverageTopology;
@@ -43,14 +64,14 @@ public class CloudProviderCoverageContext {
     }
 
     /**
-     * @return The {@link CloudServiceProvider} this context is scoped to.
+     * @return The {@link CloudServiceProvider} this context is scoped to
      */
     public CloudServiceProvider cloudServiceProvider() {
         return cloudServiceProvider;
     }
 
     /**
-     * @return The {@link CoverageTopology}. Note: the topology *will not* be scoped to the
+     * @return The {@link CoverageTopology}. Note: the topology *will not* be scoped to a
      * {@link CloudServiceProvider}. Rather, access to the {@link CoverageTopology} is meant
      * to facilitate resolving entities and reserved instances contained within this context.
      */
@@ -60,7 +81,7 @@ public class CloudProviderCoverageContext {
     }
 
     /**
-     * @return Oids of {@link ReservedInstanceBought} instances, scoped to the {@link CloudServiceProvider}
+     * @return Oids of {@link ReservedInstanceBought} instances, scoped to a {@link CloudServiceProvider}
      * of this context
      */
     @Nonnull
@@ -69,7 +90,7 @@ public class CloudProviderCoverageContext {
     }
 
     /**
-     * @return Oids of {@link TopologyEntityDTO} instances, scoped to the {@link CloudServiceProvider}
+     * @return Oids of {@link TopologyEntityDTO} instances, scoped to a {@link CloudServiceProvider}
      * of this context
      */
     @Nonnull
@@ -81,7 +102,7 @@ public class CloudProviderCoverageContext {
      * Creates a set of {@link CloudProviderCoverageContext} instances, based on the {@link CoverageTopology},
      * {@link ReservedInstanceBought} instances, and {@link TopologyEntityDTO} instances. The RIs and
      * entities will be split into separate contexts based on the {@link CloudServiceProvider}
-     * associated with the business account of each instance.
+     * associated with the origin of each entity
      *
      *
      * @param coverageTopology An instance of {@link CoverageTopology}, used to resolve oids of
@@ -102,47 +123,36 @@ public class CloudProviderCoverageContext {
             @Nonnull Stream<TopologyEntityDTO> entities,
             boolean skipPartialContexts) {
 
-        final Map<Long, CloudServiceProvider> serviceProviderByAccountMap =
-                coverageTopology.getAllEntitesOfType(EntityType.BUSINESS_ACCOUNT_VALUE)
-                        .stream()
-                        .filter(account -> account.getTypeSpecificInfo()
-                                .getBusinessAccount().getCloudServiceProvider() != CloudServiceProvider.UNKNOWN_CSP)
-                        .collect(ImmutableMap.toImmutableMap(
-                                TopologyEntityDTO::getOid,
-                                (account) -> account.getTypeSpecificInfo()
-                                        .getBusinessAccount().getCloudServiceProvider()));
 
         final Map<CloudServiceProvider, CloudProviderCoverageContext.Builder> contextBuildersByProvider =
                 new EnumMap<>(CloudServiceProvider.class);
 
+        final Function<Long, Optional<CloudServiceProvider>> resolveCSPForEntity = (entityOid) ->
+                coverageTopology.getProbeTypesForEntity(entityOid)
+                        .stream()
+                        .map(PROBE_TYPE_TO_CSP::get)
+                        .filter(Objects::nonNull)
+                        .distinct()
+                        // If more than one CSP is is linked to an entity, return no CSP
+                        .collect(Collectors.reducing((csp1, csp2) -> null));
+
         reservedInstances.forEach(ri -> {
             final long accountOid = ri.getReservedInstanceBoughtInfo().getBusinessAccountId();
-            if (serviceProviderByAccountMap.containsKey(accountOid)) {
-                final CloudServiceProvider csp = serviceProviderByAccountMap.get(accountOid);
+            resolveCSPForEntity.apply(accountOid).ifPresent(cloudServiceProvider ->
+                    contextBuildersByProvider.computeIfAbsent(cloudServiceProvider, (csp) ->
+                            CloudProviderCoverageContext.newBuilder()
+                                    .cloudServiceProvider(cloudServiceProvider)
+                                    .coverageTopology(coverageTopology))
+                            .reservedInstanceOid(ri.getId()));
+        });
 
-                contextBuildersByProvider.computeIfAbsent(csp, (__) ->
+        entities.forEach(entity ->
+            resolveCSPForEntity.apply(entity.getOid()).ifPresent(cloudServiceProvider ->
+                    contextBuildersByProvider.computeIfAbsent(cloudServiceProvider, (csp) ->
                         CloudProviderCoverageContext.newBuilder()
-                                .cloudServiceProvider(csp)
+                                .cloudServiceProvider(cloudServiceProvider)
                                 .coverageTopology(coverageTopology))
-                        .reservedInstanceOid(ri.getId());
-            }
-        });
-
-        entities.forEach(entity -> {
-            coverageTopology.getOwner(entity.getOid())
-                    .ifPresent(account -> {
-                        if (serviceProviderByAccountMap.containsKey(account.getOid())) {
-                            final CloudServiceProvider csp = serviceProviderByAccountMap.get(account.getOid());
-
-                            contextBuildersByProvider.computeIfAbsent(csp, (__) ->
-                                    CloudProviderCoverageContext.newBuilder()
-                                            .cloudServiceProvider(csp)
-                                            .coverageTopology(coverageTopology))
-                                    .coverableEntityOid(entity.getOid());
-                        }
-                    });
-
-        });
+                        .coverableEntityOid(entity.getOid())));
 
         return contextBuildersByProvider.values().stream()
                 .filter(contextBuilder -> !skipPartialContexts ||
@@ -170,7 +180,7 @@ public class CloudProviderCoverageContext {
         private final Set<Long> coverableEntityOids = new HashSet<>();
 
         /**
-         * Set the {@link CloudServiceProvider} of this builder
+         * Set the cloud service provider (represented as a {@link CloudServiceProvider}) of this builder.
          * @param cloudServiceProvider An instance of {@link CloudServiceProvider}
          * @return The instance of {@link Builder} for method chaining
          */

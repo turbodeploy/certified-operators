@@ -17,6 +17,7 @@ import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotificat
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.Status;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate.Builder;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdateType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
@@ -98,7 +99,7 @@ public class CostComponentProjectedEntityCostListener implements ProjectedEntity
         try {
             costNotificationSender.sendNotification(projectedCostNotification);
             final StatusUpdate projectedCostUpdate =
-                    projectedCostNotification.getProjectedCostUpdate();
+                    projectedCostNotification.getStatusUpdate();
             logger.debug("The projected cost notification has been sent successfully. topology " +
                             "ID: {} topology context ID: {} status: {}",
                     projectedCostUpdate.getTopologyId(),
@@ -137,6 +138,7 @@ public class CostComponentProjectedEntityCostListener implements ProjectedEntity
             @Nonnull final Status status,
             @Nullable final String description) {
         final Builder projectedCostNotificationBuilder = StatusUpdate.newBuilder()
+                .setType(StatusUpdateType.PROJECTED_COST_UPDATE)
                 .setTopologyId(originalTopologyInfo.getTopologyId())
                 .setTopologyContextId(originalTopologyInfo.getTopologyContextId())
                 .setStatus(status);
@@ -145,7 +147,7 @@ public class CostComponentProjectedEntityCostListener implements ProjectedEntity
             projectedCostNotificationBuilder.setStatusDescription(description);
         }
         return CostNotification.newBuilder()
-                .setProjectedCostUpdate(projectedCostNotificationBuilder).build();
+                .setStatusUpdate(projectedCostNotificationBuilder).build();
     }
 
 }

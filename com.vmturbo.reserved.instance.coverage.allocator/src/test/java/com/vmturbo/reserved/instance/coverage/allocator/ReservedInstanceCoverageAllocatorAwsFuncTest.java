@@ -17,9 +17,10 @@ import java.util.Collections;
 
 import org.junit.Test;
 
-import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableTable;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -31,12 +32,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
 
 
 public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReservedInstanceCoverageAllocatorTest{
-
-
 
     @Test
     public void testDirectZonalAssignment() {
@@ -51,6 +51,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
 
 
         final CoverageTopology coverageTopology = generateCoverageTopology(
+                SDKProbeType.AWS,
                 Collections.singleton(zonalRiBought),
                 Collections.singleton(RI_SPEC_SMALL_REGIONAL),
                 COMPUTE_TIER_SMALL,
@@ -61,9 +62,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
 
         final ReservedInstanceCoverageAllocator allocator = ReservedInstanceCoverageAllocator.newBuilder()
                 .coverageTopology(coverageTopology)
-                .coverageProvider(createCoverageProvider(
-                        ImmutableMap.of(VIRTUAL_MACHINE_SMALL_A.getOid(), 1.0),
-                        ImmutableMap.of(zonalRiBought.getId(), 1.0)))
+                .coverageProvider(() -> ImmutableTable.of())
                 .build();
 
         final ReservedInstanceCoverageAllocation allocationResult = allocator.allocateCoverage();
@@ -97,6 +96,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
                 .build();
 
         final CoverageTopology coverageTopology = generateCoverageTopology(
+                SDKProbeType.AWS,
                 Collections.singleton(zonalRiBoughtB),
                 Collections.singleton(RI_SPEC_SMALL_REGIONAL),
                 COMPUTE_TIER_SMALL,
@@ -112,9 +112,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
          */
         final ReservedInstanceCoverageAllocator allocator = ReservedInstanceCoverageAllocator.newBuilder()
                 .coverageTopology(coverageTopology)
-                .coverageProvider(createCoverageProvider(
-                        ImmutableMap.of(VIRTUAL_MACHINE_SMALL_A.getOid(), 1.0),
-                        ImmutableMap.of(zonalRiBoughtB.getId(), 1.0)))
+                .coverageProvider(() -> ImmutableTable.of())
                 .build();
 
         final ReservedInstanceCoverageAllocation allocationResult = allocator.allocateCoverage();
@@ -132,6 +130,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
     public void testDirectRegionalAssignment() {
 
         final CoverageTopology coverageTopology = generateCoverageTopology(
+                SDKProbeType.AWS,
                 Collections.singleton(RI_BOUGHT_SMALL_REGIONAL),
                 Collections.singleton(RI_SPEC_SMALL_REGIONAL),
                 COMPUTE_TIER_SMALL,
@@ -145,9 +144,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
          */
         final ReservedInstanceCoverageAllocator allocator = ReservedInstanceCoverageAllocator.newBuilder()
                 .coverageTopology(coverageTopology)
-                .coverageProvider(createCoverageProvider(
-                        ImmutableMap.of(VIRTUAL_MACHINE_SMALL_A.getOid(), 1.0),
-                        ImmutableMap.of(RI_BOUGHT_SMALL_REGIONAL.getId(), 1.0)))
+                .coverageProvider(() -> ImmutableTable.of())
                 .build();
 
         final ReservedInstanceCoverageAllocation allocationResult = allocator.allocateCoverage();
@@ -182,6 +179,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
                 .build();
 
         final CoverageTopology coverageTopology = generateCoverageTopology(
+                SDKProbeType.AWS,
                 Collections.singleton(regionalRIB),
                 Collections.singleton(RI_SPEC_SMALL_REGIONAL),
                 COMPUTE_TIER_SMALL,
@@ -196,9 +194,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
          */
         final ReservedInstanceCoverageAllocator allocator = ReservedInstanceCoverageAllocator.newBuilder()
                 .coverageTopology(coverageTopology)
-                .coverageProvider(createCoverageProvider(
-                        ImmutableMap.of(VIRTUAL_MACHINE_SMALL_A.getOid(), 1.0),
-                        ImmutableMap.of(regionalRIB.getId(), 1.0)))
+                .coverageProvider(() -> ImmutableTable.of())
                 .build();
 
         final ReservedInstanceCoverageAllocation allocationResult = allocator.allocateCoverage();
@@ -224,6 +220,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
                 .build();
 
         final CoverageTopology coverageTopology = generateCoverageTopology(
+                SDKProbeType.AWS,
                 Collections.singleton(RI_BOUGHT_SMALL_REGIONAL),
                 Collections.singleton(RI_SPEC_SMALL_REGIONAL),
                 COMPUTE_TIER_SMALL,
@@ -237,9 +234,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
          */
         final ReservedInstanceCoverageAllocator allocator = ReservedInstanceCoverageAllocator.newBuilder()
                 .coverageTopology(coverageTopology)
-                .coverageProvider(createCoverageProvider(
-                        ImmutableMap.of(VIRTUAL_MACHINE_SMALL_A.getOid(), 1.0),
-                        ImmutableMap.of(RI_BOUGHT_SMALL_REGIONAL.getId(), 1.0)))
+                .coverageProvider(() -> ImmutableTable.of())
                 .build();
 
         final ReservedInstanceCoverageAllocation allocationResult = allocator.allocateCoverage();
@@ -264,6 +259,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
                 .build();
 
         final CoverageTopology coverageTopology = generateCoverageTopology(
+                SDKProbeType.AWS,
                 Collections.singleton(RI_BOUGHT_SMALL_REGIONAL),
                 Collections.singleton(RI_SPEC_SMALL_REGIONAL),
                 COMPUTE_TIER_SMALL,
@@ -277,9 +273,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
          */
         final ReservedInstanceCoverageAllocator allocator = ReservedInstanceCoverageAllocator.newBuilder()
                 .coverageTopology(coverageTopology)
-                .coverageProvider(createCoverageProvider(
-                        ImmutableMap.of(VIRTUAL_MACHINE_SMALL_A.getOid(), 1.0),
-                        ImmutableMap.of(RI_BOUGHT_SMALL_REGIONAL.getId(), 1.0)))
+                .coverageProvider(() -> ImmutableTable.of())
                 .build();
 
         final ReservedInstanceCoverageAllocation allocationResult = allocator.allocateCoverage();
@@ -304,7 +298,10 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
                 .setReservedInstanceBoughtInfo(RI_BOUGHT_SMALL_REGIONAL
                         .getReservedInstanceBoughtInfo()
                         .toBuilder()
-                        .setReservedInstanceSpec(riSpec.getId()))
+                        .setReservedInstanceSpec(riSpec.getId())
+                        .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder()
+                                .setNumberOfCoupons(4)
+                                .build()))
                 .build();
 
         final TopologyEntityDTO virtualMachineMedium = VIRTUAL_MACHINE_SMALL_A.toBuilder()
@@ -322,6 +319,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
                 .build();
 
         final CoverageTopology coverageTopology = generateCoverageTopology(
+                SDKProbeType.AWS,
                 Collections.singleton(sizeFlexibleRI),
                 Collections.singleton(riSpec),
                 COMPUTE_TIER_SMALL,
@@ -337,10 +335,7 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
          */
         final ReservedInstanceCoverageAllocator allocator = ReservedInstanceCoverageAllocator.newBuilder()
                 .coverageTopology(coverageTopology)
-                .coverageProvider(createCoverageProvider(
-                        ImmutableMap.of(VIRTUAL_MACHINE_SMALL_A.getOid(), 1.0,
-                                virtualMachineMedium.getOid(), 2.0),
-                        ImmutableMap.of(sizeFlexibleRI.getId(), 4.0)))
+                .coverageProvider(() -> ImmutableTable.of())
                 .build();
 
         final ReservedInstanceCoverageAllocation allocationResult = allocator.allocateCoverage();
@@ -359,5 +354,41 @@ public class ReservedInstanceCoverageAllocatorAwsFuncTest extends AbstractReserv
                 hasEntry(virtualMachineMedium.getOid(), Collections.singletonMap(
                         sizeFlexibleRI.getId(), 2.0)));
 
+    }
+
+    @Test
+    public void testPreviousCoverageBetweenEntityAndRI() {
+
+        final CoverageTopology coverageTopology = generateCoverageTopology(
+                SDKProbeType.AWS,
+                Collections.singleton(RI_BOUGHT_SMALL_REGIONAL),
+                Collections.singleton(RI_SPEC_SMALL_REGIONAL),
+                COMPUTE_TIER_SMALL,
+                AVAILIBILITY_ZONE_A,
+                REGION,
+                VIRTUAL_MACHINE_SMALL_A,
+                BUSINESS_ACCOUNT);
+
+        /*
+         * Invoke SUT
+         */
+        final ReservedInstanceCoverageAllocator allocator = ReservedInstanceCoverageAllocator.newBuilder()
+                .coverageTopology(coverageTopology)
+                .coverageProvider(() -> ImmutableTable.of(
+                        VIRTUAL_MACHINE_SMALL_A.getOid(),
+                        RI_BOUGHT_SMALL_REGIONAL.getId(),
+                        0.5
+                ))
+                .build();
+
+        final ReservedInstanceCoverageAllocation allocationResult = allocator.allocateCoverage();
+
+        /*
+         * Asserts
+         */
+        assertThat(allocationResult.allocatorCoverageTable().size(), equalTo(1));
+        assertThat(allocationResult.allocatorCoverageTable().rowMap(),
+                hasEntry(VIRTUAL_MACHINE_SMALL_A.getOid(), Collections.singletonMap(
+                        RI_BOUGHT_SMALL_REGIONAL.getId(), .5)));
     }
 }

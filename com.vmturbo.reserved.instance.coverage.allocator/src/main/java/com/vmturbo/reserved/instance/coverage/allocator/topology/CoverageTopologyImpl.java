@@ -1,16 +1,19 @@
 package com.vmturbo.reserved.instance.coverage.allocator.topology;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
@@ -19,6 +22,10 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinProbeInfo;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 /**
  * A wrapper implementation around {@link CloudTopology} for all methods directly related to
@@ -29,6 +36,8 @@ public class CoverageTopologyImpl implements CoverageTopology {
 
     private final CloudTopology<TopologyEntityDTO> cloudTopology;
 
+    private final ThinTargetCache targetCache;
+
     private final Map<Long, ReservedInstanceSpec> reservedInstanceSpecsById;
 
     private final Map<Long, ReservedInstanceBought> reservedInstancesById;
@@ -36,15 +45,18 @@ public class CoverageTopologyImpl implements CoverageTopology {
     /**
      * Construct a new instance of {@link CoverageTopology}
      * @param cloudTopology The {@link CloudTopology} to wrap
+     * @param targetCache The target cache, used to resolve the CSP type of business accounts
      * @param reservedInstanceSpecs The {@link ReservedInstanceSpec} instances that are part of this
      *                              topology
      * @param reservedInstances The {@link ReservedInstanceBought} instances that are part of this topology
      */
     public CoverageTopologyImpl(@Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
+                                @Nonnull ThinTargetCache targetCache,
                                 @Nonnull Collection<ReservedInstanceSpec> reservedInstanceSpecs,
                                 @Nonnull Collection<ReservedInstanceBought> reservedInstances) {
 
         this.cloudTopology = Objects.requireNonNull(cloudTopology);
+        this.targetCache = Objects.requireNonNull(targetCache);
         this.reservedInstanceSpecsById = Objects.requireNonNull(reservedInstanceSpecs).stream()
                 .collect(ImmutableMap.toImmutableMap(
                         ReservedInstanceSpec::getId,
@@ -233,6 +245,40 @@ public class CoverageTopologyImpl implements CoverageTopology {
      */
     @Nonnull
     @Override
+    public Map<Long, Long> getReservedInstanceCapacityByOid() {
+        return reservedInstancesById.values().stream()
+                .collect(ImmutableMap.toImmutableMap(
+                        ReservedInstanceBought::getId,
+                        ri -> (long)ri.getReservedInstanceBoughtInfo()
+                                .getReservedInstanceBoughtCoupons()
+                                .getNumberOfCoupons()));
+    }
+
+    @Override
+    public Set<SDKProbeType> getProbeTypesForEntity(final long entityOid) {
+        return getEntity(entityOid)
+                .filter(TopologyEntityDTO::hasOrigin)
+                .filter(entity -> entity.getOrigin().hasDiscoveryOrigin())
+                .map(entity -> entity.getOrigin()
+                            .getDiscoveryOrigin()
+                            .getDiscoveringTargetIdsList()
+                            .stream()
+                            .map(targetCache::getTargetInfo)
+                            .filter(Optional::isPresent)
+                            .map(Optional::get)
+                            .map(ThinTargetInfo::probeInfo)
+                            .map(ThinProbeInfo::type)
+                            .map(SDKProbeType::create)
+                            .filter(Objects::nonNull)
+                            .collect(Collectors.toSet()))
+                .orElse(Collections.EMPTY_SET);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Nonnull
+    @Override
     public Optional<TopologyEntityDTO> getConnectedAvailabilityZone(final long entityId) {
         return cloudTopology.getConnectedAvailabilityZone(entityId);
     }
@@ -277,8 +323,8 @@ public class CoverageTopologyImpl implements CoverageTopology {
      */
     @Nonnull
     @Override
-    public List<TopologyEntityDTO> getAllEntitesOfType(final int entityType) {
-        return cloudTopology.getAllEntitesOfType(entityType);
+    public List<TopologyEntityDTO> getAllEntitiesOfType(final int entityType) {
+        return cloudTopology.getAllEntitiesOfType(entityType);
     }
 
     /**
@@ -286,7 +332,12 @@ public class CoverageTopologyImpl implements CoverageTopology {
      */
     @Nonnull
     @Override
-    public List<TopologyEntityDTO> getAllEntitesOfTypes(final Set<Integer> entityTypes) {
-        return cloudTopology.getAllEntitesOfTypes(entityTypes);
+    public List<TopologyEntityDTO> getAllEntitiesOfType(final Set<Integer> entityTypes) {
+        return cloudTopology.getAllEntitiesOfType(entityTypes);
+    }
+
+    @Override
+    public long getRICoverageCapacityForEntity(final long entityId) {
+        return cloudTopology.getRICoverageCapacityForEntity(entityId);
     }
 }

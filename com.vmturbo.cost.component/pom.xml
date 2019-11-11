@@ -242,6 +242,10 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>market-component-api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>reserved-instance-coverage-allocator</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.apache.commons</groupId>
@@ -279,6 +283,23 @@
             <artifactId>components-api-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.powermock</groupId>
+            <artifactId>powermock-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.powermock</groupId>
+            <artifactId>powermock-module-junit4</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.powermock</groupId>
+            <artifactId>powermock-api-mockito</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- END test dependencies -->
+
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.sdk.server.common</artifactId>

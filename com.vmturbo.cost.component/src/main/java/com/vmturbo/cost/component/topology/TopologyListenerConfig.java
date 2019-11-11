@@ -20,6 +20,7 @@ import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCost
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
+import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
 import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.discount.DiscountConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
@@ -28,18 +29,15 @@ import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
-import com.vmturbo.topology.processor.api.TopologyProcessor;
-import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
-import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
-import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Topic;
 
 /**
- * Setup listener for topologies from Topology Processor.
+ * Setup listener for topologies from Topology Processor. Does not directly configured
+ * the listener of the topology processor
  */
 
 @Configuration
 @Import({ComputeTierDemandStatsConfig.class,
-        TopologyProcessorClientConfig.class,
+        TopologyProcessorListenerConfig.class,
         PricingConfig.class,
         EntityCostConfig.class,
         DiscountConfig.class,
@@ -51,7 +49,7 @@ public class TopologyListenerConfig {
     private static final Logger logger = LogManager.getLogger();
 
     @Autowired
-    private TopologyProcessorClientConfig topologyClientConfig;
+    private TopologyProcessorListenerConfig topologyProcessorListenerConfig;
 
     @Autowired
     private ComputeTierDemandStatsConfig computeTierDemandStatsConfig;
@@ -80,9 +78,6 @@ public class TopologyListenerConfig {
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
-    @Value("${enableTopologyListener:true}")
-    private boolean enabled;
-
     @Bean
     public LiveTopologyEntitiesListener liveTopologyEntitiesListener() {
         final LiveTopologyEntitiesListener entitiesListener =
@@ -92,13 +87,11 @@ public class TopologyListenerConfig {
                         entityCostConfig.entityCostStore(),
                         reservedInstanceConfig.reservedInstanceCoverageUpload(),
                         costConfig.businessAccountHelper(),
-                        costJournalRecorder(), buyRIAnalysisConfig.reservedInstanceAnalysisInvoker());
-        if (enabled) {
-            logger.info("Enabling topology listener for liveTopologies.");
-            topologyProcessor().addLiveTopologyListener(entitiesListener);
-        } else {
-            logger.info("Not adding topology listener for liveTopologies.");
-        }
+                        costJournalRecorder(),
+                        buyRIAnalysisConfig.reservedInstanceAnalysisInvoker());
+
+        topologyProcessorListenerConfig.topologyProcessor()
+                .addLiveTopologyListener(entitiesListener);
         return entitiesListener;
     }
 
@@ -108,25 +101,9 @@ public class TopologyListenerConfig {
                 new TopologyProcessorNotificationListener(
                 costConfig.businessAccountHelper(),
                 pricingConfig.businessAccountPriceTableKeyStore());
-        if (enabled) {
-            logger.info("Enabling topology listener for notifications");
-            topologyProcessor().addTargetListener(targetListener);
-        } else {
-            logger.info("Not adding topology listener for notifications.");
-        }
+            topologyProcessorListenerConfig.topologyProcessor()
+                    .addTargetListener(targetListener);
         return targetListener;
-    }
-
-    @Bean
-    public TopologyProcessor topologyProcessor() {
-        // only add the live topology topic listener if we plan on processing them.
-        if (enabled) {
-            return topologyClientConfig.topologyProcessor(
-                    TopologyProcessorSubscription.forTopic(Topic.LiveTopologies),
-                    TopologyProcessorSubscription.forTopic(Topic.Notifications));
-        } else {
-            return topologyClientConfig.topologyProcessor();
-        }
     }
 
     @Bean

@@ -200,11 +200,20 @@ public interface CloudTopology<ENTITY_CLASS> {
      * Get all entities of a particular type in the topology.
      */
     @Nonnull
-    List<ENTITY_CLASS> getAllEntitesOfType(int entityType);
+    List<ENTITY_CLASS> getAllEntitiesOfType(int entityType);
 
     /*
      * Get all entities of particular types in the topology.
      */
     @Nonnull
-    List<ENTITY_CLASS> getAllEntitesOfTypes(Set<Integer> entityTypes);
+    List<ENTITY_CLASS> getAllEntitiesOfType(Set<Integer> entityTypes);
+
+    /**
+     * Resolves the RI coverage capacity for an entity. First, the entity state is checked to
+     * verify the entity is in a valid state to be covered by an RI. If the entity state is valid,
+     * the entity's tier is checked for RI capacity (currently, only ComputeTier is supported)
+     * @param entityId The OID of the target entity
+     * @return The RI coverage capacity of the target entity
+     */
+    long getRICoverageCapacityForEntity(long entityId);
 }

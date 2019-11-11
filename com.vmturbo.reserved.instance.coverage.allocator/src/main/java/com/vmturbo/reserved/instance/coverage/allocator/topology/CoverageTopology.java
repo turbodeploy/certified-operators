@@ -2,6 +2,7 @@ package com.vmturbo.reserved.instance.coverage.allocator.topology;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
@@ -10,6 +11,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 /**
  * A sub-interface of {@link CloudTopology}, in which access to instances of {@link ReservedInstanceBought}
@@ -105,5 +107,21 @@ public interface CoverageTopology extends CloudTopology<TopologyEntityDTO> {
     @Nonnull
     Optional<TopologyEntityDTO> getReservedInstanceAvailabilityZone(long riOid);
 
+    /**
+     * Resolves the capacity for each instance of {@link ReservedInstanceBought} contained within
+     * this topology
+     * @return An immutable map of {@literal <ReservedInstanceBought OID, Coverage Capacity>}
+     */
+    @Nonnull
+    Map<Long, Long> getReservedInstanceCapacityByOid();
 
+
+    /**
+     * Resolves the probe types for an entity. This will be resolved through the discovered
+     * targets of the entity, querying the topology-processor for the target into (including the probe
+     * type)
+     * @param entityOid The OID fo the entity
+     * @return A set of {@link SDKProbeType} from the discovery origin target list of the entity
+     */
+    Set<SDKProbeType> getProbeTypesForEntity(long entityOid);
 }

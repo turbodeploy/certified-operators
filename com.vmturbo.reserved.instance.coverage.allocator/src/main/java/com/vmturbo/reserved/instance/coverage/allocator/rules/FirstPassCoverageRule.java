@@ -2,6 +2,8 @@ package com.vmturbo.reserved.instance.coverage.allocator.rules;
 
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Map;
+import java.util.Objects;
 import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -34,7 +36,7 @@ public class FirstPassCoverageRule implements ReservedInstanceCoverageRule {
 
     private static final String RULE_IDENTIFIER = FirstPassCoverageRule.class.getSimpleName();
 
-    private final CoverageTopology coverageTopology;
+    private final CloudProviderCoverageContext coverageContext;
     private final ReservedInstanceCoverageJournal coverageJournal;
 
     private final Comparator<Long> reservedInstanceComparator;
@@ -42,8 +44,8 @@ public class FirstPassCoverageRule implements ReservedInstanceCoverageRule {
 
     private FirstPassCoverageRule(@Nonnull CloudProviderCoverageContext coverageContext,
                                  @Nonnull ReservedInstanceCoverageJournal coverageJournal) {
-        this.coverageTopology = coverageContext.coverageTopology();
-        this.coverageJournal = coverageJournal;
+        this.coverageContext = Objects.requireNonNull(coverageContext);
+        this.coverageJournal = Objects.requireNonNull(coverageJournal);
 
         // This comparator sorts the RIs smallest to largest (in regards to capacity and therefore instance
         // type). This mirrors the sorting applied for AWS billing (Azure does not publish their sorting
@@ -66,27 +68,32 @@ public class FirstPassCoverageRule implements ReservedInstanceCoverageRule {
      */
     @Override
     public Stream<ReservedInstanceCoverageGroup> coverageGroups() {
-        // Iterate through coverage entries, looking for a coverage entry in which neither the
-        // referenced RI nor entity are at capacity. Any entry passing this condition is a candidate to
-        // "fill in" the coverage until either the entity or RI are at capacity. We start by iterating
-        // over the current coverage entries by <RI OID, Entity OID>
-        return coverageJournal.getCoverages().columnMap().entrySet().stream()
+
+        final Map<Long, Map<Long, Double>> entityCoverageByRIOid =
+                coverageJournal.getCoverages().columnMap();
+
+        // First iterate through RIs within the coverage context, filtering those RIs not at capacity.
+        // For each RI, we then create a coverage group of entities which are already covered by it,
+        // but are not at capacity (sorting by the entity comparator). The intent is to create groups
+        // which contain entities and RIs which are already linked, in which neither is at capacity
+        return coverageContext.reservedInstanceOids().stream()
+                // Filter out RIs without coverage assignments
+                .filter(entityCoverageByRIOid::containsKey)
                 // Filter out RIs already at capacity
-                .filter(riEntry -> !coverageJournal.isReservedInstanceAtCapacity(riEntry.getKey()))
-                // Sort entries by the RI first
-                .sorted((riEntry1, riEntry2) -> reservedInstanceComparator.compare(
-                        riEntry1.getKey(),
-                        riEntry2.getKey()))
+                .filter(Predicates.not(coverageJournal::isReservedInstanceAtCapacity))
+                // Sort RIs by Oid
+                .sorted()
                 // Create a group of the RI to any entites its covering, filtering out
                 // fully covered entities and sorting them
-                .map(riEntry -> ReservedInstanceCoverageGroup.of(
-                        "",
+                .map(riOid -> ReservedInstanceCoverageGroup.of(
+                        coverageContext.cloudServiceProvider(),
+                        ruleIdentifier(),
                         //No coverage key for this rule
                         null,
-                        new TreeSet<>(Collections.singleton(riEntry.getKey())),
+                        new TreeSet<>(Collections.singleton(riOid)),
                         ImmutableSortedSet
                                 .orderedBy(entityComparator)
-                                .addAll(riEntry.getValue()
+                                .addAll(entityCoverageByRIOid.get(riOid)
                                         .keySet()
                                         .stream()
                                         // Ignore fully covered entities

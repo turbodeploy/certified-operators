@@ -19,6 +19,7 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
@@ -344,7 +345,7 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
      */
     @Override
     @Nonnull
-    public List<TopologyEntityDTO> getAllEntitesOfType(int entityType) {
+    public List<TopologyEntityDTO> getAllEntitiesOfType(int entityType) {
         return getEntities().values()
                 .stream()
                 .filter(entity -> entity.getEntityType() == entityType)
@@ -356,11 +357,35 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
      */
     @Override
     @Nonnull
-    public List<TopologyEntityDTO> getAllEntitesOfTypes(Set<Integer> entityTypes) {
+    public List<TopologyEntityDTO> getAllEntitiesOfType(Set<Integer> entityTypes) {
         return getEntities().values()
                 .stream()
                 .filter(entity -> entityTypes.contains(entity.getEntityType()))
                 .collect(Collectors.toList());
 
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long getRICoverageCapacityForEntity(final long entityId) {
+        return getEntity(entityId)
+                .map(entity -> {
+                    switch (entity.getEntityType()) {
+                        case EntityType.VIRTUAL_MACHINE_VALUE:
+                            // capacity will only reflect the computeTier capacity, if the entity
+                            // is in a state in which it can be covered by an RI.
+                            final EntityState entityState = entity.getEntityState();
+                            return entityState == EntityState.POWERED_ON ?
+                                    getComputeTier(entity.getOid())
+                                            .map(computeTier -> (long)computeTier.getTypeSpecificInfo()
+                                                    .getComputeTier().getNumCoupons())
+                                            .orElse(0L) : 0L;
+                        default:
+                            // if unsupported type, capacity is assumed to be 0
+                            return 0L;
+                    }
+                }).orElse(0L);
     }
 }

@@ -284,11 +284,11 @@ public class TopologyEntityCloudTopologyTest {
         final List<TopologyEntityDTO> allRegions = cloudTopology.getAllRegions();
         Assert.assertEquals(1, allRegions.size());
         final List<TopologyEntityDTO> allVMs = cloudTopology
-            .getAllEntitesOfType(EntityType.VIRTUAL_MACHINE_VALUE);
+            .getAllEntitiesOfType(EntityType.VIRTUAL_MACHINE_VALUE);
         Assert.assertEquals(2, allVMs.size());
         Set<Integer> entityTypeSet = Sets.newHashSet(EntityType.VIRTUAL_MACHINE_VALUE,
             EntityType.STORAGE_VALUE);
-        final List<TopologyEntityDTO> allEntitesOfTypes = cloudTopology.getAllEntitesOfTypes(entityTypeSet);
+        final List<TopologyEntityDTO> allEntitesOfTypes = cloudTopology.getAllEntitiesOfType(entityTypeSet);
         Assert.assertEquals(2, allEntitesOfTypes.size());
         // testing the number of entities defined in the test
         Assert.assertEquals(16, cloudTopology.size());

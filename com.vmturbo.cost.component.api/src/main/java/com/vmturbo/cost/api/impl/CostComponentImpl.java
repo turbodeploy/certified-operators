@@ -6,6 +6,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
 import com.vmturbo.components.api.client.ComponentNotificationReceiver;
@@ -20,35 +24,37 @@ public class CostComponentImpl extends
         ComponentNotificationReceiver<CostNotification> implements CostComponent {
 
     /**
-     * Kafka topic to receive cost notifications.
+     * Kafka topic to receive cost notification messages (status updates).
      */
     public static final String COST_NOTIFICATIONS = "cost-notifications";
 
-    private final Set<CostNotificationListener> listeners =
+    private final Logger logger = LogManager.getLogger();
+
+    private final Set<CostNotificationListener> costNotificationListeners =
             Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     /**
-     * The constructor of the cost notification receiver.
+     * The constructor of the cost component message receiver
      *
-     * @param messageReceiver Message receiver to await messages from
+     * @param costNotificationMessageReceiver Message receiver for cost status notifications
      * @param executorService Executor service to use for communication with the server.
      */
     public CostComponentImpl(
-            @Nonnull final IMessageReceiver<CostNotification> messageReceiver,
+            @Nullable final IMessageReceiver<CostNotification> costNotificationMessageReceiver,
             @Nonnull final ExecutorService executorService) {
-        super(messageReceiver, executorService);
+        super(costNotificationMessageReceiver, executorService);
     }
 
     @Override
     protected void processMessage(@Nonnull final CostNotification message) {
-        for (CostNotificationListener listener : listeners) {
+        for (CostNotificationListener listener : costNotificationListeners) {
             listener.onCostNotificationReceived(message);
         }
     }
 
     @Override
     public void addCostNotificationListener(@Nonnull final CostNotificationListener listener) {
-        listeners.add(listener);
+        costNotificationListeners.add(listener);
     }
 
 }

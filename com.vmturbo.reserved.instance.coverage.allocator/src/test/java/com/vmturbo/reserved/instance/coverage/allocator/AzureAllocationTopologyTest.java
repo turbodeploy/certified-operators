@@ -6,6 +6,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
@@ -14,9 +15,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo.CloudServiceProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -38,6 +40,11 @@ class AzureAllocationTopologyTest {
                     .setComputeTier(ComputeTierInfo.newBuilder()
                             .setFamily("familyA")
                             .setNumCoupons(1)))
+            .setOrigin(Origin.newBuilder()
+                    .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                            .addDiscoveringTargetIds(OID_PROVIDER.incrementAndGet())
+                            .build())
+                    .build())
             .build();
 
     protected static final TopologyEntityDTO COMPUTER_TIER_MEDIUM = TopologyEntityDTO.newBuilder()
@@ -49,6 +56,11 @@ class AzureAllocationTopologyTest {
                     .setComputeTier(ComputeTierInfo.newBuilder()
                             .setFamily("familyA")
                             .setNumCoupons(2)))
+            .setOrigin(Origin.newBuilder()
+                    .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                            .addDiscoveringTargetIds(OID_PROVIDER.incrementAndGet())
+                            .build())
+                    .build())
             .build();
 
     protected static final TopologyEntityDTO REGION = TopologyEntityDTO.newBuilder()
@@ -56,6 +68,11 @@ class AzureAllocationTopologyTest {
             .setDisplayName("region")
             .setEntityType(EntityType.REGION_VALUE)
             .setEnvironmentType(EnvironmentType.CLOUD)
+            .setOrigin(Origin.newBuilder()
+                    .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                            .addDiscoveringTargetIds(OID_PROVIDER.incrementAndGet())
+                            .build())
+                    .build())
             .build();
 
     protected static final TopologyEntityDTO VIRTUAL_MACHINE_SMALL_A = TopologyEntityDTO.newBuilder()
@@ -75,15 +92,16 @@ class AzureAllocationTopologyTest {
                     .setConnectedEntityId(REGION.getOid())
                     .setConnectedEntityType(EntityType.REGION_VALUE)
                     .setConnectionType(ConnectionType.NORMAL_CONNECTION))
+            .setOrigin(Origin.newBuilder()
+                    .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                            .addDiscoveringTargetIds(OID_PROVIDER.incrementAndGet())
+                            .build())
+                    .build())
             .build();
 
 
     protected static final TopologyEntityDTO BUSINESS_ACCOUNT = TopologyEntityDTO.newBuilder()
             .setOid(OID_PROVIDER.incrementAndGet())
-            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-                    .setBusinessAccount(BusinessAccountInfo.newBuilder()
-                            .setCloudServiceProvider(CloudServiceProvider.AZURE)
-                            .build()))
             .setDisplayName("bussiness_account")
             .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
             .setEnvironmentType(EnvironmentType.CLOUD)
@@ -91,6 +109,11 @@ class AzureAllocationTopologyTest {
                     .setConnectedEntityId(VIRTUAL_MACHINE_SMALL_A.getOid())
                     .setConnectedEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                     .setConnectionType(ConnectionType.OWNS_CONNECTION))
+            .setOrigin(Origin.newBuilder()
+                    .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                            .addDiscoveringTargetIds(OID_PROVIDER.incrementAndGet())
+                            .build())
+                    .build())
             .build();
 
     protected static final ReservedInstanceSpec RI_SPEC_SMALL = ReservedInstanceSpec.newBuilder()
@@ -113,7 +136,10 @@ class AzureAllocationTopologyTest {
                     .setStartTime(Instant.now().toEpochMilli())
                     .setReservedInstanceSpec(RI_SPEC_SMALL.getId())
                     .setReservedInstanceScopeInfo(ReservedInstanceScopeInfo.newBuilder()
-                            .setShared(true)))
+                            .setShared(true))
+                    .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder()
+                            .setNumberOfCoupons(1)
+                            .build()))
             .build();
 
 }

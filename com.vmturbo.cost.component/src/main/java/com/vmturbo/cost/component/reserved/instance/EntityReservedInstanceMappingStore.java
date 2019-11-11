@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -24,15 +25,18 @@ import org.jooq.Record2;
 import org.jooq.Result;
 import org.stringtemplate.v4.ST;
 
+import com.google.common.collect.ImmutableTable;
+import com.google.common.collect.Table;
+
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
-import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage.RICoverageSource;
 import com.vmturbo.cost.component.db.enums.EntityToReservedInstanceMappingRiSourceCoverage;
+import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.pojos.EntityToReservedInstanceMapping;
 import com.vmturbo.cost.component.db.tables.records.EntityToReservedInstanceMappingRecord;
 import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanceMappingFilter;
-import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 
 /**
  * This class responsible for storing the mapping relation between entity with reserved instance about
@@ -51,8 +55,6 @@ public class EntityReservedInstanceMappingStore {
     private final static int chunkSize = 1000;
 
     private final DSLContext dsl;
-
-    private final ReservedInstanceBoughtStore reservedInstanceBoughtStore;
 
     private static final String ENTITY_RI_COVERAGE_LOGGING_TEMPLATE_ENTITY_INFO =
             "\n================== NEW MAPPING =====================\n" +
@@ -75,10 +77,8 @@ public class EntityReservedInstanceMappingStore {
                     "| Coverage Source : <coverageSource>\n";
 
     public EntityReservedInstanceMappingStore(
-            @Nonnull final DSLContext dsl,
-            @Nonnull final ReservedInstanceBoughtStore reservedInstanceBoughtStore) {
+            @Nonnull final DSLContext dsl) {
         this.dsl = dsl;
-        this.reservedInstanceBoughtStore = reservedInstanceBoughtStore;
     }
 
     /**
@@ -90,22 +90,16 @@ public class EntityReservedInstanceMappingStore {
     public void updateEntityReservedInstanceMapping(
             @Nonnull final DSLContext context,
             @Nonnull final List<EntityRICoverageUpload> entityReservedInstanceCoverages) {
+
         final LocalDateTime currentTime = LocalDateTime.now(ZoneOffset.UTC);
-        final ReservedInstanceBoughtFilter filter = ReservedInstanceBoughtFilter.newBuilder().build();
-        final List<ReservedInstanceBought> reservedInstancesBought =
-                reservedInstanceBoughtStore.getReservedInstanceBoughtByFilterWithContext(context, filter);
-        // it will not have conflict, because the probe reserved instance id is also unique.
-        final Map<String, Long> probeStrIdToIdMap = reservedInstancesBought.stream()
-                .collect(Collectors.toMap(
-                        ri -> ri.getReservedInstanceBoughtInfo().getProbeReservedInstanceId(),
-                        ReservedInstanceBought::getId));
+
         final List<EntityToReservedInstanceMappingRecord> records =
                 entityReservedInstanceCoverages.stream()
                         .filter(entityCoverage -> !entityCoverage.getCoverageList().isEmpty())
                         .map(entityCoverage -> createEntityToRIMappingRecords(
                                 context, currentTime,
                                 entityCoverage.getEntityId(),
-                                entityCoverage.getCoverageList(), probeStrIdToIdMap))
+                                entityCoverage.getCoverageList()))
                         .flatMap(List::stream)
                         .collect(Collectors.toList());
 
@@ -209,29 +203,64 @@ public class EntityReservedInstanceMappingStore {
     }
 
     /**
+     * Gets the RI coverage by entity ID.
+     *
+     * @return A {@link Map} of Entity OID to a {@link Set} of {@link Coverage} entries
+     */
+    public Map<Long, Set<Coverage>> getRICoverageByEntity() {
+
+        final Map<Long, Set<Coverage>> riCoverageByEntity = new HashMap<>();
+
+        getEntityRICoverageFromDB().forEach(entityRIMapping ->
+                riCoverageByEntity.computeIfAbsent(entityRIMapping.getEntityId(), __ -> new HashSet<>())
+                        .add(Coverage.newBuilder()
+                                .setReservedInstanceId(entityRIMapping.getReservedInstanceId())
+                                .setCoveredCoupons(entityRIMapping.getUsedCoupons())
+                                .setRiCoverageSource(RICoverageSource.valueOf(
+                                        entityRIMapping.getRiSourceCoverage().toString()))
+                                .build()));
+
+        return riCoverageByEntity;
+    }
+
+    /**
      * Create a list of {@link EntityToReservedInstanceMappingRecord}.
      *
      * @param context {@link DSLContext} transactional context.
      * @param currentTime the current time.
      * @param entityId the entity id.
      * @param riCoverageList a list of {@link EntityRICoverageUpload.Coverage}.
-     * @param probeStrIdToIdMap a map which key is probe reserved instance id, value is the real id
-     *                          reserved instance.
      * @return a list of {@link EntityToReservedInstanceMappingRecord}.
      */
     private List<EntityToReservedInstanceMappingRecord> createEntityToRIMappingRecords(
             @Nonnull final DSLContext context,
             @Nonnull final LocalDateTime currentTime,
             final long entityId,
-            @Nonnull final List<EntityRICoverageUpload.Coverage> riCoverageList,
-            @Nonnull Map<String, Long> probeStrIdToIdMap) {
-        return riCoverageList.stream()
-                .filter(riCoverage -> probeStrIdToIdMap.containsKey(riCoverage.getProbeReservedInstanceId()))
+            @Nonnull final List<EntityRICoverageUpload.Coverage> riCoverageList) {
+
+        // If the provider has multiple entries for the (RI OID, Coverage Source) tuple, we reduce
+        // them to a single entry and sum the covered coupons to conform to the table key constraints
+        final Table<Long, RICoverageSource, Double> riCoverageBySource = riCoverageList.stream()
+                .collect(ImmutableTable.toImmutableTable(
+                        Coverage::getReservedInstanceId,
+                        Coverage::getRiCoverageSource,
+                        Coverage::getCoveredCoupons,
+                        Double::sum
+                ));
+
+        return riCoverageBySource.cellSet().stream()
                 .map(riCoverage ->
                         context.newRecord(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING,
-                                new EntityToReservedInstanceMappingRecord(currentTime, entityId,
-                                        probeStrIdToIdMap.get(riCoverage.getProbeReservedInstanceId()),
-                                        riCoverage.getCoveredCoupons(), EntityToReservedInstanceMappingRiSourceCoverage.valueOf(riCoverage.getRiCoverageSource().toString()))))
+                                new EntityToReservedInstanceMappingRecord(
+                                        currentTime,
+                                        entityId,
+                                        // This ID will already by the cost component assigned OID
+                                        // For billing coverage, this is updated in RIAndExpenseUploadRpcService
+                                        // For supplemental coverage, it is created with the correct OID
+                                        riCoverage.getRowKey(),
+                                        riCoverage.getValue(),
+                                        EntityToReservedInstanceMappingRiSourceCoverage.valueOf(
+                                                riCoverage.getColumnKey().toString()))))
                 .collect(Collectors.toList());
     }
 

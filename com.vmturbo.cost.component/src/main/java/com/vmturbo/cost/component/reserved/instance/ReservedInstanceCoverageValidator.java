@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.logging.log4j.LogManager;
@@ -71,7 +72,7 @@ public class ReservedInstanceCoverageValidator {
                     .stream()
                     .collect(ImmutableMap.toImmutableMap(
                             ReservedInstanceSpec::getId, Function.identity()));
-        this.billingIdByAccount = cloudTopology.getAllEntitesOfType(EntityType.BUSINESS_ACCOUNT_VALUE)
+        this.billingIdByAccount = cloudTopology.getAllEntitiesOfType(EntityType.BUSINESS_ACCOUNT_VALUE)
                 .stream()
                 .collect(ImmutableMap.toImmutableMap(
                         TopologyEntityDTO::getOid,
@@ -95,7 +96,7 @@ public class ReservedInstanceCoverageValidator {
      *
      *
      * @param entityRICoverageEntries the list of coverages to validate
-     * @return A list of {@link EntityRICoverageUpload} in which the linked entity/RI exist and
+     * @return An immutable list of {@link EntityRICoverageUpload} in which the linked entity/RI exist and
      * coverage instances are valid. If an entity exists within the cloud topology and a
      * {@link EntityRICoverageUpload} references the entity, this method is guaranteed to return
      * an {@link EntityRICoverageUpload} instance for it.
@@ -107,7 +108,7 @@ public class ReservedInstanceCoverageValidator {
                 .map(this::validateCoverageUpload)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
-                .collect(Collectors.toList());
+                .collect(ImmutableList.toImmutableList());
     }
 
     /**

@@ -17,6 +17,7 @@ import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotificat
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.Status;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate.Builder;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdateType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
@@ -102,7 +103,7 @@ public class ProjectedRICoverageListener implements ProjectedReservedInstanceCov
             @Nonnull final CostNotification projectedRiCoverageNotification) {
         try {
             costNotificationSender.sendNotification(projectedRiCoverageNotification);
-            final StatusUpdate projectedRiCoverageUpdate = projectedRiCoverageNotification.getProjectedRiCoverageUpdate();
+            final StatusUpdate projectedRiCoverageUpdate = projectedRiCoverageNotification.getStatusUpdate();
             logger.debug("The projected RI coverage notification has been sent successfully. " +
                             "topology ID: {} topology context ID: {} status: {}",
                     projectedRiCoverageUpdate.getTopologyId(),
@@ -142,6 +143,7 @@ public class ProjectedRICoverageListener implements ProjectedReservedInstanceCov
             @Nonnull final Status status,
             @Nullable final String description) {
         final Builder projectedRiCoverageNotificationBuilder = StatusUpdate.newBuilder()
+                .setType(StatusUpdateType.SOURCE_RI_COVERAGE_UPDATE)
                 .setTopologyId(originalTopologyInfo.getTopologyId())
                 .setTopologyContextId(originalTopologyInfo.getTopologyContextId())
                 .setStatus(status);
@@ -150,7 +152,7 @@ public class ProjectedRICoverageListener implements ProjectedReservedInstanceCov
             projectedRiCoverageNotificationBuilder.setStatusDescription(description);
         }
         return CostNotification.newBuilder()
-                .setProjectedRiCoverageUpdate(projectedRiCoverageNotificationBuilder).build();
+                .setStatusUpdate(projectedRiCoverageNotificationBuilder).build();
     }
 
 }

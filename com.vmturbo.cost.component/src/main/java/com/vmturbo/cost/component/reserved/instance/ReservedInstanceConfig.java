@@ -25,12 +25,16 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.
 import com.vmturbo.cost.component.CostComponentGlobalConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.MarketListenerConfig;
+import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
 import com.vmturbo.cost.component.notification.CostNotificationConfig;
+import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalRICoverageAnalysisFactory;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
+import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopologyFactory;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 @Configuration
 @Import({IdentityProviderConfig.class,
@@ -41,7 +45,8 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
     RepositoryClientConfig.class,
     ComputeTierDemandStatsConfig.class,
     CostNotificationConfig.class,
-    CostComponentGlobalConfig.class})
+    CostComponentGlobalConfig.class,
+    TopologyProcessorListenerConfig.class})
 public class ReservedInstanceConfig {
 
     @Value("${retention.numRetainedMinutes}")
@@ -61,6 +66,12 @@ public class ReservedInstanceConfig {
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
+
+    @Value("${supplementalRICoverageValidation:false}")
+    private boolean supplementalRICoverageValidation;
+
+    @Value("${concurrentSupplementalRICoverageAllocation:true}")
+    private boolean concurrentSupplementalRICoverageAllocation;
 
     @Autowired
     private GroupClientConfig groupClientConfig;
@@ -86,6 +97,9 @@ public class ReservedInstanceConfig {
     @Autowired
     private CostNotificationConfig costNotificationConfig;
 
+    @Autowired
+    private TopologyProcessorListenerConfig topologyProcessorListenerConfig;
+
     @Bean
     public ReservedInstanceBoughtStore reservedInstanceBoughtStore() {
         return new ReservedInstanceBoughtStore(databaseConfig.dsl(),
@@ -106,8 +120,7 @@ public class ReservedInstanceConfig {
 
     @Bean
     public EntityReservedInstanceMappingStore entityReservedInstanceMappingStore() {
-        return new EntityReservedInstanceMappingStore(databaseConfig.dsl(),
-                reservedInstanceBoughtStore());
+        return new EntityReservedInstanceMappingStore(databaseConfig.dsl());
     }
 
     @Bean
@@ -195,6 +208,8 @@ public class ReservedInstanceConfig {
         return new ReservedInstanceCoverageUpdate(databaseConfig.dsl(), entityReservedInstanceMappingStore(),
                 reservedInstanceUtilizationStore(), reservedInstanceCoverageStore(),
                 reservedInstanceCoverageValidatorFactory(),
+                supplementalRICoverageAnalysisFactory(),
+                costNotificationConfig.costNotificationSender(),
                 riCoverageCacheExpireMinutes);
     }
 
@@ -264,6 +279,26 @@ public class ReservedInstanceConfig {
                 reservedInstanceBoughtStore(),
                 reservedInstanceSpecStore());
 
+    }
+
+    @Bean
+    public ThinTargetCache thinTargetCache() {
+        return new ThinTargetCache(topologyProcessorListenerConfig.topologyProcessor());
+    }
+
+    @Bean
+    public CoverageTopologyFactory coverageTopologyFactory() {
+        return new CoverageTopologyFactory(thinTargetCache());
+    }
+
+    @Bean
+    public SupplementalRICoverageAnalysisFactory supplementalRICoverageAnalysisFactory() {
+        return new SupplementalRICoverageAnalysisFactory(
+                coverageTopologyFactory(),
+                reservedInstanceBoughtStore(),
+                reservedInstanceSpecStore(),
+                supplementalRICoverageValidation,
+                concurrentSupplementalRICoverageAllocation);
     }
 
     @Bean

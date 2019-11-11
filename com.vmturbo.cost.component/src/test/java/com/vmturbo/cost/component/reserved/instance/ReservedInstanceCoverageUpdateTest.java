@@ -4,6 +4,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -11,10 +12,9 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
-import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -28,10 +28,10 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
@@ -41,14 +41,18 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
-import com.vmturbo.cost.component.identity.IdentityProvider;
+import com.vmturbo.cost.component.notification.CostNotificationSender;
+import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalRICoverageAnalysis;
+import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalRICoverageAnalysisFactory;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
@@ -80,6 +84,14 @@ public class ReservedInstanceCoverageUpdateTest {
 
     private ReservedInstanceCoverageValidator reservedInstanceCoverageValidator =
             mock(ReservedInstanceCoverageValidator.class);
+
+    private SupplementalRICoverageAnalysisFactory supplementalRICoverageAnalysisFactory =
+            mock(SupplementalRICoverageAnalysisFactory.class);
+    private SupplementalRICoverageAnalysis supplementalRICoverageAnalysis =
+            mock(SupplementalRICoverageAnalysis.class);
+
+    private CostNotificationSender costNotificationSender =
+            mock(CostNotificationSender.class);
 
     @Captor
     private ArgumentCaptor<List<EntityRICoverageUpload>> entityRIMappingStoreCoverageCaptor;
@@ -228,10 +240,13 @@ public class ReservedInstanceCoverageUpdateTest {
         reservedInstanceCoverageUpdate = new ReservedInstanceCoverageUpdate(dsl,
                 entityReservedInstanceMappingStore, reservedInstanceUtilizationStore,
                 reservedInstanceCoverageStore, reservedInstanceCoverageValidatorFactory,
+                supplementalRICoverageAnalysisFactory, costNotificationSender,
                 120);
 
         when(reservedInstanceCoverageValidatorFactory.newValidator(any()))
                 .thenReturn(reservedInstanceCoverageValidator);
+        when(supplementalRICoverageAnalysisFactory.createCoverageAnalysis(any(), anyList()))
+                .thenReturn(supplementalRICoverageAnalysis);
     }
 
     @Test
@@ -268,6 +283,9 @@ public class ReservedInstanceCoverageUpdateTest {
     public void testUpdateAllEntityRICoverageIntoDB() {
         // Input setup
         final long topologyId = 123456789L;
+        final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+                .setTopologyId(topologyId)
+                .build();
         final TopologyEntityCloudTopology cloudTopology =
                 cloudTopologyFactory.newCloudTopology(topology.values().stream());
 
@@ -278,14 +296,72 @@ public class ReservedInstanceCoverageUpdateTest {
         when(reservedInstanceCoverageValidator.validateCoverageUploads(eq(coverageInput)))
                 .thenReturn(coverageInput);
 
+        when(supplementalRICoverageAnalysis.createCoverageRecordsFromSupplementalAllocation())
+                .thenReturn(coverageInput);
+
         // setup SUT
         reservedInstanceCoverageUpdate.storeEntityRICoverageOnlyIntoCache(topologyId,
                 coverageInput);
 
         // invoke SUT
-        reservedInstanceCoverageUpdate.updateAllEntityRICoverageIntoDB(topologyId,
+        reservedInstanceCoverageUpdate.updateAllEntityRICoverageIntoDB(topologyInfo,
                 cloudTopology);
 
+
+        // setup captors
+        verify(entityReservedInstanceMappingStore).updateEntityReservedInstanceMapping(
+                any(), entityRIMappingStoreCoverageCaptor.capture());
+        verify(reservedInstanceCoverageStore).updateReservedInstanceCoverageStore(
+                any(), riCoverageStoreCoverageCaptor.capture());
+        verify(reservedInstanceUtilizationStore).updateReservedInstanceUtilization(
+                any());
+
+
+        // asserts
+        List<EntityRICoverageUpload> entityRIMappingStoreInput =
+                entityRIMappingStoreCoverageCaptor.getValue();
+        assertThat(entityRIMappingStoreInput.size(), equalTo(1));
+        final EntityRICoverageUpload entityRICoverageUpload = entityRIMappingStoreInput.get(0);
+        // verify the capacity is overridden to match the compute tier
+        assertThat(entityRICoverageUpload.getTotalCouponsRequired(), equalTo(100.0));
+
+        List<ServiceEntityReservedInstanceCoverageRecord> coverageRecords =
+                riCoverageStoreCoverageCaptor.getValue();
+        assertThat(coverageRecords.size(), equalTo(2));
+    }
+
+    /**
+     * Test {@link ReservedInstanceCoverageUpdate#updateAllEntityRICoverageIntoDB(TopologyInfo, CloudTopology)}
+     * in which the riUploadCache is empty (it should pull records from the {@link EntityReservedInstanceMappingStore}
+     */
+    @Test
+    public void testUpdateAllEntityRICoverageIntoDB_emptyCache() {
+        // Input setup
+        final long topologyId = 123456789L;
+        final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+                .setTopologyId(topologyId)
+                .build();
+        final TopologyEntityCloudTopology cloudTopology =
+                cloudTopologyFactory.newCloudTopology(topology.values().stream());
+
+        final List<EntityRICoverageUpload> coverageInput =
+                ImmutableList.of(entityRICoverageOne);
+
+        // mock setup
+        when(reservedInstanceCoverageValidator.validateCoverageUploads(eq(coverageInput)))
+                .thenReturn(coverageInput);
+
+        when(supplementalRICoverageAnalysis.createCoverageRecordsFromSupplementalAllocation())
+                .thenReturn(coverageInput);
+        when(entityReservedInstanceMappingStore.getRICoverageByEntity())
+                .thenReturn(ImmutableMap.of(
+                        entityRICoverageOne.getEntityId(),
+                        ImmutableSet.copyOf(entityRICoverageOne.getCoverageList())));
+
+
+        // invoke SUT
+        reservedInstanceCoverageUpdate.updateAllEntityRICoverageIntoDB(topologyInfo,
+                cloudTopology);
 
         // setup captors
         verify(entityReservedInstanceMappingStore).updateEntityReservedInstanceMapping(

@@ -100,7 +100,7 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
             // update reserved instance coverage data. RI coverage must be updated
             // before cost calculation to accurately reflect costs based on up-to-date
             // RI coverage
-            reservedInstanceCoverageUpdate.updateAllEntityRICoverageIntoDB(topologyInfo.getTopologyId(), cloudTopology);
+            reservedInstanceCoverageUpdate.updateAllEntityRICoverageIntoDB(topologyInfo, cloudTopology);
 
             final TopologyCostCalculator topologyCostCalculator = topologyCostCalculatorFactory.newCalculator(topologyInfo);
             final Map<Long, CostJournal<TopologyEntityDTO>> costs =

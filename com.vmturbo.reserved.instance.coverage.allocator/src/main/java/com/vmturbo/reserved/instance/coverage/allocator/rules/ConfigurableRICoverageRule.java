@@ -103,12 +103,12 @@ public class ConfigurableRICoverageRule implements ReservedInstanceCoverageRule 
     public Stream<ReservedInstanceCoverageGroup> coverageGroups() {
         final CoverageKeyRepository keyRepository = createKeyRepository();
 
-        final Set<CoverageKey> coverageKeyUnion = Sets.union(
+        final Set<CoverageKey> coverageKeyIntersection = Sets.intersection(
                 keyRepository.reservedInstancesByCoverageKey().keySet(),
                 keyRepository.entitiesByCoverageKey().keySet());
 
 
-        return coverageKeyUnion.stream()
+        return coverageKeyIntersection.stream()
                 .map(k -> this.createGroupFromKey(k, keyRepository));
     }
 
@@ -220,7 +220,7 @@ public class ConfigurableRICoverageRule implements ReservedInstanceCoverageRule 
      */
     @Nonnull
     private ReservedInstanceCoverageGroup createGroupFromKey(@Nonnull CoverageKey coverageKey,
-                                                               @Nonnull CoverageKeyRepository keyRepository) {
+                                                             @Nonnull CoverageKeyRepository keyRepository) {
         final SortedSet<Long> sortedReservedInstanceOids =
                 keyRepository.getReservedInstancesForKey(coverageKey)
                         .stream()
@@ -233,6 +233,7 @@ public class ConfigurableRICoverageRule implements ReservedInstanceCoverageRule 
                         .toImmutableSortedSet(entityComparator));
 
         return ReservedInstanceCoverageGroup.of(
+                coverageContext.cloudServiceProvider(),
                 ruleIdentifier(),
                 coverageKey,
                 sortedReservedInstanceOids,

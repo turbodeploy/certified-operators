@@ -1,6 +1,8 @@
 package com.vmturbo.reserved.instance.coverage.allocator;
 
-import java.util.Collections;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import org.junit.Test;
 
@@ -9,6 +11,8 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableTable;
 
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageJournal.CoverageJournalEntry;
+import com.vmturbo.reserved.instance.coverage.allocator.context.CloudProviderCoverageContext.CloudServiceProvider;
+import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
 
 public class ReservedInstanceCoverageJournalTest {
 
@@ -20,16 +24,21 @@ public class ReservedInstanceCoverageJournalTest {
     @Test(expected = VerifyException.class)
     public void testRIOverCapacityValidation() {
 
+        final CoverageTopology mockCoverageTopology = mock(CoverageTopology.class);
+        // Entity 1 with capacity 2
+        when(mockCoverageTopology.getReservedInstanceCapacityByOid())
+                .thenReturn(ImmutableMap.of(2L, 1L));
+        // RI 2 with capacity 1
+        when(mockCoverageTopology.getRICoverageCapacityForEntity(eq(1L))).thenReturn(2L);
+
         // setup SUT
         final ReservedInstanceCoverageJournal coverageJournal =
                 ReservedInstanceCoverageJournal.createJournal(
                         ImmutableTable.of(),
-                        // Entity 1 with capacity 2
-                        ImmutableMap.of(1L, 2.0),
-                        // RI 2 with capacity 1
-                        ImmutableMap.of(2L, 1.0));
+                        mockCoverageTopology);
 
-        coverageJournal.addCoverageEntry(CoverageJournalEntry.of("",
+        coverageJournal.addCoverageEntry(CoverageJournalEntry.of(
+                CloudServiceProvider.AWS, "sourceNameTest",
                 2, 1, 2, 2, 2));
 
         // invoke SUT
@@ -43,16 +52,21 @@ public class ReservedInstanceCoverageJournalTest {
     @Test(expected = VerifyException.class)
     public void testEntityOverCapacityValidation() {
 
+        final CoverageTopology mockCoverageTopology = mock(CoverageTopology.class);
+        // Entity 1 with capacity 2
+        when(mockCoverageTopology.getReservedInstanceCapacityByOid())
+                .thenReturn(ImmutableMap.of(2L, 1L));
+        // RI 2 with capacity 1
+        when(mockCoverageTopology.getRICoverageCapacityForEntity(eq(1L))).thenReturn(2L);
+
         // setup SUT
         final ReservedInstanceCoverageJournal coverageJournal =
                 ReservedInstanceCoverageJournal.createJournal(
                         ImmutableTable.of(),
-                        // Entity 1 with capacity 2
-                        ImmutableMap.of(1L, 1.0),
-                        // RI 2 with capacity 1
-                        ImmutableMap.of(2L, 2.0));
+                        mockCoverageTopology);
 
-        coverageJournal.addCoverageEntry(CoverageJournalEntry.of("",
+        coverageJournal.addCoverageEntry(CoverageJournalEntry.of(
+                CloudServiceProvider.AWS, "sourceNameTest",
                 2, 1, 2, 2, 2));
 
         // invoke SUT

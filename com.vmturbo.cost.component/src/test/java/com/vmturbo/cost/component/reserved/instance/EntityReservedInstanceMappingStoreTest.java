@@ -1,6 +1,9 @@
 package com.vmturbo.cost.component.reserved.instance;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.junit.Assert.assertEquals;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
@@ -9,6 +12,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.commons.collections4.MultiValuedMap;
@@ -23,6 +27,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
@@ -64,11 +69,11 @@ public class EntityReservedInstanceMappingStoreTest {
     final EntityRICoverageUpload coverageOne = EntityRICoverageUpload.newBuilder()
             .setEntityId(123L)
             .addCoverage(Coverage.newBuilder()
-                    .setProbeReservedInstanceId("testOne")
+                    .setReservedInstanceId(456L)
                     .setCoveredCoupons(10)
                     .setRiCoverageSource(Coverage.RICoverageSource.BILLING))
             .addCoverage(Coverage.newBuilder()
-                    .setProbeReservedInstanceId("testTwo")
+                    .setReservedInstanceId(457L)
                     .setCoveredCoupons(20)
                     .setRiCoverageSource(Coverage.RICoverageSource.SUPPLEMENTAL_COVERAGE_ALLOCATION))
             .build();
@@ -76,11 +81,11 @@ public class EntityReservedInstanceMappingStoreTest {
     final EntityRICoverageUpload coverageTwo = EntityRICoverageUpload.newBuilder()
             .setEntityId(124L)
             .addCoverage(Coverage.newBuilder()
-                    .setProbeReservedInstanceId("testOne")
+                    .setReservedInstanceId(457L)
                     .setCoveredCoupons(30)
                     .setRiCoverageSource(Coverage.RICoverageSource.BILLING))
             .addCoverage(Coverage.newBuilder()
-                    .setProbeReservedInstanceId("testThree")
+                    .setReservedInstanceId(458L)
                     .setCoveredCoupons(40)
                     .setRiCoverageSource(Coverage.RICoverageSource.BILLING))
             .build();
@@ -88,45 +93,13 @@ public class EntityReservedInstanceMappingStoreTest {
     final EntityRICoverageUpload coverageThree = EntityRICoverageUpload.newBuilder()
             .setEntityId(125L)
             .addCoverage(Coverage.newBuilder()
-                    .setProbeReservedInstanceId("testFour")
+                    .setReservedInstanceId(459L)
                     .setCoveredCoupons(10)
                     .setRiCoverageSource(Coverage.RICoverageSource.BILLING))
             .addCoverage(Coverage.newBuilder()
-                    .setProbeReservedInstanceId("testFour")
+                    .setReservedInstanceId(459L)
                     .setCoveredCoupons(30)
                     .setRiCoverageSource(Coverage.RICoverageSource.SUPPLEMENTAL_COVERAGE_ALLOCATION))
-            .build();
-
-    final ReservedInstanceBoughtInfo riInfoOne = ReservedInstanceBoughtInfo.newBuilder()
-            .setBusinessAccountId(123L)
-            .setProbeReservedInstanceId("testOne")
-            .setReservedInstanceSpec(99L)
-            .setAvailabilityZoneId(100L)
-            .setNumBought(10)
-            .build();
-
-    final ReservedInstanceBoughtInfo riInfoTwo = ReservedInstanceBoughtInfo.newBuilder()
-            .setBusinessAccountId(456)
-            .setProbeReservedInstanceId("testTwo")
-            .setReservedInstanceSpec(99L)
-            .setAvailabilityZoneId(100L)
-            .setNumBought(20)
-            .build();
-
-    final ReservedInstanceBoughtInfo riInfoThree = ReservedInstanceBoughtInfo.newBuilder()
-            .setBusinessAccountId(789)
-            .setProbeReservedInstanceId("testThree")
-            .setReservedInstanceSpec(99L)
-            .setAvailabilityZoneId(50L)
-            .setNumBought(30)
-            .build();
-
-    final ReservedInstanceBoughtInfo riInfoFour = ReservedInstanceBoughtInfo.newBuilder()
-            .setBusinessAccountId(125)
-            .setProbeReservedInstanceId("testFour")
-            .setReservedInstanceSpec(99L)
-            .setAvailabilityZoneId(50L)
-            .setNumBought(50)
             .build();
 
     @Before
@@ -135,45 +108,29 @@ public class EntityReservedInstanceMappingStoreTest {
         dsl = dbConfig.dsl();
         flyway.clean();
         flyway.migrate();
-        reservedInstanceBoughtStore = new ReservedInstanceBoughtStore(dsl,
-                new IdentityProvider(0));
-        entityReservedInstanceMappingStore = new EntityReservedInstanceMappingStore(dsl,
-                reservedInstanceBoughtStore);
-        insertDefaultReservedInstanceSpec();
+        entityReservedInstanceMappingStore = new EntityReservedInstanceMappingStore(dsl);
     }
 
     @Test
     public void testUpdateAndGetRIMapping() {
-        final List<ReservedInstanceBoughtInfo> reservedInstancesBoughtInfo =
-                Arrays.asList(riInfoOne, riInfoTwo, riInfoThree, riInfoFour);
         final List<EntityRICoverageUpload> entityCoverageLists =
                 Arrays.asList(coverageOne, coverageTwo, coverageThree);
-        reservedInstanceBoughtStore.updateReservedInstanceBought(dsl, reservedInstancesBoughtInfo);
         entityReservedInstanceMappingStore.updateEntityReservedInstanceMapping(dsl, entityCoverageLists);
-
-        final Map<String, Long> riProbeIdMap = dsl.selectFrom(Tables.RESERVED_INSTANCE_BOUGHT).fetch()
-                .stream()
-                .collect(Collectors.toMap(ReservedInstanceBoughtRecord::getProbeReservedInstanceId,
-                        ReservedInstanceBoughtRecord::getId));
-        final long ri1Id = riProbeIdMap.get(riInfoOne.getProbeReservedInstanceId());
-        final long ri2Id = riProbeIdMap.get(riInfoTwo.getProbeReservedInstanceId());
-        final long ri3Id = riProbeIdMap.get(riInfoThree.getProbeReservedInstanceId());
-        final long ri4Id = riProbeIdMap.get(riInfoFour.getProbeReservedInstanceId());
 
         final Map<Long, EntityReservedInstanceCoverage> coverageMap =
                 entityReservedInstanceMappingStore.getEntityRiCoverage();
         final EntityReservedInstanceCoverage retCvg1 = coverageMap.get(coverageOne.getEntityId());
         assertThat(retCvg1.getEntityId(), is(coverageOne.getEntityId()));
         assertThat(retCvg1.getCouponsCoveredByRiMap(),
-                is(ImmutableMap.of(ri1Id, 10.0, ri2Id, 20.0)));
+                is(ImmutableMap.of(456L, 10.0, 457L, 20.0)));
 
         final EntityReservedInstanceCoverage retCvg2 = coverageMap.get(coverageTwo.getEntityId());
         assertThat(retCvg2.getCouponsCoveredByRiMap(),
-                is(ImmutableMap.of(ri1Id, 30.0, ri3Id, 40.0)));
+                is(ImmutableMap.of(457L, 30.0, 458L, 40.0)));
 
         final EntityReservedInstanceCoverage retCvg3 = coverageMap.get(coverageThree.getEntityId());
         assertThat(retCvg3.getCouponsCoveredByRiMap(),
-                is(ImmutableMap.of(ri4Id, 40.0)));
+                is(ImmutableMap.of(459L, 40.0)));
     }
 
     @Test
@@ -184,68 +141,62 @@ public class EntityReservedInstanceMappingStoreTest {
 
     @Test
     public void testUpdateEntityReservedInstanceMapping() {
-        final List<ReservedInstanceBoughtInfo> reservedInstancesBoughtInfo =
-                Arrays.asList(riInfoOne, riInfoTwo, riInfoThree);
         final List<EntityRICoverageUpload> entityCoverageLists =
                 Arrays.asList(coverageOne, coverageTwo);
-        reservedInstanceBoughtStore.updateReservedInstanceBought(dsl, reservedInstancesBoughtInfo);
         entityReservedInstanceMappingStore.updateEntityReservedInstanceMapping(dsl, entityCoverageLists);
         List<EntityToReservedInstanceMappingRecord> records =
                 dsl.selectFrom(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING).fetch();
-        List<ReservedInstanceBoughtRecord> riBought = dsl.selectFrom(Tables.RESERVED_INSTANCE_BOUGHT).fetch();
-        Map<String, Long> riProbeIdMap = riBought.stream()
-                .collect(Collectors.toMap(ReservedInstanceBoughtRecord::getProbeReservedInstanceId,
-                        ReservedInstanceBoughtRecord::getId));
+
         assertEquals(4, records.size());
         assertEquals(10.0, records.stream()
                 .filter(record -> record.getEntityId().equals(123L)
-                        && record.getReservedInstanceId().equals(riProbeIdMap.get("testOne")))
+                        && record.getReservedInstanceId().equals(456L))
                 .map(EntityToReservedInstanceMappingRecord::getUsedCoupons)
                 .findFirst()
                 .orElse(0.0), DELTA);
         assertEquals(20.0, records.stream()
                 .filter(record -> record.getEntityId().equals(123L)
-                        && record.getReservedInstanceId().equals(riProbeIdMap.get("testTwo")))
+                        && record.getReservedInstanceId().equals(457L))
                 .map(EntityToReservedInstanceMappingRecord::getUsedCoupons)
                 .findFirst()
                 .orElse(0.0), DELTA);
         assertEquals(30.0, records.stream()
                 .filter(record -> record.getEntityId().equals(124L)
-                        && record.getReservedInstanceId().equals(riProbeIdMap.get("testOne")))
+                        && record.getReservedInstanceId().equals(457L))
                 .map(EntityToReservedInstanceMappingRecord::getUsedCoupons)
                 .findFirst()
                 .orElse(0.0), DELTA);
         assertEquals(40.0, records.stream()
                 .filter(record -> record.getEntityId().equals(124L)
-                        && record.getReservedInstanceId().equals(riProbeIdMap.get("testThree")))
+                        && record.getReservedInstanceId().equals(458L))
                 .map(EntityToReservedInstanceMappingRecord::getUsedCoupons)
                 .findFirst()
                 .orElse(0.0), DELTA);
 
     }
 
-    private void insertDefaultReservedInstanceSpec() {
-        final ReservedInstanceSpecRecord specRecordOne = dsl.newRecord(Tables.RESERVED_INSTANCE_SPEC,
-                new ReservedInstanceSpecRecord(99L,
-                        OfferingClass.STANDARD.getValue(),
-                        PaymentOption.ALL_UPFRONT.getValue(),
-                        1,
-                        Tenancy.DEDICATED.getValue(),
-                        OSType.LINUX.getValue(),
-                        88L,
-                        77L,
-                        ReservedInstanceSpecInfo.getDefaultInstance()));
-        final ReservedInstanceSpecRecord specRecordTwo = dsl.newRecord(Tables.RESERVED_INSTANCE_SPEC,
-                new ReservedInstanceSpecRecord(100L,
-                        OfferingClass.STANDARD.getValue(),
-                        PaymentOption.ALL_UPFRONT.getValue(),
-                        2,
-                        Tenancy.HOST.getValue(),
-                        OSType.LINUX.getValue(),
-                        90L,
-                        78L,
-                        ReservedInstanceSpecInfo.getDefaultInstance()));
-        dsl.batchInsert(Arrays.asList(specRecordOne, specRecordTwo)).execute();
+    @Test
+    public void testGetRICoverageByEntity() {
+
+        /*
+        Setup store
+         */
+        final List<EntityRICoverageUpload> entityCoverageLists =
+                Arrays.asList(coverageOne, coverageTwo, coverageThree);
+        entityReservedInstanceMappingStore.updateEntityReservedInstanceMapping(dsl, entityCoverageLists);
+
+        /*
+        Invoke SUT
+         */
+        final Map<Long, Set<Coverage>> actualRICoverageByEntity =
+                entityReservedInstanceMappingStore.getRICoverageByEntity();
+
+        final Map<Long, Set<Coverage>> expectedRICoverageByEntity = ImmutableMap.of(
+                coverageOne.getEntityId(), ImmutableSet.copyOf(coverageOne.getCoverageList()),
+                coverageTwo.getEntityId(), ImmutableSet.copyOf(coverageTwo.getCoverageList()),
+                coverageThree.getEntityId(), ImmutableSet.copyOf(coverageThree.getCoverageList()));
+
+        assertThat(actualRICoverageByEntity, equalTo(expectedRICoverageByEntity));
     }
 
 }

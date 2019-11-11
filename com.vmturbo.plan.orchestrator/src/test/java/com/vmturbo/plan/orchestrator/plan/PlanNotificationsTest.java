@@ -26,6 +26,7 @@ import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.Status;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdateType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -198,9 +199,17 @@ public class PlanNotificationsTest {
         actionsListener.onProjectedTopologyAvailable(TOPOLOGY_ID, planId);
         actionsListener.onSourceTopologyAvailable(TOPOLOGY_ID, planId);
         actionsListener.onCostNotificationReceived(CostNotification.newBuilder()
-                .setProjectedRiCoverageUpdate(StatusUpdate.newBuilder().setStatus(Status.SUCCESS)
-                        .build()).setProjectedCostUpdate(StatusUpdate.newBuilder()
-                        .setStatus(Status.SUCCESS).build()).build());
+                .setStatusUpdate(StatusUpdate.newBuilder()
+                        .setType(StatusUpdateType.PROJECTED_RI_COVERAGE_UPDATE)
+                        .setStatus(Status.SUCCESS)
+                        .build())
+                .build());
+        actionsListener.onCostNotificationReceived(CostNotification.newBuilder()
+                .setStatusUpdate(StatusUpdate.newBuilder()
+                        .setType(StatusUpdateType.PROJECTED_COST_UPDATE)
+                        .setStatus(Status.SUCCESS)
+                        .build())
+                .build());
 
         final StatusMatcher matcher = new StatusMatcher(PlanStatus.SUCCEEDED);
         Mockito.verify(listener, Mockito.timeout(TIMEOUT)).onPlanStatusChanged(matcher.capture());
@@ -247,9 +256,17 @@ public class PlanNotificationsTest {
             .build());
         actionsListener.onSourceTopologyAvailable(TOPOLOGY_ID, planId);
         actionsListener.onCostNotificationReceived(CostNotification.newBuilder()
-                .setProjectedRiCoverageUpdate(StatusUpdate.newBuilder().setStatus(Status.SUCCESS)
-                        .build()).setProjectedCostUpdate(StatusUpdate.newBuilder()
-                        .setStatus(Status.SUCCESS).build()).build());
+                .setStatusUpdate(StatusUpdate.newBuilder()
+                        .setType(StatusUpdateType.PROJECTED_RI_COVERAGE_UPDATE)
+                        .setStatus(Status.SUCCESS)
+                        .build())
+                .build());
+        actionsListener.onCostNotificationReceived(CostNotification.newBuilder()
+                .setStatusUpdate(StatusUpdate.newBuilder()
+                        .setType(StatusUpdateType.PROJECTED_COST_UPDATE)
+                        .setStatus(Status.SUCCESS)
+                        .build())
+                .build());
 
         final StatusMatcher captor = new StatusMatcher(PlanStatus.SUCCEEDED);
         Mockito.verify(listener, Mockito.timeout(TIMEOUT)).onPlanStatusChanged(captor.capture());
@@ -285,9 +302,17 @@ public class PlanNotificationsTest {
         final StatusMatcher captor = new StatusMatcher(PlanStatus.SUCCEEDED);
         actionsListener.onSourceTopologyAvailable(TOPOLOGY_ID, planId);
         actionsListener.onCostNotificationReceived(CostNotification.newBuilder()
-                .setProjectedRiCoverageUpdate(StatusUpdate.newBuilder().setStatus(Status.SUCCESS)
-                        .build()).setProjectedCostUpdate(StatusUpdate.newBuilder()
-                        .setStatus(Status.SUCCESS).build()).build());
+                .setStatusUpdate(StatusUpdate.newBuilder()
+                        .setType(StatusUpdateType.PROJECTED_RI_COVERAGE_UPDATE)
+                        .setStatus(Status.SUCCESS)
+                        .build())
+                .build());
+        actionsListener.onCostNotificationReceived(CostNotification.newBuilder()
+                .setStatusUpdate(StatusUpdate.newBuilder()
+                        .setType(StatusUpdateType.PROJECTED_COST_UPDATE)
+                        .setStatus(Status.SUCCESS)
+                        .build())
+                .build());
 
         Mockito.verify(listener, Mockito.timeout(TIMEOUT)).onPlanStatusChanged(captor.capture());
         final PlanInstance plan = captor.getValue();
@@ -348,9 +373,11 @@ public class PlanNotificationsTest {
         final Future<?> costNotificationAvailable = threadPool.submit(() -> {
             latch.await();
             actionsListener.onCostNotificationReceived(CostNotification.newBuilder()
-                    .setProjectedRiCoverageUpdate(StatusUpdate.newBuilder().setStatus(Status.SUCCESS)
-                            .build()).setProjectedCostUpdate(StatusUpdate.newBuilder()
-                            .setStatus(Status.SUCCESS).build()).build());
+                    .setStatusUpdate(StatusUpdate.newBuilder()
+                            .setType(StatusUpdateType.PROJECTED_COST_UPDATE)
+                            .setStatus(Status.SUCCESS)
+                            .build())
+                    .build());
             return null;
         });
         latch.countDown();

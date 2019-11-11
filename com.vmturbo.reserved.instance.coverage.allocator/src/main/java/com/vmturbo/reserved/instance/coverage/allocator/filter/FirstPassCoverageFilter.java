@@ -102,7 +102,7 @@ public class FirstPassCoverageFilter {
                                     .orElse(false); })
                 .orElse(Predicates.alwaysTrue());
 
-        return coverageTopology.getAllEntitesOfTypes(SUPPORTED_COVERABLE_ENTITY_TYPES)
+        return coverageTopology.getAllEntitiesOfType(SUPPORTED_COVERABLE_ENTITY_TYPES)
                 .stream()
                 .filter(entityDTOFilter)
                 .filter(entityAccountFilter)

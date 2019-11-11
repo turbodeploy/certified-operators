@@ -26,7 +26,12 @@
             <artifactId>cost-calculation</artifactId>
         </dependency>
 
-        <!-- START Dependencies for cost journal serialization to readable format -->
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.proactivesupport</artifactId>
+        </dependency>
+
+        <!-- START Dependencies for coverage journal serialization to readable format -->
         <dependency>
             <groupId>de.vandermeer</groupId>
             <artifactId>asciitable</artifactId>
@@ -35,7 +40,7 @@
             <groupId>org.antlr</groupId>
             <artifactId>ST4</artifactId>
         </dependency>
-        <!-- END Dependencies for cost journal serialization to readable format -->
+        <!-- END Dependencies for coverage journal serialization to readable format -->
 
         <dependency>
             <groupId>junit</groupId>

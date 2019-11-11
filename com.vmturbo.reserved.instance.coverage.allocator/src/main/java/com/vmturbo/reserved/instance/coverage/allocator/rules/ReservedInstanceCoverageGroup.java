@@ -11,6 +11,7 @@ import javax.annotation.concurrent.Immutable;
 
 import com.google.common.collect.ImmutableSortedSet;
 
+import com.vmturbo.reserved.instance.coverage.allocator.context.CloudProviderCoverageContext.CloudServiceProvider;
 import com.vmturbo.reserved.instance.coverage.allocator.key.CoverageKey;
 
 /**
@@ -23,6 +24,8 @@ import com.vmturbo.reserved.instance.coverage.allocator.key.CoverageKey;
 @Immutable
 public class ReservedInstanceCoverageGroup {
 
+    private final CloudServiceProvider cloudServiceProvider;
+
     private final String sourceName;
 
     private final CoverageKey sourceKey;
@@ -31,16 +34,28 @@ public class ReservedInstanceCoverageGroup {
 
     private final SortedSet<Long> entityOids;
 
-    private ReservedInstanceCoverageGroup(@Nonnull String sourceName,
-                                         @Nullable CoverageKey sourceKey,
-                                         @Nonnull SortedSet<Long> reservedInstanceOids,
-                                         @Nonnull SortedSet<Long> entityOids) {
+    private ReservedInstanceCoverageGroup(
+            @Nonnull CloudServiceProvider cloudServiceProvider,
+            @Nonnull String sourceName,
+            @Nullable CoverageKey sourceKey,
+            @Nonnull SortedSet<Long> reservedInstanceOids,
+            @Nonnull SortedSet<Long> entityOids) {
+        this.cloudServiceProvider = Objects.requireNonNull(cloudServiceProvider);
         this.sourceName = Objects.requireNonNull(sourceName);
         this.sourceKey = sourceKey;
         this.reservedInstanceOids = ImmutableSortedSet.copyOfSorted(
                 Objects.requireNonNull(reservedInstanceOids));
         this.entityOids = ImmutableSortedSet.copyOfSorted(
                 Objects.requireNonNull(entityOids));
+    }
+
+    /**
+     * @return The cloud service provider of this group. It can be assumed all entities and RIs
+     * contained within the group are from this CSP
+     */
+    @Nonnull
+    public CloudServiceProvider cloudServiceProvider() {
+        return cloudServiceProvider;
     }
 
     /**
@@ -51,6 +66,12 @@ public class ReservedInstanceCoverageGroup {
         return sourceName;
     }
 
+    /**
+     * The {@link CoverageKey} used to match the group of RIs to the group of entities represented
+     * in this group
+     * @return The {@link CoverageKey} used to create the group. It may be empty if a coverage key was
+     * not used (e.g. in the case of the first pass coverage rule, which does not used coverage keys)
+     */
     @Nonnull
     public Optional<CoverageKey> sourceKey() {
         return Optional.ofNullable(sourceKey);
@@ -76,16 +97,23 @@ public class ReservedInstanceCoverageGroup {
 
     /**
      * Creates a new instance of {@link ReservedInstanceCoverageGroup}
+     * @param cloudServiceProvider The CSP of this group
      * @param sourceName The source identifier
      * @param sourceKey The source {@link CoverageKey} of this group
      * @param reservedInstanceOids A collection of RI OIDs
      * @param entityOids A collection of entity OIDs
      * @return The newly created instance of {@link ReservedInstanceCoverageGroup}
      */
-    public static ReservedInstanceCoverageGroup of(@Nonnull String sourceName,
+    public static ReservedInstanceCoverageGroup of(@Nonnull CloudServiceProvider cloudServiceProvider,
+                                                   @Nonnull String sourceName,
                                                    @Nullable CoverageKey sourceKey,
                                                    @Nonnull SortedSet<Long> reservedInstanceOids,
                                                    @Nonnull SortedSet<Long> entityOids) {
-        return new ReservedInstanceCoverageGroup(sourceName, sourceKey, reservedInstanceOids, entityOids);
+        return new ReservedInstanceCoverageGroup(
+                cloudServiceProvider,
+                sourceName,
+                sourceKey,
+                reservedInstanceOids,
+                entityOids);
     }
 }

@@ -4,7 +4,13 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
+import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
@@ -15,18 +21,21 @@ import com.vmturbo.components.api.server.IMessageSender;
 public class CostNotificationSender extends
         ComponentNotificationSender<CostNotification> {
 
+    private final Logger logger = LogManager.getLogger();
+
     /**
-     * The sender of the cost notification.
+     * The sender of the cost notifications.
      */
-    private final IMessageSender<CostNotification> sender;
+    private final IMessageSender<CostNotification> notificationSender;
 
     /**
      * The constructor of the cost notification sender.
      *
-     * @param sender The sender of the message
+     * @param notificationSender The sender of cost notification messages
      */
-    public CostNotificationSender(@Nonnull IMessageSender<CostNotification> sender) {
-        this.sender = Objects.requireNonNull(sender);
+    public CostNotificationSender(
+            @Nonnull IMessageSender<CostNotification> notificationSender) {
+        this.notificationSender = Objects.requireNonNull(notificationSender);
     }
 
     /**
@@ -40,20 +49,19 @@ public class CostNotificationSender extends
      */
     public void sendNotification(@Nonnull final CostNotification costNotification)
             throws CommunicationException, InterruptedException {
-        sendMessage(sender, costNotification);
+        sendMessage(notificationSender, costNotification);
     }
 
     @Override
     protected String describeMessage(@Nonnull final CostNotification
                                              costNotification) {
-        if (costNotification.hasProjectedCostUpdate()) {
-            return CostNotificationSender.class.getSimpleName()
-                    + "[ Topology ID: " +
-                    costNotification.getProjectedCostUpdate()
-                            .getTopologyId()
-                    + ", Topology context ID: " +
-                    costNotification.getProjectedCostUpdate()
-                            .getTopologyContextId() + " ]";
+        if (costNotification.hasStatusUpdate()) {
+            final StatusUpdate statusUpdate = costNotification.getStatusUpdate();
+            return new ToStringBuilder(costNotification, ToStringStyle.SHORT_PREFIX_STYLE)
+                    .append("Type", statusUpdate.getType())
+                    .append("Topology ID", statusUpdate.getTopologyId())
+                    .append("Topology Context ID", statusUpdate.getTopologyContextId())
+                    .build();
         }
         return CostNotificationSender.class.getSimpleName()
                 + "[ This message type is not implemented. ]";

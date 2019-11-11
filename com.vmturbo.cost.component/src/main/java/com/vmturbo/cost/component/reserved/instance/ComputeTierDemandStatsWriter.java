@@ -205,7 +205,7 @@ public class ComputeTierDemandStatsWriter {
                                                 boolean isProjectedTopology) {
         Map<ComputeTierDemandStatsRecord, Integer> statsRecordToCountMapping = new HashMap<>();
         List<TopologyEntityDTO> cloudVms = cloudTopology
-                .getAllEntitesOfType(EntityType.VIRTUAL_MACHINE_VALUE);
+                .getAllEntitiesOfType(EntityType.VIRTUAL_MACHINE_VALUE);
 
         //A map of entity oid -> A map of <RI_ID, Coupons_Covered_By_RI>
         final Map<Long, Map<Long, Double>> allProjectedEntitiesRICoverages =

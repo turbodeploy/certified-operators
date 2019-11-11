@@ -2,7 +2,6 @@ package com.vmturbo.reserved.instance.coverage.allocator;
 
 import static com.vmturbo.reserved.instance.coverage.allocator.AzureAllocationTopologyTest.BUSINESS_ACCOUNT;
 import static com.vmturbo.reserved.instance.coverage.allocator.AzureAllocationTopologyTest.COMPUTE_TIER_SMALL;
-import static com.vmturbo.reserved.instance.coverage.allocator.AzureAllocationTopologyTest.OID_PROVIDER;
 import static com.vmturbo.reserved.instance.coverage.allocator.AzureAllocationTopologyTest.REGION;
 import static com.vmturbo.reserved.instance.coverage.allocator.AzureAllocationTopologyTest.RI_BOUGHT_SMALL;
 import static com.vmturbo.reserved.instance.coverage.allocator.AzureAllocationTopologyTest.RI_SPEC_SMALL;
@@ -15,7 +14,7 @@ import java.util.Collections;
 
 import org.junit.Test;
 
-import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableTable;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -23,6 +22,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
 
 public class ReservedInstanceCoverageAllocatorAzureFuncTest extends AbstractReservedInstanceCoverageAllocatorTest {
@@ -31,6 +31,7 @@ public class ReservedInstanceCoverageAllocatorAzureFuncTest extends AbstractRese
     @Test
     public void testDirectNonSizeFlexibleAssignment() {
         final CoverageTopology coverageTopology = generateCoverageTopology(
+                SDKProbeType.AZURE,
                 Collections.singleton(RI_BOUGHT_SMALL),
                 Collections.singleton(RI_SPEC_SMALL),
                 COMPUTE_TIER_SMALL,
@@ -43,9 +44,7 @@ public class ReservedInstanceCoverageAllocatorAzureFuncTest extends AbstractRese
          */
         final ReservedInstanceCoverageAllocator allocator = ReservedInstanceCoverageAllocator.newBuilder()
                 .coverageTopology(coverageTopology)
-                .coverageProvider(createCoverageProvider(
-                        ImmutableMap.of(VIRTUAL_MACHINE_SMALL_A.getOid(), 1.0),
-                        ImmutableMap.of(RI_BOUGHT_SMALL.getId(), 1.0)))
+                .coverageProvider(() -> ImmutableTable.of())
                 .build();
 
         final ReservedInstanceCoverageAllocation allocationResult = allocator.allocateCoverage();
@@ -74,6 +73,7 @@ public class ReservedInstanceCoverageAllocatorAzureFuncTest extends AbstractRese
                 .build();
 
         final CoverageTopology coverageTopology = generateCoverageTopology(
+                SDKProbeType.AZURE,
                 Collections.singleton(RI_BOUGHT_SMALL),
                 Collections.singleton(RI_SPEC_SMALL),
                 COMPUTE_TIER_SMALL,
@@ -86,9 +86,7 @@ public class ReservedInstanceCoverageAllocatorAzureFuncTest extends AbstractRese
          */
         final ReservedInstanceCoverageAllocator allocator = ReservedInstanceCoverageAllocator.newBuilder()
                 .coverageTopology(coverageTopology)
-                .coverageProvider(createCoverageProvider(
-                        ImmutableMap.of(virtualMachineWindows.getOid(), 1.0),
-                        ImmutableMap.of(RI_BOUGHT_SMALL.getId(), 1.0)))
+                .coverageProvider(() -> ImmutableTable.of())
                 .build();
 
         final ReservedInstanceCoverageAllocation allocationResult = allocator.allocateCoverage();
