@@ -22,7 +22,6 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.utilities.QuoteCache;
 import com.vmturbo.platform.analysis.utilities.QuoteTracker;
@@ -49,7 +48,7 @@ final class QuoteSummer {
                                 // one seller for each (shopping list, market) pair passed to #accept.
 
     // List of simulatedActions constituent Move actions of a CompoundMove
-    private final @NonNull List<@Nullable Move> simulatedMoveActions_ = new ArrayList<>();
+    private final @NonNull List<@NonNull Move> simulatedMoveActions_ = new ArrayList<>();
 
     private double totalQuote_ = 0.0; // will accumulate the sum of all best quotes.
 
@@ -62,6 +61,8 @@ final class QuoteSummer {
     private final Map<ShoppingList, QuoteTracker> unplacedShoppingListQuoteTrackers = new HashMap<>();
 
     private final QuoteCache cache_;
+    private int shoppingListIndex_ = 0;
+
     // Constructors
 
     /**
@@ -155,7 +156,8 @@ final class QuoteSummer {
         @NonNull List<@NonNull Trader> sellers = entry.getValue().getCliques().get(clique_).stream()
                 .filter(seller -> seller.getState().isActive()
                     && seller.getSettings().canAcceptNewCustomers()).collect(Collectors.toList());
-        QuoteMinimizer minimizer = Placement.initiateQuoteMinimizer(economy_, sellers, entry.getKey(), cache_);
+        QuoteMinimizer minimizer = Placement.initiateQuoteMinimizer(economy_, sellers,
+                                                    entry.getKey(), cache_, shoppingListIndex_++);
 
         totalQuote_ += minimizer.getTotalBestQuote();
         bestSellers_.add(minimizer.getBestSeller());
@@ -195,13 +197,20 @@ final class QuoteSummer {
      * @param bestSeller The best provider
      */
     public void simulate(QuoteMinimizer minimizer, @NonNull @ReadOnly Entry<@NonNull ShoppingList, @NonNull Market> entry, Trader bestSeller) {
-        if (bestSeller != null
-                && (entry.getKey().getSupplier() != bestSeller)) {
-            TraderSettings providerSettings = bestSeller.getSettings();
-            if (providerSettings.isCanSimulateAction()) {
+        if (bestSeller != null && (entry.getKey().getSupplier() != bestSeller)) {
+            if (bestSeller.getSettings().isCanSimulateAction()) {
                 // when we have a best seller for a shoppingList, we simulate the move to this seller
                 // not doing so can lead to ping-pongs as observed in OM-34056
-                simulatedMoveActions_.add((new Move(economy_, entry.getKey(), minimizer.getBestSeller())).take());
+                Move move = new Move(economy_, entry.getKey(), minimizer.getBestSeller()).take();
+                if (cache_ != null) {
+                    if (move.getSource() != null) {
+                        cache_.invalidate(move.getSource().getEconomyIndex());
+                    }
+                    if (move.getDestination() != null) {
+                        cache_.invalidate(move.getDestination().getEconomyIndex());
+                    }
+                }
+                simulatedMoveActions_.add(move);
             }
         } else {
             unplacedShoppingListQuoteTrackers.put(entry.getKey(), minimizer.getQuoteTracker());

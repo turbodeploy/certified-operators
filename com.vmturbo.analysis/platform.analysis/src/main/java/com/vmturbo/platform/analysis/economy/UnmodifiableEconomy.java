@@ -159,8 +159,8 @@ public interface UnmodifiableEconomy {
      * Returns an unmodifiable map of the markets the given trader participates in as a buyer.
      *
      * <p>
-     *  It maps shopping lists to the markets the trader participates in with these
-     *  shopping lists.
+     *  It maps shopping lists to the markets the trader participates in with these shopping lists.
+     *  The iteration order of the returned map is guaranteed to be deterministic.
      * </p>
      */
     @Pure

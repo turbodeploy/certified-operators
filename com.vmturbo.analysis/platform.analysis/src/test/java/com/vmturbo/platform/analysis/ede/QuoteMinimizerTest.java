@@ -10,13 +10,14 @@ import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+import junitparams.naming.TestCaseName;
+
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.TraderState;
-import junitparams.JUnitParamsRunner;
-import junitparams.Parameters;
-import junitparams.naming.TestCaseName;
 
 /**
  * A test case for the {@link QuoteMinimizer} class.
@@ -32,7 +33,7 @@ public class QuoteMinimizerTest {
     @Parameters
     @TestCaseName("Test #{index}: QuoteMinimizer({0},{1})")
     public final void testQuoteMinimizer_And_Getters(@NonNull Economy economy, @NonNull ShoppingList shoppingList) {
-        QuoteMinimizer minimizer = new QuoteMinimizer(economy, shoppingList, null);
+        QuoteMinimizer minimizer = new QuoteMinimizer(economy, shoppingList, null, 0);
 
         assertSame(economy, minimizer.getEconomy());
         assertSame(shoppingList, minimizer.getShoppingList());

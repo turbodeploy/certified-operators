@@ -9,7 +9,6 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.Map;
 import java.util.stream.IntStream;
 
-import com.vmturbo.platform.analysis.utilities.QuoteCache;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -17,20 +16,20 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 
-import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.CommoditySpecification;
-import com.vmturbo.platform.analysis.economy.Economy;
-
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
 
+import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
+import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
+import com.vmturbo.platform.analysis.utilities.QuoteCache;
 
 /**
  * A test case for the {@link QuoteSummer} class.
@@ -43,7 +42,7 @@ public class QuoteSummerTest {
     Trader provider2 = Mockito.mock(Trader.class);
     private static Map.Entry<ShoppingList, Market> entry;
     ShoppingList sl = Mockito.mock(ShoppingList.class);
-    private static QuoteCache qc = new QuoteCache();
+    private static QuoteCache qc = new QuoteCache(0, 0, 0);
 
 
     @Before
@@ -113,7 +112,7 @@ public class QuoteSummerTest {
     @Test
     public void testSimulate() {
         Economy e1 = new Economy();
-        QuoteMinimizer minimizer = new QuoteMinimizer(e1, sl, qc);
+        QuoteMinimizer minimizer = new QuoteMinimizer(e1, sl, qc, 0);
 
         // Test for provider 1 which has canSimulate true
         QuoteSummer mockedQuoteSummer = new QuoteSummer(e1, clique_, qc);
