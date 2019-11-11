@@ -22,6 +22,7 @@ import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServi
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter;
+import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtilizationFilter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -77,7 +78,7 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
             // TODO (Alexey, Oct 24 2019): Respect input filter passed in the request.
             // TODO (Alexey, Oct 24 2019): Currently we use the same method as for RI Coverage.
             //  It looks incorrect. E.g. it doesn't take into account recommended RI purchases.
-            statRecords.add(createProjectedRICoverageStats(statRecords));
+            statRecords.add(createProjectedRICoverageStats(statRecords, filter));
             final GetReservedInstanceUtilizationStatsResponse response =
                     GetReservedInstanceUtilizationStatsResponse.newBuilder()
                             .addAllReservedInstanceStatsRecords(statRecords)
@@ -109,8 +110,7 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
             final List<ReservedInstanceStatsRecord> statRecords = reservedInstanceCoverageStore
                 .getReservedInstanceCoverageStatsRecords(filter);
             // Add projected RI Coverage point
-            // TODO (Alexey, Oct 24 2019): Respect input filter passed in the request.
-            statRecords.add(createProjectedRICoverageStats(statRecords));
+            statRecords.add(createProjectedRICoverageStats(statRecords, filter));
             final GetReservedInstanceCoverageStatsResponse response =
                     GetReservedInstanceCoverageStatsResponse.newBuilder()
                             .addAllReservedInstanceStatsRecords(statRecords)
@@ -192,8 +192,9 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
     }
 
     private ReservedInstanceStatsRecord createProjectedRICoverageStats(
-                @Nonnull final List<ReservedInstanceStatsRecord> currentStatRecords) {
-        final float usedCouponsTotal = getProjectedRICoverageCouponTotal();
+                    @Nonnull final List<ReservedInstanceStatsRecord> currentStatRecords,
+                    @Nonnull final ReservedInstanceFilter filter) {
+        final float usedCouponsTotal = getProjectedRICoverageCouponTotal(filter);
         final long projectedTime = clock.instant()
             .plus(PROJECTED_STATS_TIME_IN_FUTURE_HOURS, ChronoUnit.HOURS).toEpochMilli();
         // TODO (Alexey, Oct 24 2019): Instead of again computing the total capacity stats for the
@@ -206,8 +207,9 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
         return ReservedInstanceUtil.createRIStatsRecord(capacity, usedCouponsTotal, projectedTime);
     }
 
-    private float getProjectedRICoverageCouponTotal() {
-        return (float)projectedRICoverageStore.getAllProjectedEntitiesRICoverages()
+    private float getProjectedRICoverageCouponTotal(
+                    @Nonnull final ReservedInstanceFilter filter) {
+        return (float)projectedRICoverageStore.getScopedProjectedEntitiesRICoverages(filter)
             .values().stream()
             .flatMap(map -> map.values().stream())
             .mapToDouble(i -> i)
