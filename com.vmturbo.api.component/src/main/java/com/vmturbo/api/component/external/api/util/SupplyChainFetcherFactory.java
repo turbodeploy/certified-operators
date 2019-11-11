@@ -25,6 +25,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
@@ -793,24 +794,62 @@ public class SupplyChainFetcherFactory {
             }
 
             if (Objects.equals(entityDetailType, EntityDetailType.aspects)) {
-                List<ServiceEntityApiDTO> serviceEntityApiDTOs = resultApiDTO.getSeMap()
-                    .values().stream()
-                    .flatMap(supplychainEntryDTO -> supplychainEntryDTO.getInstances().values().stream())
-                    .collect(Collectors.toList());
+                Set<Entry<String, SupplychainEntryDTO>> seMapEntrySet = resultApiDTO.getSeMap().entrySet();
 
-                // Get TopologyEntityDTOs from ServiceEntityDTO UUIDs
-                Set<Long> uuids = serviceEntityApiDTOs.stream()
-                    .map(serviceEntityApiDTO -> Long.valueOf(serviceEntityApiDTO.getUuid()))
-                    .collect(Collectors.toSet());
+                Map<String, List<ServiceEntityApiDTO>> entityTypeToSeList =  seMapEntrySet.stream().collect(Collectors.toMap(
+                    e -> e.getKey(),
+                    e -> e.getValue().getInstances().values().stream().collect(Collectors.toList())
+                ));
 
-                // Get the entity aspects, mapped from entity UUID to aspect map
-                Map<Long, Map<String, EntityAspect>> entityAspectMap = entityAspectMapper.getAspectsByEntities(
-                    repositoryApi.entitiesRequest(uuids)
-                        .getFullEntities()
-                        .collect(Collectors.toList()));
+                // This structure can be queried/used as such:
+                // List<VirtualVolumeAspect> list = map.get("VirtualVolume").get("virtualDisksAspect");
+                // Note: This is a performance optimization to enable processing of TopologyEntityDTO lists-
+                // by doing this, cluster network requests can be batched
+                Map<String, Map<String, Map<String, EntityAspect>>> entityTypeToUuidAspectMap = entityTypeToSeList
+                    .entrySet().stream()
+                    .collect(Collectors.toMap(
+                        entityTypeEntry -> entityTypeEntry.getKey(),
+                        entityTypeEntry -> entityAspectMapper.getExpandedAspectsByGroup(
+                            repositoryApi.entitiesRequest(
+                                entityTypeEntry.getValue().stream()
+                                    .map(se -> Long.valueOf(se.getUuid()))
+                                    .collect(Collectors.toSet()))
+                            .getFullEntities()
+                            .collect(Collectors.toList()))));
 
-                serviceEntityApiDTOs.forEach(serviceEntityApiDTO -> serviceEntityApiDTO.setAspects(
+                List<ServiceEntityApiDTO> serviceEntityApiDTOs = Lists.newArrayList();
+                entityTypeToUuidAspectMap.entrySet().forEach(entry -> {
+                    Map<String, Map<String, EntityAspect>> aspectToUuidMap = entry.getValue();
+                    List<ServiceEntityApiDTO> entityTypeServiceEntityApiDTOs = entityTypeToSeList.get(entry.getKey());
+                    // If this map is empty, all aspect mappers corresponding to the type do not support fetching a
+                    // single aspect for a group of entities, and expanding that aspect one-to-many
+                    // (IAspectMapper::supportsGroup && IAspectMapper::supportsGroupAspectExpansion). Therefore, the
+                    // attempt to do so was unsuccessful. Add the corresponding ServiceEntityApiDTOs to a collection for
+                    // individual processing.
+                    if (aspectToUuidMap.isEmpty()) {
+                        serviceEntityApiDTOs.addAll(entityTypeServiceEntityApiDTOs);
+                    } else {
+                        entityTypeServiceEntityApiDTOs.forEach(entityTypeServiceEntityApiDTO ->
+                            entityTypeServiceEntityApiDTO.setAspects(aspectToUuidMap.get(entityTypeServiceEntityApiDTO.getUuid())));
+                    }
+                });
+
+                // If aspects for SEs in the supplychain couldn't be retrieved in a group...
+                if (serviceEntityApiDTOs.size() > 0) {
+                    // Get TopologyEntityDTOs from ServiceEntityDTO UUIDs
+                    Set<Long> uuids = serviceEntityApiDTOs.stream()
+                        .map(serviceEntityApiDTO -> Long.valueOf(serviceEntityApiDTO.getUuid()))
+                        .collect(Collectors.toSet());
+
+                    // Get the entity aspects, mapped from entity UUID to aspect map
+                    Map<Long, Map<String, EntityAspect>> entityAspectMap = entityAspectMapper.getAspectsByEntities(
+                        repositoryApi.entitiesRequest(uuids)
+                            .getFullEntities()
+                            .collect(Collectors.toList()));
+
+                    serviceEntityApiDTOs.forEach(serviceEntityApiDTO -> serviceEntityApiDTO.setAspects(
                         entityAspectMap.get(Long.valueOf(serviceEntityApiDTO.getUuid()))));
+                }
             }
             return resultApiDTO;
         }

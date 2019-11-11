@@ -96,6 +96,11 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
     }
 
     @Override
+    public boolean supportsGroupAspectExpansion() {
+        return true;
+    }
+
+    @Override
     public @Nonnull String getAspectName() {
         return StringConstants.VIRTUAL_VOLUME_ASPECT_NAME;
     }
@@ -127,6 +132,22 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
             default:
                 return null;
         }
+    }
+
+    @Nullable
+    @Override
+    public Map<String, EntityAspect> mapOneToManyAspects(@Nullable EntityAspect entityAspect) {
+        if (Objects.isNull(entityAspect) || !entityAspect.getType().equals("VirtualDisksAspectApiDTO")) {
+            return null;
+        }
+        return ((VirtualDisksAspectApiDTO)entityAspect).getVirtualDisks().stream()
+            .collect(Collectors.toMap(
+                virtualDiskApiDTO -> virtualDiskApiDTO.getUuid(),
+                virtualDiskApiDTO -> {
+                    final VirtualDisksAspectApiDTO aspect = new VirtualDisksAspectApiDTO();
+                    aspect.setVirtualDisks(Lists.newArrayList(virtualDiskApiDTO));
+                    return aspect;
+                }));
     }
 
     /**
