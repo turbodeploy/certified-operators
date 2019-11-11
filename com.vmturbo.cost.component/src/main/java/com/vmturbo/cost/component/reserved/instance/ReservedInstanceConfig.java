@@ -165,7 +165,8 @@ public class ReservedInstanceConfig {
 
     @Bean
     public ProjectedRICoverageAndUtilStore projectedEntityRICoverageAndUtilStore() {
-        return new ProjectedRICoverageAndUtilStore(repositoryServiceClient());
+        return new ProjectedRICoverageAndUtilStore(repositoryClientConfig.repositoryClient(),
+                        supplyChainRpcService());
     }
 
     @Bean
