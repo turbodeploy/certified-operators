@@ -4,9 +4,6 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
@@ -17,8 +14,6 @@ import com.vmturbo.topology.processor.group.policy.application.PolicyFactory.Pol
  * Common use case: VM->Host or VM->Storage affinity.
  */
 public class BindToGroupPolicy extends PlacementPolicy {
-
-    private static final Logger logger = LogManager.getLogger();
 
     private final PolicyDTO.PolicyInfo policyInfo;
 
