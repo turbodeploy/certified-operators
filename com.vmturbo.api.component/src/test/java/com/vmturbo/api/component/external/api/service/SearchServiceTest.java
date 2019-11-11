@@ -1,5 +1,9 @@
 package com.vmturbo.api.component.external.api.service;
 
+import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.ACCOUNT_OID;
+import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.CONNECTED_STORAGE_TIER_FILTER_PATH;
+import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.STATE;
+import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.VOLUME_ATTACHMENT_STATE_FILTER_PATH;
 import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getSearchResults;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -114,9 +118,12 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -744,6 +751,94 @@ public class SearchServiceTest {
             resultCount++;
         }
         assertEquals(3, resultCount);
+    }
+
+    /**
+     * All State options should be present in criteria.
+     *
+     * @throws Exception if something is catastrophically wrong.
+     */
+    @Test
+    public void testStateOptions() throws Exception {
+        final List<CriteriaOptionApiDTO> result =
+            searchService.getCriteriaOptions(STATE, null, null, null);
+        final List<String> expected = Arrays.stream(UIEntityState.values())
+            .map(UIEntityState::apiStr)
+            .collect(Collectors.toList());
+        final List<String> actual = result.stream().map(CriteriaOptionApiDTO::getValue)
+            .collect(Collectors.toList());
+        assertEquals(expected, actual);
+    }
+
+    /**
+     * All business account options should be present in criteria.
+     *
+     * @throws Exception if something is catastrophically wrong.
+     */
+    @Test
+    public void testAccountOptions() throws Exception {
+
+
+        final List<MinimalEntity> accountEntities = ImmutableList.of(
+            MinimalEntity.newBuilder().setOid(1L).setDisplayName("account-entity-1").build(),
+            MinimalEntity.newBuilder().setOid(2L).setDisplayName("account-entity-2").build(),
+            MinimalEntity.newBuilder().setOid(3L).setDisplayName("account-entity-3").build()
+        );
+        final SearchRequest mockRequest = ApiTestUtils.mockSearchMinReq(accountEntities);
+        when(repositoryApi.newSearchRequest(any())).thenReturn(mockRequest);
+        final List<CriteriaOptionApiDTO> result =
+            searchService.getCriteriaOptions(ACCOUNT_OID, null, null, null);
+        assertEquals(accountEntities.size(), result.size());
+        accountEntities.forEach(entity ->
+            assertTrue(result.stream().anyMatch(dto ->
+                entity.getDisplayName().equals(dto.getDisplayName()) &&
+                    String.valueOf(entity.getOid()).equals(dto.getValue()))
+            )
+        );
+    }
+
+    /**
+     * All storage volume attachment state options should be present in criteria.
+     *
+     * @throws Exception if something is catastrophically wrong.
+     */
+    @Test
+    public void testAttachmentStateOptions() throws Exception {
+
+        final List<CriteriaOptionApiDTO> result =
+            searchService.getCriteriaOptions(VOLUME_ATTACHMENT_STATE_FILTER_PATH, null, null, null);
+        final List<String> expected = Arrays.stream(AttachmentState.values())
+            .map(AttachmentState::name)
+            .collect(Collectors.toList());
+        final List<String> actual = result.stream().map(CriteriaOptionApiDTO::getValue)
+            .collect(Collectors.toList());
+        assertEquals(expected, actual);
+    }
+
+    /**
+     * All storage tier options should be present in criteria.
+     *
+     * @throws Exception if something is catastrophically wrong.
+     */
+    @Test
+    public void testStorageTierOptions() throws Exception {
+
+        final List<MinimalEntity> storageTierEntities = ImmutableList.of(
+            MinimalEntity.newBuilder().setOid(1L).setDisplayName("storage-tier-entity-1").build(),
+            MinimalEntity.newBuilder().setOid(2L).setDisplayName("storage-tier-entity-2").build(),
+            MinimalEntity.newBuilder().setOid(3L).setDisplayName("storage-tier-entity-3").build()
+        );
+        final SearchRequest mockRequest = ApiTestUtils.mockSearchMinReq(storageTierEntities);
+        when(repositoryApi.newSearchRequest(any())).thenReturn(mockRequest);
+        final List<CriteriaOptionApiDTO> result =
+            searchService.getCriteriaOptions(CONNECTED_STORAGE_TIER_FILTER_PATH, null, null, null);
+        assertEquals(storageTierEntities.size(), result.size());
+        storageTierEntities.forEach(entity ->
+            assertTrue(result.stream().anyMatch(dto ->
+                entity.getDisplayName().equals(dto.getDisplayName()) &&
+                    String.valueOf(entity.getOid()).equals(dto.getValue()))
+            )
+        );
     }
 
     /**

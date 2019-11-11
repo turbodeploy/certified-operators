@@ -45,6 +45,16 @@ public class SearchableProperties {
     public static final String DS_LOCAL = "local";
 
     /**
+     * Attachment state of a storage volume.
+     */
+    public static final String VOLUME_ATTACHMENT_STATE = "attachmentState";
+
+    /**
+     * DTO containing storage volume information.
+     */
+    public static final String VOLUME_REPO_DTO = "virtualVolumeInfoRepoDTO";
+
+    /**
      * BusinessAccountInfo class in the repository.
      */
     public static final String BUSINESS_ACCOUNT_INFO_REPO_DTO_PROPERTY_NAME =

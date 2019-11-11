@@ -157,7 +157,13 @@
     "VirtualVolume" : {
       "criteria" : [
         {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "virtualVolumeByName"},
-        {"inputType": "*", "elements": "Storage:storageInfoRepoDTO.local:CONNECTED_FROM:1", "filterCategory": "property", "filterType": "virtualVolumeWithLocalSupport"}
+        {"inputType": "*", "elements": "Storage:storageInfoRepoDTO.local:CONNECTED_FROM:1", "filterCategory": "property", "filterType": "virtualVolumeWithLocalSupport"},
+        {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "volumeByTag"},
+        {"inputType": "s", "elements": "state", "filterCategory": "property", "filterType": "volumeByState"},
+        {"inputType": "s", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "volumeByAccount"},
+        {"inputType": "*", "elements": "VirtualMachine:displayName:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "volumeByConnectedVm"},
+        {"inputType": "s", "elements": "virtualVolumeInfoRepoDTO.attachmentState", "filterCategory": "property", "filterType": "volumeByAttachmentState"},
+        {"inputType": "s", "elements": "StorageTier:oid:CONNECTED_FROM:1", "filterCategory": "entity", "filterType": "volumeByTier"}
       ]
     },
 

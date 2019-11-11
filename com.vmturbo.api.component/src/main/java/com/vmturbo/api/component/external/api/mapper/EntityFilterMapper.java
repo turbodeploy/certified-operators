@@ -46,6 +46,7 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditi
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditionOrBuilder;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 
@@ -69,6 +70,9 @@ public class EntityFilterMapper {
     public static final String STATE = "state";
     public static final String NETWORKS = "networks";
     public static final String CONNECTED_NETWORKS_FIELD = "connectedNetworks";
+    public static final String CONNECTED_STORAGE_TIER_FILTER_PATH = "StorageTier:oid:CONNECTED_FROM";
+    public static final String VOLUME_ATTACHMENT_STATE_FILTER_PATH = SearchableProperties.VOLUME_REPO_DTO +
+        "." + SearchableProperties.VOLUME_ATTACHMENT_STATE;
 
     private static final String CONSUMES = "CONSUMES";
     private static final String PRODUCES = "PRODUCES";

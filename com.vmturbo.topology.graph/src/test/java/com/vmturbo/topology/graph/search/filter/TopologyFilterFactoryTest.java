@@ -41,11 +41,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.topology.graph.TestGraphEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.search.filter.TraversalFilter.TraversalToDepthFilter;
@@ -1191,6 +1193,60 @@ public class TopologyFilterFactoryTest {
         assertTrue(filter.test(vm2));
         assertFalse(filter.test(vm3));
         assertTrue(filter.test(vm4));
+    }
+
+    /**
+     * Test the filter for a storage volume's attachment state.
+     */
+    @Test
+    public void testSearchFilterVolumeAttachmentState() {
+        final SearchFilter searchFilter = SearchFilter.newBuilder()
+            .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                .setPropertyName(SearchableProperties.VOLUME_REPO_DTO)
+                .setObjectFilter(ObjectFilter.newBuilder()
+                    .addFilters(Search.PropertyFilter.newBuilder()
+                        .setPropertyName(SearchableProperties.VOLUME_ATTACHMENT_STATE)
+                        .setStringFilter(StringFilter.newBuilder().addOptions("Available").build())
+                    )
+                )
+            ).build();
+        final TestGraphEntity vmEntity =
+            TestGraphEntity.newBuilder(1L, UIEntityType.VIRTUAL_MACHINE).build();
+        final TestGraphEntity pmEntity =
+            TestGraphEntity.newBuilder(2L, UIEntityType.PHYSICAL_MACHINE).build();
+
+        final TestGraphEntity volumeEntityMatching =
+            TestGraphEntity.newBuilder(3L, UIEntityType.VIRTUAL_VOLUME)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                    .setVirtualVolume(VirtualVolumeInfo.newBuilder()
+                        .setAttachmentState(AttachmentState.AVAILABLE))
+                    .build())
+                .build();
+        final TestGraphEntity volumeEntityNotMatching =
+            TestGraphEntity.newBuilder(4L, UIEntityType.VIRTUAL_VOLUME)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                    .setVirtualVolume(VirtualVolumeInfo.newBuilder()
+                        .setAttachmentState(AttachmentState.IN_USE))
+                    .build())
+                .build();
+
+        final TestGraphEntity volumeEntityNoAttachmentState =
+            TestGraphEntity.newBuilder(5L, UIEntityType.VIRTUAL_VOLUME)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                    .setVirtualVolume(VirtualVolumeInfo.newBuilder())
+                    .build())
+                .build();
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchFilter);
+        assertTrue(filter instanceof PropertyFilter);
+        PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        assertFalse(propertyFilter.test(vmEntity));
+        assertFalse(propertyFilter.test(pmEntity));
+        assertTrue(propertyFilter.test(volumeEntityMatching));
+        assertFalse(propertyFilter.test(volumeEntityNotMatching));
+        // no attachment state -> default (Available) is used
+        assertTrue(propertyFilter.test(volumeEntityNoAttachmentState));
     }
 
     private TestGraphEntity makeVmWithConnectedNetworks(long id, String... connectedNetworks) {

@@ -1,7 +1,9 @@
 package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.ACCOUNT_OID;
+import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.CONNECTED_STORAGE_TIER_FILTER_PATH;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.STATE;
+import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.VOLUME_ATTACHMENT_STATE_FILTER_PATH;
 import static com.vmturbo.components.common.utils.StringConstants.CLUSTER;
 import static com.vmturbo.components.common.utils.StringConstants.GROUP;
 import static com.vmturbo.components.common.utils.StringConstants.RESOURCE_GROUP;
@@ -107,6 +109,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.repository.api.RepositoryClient;
 
@@ -894,6 +897,26 @@ public class SearchService implements ISearchService {
                         CriteriaOptionApiDTO crOpt = new CriteriaOptionApiDTO();
                         crOpt.setDisplayName(ba.getDisplayName());
                         crOpt.setValue(String.valueOf(ba.getOid()));
+                        optionApiDTOs.add(crOpt);
+                    });
+                break;
+            case VOLUME_ATTACHMENT_STATE_FILTER_PATH:
+                Arrays.stream(AttachmentState.values())
+                    .forEach(option -> {
+                        final CriteriaOptionApiDTO optionApiDTO = new CriteriaOptionApiDTO();
+                        optionApiDTO.setValue(option.name());
+                        optionApiDTOs.add(optionApiDTO);
+                    });
+                break;
+            case CONNECTED_STORAGE_TIER_FILTER_PATH:
+                repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
+                    SearchProtoUtil.entityTypeFilter(UIEntityType.STORAGE_TIER.apiStr()))
+                    .build())
+                    .getMinimalEntities()
+                    .forEach(tier -> {
+                        CriteriaOptionApiDTO crOpt = new CriteriaOptionApiDTO();
+                        crOpt.setDisplayName(tier.getDisplayName());
+                        crOpt.setValue(String.valueOf(tier.getOid()));
                         optionApiDTOs.add(crOpt);
                     });
                 break;

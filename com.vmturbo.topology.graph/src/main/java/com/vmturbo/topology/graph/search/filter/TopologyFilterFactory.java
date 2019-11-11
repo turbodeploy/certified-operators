@@ -594,7 +594,31 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                                         .getBusinessAccount().getAccountId(),
                                 !stringFilter.getPositiveMatch(),
                                 stringFilter.getCaseSensitive()).test(entity));
+                    default:
+                        throw new IllegalArgumentException("Unknown property: " +
+                            filter.getPropertyName() + " on " + propertyName);
+                }
+            case SearchableProperties.VOLUME_REPO_DTO:
+                filters = objectCriteria.getFiltersList();
+                if (filters.size() != 1) {
+                    throw new IllegalArgumentException("Expecting one PropertyFilter for " +
+                        propertyName + ", but got " + filters.size() + ": " + filters);
+                }
+                filter = objectCriteria.getFilters(0);
+                switch (filter.getPropertyName()) {
+                    case SearchableProperties.VOLUME_ATTACHMENT_STATE:
+                        if (filter.getPropertyTypeCase() != PropertyTypeCase.STRING_FILTER) {
+                            throw new IllegalArgumentException("Expecting StringFilter for " +
+                                filter.getPropertyName() + ", but got " + filter);
+                        }
+                        StringFilter stringFilter = filter.getStringFilter();
 
+                        return new PropertyFilter<>(entity -> hasVolumeInfoPredicate().test(entity) &&
+                            stringOptionsPredicate(stringFilter.getOptionsList(), topologyEntity ->
+                                    topologyEntity.getTypeSpecificInfo()
+                                        .getVirtualVolume().getAttachmentState().name(),
+                                !stringFilter.getPositiveMatch(),
+                                stringFilter.getCaseSensitive()).test(entity));
                     default:
                         throw new IllegalArgumentException("Unknown property: " +
                             filter.getPropertyName() + " on " + propertyName);
@@ -762,5 +786,9 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
 
     private Predicate<E> hasBusinessAccountInfoPredicate() {
         return entity -> entity.getTypeSpecificInfo().hasBusinessAccount();
+    }
+
+    private Predicate<E> hasVolumeInfoPredicate() {
+        return entity -> entity.getTypeSpecificInfo().hasVirtualVolume();
     }
 }
