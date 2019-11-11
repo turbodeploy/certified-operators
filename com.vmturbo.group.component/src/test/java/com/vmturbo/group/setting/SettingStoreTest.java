@@ -59,7 +59,6 @@ import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundExcep
 import com.vmturbo.group.db.GroupComponent;
 import com.vmturbo.group.group.DbCleanupRule;
 import com.vmturbo.group.group.DbConfigurationRule;
-import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.identity.IdentityProvider;
 
 /**
@@ -82,7 +81,6 @@ public class SettingStoreTest {
 
     private SettingStore settingStore;
     private SettingSpecStore settingSpecStore;
-    private IGroupStore groupStore = mock(IGroupStore.class);
 
     private final SettingPolicyInfo info = SettingPolicyInfo.newBuilder()
             .setName("test")
@@ -103,7 +101,7 @@ public class SettingStoreTest {
         settingSpecStore = new FileBasedSettingsSpecStore(SETTING_TEST_JSON_SETTING_SPEC_JSON);
         settingStore =
                 new SettingStore(settingSpecStore, dbConfig.getDslContext(), identityProviderSpy,
-                        settingPolicyValidator, groupStore, settingsUpdatesSender);
+                        settingPolicyValidator, settingsUpdatesSender);
     }
 
     @Test(expected = DuplicateNameException.class)
@@ -577,7 +575,7 @@ public class SettingStoreTest {
 
         // when we remove group 1 and it's a user-created group, we should see two policies updated
         // -- policy1 and policy12
-        assertEquals(2, settingStore.onGroupDeleted(1L));
+        assertEquals(2, settingStore.onGroupDeleted(dbConfig.getDslContext(), 1L));
 
         // verify that policy1 no longer has any scope groups
         final SettingPolicy policy1AfterUpdate = settingStore.getSettingPolicy("policy1").get();

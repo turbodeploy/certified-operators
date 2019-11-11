@@ -57,7 +57,6 @@ import com.vmturbo.group.common.TargetCollectionUpdate.TargetSettingPolicyUpdate
 import com.vmturbo.group.db.enums.SettingPolicyPolicyType;
 import com.vmturbo.group.db.tables.pojos.SettingPolicy;
 import com.vmturbo.group.db.tables.records.SettingPolicyRecord;
-import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.identity.IdentityProvider;
 
 /**
@@ -89,7 +88,6 @@ public class SettingStore implements Diagnosable {
      * @param dslContext A context with which to interact with the underlying datastore.
      * @param identityProvider The identity provider used to assign OIDs.
      * @param settingPolicyValidator settingPolicyValidator.
-     * @param groupStore The group store.
      * @param settingsUpdatesSender broadcaster for settings updates.
      *
      */
@@ -97,7 +95,6 @@ public class SettingStore implements Diagnosable {
             @Nonnull final DSLContext dslContext,
             @Nonnull final IdentityProvider identityProvider,
             @Nonnull final SettingPolicyValidator settingPolicyValidator,
-            @Nonnull final IGroupStore groupStore,
             @Nonnull final SettingsUpdatesSender settingsUpdatesSender) {
         this.settingSpecStore = Objects.requireNonNull(settingSpecStore);
         this.dslContext = Objects.requireNonNull(dslContext);
@@ -112,9 +109,6 @@ public class SettingStore implements Diagnosable {
                 new GroupToSettingPolicyIndex(
                        this.getSettingPolicies(
                                 SettingPolicyFilter.newBuilder().build()));
-        // subscribe to group delete events. We will remove SettingPolicy references to deleted
-        // (user) groups when this happens.
-        groupStore.subscribeUserGroupRemoved(this::onGroupDeleted);
     }
 
     /**
@@ -254,40 +248,62 @@ public class SettingStore implements Diagnosable {
     @Nonnull
     public SettingProto.SettingPolicy updateSettingPolicy(final long id,
             @Nonnull final SettingPolicyInfo newInfo)
-            throws SettingPolicyNotFoundException, InvalidItemException,
-            DuplicateNameException, DataAccessException {
+            throws SettingPolicyNotFoundException, InvalidItemException, DuplicateNameException,
+            DataAccessException {
         try {
             return dslContext.transactionResult(configuration -> {
                 final DSLContext context = DSL.using(configuration);
+                return updateSettingPolicy(context, id, newInfo);
+            });
+        } catch (DataAccessException e) {
+            // Jooq will rethrow exceptions thrown in the transactionResult call
+            // wrapped in a DataAccessException. Check to see if that's why the transaction failed.
+            if (e.getCause() instanceof DuplicateNameException) {
+                throw (DuplicateNameException)e.getCause();
+            } else if (e.getCause() instanceof SettingPolicyNotFoundException) {
+                throw (SettingPolicyNotFoundException)e.getCause();
+            } else if (e.getCause() instanceof InvalidItemException) {
+                throw (InvalidItemException)e.getCause();
+            } else {
+                throw e;
+            }
+        }
+    }
 
-                final SettingProto.SettingPolicy existingPolicy = getSettingPolicies(context,
-                        SettingPolicyFilter.newBuilder()
-                                .withId(id)
-                                .build()).findFirst().orElseThrow(() -> new SettingPolicyNotFoundException(id));
+    @Nonnull
+    private SettingProto.SettingPolicy updateSettingPolicy(@Nonnull DSLContext context,
+            final long id, @Nonnull final SettingPolicyInfo newInfo)
+            throws SettingPolicyNotFoundException, InvalidItemException, DuplicateNameException,
+            DataAccessException {
+        final SettingProto.SettingPolicy existingPolicy = getSettingPolicies(context,
+                SettingPolicyFilter.newBuilder().withId(id).build()).findFirst()
+                .orElseThrow(() -> new SettingPolicyNotFoundException(id));
 
-                final SettingProto.SettingPolicy.Type type = existingPolicy.getSettingPolicyType();
+        final SettingProto.SettingPolicy.Type type = existingPolicy.getSettingPolicyType();
 
-                // Additional update-only validation for default policies
-                // to ensure certain fields are not changed.
-                if (type.equals(Type.DEFAULT)) {
-                    // For default setting policies we don't allow changes to names
-                    // or entity types.
-                    if (newInfo.getEntityType() != existingPolicy.getInfo().getEntityType()) {
-                        throw new InvalidItemException("Illegal attempt to change the " +
-                                " entity type of a default setting policy.");
-                    }
-                    if (!newInfo.getName().equals(existingPolicy.getInfo().getName())) {
-                        throw new InvalidItemException("Illegal attempt to change the " +
-                                " name of a default setting policy.");
-                    }
-                    Set<String> newSettingNames =
-                        newInfo.getSettingsList().stream().map(Setting::getSettingSpecName)
-                            .collect(Collectors.toSet());
+        // Additional update-only validation for default policies
+        // to ensure certain fields are not changed.
+        if (type.equals(Type.DEFAULT)) {
+            // For default setting policies we don't allow changes to names
+            // or entity types.
+            if (newInfo.getEntityType() != existingPolicy.getInfo().getEntityType()) {
+                throw new InvalidItemException("Illegal attempt to change the " +
+                        " entity type of a default setting policy.");
+            }
+            if (!newInfo.getName().equals(existingPolicy.getInfo().getName())) {
+                throw new InvalidItemException(
+                        "Illegal attempt to change the name of a default setting policy " +
+                                existingPolicy.getInfo().getName());
+            }
+            Set<String> newSettingNames = newInfo.getSettingsList()
+                    .stream()
+                    .map(Setting::getSettingSpecName)
+                    .collect(Collectors.toSet());
 
                     List<Setting> settingsToAdd = new ArrayList<>();
-                    for (Setting existingSettingName : existingPolicy.getInfo().getSettingsList()) {
-                        if (!newSettingNames.contains(existingSettingName.getSettingSpecName())) {
-                            /**
+            for (Setting existingSettingName : existingPolicy.getInfo().getSettingsList()) {
+                if (!newSettingNames.contains(existingSettingName.getSettingSpecName())) {
+                    /**
                              * SLA is created behind the scenes, not exposed in the UI.
                              * TODO If this changes this will have to be revisited.
                              */
@@ -303,16 +319,18 @@ public class SettingStore implements Diagnosable {
                             }
 
                             /**
-                             * TODO (Marco, August 05 2018) OM-48940
-                             * ActionWorkflow and ActionScript settings are missing in the ui and
-                             * in the payload of the request due to OM-48950.
-                             * This workaround will be removed when OM-48950 will be fixed.
-                             */
-                            if (!existingSettingName.getSettingSpecName().contains(
-                                "ActionWorkflow") && !existingSettingName.getSettingSpecName().contains("ActionScript"))
-                                    throw new InvalidItemException("Illegal attempt to remove a " +
-                                    "default setting.");
-                        }
+                     * TODO (Marco, August 05 2018) OM-48940
+                     * ActionWorkflow and ActionScript settings are missing in the ui and
+                     * in the payload of the request due to OM-48950.
+                     * This workaround will be removed when OM-48950 will be fixed.
+                     */
+                    if (!existingSettingName.getSettingSpecName().contains("ActionWorkflow") &&
+                            !existingSettingName.getSettingSpecName().contains("ActionScript")) {
+                        throw new InvalidItemException(
+                                "Illegal attempt to remove a default setting " +
+                                        existingSettingName.getSettingSpecName());
+                    }
+                }
                     }
 
                     if (!settingsToAdd.isEmpty()) {
@@ -327,31 +345,16 @@ public class SettingStore implements Diagnosable {
                         return internalUpdateSettingPolicy(context, existingPolicy.toBuilder()
                                         .setInfo(newNewInfo)
                                         .build());
-                    }
-                }
-
-                if (type.equals(Type.DISCOVERED)) {
-                    throw new InvalidItemException("Illegal attempt to modify a " +
-                        "discovered setting policy.");
-                }
-
-                return internalUpdateSettingPolicy(context, existingPolicy.toBuilder()
-                        .setInfo(newInfo)
-                        .build());
-            });
-        } catch (DataAccessException e) {
-            // Jooq will rethrow exceptions thrown in the transactionResult call
-            // wrapped in a DataAccessException. Check to see if that's why the transaction failed.
-            if (e.getCause() instanceof DuplicateNameException) {
-                throw (DuplicateNameException)e.getCause();
-            } else if (e.getCause() instanceof SettingPolicyNotFoundException) {
-                throw (SettingPolicyNotFoundException)e.getCause();
-            } else if (e.getCause() instanceof InvalidItemException) {
-                throw (InvalidItemException)e.getCause();
-            } else {
-                throw e;
             }
         }
+
+        if (type.equals(Type.DISCOVERED)) {
+            throw new InvalidItemException(
+                    "Illegal attempt to modify a discovered setting policy " + id);
+        }
+
+        return internalUpdateSettingPolicy(context,
+                existingPolicy.toBuilder().setInfo(newInfo).build());
     }
 
     /**
@@ -918,9 +921,10 @@ public class SettingStore implements Diagnosable {
      * references to the group being removed from all user-created {@link SettingPolicy} instances.
      *
      * @param deletedGroupId the group that was removed.
+     * @param context Jooq context to use for transactional purposes
      * @return the number of setting policies affected by the change.
      */
-    protected int onGroupDeleted(@Nonnull Long deletedGroupId) {
+    public int onGroupDeleted(@Nonnull DSLContext context, long deletedGroupId) {
         // get the set of setting policies that included the specified group id.
         final Map<Long, List<SettingProto.SettingPolicy>> policiesForGroup =
                 getSettingPoliciesForGroups(Collections.singleton(deletedGroupId));
@@ -957,7 +961,7 @@ public class SettingStore implements Diagnosable {
                 try {
                     policyInfoBuilder.getScopeBuilder().clearGroups()
                             .addAllGroups(modifiedGroups);
-                    updateSettingPolicy(policy.getId(), policyInfoBuilder.build());
+                    updateSettingPolicy(context, policy.getId(), policyInfoBuilder.build());
                 } catch (SettingPolicyNotFoundException | DuplicateNameException | InvalidItemException e) {
                     // not a huge deal -- log a warning and move on
                     logger.warn("Attempted to update policy id {}, but received: ",

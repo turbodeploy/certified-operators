@@ -48,7 +48,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
-import org.springframework.beans.factory.annotation.Autowired;
 
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
@@ -96,16 +95,16 @@ import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.TemporaryGroupCache;
 import com.vmturbo.group.group.TemporaryGroupCache.InvalidTempGroupException;
+import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.service.GroupRpcService.InvalidGroupDefinitionException;
 import com.vmturbo.group.stitching.GroupStitchingManager;
 import com.vmturbo.group.stitching.GroupTestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 /**
- * This class tests {@Link GroupRpcServiceTest}.
+ * This class tests {@link GroupRpcServiceTest}.
  */
 public class GroupRpcServiceTest {
 
@@ -117,12 +116,9 @@ public class GroupRpcServiceTest {
 
     private GroupRpcService groupRpcService;
 
-    @Autowired
-    private TestSQLDatabaseConfig dbConfig;
-
     private UserSessionContext userSessionContext = mock(UserSessionContext.class);
 
-    private GroupStitchingManager groupStitchingManager = spy(GroupStitchingManager.class);
+    private GroupStitchingManager groupStitchingManager;
 
     private MockTransactionProvider transactionProvider;
     private IGroupStore groupStoreDAO;
@@ -162,6 +158,8 @@ public class GroupRpcServiceTest {
 
     @Before
     public void setUp() throws Exception {
+        final IdentityProvider identityProvider = new IdentityProvider(0);
+        groupStitchingManager = new GroupStitchingManager(identityProvider);
         SearchServiceBlockingStub searchServiceRpc = SearchServiceGrpc.newBlockingStub(testServer.getChannel());
         transactionProvider = new MockTransactionProvider();
         groupStoreDAO = transactionProvider.getGroupStore();
@@ -392,7 +390,8 @@ public class GroupRpcServiceTest {
         requestObserver.onNext(discoveredGroup);
 
         Mockito.verify(groupStoreDAO, Mockito.never())
-                .updateDiscoveredGroups(Mockito.anyCollection());
+                .updateDiscoveredGroups(Mockito.anyCollection(), Mockito.anyList(),
+                        Mockito.anySet());
         Mockito.verify(responseStreamObserver).onError(exceptionCaptor.capture());
         final StatusException exception = exceptionCaptor.getValue();
         Assert.assertThat(exception, GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
@@ -1044,7 +1043,8 @@ public class GroupRpcServiceTest {
         verify(responseObserver).onNext(StoreDiscoveredGroupsPoliciesSettingsResponse.getDefaultInstance());
         // capture the group used to save to db
         final ArgumentCaptor<Collection> captor = ArgumentCaptor.forClass(Collection.class);
-        verify(groupStoreDAO).updateDiscoveredGroups(captor.capture());
+        verify(groupStoreDAO).updateDiscoveredGroups(captor.capture(), Mockito.anyList(),
+                Mockito.anySet());
         Collection groups = captor.getValue();
         assertEquals(1, groups.size());
         DiscoveredGroup group = (DiscoveredGroup)groups.iterator().next();
@@ -1108,7 +1108,7 @@ public class GroupRpcServiceTest {
 
         // capture the group used to save to db
         final ArgumentCaptor<Collection> captor = ArgumentCaptor.forClass(Collection.class);
-        verify(groupStoreDAO).updateDiscoveredGroups(captor.capture());
+        verify(groupStoreDAO).updateDiscoveredGroups(captor.capture(), Mockito.anyList(), Mockito.anySet());
         Collection groups = captor.getValue();
 
         assertEquals(1, groups.size());

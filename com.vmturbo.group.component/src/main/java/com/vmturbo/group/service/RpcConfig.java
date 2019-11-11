@@ -103,7 +103,7 @@ public class RpcConfig {
      */
     @Bean
     public GroupStitchingManager groupStitchingManager() {
-        return new GroupStitchingManager();
+        return new GroupStitchingManager(identityProviderConfig.identityProvider());
     }
 
     @Bean

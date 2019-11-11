@@ -13,6 +13,8 @@ import javax.annotation.Nonnull;
 
 import com.google.gson.reflect.TypeToken;
 
+import io.grpc.Status;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
@@ -37,6 +39,7 @@ import com.vmturbo.group.db.tables.pojos.PolicyGroup;
 import com.vmturbo.group.db.tables.records.PolicyRecord;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.identity.IdentityProvider;
+import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 
 /**
@@ -76,12 +79,10 @@ public class PolicyStore implements Diagnosable {
 
     public PolicyStore(@Nonnull final DSLContext dslContext,
                        @Nonnull final DiscoveredPoliciesMapperFactory mapperFactory,
-                       @Nonnull final IdentityProvider identityProvider,
-            @Nonnull final IGroupStore groupStore) {
+                       @Nonnull final IdentityProvider identityProvider) {
         this.dslContext = Objects.requireNonNull(dslContext);
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.discoveredPoliciesMapperFactory = Objects.requireNonNull(mapperFactory);
-        groupStore.subscribeUserGroupRemoved(this::deletePoliciesForGroupBeingRemoved);
     }
 
     /**
@@ -229,16 +230,17 @@ public class PolicyStore implements Diagnosable {
      * and can be ignored in this method.</li>
      *
      * @param groupId id of the group deleted.
-     * @throws PolicyDeleteException If there is an error deleting the policies.
+     * @param context Jooq context to execute operations with. Used for transactions
+     * @throws StoreOperationException If there is an error deleting the policies.
      */
-    private void deletePoliciesForGroupBeingRemoved(final long groupId)
-            throws PolicyDeleteException {
+    public void deletePoliciesForGroupBeingRemoved(@Nonnull DSLContext context, final long groupId)
+            throws StoreOperationException {
         try {
             // Delete any user-created placement policies associated with the group.
             // Find all placement policies associated with the group, as well as whether they were
             // discovered by targets or not.
             List<Pair<Long, Long>> associatedPolicies =
-                    dslContext.select(Tables.POLICY_GROUP.POLICY_ID, Tables.POLICY.DISCOVERED_BY_ID)
+                    context.select(Tables.POLICY_GROUP.POLICY_ID, Tables.POLICY.DISCOVERED_BY_ID)
                             .from(Tables.POLICY_GROUP)
                             .innerJoin(Tables.POLICY)
                             .on(Tables.POLICY_GROUP.POLICY_ID.eq(Tables.POLICY.ID))
@@ -258,22 +260,24 @@ public class PolicyStore implements Diagnosable {
                 }
                 try {
                     logger.info("Deleting user policy {} scoped to group {}", policyId, groupId);
-                    internalDelete(dslContext, policyId, false);
+                    internalDelete(context, policyId, false);
                 } catch (ImmutablePolicyUpdateException e) {
                     logger.error("Policy {} could not be deleted because it's immutable", policyId);
                     // if we're deleting a discovered group, this isn't a blocker -- continue.
                     // Otherwise, we were trying to delete a discovered policy scoped to a
                     // user group -- these should not exist, but if this case ever arises, then
                     // let's throw an exception to prevent the group from getting deleted.
-                    throw new PolicyDeleteException(policyId, groupId, e);
+                    throw new StoreOperationException(Status.INVALID_ARGUMENT,
+                            "Could not remove policy " + policyId + " for deleted gorup " +
+                                    groupId + " because it is immutable", e);
                 } catch (PolicyNotFoundException e) {
                     // In this case we want to continue deleting associated policies - this isn't
                     // a fatal error.
                     logger.warn("Policy {} not found even though it was associated with group {}!",
                             policyId, groupId);
                 } catch (DataAccessException e) {
-                    logger.error("Related policy " + policyId + " could not be deleted.", e);
-                    throw new PolicyDeleteException(policyId, groupId, e);
+                    throw new StoreOperationException(Status.INTERNAL,
+                            "Related policy " + policyId + " could not be deleted.", e);
                 }
             }
         } catch (Exception e) {

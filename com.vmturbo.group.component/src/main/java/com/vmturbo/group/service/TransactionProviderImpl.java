@@ -126,6 +126,11 @@ public class TransactionProviderImpl implements TransactionProvider {
             settingStore.updateTargetSettingPolicies(dslContext, targetId, settingPolicyInfos,
                     groupOids);
         }
+
+        @Override
+        public int onGroupDeleted(long deletedGroupId) {
+            return settingStore.onGroupDeleted(dslContext, deletedGroupId);
+        }
     }
 
     /**
@@ -145,6 +150,12 @@ public class TransactionProviderImpl implements TransactionProvider {
                 @Nonnull List<DiscoveredPolicyInfo> policyInfos,
                 @Nonnull Map<String, Long> groupOids) throws DataAccessException {
             policyStore.updateTargetPolicies(dslContext, targetId, policyInfos, groupOids);
+        }
+
+        @Override
+        public void deletePoliciesForGroupBeingRemoved(long groupId)
+                throws StoreOperationException {
+            policyStore.deletePoliciesForGroupBeingRemoved(dslContext, groupId);
         }
     }
 }

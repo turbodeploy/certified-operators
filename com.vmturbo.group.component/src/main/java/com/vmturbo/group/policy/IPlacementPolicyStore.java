@@ -29,4 +29,23 @@ public interface IPlacementPolicyStore {
     void updateTargetPolicies(long targetId,
             @Nonnull List<DiscoveredPolicyInfo> policyInfos,
             @Nonnull Map<String, Long> groupOids) throws StoreOperationException;
+
+    /**
+     * This method will attempt to remove any user-created policies associated with a specified
+     * group that is undergoing deletion.
+     * It will also check for discovered policies related to the group. Because discovered
+     * policies are "immutable" (they are only modified during the discovered group/policy/settings
+     * upload process rather than by user activity), we cannot delete them here. Instead, if we find
+     * a discovered policy related to the group in question, we will follow these rules:
+     * <li>If the group is a user group, we'll throw an exception instead of deleting any policies.
+     * This is because the user group is being used in a discovered policy, and the group can't be
+     * deleted without creating an invalid policy.</li>
+     * <li>If the group is a discovered group, we won't do anything. Discovered groups and policies
+     * are both handled elsewhere (See {@link com.vmturbo.group.service.GroupRpcService#storeDiscoveredGroupsPoliciesSettings})
+     * and can be ignored in this method.</li>
+     *
+     * @param groupId id of the group deleted.
+     * @throws StoreOperationException If there is an error deleting the policies.
+     */
+    void deletePoliciesForGroupBeingRemoved(long groupId) throws StoreOperationException;
 }

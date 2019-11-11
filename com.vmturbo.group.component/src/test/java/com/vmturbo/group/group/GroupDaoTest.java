@@ -28,7 +28,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
@@ -44,6 +43,7 @@ import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.group.db.GroupComponent;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
+import com.vmturbo.group.group.IGroupStore.DiscoveredGroupId;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.policy.PolicyStore;
 import com.vmturbo.group.service.StoreOperationException;
@@ -108,25 +108,31 @@ public class GroupDaoTest {
                 groupStore.createGroup(user, userGroup2Def, EXPECTED_MEMBERS, true);
         final String src1 = "discovered-group-1";
         final String src2 = "discovered-group-2";
+        final String src3 = "discovered-group-3";
         final DiscoveredGroup group1 = createUploadedGroup(src1, Arrays.asList(1L, 2L));
-        final DiscoveredGroup group2 = createUploadedGroup(src1, Arrays.asList(1L, 2L, 3L));
-        final DiscoveredGroup group3 = createUploadedGroup(src2, Arrays.asList(1L, 2L, 3L, 4L));
-        final Map<String, Long> createdGroups =
-                groupStore.updateDiscoveredGroups(Collections.singleton(group1));
-        final String identifyingKey1 = GroupProtoUtil.createIdentifyingKey(GroupType.REGULAR, src1);
-        final String identifyingKey2 = GroupProtoUtil.createIdentifyingKey(GroupType.REGULAR, src2);
-        Assert.assertEquals(Collections.singleton(identifyingKey1), createdGroups.keySet());
-        final GroupDTO.Grouping agroup1 =
-                groupStore.getGroup(createdGroups.values().iterator().next()).get();
+        final DiscoveredGroup group2 = createUploadedGroup(src2, Arrays.asList(1L, 2L, 3L));
+        final DiscoveredGroup group3 = createUploadedGroup(src3, Arrays.asList(1L, 2L, 3L, 4L));
+        groupStore.updateDiscoveredGroups(Collections.singleton(group1), Collections.emptyList(),
+                Collections.emptySet());
+        Assert.assertEquals(Collections.singleton(group1.getOid()),
+                groupStore.getDiscoveredGroupsIds()
+                        .stream()
+                        .map(DiscoveredGroupId::getOid)
+                        .collect(Collectors.toSet()));
+        final GroupDTO.Grouping agroup1 = groupStore.getGroup(group1.getOid()).get();
         assertGroupsEqual(group1, agroup1);
         Assert.assertEquals(Arrays.asList(1L, 2L),
                 agroup1.getOrigin().getDiscovered().getDiscoveringTargetIdList());
 
-        final Map<String, Long> createdGroups2 =
-                groupStore.updateDiscoveredGroups(Arrays.asList(group2, group3));
-        Assert.assertEquals(Sets.newHashSet(identifyingKey1, identifyingKey2), createdGroups2.keySet());
-        final GroupDTO.Grouping agroup2 = groupStore.getGroup(createdGroups2.get(identifyingKey1)).get();
-        final GroupDTO.Grouping agroup3 = groupStore.getGroup(createdGroups2.get(identifyingKey2)).get();
+        groupStore.updateDiscoveredGroups(Arrays.asList(group2, group3), Collections.emptyList(),
+                Collections.singleton(group1.getOid()));
+        Assert.assertEquals(Sets.newHashSet(group2.getOid(), group3.getOid()),
+                groupStore.getDiscoveredGroupsIds()
+                        .stream()
+                        .map(DiscoveredGroupId::getOid)
+                        .collect(Collectors.toSet()));
+        final GroupDTO.Grouping agroup2 = groupStore.getGroup(group2.getOid()).get();
+        final GroupDTO.Grouping agroup3 = groupStore.getGroup(group3.getOid()).get();
 
         assertGroupsEqual(group2, agroup2);
         assertGroupsEqual(group3, agroup3);
@@ -134,6 +140,14 @@ public class GroupDaoTest {
         final Grouping userGroup2 = groupStore.getGroup(userOid2).get();
         Assert.assertEquals(userGroup1Def, userGroup1.getDefinition());
         Assert.assertEquals(userGroup2Def, userGroup2.getDefinition());
+
+        groupStore.updateDiscoveredGroups(Collections.singleton(group1),
+                Arrays.asList(group2, group3), Collections.emptySet());
+        Assert.assertEquals(Sets.newHashSet(group1.getOid(), group2.getOid(), group3.getOid()),
+                groupStore.getDiscoveredGroupsIds()
+                        .stream()
+                        .map(DiscoveredGroupId::getOid)
+                        .collect(Collectors.toSet()));
     }
 
     /**
@@ -145,9 +159,9 @@ public class GroupDaoTest {
     @Test
     public void testUpdateDiscoveredGroup() throws Exception {
         final DiscoveredGroup group1 = createUploadedGroup("smth", Arrays.asList(1L, 2L));
-        final Map<String, Long> createdGroups =
-                groupStore.updateDiscoveredGroups(Collections.singleton(group1));
-        final long groupId = createdGroups.values().iterator().next();
+        groupStore.updateDiscoveredGroups(Collections.singleton(group1), Collections.emptyList(),
+                Collections.emptySet());
+        final long groupId = group1.getOid();
         final GroupDefinition newDefinition = createGroupDefinition();
         expectedException.expect(new StoreExceptionMatcher(Status.INVALID_ARGUMENT));
         groupStore.updateGroup(groupId, newDefinition, Collections.emptySet(), false);
@@ -466,9 +480,9 @@ public class GroupDaoTest {
     @Test
     public void testDeleteDiscoveredGroup() throws Exception {
         final DiscoveredGroup group1 = createUploadedGroup("smth", Arrays.asList(1L, 2L));
-        final Map<String, Long> createdGroups =
-                groupStore.updateDiscoveredGroups(Collections.singleton(group1));
-        final long groupId = createdGroups.values().iterator().next();
+        groupStore.updateDiscoveredGroups(Collections.singleton(group1), Collections.emptyList(),
+                Collections.emptySet());
+        final long groupId = group1.getOid();
         expectedException.expect(new StoreExceptionMatcher(Status.INVALID_ARGUMENT));
         groupStore.deleteGroup(groupId);
     }
@@ -638,7 +652,8 @@ public class GroupDaoTest {
         final DiscoveredGroup group1 = createUploadedGroup(src1, Arrays.asList(1L, 2L));
         final DiscoveredGroup group2 = createUploadedGroup(src2, Arrays.asList(1L, 3L));
         final DiscoveredGroup groupNew = createUploadedGroup(src2, Arrays.asList(1L, 3L));
-        groupStore.updateDiscoveredGroups(Arrays.asList(group1, group2));
+        groupStore.updateDiscoveredGroups(Arrays.asList(group1, group2), Collections.emptyList(),
+                Collections.emptySet());
         final long oid1 = groupStore.createGroup(createUserOrigin(), createGroupDefinition(),
                 EXPECTED_MEMBERS, true);
         final long oid2 = groupStore.createGroup(createUserOrigin(), createGroupDefinition(),
@@ -649,10 +664,11 @@ public class GroupDaoTest {
         final List<String> dumpedData = groupStore.collectDiags();
 
         groupStore.deleteGroup(oid1);
-        groupStore.updateDiscoveredGroups(Arrays.asList(groupNew));
+        groupStore.updateDiscoveredGroups(Collections.singleton(groupNew), Collections.emptyList(),
+                new HashSet<>(Arrays.asList(group1.getOid(), group2.getOid())));
         final Collection<GroupDTO.Grouping> allGroups2 =
                 groupStore.getGroups(GroupDTO.GroupFilter.newBuilder().build());
-        Assert.assertEquals(3, allGroups2.size());
+        Assert.assertEquals(2, allGroups2.size());
 
         groupStore.restoreDiags(dumpedData);
         final Collection<GroupDTO.Grouping> restoredGroups =
@@ -677,7 +693,8 @@ public class GroupDaoTest {
         final GroupDefinition groupDefinition = createGroupDefinition();
         final List<MemberType> types = Arrays.asList(MemberType.newBuilder().setEntity(1).build(),
                 MemberType.newBuilder().setGroup(GroupType.REGULAR).build());
-        return new DiscoveredGroup(groupDefinition, srcId, new HashSet<>(targetIds), types, false);
+        return new DiscoveredGroup(counter.getAndIncrement(), groupDefinition, srcId,
+                new HashSet<>(targetIds), types, false);
     }
 
     @Nonnull

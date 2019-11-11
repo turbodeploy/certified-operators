@@ -19,6 +19,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableTable;
+import com.google.common.collect.Table;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -79,6 +81,8 @@ import com.vmturbo.group.group.TemporaryGroupCache.InvalidTempGroupException;
 import com.vmturbo.group.service.TransactionProvider.Stores;
 import com.vmturbo.group.stitching.GroupStitchingContext;
 import com.vmturbo.group.stitching.GroupStitchingManager;
+import com.vmturbo.group.stitching.StitchingGroup;
+import com.vmturbo.group.stitching.StitchingResult;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
@@ -172,10 +176,10 @@ public class GroupRpcService extends GroupServiceImplBase {
     @Override
     public void deleteGroup(GroupID gid, StreamObserver<DeleteGroupResponse> responseObserver) {
         executeOperation(responseObserver,
-                stores -> deleteGroup(stores.getGroupStore(), gid, responseObserver));
+                stores -> deleteGroup(stores, gid, responseObserver));
     }
 
-    private void deleteGroup(@Nonnull IGroupStore groupStore, GroupID gid,
+    private void deleteGroup(@Nonnull Stores stores, GroupID gid,
             StreamObserver<DeleteGroupResponse> responseObserver) throws StoreOperationException {
         if (!gid.hasId()) {
             final String errMsg = "Invalid GroupID input for delete a group: No group ID specified";
@@ -186,7 +190,7 @@ public class GroupRpcService extends GroupServiceImplBase {
 
         final long groupId = gid.getId();
 
-        checkUserAccessToGrouping(groupStore, groupId);
+        checkUserAccessToGrouping(stores.getGroupStore(), groupId);
 
         logger.info("Deleting a group: {}", groupId);
         final Optional<Grouping> group = tempGroupCache.deleteGrouping(groupId);
@@ -196,7 +200,9 @@ public class GroupRpcService extends GroupServiceImplBase {
             responseObserver.onNext(DeleteGroupResponse.newBuilder().setDeleted(true).build());
             responseObserver.onCompleted();
         } else {
-            groupStore.deleteGroup(gid.getId());
+            stores.getGroupStore().deleteGroup(gid.getId());
+            stores.getSettingPolicyStore().onGroupDeleted(gid.getId());
+            stores.getPlacementPolicyStore().deletePoliciesForGroupBeingRemoved(gid.getId());
             responseObserver.onNext(DeleteGroupResponse.newBuilder().setDeleted(true).build());
             responseObserver.onCompleted();
         }
@@ -1013,6 +1019,29 @@ public class GroupRpcService extends GroupServiceImplBase {
         }
     }
 
+    @Nonnull
+    private DiscoveredGroup createDiscoveredGroup(@Nonnull IGroupStore groupStore,
+            @Nonnull StitchingGroup src) {
+        final GroupDefinition groupDefinition = src.buildGroupDefinition();
+        final Set<MemberType> expectedMembers = findGroupExpectedTypes(groupStore, groupDefinition);
+        return new DiscoveredGroup(src.getOid(), groupDefinition, src.getSourceId(),
+                src.getTargetIds(), expectedMembers,
+                determineMemberReverseLookupSupported(groupDefinition));
+    }
+
+    @Nonnull
+    private Table<Long, String, Long> createGroupIdTable(@Nonnull StitchingResult stitchingResult) {
+        final ImmutableTable.Builder<Long, String, Long> builder = ImmutableTable.builder();
+        for (StitchingGroup stitchingGroup : stitchingResult.getGroupsToAddOrUpdate()) {
+            for (long targetId : stitchingGroup.getTargetIds()) {
+                builder.put(targetId, GroupProtoUtil.createIdentifyingKey(
+                        stitchingGroup.getGroupDefinition().getType(),
+                        stitchingGroup.getSourceId()), stitchingGroup.getOid());
+            }
+        }
+        return builder.build();
+    }
+
     /**
      * An exception thrown when the {@link GroupDefinition} describing a group is illegal.
      */
@@ -1074,28 +1103,39 @@ public class GroupRpcService extends GroupServiceImplBase {
 
         private void onCompleted(@Nonnull Stores stores) throws StoreOperationException {
             // stitch all groups, e.g. merge same groups from different targets into one
-            final GroupStitchingContext stitchedContext =
-                    groupStitchingManager.stitch(groupStitchingContext);
-
-            List<DiscoveredGroup> groups =
-                    stitchedContext.getAllStitchingGroups().stream().map(stitchingGroup -> {
-                        final GroupDefinition groupDefinition =
-                                stitchingGroup.buildGroupDefinition();
-                        return new DiscoveredGroup(groupDefinition, stitchingGroup.getSourceId(),
-                                stitchingGroup.getAllTargetIds(),
-                                findGroupExpectedTypes(stores.getGroupStore(), groupDefinition),
-                                determineMemberReverseLookupSupported(groupDefinition));
-                    }).collect(Collectors.toList());
-            final Map<String, Long> allGroupsMap =
-                    stores.getGroupStore().updateDiscoveredGroups(groups);
+            final StitchingResult stitchingResult =
+                    groupStitchingManager.stitch(stores.getGroupStore(), groupStitchingContext);
+            final List<DiscoveredGroup> groupsToAdd = stitchingResult.getGroupsToAddOrUpdate()
+                    .stream()
+                    .filter(StitchingGroup::isNewGroup)
+                    .map(stitchingGroup -> createDiscoveredGroup(stores.getGroupStore(),
+                            stitchingGroup))
+                    .collect(Collectors.toList());
+            final List<DiscoveredGroup> groupsToUpdate = stitchingResult.getGroupsToAddOrUpdate()
+                    .stream()
+                    .filter(group -> !group.isNewGroup())
+                    .map(stitchingGroup -> createDiscoveredGroup(stores.getGroupStore(),
+                            stitchingGroup))
+                    .collect(Collectors.toList());
+            logger.info("Got {} new groups, {} for update and {} to delete", groupsToAdd.size(),
+                    groupsToUpdate.size(), stitchingResult.getGroupsToDelete().size());
+            stores.getGroupStore()
+                    .updateDiscoveredGroups(groupsToAdd, groupsToUpdate,
+                            stitchingResult.getGroupsToDelete());
+            final Table<Long, String, Long> allGroupsMap = createGroupIdTable(stitchingResult);
             for (Entry<Long, List<DiscoveredPolicyInfo>> entry : policiesByTarget.entrySet()) {
                 stores.getPlacementPolicyStore()
-                        .updateTargetPolicies(entry.getKey(), entry.getValue(), allGroupsMap);
+                        .updateTargetPolicies(entry.getKey(), entry.getValue(),
+                                allGroupsMap.row(entry.getKey()));
             }
             for (Entry<Long, List<DiscoveredSettingPolicyInfo>> entry : settingPoliciesByTarget.entrySet()) {
                 stores.getSettingPolicyStore()
                         .updateTargetSettingPolicies(entry.getKey(), entry.getValue(),
-                                allGroupsMap);
+                                allGroupsMap.row(entry.getKey()));
+            }
+            for (Long removedGroup : stitchingResult.getGroupsToDelete()) {
+                stores.getPlacementPolicyStore().deletePoliciesForGroupBeingRemoved(removedGroup);
+                stores.getSettingPolicyStore().onGroupDeleted(removedGroup);
             }
             responseObserver.onNext(StoreDiscoveredGroupsPoliciesSettingsResponse.getDefaultInstance());
             responseObserver.onCompleted();

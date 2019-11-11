@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
 import com.vmturbo.common.protobuf.group.GroupDTO;
@@ -16,6 +17,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.group.service.StoreOperationException;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
@@ -25,7 +27,8 @@ public interface IGroupStore {
 
     /**
      * Create a new group based on group definition. Discovered groups are not supported by this
-     * call. Discovered groups should be created with {@link #updateDiscoveredGroups(Collection)}
+     * call. Discovered groups should be created with {@link #updateDiscoveredGroups(Collection,
+     * Collection, Set)}
      *
      * @param origin origin of this group
      * @param groupDefinition group definition
@@ -33,7 +36,7 @@ public interface IGroupStore {
      * @param supportReverseLookup whether the group supports reverse lookups
      * @return OID of the newly create group
      * @throws StoreOperationException if operation failed
-     * @see #updateDiscoveredGroups(Collection)
+     * @see #updateDiscoveredGroups(Collection, Collection, Set)
      */
     long createGroup(@Nonnull Origin origin, @Nonnull GroupDefinition groupDefinition,
             @Nonnull Set<MemberType> expecMemberTypes, boolean supportReverseLookup)
@@ -85,13 +88,24 @@ public interface IGroupStore {
      * Updates all the discovered group. Operation could be treated as removing of
      * all the discovered groups and recreating them (preserving OIDs).
      *
-     * @param groups new set of discovered groups
-     * @return map of group string id (reported by probe's discovery process) to groups' oids.
+     * @param groupsToAdd discovered groups to add (new groups)
+     * @param groupsToUpdate discovered groups to update (existing groups)
+     * @param groupsToDelete groups to delete (they are no longer present it the environment)
      * @throws StoreOperationException if operation failed
      */
-    @Nonnull
-    Map<String, Long> updateDiscoveredGroups(@Nonnull Collection<DiscoveredGroup> groups)
+    void updateDiscoveredGroups(@Nonnull Collection<DiscoveredGroup> groupsToAdd,
+            @Nonnull Collection<DiscoveredGroup> groupsToUpdate, @Nonnull Set<Long> groupsToDelete)
             throws StoreOperationException;
+
+    /**
+     * Returns discovered groups identifiers. The identifiers are used for groups matching in order
+     * to understand whether OIDs should be reused for some groups (updating existing groups) or
+     * new OIDs should be assigned instead (creating new groups)
+     *
+     * @return collection of discovered groups ids.
+     */
+    @Nonnull
+    Collection<DiscoveredGroupId> getDiscoveredGroupsIds();
 
     /**
      * Returns all the tags present in the group component.
@@ -131,11 +145,12 @@ public interface IGroupStore {
      */
     void subscribeUserGroupRemoved(@Nonnull Consumer<Long> consumer);
 
-    /**
+        /**
      * Class to hold discovered group information.
      */
     @Immutable
     class DiscoveredGroup {
+        private final long oid;
         private final GroupDefinition groupDefinition;
         private final String sourceIdentifier;
         private final Set<Long> targetIds;
@@ -145,17 +160,16 @@ public interface IGroupStore {
         /**
          * Constructs discovered group.
          *
+         * @param oid oid for the group
          * @param groupDefinition group definition
          * @param sourceIdentifier source id from the probe
          * @param targetIds all targets which discovers this group
          * @param expectedMembers expected member types of the group
          * @param isReverseLookupSupported whether reverse lookup is supported for this group
          */
-        public DiscoveredGroup(@Nonnull GroupDefinition groupDefinition,
-                               @Nonnull String sourceIdentifier,
-                               @Nonnull Set<Long> targetIds,
-                               @Nonnull Collection<MemberType> expectedMembers,
-                               boolean isReverseLookupSupported) {
+        public DiscoveredGroup(long oid, @Nonnull GroupDefinition groupDefinition,
+                @Nonnull String sourceIdentifier, @Nonnull Set<Long> targetIds,
+                @Nonnull Collection<MemberType> expectedMembers, boolean isReverseLookupSupported) {
             this.targetIds = Objects.requireNonNull(targetIds);
             if (targetIds.isEmpty()) {
                 throw new IllegalArgumentException(
@@ -166,6 +180,7 @@ public interface IGroupStore {
             this.sourceIdentifier = Objects.requireNonNull(sourceIdentifier);
             this.expectedMembers = Objects.requireNonNull(expectedMembers);
             this.isReverseLookupSupported = isReverseLookupSupported;
+            this.oid = oid;
         }
 
         public GroupDefinition getDefinition() {
@@ -189,5 +204,53 @@ public interface IGroupStore {
         public Set<Long> getTargetIds() {
             return targetIds;
         }
+
+        public long getOid() {
+            return oid;
+        }
+
+        @Override
+        public String toString() {
+            return Long.toString(oid) + '-' + sourceIdentifier;
+        }
+    }
+
+    /**
+     * Discovered group id. This interface represents all the fields that could be used for
+     * group matching.
+     */
+    interface DiscoveredGroupId {
+
+        /**
+         * Returns group type.
+         *
+         * @return group type
+         */
+        @Nonnull
+        GroupType getGroupType();
+
+        /**
+         * Returns source identifier of the group.
+         *
+         * @return source id
+         */
+        @Nonnull
+        String getSourceId();
+
+        /**
+         * Returns target this group is reported for. Only return non-null value if there is
+         * exactly one target. For multiple targets, this value will be {@code null}.
+         *
+         * @return target id
+         */
+        @Nullable
+        Long getTarget();
+
+        /**
+         * OID assigned to the group.
+         *
+         * @return oid
+         */
+        long getOid();
     }
 }

@@ -28,10 +28,13 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
 
+import com.google.common.collect.Sets;
 import com.google.gson.reflect.TypeToken;
 import com.google.protobuf.InvalidProtocolBufferException;
 
@@ -48,7 +51,9 @@ import org.jooq.Query;
 import org.jooq.Record1;
 import org.jooq.Record2;
 import org.jooq.Record3;
+import org.jooq.Record5;
 import org.jooq.Result;
+import org.jooq.Select;
 import org.jooq.TableRecord;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
@@ -356,28 +361,38 @@ public class GroupDAO implements IGroupStore, Diagnosable {
     }
 
     /**
-     * Get the existing groups in DB and create a mapping from group identifying key to group oid.
-     * The identifying key is created as that defined in
-     * {@link GroupProtoUtil#createIdentifyingKey(GroupType, String)}.
+     * Get the existing discovered groups in DB and create a collection of identifying fields
+     * for each groups.
      *
-     * @param context the DB context to use
-     * @return map from group identifying key to group oid.
+     * @return collection of discovered group id
      */
     @Nonnull
-    private Map<String, Long> getExistingGroupKeys(@Nonnull DSLContext context) {
-        final Result<Record3<Long, String, GroupType>> result =
-                context.select(GROUPING.ID, GROUPING.ORIGIN_DISCOVERED_SRC_ID, GROUPING.GROUP_TYPE)
+    @Override
+    public Collection<DiscoveredGroupId> getDiscoveredGroupsIds() {
+        final Result<Record5<Long, String, GroupType, Integer, Long>> records =
+                dslContext.select(DSL.max(GROUPING.ID), DSL.max(GROUPING.ORIGIN_DISCOVERED_SRC_ID),
+                        DSL.max(GROUPING.GROUP_TYPE), DSL.count(GROUP_DISCOVER_TARGETS.TARGET_ID),
+                        DSL.max(GROUP_DISCOVER_TARGETS.TARGET_ID))
                         .from(GROUPING)
+                        .leftJoin(GROUP_DISCOVER_TARGETS)
+                        .on(GROUPING.ID.eq(GROUP_DISCOVER_TARGETS.GROUP_ID))
                         .where(GROUPING.ORIGIN_DISCOVERED_SRC_ID.isNotNull())
+                        .groupBy(GROUPING.ID)
                         .fetch();
-        return result.stream()
-                .collect(Collectors.toMap(record ->
-                        GroupProtoUtil.createIdentifyingKey(record.value3(), record.value2()),
-                        Record3::value1));
+        final Collection<DiscoveredGroupId> result = new ArrayList<>(records.size());
+        for (Record5<Long, String, GroupType, Integer, Long> record: records) {
+            final Long targetId = record.value4() != 1 ? null : record.value5();
+            final DiscoveredGroupId id =
+                    new DiscoveredGroupIdImpl(record.value1(), targetId, record.value2(),
+                            record.value3());
+            result.add(id);
+        }
+        return Collections.unmodifiableCollection(result);
     }
 
     /**
-     * Method performs validation of static members.
+     * Method performs validation of static members. It validates that group type in {@link
+     * GroupDefinition} is the same as real group has.
      *
      * @param context DB context to use
      * @param members static members collection to validate
@@ -1034,126 +1049,129 @@ public class GroupDAO implements IGroupStore, Diagnosable {
         context.deleteFrom(GROUPING).where(GROUPING.ID.eq(groupId)).execute();
     }
 
-    @Nonnull
     @Override
-    public Map<String, Long> updateDiscoveredGroups(@Nonnull Collection<DiscoveredGroup> groups)
+    public void updateDiscoveredGroups(@Nonnull Collection<DiscoveredGroup> groupsToAdd,
+            @Nonnull Collection<DiscoveredGroup> groupsToUpdate, @Nonnull Set<Long> groupsToDelete)
             throws StoreOperationException {
-        return updateDiscoveredGroups(dslContext, groups, srcId -> identityProvider.next());
+        logger.debug("Is about to add the following groups: {}", groupsToAdd);
+        logger.debug("Is about to update the following groups: {}", groupsToUpdate);
+        logger.debug("Is about to delete the following groups: {}", groupsToDelete);
+        updateDiscoveredGroups(dslContext, groupsToAdd, groupsToUpdate, groupsToDelete);
     }
 
     /**
-     * Adds or updates discovered groups in the appliance.
+     * Adds or updates discovered groups in the appliance. Discovered groups that are not listed in
+     * either collection are not touched.
      *
      * @param context DB connection context
-     * @param groups groups to be a new set of discovered groups in the store.
-     * @param idGenerator function to assign OIDs to the groups. It receives
-     *         discoveredSourceId and produces a unique OID
+     * @param groupsToAdd groups to add to the store.
+     * @param groupsToUpdate groups to be updated in the store.
+     * @param groupsToDelete groups to delete from the store.
      * @return map of discovered source id to OID for the new groups.
      * @throws StoreOperationException if group configuration is incorrect
      */
     @Nonnull
-    private Map<String, Long> updateDiscoveredGroups(@Nonnull DSLContext context,
-            @Nonnull Collection<DiscoveredGroup> groups,
-            @Nonnull Function<String, Long> idGenerator) throws StoreOperationException {
-        final Map<String, Long> existingGroups = getExistingGroupKeys(context);
-        validateDiscoveredGroups(context, existingGroups, groups);
-
+    private void updateDiscoveredGroups(@Nonnull DSLContext context,
+            @Nonnull Collection<DiscoveredGroup> groupsToAdd,
+            @Nonnull Collection<DiscoveredGroup> groupsToUpdate, @Nonnull Set<Long> groupsToDelete)
+            throws StoreOperationException {
+        final Set<Long> newGroupOids = Stream.of(groupsToAdd, groupsToUpdate)
+                .flatMap(Collection::stream)
+                .map(DiscoveredGroup::getOid)
+                .collect(Collectors.toSet());
         context.deleteFrom(GROUPING)
                 .where(GROUPING.ORIGIN_DISCOVERED_SRC_ID.isNotNull()
-                        .and(GROUPING.ID.notIn(existingGroups.values())))
+                        .and(GROUPING.ID.in(groupsToDelete)))
                 .execute();
-        cleanDiscoveredGroupsChildTables(context);
-        final Map<String, Long> result = new HashMap<>();
+        final Set<Long> groupsToIgnore =
+                getIgnoredDiscoveredGroups(context, Sets.union(newGroupOids, groupsToDelete));
+        if (!groupsToIgnore.isEmpty()) {
+            logger.info("Following groups are ignored by update, as the related target has not been" +
+                    " discovered yet: " + groupsToIgnore);
+        }
+        cleanDiscoveredGroupsChildTables(context, groupsToIgnore);
         final Collection<TableRecord<?>> inserts = new ArrayList<>();
         final Collection<GroupingRecord> newGroups = new ArrayList<>();
         final Collection<Query> updates = new ArrayList<>();
+        createGroupStatements(context, inserts, newGroups,
+                groupPojo -> context.newRecord(GROUPING, groupPojo), groupsToAdd);
+        createGroupStatements(context, inserts, updates,
+                groupPojo -> createGroupUpdate(context, groupPojo), groupsToUpdate);
+
+        context.batch(updates).execute();
+        context.batchInsert(newGroups).execute();
+        context.batchInsert(inserts).execute();
+    }
+
+    private <T> void createGroupStatements(@Nonnull DSLContext context,
+            @Nonnull Collection<TableRecord<?>> insertsToAppend,
+            @Nonnull Collection<T> queriesToAppend, Function<Grouping, T> createFunction,
+            @Nonnull Collection<DiscoveredGroup> groups) throws StoreOperationException {
         for (DiscoveredGroup group : groups) {
             requireTrue(!group.getSourceIdentifier().isEmpty(), "Source identifier must be set");
             final String sourceIdentifier = group.getSourceIdentifier();
             final GroupDefinition def = group.getDefinition();
-            final String identifyingKey = GroupProtoUtil.createIdentifyingKey(def.getType(),
-                    sourceIdentifier);
-            final Long existingId = existingGroups.get(identifyingKey);
-            final long effectiveId;
-            if (existingId == null) {
-                effectiveId = idGenerator.apply(sourceIdentifier);
-            } else {
-                effectiveId = existingId;
-            }
+            final String identifyingKey =
+                    GroupProtoUtil.createIdentifyingKey(def.getType(), sourceIdentifier);
+            final long effectiveId = group.getOid();
             final Grouping groupPojo = createGroupFromDefinition(def);
             groupPojo.setId(effectiveId);
             groupPojo.setSupportsMemberReverseLookup(group.isReverseLookupSupported());
             groupPojo.setOriginDiscoveredSrcId(sourceIdentifier);
-            if (existingId == null) {
-                newGroups.add(context.newRecord(GROUPING, groupPojo));
-            } else {
-                updates.add(createGroupUpdate(context, groupPojo));
-            }
-            inserts.addAll(insertGroupDefinitionDependencies(context, effectiveId, def));
-            inserts.addAll(insertExpectedMembers(context, groupPojo.getId(),
+            queriesToAppend.add(createFunction.apply(groupPojo));
+            insertsToAppend.addAll(insertGroupDefinitionDependencies(context, effectiveId, def));
+            insertsToAppend.addAll(insertExpectedMembers(context, groupPojo.getId(),
                     new HashSet<>(group.getExpectedMembers()),
                     group.getDefinition().getStaticGroupMembers()));
-            inserts.addAll(createTargetForGroupRecords(context, effectiveId, group.getTargetIds()));
-            result.put(identifyingKey, effectiveId);
+            insertsToAppend.addAll(
+                    createTargetForGroupRecords(context, effectiveId, group.getTargetIds()));
         }
-        context.batch(updates).execute();
-        context.batchInsert(newGroups).execute();
-        context.batchInsert(inserts).execute();
-        return Collections.unmodifiableMap(result);
     }
 
-    private void validateDiscoveredGroups(@Nonnull DSLContext context,
-            @Nonnull Map<String, Long> existingGroups,
-            @Nonnull Collection<DiscoveredGroup> discoveredGroups) throws StoreOperationException {
-        final List<StaticMembers> members = discoveredGroups.stream()
-                .map(DiscoveredGroup::getDefinition)
-                .map(GroupDefinition::getStaticGroupMembers)
-                .collect(Collectors.toList());
-
-        final Map<Long, GroupType> groupTypes = new HashMap<>();
-        for (DiscoveredGroup discoveredGroup : discoveredGroups) {
-            final GroupType groupType = discoveredGroup.getDefinition().getType();
-            final Long oid = existingGroups.get(GroupProtoUtil.createIdentifyingKey(groupType,
-                    discoveredGroup.getSourceIdentifier()));
-            if (oid != null) {
-                groupTypes.put(oid, groupType);
-            }
-        }
-        validateStaticMembers(context, members, groupTypes);
+    @Nonnull
+    private Set<Long> getIgnoredDiscoveredGroups(@Nonnull DSLContext context, @Nonnull Set<Long> groupsToUpdate) {
+        final Set<Long> allDiscoveredGroupsInDb = context.select(GROUPING.ID)
+                .from(GROUPING)
+                .where(GROUPING.ORIGIN_DISCOVERED_SRC_ID.isNotNull())
+                .fetch()
+                .stream()
+                .map(Record1::value1)
+                .collect(Collectors.toSet());
+        final Set<Long> ignoredGroups = new HashSet<>(allDiscoveredGroupsInDb);
+        ignoredGroups.removeAll(groupsToUpdate);
+        return ignoredGroups;
     }
 
     /**
      * Method cleans all the child records for all the discovered groups in the database.
      *
      * @param context DB context to use.
+     * @param groupsToIgnore groups not to touch while cleaning the data
      */
-    private void cleanDiscoveredGroupsChildTables(@Nonnull DSLContext context) {
+    private void cleanDiscoveredGroupsChildTables(@Nonnull DSLContext context,
+            @Nonnull Set<Long> groupsToIgnore) {
+        final Condition additionalCondition =
+                groupsToIgnore.isEmpty() ? DSL.noCondition() : GROUPING.ID.notIn(groupsToIgnore);
+        final Select<Record1<Long>> groupIds = context.select(GROUPING.ID)
+                .from(GROUPING)
+                .where(GROUPING.ORIGIN_DISCOVERED_SRC_ID.isNotNull())
+                .and(additionalCondition);
         context.deleteFrom(GROUP_STATIC_MEMBERS_GROUPS)
-                .where(GROUP_STATIC_MEMBERS_GROUPS.PARENT_GROUP_ID.in(context.select(GROUPING.ID)
-                        .from(GROUPING)
-                        .where(GROUPING.ORIGIN_DISCOVERED_SRC_ID.isNotNull())))
+                .where(GROUP_STATIC_MEMBERS_GROUPS.PARENT_GROUP_ID.in(groupIds))
                 .execute();
         context.deleteFrom(GROUP_STATIC_MEMBERS_ENTITIES)
-                .where(GROUP_STATIC_MEMBERS_ENTITIES.GROUP_ID.in(context.select(GROUPING.ID)
-                        .from(GROUPING)
-                        .where(GROUPING.ORIGIN_DISCOVERED_SRC_ID.isNotNull())))
+                .where(GROUP_STATIC_MEMBERS_ENTITIES.GROUP_ID.in(groupIds))
                 .execute();
-        context.deleteFrom(GROUP_DISCOVER_TARGETS).execute();
         context.deleteFrom(GROUP_EXPECTED_MEMBERS_ENTITIES)
-                .where(GROUP_EXPECTED_MEMBERS_ENTITIES.GROUP_ID.in(context.select(GROUPING.ID)
-                        .from(GROUPING)
-                        .where(GROUPING.ORIGIN_DISCOVERED_SRC_ID.isNotNull())))
+                .where(GROUP_EXPECTED_MEMBERS_ENTITIES.GROUP_ID.in(groupIds))
                 .execute();
         context.deleteFrom(GROUP_EXPECTED_MEMBERS_GROUPS)
-                .where(GROUP_EXPECTED_MEMBERS_GROUPS.GROUP_ID.in(context.select(GROUPING.ID)
-                        .from(GROUPING)
-                        .where(GROUPING.ORIGIN_DISCOVERED_SRC_ID.isNotNull())))
+                .where(GROUP_EXPECTED_MEMBERS_GROUPS.GROUP_ID.in(groupIds))
                 .execute();
-        context.deleteFrom(GROUP_TAGS)
-                .where(GROUP_TAGS.GROUP_ID.in(context.select(GROUPING.ID)
-                        .from(GROUPING)
-                        .where(GROUPING.ORIGIN_DISCOVERED_SRC_ID.isNotNull())))
-                .execute();
+        context.deleteFrom(GROUP_TAGS).where(GROUP_TAGS.GROUP_ID.in(groupIds)).execute();
+        final Condition targetCondition = groupsToIgnore.isEmpty() ? DSL.noCondition() :
+                GROUP_DISCOVER_TARGETS.GROUP_ID.notIn(groupsToIgnore);
+        context.deleteFrom(GROUP_DISCOVER_TARGETS).where(targetCondition).execute();
     }
 
     /**
@@ -1349,15 +1367,16 @@ public class GroupDAO implements IGroupStore, Diagnosable {
                 final Map<String, Long> srcId2oid = new HashMap<>(discoveredGroups.size());
                 for (GroupDTO.Grouping group: discoveredGroups) {
                     final Origin.Discovered origin = group.getOrigin().getDiscovered();
-                    final DiscoveredGroup discoveredGroup = new DiscoveredGroup(
-                            group.getDefinition(), origin.getSourceIdentifier(),
-                            new HashSet<>(origin.getDiscoveringTargetIdList()),
-                            group.getExpectedTypesList(),
-                            group.getSupportsMemberReverseLookup());
+                    final DiscoveredGroup discoveredGroup =
+                            new DiscoveredGroup(group.getId(), group.getDefinition(),
+                                    origin.getSourceIdentifier(),
+                                    new HashSet<>(origin.getDiscoveringTargetIdList()),
+                                    group.getExpectedTypesList(),
+                                    group.getSupportsMemberReverseLookup());
                     srcId2oid.put(origin.getSourceIdentifier(), group.getId());
                     discoveredGroupsConverted.add(discoveredGroup);
                 }
-                updateDiscoveredGroups(context, discoveredGroupsConverted, srcId2oid::get);
+                updateDiscoveredGroups(context, discoveredGroupsConverted, Collections.emptyList(), Collections.emptySet());
                 for (GroupDTO.Grouping group: nonDiscoveredGroups) {
                     final Grouping pojo =
                             createPojoForNewGroup(group.getOrigin(), group.getDefinition(),
@@ -1376,5 +1395,55 @@ public class GroupDAO implements IGroupStore, Diagnosable {
     @Override
     public void subscribeUserGroupRemoved(@Nonnull Consumer<Long> consumer) {
         deleteCallbacks.add(Objects.requireNonNull(consumer));
+    }
+
+    /**
+     * Immutable discovered group id implementation. Just an immutable POJO.
+     */
+    @Immutable
+    public static class DiscoveredGroupIdImpl implements DiscoveredGroupId {
+        private final Long targetId;
+        private final long oid;
+        private final String sourceId;
+        private final GroupType groupType;
+
+        /**
+         * Constructs discovered group id.
+         *
+         * @param oid oid of the group
+         * @param targetId target the group is reporeted
+         * @param sourceId source id
+         * @param groupType group type
+         */
+        public DiscoveredGroupIdImpl(long oid, @Nullable Long targetId, @Nonnull String sourceId,
+                @Nonnull GroupType groupType) {
+            this.targetId = targetId;
+            this.oid = oid;
+            this.sourceId = Objects.requireNonNull(sourceId);
+            this.groupType = Objects.requireNonNull(groupType);
+        }
+
+        @Nullable
+        @Override
+        public Long getTarget() {
+            return targetId;
+        }
+
+        @Override
+        public long getOid() {
+            return oid;
+        }
+
+        @Nonnull
+        @Override
+        public String getSourceId() {
+            return sourceId;
+        }
+
+        @Nonnull
+        @Override
+        public GroupType getGroupType() {
+            return groupType;
+        }
     }
 }

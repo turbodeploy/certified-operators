@@ -32,7 +32,6 @@ import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.group.db.Tables;
 import com.vmturbo.group.db.enums.SettingPolicyPolicyType;
 import com.vmturbo.group.db.tables.records.SettingPolicyRecord;
-import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.setting.FileBasedSettingsSpecStore;
 import com.vmturbo.group.setting.SettingPolicyFilter;
@@ -63,8 +62,6 @@ public class V_01_00_03__Change_Default_Transactions_CapacityTest {
 
     private IdentityProvider identityProviderSpy = spy(new IdentityProvider(0));
 
-    private IGroupStore groupStore = mock(IGroupStore.class);
-
     private V_01_00_03__Change_Default_Transactions_Capacity migration;
 
     private static final long POLICY_ID_1 = 1L;
@@ -79,7 +76,7 @@ public class V_01_00_03__Change_Default_Transactions_CapacityTest {
         settingSpecStore = new FileBasedSettingsSpecStore(SETTING_TEST_JSON_SETTING_SPEC_JSON);
 
         settingStore = new SettingStore(settingSpecStore, dslContext, identityProviderSpy,
-            settingPolicyValidator, groupStore, settingsUpdatesSender);
+            settingPolicyValidator, settingsUpdatesSender);
         migration = new V_01_00_03__Change_Default_Transactions_Capacity(settingStore);
     }
 

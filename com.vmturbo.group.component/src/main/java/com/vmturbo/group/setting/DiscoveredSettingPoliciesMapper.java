@@ -56,7 +56,7 @@ public class DiscoveredSettingPoliciesMapper {
                 logger.warn("Invalid setting policy {}. Group {} not found.", info, groupIdentifyingKey);
                 // Valid group names could be large, they are 300+ in BoA environment. Stop printing them
                 // out by default
-                logger.debug("Valid group names are: {}", groupNamesToOids.keySet());
+                logger.debug("Valid group discovered source ids are: {}", groupNamesToOids.keySet());
                 return Optional.empty();
             }
             groupOids.add(oid);

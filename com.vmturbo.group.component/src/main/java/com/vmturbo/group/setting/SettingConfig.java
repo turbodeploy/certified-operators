@@ -56,7 +56,6 @@ public class SettingConfig {
                 databaseConfig.dsl(),
                 identityProviderConfig.identityProvider(),
                 settingPolicyValidator(),
-                groupConfig.groupStore(),
                 new SettingsUpdatesSender(settingMessageSender()));
     }
 

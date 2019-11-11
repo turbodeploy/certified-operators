@@ -29,4 +29,13 @@ public interface ISettingPolicyStore {
     void updateTargetSettingPolicies(long targetId,
             @Nonnull List<DiscoveredSettingPolicyInfo> settingPolicyInfos,
             @Nonnull Map<String, Long> groupOids) throws StoreOperationException;
+
+    /**
+     * Handle the event of a group being deleted. When a user-created group is removed, we'll remove
+     * references to the group being removed from all user-created {@link SettingPolicy} instances.
+     *
+     * @param deletedGroupId the group that was removed.
+     * @return the number of setting policies affected by the change.
+     */
+    int onGroupDeleted(long deletedGroupId);
 }
