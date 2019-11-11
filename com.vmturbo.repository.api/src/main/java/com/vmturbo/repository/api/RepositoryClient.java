@@ -187,7 +187,9 @@ public class RepositoryClient {
                 // if scope is a sub-account
                 if (connectedOidsList.contains(scopeId)
                     // scope is a master account
-                    || ba.getOid() == scopeId) {
+                    || ba.getOid() == scopeId
+                    // account ba is a master account, and scope is another entity e.g. VM
+                    || !subAccountsList.isEmpty()) {
                     relatedBusinessAccountsOrSubscriptions.addAll(subAccountsList.stream()
                                                   .map(ConnectedEntity::getConnectedEntityId)
                                                   .collect(Collectors.toList()));

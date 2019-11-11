@@ -649,7 +649,7 @@ public class Stages {
             String scopeClassName = planScopeEntries.get(0).getClassName();
             int scopeEntityType = (planScopeEntries.isEmpty() || scopeClassName == null)
                             ? EntityType.UNKNOWN_VALUE
-                            : UIEntityType.fromString(scopeClassName).sdkType().getNumber();
+                            : UIEntityType.fromString(scopeClassName).typeNumber();
             // now add the new seed entities to the list, and the scope type for OCP plans.
             getContext().editTopologyInfo(topologyInfoBuilder -> {
                 topologyInfoBuilder.clearScopeSeedOids();
