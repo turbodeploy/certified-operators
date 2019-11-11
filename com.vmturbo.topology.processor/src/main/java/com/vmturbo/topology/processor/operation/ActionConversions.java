@@ -10,12 +10,14 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.Workflow.ActionScriptPhase;
 
 public class ActionConversions {
-    private static Logger logger = LogManager.getLogger(ActionConversions.class);
+    private static final Logger logger = LogManager.getLogger(ActionConversions.class);
 
     public static ActionItemDTO.ActionType convertActionType(ActionDTO.ActionType type) {
         switch (type) {
             case MOVE:
                 return ActionType.MOVE;
+            case SCALE:
+                return ActionType.SCALE;
             case NONE:
                 return ActionType.NONE;
             case RESIZE:

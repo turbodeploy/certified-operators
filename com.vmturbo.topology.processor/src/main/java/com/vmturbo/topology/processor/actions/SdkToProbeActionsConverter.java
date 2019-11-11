@@ -65,6 +65,8 @@ public class SdkToProbeActionsConverter {
                 new SimpleCapabilityCreator(ActionDTO.ActionType.ACTIVATE));
         capabilityBuilders.put(ActionItemDTO.ActionType.MOVE,
                 new MoveCapabilityCreator(ENTITY_TYPES_BUT_STORAGE));
+        capabilityBuilders.put(ActionItemDTO.ActionType.SCALE,
+                new SimpleCapabilityCreator(ActionType.SCALE));
         capabilityBuilders.put(ActionItemDTO.ActionType.SUSPEND,
                 new SimpleCapabilityCreator(ActionDTO.ActionType.DEACTIVATE));
         capabilityBuilders.put(ActionItemDTO.ActionType.TERMINATE,

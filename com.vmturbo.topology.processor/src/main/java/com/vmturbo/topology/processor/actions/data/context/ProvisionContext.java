@@ -6,10 +6,9 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.action.UnsupportedActionException;
-import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
@@ -18,8 +17,8 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
+import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
 
 /**
@@ -30,9 +29,8 @@ public class ProvisionContext extends AbstractActionExecutionContext {
     public ProvisionContext(@Nonnull final ExecuteActionRequest request,
                             @Nonnull final ActionDataManager dataManager,
                             @Nonnull final EntityStore entityStore,
-                            @Nonnull final EntityRetriever entityRetriever,
-                            @Nonnull final ActionDTO.ActionType actionType) {
-        super(request, dataManager, entityStore, entityRetriever, actionType);
+                            @Nonnull final EntityRetriever entityRetriever) {
+        super(request, dataManager, entityStore, entityRetriever);
     }
 
     /**

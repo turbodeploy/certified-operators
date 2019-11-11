@@ -295,9 +295,7 @@ public class ActionTranslator {
             // to the end of the list.
             batchTranslatorList = ImmutableList.of(
                 new SkipBatchTranslator(),
-                // TODO: (OM-50964, Alexey, Oct 30 2019) CloudMoveBatchTranslator is temporarily
-                //  disabled until API/UI/ActionExecution follow-up changes are committed
-                //new CloudMoveBatchTranslator(),
+                new CloudMoveBatchTranslator(),
                 new VCpuResizeBatchTranslator(Objects.requireNonNull(repoService)),
                 new PassThroughBatchTranslator());
         }

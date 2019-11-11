@@ -1,8 +1,6 @@
 package com.vmturbo.mediation.aws;
 
 import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -20,21 +18,13 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.mediation.aws.client.AwsAccount;
 import com.vmturbo.mediation.conversion.cloud.CloudDiscoveryConverter;
-import com.vmturbo.platform.common.builders.ActionPolicyBuilder;
-import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
-import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
-import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
-import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO.ActionCapability;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.Discovery.AccountValue;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryContextDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.ReturnType;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO;
 import com.vmturbo.platform.sdk.common.supplychain.MergedEntityMetadataBuilder;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainNodeBuilder;
-import com.vmturbo.platform.sdk.probe.ActionResult;
-import com.vmturbo.platform.sdk.probe.IProgressTracker;
 
 /**
  * The wrapper probe around original AWS probe, which stands between mediation and AWS probe. It
@@ -146,28 +136,5 @@ public class AwsConversionProbe extends AwsProbe {
                 .internalMatchingType(ReturnType.STRING)
                 .externalMatchingField("id", Collections.emptyList())
                 .externalMatchingType(ReturnType.STRING);
-    }
-
-    @Nonnull
-    @Override
-    public ActionResult executeAction(@Nonnull final ActionExecutionDTO actionExecutionDto,
-        @Nonnull final AwsAccount accountValues,
-        @Nullable final Map<String, AccountValue> secondaryAccountValuesMap,
-        @Nonnull final IProgressTracker progressTracker) throws InterruptedException {
-        return new ActionExecutor(propertyProvider).executeAction(actionExecutionDto,
-            accountValues, progressTracker);
-    }
-
-    @Nonnull
-    @Override
-    public List<ActionPolicyDTO> getActionPolicies() {
-        final List<ActionPolicyDTO> actionPolicies = super.getActionPolicies();
-        actionPolicies.addAll(
-            new ActionPolicyBuilder().entityType(EntityType.VIRTUAL_VOLUME)
-                .policy(ActionType.MOVE, ActionCapability.SUPPORTED)
-                .policy(ActionType.DELETE, ActionCapability.SUPPORTED)
-                .build()
-        );
-        return actionPolicies;
     }
 }

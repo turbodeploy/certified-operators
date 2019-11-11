@@ -6,8 +6,8 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
-import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
+import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -109,22 +109,19 @@ public class ActionExecutionContextFactory {
         switch (actionInfo.getActionTypeCase()) {
             case MOVE:
                 return new MoveContext(request, dataManager, entityStore, entityRetriever,
-                    targetStore, request.getActionType(), probeStore);
+                    targetStore, probeStore);
+            case SCALE:
+                return new ScaleContext(request, dataManager, entityStore, entityRetriever);
             case RESIZE:
-                return new ResizeContext(request, dataManager, entityStore, entityRetriever,
-                    request.getActionType());
+                return new ResizeContext(request, dataManager, entityStore, entityRetriever);
             case ACTIVATE:
-                return new ActivateContext(request, dataManager, entityStore, entityRetriever,
-                    request.getActionType());
+                return new ActivateContext(request, dataManager, entityStore, entityRetriever);
             case DEACTIVATE:
-                return  new DeactivateContext(request, dataManager, entityStore, entityRetriever,
-                    request.getActionType());
+                return  new DeactivateContext(request, dataManager, entityStore, entityRetriever);
             case PROVISION:
-                return new ProvisionContext(request, dataManager, entityStore, entityRetriever,
-                    request.getActionType());
+                return new ProvisionContext(request, dataManager, entityStore, entityRetriever);
             case DELETE:
-                return new DeleteContext(request, dataManager, entityStore, entityRetriever,
-                    request.getActionType());
+                return new DeleteContext(request, dataManager, entityStore, entityRetriever);
             default:
                 throw new IllegalArgumentException("Unsupported action type: " +
                         actionInfo.getActionTypeCase());

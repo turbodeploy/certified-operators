@@ -401,13 +401,7 @@ public class ActionSpecMapper {
                 addProvisionInfo(actionApiDTO, info.getProvision(), context);
                 break;
             case RESIZE:
-                // if the RESIZE action was originally a MOVE, we need to set the action details as
-                // if it was a MOVE, otherwise we call the RESIZE method.
-                if (info.getActionTypeCase() == ActionTypeCase.MOVE) {
-                    addMoveInfo(actionApiDTO, recommendation, context, ActionType.RESIZE);
-                } else {
-                    addResizeInfo(actionApiDTO, info.getResize(), context);
-                }
+                addResizeInfo(actionApiDTO, info.getResize(), context);
                 break;
             case ACTIVATE:
                 // if the ACTIVATE action was originally a MOVE, we need to set the action details

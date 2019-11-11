@@ -32,12 +32,22 @@ public class CloudMoveBatchTranslator implements BatchTranslator {
      */
     @Override
     public boolean appliesTo(@Nonnull final ActionView actionView) {
-        final ActionInfo actionInfo = actionView.getRecommendation().getInfo();
+        return isCloudMoveAction(actionView.getRecommendation());
+    }
+
+    /**
+     * Checks if action is a Cloud Move.
+     *
+     * @param action Action to check.
+     * @return True if action is a Cloud Move.
+     */
+    public static boolean isCloudMoveAction(@Nonnull final ActionDTO.Action action) {
+        final ActionInfo actionInfo = action.getInfo();
         return actionInfo.getActionTypeCase() == ActionTypeCase.MOVE
-            && actionInfo.getMove().getChangesList().stream()
-            .anyMatch(m -> m.hasSource()
-                && TopologyDTOUtil.isPrimaryTierEntityType(m.getSource().getType())
-                && TopologyDTOUtil.isPrimaryTierEntityType(m.getDestination().getType()));
+                && actionInfo.getMove().getChangesList().stream()
+                .anyMatch(m -> m.hasSource()
+                        && TopologyDTOUtil.isPrimaryTierEntityType(m.getSource().getType())
+                        && TopologyDTOUtil.isPrimaryTierEntityType(m.getDestination().getType()));
     }
 
     /**

@@ -22,9 +22,8 @@ public class DeactivateContext extends AbstractActionExecutionContext {
     public DeactivateContext(@Nonnull final ExecuteActionRequest request,
                              @Nonnull final ActionDataManager dataManager,
                              @Nonnull final EntityStore entityStore,
-                             @Nonnull final EntityRetriever entityRetriever,
-                             @Nonnull final ActionDTO.ActionType actionType) {
-        super(request, dataManager, entityStore, entityRetriever, actionType);
+                             @Nonnull final EntityRetriever entityRetriever) {
+        super(request, dataManager, entityStore, entityRetriever);
     }
 
     @Override

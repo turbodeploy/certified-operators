@@ -12,20 +12,19 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
-import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.ContextData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.actions.data.EntityRetrievalException;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
+import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.operation.ActionConversions;
@@ -41,7 +40,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
      * Token to use generating error logging during entity lookup. This corresponds to the
      * main entity in any action, the entity being acted upon.
      */
-    protected static final String TARGET_LOOKUP_TOKEN = "primary";
+    private static final String TARGET_LOOKUP_TOKEN = "primary";
 
     /**
      * The id of this action, as sent from Action Orchestrator
@@ -99,8 +98,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
     protected AbstractActionExecutionContext(@Nonnull final ExecuteActionRequest request,
                                              @Nonnull final ActionDataManager dataManager,
                                              @Nonnull final EntityStore entityStore,
-                                             @Nonnull final EntityRetriever entityRetriever,
-                                             @Nonnull final ActionDTO.ActionType actionType) {
+                                             @Nonnull final EntityRetriever entityRetriever) {
         Objects.requireNonNull(request);
         this.actionId = request.getActionId();
         this.targetId = request.getTargetId();
@@ -109,7 +107,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         this.dataManager = Objects.requireNonNull(dataManager);
         this.entityStore = Objects.requireNonNull(entityStore);
         this.entityRetriever = Objects.requireNonNull(entityRetriever);
-        this.actionType = Objects.requireNonNull(actionType);
+        this.actionType = Objects.requireNonNull(request.getActionType());
     }
 
     @Nonnull
@@ -132,7 +130,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
         return ActionConversions.convertActionType(actionType);
     }
 
-    protected void buildActionItems() throws ContextCreationException {
+    private void buildActionItems() throws ContextCreationException {
         // Build the action items, the primary data carrier to the probe for action execution
         List<ActionItemDTO.Builder> actionItemBuilders = initActionItemBuilders();
         actionItems = actionItemBuilders.stream()

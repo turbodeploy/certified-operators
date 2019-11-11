@@ -154,7 +154,7 @@ public class ActionDTOUtil {
                 // For move/scale actions, the importance of the action
                 // is applied to the source instead of the target,
                 // since we're moving the load off of the source.
-                final List<ChangeProvider> changes = getChangeProviderList(action);
+                final List<ChangeProvider> changes = getChangeProviderList(actionInfo);
                 return changes.stream()
                     .filter(provider -> provider.getSource().getType() == EntityType.PHYSICAL_MACHINE_VALUE)
                     .findFirst()
@@ -188,7 +188,8 @@ public class ActionDTOUtil {
      * This will be one of the entities involved in the action. It can be thought of as the entity
      * that the action is acting upon.
      *
-     * @param action The action in question.
+     * @param actionId The action ID.
+     * @param actionInfo The action info in question.
      * @param returnVolumeForMoveVolumeAction This parameter affects Move Volume actions only. If
      * it is set to {@code true} then Volume is returned instead of VM although target entity is
      * still a virtual machine.
@@ -196,17 +197,16 @@ public class ActionDTOUtil {
      * @throws UnsupportedActionException If the type of the action is not supported.
      */
     public static ActionEntity getPrimaryEntity(
-            @Nonnull final Action action,
+            final long actionId,
+            @Nonnull final ActionInfo actionInfo,
             // TODO: Get rid of this parameter. Move Volume actions must be associated with Volume
             //  rather than VM.
             final boolean returnVolumeForMoveVolumeAction)
             throws UnsupportedActionException {
-        final ActionInfo actionInfo = action.getInfo();
-
         switch (actionInfo.getActionTypeCase()) {
             case MOVE:
                 return returnVolumeForMoveVolumeAction
-                        ? getMoveActionTarget(action.getInfo().getMove())
+                        ? getMoveActionTarget(actionInfo)
                         : actionInfo.getMove().getTarget();
             case SCALE:
                 return actionInfo.getScale().getTarget();
@@ -225,8 +225,27 @@ public class ActionDTOUtil {
             case BUYRI:
                 return actionInfo.getBuyRi().getRegion();
             default:
-                throw new UnsupportedActionException(action);
+                throw new UnsupportedActionException(actionId, actionInfo);
         }
+    }
+
+    /**
+     * Get the "main" entity targeted by a specific action.
+     * This will be one of the entities involved in the action. It can be thought of as the entity
+     * that the action is acting upon.
+     *
+     * @param action The action in question.
+     * @param returnVolumeForMoveVolumeAction This parameter affects Move Volume actions only. If
+     * it is set to {@code true} then Volume is returned instead of VM although target entity is
+     * still a virtual machine.
+     * @return The ActionEntity of the entity targeted by the action.
+     * @throws UnsupportedActionException If the type of the action is not supported.
+     */
+    public static ActionEntity getPrimaryEntity(
+            @Nonnull final Action action,
+            final boolean returnVolumeForMoveVolumeAction)
+            throws UnsupportedActionException {
+        return getPrimaryEntity(action.getId(), action.getInfo(), returnVolumeForMoveVolumeAction);
     }
 
     /**
@@ -247,12 +266,12 @@ public class ActionDTOUtil {
      * If a move action has a volume as resource and is from one storage tier to another, the
      * resource volume should be treated as the target of the action.
      *
-     * @param move action to be assessed
+     * @param actionInfo action info to be assessed
      * @return the entity that should be treated as its target
      */
-    public static ActionEntity getMoveActionTarget(final ActionDTO.Move move) {
-        if (!move.getChangesList().isEmpty()) {
-            final ChangeProvider primaryChangeProvider = getPrimaryChangeProvider(move);
+    public static ActionEntity getMoveActionTarget(final ActionInfo actionInfo) {
+        if (!actionInfo.getMove().getChangesList().isEmpty()) {
+            final ChangeProvider primaryChangeProvider = getPrimaryChangeProvider(actionInfo);
             if (primaryChangeProvider.hasSource() && primaryChangeProvider.hasDestination() &&
                 primaryChangeProvider.hasResource() &&
                 TopologyDTOUtil.isTierEntityType(primaryChangeProvider.getSource().getType()) &&
@@ -262,7 +281,7 @@ public class ActionDTOUtil {
                 return primaryChangeProvider.getResource();
             }
         }
-        return move.getTarget();
+        return actionInfo.getMove().getTarget();
     }
 
     /**
@@ -426,14 +445,8 @@ public class ActionDTOUtil {
     public static ActionType getActionInfoActionType(@Nonnull final Action action) {
         switch (action.getInfo().getActionTypeCase()) {
             case MOVE:
-                final Explanation explanation = action.getExplanation();
-                if (explanation.hasMove()) {
-                    if (isMoveActivate(action)) {
-                        return ActionType.ACTIVATE;
-                    }
-                    if (isMoveResize(action)) {
-                        return ActionType.RESIZE;
-                    }
+                if (isMoveActivate(action)) {
+                    return ActionType.ACTIVATE;
                 }
                 return ActionType.MOVE;
             case SCALE:
@@ -480,32 +493,26 @@ public class ActionDTOUtil {
     }
 
     /**
-     * Checks if a given MOVE action is actually a RESIZE based on the following case:
-     * <ul>
-     *     <li>If the source and destination is one of the cloud tiers (except storage tiers),
-     *     the action type is considered a resize instead of a move.</li>
-     * </ul>
+     * Get the list of {@link ChangeProvider} associated with Move or Scale action.
      *
-     * @param action The given MOVE {@link Action}
-     * @return true if the given MOVE is a RESIZE, false otherwise.
-     */
-    private static Boolean isMoveResize(@Nonnull final Action action) {
-        return action.getInfo().getMove().getChangesList().stream().anyMatch(
-            m -> m.hasSource()
-                && TopologyDTOUtil.isPrimaryTierEntityType(m.getDestination().getType())
-                && TopologyDTOUtil.isPrimaryTierEntityType(m.getSource().getType()));
-    }
-
-    /**
-     * Get the list of {@link ChangeProvider} associated with Move or Right Size action.
-     *
-     * @param action Move or Right Size action.
+     * @param action Move or Scale action.
      * @return List of {@link ChangeProvider}.
-     * @throws IllegalArgumentException if action is not of Move/RightSize type.
+     * @throws IllegalArgumentException if action is not of Move/Scale type.
      */
     @Nonnull
     public static List<ChangeProvider> getChangeProviderList(@Nonnull final ActionDTO.Action action) {
-        final ActionInfo actionInfo = action.getInfo();
+        return getChangeProviderList(action.getInfo());
+    }
+
+    /**
+     * Get the list of {@link ChangeProvider} associated with Move or Scale action.
+     *
+     * @param actionInfo Move or Scale action info.
+     * @return List of {@link ChangeProvider}.
+     * @throws IllegalArgumentException if action is not of Move/Scale type.
+     */
+    @Nonnull
+    public static List<ChangeProvider> getChangeProviderList(@Nonnull final ActionInfo actionInfo) {
         switch (actionInfo.getActionTypeCase()) {
             case MOVE:
                 return actionInfo.getMove().getChangesList();
@@ -513,7 +520,7 @@ public class ActionDTOUtil {
                 return actionInfo.getScale().getChangesList();
             default:
                 throw new IllegalArgumentException("Cannot get change provider list for " +
-                    "action type " + actionInfo.getActionTypeCase());
+                        "action type " + actionInfo.getActionTypeCase());
         }
     }
 
@@ -541,28 +548,27 @@ public class ActionDTOUtil {
     }
 
     /**
-     * Get primary {@link ChangeProvider} for Move or Right Size action.
+     * Get primary {@link ChangeProvider} for Move or Scale action.
      *
-     * @param action Move or Right Size action.
+     * @param actionInfo Move or Scale action info.
      * @return The primary {@link ChangeProvider}.
-     * @throws IllegalArgumentException if action is not of Move/RightSize type.
+     * @throws IllegalArgumentException if action is not of Move/Scale type.
      */
     @Nonnull
-    public static ChangeProvider getPrimaryChangeProvider(@Nonnull final ActionDTO.Action action) {
-        return getChangeProviderList(action).get(getPrimaryChangeProviderIdx(action));
+    public static ChangeProvider getPrimaryChangeProvider(@Nonnull final ActionInfo actionInfo) {
+        return getChangeProviderList(actionInfo).get(getPrimaryChangeProviderIdx(actionInfo));
     }
 
     /**
-     * Get the "primary" {@link ChangeProvider} for a particular move action.
-     * Only relevant in compound moves. Generally, if a PM move is accompanied by a storage move,
-     * the PM move is considered primary.
+     * Get primary {@link ChangeProvider} for Move or Scale action.
      *
-     * @param move The {@link ActionDTO.Move} action.
+     * @param action Move or Scale action.
      * @return The primary {@link ChangeProvider}.
+     * @throws IllegalArgumentException if action is not of Move/Scale type.
      */
     @Nonnull
-    public static ChangeProvider getPrimaryChangeProvider(@Nonnull final ActionDTO.Move move) {
-        return move.getChanges(getPrimaryChangeProviderIdx(move.getChangesList()));
+    public static ChangeProvider getPrimaryChangeProvider(@Nonnull final ActionDTO.Action action) {
+        return getPrimaryChangeProvider(action.getInfo());
     }
 
     @Nonnull
@@ -573,10 +579,11 @@ public class ActionDTOUtil {
     }
 
     private static int getPrimaryChangeProviderIdx(@Nonnull final ActionDTO.Action action) {
-        return getPrimaryChangeProviderIdx(getChangeProviderList(action));
+        return getPrimaryChangeProviderIdx(action.getInfo());
     }
 
-    private static int getPrimaryChangeProviderIdx(@Nonnull final List<ChangeProvider> changeProviderList) {
+    private static int getPrimaryChangeProviderIdx(@Nonnull final ActionInfo actionInfo) {
+        final List<ChangeProvider> changeProviderList = getChangeProviderList(actionInfo);
         for (int i = 0; i < changeProviderList.size(); ++i) {
             final ChangeProvider change = changeProviderList.get(i);
             if (isPrimaryEntityType(change.getDestination().getType())) {

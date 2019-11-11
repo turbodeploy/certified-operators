@@ -5,7 +5,6 @@ import java.util.Objects;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
@@ -21,13 +20,11 @@ public class DeleteContext extends AbstractActionExecutionContext {
     protected DeleteContext(@Nonnull final ExecuteActionRequest request,
                             @Nonnull final ActionDataManager dataManager,
                             @Nonnull final EntityStore entityStore,
-                            @Nonnull final EntityRetriever entityRetriever,
-                            @Nonnull final ActionType actionType) {
+                            @Nonnull final EntityRetriever entityRetriever) {
         super(Objects.requireNonNull(request),
               Objects.requireNonNull(dataManager),
               Objects.requireNonNull(entityStore),
-              Objects.requireNonNull(entityRetriever),
-              Objects.requireNonNull(actionType));
+              Objects.requireNonNull(entityRetriever));
     }
 
     /**
