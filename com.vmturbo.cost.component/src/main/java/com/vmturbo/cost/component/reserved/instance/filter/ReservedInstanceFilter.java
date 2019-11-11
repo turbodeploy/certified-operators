@@ -6,7 +6,6 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import org.jooq.Condition;
@@ -28,17 +27,15 @@ public abstract class ReservedInstanceFilter {
     /**
      * Constructor that takes scopeId(s) and scopeEntityType as arguments.
      *
-     * @param scopeIds
-     *     The scope(s) ids. Region/BusinessAccount/AvalilabilityZone etc.
-     * @param scopeEntityType
-     *     The scopes' entity type. In general, this ScopeIds is homegeneous and the scopeEntityType
-     *     determines the type of entities contained in it. Exceptions are mixed groups including
-     *     ResourceGroups for which a new scope entity type would likely be needed.
+     * @param scopeIds The scope(s) ids.  Region/BusinessAccount/AvalilabilityZone etc.
+     * @param scopeEntityType  The scopes' enity type.  In general, this parameter is homegeneous and
+     * the scopeEntityType determines the type of entities contained in it.  Exceptions are mixed groups
+     * including ResourceGroups for which a new scope entity type would likely be needed.
      */
     public ReservedInstanceFilter(@Nonnull final Set<Long> scopeIds,
                                   final int scopeEntityType) {
-        this.scopeIds = ImmutableSet.copyOf(Objects.requireNonNull(scopeIds));
-        this.scopeEntityType = scopeEntityType;
+        this.scopeIds = Objects.requireNonNull(scopeIds);
+        this.scopeEntityType = Objects.requireNonNull(scopeEntityType);
     }
 
     /**
@@ -50,23 +47,4 @@ public abstract class ReservedInstanceFilter {
      */
     abstract List<Condition> generateConditions(@Nonnull Set<Long> scopeIds,
                                                 int scopeEntityType);
-
-    /**
-     * For access to scopeIds outside child classes.
-     *
-     * @return an immutable copy of the scopeIds Set.
-     */
-    @Nonnull
-    public List<Long> getScopeIds() {
-        return ImmutableList.copyOf(scopeIds);
-    }
-
-    /**
-     * For access to entityType outside child classes.
-     *
-     * @return The entityType.
-     */
-    public int getEntityType() {
-        return scopeEntityType;
-    }
 }

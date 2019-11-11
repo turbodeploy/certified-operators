@@ -53,7 +53,7 @@ public class ProjectedRICoverageListener implements ProjectedReservedInstanceCov
                                                     @Nonnull final RemoteIterator<EntityReservedInstanceCoverage>
                                                     riCoverageIterator) {
         logger.debug("Receiving projected RI coverage information for topology {}", projectedTopologyId);
-        final List<EntityReservedInstanceCoverage> riCoverageList = new ArrayList<>();
+        final List<EntityReservedInstanceCoverage> riCoverageList= new ArrayList<>();
         long coverageCount = 0;
         int chunkCount = 0;
         while (riCoverageIterator.hasNext()) {
@@ -85,8 +85,7 @@ public class ProjectedRICoverageListener implements ProjectedReservedInstanceCov
             planProjectedRICoverageAndUtilStore.updateProjectedRIUtilTableForPlan(originalTopologyInfo,
                                                                                   riCoverageList);
         } else {
-            projectedRICoverageAndUtilStore.updateProjectedRICoverage(originalTopologyInfo,
-                            riCoverageList);
+            projectedRICoverageAndUtilStore.updateProjectedRICoverage(riCoverageList);
         }
         // Send the projected RI coverage status notification.
         sendProjectedRiCoverageNotification(buildProjectedRiCoverageNotification(

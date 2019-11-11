@@ -33,22 +33,6 @@ public interface IAspectMapper {
     }
 
     /**
-     * Maps a single {@link EntityAspect} representing a group of entities to multiple {@link EntityAspect} objects,
-     * where each new object represents a single entity. For example, since VirtualDisksAspectApiDTO::virtualDisks
-     * represents a collection of entities, this method can be implemented to map each member of the collection to a new
-     * VirtualDisksAspectApiDTO.
-     *
-     * <p>An implementation of this interface should return true for {@link IAspectMapper#supportsGroupAspectExpansion()}
-     * IFF this method is implemented.
-     *
-     * @param entityAspect a single {@link EntityAspect} representing multiple {@link EntityAspect} instances
-     * @return a map of UUID -> {@link EntityAspect} representing the expanded group {@link EntityAspect}
-     */
-    default java.util.Map<String, EntityAspect> mapOneToManyAspects(@Nullable final EntityAspect entityAspect) {
-        return null;
-    }
-
-    /**
      * Returns the aspect name that can be used for filtering.
      *
      * @return the name of the aspect
@@ -63,16 +47,6 @@ public interface IAspectMapper {
      * @return true if group aspect is supported, otherwise false
      */
     default boolean supportsGroup() {
-        return false;
-    }
-
-    /**
-     * Whether the given mapper implements {@link IAspectMapper#mapOneToManyAspects}
-     *
-     * @return true if a single aspect representing a group of entities can be generated, and mapped to many distinct
-     * {@link EntityAspect} instances
-     */
-    default boolean supportsGroupAspectExpansion() {
         return false;
     }
 

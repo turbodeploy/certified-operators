@@ -1,11 +1,8 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -15,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -134,33 +130,17 @@ public class EntityAspectMapper {
     }
 
     /**
-     * Get the collection of {@link IAspectMapper} corresponding to the members of a (homogeneous) group
-     *
-     * @param members the members of a group to get mappers for
-     * @return the collection of {@link IAspectMapper} corresponding to the given group
-     */
-    @Nullable
-    public List<IAspectMapper> getGroupMemberMappers(@Nonnull List<TopologyEntityDTO> members) {
-        int entityType = members.stream().map(TopologyEntityDTO::getEntityType).findFirst().get();
-        return ASPECT_MAPPERS.containsKey(entityType)
-            ? ASPECT_MAPPERS.get(entityType)
-            : null;
-    }
-
-    /**
      * Get all aspects for a group and return as a mapping from aspect name to aspect DTO.
-     * Only homogeneous groups are supported, so checking the type of the first member is sufficient
-     * to determine the appropriate collection of {@link IAspectMapper}
      *
      * @param members the members of a group to get aspect for
      * @return all aspects mapped by aspect name
      */
     @Nonnull
     public Map<String, EntityAspect> getAspectsByGroup(@Nonnull List<TopologyEntityDTO> members) {
+        int entityType = members.stream().map(TopologyEntityDTO::getEntityType).findFirst().get();
         final Map<String, EntityAspect> aspects = new HashMap<>();
-        List<IAspectMapper> mappers = getGroupMemberMappers(members);
-        if (!Objects.isNull(mappers)) {
-            mappers.forEach(aspectMapper -> {
+        if (ASPECT_MAPPERS.containsKey(entityType)) {
+            ASPECT_MAPPERS.get(entityType).forEach(aspectMapper -> {
                 if (aspectMapper.supportsGroup()) {
                     EntityAspect entityAspect = aspectMapper.mapEntitiesToAspect(members);
                     if (entityAspect != null) {
@@ -173,43 +153,6 @@ public class EntityAspectMapper {
     }
 
     /**
-     * To optimize performance, certain {@link IAspectMapper} implementations support generating a single aspect
-     * representing a group of entities, then mapping that aspect to a collection where each element represents a
-     * unique entity. If this functionality is supported by all the mappers that correspond to a given entity type,
-     * it should be leveraged.
-     *
-     * @param classInstances of a given {@link TopologyEntityDTO} implementation for which to retrieve aspects
-     * @return a map of UUID to map of aspect name to aspect value
-     */
-    @Nonnull
-    public Map<String, Map<String, EntityAspect>> getExpandedAspectsByGroup(@Nonnull List<TopologyEntityDTO> classInstances) {
-        final Map<String, Map<String, EntityAspect>> uuidToAspectMap = Maps.newHashMap();
-        List<IAspectMapper> mappers = getGroupMemberMappers(classInstances);
-        if (!Objects.isNull(mappers)) {
-            // If all mappers support group aspect expansion...
-            if (!mappers.stream().map(x -> x.supportsGroupAspectExpansion()).collect(Collectors.toSet()).contains(false)) {
-                Map<String, EntityAspect> aspectsByGroup = getAspectsByGroup(classInstances);
-                mappers.forEach(mapper -> {
-                    String aspectName = mapper.getAspectName();
-                    if (aspectsByGroup.containsKey(aspectName)) {
-                        Map<String, EntityAspect> uuidToAspect = mapper.mapOneToManyAspects(aspectsByGroup.get(aspectName));
-                        if (uuidToAspectMap.isEmpty()) {
-                            uuidToAspectMap.putAll(uuidToAspect.entrySet().stream().collect(Collectors.toMap(
-                                e -> e.getKey(),
-                                e -> Collections.singletonMap(aspectName, e.getValue()))
-                            ));
-                        } else {
-                            uuidToAspect.entrySet().stream().forEach(entry ->
-                                uuidToAspectMap.get(entry.getKey()).put(aspectName, entry.getValue()));
-                        }
-                    }
-                });
-            }
-        }
-        return uuidToAspectMap;
-    }
-
-    /**
      * Get a specific aspect for a group, given all members of the group and the name of the aspect
      * to get.
      *
@@ -219,13 +162,13 @@ public class EntityAspectMapper {
      */
     @Nullable
     public EntityAspect getAspectByGroup(@Nonnull List<TopologyEntityDTO> members, @Nonnull String aspectName) {
-        List<IAspectMapper> mappers = getGroupMemberMappers(members);
-        if (mappers == null) {
-            logger.warn("Aspect: " + aspectName + " is not supported for group type: " +
-                    members.stream().map(TopologyEntityDTO::getEntityType).findFirst().get());
+        int entityType = members.stream().map(TopologyEntityDTO::getEntityType).findFirst().get();
+        List<IAspectMapper> aspectMappers = ASPECT_MAPPERS.get(entityType);
+        if (aspectMappers == null) {
+            logger.warn("Aspect: " + aspectName + " is not supported for group type: " + entityType);
             return null;
         }
-        return mappers.stream()
+        return aspectMappers.stream()
             .filter(mapper -> mapper.supportsGroup() && mapper.getAspectName().equals(aspectName))
             .findAny()
             .map(applicableMapper -> applicableMapper.mapEntitiesToAspect(members))
