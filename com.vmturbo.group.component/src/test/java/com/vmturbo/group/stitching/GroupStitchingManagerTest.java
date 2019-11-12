@@ -127,7 +127,6 @@ public class GroupStitchingManagerTest {
     /**
      * Tests how OIDs are reused while performing stitching operations.
      */
-    @Ignore
     @Test
     public void testReuseOids() {
         groupStitchingContext.setTargetGroups(TARGET_1, PROBE_TYPE,

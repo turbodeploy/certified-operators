@@ -146,6 +146,6 @@ public class StitchingGroup {
 
     @Override
     public String toString() {
-        return sourceId;
+        return sourceId + "->" + oid;
     }
 }

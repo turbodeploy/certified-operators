@@ -61,6 +61,9 @@ public class GroupStitchingManager {
                     .build()
                     .register();
 
+    private static final String CROSS_TARGET_STITCHING_KEY = "crs-tgt-%s";
+    private static final String TARGET_LOCAL_STITCHING_KEY = "tgt-lcl-%d-%s";
+
     private final IdentityProvider identityProvider;
 
     /**
@@ -85,19 +88,34 @@ public class GroupStitchingManager {
         final DataMetricTimer executionTimer =
                 GROUP_STITCHING_EXECUTION_DURATION_SUMMARY.startTimer();
         final Collection<DiscoveredGroupId> existingDiscoveredGroups = groupStore.getDiscoveredGroupsIds();
-        final GroupIdProvider idProvider = new CombinedGroupProvider(existingDiscoveredGroups);
+        final GroupIdProvider rgIdProvider = new CrossTargetStitcher(existingDiscoveredGroups);
+        final GroupIdProvider defIdProvider = new TargetLocalStitcher(existingDiscoveredGroups);
         final Map<String, StitchingGroup> stitchingGroups = new HashMap<>();
         final Map<Long, Collection<UploadedGroup>> targetsToGroups =
                 stitchingContext.getUploadedGroupsMap();
         for (Long targetId : getTargetsSorted(stitchingContext.getTargetIdToProbeType())) {
             for (UploadedGroup group : targetsToGroups.get(targetId)) {
+                final GroupIdProvider idProvider =
+                        group.getDefinition().getType() == GroupType.RESOURCE ? rgIdProvider :
+                                defIdProvider;
                 final String stitchKey = idProvider.getStitchingKey(targetId, group);
                 final StitchingGroup foundGroup = stitchingGroups.get(stitchKey);
                 if (foundGroup != null) {
+                    logger.trace("Found 2 groups for stitching: {} and {}", () -> foundGroup,
+                            group::getDefinition);
                     foundGroup.mergedGroup(group.getDefinition(), targetId);
                 } else {
-                    final Optional<Long> existingOid = idProvider.getId(targetId, group);
-                    final long oid = existingOid.orElseGet(identityProvider::next);
+                    final Optional<Long> existingOid = idProvider.getId(stitchKey);
+                    final long oid;
+                    if (existingOid.isPresent()) {
+                        oid = existingOid.get();
+                        logger.trace("Found existing OID {} for group {}", existingOid::get,
+                                group::getDefinition);
+                    } else {
+                        oid = identityProvider.next();
+                        logger.trace("Assigning new OID {} to group {}", () -> oid,
+                                group::getDefinition);
+                    }
                     final StitchingGroup stitchingGroup =
                             new StitchingGroup(oid, group.getDefinition(),
                                     group.getSourceIdentifier(), targetId, !existingOid.isPresent());
@@ -140,10 +158,6 @@ public class GroupStitchingManager {
                 .collect(Collectors.toList());
     }
 
-    private static Pair<Long, String> createGroupLocalKey(DiscoveredGroupId group) {
-        return Pair.create(group.getTarget(), group.getSourceId());
-    }
-
     /**
      * Interface providing identity information about the group.
      */
@@ -151,12 +165,11 @@ public class GroupStitchingManager {
         /**
          * Retrieves an existing OID for the specified group reported for the specified target.
          *
-         * @param target target group reported by
-         * @param group group to get OID for
+         * @param stitchingKey stitching key used to uniquely identify the group.
          * @return existing OID or {@link Optional#empty()}
          */
         @Nonnull
-        Optional<Long> getId(long target, @Nonnull UploadedGroup group);
+        Optional<Long> getId(@Nonnull String stitchingKey);
 
         /**
          * Returns a stitching key - an internally used string identifier, which is used while the
@@ -168,41 +181,6 @@ public class GroupStitchingManager {
          */
         @Nonnull
         String getStitchingKey(long target, @Nonnull UploadedGroup group);
-    }
-
-    /**
-     * Combined group provider is a convenience class to wrap all the other identity providers.
-     */
-    private static class CombinedGroupProvider implements GroupIdProvider {
-
-        private final GroupIdProvider rgProvider;
-        private final GroupIdProvider regularProvider;
-
-        CombinedGroupProvider(@Nonnull Collection<DiscoveredGroupId> discoveredGroups) {
-            this.rgProvider = new CrossTargetStitcher(discoveredGroups);
-            this.regularProvider = new TargetLocalStitcher(discoveredGroups);
-        }
-
-        @Nonnull
-        private GroupIdProvider getProvider(@Nonnull UploadedGroup group) {
-            if (group.getDefinition().hasType() && group.getDefinition().getType() == GroupType.RESOURCE) {
-                return rgProvider;
-            } else {
-                return regularProvider;
-            }
-        }
-
-        @Nonnull
-        @Override
-        public Optional<Long> getId(long target, @Nonnull UploadedGroup group) {
-            return getProvider(group).getId(target, group);
-        }
-
-        @Nonnull
-        @Override
-        public String getStitchingKey(long target, @Nonnull UploadedGroup group) {
-            return getProvider(group).getStitchingKey(target, group);
-        }
     }
 
     /**
@@ -221,20 +199,27 @@ public class GroupStitchingManager {
                     .stream()
                     .filter(set -> set.size() == 1)
                     .map(set -> set.iterator().next())
-                    .collect(Collectors.toMap(DiscoveredGroupId::getSourceId,
-                            DiscoveredGroupId::getOid, (val1, val2) -> val1)));
+                    .collect(Collectors.toMap(key -> String.format(CROSS_TARGET_STITCHING_KEY,
+                            GroupProtoUtil.createIdentifyingKey(key.getGroupType(),
+                                    key.getSourceId())), DiscoveredGroupId::getOid,
+                            (val1, val2) -> val1)));
         }
 
         @Nonnull
         @Override
-        public Optional<Long> getId(long target, @Nonnull UploadedGroup group) {
-            return Optional.ofNullable(groupsToIds.get(group.getSourceIdentifier()));
+        public Optional<Long> getId(@Nonnull String stitchingKey) {
+            return Optional.ofNullable(groupsToIds.get(stitchingKey));
         }
 
         @Nonnull
         @Override
         public String getStitchingKey(long target, @Nonnull UploadedGroup group) {
-            return "resource-" + GroupProtoUtil.createIdentifyingKey(group);
+            return String.format(CROSS_TARGET_STITCHING_KEY,
+                    GroupProtoUtil.createIdentifyingKey(group));
+        }
+
+        public String toString() {
+            return groupsToIds.toString();
         }
     }
 
@@ -242,26 +227,33 @@ public class GroupStitchingManager {
      * Identity provider for groups, that should not be stitched between targets.
      */
     private static class TargetLocalStitcher implements GroupIdProvider {
-        private final Map<Pair<Long, String>, Long> groupsToIds;
+        private final Map<String, Long> groupsToIds;
 
         TargetLocalStitcher(@Nonnull Collection<DiscoveredGroupId> discoveredGroups) {
             groupsToIds = Collections.unmodifiableMap(discoveredGroups.stream()
                     .filter(group -> group.getTarget() != null)
-                    .collect(Collectors.toMap(GroupStitchingManager::createGroupLocalKey,
+                    .collect(Collectors.toMap(
+                            key -> String.format(TARGET_LOCAL_STITCHING_KEY, key.getTarget(),
+                                    GroupProtoUtil.createIdentifyingKey(key.getGroupType(),
+                                            key.getSourceId())),
                             DiscoveredGroupId::getOid)));
         }
 
         @Nonnull
         @Override
-        public Optional<Long> getId(long target, @Nonnull UploadedGroup group) {
-            return Optional.ofNullable(
-                    groupsToIds.get(Pair.create(target, group.getSourceIdentifier())));
+        public Optional<Long> getId(@Nonnull String stitchingKey) {
+            return Optional.ofNullable(groupsToIds.get(stitchingKey));
         }
 
         @Nonnull
         @Override
         public String getStitchingKey(long target, @Nonnull UploadedGroup group) {
-            return "regular-" + target + "-" + GroupProtoUtil.createIdentifyingKey(group);
+            return String.format(TARGET_LOCAL_STITCHING_KEY, target,
+                    GroupProtoUtil.createIdentifyingKey(group));
+        }
+
+        public String toString() {
+            return groupsToIds.toString();
         }
     }
 }
