@@ -57,6 +57,16 @@ public interface AccountDefEntry {
     AccountFieldValueType getValueType();
 
     /**
+     * A regular expression to validate a field. If the user's input matches the
+     * regular expression, then the entry is valid.
+     * For example, you can validate that the entered text is only numbers and period characters
+     * for an IP address. To disable validation (allow any text), pass {@code ".*"}.
+     *
+     * @return description of the field
+     */
+    String getVerificationRegex();
+
+    /**
      * Returns default value to use when this field's value is absent.
      *
      * @return default value

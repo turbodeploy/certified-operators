@@ -918,6 +918,8 @@ public class TargetsServiceTest {
         Assert.assertEquals(InputValueType.NUMERIC, fields.get(1).getValueType());
         Assert.assertEquals(InputValueType.BOOLEAN, fields.get(2).getValueType());
         Assert.assertEquals(InputValueType.GROUP_SCOPE, fields.get(3).getValueType());
+        Assert.assertEquals(".*", fields.get(0).getVerificationRegex());
+
     }
 
     /**
@@ -931,7 +933,7 @@ public class TargetsServiceTest {
         final List<String> allowedValuesList = Lists.newArrayList("A", "B", "C");
         final AccountField allowedValuesField =
                 new AccountField(key, key + "-name", key + "-description", false, false,
-                        AccountFieldValueType.LIST, null, allowedValuesList);
+                        AccountFieldValueType.LIST, null, allowedValuesList, ".*");
         final ProbeInfo probeInfo =
                 createMockProbeInfo(1, "type1", "category1", allowedValuesField);
         final MvcResult result = mockMvc
@@ -1179,7 +1181,7 @@ public class TargetsServiceTest {
 
     private static AccountDefEntry createAccountDef(String key, AccountFieldValueType valueType) {
         return new AccountField(key, key + "-name", key + "-description", true, false, valueType,
-                null, Collections.emptyList());
+                null, Collections.emptyList(), ".*");
     }
 
     /**

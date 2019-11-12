@@ -80,7 +80,8 @@ public final class ProbeController {
         return new AccountField(
                     wrapper.getName(), wrapper.getDisplayName(),
                     wrapper.getDescription(), wrapper.isRequired(), wrapper.isSecret(),
-                    wrapper.getValueType(), wrapper.getDefaultValue(), wrapper.getAllowedValues());
+                    wrapper.getValueType(), wrapper.getDefaultValue(), wrapper.getAllowedValues()
+            , wrapper.getVerificationRegex());
     }
 
     protected static ProbeDescription create(final long probeId, @Nonnull final ProbeInfo probeInfo) {

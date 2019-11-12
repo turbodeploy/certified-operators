@@ -60,6 +60,10 @@ public class ProbeRESTApi {
                 required = false)
         private final List<String> allowedValues;
 
+        @ApiModelProperty(
+            value = "Verification regex to validate a field",
+            required = false)
+        private final String verificationRegexp;
         /**
          * Protected constructor, suitable only for deserialization purposes.
          */
@@ -72,12 +76,14 @@ public class ProbeRESTApi {
             this.valueType = null;
             this.defaultValue = null;
             this.allowedValues = Collections.emptyList();
+            this.verificationRegexp = null;
         }
 
         public AccountField(@Nonnull final String name, @Nonnull final String displayName,
                             @Nonnull final String description, final boolean required,
                             final boolean secret, AccountFieldValueType valueType,
-                            @Nullable String defaultValue, @Nullable List<String> allowedValues ) {
+                            @Nullable String defaultValue, @Nullable List<String> allowedValues,
+                            final String verificationRegexp) {
             this.name = Objects.requireNonNull(name);
             this.displayName = Objects.requireNonNull(displayName);
             this.description = Objects.requireNonNull(description);
@@ -86,6 +92,7 @@ public class ProbeRESTApi {
             this.valueType = valueType;
             this.defaultValue = defaultValue;
             this.allowedValues = allowedValues;
+            this.verificationRegexp = verificationRegexp;
         }
 
         @Override
@@ -116,6 +123,11 @@ public class ProbeRESTApi {
         @Override
         public AccountFieldValueType getValueType() {
             return valueType;
+        }
+
+        @Override
+        public String getVerificationRegex() {
+            return verificationRegexp;
         }
 
         @Override

@@ -17,6 +17,11 @@ import com.vmturbo.topology.processor.api.AccountFieldValueType;
  */
 public class AccountValueAdaptor {
     /**
+     * Default regular expression to validate a field.
+     */
+    static final String DEFAULT_STRING_REGEXP = ".*";
+
+    /**
      * Hide constructor for utility class.
      */
     private AccountValueAdaptor() {}
@@ -100,6 +105,11 @@ public class AccountValueAdaptor {
         }
 
         @Override
+        public String getVerificationRegex() {
+            return customEntry.getVerificationRegex();
+        }
+
+        @Override
         public AccountFieldValueType getValueType() {
             switch (customEntry.getFieldTypeCase()) {
                 case GROUP_SCOPE:
@@ -154,6 +164,12 @@ public class AccountValueAdaptor {
         }
 
         @Override
+        public String getVerificationRegex() {
+            return DEFAULT_STRING_REGEXP;
+        }
+
+
+            @Override
         public AccountFieldValueType getValueType() {
             if (enumVal.getGroupScopeFields() != null) {
                 return AccountFieldValueType.GROUP_SCOPE;

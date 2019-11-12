@@ -1160,6 +1160,7 @@ public class TargetsService implements ITargetsService {
         inputFieldDTO.setDefaultValue(entry.getDefaultValue());
         inputFieldDTO.setDescription(entry.getDescription());
         inputFieldDTO.setAllowedValues(entry.getAllowedValues());
+        inputFieldDTO.setVerificationRegex(entry.getVerificationRegex());
         return inputFieldDTO;
     }
 
