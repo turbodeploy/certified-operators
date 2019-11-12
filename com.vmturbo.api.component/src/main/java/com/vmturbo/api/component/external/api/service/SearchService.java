@@ -4,11 +4,15 @@ import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.A
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.CONNECTED_STORAGE_TIER_FILTER_PATH;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.STATE;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.VOLUME_ATTACHMENT_STATE_FILTER_PATH;
+import static com.vmturbo.components.common.utils.StringConstants.DATABASE;
+import static com.vmturbo.components.common.utils.StringConstants.DATABASE_SERVER;
 import static com.vmturbo.components.common.utils.StringConstants.CLUSTER;
 import static com.vmturbo.components.common.utils.StringConstants.GROUP;
 import static com.vmturbo.components.common.utils.StringConstants.RESOURCE_GROUP;
 import static com.vmturbo.components.common.utils.StringConstants.STORAGE_CLUSTER;
+import static com.vmturbo.components.common.utils.StringConstants.VIRTUAL_MACHINE;
 import static com.vmturbo.components.common.utils.StringConstants.VIRTUAL_MACHINE_CLUSTER;
+import static com.vmturbo.components.common.utils.StringConstants.WORKLOAD;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -43,6 +47,7 @@ import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.BusinessUnitMapper;
 import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
@@ -106,6 +111,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -119,6 +125,9 @@ import com.vmturbo.repository.api.RepositoryClient;
 public class SearchService implements ISearchService {
 
     private static final Logger logger = LogManager.getLogger();
+
+    private static final Set<String> WORKLOAD_ENTITY_TYPES = ImmutableSet.of(
+            VIRTUAL_MACHINE, DATABASE, DATABASE_SERVER);
 
     private final RepositoryApi repositoryApi;
 
@@ -228,6 +237,14 @@ public class SearchService implements ISearchService {
         } catch (UnknownObjectException e) {
             // not a group or cluster...fall through
         }
+
+        try {
+            return businessUnitMapper.getBusinessUnitByOID(targetsService, uuidString);
+        } catch (UnsupportedOperationException ex) {
+            // Not a valid business account either
+            logger.info("Entity with " + uuidString + " UUID is not a valid Business Unit");
+        }
+
         // The input is the uuid for a single entity.
         return repositoryApi.entityRequest(Long.valueOf(uuidString))
             .getSE()
@@ -423,7 +440,6 @@ public class SearchService implements ISearchService {
         return result;
     }
 
-
     /**
      * A general search given a filter - may be asked to search over ServiceEntities or Groups.
      *
@@ -480,6 +496,41 @@ public class SearchService implements ISearchService {
                                         addNameMatcher(query,
                                                 inputDTO.getCriteriaList(),
                                                 GroupFilterMapper.RESOURCE_GROUP_BY_NAME_FILTER_TYPE))));
+            case WORKLOAD:
+                List<String> scope = inputDTO.getScope();
+
+                if (scope == null || scope.size() == 0) {
+                    throw new UnsupportedOperationException("Invalid workload scope");
+                }
+
+                String scopeId = inputDTO.getScope().get(0);
+                long businessAccountId;
+                try {
+                    businessAccountId = Long.valueOf(scopeId);
+                } catch (NumberFormatException ex) {
+                    throw new UnsupportedOperationException("Invalid workload scope ID: " + scopeId);
+                }
+
+                SingleEntityRequest entityRequest = repositoryApi.entityRequest(businessAccountId);
+                TopologyEntityDTO topologyEntityDTO = entityRequest
+                                .getFullEntity()
+                                .orElseThrow(() -> new UnsupportedOperationException(
+                                        "Missing Business Unit with ID: " + businessAccountId));
+
+                Set<Long> entitiesOid = topologyEntityDTO.getConnectedEntityListList()
+                                .stream()
+                                .map(entity -> entity.getConnectedEntityId())
+                                .collect(Collectors.toSet());
+
+                List<BaseApiDTO> results = repositoryApi.entitiesRequest(entitiesOid)
+                        .getSEMap()
+                        .values()
+                        .stream()
+                        .filter(se -> WORKLOAD_ENTITY_TYPES.contains(se.getClassName()))
+                        .collect(Collectors.toList());
+
+                return paginationRequest.allResultsResponse(results);
+
             default:
                 // this isn't a group search after all -- use a generic search method instead.
                 return searchEntitiesByParameters(inputDTO, query, paginationRequest);

@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -117,13 +118,16 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -167,6 +171,11 @@ public class SearchServiceTest {
         GrpcTestServer.newServer(
             searchServiceSpy, entitySeverityServiceSpy, historyServiceSpy,
             actionOrchestratorRpcService, groupRpcService);
+
+    private static final long ENTITY_ID_1 = 1L;
+    private static final long ENTITY_ID_2 = 2L;
+    private static final long ENTITY_ID_3 = 3L;
+    private static final long ENTITY_ID_4 = 4L;
 
     private final long targetId1 = 111L;
     private final long targetId2 = 112L;
@@ -239,6 +248,9 @@ public class SearchServiceTest {
         doThrow(UnknownObjectException.class)
             .when(groupsService).getGroupByUuid(anyString(),anyBoolean());
 
+        doThrow(UnsupportedOperationException.class)
+            .when(businessUnitMapper).getBusinessUnitByOID(targetsService, entityUuid);
+
         SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(desiredResponse);
         when(repositoryApi.entityRequest(Long.valueOf(entityUuid))).thenReturn(req);
 
@@ -285,7 +297,7 @@ public class SearchServiceTest {
 
         // filter by AWS
         Collection<BaseApiDTO> regions_aws = getSearchResults(searchService, null,
-            Lists.newArrayList("Region"), null, null, null, null,
+            types, null, null, null, null,
             Lists.newArrayList(probeType1), null);
         assertThat(regions_aws.stream()
             .map(dto -> Long.valueOf(dto.getUuid()))
@@ -293,7 +305,7 @@ public class SearchServiceTest {
 
         // filter by Azure
         Collection<BaseApiDTO> regions_azure = getSearchResults(searchService, null,
-            Lists.newArrayList("Region"), null, null, null, EnvironmentType.CLOUD,
+            types, null, null, null, EnvironmentType.CLOUD,
             Lists.newArrayList(probeType2), null);
         assertThat(regions_azure.stream()
             .map(dto -> Long.valueOf(dto.getUuid()))
@@ -301,7 +313,7 @@ public class SearchServiceTest {
 
         // filter by both AWS and Azure
         Collection<BaseApiDTO> regions_all = getSearchResults(searchService, null,
-            Lists.newArrayList("Region"), null, null, null, EnvironmentType.CLOUD,
+            types, null, null, null, EnvironmentType.CLOUD,
             Lists.newArrayList(probeType1, probeType2),  null);
         assertThat(regions_all.stream()
             .map(dto -> Long.valueOf(dto.getUuid()))
@@ -309,13 +321,13 @@ public class SearchServiceTest {
 
         // filter by a vc probe type
         Collection<BaseApiDTO> regions_vc = getSearchResults(searchService, null,
-            Lists.newArrayList("Region"), null, null, null, EnvironmentType.CLOUD,
+            types, null, null, null, EnvironmentType.CLOUD,
             Lists.newArrayList(SDKProbeType.VCENTER.getProbeType()), null);
         assertThat(regions_vc, empty());
 
         // filter by null probeTypes
         Collection<BaseApiDTO> regions_null_probeType = getSearchResults(searchService, null,
-            Lists.newArrayList("Region"), null, null, null, EnvironmentType.CLOUD, null, null);
+            types, null, null, null, EnvironmentType.CLOUD, null, null);
         assertThat(regions_null_probeType.stream()
             .map(dto -> Long.valueOf(dto.getUuid()))
             .collect(Collectors.toList()), containsInAnyOrder(1L, 2L, 3L));
@@ -347,7 +359,6 @@ public class SearchServiceTest {
                 supplyChainTestUtils.createServiceEntityApiDTO(4, targetId1));
 
         List<String> scopes = Lists.newArrayList(CLUSTER_OID);
-        Set<String> scopesSet = Sets.newHashSet(scopes);
         List<String> types = Lists.newArrayList("PhysicalMachine");
         SearchRequest req = ApiTestUtils.mockSearchSEReq(searchResultDTOs);
         when(repositoryApi.newSearchRequest(any(SearchParameters.class))).thenReturn(req);
@@ -675,37 +686,93 @@ public class SearchServiceTest {
         assertEquals("^.*\\Q[b\\E.*$", value);
     }
 
-    private List<ApiPartialEntity> setupEntitiesForMemberQuery() {
-        final ApiPartialEntity e1 = ApiPartialEntity.newBuilder()
-                .setOid(1)
-                .setDisplayName("afoobar")
-                .setEntityType(0)
-                .addDiscoveringTargetIds(targetId1)
-                .build();
-        final ApiPartialEntity e2 = ApiPartialEntity.newBuilder()
-                .setOid(4)
-                .setDisplayName("Foo")
-                .setEntityType(0)
-                .addDiscoveringTargetIds(targetId2)
-                .build();
-        final ApiPartialEntity e3 = ApiPartialEntity.newBuilder()
-                .setOid(5)
-                .setDisplayName("Foo [bar]")
-                .setEntityType(0)
-                .addDiscoveringTargetIds(targetId2)
-                .build();
-        final ServiceEntityApiDTO mappedE1 = new ServiceEntityApiDTO();
-        mappedE1.setUuid("1");
-        final ServiceEntityApiDTO mappedE2 = new ServiceEntityApiDTO();
-        mappedE2.setUuid("4");
-        final ServiceEntityApiDTO mappedE3 = new ServiceEntityApiDTO();
-        mappedE3.setUuid("5");
-        when(serviceEntityMapper.toServiceEntityApiDTO(e1)).thenReturn(mappedE1);
-        when(serviceEntityMapper.toServiceEntityApiDTO(e2)).thenReturn(mappedE2);
-        when(serviceEntityMapper.toServiceEntityApiDTO(e3)).thenReturn(mappedE3);
+    /**
+     * Test to get the Workload members (VirtualMachine, Database or DatabaseServer entities).
+     *
+     * @throws Exception if there is an error when processing the search query.
+     */
+    @Test
+    public void testGetWorkloadMembersBasedOnFilterQuery() throws Exception {
+        final long oid = 1234;
+        GroupApiDTO request = new GroupApiDTO();
+        request.setClassName(StringConstants.WORKLOAD);
+        request.setCriteriaList(Collections.emptyList());
+        request.setScope(Arrays.asList(String.valueOf(oid)));
 
-        final List<ApiPartialEntity> entities = Arrays.asList(e1, e2, e3);
-        return entities;
+        List<ServiceEntityApiDTO> entities = setupEntitiesForWorkloadsQuery();
+
+        ConnectedEntity connectedEntity1 = ConnectedEntity.newBuilder()
+                .setConnectedEntityId(ENTITY_ID_1)
+                .build();
+        ConnectedEntity connectedEntity2 = ConnectedEntity.newBuilder()
+                .setConnectedEntityId(ENTITY_ID_2)
+                .build();
+        ConnectedEntity connectedEntity3 = ConnectedEntity.newBuilder()
+                .setConnectedEntityId(ENTITY_ID_3)
+                .build();
+        ConnectedEntity connectedEntity4 = ConnectedEntity.newBuilder()
+                .setConnectedEntityId(ENTITY_ID_4)
+                .build();
+
+        TopologyEntityDTO businessAccount = TopologyEntityDTO.newBuilder()
+                .setOid(oid)
+                .setDisplayName("Business Account 1")
+                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .addConnectedEntityList(0, connectedEntity1)
+                .addConnectedEntityList(1, connectedEntity2)
+                .addConnectedEntityList(2, connectedEntity3)
+                .addConnectedEntityList(3, connectedEntity4)
+                .build();
+
+        Map<Long, ServiceEntityApiDTO> entityMap = new HashMap<>();
+        entityMap.put(Long.valueOf(ENTITY_ID_1), entities.get(0));
+        entityMap.put(Long.valueOf(ENTITY_ID_2), entities.get(1));
+        entityMap.put(Long.valueOf(ENTITY_ID_3), entities.get(2));
+        entityMap.put(Long.valueOf(ENTITY_ID_4), entities.get(3));
+
+        SingleEntityRequest singleEntityRequest = ApiTestUtils.mockSingleEntityRequest(businessAccount);
+        when(repositoryApi.entityRequest(oid)).thenReturn(singleEntityRequest);
+
+        when(singleEntityRequest.getFullEntity()).thenReturn(Optional.of(businessAccount));
+
+        MultiEntityRequest multiEntityRequest = ApiTestUtils.mockMultiSEReq(entities);
+        when(repositoryApi
+                .entitiesRequest(ImmutableSet.of(
+                        ENTITY_ID_1, ENTITY_ID_2, ENTITY_ID_3, ENTITY_ID_4)))
+                .thenReturn(multiEntityRequest);
+
+        when(multiEntityRequest.getSEMap()).then(invocation -> entityMap);
+
+        final ArgumentCaptor<List<BaseApiDTO>> resultCaptor =
+                ArgumentCaptor.forClass((Class)List.class);
+        final SearchPaginationRequest paginationRequest = mock(SearchPaginationRequest.class);
+        Mockito.when(paginationRequest.getCursor()).thenReturn(Optional.empty());
+        Mockito.when(paginationRequest.allResultsResponse(any()))
+                .thenReturn(mock(SearchPaginationResponse.class));
+        Mockito.when(paginationRequest.getOrderBy())
+                .thenReturn(SearchOrderBy.NAME);
+
+        searchService.getMembersBasedOnFilter("", request, paginationRequest);
+        verify(paginationRequest).allResultsResponse(resultCaptor.capture());
+
+        final List<Long> resultIds = resultCaptor.getValue()
+                .stream()
+                .map(BaseApiDTO::getUuid)
+                .map(Long::parseLong)
+                .collect(Collectors.toList());
+
+        final Map<Long, String> resultById = resultCaptor.getValue().stream()
+            .collect(Collectors.toMap(se -> Long.valueOf(se.getUuid()), se -> se.getClassName()));
+
+        assertThat(resultIds.size(), is(4));
+        assertThat(resultById.keySet(), containsInAnyOrder(
+                ENTITY_ID_1, ENTITY_ID_2, ENTITY_ID_3, ENTITY_ID_4));
+        assertThat(resultById.values(), containsInAnyOrder(
+                StringConstants.DATABASE,
+                StringConstants.DATABASE_SERVER,
+                StringConstants.VIRTUAL_MACHINE,
+                StringConstants.VIRTUAL_MACHINE
+        ));
     }
 
     /**
@@ -859,6 +926,63 @@ public class SearchServiceTest {
 
         // verify that a null filter list but valid search string will give you a singleton list
         Assert.assertEquals(1, searchService.addNameMatcher("match me bro", null, "Type").size());
+    }
+
+    private List<ApiPartialEntity> setupEntitiesForMemberQuery() {
+        final ApiPartialEntity e1 = ApiPartialEntity.newBuilder()
+                .setOid(1)
+                .setDisplayName("afoobar")
+                .setEntityType(0)
+                .addDiscoveringTargetIds(targetId1)
+                .build();
+        final ApiPartialEntity e2 = ApiPartialEntity.newBuilder()
+                .setOid(4)
+                .setDisplayName("Foo")
+                .setEntityType(0)
+                .addDiscoveringTargetIds(targetId2)
+                .build();
+        final ApiPartialEntity e3 = ApiPartialEntity.newBuilder()
+                .setOid(5)
+                .setDisplayName("Foo [bar]")
+                .setEntityType(0)
+                .addDiscoveringTargetIds(targetId2)
+                .build();
+        final ServiceEntityApiDTO mappedE1 = new ServiceEntityApiDTO();
+        mappedE1.setUuid("1");
+        final ServiceEntityApiDTO mappedE2 = new ServiceEntityApiDTO();
+        mappedE2.setUuid("4");
+        final ServiceEntityApiDTO mappedE3 = new ServiceEntityApiDTO();
+        mappedE3.setUuid("5");
+        when(serviceEntityMapper.toServiceEntityApiDTO(e1)).thenReturn(mappedE1);
+        when(serviceEntityMapper.toServiceEntityApiDTO(e2)).thenReturn(mappedE2);
+        when(serviceEntityMapper.toServiceEntityApiDTO(e3)).thenReturn(mappedE3);
+
+        final List<ApiPartialEntity> entities = Arrays.asList(e1, e2, e3);
+        return entities;
+    }
+
+    private List<ServiceEntityApiDTO> setupEntitiesForWorkloadsQuery() {
+        final ServiceEntityApiDTO entity1 = supplyChainTestUtils
+                .createServiceEntityApiDTO(ENTITY_ID_1, targetId1);
+        entity1.setDisplayName("Virtual Machine 1");
+        entity1.setClassName(StringConstants.VIRTUAL_MACHINE);
+
+        final ServiceEntityApiDTO entity2 = supplyChainTestUtils
+                .createServiceEntityApiDTO(ENTITY_ID_2, targetId1);
+        entity2.setDisplayName("Database 1");
+        entity2.setClassName(StringConstants.DATABASE);
+
+        final ServiceEntityApiDTO entity3 = supplyChainTestUtils
+                .createServiceEntityApiDTO(ENTITY_ID_3, targetId1);
+        entity3.setDisplayName("Database Server 1");
+        entity3.setClassName(StringConstants.DATABASE_SERVER);
+
+        final ServiceEntityApiDTO entity4 = supplyChainTestUtils
+                .createServiceEntityApiDTO(ENTITY_ID_4, targetId1);
+        entity4.setDisplayName("Virtual Machine 2");
+        entity4.setClassName(StringConstants.VIRTUAL_MACHINE);
+
+        return Arrays.asList(entity1, entity2, entity3, entity4);
     }
 
 }

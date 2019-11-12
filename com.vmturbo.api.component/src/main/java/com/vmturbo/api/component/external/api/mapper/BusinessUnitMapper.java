@@ -29,6 +29,7 @@ import com.vmturbo.api.dto.businessunit.CloudServicePriceAdjustmentApiDTO;
 import com.vmturbo.api.dto.businessunit.EntityDiscountDTO;
 import com.vmturbo.api.dto.businessunit.EntityPriceDTO;
 import com.vmturbo.api.dto.businessunit.TemplatePriceAdjustmentDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.group.BillingFamilyApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
@@ -86,14 +87,16 @@ public class BusinessUnitMapper {
             EntityType.DATABASE_TIER_VALUE,
             EntityType.STORAGE_TIER_VALUE);
 
-    // business unit workload member type
-    private static final String WORKLOAD_MEMBER_TYPE = "Workload";
+    private static final Set<String> WORKLOAD_ENTITY_TYPES = ImmutableSet.of(
+            StringConstants.VIRTUAL_MACHINE,
+            StringConstants.DATABASE,
+            StringConstants.DATABASE_SERVER);
 
     private final long realtimeTopologyContextId;
 
     private final RepositoryApi repositoryApi;
 
-    private final Set SUPPORTED_CLOUD_TYPE = ImmutableSet.of("AWS", "AZURE");
+    private final Set<String> SUPPORTED_CLOUD_TYPE = ImmutableSet.of("AWS", "AZURE");
 
     // EntityDiscountDTO predicate to filter those only have price adjustment
     private static final Predicate<EntityDiscountDTO> ENTITY_DISCOUNT_DTO_PREDICATE = dto ->
@@ -142,7 +145,7 @@ public class BusinessUnitMapper {
         // It seems it's always 0 in legacy for business discount unit.
         businessUnitApiDTO.setMembersCount(0);
         // It seems it's always "workload" type in legacy for business discount unit.
-        businessUnitApiDTO.setMemberType(WORKLOAD_MEMBER_TYPE);
+        businessUnitApiDTO.setMemberType(StringConstants.WORKLOAD);
         return businessUnitApiDTO;
     }
 
@@ -353,7 +356,6 @@ public class BusinessUnitMapper {
         return repositoryApi.entitiesRequest(oids).getEntities();
     }
 
-
     /**
      * Helper to extract family name from display name
      *
@@ -376,7 +378,6 @@ public class BusinessUnitMapper {
         throws Exception {
         return this.getAndConvertDiscoveredBusinessUnits(targetsService, Collections.emptyList());
     }
-
 
     /**
      * Find all discovered business units discovered by targets in the scope.  If scope is null
@@ -479,11 +480,24 @@ public class BusinessUnitMapper {
         // discovered account doesn't have discount (yet)
         businessUnitApiDTO.setDiscount(0.0f);
 
-        businessUnitApiDTO.setMemberType(WORKLOAD_MEMBER_TYPE);
+        businessUnitApiDTO.setMemberType(StringConstants.WORKLOAD);
         final List<ConnectedEntity> accounts = topologyEntityDTO.getConnectedEntityListList().stream()
                 .filter(entity -> entity.getConnectedEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE)
                 .collect(Collectors.toList());
-        businessUnitApiDTO.setMembersCount(accounts.size());
+
+        // Get the OIDs of the entities owned by the BusinessAccount
+        Set<Long> entityOids = topologyEntityDTO.getConnectedEntityListList()
+                        .stream()
+                        .map(entity -> entity.getConnectedEntityId())
+                        .collect(Collectors.toSet());
+
+        List<ServiceEntityApiDTO> results = repositoryApi.entitiesRequest(entityOids)
+                .getSEMap()
+                .values()
+                .stream()
+                .filter(se -> WORKLOAD_ENTITY_TYPES.contains(se.getClassName()))
+                .collect(Collectors.toList());
+        businessUnitApiDTO.setMembersCount(results.size());
 
         businessUnitApiDTO.setChildrenBusinessUnits(accounts.stream()
                 .map(connectedEntity -> String.valueOf(connectedEntity.getConnectedEntityId()))
@@ -558,6 +572,9 @@ public class BusinessUnitMapper {
      * Throws when target name is NOT in the target.
      */
     private class MissingTargetNameException extends RuntimeException {
+
+        private static final long serialVersionUID = -6058086629099834840L;
+
         public MissingTargetNameException(final String msg) {
             super(msg);
         }
@@ -567,6 +584,9 @@ public class BusinessUnitMapper {
      * Throws when the repository cannot find the oid
      */
     class MissingTopologyEntityException extends RuntimeException {
+
+        private static final long serialVersionUID = 7240718389533990427L;
+
         public MissingTopologyEntityException(final String s) {
             super(s);
         }

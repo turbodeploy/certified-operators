@@ -220,8 +220,12 @@ public class BusinessUnitMapperTest {
         final ServiceEntityApiDTO associatedEntity = new ServiceEntityApiDTO();
         associatedEntity.setDiscoveredBy(target2);
         associatedEntity.getDiscoveredBy().setType(AWS);
+
         SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(associatedEntity);
         when(repositoryApi.entityRequest(ENTITY_OID)).thenReturn(req);
+
+        MultiEntityRequest multiEntityRequest = ApiTestUtils.mockMultiEntityReqEmpty();
+        when(repositoryApi.entitiesRequest(any())).thenReturn(multiEntityRequest);
 
         List<BusinessUnitApiDTO> businessUnitApiDTOs = businessUnitMapper.getAndConvertDiscoveredBusinessUnits(targetsService);
         assertEquals(1, businessUnitApiDTOs.size());
@@ -256,11 +260,15 @@ public class BusinessUnitMapperTest {
         final ServiceEntityApiDTO associatedEntity = new ServiceEntityApiDTO();
         associatedEntity.setDiscoveredBy(target2);
         associatedEntity.getDiscoveredBy().setType(AWS);
+
         SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(associatedEntity);
         when(repositoryApi.entityRequest(ENTITY_OID)).thenReturn(req);
 
         target1.setType("AWS Billing");
         target1.setDisplayName("engineering.billing.aws.amazon.com");
+
+        MultiEntityRequest multiEntityRequest = ApiTestUtils.mockMultiEntityReqEmpty();
+        when(repositoryApi.entitiesRequest(any())).thenReturn(multiEntityRequest);
 
         List<BusinessUnitApiDTO> businessUnitApiDTOs = businessUnitMapper.getAndConvertDiscoveredBusinessUnits(targetsService);
         assertEquals(1, businessUnitApiDTOs.size());
@@ -288,8 +296,12 @@ public class BusinessUnitMapperTest {
         final ServiceEntityApiDTO associatedEntity = new ServiceEntityApiDTO();
         associatedEntity.setDiscoveredBy(target2);
         associatedEntity.getDiscoveredBy().setType(AWS);
+
         SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(associatedEntity);
         when(repositoryApi.entityRequest(ENTITY_OID)).thenReturn(req);
+
+        MultiEntityRequest multiEntityRequest = ApiTestUtils.mockMultiEntityReqEmpty();
+        when(repositoryApi.entitiesRequest(any())).thenReturn(multiEntityRequest);
 
         List<BusinessUnitApiDTO> businessUnitApiDTOs = businessUnitMapper.getAndConvertDiscoveredBusinessUnits(targetsService);
         assertEquals(1, businessUnitApiDTOs.size());
@@ -342,6 +354,10 @@ public class BusinessUnitMapperTest {
         when(repositoryApi.entityRequest(entity1_id)).thenReturn(req1);
         when(repositoryApi.entityRequest(entity2_id)).thenReturn(req2);
         when(repositoryApi.entityRequest(entity3_id)).thenReturn(req3);
+
+        MultiEntityRequest multiEntityRequest = ApiTestUtils.mockMultiEntityReqEmpty();
+        when(repositoryApi.entitiesRequest(any())).thenReturn(multiEntityRequest);
+
         List<BusinessUnitApiDTO> businessUnitApiDTOs = businessUnitMapper
             .getAndConvertDiscoveredBusinessUnits(targetsService,
                 Collections.singletonList(String.valueOf(target_id3)));
@@ -398,6 +414,9 @@ public class BusinessUnitMapperTest {
 
         SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(associatedEntity);
         when(repositoryApi.entityRequest(ENTITY_OID)).thenReturn(req);
+
+        MultiEntityRequest multiEntityRequest = ApiTestUtils.mockMultiEntityReqEmpty();
+        when(repositoryApi.entitiesRequest(any())).thenReturn(multiEntityRequest);
 
         BusinessUnitApiDTO businessUnitApiDTO = businessUnitMapper.getBusinessUnitByOID(targetsService, String.valueOf(ENTITY_OID));
         assertEquals(String.valueOf(ENTITY_OID), businessUnitApiDTO.getUuid());
