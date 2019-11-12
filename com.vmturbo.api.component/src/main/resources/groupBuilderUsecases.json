@@ -163,7 +163,9 @@
         {"inputType": "s", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "volumeByAccount"},
         {"inputType": "*", "elements": "VirtualMachine:displayName:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "volumeByConnectedVm"},
         {"inputType": "s", "elements": "virtualVolumeInfoRepoDTO.attachmentState", "filterCategory": "property", "filterType": "volumeByAttachmentState"},
-        {"inputType": "s", "elements": "StorageTier:oid:CONNECTED_FROM:1", "filterCategory": "entity", "filterType": "volumeByTier"}
+        {"inputType": "s", "elements": "StorageTier:oid:CONNECTED_FROM:1", "filterCategory": "entity", "filterType": "volumeByTier"},
+        {"inputType": "s", "elements": "Region:oid:CONNECTED_TO:1:AvailabilityZone:CONNECTED_FROM:1", "filterCategory": "entity", "filterType": "volumeByRegion"},
+        {"inputType": "s", "elements": "cloudProvider", "filterCategory": "property", "filterType": "volumeByCloudProvider"}
       ]
     },
 

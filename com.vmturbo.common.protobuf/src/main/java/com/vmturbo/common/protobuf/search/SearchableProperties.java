@@ -55,6 +55,11 @@ public class SearchableProperties {
     public static final String VOLUME_REPO_DTO = "virtualVolumeInfoRepoDTO";
 
     /**
+     * Provider associated with cloud entity.
+     */
+    public static final String CLOUD_PROVIDER = "cloudProvider";
+
+    /**
      * BusinessAccountInfo class in the repository.
      */
     public static final String BUSINESS_ACCOUNT_INFO_REPO_DTO_PROPERTY_NAME =

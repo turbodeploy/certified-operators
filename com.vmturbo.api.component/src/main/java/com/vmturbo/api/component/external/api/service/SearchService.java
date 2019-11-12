@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.ACCOUNT_OID;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.CONNECTED_STORAGE_TIER_FILTER_PATH;
+import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.REGION_FILTER_PATH;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.STATE;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.VOLUME_ATTACHMENT_STATE_FILTER_PATH;
 import static com.vmturbo.components.common.utils.StringConstants.BUSINESS_ACCOUNT;
@@ -67,6 +68,7 @@ import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.dto.search.CriteriaOptionApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
@@ -555,6 +557,7 @@ public class SearchService implements ISearchService {
                 .stream()
                 // Convert any cluster membership filters to property filters.
                 .map(this::resolveClusterFilters)
+                .map(this::resolveCloudProviderFilters)
                 .collect(Collectors.toList());
 
         // match only the entity uuids which are part of the group or cluster
@@ -823,6 +826,47 @@ public class SearchService implements ISearchService {
     }
 
     /**
+     * For any Cloud Provider filter within the given search parameters, convert it to a
+     * Discovered By Target filter. Fetch the ids of all targets belonging to the cloud provider(s)
+     * indicated in the original filter, and add them to the converted filter as options.
+     *
+     * @param searchParams original search parameters, possibly containing cloud provider filter
+     * @return search parameters with any cloud provider filters converted to target filters
+     */
+    @VisibleForTesting
+    SearchParameters resolveCloudProviderFilters(SearchParameters searchParams) {
+        if (searchParams.getSearchFilterList().stream().noneMatch(this::isCloudProviderFilter)) {
+            return searchParams;
+        }
+        final SearchParameters.Builder paramBuilder = SearchParameters.newBuilder(searchParams);
+        paramBuilder.clearSearchFilter();
+        for (SearchFilter filter : searchParams.getSearchFilterList()) {
+            paramBuilder.addSearchFilter(convertCloudProviderFilter(filter));
+        }
+
+        return paramBuilder.build();
+    }
+
+    private boolean isCloudProviderFilter(final SearchFilter searchFilter) {
+        return searchFilter.hasPropertyFilter() && searchFilter.getPropertyFilter().getPropertyName().equals(SearchableProperties.CLOUD_PROVIDER);
+    }
+
+    private SearchFilter convertCloudProviderFilter(SearchFilter originalFilter) {
+        if (!isCloudProviderFilter(originalFilter)) {
+            return originalFilter;
+        }
+        final List<String> providerOptions = originalFilter.getPropertyFilter().getStringFilter().getOptionsList();
+        final Set<Long> targetOptions = targetsService.getAllTargets(null).stream()
+            .filter(dto -> providerOptions.contains(CloudType.fromProbeType(dto.getType()).name()))
+            .map(dto -> Long.valueOf(dto.getUuid()))
+            .collect(Collectors.toSet());
+
+        return SearchFilter.newBuilder()
+            .setPropertyFilter(SearchProtoUtil.discoveredBy(targetOptions))
+            .build();
+    }
+
+    /**
      * Convert a cluster member filter to a static property filter. If the input filter does not
      * contain a cluster member filter, the input filter will be returned, unchanged.
      *
@@ -948,6 +992,27 @@ public class SearchService implements ISearchService {
                         CriteriaOptionApiDTO crOpt = new CriteriaOptionApiDTO();
                         crOpt.setDisplayName(tier.getDisplayName());
                         crOpt.setValue(String.valueOf(tier.getOid()));
+                        optionApiDTOs.add(crOpt);
+                    });
+                break;
+            case REGION_FILTER_PATH:
+                repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
+                    SearchProtoUtil.entityTypeFilter(UIEntityType.REGION.apiStr()))
+                    .build())
+                    .getMinimalEntities()
+                    .forEach(region -> {
+                        CriteriaOptionApiDTO crOpt = new CriteriaOptionApiDTO();
+                        crOpt.setDisplayName(region.getDisplayName());
+                        crOpt.setValue(String.valueOf(region.getOid()));
+                        optionApiDTOs.add(crOpt);
+                    });
+                break;
+            case SearchableProperties.CLOUD_PROVIDER:
+                targetsService.getProbes().stream()
+                    .map(probe -> CloudType.fromProbeType(probe.getType())).distinct()
+                    .forEach(providerType -> {
+                        CriteriaOptionApiDTO crOpt = new CriteriaOptionApiDTO();
+                        crOpt.setValue(providerType.name());
                         optionApiDTOs.add(crOpt);
                     });
                 break;

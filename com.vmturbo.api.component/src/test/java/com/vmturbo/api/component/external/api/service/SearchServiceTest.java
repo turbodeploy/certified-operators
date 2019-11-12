@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.ACCOUNT_OID;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.CONNECTED_STORAGE_TIER_FILTER_PATH;
+import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.REGION_FILTER_PATH;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.STATE;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.VOLUME_ATTACHMENT_STATE_FILTER_PATH;
 import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getSearchResults;
@@ -78,6 +79,7 @@ import com.vmturbo.api.dto.search.CriteriaOptionApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -111,6 +113,7 @@ import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
@@ -571,6 +574,66 @@ public class SearchServiceTest {
                 is(clusterSpecifier.getStringFilter()));
     }
 
+    /**
+     * Test that search parameters with no cloud provider search filter are left untouched. Test
+     * that when search parameters have a cloud provider search filter, that filter is converted to
+     * the appropriate target ID filter and any other search filters are left untouched.
+     */
+    @Test
+    public void testCloudProviderFilter() {
+        final SearchParameters paramsWithNoProviderFilter = SearchParameters.getDefaultInstance();
+        assertEquals(paramsWithNoProviderFilter,
+            searchService.resolveCloudProviderFilters(paramsWithNoProviderFilter));
+
+        final SearchFilter awsSearchFilter = SearchProtoUtil.searchFilterProperty(
+            SearchProtoUtil.stringPropertyFilterExact(SearchableProperties.CLOUD_PROVIDER,
+                Collections.singleton(CloudType.AWS.name())
+            )
+        );
+        final SearchFilter azureSearchFilter = SearchProtoUtil.searchFilterProperty(
+            SearchProtoUtil.stringPropertyFilterExact(SearchableProperties.CLOUD_PROVIDER,
+                Collections.singleton(CloudType.AZURE.name())
+            )
+        );
+        final SearchFilter nonCloudProviderSearchFilter = SearchFilter.getDefaultInstance();
+
+        final SearchParameters params = SearchParameters.newBuilder()
+            .addSearchFilter(awsSearchFilter)
+            .addSearchFilter(azureSearchFilter)
+            .addSearchFilter(nonCloudProviderSearchFilter)
+            .build();
+
+        final TargetApiDTO awsTarget1 = new TargetApiDTO();
+        awsTarget1.setType(SDKProbeType.AWS.getProbeType());
+        awsTarget1.setUuid("1");
+        final TargetApiDTO awsTarget2 = new TargetApiDTO();
+        awsTarget2.setType(SDKProbeType.AWS.getProbeType());
+        awsTarget2.setUuid("2");
+        final TargetApiDTO azureTarget1 = new TargetApiDTO();
+        azureTarget1.setType(SDKProbeType.AZURE.getProbeType());
+        azureTarget1.setUuid("3");
+        final TargetApiDTO azureTarget2 = new TargetApiDTO();
+        azureTarget2.setType(SDKProbeType.AZURE.getProbeType());
+        azureTarget2.setUuid("4");
+
+        when(targetsService.getAllTargets(any()))
+            .thenReturn(ImmutableList.of(awsTarget1, awsTarget2, azureTarget1, azureTarget2));
+
+        final SearchFilter resolvedAwsFilter = SearchProtoUtil.searchFilterProperty(
+            SearchProtoUtil.discoveredBy(ImmutableSet.of(1L, 2L))
+        );
+        final SearchFilter resolvedAzureFilter = SearchProtoUtil.searchFilterProperty(
+            SearchProtoUtil.discoveredBy(ImmutableSet.of(3L, 4L))
+        );
+
+        final SearchParameters resolvedParams = searchService.resolveCloudProviderFilters(params);
+        assertEquals(3, resolvedParams.getSearchFilterCount());
+        final List<SearchFilter> resultFilters = resolvedParams.getSearchFilterList();
+        assertTrue(resultFilters.contains(nonCloudProviderSearchFilter));
+        assertTrue(resultFilters.contains(resolvedAwsFilter));
+        assertTrue(resultFilters.contains(resolvedAzureFilter));
+    }
+
     @Test
     public void testGetMembersBasedOnFilterSeverity() throws Exception {
         GroupApiDTO request = new GroupApiDTO();
@@ -990,6 +1053,72 @@ public class SearchServiceTest {
                     String.valueOf(entity.getOid()).equals(dto.getValue()))
             )
         );
+    }
+
+    /**
+     * All region options should be present in criteria.
+     *
+     * @throws Exception if something is catastrophically wrong.
+     */
+    @Test
+    public void testRegionOptions() throws Exception {
+
+
+        final List<MinimalEntity> regionEntities = ImmutableList.of(
+            MinimalEntity.newBuilder().setOid(1L).setDisplayName("region-entity-1").build(),
+            MinimalEntity.newBuilder().setOid(2L).setDisplayName("region-entity-2").build(),
+            MinimalEntity.newBuilder().setOid(3L).setDisplayName("region-entity-3").build()
+        );
+        final SearchRequest mockRequest = ApiTestUtils.mockSearchMinReq(regionEntities);
+        when(repositoryApi.newSearchRequest(any())).thenReturn(mockRequest);
+        final List<CriteriaOptionApiDTO> result =
+            searchService.getCriteriaOptions(REGION_FILTER_PATH, null, null, null);
+        assertEquals(regionEntities.size(), result.size());
+        regionEntities.forEach(entity ->
+            assertTrue(result.stream().anyMatch(dto ->
+                entity.getDisplayName().equals(dto.getDisplayName()) &&
+                    String.valueOf(entity.getOid()).equals(dto.getValue()))
+            )
+        );
+    }
+
+    /**
+     * All cloud provider options should be present in criteria.
+     *
+     * @throws Exception if something is catastrophically wrong.
+     */
+    @Test
+    public void testCloudProviderOptions() throws Exception {
+
+        final TargetApiDTO probe1 = new TargetApiDTO();
+        probe1.setType(probeType1);
+
+        when(targetsService.getProbes()).thenReturn(Collections.singletonList(probe1));
+        final List<CriteriaOptionApiDTO> result1 =
+            searchService.getCriteriaOptions(SearchableProperties.CLOUD_PROVIDER, null, null, null);
+
+        assertEquals(1, result1.size());
+        assertEquals(CloudType.AWS.name(), result1.get(0).getValue());
+
+        final TargetApiDTO probe2 = new TargetApiDTO();
+        probe2.setType(probeType2);
+
+        when(targetsService.getProbes()).thenReturn(Collections.singletonList(probe2));
+        final List<CriteriaOptionApiDTO> result2 =
+            searchService.getCriteriaOptions(SearchableProperties.CLOUD_PROVIDER, null, null, null);
+
+        assertEquals(1, result2.size());
+        assertEquals(CloudType.AZURE.name(), result2.get(0).getValue());
+
+        final TargetApiDTO probe3 = new TargetApiDTO();
+        probe3.setType("something");
+
+        when(targetsService.getProbes()).thenReturn(Collections.singletonList(probe3));
+        final List<CriteriaOptionApiDTO> result3 =
+            searchService.getCriteriaOptions(SearchableProperties.CLOUD_PROVIDER, null, null, null);
+
+        assertEquals(1, result3.size());
+        assertEquals(CloudType.UNKNOWN.name(), result3.get(0).getValue());
     }
 
     /**

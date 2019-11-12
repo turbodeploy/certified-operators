@@ -70,9 +70,10 @@ public class EntityFilterMapper {
     public static final String STATE = "state";
     public static final String NETWORKS = "networks";
     public static final String CONNECTED_NETWORKS_FIELD = "connectedNetworks";
-    public static final String CONNECTED_STORAGE_TIER_FILTER_PATH = "StorageTier:oid:CONNECTED_FROM";
+    public static final String CONNECTED_STORAGE_TIER_FILTER_PATH = "StorageTier:oid:CONNECTED_FROM:1";
     public static final String VOLUME_ATTACHMENT_STATE_FILTER_PATH = SearchableProperties.VOLUME_REPO_DTO +
         "." + SearchableProperties.VOLUME_ATTACHMENT_STATE;
+    public static final String REGION_FILTER_PATH = "Region:oid:CONNECTED_TO:1:AvailabilityZone:CONNECTED_FROM:1";
 
     private static final String CONSUMES = "CONSUMES";
     private static final String PRODUCES = "PRODUCES";
