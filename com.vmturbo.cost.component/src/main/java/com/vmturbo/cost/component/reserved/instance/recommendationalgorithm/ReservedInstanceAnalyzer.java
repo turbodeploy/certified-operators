@@ -104,6 +104,12 @@ public class ReservedInstanceAnalyzer {
 
     private final ReservedInstanceActionsSender actionsSender;
 
+    /**
+     * the minimum historical data points required for RI buy.
+     */
+    private final int riMinimumDataPoints;
+
+
     /*
      * Stores needed for rates and RIs.
      */
@@ -171,13 +177,13 @@ public class ReservedInstanceAnalyzer {
         this.buyRiStore = Objects.requireNonNull(buyRiStore);
         this.actionContextRIBuyStore = Objects.requireNonNull(actionContextRIBuyStore);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.riMinimumDataPoints = riMinimumDataPoints;
 
         /*
          * ComputeTierDemandStatsReader
          */
         this.historicalDemandDataReader =
-            new ReservedInstanceAnalyzerHistoricalData(Objects.requireNonNull(computeTierDemandStatsStore),
-                riMinimumDataPoints);
+            new ReservedInstanceAnalyzerHistoricalData(Objects.requireNonNull(computeTierDemandStatsStore));
 
         /*
          * Access to RI and rates stores.
@@ -203,6 +209,7 @@ public class ReservedInstanceAnalyzer {
         this.riSpecStore = null;
         this.priceTableStore = null;
         this.preferredCurrentWeight = 0.6f;
+        this.riMinimumDataPoints = 1;
     }
 
     /**
@@ -220,29 +227,22 @@ public class ReservedInstanceAnalyzer {
                 @Nonnull ReservedInstanceHistoricalDemandDataType historicalDemandDataType)
                                 throws CommunicationException, InterruptedException {
         ActionPlan actionPlan;
-        if (historicalDemandDataReader.containsDataOverWeek()) {
-            // If the analysis is for real time delete all entries for real time from
-            // action_context_ri_buy table.
-            if (topologyContextId == realtimeTopologyContextId) {
-                actionContextRIBuyStore.deleteRIBuyContextData(realtimeTopologyContextId);
-            }
-            @Nullable ReservedInstanceAnalysisResult result = analyze(topologyContextId, scope,
-                historicalDemandDataType);
-            if (result == null) {
-                // when result is null, it may be that no need to buy any ri
-                // so we create a dummy action plan and send to action orchestrator
-                // once action orchestrator receives buy RI action plan, it will
-                // notify plan orchestrator it status
-                actionPlan = createEmptyActionPlan(topologyContextId);
-            } else {
-                result.persistResults();
-                actionPlan = result.createActionPlan();
-            }
-            actionsSender.notifyActionsRecommended(actionPlan);
-        } else {
-            logger.info("There is less than one week of data available, waiting for more data to" +
-                " trigger buy RI analysis.");
+        // If the analysis is for real time delete all entries for real time from
+        // action_context_ri_buy table.
+        if (topologyContextId == realtimeTopologyContextId) {
+            actionContextRIBuyStore.deleteRIBuyContextData(realtimeTopologyContextId);
+        }
+        @Nullable ReservedInstanceAnalysisResult result = analyze(topologyContextId, scope,
+            historicalDemandDataType);
+        if (result == null) {
+            // when result is null, it may be that no need to buy any ri
+            // so we create a dummy action plan and send to action orchestrator
+            // once action orchestrator receives buy RI action plan, it will
+            // notify plan orchestrator it status
             actionPlan = createEmptyActionPlan(topologyContextId);
+        } else {
+            result.persistResults();
+            actionPlan = result.createActionPlan();
         }
         actionsSender.notifyActionsRecommended(actionPlan);
     }
@@ -457,6 +457,13 @@ public class ReservedInstanceAnalyzer {
                 logger.debug("{}no demand for cluster {}", logTag, regionalContext);
                 continue;
             }
+            int activeHours = countActive(riBuyDemand);
+            if (activeHours < riMinimumDataPoints) {
+                logger.debug("{}activeHours={} < riMinimumDataPoints={}, regionalContext={}, continue",
+                    logTag, activeHours, riMinimumDataPoints, regionalContext);
+                continue;
+            }
+
             logger.debug("{}Buy RIs for profile={} in {} from context={}", logTag,
                             buyComputeTier.getDisplayName(), regionalContext.getRegionDisplayName(),
                             regionalContext);
@@ -478,7 +485,6 @@ public class ReservedInstanceAnalyzer {
             if (kernelResult == null) {
                 continue;
             }
-            int activeHours = countActive(riBuyDemand, logTag);
             ReservedInstanceAnalysisRecommendation recommendation = generateRecommendation(scope,
                     regionalContext, purchaseConstraints, kernelResult, rates, rateAndRIProvider,
                 activeHours);
@@ -544,7 +550,7 @@ public class ReservedInstanceAnalyzer {
         return (totalCostAcrossWorkloads / ReservedInstanceDataProcessor.WEEKLY_DEMAND_DATA_SIZE);
     }
 
-    private int countActive(@Nonnull float[] normalizedDemand, @Nonnull String logTag) {
+    private int countActive(@Nonnull float[] normalizedDemand) {
         int activeHours = 0;
         for (int index = 0; index < normalizedDemand.length; index++) {
             activeHours += normalizedDemand[index] > 0 ? 1 : 0;
