@@ -156,17 +156,15 @@ public class SettingOverrides {
                 MAX_UTILIZATION_SETTING_SPECS.values().stream()
                     // use selected entity type of full scope to filter setting spec
                     .filter(spec -> isSettingSpecForEntityType(spec,
-                    Collections.singletonList(UIEntityType.fromType(u.getSelectedEntityType()))))
+                            Collections.singletonList(UIEntityType.fromType(u.getSelectedEntityType()))))
                     .forEach(spec -> entitiesToApplySetting.put(createSetting(spec, u), entitiesOid));
             } else {
                 // get the group members to apply this setting to
                 Grouping group = groupsById.get(u.getGroupOid());
-                System.out.println("Group is " + group.getId());
                 Set<Long> groupMemberOids = groupResolver.resolve(group, topologyGraph);
                 MAX_UTILIZATION_SETTING_SPECS.values().stream()
-                    // use group entity type to filter setting spec
-                       .filter(spec -> isSettingSpecForEntityType(spec,
-                           GroupProtoUtil.getEntityTypes(group)))
+                        .filter(spec -> isSettingSpecForEntityType(spec,
+                            Collections.singletonList(UIEntityType.fromType(u.getSelectedEntityType()))))
                         .forEach(spec -> entitiesToApplySetting.put(createSetting(spec, u), groupMemberOids));
             }
         }

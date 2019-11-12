@@ -31,11 +31,17 @@ public class SettingOverridesTest {
 
     private final GroupResolver groupResolver = mock(GroupResolver.class);
     private TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
-    private static final long groupId = 123L;
+    private static final long stGroupId = 123L;
+    private static final long pmGroupId = 321L;
     private static final GroupDTO.Grouping storageGroup = GroupDTO.Grouping.newBuilder()
-        .setId(groupId)
+        .setId(stGroupId)
         .addExpectedTypes(GroupDTO.MemberType.newBuilder().setEntity(EntityType.STORAGE.getValue()))
         .setDefinition(GroupDTO.GroupDefinition.newBuilder().setDisplayName("Storage Group"))
+        .build();
+    private static final GroupDTO.Grouping hostGroup = GroupDTO.Grouping.newBuilder()
+        .setId(pmGroupId)
+        .addExpectedTypes(GroupDTO.MemberType.newBuilder().setEntity(EntityType.PHYSICAL_MACHINE.getValue()))
+        .setDefinition(GroupDTO.GroupDefinition.newBuilder().setDisplayName("PM Group"))
         .build();
     private static final TopologyEntityDTO.Builder entity1 = TopologyEntityDTO
             .newBuilder()
@@ -53,6 +59,7 @@ public class SettingOverridesTest {
     private static final TopologyEntity topologyEntity2 = TopologyEntityUtils.topologyEntity(entity2);
     private static final TopologyEntity topologyEntity3 = TopologyEntityUtils.topologyEntity(entity3);
     private static final Set<Long> entities = ImmutableSet.of(333L);
+    private static final Set<Long> pms = ImmutableSet.of(111L, 222L);
 
     @Test
     public void testResolveGroupOverridesWithGlobalMaxUtil() {
@@ -82,13 +89,14 @@ public class SettingOverridesTest {
     }
 
     @Test
-    public void testResolveGroupOverridesWithGroupMaxUtil() {
-        Map<Long, GroupDTO.Grouping> groupsById = new HashMap<>();
-        groupsById.put(groupId, storageGroup);
+
+    public void testResolveGroupOverridesWithStorageGroupMaxUtil() {
+        Map<Long, GroupDTO.Grouping> groupsById = new HashMap<Long, GroupDTO.Grouping>();
+        groupsById.put(stGroupId, storageGroup);
         List<ScenarioChange> changes = Lists.newArrayList(ScenarioChange.newBuilder()
             .setPlanChanges(PlanChanges.newBuilder()
                 .setMaxUtilizationLevel(MaxUtilizationLevel.newBuilder()
-                    .setGroupOid(groupId)
+                    .setGroupOid(stGroupId)
                     .setSelectedEntityType(EntityType.STORAGE.getValue())
                     .setPercentage(10)))
             .build());
@@ -101,5 +109,36 @@ public class SettingOverridesTest {
         Assert.assertTrue(settingOverrides.overridesForEntity.get(333L)
             .get(EntitySettingSpecs.StorageAmountUtilization.getSettingName())
             .getNumericSettingValue().getValue() == 10);
+    }
+
+    @Test
+    public void testResolveGroupOverridesWithClusterMaxUtil() {
+        Map<Long, GroupDTO.Grouping> groupsById = new HashMap<>();
+        groupsById.put(pmGroupId, hostGroup);
+        List<ScenarioChange> changes = Lists.newArrayList(ScenarioChange.newBuilder()
+            .setPlanChanges(PlanChanges.newBuilder()
+                .setMaxUtilizationLevel(MaxUtilizationLevel.newBuilder()
+                    .setGroupOid(pmGroupId)
+                    .setSelectedEntityType(EntityType.PHYSICAL_MACHINE.getValue())
+                    .setPercentage(20)))
+            .build());
+        SettingOverrides settingOverrides = new SettingOverrides(changes);
+        when(topologyGraph.entitiesOfType(EntityType.PHYSICAL_MACHINE.getValue()))
+            .thenReturn(Stream.of(topologyEntity1, topologyEntity2));
+        when(groupResolver.resolve(hostGroup, topologyGraph)).thenReturn(pms);
+        settingOverrides.resolveGroupOverrides(groupsById, groupResolver, topologyGraph);
+        Assert.assertTrue(settingOverrides.overridesForEntity.size() == 2);
+        Assert.assertTrue(settingOverrides.overridesForEntity.get(111L)
+            .get(EntitySettingSpecs.CpuUtilization.getSettingName())
+            .getNumericSettingValue().getValue() == 20);
+        Assert.assertTrue(settingOverrides.overridesForEntity.get(111L)
+            .get(EntitySettingSpecs.MemoryUtilization.getSettingName())
+            .getNumericSettingValue().getValue() == 20);
+        Assert.assertTrue(settingOverrides.overridesForEntity.get(222L)
+            .get(EntitySettingSpecs.CpuUtilization.getSettingName())
+            .getNumericSettingValue().getValue() == 20);
+        Assert.assertTrue(settingOverrides.overridesForEntity.get(222L)
+            .get(EntitySettingSpecs.MemoryUtilization.getSettingName())
+            .getNumericSettingValue().getValue() == 20);
     }
 }
