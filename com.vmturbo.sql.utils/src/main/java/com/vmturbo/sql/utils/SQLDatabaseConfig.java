@@ -12,7 +12,7 @@ import javax.sql.DataSource;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -73,14 +73,20 @@ public class SQLDatabaseConfig {
     @Value("${sqlDialect}")
     private String sqlDialectName;
 
+    @Value("${migrationLocation:}")
+    private String migrationLocation;
+
     @Value("${authHost}")
-    public String authHost;
+    protected String authHost;
+
+    @Value("${authRoute:}")
+    protected String authRoute;
 
     @Value("${serverHttpPort}")
-    public int authPort;
+    protected int authPort;
 
     @Value("${authRetryDelaySecs}")
-    public int authRetryDelaySecs;
+    protected int authRetryDelaySecs;
 
     @Value("{mariadbDriverProperties}")
     private String mariadbDriverProperties;
@@ -165,6 +171,7 @@ public class SQLDatabaseConfig {
         return new FlywayMigrator(Duration.ofMinutes(1),
             Duration.ofSeconds(5),
             dbSchemaName,
+            StringUtils.isEmpty(migrationLocation) ? Optional.empty() : Optional.of(migrationLocation),
             dataSource(),
             flywayCallbacks()
         ).migrate();

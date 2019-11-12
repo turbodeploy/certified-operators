@@ -11,6 +11,7 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.group.api.GroupClientConfig;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -30,6 +31,9 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableWebSecurity
 @Import({SpringSecurityConfig.class, AuthKVConfig.class, GroupClientConfig.class})
 public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
+
+    @Value("${com.vmturbo.kvdir:/home/turbonomic/data/kv}")
+    private String keyDir;
 
     /**
      * We allow autowiring between different configuration objects, but not for a bean.
@@ -129,7 +133,7 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Bean
     public AuthProvider targetStore() {
-        return new AuthProvider(authKVConfig.authKeyValueStore(), groupRpcService());
+        return new AuthProvider(authKVConfig.authKeyValueStore(), groupRpcService(), () -> keyDir);
     }
 
     @Bean

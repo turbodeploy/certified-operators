@@ -20,23 +20,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
@@ -50,6 +40,17 @@ import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.impl.crypto.EllipticCurveProvider;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.vmturbo.api.enums.UserRole;
 import com.vmturbo.auth.api.JWTKeyCodec;
@@ -92,16 +93,6 @@ public class AuthProvider {
     private static final String PREFIX_AD = "ad/info";
 
     private static final String PREFIX_GROUP = "groups/";
-
-    /**
-     * The key location property
-     */
-    private static final String VMT_PRIVATE_KEY_DIR_PARAM = "com.vmturbo.kvdir";
-
-    /**
-     * The default encryption key location
-     */
-    private static final String VMT_PRIVATE_KEY_DIR = "/home/turbonomic/data/kv";
 
     /**
      * The keystore data file name
@@ -181,6 +172,8 @@ public class AuthProvider {
     @Value("${identityGeneratorPrefix}")
     private long identityGeneratorPrefix_;
 
+    private final Supplier<String> keyValueDir;
+
     /**
      * We may sometimes call the group service to verify scope groups.
      */
@@ -190,21 +183,27 @@ public class AuthProvider {
      * Constructs the KV store -- without support for validating shared groups.
      *
      * @param keyValueStore The underlying store backend.
+     * @param keyValueDir Function to provide the directory to store private key value data.
      */
     @VisibleForTesting
-    public AuthProvider(@Nonnull final KeyValueStore keyValueStore) {
-        this(keyValueStore, null);
+    public AuthProvider(@Nonnull final KeyValueStore keyValueStore,
+                        @Nonnull final Supplier<String> keyValueDir) {
+        this(keyValueStore, null, keyValueDir);
     }
 
     /**
      * Constructs the KV store.
      *
      * @param keyValueStore The underlying store backend.
+     * @param groupServiceClient gRPC client to access the group service.
+     * @param keyValueDir Function to provide the directory to store private key value data.
      */
     public AuthProvider(@Nonnull final KeyValueStore keyValueStore,
-                        @Nonnull final GroupServiceBlockingStub groupServiceClient) {
+                        @Nonnull final GroupServiceBlockingStub groupServiceClient,
+                        @Nonnull final Supplier<String> keyValueDir) {
         keyValueStore_ = Objects.requireNonNull(keyValueStore);
         ssoUtil = new SsoUtil();
+        this.keyValueDir = keyValueDir;
         IdentityGenerator.initPrefix(identityGeneratorPrefix_);
         this.groupServiceClient = Optional.ofNullable(groupServiceClient);
     }
@@ -278,7 +277,7 @@ public class AuthProvider {
             return privateKey_;
         }
 
-        final String location = System.getProperty(VMT_PRIVATE_KEY_DIR_PARAM, VMT_PRIVATE_KEY_DIR);
+        final String location = keyValueDir.get();
         Path encryptionFile = Paths.get(location + "/" + VMT_PRIVATE_KEY_FILE);
         try {
             if (Files.exists(encryptionFile)) {
@@ -381,7 +380,7 @@ public class AuthProvider {
         // Make sure we have initialized the site secret.
         getEncryptionKeyForVMTurboInstance();
         // The file contains the flag that specifies whether admin user has been initialized.
-        final String location = System.getProperty(VMT_PRIVATE_KEY_DIR_PARAM, VMT_PRIVATE_KEY_DIR);
+        final String location = keyValueDir.get();
         Path encryptionFile = Paths.get(location + "/" + VMT_INIT_KEY_FILE);
         try {
             if (Files.exists(encryptionFile)) {
@@ -433,7 +432,7 @@ public class AuthProvider {
             throws SecurityException {
         // Make sure we have initialized the site secret.
         getEncryptionKeyForVMTurboInstance();
-        final String location = System.getProperty(VMT_PRIVATE_KEY_DIR_PARAM, VMT_PRIVATE_KEY_DIR);
+        final String location = keyValueDir.get();
         Path encryptionFile = Paths.get(location + "/" + VMT_INIT_KEY_FILE);
         try {
             if (Files.exists(encryptionFile)) {

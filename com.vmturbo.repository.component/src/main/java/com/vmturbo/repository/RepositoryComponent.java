@@ -11,16 +11,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
-import org.springframework.web.client.RestTemplate;
-
 import com.arangodb.ArangoDB;
 import com.arangodb.velocypack.VPackDeserializer;
 import com.arangodb.velocypack.VPackSerializer;
@@ -33,6 +23,17 @@ import com.google.protobuf.InvalidProtocolBufferException;
 
 import io.grpc.BindableService;
 import io.grpc.ServerInterceptor;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
+import org.springframework.web.client.RestTemplate;
+
 import javaslang.circuitbreaker.CircuitBreakerConfig;
 import javaslang.circuitbreaker.CircuitBreakerRegistry;
 
@@ -52,6 +53,7 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceImplBas
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.ComponentRestTemplate;
+import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
@@ -162,6 +164,9 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Value("${authHost}")
     private String authHost;
 
+    @Value("${authRoute:}")
+    private String authRoute;
+
     @Value("${serverHttpPort}")
     private int authPort;
 
@@ -199,7 +204,7 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Value("${repositoryMaxEntitiesPerChunk:10}")
     private int maxEntitiesPerChunk;
 
-    private ArangoDB arangoDB;
+    private final SetOnce<ArangoDB> arangoDB = new SetOnce<>();
 
     private final com.vmturbo.repository.RepositoryProperties.ArangoDB arangoProps;
 
@@ -216,24 +221,22 @@ public class RepositoryComponent extends BaseVmtComponent {
     @PostConstruct
     private void setup() {
         logger.info("Setting up connection to ArangoDB...");
-        final String arangoDbPassword = new DBPasswordUtil(authHost, authPort, authRetryDelaySecs)
-            .getArangoDbRootPassword();
-
-        this.arangoDB =
-            new ArangoDB.Builder()
-                .host(arangoProps.getHost(), arangoProps.getPort())
-                .registerSerializer(TopologyDTO.Topology.class, TOPOLOGY_VPACK_SERIALIZER)
-                .registerDeserializer(TopologyDTO.Topology.class, TOPOLOGY_VPACK_DESERIALIZER)
-                .password(arangoDbPassword)
-                .user(arangoProps.getUsername())
-                .maxConnections(arangoProps.getMaxConnections())
-                .build();
 
         logger.info("Adding ArangoDB health check to the component health monitor.");
         // add a health monitor for Arango
         getHealthMonitor().addHealthCheck(
                 new ArangoHealthMonitor(arangoHealthCheckIntervalSeconds, arangoDatabaseFactory()::getArangoDriver));
         getHealthMonitor().addHealthCheck(apiConfig.kafkaHealthMonitor());
+    }
+
+    /**
+     * Utility to retrieve the secret root database password from the auth component.
+     *
+     * @return The {@link DBPasswordUtil} instance.
+     */
+    @Bean
+    public DBPasswordUtil dbPasswordUtil() {
+        return new DBPasswordUtil(authHost, authPort, authRoute, authRetryDelaySecs);
     }
 
     /**
@@ -281,7 +284,18 @@ public class RepositoryComponent extends BaseVmtComponent {
 
     @Bean
     public ArangoDatabaseFactory arangoDatabaseFactory() {
-        return () -> arangoDB;
+        return () -> {
+            return this.arangoDB.ensureSet(() -> {
+                return new ArangoDB.Builder()
+                    .host(arangoProps.getHost(), arangoProps.getPort())
+                    .registerSerializer(TopologyDTO.Topology.class, TOPOLOGY_VPACK_SERIALIZER)
+                    .registerDeserializer(TopologyDTO.Topology.class, TOPOLOGY_VPACK_DESERIALIZER)
+                    .password(dbPasswordUtil().getArangoDbRootPassword())
+                    .user(arangoProps.getUsername())
+                    .maxConnections(arangoProps.getMaxConnections())
+                    .build();
+            });
+        };
     }
 
     @Bean
@@ -551,14 +565,6 @@ public class RepositoryComponent extends BaseVmtComponent {
     }
 
     @Bean
-    public ComponentStartUpManager componentStartUpManager() throws GraphDatabaseException {
-        ComponentStartUpManager componentStartUpManager =
-                        new ComponentStartUpManager(graphDatabaseDriverBuilder());
-        componentStartUpManager.startup();
-        return componentStartUpManager;
-    }
-
-    @Bean
     public TopologyProcessor topologyProcessor() {
         final TopologyProcessor topologyProcessor;
         if (realtimeInMemory()) {
@@ -664,7 +670,7 @@ public class RepositoryComponent extends BaseVmtComponent {
     private void destroy() {
         if (arangoDB != null) {
             logger.info("Closing all arangodb client connections");
-            arangoDB.shutdown();
+            arangoDB.getValue().ifPresent(ArangoDB::shutdown);
         }
     }
 }

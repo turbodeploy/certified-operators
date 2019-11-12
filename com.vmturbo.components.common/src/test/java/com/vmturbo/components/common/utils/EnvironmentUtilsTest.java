@@ -35,7 +35,13 @@ public class EnvironmentUtilsTest {
     @Test
     public void testParseIntegerFromNullProperty() throws Exception {
         // don't set any property value
-        testExceptionCase(null);
+        try {
+            environmentVariables.set(TEST_KEY, null);
+            testExceptionCase(null);
+            Assert.fail("Expected exception.");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString(TEST_KEY));
+        }
     }
 
     @Test
@@ -56,10 +62,7 @@ public class EnvironmentUtilsTest {
      * @param value the value to set; if null, then don't set the property at all
      */
     private void testExceptionCase(@Nullable String value) {
-        if (value != null) {
-            environmentVariables.set(TEST_KEY, value);
-            System.setProperty(TEST_KEY, value);
-        }
+        environmentVariables.set(TEST_KEY, value);
         try {
             EnvironmentUtils.parseIntegerFromEnv(TEST_KEY);
         } catch(NumberFormatException e) {

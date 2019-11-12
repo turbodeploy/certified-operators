@@ -53,7 +53,7 @@ public class ClusterMgrRestClientTest {
     public void setUp() {
         // Create a connection config to pass to the ClusterMgrRestClient under test
         ComponentApiConnectionConfig connectionConfig = ComponentApiConnectionConfig.newBuilder()
-                .setHostAndPort("test-host", 4321)
+                .setHostAndPort("test-host", 4321, "")
                 .build();
         baseTestURL = "http://test-host:4321";
         // Create the class to test

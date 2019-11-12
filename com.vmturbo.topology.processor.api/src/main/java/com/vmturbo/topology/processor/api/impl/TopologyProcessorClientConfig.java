@@ -52,6 +52,9 @@ public class TopologyProcessorClientConfig {
     @Value("${serverHttpPort}")
     private int topologyProcessorPort;
 
+    @Value("${topologyProcessorRoute:}")
+    private String topologyProcessorRoute;
+
     @Value("${serverGrpcPort}")
     private int topologyProcessorRpcPort;
 
@@ -68,11 +71,10 @@ public class TopologyProcessorClientConfig {
     @Bean
     protected ComponentApiConnectionConfig topologyProcessorClientConnectionConfig() {
         return ComponentApiConnectionConfig.newBuilder()
-                .setHostAndPort(topologyProcessorHost, topologyProcessorPort)
+                .setHostAndPort(topologyProcessorHost, topologyProcessorPort, topologyProcessorRoute)
                 .build();
     }
 
-    @Bean
     protected IMessageReceiver<TopologyProcessorNotification> topologyNotificationReceiver(
             Optional<StartFrom> startFromOverride) {
         return startFromOverride
@@ -85,7 +87,6 @@ public class TopologyProcessorClientConfig {
                     TopologyProcessorNotification::parseFrom));
     }
 
-    @Bean
     protected IMessageReceiver<Topology> liveTopologyBroadcastReceiver(
             @Nonnull final Optional<StartFrom> startFromOverride) {
         return startFromOverride
@@ -98,7 +99,6 @@ public class TopologyProcessorClientConfig {
                     Topology::parseFrom));
     }
 
-    @Bean
     protected IMessageReceiver<Topology> planTopologyBroadcastReceiver(
             @Nonnull final Optional<StartFrom> startFromOverride) {
         return startFromOverride
@@ -112,7 +112,6 @@ public class TopologyProcessorClientConfig {
                     TopologyProcessorClient.TOPOLOGY_SCHEDULED_PLAN), Topology::parseFrom));
     }
 
-    @Bean
     protected IMessageReceiver<TopologySummary> topologySummaryReceiver(
             @Nonnull final Optional<StartFrom> startFromOverride) {
         return startFromOverride
@@ -161,7 +160,6 @@ public class TopologyProcessorClientConfig {
             planReceiver, summaryReceiver);
     }
 
-    @Bean
     public TopologyProcessor topologyProcessorRpcOnly() {
         return TopologyProcessorClient.rpcOnly(topologyProcessorClientConnectionConfig());
     }

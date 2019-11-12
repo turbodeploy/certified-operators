@@ -27,7 +27,7 @@ import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
-
+import com.vmturbo.components.common.utils.EnvironmentUtils;
 
 /**
  * Audit log utility class.
@@ -52,12 +52,13 @@ public final class AuditLogUtils {
 
     // thread pool for auditing, so auditing will not block main operation
     private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
+
     static {
         messageSender.setDefaultAppName("");
         messageSender.setDefaultFacility(Facility.AUTHPRIV);
         messageSender.setDefaultSeverity(Severity.INFORMATIONAL);
         // TODO OM-47212 Externalize remote audit rsyslog server hostname
-        messageSender.setSyslogServerHostname("rsyslog");
+        messageSender.setSyslogServerHostname(EnvironmentUtils.getOptionalEnvProperty("rsyslog_host").orElse("rsyslog"));
         messageSender.setSyslogServerPort(2514);
         messageSender.setMessageFormat(MessageFormat.RFC_5424);
         messageSender.setSsl(false);

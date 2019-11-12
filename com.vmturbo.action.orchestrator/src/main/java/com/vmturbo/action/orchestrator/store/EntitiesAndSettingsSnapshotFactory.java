@@ -207,13 +207,15 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
             OwnershipGraph.newBuilder(EntityWithConnections::getOid);
 
         final RetrieveTopologyEntitiesRequest.Builder entitiesReqBldr = RetrieveTopologyEntitiesRequest.newBuilder()
-                .setReturnType(Type.WITH_CONNECTIONS)
-                .setTopologyContextId(topologyContextId)
-                .addEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber());
+            .setReturnType(Type.WITH_CONNECTIONS)
+            .setTopologyContextId(topologyContextId)
+            .setTopologyType(TopologyType.SOURCE)
+            .addEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber());
         // Set the topologyId if its non null. Else it defaults to real time.
         if (topologyId != null) {
             entitiesReqBldr.setTopologyId(topologyId);
         }
+
 
         // Get all the business accounts and add them to the ownership graph.
         RepositoryDTOUtil.topologyEntityStream(

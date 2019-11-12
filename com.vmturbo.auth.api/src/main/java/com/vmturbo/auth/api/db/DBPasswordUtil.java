@@ -68,6 +68,7 @@ public class DBPasswordUtil {
     private final RestTemplate restTemplate;
     private final String authHost;
     private final int authPort;
+    private final String authRoute;
     private final int authRetryDelaySecs;
 
     /**
@@ -75,11 +76,13 @@ public class DBPasswordUtil {
      *
      * @param authHost The auth component host.
      * @param authPort The auth component port.
+     * @param authRoute The auth component route, to use as a prefix for auth URIs.
      * @param authRetryDelaySecs number of seconds to delay between connection retries
      */
-    public DBPasswordUtil(String authHost, int authPort, int authRetryDelaySecs) {
+    public DBPasswordUtil(String authHost, int authPort, String authRoute, int authRetryDelaySecs) {
         this.authHost = authHost;
         this.authPort = authPort;
+        this.authRoute = authRoute;
         this.authRetryDelaySecs = authRetryDelaySecs;
         restTemplate = ComponentRestTemplate.create();
     }
@@ -201,7 +204,7 @@ public class DBPasswordUtil {
                 .scheme("http")
                 .host(authHost)
                 .port(authPort)
-                .path(SECURESTORAGE_PATH + usernameKeyOffset)
+                .path(authRoute + SECURESTORAGE_PATH + usernameKeyOffset)
                 .build().toUriString();
             try {
                 ResponseEntity<String> result =
@@ -245,7 +248,7 @@ public class DBPasswordUtil {
                 .scheme("http")
                 .host(authHost)
                 .port(authPort)
-                .path(SECURESTORAGE_PATH + passwordKeyOffset)
+                .path(authRoute + SECURESTORAGE_PATH + passwordKeyOffset)
                 .build().toUriString();
             try {
                 ResponseEntity<String> result =

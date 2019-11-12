@@ -31,6 +31,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
         <spring.version>4.3.8.RELEASE</spring.version>
+        <spring.retry.version>1.2.4.RELEASE</spring.retry.version>
         <spring.security.version>4.2.2.RELEASE</spring.security.version>
         <guava.version>23.0</guava.version>
         <units.of.measure.version>1.0.2</units.of.measure.version>
@@ -82,7 +83,7 @@
         <sshd.core.version>2.1.0</sshd.core.version>
         <httpclient.async.version>4.1.3</httpclient.async.version>
         <jackson.version>2.10.0</jackson.version>
-        <commons-lang3.version>3.5</commons-lang3.version>
+        <commons-lang3.version>3.8.1</commons-lang3.version>
         <commons-lang.version>2.6</commons-lang.version>
         <jersey-client.version>2.17</jersey-client.version>
         <jersey-media-jaxb.version>2.17</jersey-media-jaxb.version>
@@ -1836,11 +1837,6 @@
                 <artifactId>bcprov-jdk15on</artifactId>
                 <version>${bouncycastle.version}</version>
             </dependency>
-            <dependency>
-                <groupId>org.bouncycastle</groupId>
-                <artifactId>bcpkix-jdk15on</artifactId>
-                <version>${bouncycastle.version}</version>
-            </dependency>
 
             <!-- The Test dependencies for auth -->
             <dependency>
@@ -2024,6 +2020,11 @@
                 <groupId>org.springframework</groupId>
                 <artifactId>spring-beans</artifactId>
                 <version>${spring.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.retry</groupId>
+                <artifactId>spring-retry</artifactId>
+                <version>${spring.retry.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.springframework</groupId>

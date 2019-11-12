@@ -232,7 +232,7 @@ public class HistorydbIOTest {
     private void setupDatabase() throws VmtDbException {
         HistorydbIO.mappedSchemaForTests = testDbName;
         HistorydbIO.setSharedInstance(historydbIO);
-        historydbIO.init(true, null, testDbName);
+        historydbIO.init(true, null, testDbName, Optional.empty());
 
         BasedbIO.setSharedInstance(historydbIO);
 

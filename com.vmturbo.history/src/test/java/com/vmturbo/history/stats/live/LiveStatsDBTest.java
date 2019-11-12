@@ -11,6 +11,7 @@ import static org.hamcrest.Matchers.is;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -102,7 +103,7 @@ public class LiveStatsDBTest {
         historydbIO.setSchemaForTests(testDbName);
         logger.info("Initializing DB - " + testDbName);
         HistorydbIO.setSharedInstance(historydbIO);
-        historydbIO.init(true, null, testDbName);
+        historydbIO.init(true, null, testDbName, Optional.empty());
     }
 
     @After

@@ -144,6 +144,8 @@ public class CommunicationConfig {
     private String clusterMgrHost;
     @Value("${clustermgr_port}")
     private int clusterMgrPort;
+    @Value("${clustermgr_route:}")
+    private String clusterMgrRoute;
 
     @Value("${realtimeTopologyContextId}")
     private Long realtimeTopologyContextId;
@@ -230,7 +232,7 @@ public class CommunicationConfig {
     @Bean
     public ClusterMgrRestClient clusterMgr() {
         return ClusterMgrClient.createClient(ComponentApiConnectionConfig.newBuilder()
-                .setHostAndPort(clusterMgrHost, clusterMgrPort)
+                .setHostAndPort(clusterMgrHost, clusterMgrPort, clusterMgrRoute)
                 .build());
     }
 

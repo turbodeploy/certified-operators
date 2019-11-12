@@ -4,13 +4,8 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryUsage;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
 
 import org.junit.Assert;
-import org.junit.Test;
-
-import reactor.core.publisher.Flux;
 
 /**
  * Tests for the Memory Monitor

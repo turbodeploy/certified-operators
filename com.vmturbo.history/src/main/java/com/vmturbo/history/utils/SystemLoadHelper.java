@@ -1,5 +1,7 @@
 package com.vmturbo.history.utils;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 import java.sql.Timestamp;
 import java.text.ParseException;
 import java.util.ArrayList;
@@ -25,14 +27,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.stats.live.SystemLoadReader;
 import com.vmturbo.history.stats.writers.SystemLoadWriter;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-
-import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * The class SystemLoadHelper implements some data structures and methods to keep information
@@ -47,14 +48,12 @@ public class SystemLoadHelper {
 
     private final Object curSystemLoadLock = new Object();
 
-    private Map<String, Pair<Double, Date>> previousSystemLoadInDB = null;
+    private final SetOnce<Map<String, Pair<Double, Date>>> dbSystemLoadCache = new SetOnce<>();
 
     public SystemLoadHelper(SystemLoadReader systemLoadReader, SystemLoadWriter systemLoadWriter) {
         systemLoadReader.setSystemLoadUtils(this);
         setSystemLoadReader(systemLoadReader);
         setSystemLoadWriter(systemLoadWriter);
-        previousSystemLoadInDB = systemLoadReader.initSystemLoad();
-
     }
 
     public void setSystemLoadReader(SystemLoadReader systemLoadReader) { this.systemLoadReader = systemLoadReader;}
@@ -196,6 +195,7 @@ public class SystemLoadHelper {
         Double previousLoad = null;
         Date currentDate = null;
         Date previousDate = null;
+        Map<String, Pair<Double, Date>> cachedSystemLoad = dbSystemLoadCache.ensureSet(() -> systemLoadReader.initSystemLoad());
         try {
             currentLoad = calcSystemLoad(sliceUsed, sliceCapacities);
 
@@ -207,22 +207,22 @@ public class SystemLoadHelper {
 
             currentDate = new Date(snapshotTime);
 
-            if (previousSystemLoadInDB.containsKey(slice)) {
-                previousLoad = previousSystemLoadInDB.get(slice).first;
-                previousDate = previousSystemLoadInDB.get(slice).second;
+            if (cachedSystemLoad.containsKey(slice)) {
+                previousLoad = cachedSystemLoad.get(slice).first;
+                previousDate = cachedSystemLoad.get(slice).second;
             }
 
             shouldWriteToDb = true;
 
             if (currentDate != null && previousDate != null && DateUtils.isSameDay(currentDate, previousDate)) {
                 if (previousLoad < currentLoad) {
-                    previousSystemLoadInDB.put(slice, new Pair<>(currentLoad, currentDate));
+                    cachedSystemLoad.put(slice, new Pair<>(currentLoad, currentDate));
                     deleteSystemLoadFromDb(slice, snapshotTime);
                 } else {
                     shouldWriteToDb = false;
                 }
             } else {
-                previousSystemLoadInDB.put(slice, new Pair<>(currentLoad, currentDate));
+                cachedSystemLoad.put(slice, new Pair<>(currentLoad, currentDate));
             }
         }
         catch (Exception e) {

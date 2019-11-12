@@ -23,20 +23,20 @@ public class ArangoDatabaseDriverBuilder implements GraphDatabaseDriverBuilder {
     /**
      * The single underlying ArangoDB connection, shared between all {@link GraphDatabaseDriver}s.
      */
-    private ArangoDB arangoDB;
+    private ArangoDatabaseFactory arangoFactory;
 
     public ArangoDatabaseDriverBuilder(@Nonnull final ArangoDatabaseFactory arangoFactory) {
-        this.arangoDB = arangoFactory.getArangoDriver();
+        this.arangoFactory = arangoFactory;
     }
 
     @Override
     public GraphDatabaseDriver build(final String database) {
-        return new ArangoGraphDatabaseDriver(arangoDB, database);
+        return new ArangoGraphDatabaseDriver(arangoFactory.getArangoDriver(), database);
     }
 
     @Override
     public Set<String> listDatabases() {
-        return arangoDB.getAccessibleDatabases().stream()
+        return arangoFactory.getArangoDriver().getAccessibleDatabases().stream()
             .filter(name -> !name.equals(SYSTEM_DATABASE_NAME))
             .collect(Collectors.toSet());
     }

@@ -46,7 +46,7 @@ public class ReportingDbConfig extends SQLDatabaseConfig {
     @Bean
     public DataSource reportingDatasource() {
         final MariaDbDataSource dataSource = new MariaDbDataSource();
-        final DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, authPort,
+        final DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, authPort, authRoute,
                 authRetryDelaySecs);
         try {
             dataSource.setUrl(getSQLConfigObject().getDbUrl() + '/' + vmtDbSchema);

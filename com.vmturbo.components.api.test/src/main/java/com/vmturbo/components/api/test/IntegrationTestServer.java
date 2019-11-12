@@ -112,7 +112,7 @@ public class IntegrationTestServer implements AutoCloseable {
     }
 
     public WebsocketConnectionConfig connectionConfig() throws URISyntaxException {
-        return WebsocketConnectionConfig.newBuilder("localhost", serverPort).build();
+        return WebsocketConnectionConfig.newBuilder("localhost", serverPort, "").build();
     }
 
     public AnnotationConfigWebApplicationContext getApplicationContext() {

@@ -14,7 +14,7 @@ import org.springframework.web.client.ResourceAccessException;
 public class DBPasswordUtilTest {
 
     private final int port = 12345;
-    private DBPasswordUtil passwordUtil = new DBPasswordUtil("auth", port, 1);
+    private DBPasswordUtil passwordUtil = new DBPasswordUtil("auth", port, "", 1);
     private final String rootUri = "http://auth:" + port + DBPasswordUtil.SECURESTORAGE_PATH;
     private MockRestServiceServer mockServer =
         MockRestServiceServer.createServer(passwordUtil.getRestTemplate());

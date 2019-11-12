@@ -68,7 +68,7 @@ public class ServiceConfiguration {
         DockerPort dockerPort = clusterManagerContainer.port(ComponentUtils.GLOBAL_HTTP_PORT);
         final ClusterMgrRestClient clusterMgrClient = ClusterMgrClient.createClient(
                 ComponentApiConnectionConfig.newBuilder()
-                        .setHostAndPort(dockerPort.getIp(), dockerPort.getExternalPort())
+                        .setHostAndPort(dockerPort.getIp(), dockerPort.getExternalPort(), "")
                         .build());
 
         apply(clusterMgrClient);

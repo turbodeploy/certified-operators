@@ -61,6 +61,11 @@
 
         <!-- Other Dependencies -->
         <dependency>
+            <groupId>org.jooq</groupId>
+            <artifactId>jooq</artifactId>
+            <version>${jooq.version}</version>
+        </dependency>
+        <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
         </dependency>
@@ -133,7 +138,6 @@
         <dependency>
             <groupId>org.springframework.retry</groupId>
             <artifactId>spring-retry</artifactId>
-            <version>1.2.0.RELEASE</version>
         </dependency>
         <dependency>
             <groupId>org.flywaydb</groupId>

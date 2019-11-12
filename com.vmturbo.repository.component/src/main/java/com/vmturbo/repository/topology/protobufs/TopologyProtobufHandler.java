@@ -1,20 +1,14 @@
 package com.vmturbo.repository.topology.protobufs;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.arangodb.ArangoCollection;
-import com.arangodb.ArangoDB;
 import com.arangodb.ArangoDBException;
 import com.arangodb.ArangoDatabase;
 import com.arangodb.entity.BaseDocument;
-import com.arangodb.model.PersistentIndexOptions;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 
@@ -28,7 +22,7 @@ public abstract class TopologyProtobufHandler {
 
     protected static final Logger logger = LogManager.getLogger();
     protected final long topologyId;
-    private final ArangoDB arangoDB;
+    private final ArangoDatabaseFactory arangoFactory;
     protected final ArangoDatabase database;
     protected final ArangoCollection topologyCollection;
     protected int sequenceNumber = 0;
@@ -43,7 +37,7 @@ public abstract class TopologyProtobufHandler {
      */
     protected TopologyProtobufHandler(ArangoDatabaseFactory arangoDatabaseFactory, long topologyId) {
         this.topologyId = topologyId;
-        arangoDB = arangoDatabaseFactory.getArangoDriver();
+        this.arangoFactory = arangoDatabaseFactory;
         database = database();
         topologyCollection = collection(getTopologyCollectionName(topologyId));
     }
@@ -69,11 +63,11 @@ public abstract class TopologyProtobufHandler {
      * @return the raw topologies database
      */
     private synchronized ArangoDatabase database() {
-        if (!arangoDB.getDatabases().contains(RAW_TOPOLOGIES_DATABASE_NAME)) {
+        if (!arangoFactory.getArangoDriver().getDatabases().contains(RAW_TOPOLOGIES_DATABASE_NAME)) {
             logger.info("Creating database {}", RAW_TOPOLOGIES_DATABASE_NAME);
-            arangoDB.createDatabase(RAW_TOPOLOGIES_DATABASE_NAME);
+            arangoFactory.getArangoDriver().createDatabase(RAW_TOPOLOGIES_DATABASE_NAME);
         }
-        return arangoDB.db(RAW_TOPOLOGIES_DATABASE_NAME);
+        return arangoFactory.getArangoDriver().db(RAW_TOPOLOGIES_DATABASE_NAME);
     }
 
     /**

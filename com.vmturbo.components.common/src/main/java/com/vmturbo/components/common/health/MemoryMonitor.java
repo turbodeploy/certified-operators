@@ -82,7 +82,7 @@ public class MemoryMonitor extends SimpleHealthStatusProvider {
             // find the actual old gen mem pool name in this VM, in case it's not using the G1
             // collector.
             for (String memPoolName : gcBean.getMemoryPoolNames()) {
-                if (memPoolName.endsWith("Old Gen")) {
+                if (memPoolName.endsWith("Old Gen") || memPoolName.endsWith("Tenured Gen")) {
                     log.info("Setting old gen mem pool name to {}", memPoolName);
                     oldGenPoolName = memPoolName;
                     oldGenPoolFound = true;

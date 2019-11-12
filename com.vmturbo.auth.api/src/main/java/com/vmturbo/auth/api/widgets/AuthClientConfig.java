@@ -21,6 +21,9 @@ public class AuthClientConfig {
     @Value("${authHost}")
     private String authHost;
 
+    @Value("${authRoute:}")
+    private String authRoute;
+
     @Value("${serverHttpPort}")
     private Integer authPort;
 
@@ -40,6 +43,11 @@ public class AuthClientConfig {
     @Nonnull
     public String getAuthHost() {
         return authHost;
+    }
+
+    @Nonnull
+    public String getAuthRoute() {
+        return authRoute;
     }
 
     @Nonnull

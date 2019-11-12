@@ -1,20 +1,20 @@
  package com.vmturbo.components.common.diagnostics;
 
-import static com.vmturbo.components.common.diagnostics.RecursiveZipIteratorTest.ENTRY_TYPE.BINARY;
-import static com.vmturbo.components.common.diagnostics.RecursiveZipIteratorTest.ENTRY_TYPE.DIR;
-import static com.vmturbo.components.common.diagnostics.RecursiveZipIteratorTest.ENTRY_TYPE.TEXT;
+ import static com.vmturbo.components.common.diagnostics.RecursiveZipIteratorTest.ENTRY_TYPE.BINARY;
+ import static com.vmturbo.components.common.diagnostics.RecursiveZipIteratorTest.ENTRY_TYPE.DIR;
+ import static com.vmturbo.components.common.diagnostics.RecursiveZipIteratorTest.ENTRY_TYPE.TEXT;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+ import java.io.IOException;
+ import java.util.Arrays;
+ import java.util.stream.Collectors;
+ import java.util.stream.Stream;
 
-import org.junit.Assert;
-import org.junit.Test;
+ import com.google.common.base.Charsets;
 
-import com.google.common.base.Charsets;
+ import org.junit.Assert;
+ import org.junit.Test;
 
-import com.vmturbo.components.common.diagnostics.RecursiveZipIterator.WrappedZipEntry;
+ import com.vmturbo.components.common.diagnostics.RecursiveZipIterator.WrappedZipEntry;
 
 public class RecursiveZipIteratorTest extends Assert {
     enum ENTRY_TYPE {TEXT, BINARY, DIR}

@@ -300,12 +300,11 @@ public class  HistorydbIO extends BasedbIO {
     }
 
     @Override
-    public void init(boolean clearOldDb, Double version, String dbName,
-                     String... additionalLocations) throws VmtDbException {
+    public void init(boolean clearOldDb, Double version, String dbName, Optional<String> migrationLocation) throws VmtDbException {
         // increase the DB timeout for the DB migration process
         int prevTimeoutSecs = getQueryTimeoutSeconds();
         setQueryTimeoutSeconds(migrationTimeout_sec);
-        super.init(clearOldDb, version, dbName, additionalLocations);
+        super.init(clearOldDb, version, dbName, migrationLocation);
         // reset the DB timeout to the typical value
         setQueryTimeoutSeconds(prevTimeoutSecs);
     }

@@ -25,7 +25,6 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
 import javaslang.control.Either;
 
-import com.vmturbo.repository.ComponentStartUpManager;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 import com.vmturbo.repository.service.GraphDBService;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
@@ -46,9 +45,6 @@ public class GraphServiceEntityControllerTest {
 
     @Autowired
     private ObjectMapper objectMapper;
-
-    @Autowired
-    private ComponentStartUpManager componentStartUpManager;
 
     @Autowired
     private GraphDBService graphDBService;

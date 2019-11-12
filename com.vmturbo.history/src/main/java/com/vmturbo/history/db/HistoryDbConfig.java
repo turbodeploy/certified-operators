@@ -18,13 +18,16 @@ public class HistoryDbConfig {
 
 
     @Value("${authHost}")
-    public String authHost;
+    private String authHost;
+
+    @Value("${authRoute:}")
+    private String authRoute;
 
     @Value("${serverHttpPort}")
-    public int authPort;
+    private int authPort;
 
     @Value("${authRetryDelaySecs}")
-    public int authRetryDelaySecs;
+    private int authRetryDelaySecs;
 
     @Autowired
     private SQLDatabaseConfig databaseConfig;
@@ -39,7 +42,7 @@ public class HistoryDbConfig {
 
     @Bean
     public DBPasswordUtil dbPasswordUtil() {
-        return new DBPasswordUtil(authHost, authPort, authRetryDelaySecs);
+        return new DBPasswordUtil(authHost, authPort, authRoute, authRetryDelaySecs);
     }
 
 

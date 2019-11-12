@@ -13,6 +13,7 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 
 import javax.annotation.Nonnull;
@@ -1338,12 +1339,14 @@ public abstract class BasedbIO {
      *
      * @param clearOldDb should the old db be cleared
      * @param version what version of schema is "current" - i.e. what should we
-     * @throws SQLException if there is an SQL exception
-     * @throws VmtDbException
+     * @param dbName The name of the database (e.g. "vmtdb".
+     * @param migrationLocationOverride If set, overrides the location in the classpath we scan
+     *                                  for flyway migrations.
+     * @throws VmtDbException If there is a database error.
      */
     @VisibleForTesting
     public void init(boolean clearOldDb, Double version, String dbName,
-                     String... additionalLocations) throws VmtDbException {
+                     Optional<String> migrationLocationOverride) throws VmtDbException {
         // Attempt to retrieve root connection:
         Connection rootConn = null;
         try {
@@ -1400,7 +1403,7 @@ public abstract class BasedbIO {
 
         // Initialize the tables at the latest schema:
         logger.info("Initialize tables...\n");
-        SchemaUtil.initDb(version, clearOldDb, additionalLocations);
+        SchemaUtil.initDb(version, clearOldDb, migrationLocationOverride);
     }
 
     /**

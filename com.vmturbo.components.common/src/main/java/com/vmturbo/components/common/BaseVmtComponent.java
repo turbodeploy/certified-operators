@@ -24,7 +24,8 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.SortedMap;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.zip.ZipOutputStream;
@@ -32,29 +33,21 @@ import java.util.zip.ZipOutputStream;
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
-import javax.annotation.concurrent.GuardedBy;
 import javax.servlet.Servlet;
 import javax.servlet.ServletContext;
-import javax.servlet.ServletRegistration;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
 import io.grpc.BindableService;
-import io.grpc.Server;
 import io.grpc.ServerInterceptor;
-import io.grpc.ServerInterceptors;
-import io.grpc.netty.NettyServerBuilder;
-import io.opentracing.contrib.grpc.ServerTracingInterceptor;
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.exporter.MetricsServlet;
 import io.prometheus.client.hotspot.DefaultExports;
 
-import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
-
-import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.SystemUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.jetty.servlet.ServletContextHandler;
@@ -62,7 +55,6 @@ import org.eclipse.jetty.servlet.ServletHolder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationListener;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.event.ContextRefreshedEvent;
@@ -80,7 +72,6 @@ import com.vmturbo.clustermgr.api.ClusterMgrClient;
 import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
-import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.common.config.ConfigMapPropertiesReader;
 import com.vmturbo.components.common.diagnostics.DiagnosticService;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
@@ -108,21 +99,6 @@ import com.vmturbo.proactivesupport.DataMetricGauge;
 @Import({BaseVmtComponentConfig.class})
 public abstract class BaseVmtComponent implements IVmtComponent,
         ApplicationListener<ContextRefreshedEvent> {
-
-    /**
-     * The number of seconds to wait for gRPC server to shutdown
-     * during the shutdown procedure for the component.
-     */
-    private static final int GRPC_SHUTDOWN_WAIT_S = 10;
-
-    /**
-     * The minimum acceptable server-side keepalive rate.
-     *
-     * <p>In gRPC, the server only accepts keepalives every 5 minutes by default.
-     * We want to set it a little lower. The server will reject keepalives coming
-     * in at a greater rate.
-     */
-    private static final int GRPC_MIN_KEEPALIVE_TIME_MIN = 1;
 
     /**
      * The environment key for the "type" (or category) for the current component.
@@ -165,6 +141,10 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      */
     public static final String ENV_CLUSTERMGR_PORT = "clustermgr_port";
     /**
+     * The environment key for the route to contact for the ClusterMgr API.
+     */
+    public static final String ENV_CLUSTERMGR_ROUTE = "clustermgr_route";
+    /**
      * The environment key for the value to delay when looping trying to contact
      * ClusterMgr.
      */
@@ -183,7 +163,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
 
     private static final Logger logger = LogManager.getLogger();
 
-    private static final String DEFAULT_SERVER_HTTP_PORT = "8080";
+    private static final int DEFAULT_SERVER_HTTP_PORT = 8080;
     /**
      * The config source name for the properties read from "properties.yaml".
      */
@@ -193,9 +173,13 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      */
     private static final String OTHER_PROPERTIES_CONFIG_SOURCE = "other-properties";
 
-    private static String componentType;
-    private static String instanceId;
-    private static String instanceIp;
+    @Value("${" + BaseVmtComponent.PROP_COMPONENT_TYPE + '}')
+    private String componentType;
+
+    @Value("${" + BaseVmtComponent.PROP_INSTANCE_ID + '}')
+    private String instanceId;
+
+    private static SetOnce<String> instanceIp = new SetOnce<>();
 
     /**
      * Indicate whether this component should contact ClusterMgr for configuration information
@@ -242,12 +226,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     @Value("${server.grpcMaxMessageBytes:4194304}")
     private int grpcMaxMessageBytes;
 
-    @GuardedBy("grpcServerLock")
-    private Server grpcServer;
 
     private static final SetOnce<org.eclipse.jetty.server.Server> JETTY_SERVER = new SetOnce<>();
-
-    private final Object grpcServerLock = new Object();
 
     @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
     @Autowired
@@ -310,6 +290,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         return componentType;
     }
 
+
     /**
      * After the Spring Environment has been constructed calculate the elapsed time.
      */
@@ -328,22 +309,6 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     @PreDestroy
     public void componentContextClosing() {
         logger.info("------------ spring context closing ----------");
-    }
-
-    /**
-     * The metrics endpoint that exposes Prometheus metrics on the pre-defined /metrics URL.
-     *
-     * @return an instance of the MetricsServlet initialized to work with the default
-     * CollectorRegistry.
-     */
-    @Bean
-    public Servlet metricsServlet() {
-        final Servlet servlet = new MetricsServlet(CollectorRegistry.defaultRegistry);
-        final ServletRegistration.Dynamic registration =
-                servletContext.addServlet("metrics-servlet", servlet);
-        registration.setLoadOnStartup(1);
-        registration.addMapping(METRICS_URL);
-        return servlet;
     }
 
     /**
@@ -405,9 +370,19 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         if (enableConsulRegistration) {
             baseVmtComponentConfig.migrationFramework().startMigrations(getMigrations(), false);
         }
-        startGrpc();
-        onStartComponent();
-        setStatus(ExecutionStatus.RUNNING);
+
+        registerGrpcServices();
+
+        // Run the "onStartComponent", and other methods that require external access, in a separate
+        // thread so that the main context // initialization thread is not blocked by any blocking operations in the "startComponent"
+        // method.
+        final ExecutorService svc = Executors.newSingleThreadExecutor();
+        svc.execute(() -> {
+            this.onStartComponent();
+            publishVersionInformation();
+            setStatus(ExecutionStatus.RUNNING);
+        });
+        svc.shutdown();
     }
 
     /**
@@ -419,7 +394,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         logger.info("Deregistering service: {}", instanceId);
         consulHealthcheckRegistration.deregisterService();
         onStopComponent();
-        stopGrpc();
+        ComponentGrpcServer.get().stop();
         JETTY_SERVER.getValue().ifPresent(server -> {
             try {
                 server.stop();
@@ -506,9 +481,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     // the component lifecycle. BaseVmtComponent should NOT have any
     // code here. These methods are effectively abstract, but made non-abstract
     // for convenience.
-    protected void onStartComponent() {
-        publishVersionInformation();
-    }
+    protected void onStartComponent() {}
 
     protected void onStopComponent() {}
 
@@ -582,73 +555,11 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     // END: Methods to allow component implementations to hook into
     // the component lifecycle.
 
-    private void startGrpc() {
-        synchronized (grpcServerLock) {
-            final List<BindableService> services = getGrpcServices();
-            if (!services.isEmpty()) {
-                final NettyServerBuilder serverBuilder = NettyServerBuilder.forPort(grpcPort)
-                        // Allow keepalives even when there are no existing calls, because we want
-                        // to send intermittent keepalives to keep the http2 connections open.
-                        .permitKeepAliveWithoutCalls(true)
-                        .permitKeepAliveTime(GRPC_MIN_KEEPALIVE_TIME_MIN, TimeUnit.MINUTES)
-                        .maxInboundMessageSize(grpcMaxMessageBytes);
-                final MonitoringServerInterceptor monitoringInterceptor =
-                    MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());
-                final ServerTracingInterceptor tracingInterceptor =
-                    new ServerTracingInterceptor(Tracing.tracer());
-                final GrpcCatchExceptionInterceptor catchExceptionInterceptor =
-                        new GrpcCatchExceptionInterceptor();
-
-                // add a log level configuration service that will be available if the
-                // component decides to build a grpc server. (if not, the REST endpoint for it will
-                // still be available).
-                final List<BindableService> allServices = Lists.newArrayList(services);
-                allServices.add(baseVmtComponentConfig.logConfigurationService());
-                allServices.add(baseVmtComponentConfig.tracingConfigurationRpcService());
-
-                final List<ServerInterceptor> serverInterceptors = Lists.newArrayList(getServerInterceptors());
-                serverInterceptors.add(monitoringInterceptor);
-                // Add the tracing interceptor last, so that it gets called first (Matthew 20:16 :P),
-                // and the other interceptors get traced too.
-                serverInterceptors.add(tracingInterceptor);
-                serverInterceptors.add(catchExceptionInterceptor);
-
-                allServices.forEach(service -> serverBuilder.addService(
-                    ServerInterceptors.intercept(service, serverInterceptors)));
-
-                try {
-                    grpcServer = serverBuilder.build();
-                    grpcServer.start();
-                    logger.info("Initialized gRPC server on port {}.", grpcPort);
-                } catch (IOException e) {
-                    logger.error("Failed to start gRPC server. gRPC methods will not be available!", e);
-                    stopGrpc();
-                }
-            } else {
-                logger.info("Not initializing gRPC server for {}", getComponentName());
-            }
-        }
-    }
-
-    private void stopGrpc() {
-        synchronized (grpcServerLock) {
-            if (grpcServer != null) {
-                grpcServer.shutdownNow();
-                try {
-                    if (grpcServer.awaitTermination(GRPC_SHUTDOWN_WAIT_S, TimeUnit.SECONDS)) {
-                        logger.info("gRPC server successfully stopped.");
-                    } else {
-                        logger.error("gRPC server failed to stop after {} seconds!",
-                                GRPC_SHUTDOWN_WAIT_S);
-                    }
-                } catch (InterruptedException e) {
-                    logger.error("Interrupted while waiting for gRPC server to stop. " +
-                                    "gRPC server is: {}",
-                            grpcServer.isTerminated() ? "stopped" : "running");
-                }
-                grpcServer = null;
-            }
-        }
+    private void registerGrpcServices() {
+        final List<BindableService> services = Lists.newArrayList(getGrpcServices());
+        services.add(baseVmtComponentConfig.logConfigurationService());
+        services.add(baseVmtComponentConfig.tracingConfigurationRpcService());
+        ComponentGrpcServer.get().addServices(services, getServerInterceptors());
     }
 
     @Override
@@ -678,6 +589,18 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         }
     }
 
+    private static String getInitializedInstanceIp() {
+        try {
+            final String ip = EnvironmentUtils.getOptionalEnvProperty(PROP_INSTANCE_IP)
+                .orElse(InetAddress.getLocalHost().getHostAddress());
+            return instanceIp.ensureSet(() -> ip);
+        } catch (UnknownHostException e) {
+            logger.error("Cannot fetch localHost().", e);
+            System.exit(1);
+            throw new IllegalStateException("Cannot fetch localhost.", e);
+        }
+    }
+
     /**
      * Initialize a Spring context configured for a Web Application. Register the given
      * Configuration class in the context, load the external configuration properties as
@@ -695,10 +618,12 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     protected static ConfigurableWebApplicationContext attachSpringContext(
             @Nonnull ServletContextHandler contextConfigurer,
             @Nonnull Class<?> configurationClass) throws ContextConfigurationException {
-        logger.info("Creating application context for: componentType {}; instanceId {}; instanceIp {};",
-            componentType, instanceId, instanceIp);
         final AnnotationConfigWebApplicationContext applicationContext =
                 new AnnotationConfigWebApplicationContext();
+        logger.info("Creating application context for: componentType {}; instanceId {}; instanceIp {};",
+            EnvironmentUtils.requireEnvProperty(PROP_COMPONENT_TYPE),
+            EnvironmentUtils.requireEnvProperty(PROP_INSTANCE_ID),
+            getInitializedInstanceIp());
         addConfigurationPropertySources(applicationContext);
 
         // Add the main @Configuration class to the context and add servlet dispatcher and holder
@@ -723,11 +648,12 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      */
     protected static void addConfigurationPropertySources(
         @Nonnull final AnnotationConfigWebApplicationContext applicationContext)
-        throws ContextConfigurationException {
+            throws ContextConfigurationException {
         // Fetch external configuration properties from  to add to context
         String propertiesYamlFilePath = EnvironmentUtils
             .getOptionalEnvProperty(PROP_PROPERTIES_YAML_PATH)
             .orElse(DEFAULT_PROPERTIES_YAML_FILE_PATH);
+        final String componentType = applicationContext.getEnvironment().getRequiredProperty(PROP_COMPONENT_TYPE);
         final PropertySource<?> mergedPropertyConfiguration =
             fetchConfigurationProperties(componentType, propertiesYamlFilePath);
         applicationContext.getEnvironment().getPropertySources()
@@ -854,48 +780,41 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                 configurationClass));
     }
 
-    /**
-     * Starts web server with Spring context, initialized from the specified configuration class.
-     *
-     * @param contextConfigurer configuration callback to perform some specific
-     *         configuration on the servlet context
-     * @return Spring context, created as the result of webserver startup.
-     * or loading configuration properties
-     */
-    @Nonnull
-    protected static ConfigurableWebApplicationContext startContext(
-            @Nonnull ContextConfigurer contextConfigurer) {
-        // fetch the component information from the environment
-        componentType = EnvironmentUtils.requireEnvProperty(PROP_COMPONENT_TYPE);
-        instanceId = EnvironmentUtils.requireEnvProperty(PROP_INSTANCE_ID);
-        try {
-            instanceIp = EnvironmentUtils.getOptionalEnvProperty(PROP_INSTANCE_IP)
-                .orElse(InetAddress.getLocalHost().getHostAddress());
-        } catch (UnknownHostException e) {
-            logger.error("Cannot fetch localHost().", e);
-            System.exit(1);
-        }
+    protected static void addMetricsServlet(@Nonnull final ServletContextHandler contextServer) {
+        final Servlet servlet = new MetricsServlet(CollectorRegistry.defaultRegistry);
+        final ServletHolder servletholder = new ServletHolder(servlet);
+        contextServer.addServlet(servletholder, METRICS_URL);
+    }
 
+    @Nonnull
+    protected static ConfigurableWebApplicationContext startServer(
+            @Nonnull ContextConfigurer contextConfigurer) {
         logger.info("Starting web server with spring context");
-        final String serverPort = EnvironmentUtils.getOptionalEnvProperty(PROP_serverHttpPort)
+        final int serverPort = EnvironmentUtils.parseOptionalIntegerFromEnv(PROP_serverHttpPort)
             .orElse(DEFAULT_SERVER_HTTP_PORT);
         System.setProperty("org.jooq.no-logo", "true");
 
-        org.eclipse.jetty.server.Server server =
-                new org.eclipse.jetty.server.Server(Integer.parseInt(serverPort));
-        JETTY_SERVER.trySetValue(server);
+        // This shouldn't be null, because the only way ensureSet returns null is if
+        // the inner supplier returns null.
+        org.eclipse.jetty.server.Server server = JETTY_SERVER.ensureSet(() ->
+            new org.eclipse.jetty.server.Server(serverPort));
 
         final ServletContextHandler contextServer =
-                new ServletContextHandler(ServletContextHandler.SESSIONS);
+            new ServletContextHandler(ServletContextHandler.SESSIONS);
         final ConfigurableWebApplicationContext context;
         try {
             server.setHandler(contextServer);
             context = contextConfigurer.configure(contextServer);
+            addMetricsServlet(contextServer);
             server.start();
             if (!context.isActive()) {
                 logger.error("Spring context failed to start. Shutting down.");
                 System.exit(1);
             }
+
+            // The starting of the component should add the gRPC services defined in the spring
+            // context to the gRPC server.
+            ComponentGrpcServer.get().start(context.getEnvironment());
             return context;
         } catch (Exception e) {
             logger.error("Web server failed to start. Shutting down.", e);
@@ -906,18 +825,27 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     }
 
     /**
-     * Create a handle to the ClusterMgr component REST API.
+     * Starts web server with Spring context, initialized from the specified configuration class.
      *
-     * @return a new Client for the ClusterMgr REST API
+     * @param contextConfigurer configuration callback to perform some specific
+     *         configuration on the servlet context
+     * @return Spring context, created as the result of webserver startup.
      */
+    @Nonnull
+    protected static ConfigurableWebApplicationContext startContext(
+            @Nonnull ContextConfigurer contextConfigurer) {
+        return startServer(contextConfigurer);
+    }
+
     public static ClusterMgrRestClient getClusterMgrClient() {
-        final int clusterMgrPort = EnvironmentUtils.parseIntegerFromEnv("clustermgr_port");
-        final String clusterMgrHost = EnvironmentUtils.requireEnvProperty("clustermgr_host");
+        final String clusterMgrHost = EnvironmentUtils.requireEnvProperty(ENV_CLUSTERMGR_HOST);
+        final int clusterMgrPort = EnvironmentUtils.parseIntegerFromEnv(ENV_CLUSTERMGR_PORT);
+        final String clusterMgrRoute = EnvironmentUtils.getOptionalEnvProperty(ENV_CLUSTERMGR_ROUTE).orElse("");
 
         logger.info("clustermgr_host: {}, clustermgr_port: {}", clusterMgrHost, clusterMgrPort);
         return ClusterMgrClient.createClient(
                 ComponentApiConnectionConfig.newBuilder()
-                        .setHostAndPort(clusterMgrHost, clusterMgrPort)
+                        .setHostAndPort(clusterMgrHost, clusterMgrPort, clusterMgrRoute)
                         .build());
     }
 
@@ -1019,11 +947,11 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                 logger.error("Could not get Specification-Version for component class {}", getClass());
             }
             // persist the component IP address - TODO - remove this call completely; get IP from consul
-            if (StringUtils.isNotBlank(instanceId) && StringUtils.isNotBlank(instanceIp)) {
+            if (StringUtils.isNotBlank(instanceId) && StringUtils.isNotBlank(getInitializedInstanceIp())) {
                 for (int i = 1; true; i++) {
                     try {
                         clusterMgrClient.setComponentInstanceProperty(componentType, instanceId,
-                            PROP_INSTANCE_IP, instanceIp);
+                            PROP_INSTANCE_IP, getInitializedInstanceIp());
                         return;
                     } catch (ResourceAccessException e) {
                         logger.warn("Try #{} connecting to clustermgr failed; waiting {} seconds...",
@@ -1072,6 +1000,6 @@ public abstract class BaseVmtComponent implements IVmtComponent,
          *         and contexts
          */
         ConfigurableWebApplicationContext configure(@Nonnull ServletContextHandler servletContext)
-                throws ContextConfigurationException;
+            throws ContextConfigurationException, IOException;
     }
 }

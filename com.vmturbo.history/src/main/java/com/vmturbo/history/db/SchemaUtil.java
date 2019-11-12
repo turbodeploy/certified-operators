@@ -4,12 +4,17 @@ import static org.jooq.impl.DSL.using;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.sql.DataSource;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 
 import org.apache.log4j.Logger;
 import org.flywaydb.core.Flyway;
@@ -17,9 +22,6 @@ import org.flywaydb.core.api.MigrationVersion;
 import org.jooq.SQLDialect;
 import org.jooq.exception.DataAccessException;
 import org.mariadb.jdbc.MariaDbDataSource;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 
 public class SchemaUtil {
     protected static final Logger logger = Logger.getLogger("com.vmturbo.history.db");
@@ -58,14 +60,20 @@ public class SchemaUtil {
 
     /**
      * Initializes the DB to a given version.
-     * @param version
+     * @param version The version to use.
+     * @param clean Whether or not to clean the database first (drops all tables and data).
+     * @param migrationLocationOverride If set, contains a specific classpath location to look for
+     *                                  migration files.
+     * @return The number of successfully applied migrations.
      */
-    public static int initDb(Double version, boolean clean, String... additionallLocations) {
+    public static int initDb(@Nullable final Double version,
+                             final boolean clean,
+                             final Optional<String> migrationLocationOverride) {
         logger.info("Initializing vmtdb"
             + ((version != null) ? " at version " + version : "")
             + "...");
 
-        Flyway fway = flyway(additionallLocations);
+        Flyway fway = flyway(migrationLocationOverride);
         if (clean)
             fway.clean();
         if (version != null) {
@@ -89,15 +97,16 @@ public class SchemaUtil {
     /**
      * Return a new instance of the migration utility Flyway.
      *
-     * @param addlLocations - Migration locations in the classpath
-     * @return
+     * @param migrationLocationOverride - Migration locations in the classpath
+     * @return The {@link Flyway} object.
      */
-    private static Flyway flyway(String... addlLocations) {
+    private static Flyway flyway(@Nonnull final Optional<String> migrationLocationOverride) {
         Flyway fway = new Flyway();
         fway.setDataSource(DBConnectionPool.instance.getInternalPool());
 
-        List<String> locations = locations();
-        locations.addAll(Arrays.asList(addlLocations));
+        List<String> locations = migrationLocationOverride
+            .map(Collections::singletonList)
+            .orElseGet(SchemaUtil::locations);
 
         fway.setLocations(locations.toArray(new String[]{}));
         return fway;
@@ -119,9 +128,10 @@ public class SchemaUtil {
 
     /**
      * Clears the DB
+     * @param locationsOverride If set, overrides the location in the classpath to look for migrations.
      */
-    public static void clearDb() {
-        Flyway flyAway = flyway();
+    public static void clearDb(Optional<String> locationsOverride) {
+        Flyway flyAway = flyway(locationsOverride);
         flyAway.clean();
     }
 

@@ -115,6 +115,12 @@ public class ServiceConfig {
     @Value("${componentType:api}")
     private String apiComponentType;
 
+    @Value("${com.vmturbo.kvdir:/home/turbonomic/data/kv}")
+    private String keyDir;
+
+    @Value("${identityGeneratorPrefix}")
+    private long identityGeneratorPrefix;
+
     /**
      * We allow autowiring between different configuration objects, but not for a bean.
      */
@@ -181,6 +187,7 @@ public class ServiceConfig {
     public AuthenticationService authenticationService() {
         return new AuthenticationService(authConfig.getAuthHost(),
                 authConfig.getAuthPort(),
+                authConfig.getAuthRoute(),
                 securityConfig.verifier(),
                 communicationConfig.serviceRestTemplate(),
                 targetStore(),
@@ -540,7 +547,9 @@ public class ServiceConfig {
 
     @Bean
     public ComponentJwtStore targetStore() {
-        return new ComponentJwtStore(publicKeyStoreConfig.publicKeyStore());
+        return new ComponentJwtStore(publicKeyStoreConfig.publicKeyStore(),
+            identityGeneratorPrefix,
+            keyDir);
     }
 
     @Bean

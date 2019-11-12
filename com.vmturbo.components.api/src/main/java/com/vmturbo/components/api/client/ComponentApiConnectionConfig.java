@@ -7,6 +7,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
+import org.apache.commons.lang3.StringUtils;
+
 /**
  * Connection config implementation for component API implementations.
  */
@@ -18,6 +20,8 @@ public class ComponentApiConnectionConfig {
 
     private final int port;
 
+    private final String route;
+
     private final String userName;
 
     private final String userPassword;
@@ -28,12 +32,14 @@ public class ComponentApiConnectionConfig {
 
     protected ComponentApiConnectionConfig(@Nonnull final String host,
                                          final int port,
+                                         @Nonnull final String route,
                                          @Nullable final String userName,
                                          @Nullable final String userPassword,
                                          @Nullable final File sslKeystoreFile,
                                          @Nullable final String sslKeystorePassword) {
         this.host = host;
         this.port = port;
+        this.route = route;
         this.userName = userName;
         this.userPassword = userPassword;
         this.sslKeystoreFile = sslKeystoreFile;
@@ -47,6 +53,26 @@ public class ComponentApiConnectionConfig {
 
     public int getPort() {
         return port;
+    }
+
+    @Nonnull
+    public String getRoute() {
+        return route;
+    }
+
+    /**
+     * Get the URI to use to access the component.
+     *
+     * @return A URI that can be used for http connections to the component's Jetty server.
+     */
+    @Nonnull
+    public String getUri() {
+         String uri = "http://" + getHost() + ":" + getPort();
+         if (!StringUtils.isEmpty(getRoute())) {
+             return uri + "/" + getRoute();
+         } else {
+             return uri;
+         }
     }
 
     @Nullable
@@ -78,8 +104,16 @@ public class ComponentApiConnectionConfig {
      * to set host and port at compile-time.
      */
     public static class AddressBuilder {
-        public Builder setHostAndPort(@Nonnull final String host, final int port) {
-            return new Builder(host, port);
+
+        /**
+         * Set the host, port, and route to use to connect to the target component.
+         * @param host The hostname.
+         * @param port The port.
+         * @param route The route to use as a prefix for all URIs used to access this component.
+         * @return A {@link Builder} to finish customizing the connection config.
+         */
+        public Builder setHostAndPort(@Nonnull final String host, final int port, @Nonnull final String route) {
+            return new Builder(host, port, route);
         }
     }
 
@@ -91,15 +125,19 @@ public class ComponentApiConnectionConfig {
     protected abstract static class AbstractBuilder<T extends AbstractBuilder> {
         private final String host;
         private final int port;
+        private final String route;
 
         private String userName = null;
         private String userPassword = null;
         private File sslKeystoreFile = null;
         private String sslKeystorePassword = null;
 
-        protected AbstractBuilder(@Nonnull final String host, final int port) {
+        protected AbstractBuilder(@Nonnull final String host,
+                                  final int port,
+                                  @Nonnull final String route) {
             this.host = Objects.requireNonNull(host);
             this.port = port;
+            this.route = route;
         }
 
         public T setUserName(@Nonnull final String userName) {
@@ -131,6 +169,10 @@ public class ComponentApiConnectionConfig {
             return port;
         }
 
+        public String getRoute() {
+            return route;
+        }
+
         public String getUserName() {
             return userName;
         }
@@ -154,12 +196,12 @@ public class ComponentApiConnectionConfig {
      * Builder for the {@link ComponentApiConnectionConfig}.
      *
      * <p>Use the {@link ComponentApiConnectionConfig#newBuilder()} or
-     * {@link ComponentApiConnectionConfig#newBuilder(ComponentApiConnectionConfig)} to initialize.
+     * {@link ComponentApiConnectionConfig#newBuilder()} to initialize.
      */
     public static class Builder extends AbstractBuilder<Builder> {
 
-        private Builder(@Nonnull String host, int port) {
-            super(host, port);
+        private Builder(@Nonnull String host, int port, @Nonnull final String route) {
+            super(host, port, route);
         }
 
         @Override
@@ -168,7 +210,7 @@ public class ComponentApiConnectionConfig {
         }
 
         public ComponentApiConnectionConfig build() {
-            return new ComponentApiConnectionConfig(getHost(), getPort(), getUserName(),
+            return new ComponentApiConnectionConfig(getHost(), getPort(), getRoute(), getUserName(),
                     getUserPassword(), getSslKeystoreFile(), getSslKeystorePassword());
         }
     }

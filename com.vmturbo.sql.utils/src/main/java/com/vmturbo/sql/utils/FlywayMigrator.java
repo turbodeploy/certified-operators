@@ -1,6 +1,7 @@
 package com.vmturbo.sql.utils;
 
 import java.time.Duration;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
@@ -29,6 +30,7 @@ public class FlywayMigrator {
     public FlywayMigrator(@Nonnull final Duration maximumDatabaseWaitTime,
                           @Nonnull final Duration retryInterval,
                           @Nonnull final String dbSchemaName,
+                          @Nonnull final Optional<String> location,
                           @Nonnull final DataSource dataSource,
                           @Nonnull final FlywayCallback... callbacks) {
         this(maximumDatabaseWaitTime, retryInterval, () -> {
@@ -36,6 +38,7 @@ public class FlywayMigrator {
             flyway.setSchemas(dbSchemaName);
             flyway.setDataSource(dataSource);
             flyway.setCallbacks(callbacks);
+            location.ifPresent(flyway::setLocations);
             return flyway;
         });
     }

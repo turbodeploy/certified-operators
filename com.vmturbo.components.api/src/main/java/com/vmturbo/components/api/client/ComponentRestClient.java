@@ -36,7 +36,7 @@ public abstract class ComponentRestClient {
     protected final String restUri;
 
     protected ComponentRestClient(@Nonnull final ComponentApiConnectionConfig connectionConfig) {
-        this.restUri = "http://" + connectionConfig.getHost() + ":" + connectionConfig.getPort();
+        this.restUri = connectionConfig.getUri();
     }
 
     /**

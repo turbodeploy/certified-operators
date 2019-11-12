@@ -11,16 +11,15 @@ import java.util.ArrayList;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.beans.factory.annotation.Value;
-
 import com.google.common.collect.Lists;
 
 import io.jsonwebtoken.CompressionCodecs;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.impl.crypto.EllipticCurveProvider;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.auth.api.JWTKeyCodec;
 import com.vmturbo.auth.api.authorization.IAuthorizationVerifier;
@@ -34,15 +33,6 @@ import com.vmturbo.kvstore.IPublicKeyStore;
  * {@inheritDoc}
  */
 public class ComponentJwtStore implements IComponentJwtStore {
-
-    /**
-     * The key location property
-     */
-    private static final String VMT_PRIVATE_KEY_DIR_PARAM = "com.vmturbo.kvdir";
-    /**
-     * The default encryption key location
-     */
-    private static final String VMT_PRIVATE_KEY_DIR = "/home/turbonomic/data/kv";
     /**
      * The keystore data file name
      */
@@ -55,25 +45,34 @@ public class ComponentJwtStore implements IComponentJwtStore {
     private static final ArrayList<String> ADMIN_ROLE = Lists.newArrayList(SecurityConstant.ADMINISTRATOR);
 
     private static final Logger logger = LogManager.getLogger();
+
     /**
      * The key/value store.
      */
     @GuardedBy("storeLock")
     private final @Nonnull IPublicKeyStore keyValueStore_;
+
     /**
      * The private key.
      * It is protected by synchronization on the instance.
      */
     private PrivateKey privateKey_ = null;
-    /**
-     * The identity generator prefix
-     */
-    @Value("${identityGeneratorPrefix}")
-    private long identityGeneratorPrefix_;
 
-    public ComponentJwtStore(@Nonnull final IPublicKeyStore keyValueStore) {
+    private String keyDir;
+
+    /**
+     * Create a {@link ComponentJwtStore}.
+     *
+     * @param keyValueStore The key-value store to put public keys into.
+     * @param identityGeneratorPrefix The prefix to use for identity generation in the provided component.
+     * @param keyDir The directory to put the private key.
+     */
+    public ComponentJwtStore(@Nonnull final IPublicKeyStore keyValueStore,
+                             final long identityGeneratorPrefix,
+                             final String keyDir) {
         this.keyValueStore_ = keyValueStore;
-        IdentityGenerator.initPrefix(identityGeneratorPrefix_);
+        this.keyDir = keyDir;
+        IdentityGenerator.initPrefix(identityGeneratorPrefix);
         initPKI();
     }
 
@@ -92,8 +91,7 @@ public class ComponentJwtStore implements IComponentJwtStore {
             return privateKey_;
         }
 
-        final String location = System.getProperty(VMT_PRIVATE_KEY_DIR_PARAM, VMT_PRIVATE_KEY_DIR);
-        Path encryptionFile = Paths.get(location + "/" + VMT_PRIVATE_KEY_FILE);
+        Path encryptionFile = Paths.get(keyDir + "/" + VMT_PRIVATE_KEY_FILE);
         try {
             if (Files.exists(encryptionFile)) {
                 byte[] keyBytes = Files.readAllBytes(encryptionFile);
@@ -103,7 +101,7 @@ public class ComponentJwtStore implements IComponentJwtStore {
             }
 
             // We don't have the file or it is of the wrong length.
-            Path outputDir = Paths.get(location);
+            Path outputDir = Paths.get(keyDir);
             if (!Files.exists(outputDir)) {
                 Files.createDirectories(outputDir);
             }

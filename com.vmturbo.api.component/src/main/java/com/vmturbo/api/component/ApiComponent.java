@@ -75,6 +75,60 @@ public class ApiComponent extends BaseVmtComponent {
     }
 
     /**
+     * Add the dispatcher servlet that serves up the external API to the spring context.
+     *
+     * @param rootContext The context to add the servlet to. This will be the parent context of the
+     *                    dispatcher servlet.
+     * @param contextServer The server that the context is attached to - this is the "root" servlet.
+     *                      The dispatcher servlet and all its route mappings will be added to it.
+     * @return The {@link ServletHolder} containing the dispatcher servlet.
+     */
+    public static ServletHolder addDispatcherToContext(
+            @Nonnull final AnnotationConfigWebApplicationContext rootContext,
+            @Nonnull ServletContextHandler contextServer) {
+        final AnnotationConfigWebApplicationContext restContext =
+            new AnnotationConfigWebApplicationContext();
+        restContext.register(DispatcherControllerConfig.class);
+        restContext.register(DispatcherValidatorConfig.class);
+        restContext.setParent(rootContext);
+        final Servlet restDispatcherServlet = new DispatcherServlet(restContext);
+        ((DispatcherServlet)restDispatcherServlet).setNamespace("api dispatcher");
+        final ServletHolder restServletHolder = new ServletHolder(restDispatcherServlet);
+
+        // add a multipart config for handling license file uploads
+        // Since these are going on a memory-backed file location, we will set size
+        // restrictions to prevent using up too much memory.
+        int multipartConfigMaxFileSizeKb = 1024 * getOptionalIntEnvProperty(ENV_UPLOAD_MAX_FILE_SIZE_KB,
+            DEFAULT_UPLOAD_MAX_FILE_SIZE_KB);
+        int multipartConfigMaxRequestSizeKb = 1024 * getOptionalIntEnvProperty(ENV_UPLOAD_MAX_REQUEST_SIZE_KB,
+            DEFAULT_UPLOAD_MAX_REQUEST_SIZE_KB);
+        // file size threshold (the size at which incoming files are spooled to disk) is set to the
+        // max request size to avoid the spooling behavior. Our /tmp folder is backed by RAM anyways
+        // so it won't make a diff.
+        logger.info("Creating multipart config w/max file size {}kb and max request size {}kb",
+            multipartConfigMaxFileSizeKb, multipartConfigMaxRequestSizeKb);
+        restServletHolder.getRegistration()
+            .setMultipartConfig(new MultipartConfigElement("/tmp/uploads",
+                multipartConfigMaxFileSizeKb,
+                multipartConfigMaxRequestSizeKb,
+                multipartConfigMaxRequestSizeKb));
+
+        // Explicitly add Spring security to the following servlets: report, REST API, WebSocket messages
+        final FilterHolder filterHolder = new FilterHolder();
+        filterHolder.setFilter(new DelegatingFilterProxy());
+        filterHolder.setName("springSecurityFilterChain");
+        contextServer.addFilter(filterHolder, ServiceConfig.REPORT_CGI_PATH,
+            EnumSet.of(DispatcherType.REQUEST));
+        contextServer.addFilter(filterHolder, ApiWebsocketConfig.WEBSOCKET_URL,
+            EnumSet.of(DispatcherType.REQUEST));
+        for (String pathSpec : ExternalApiConfig.BASE_URL_MAPPINGS) {
+            contextServer.addServlet(restServletHolder, pathSpec);
+            contextServer.addFilter(filterHolder, pathSpec, EnumSet.of(DispatcherType.REQUEST));
+        }
+        return restServletHolder;
+    }
+
+    /**
      * Registers contexts to use with Spring and Web server. Internally, there is a root context,
      * which provide all the routines common to XL components. Additional child Spring context
      * is created for REST API in order to enforce authentication and authorization
@@ -82,7 +136,7 @@ public class ApiComponent extends BaseVmtComponent {
      * context.
      *
      * <p>Spring security filters are added to REST DispatcherServlet, websockets API connection and
-     * reporting CGI-BIN directory
+     * reporting CGI-BIN directory.
      *
      * @param contextServer Jetty context handler to register with
      * @return rest application context
@@ -93,57 +147,20 @@ public class ApiComponent extends BaseVmtComponent {
             @Nonnull ServletContextHandler contextServer) throws ContextConfigurationException {
         final AnnotationConfigWebApplicationContext rootContext =
                 new AnnotationConfigWebApplicationContext();
-        addConfigurationPropertySources(rootContext);
         rootContext.register(ApiComponent.class);
+        addConfigurationPropertySources(rootContext);
         final Servlet dispatcherServlet = new DispatcherServlet(rootContext);
         final ServletHolder servletHolder = new ServletHolder(dispatcherServlet);
         contextServer.addServlet(servletHolder, "/*");
 
-        final AnnotationConfigWebApplicationContext restContext =
-                new AnnotationConfigWebApplicationContext();
-        restContext.register(DispatcherControllerConfig.class);
-        restContext.register(DispatcherValidatorConfig.class);
-        restContext.setParent(rootContext);
-        final Servlet restDispatcherServlet = new DispatcherServlet(restContext);
-        final ServletHolder restServletHolder = new ServletHolder(restDispatcherServlet);
-
-        // add a multipart config for handling license file uploads
-        // Since these are going on a memory-backed file location, we will set size
-        // restrictions to prevent using up too much memory.
-        int multipartConfigMaxFileSizeKb = 1024 * getOptionalIntEnvProperty(ENV_UPLOAD_MAX_FILE_SIZE_KB,
-                                                                DEFAULT_UPLOAD_MAX_FILE_SIZE_KB);
-        int multipartConfigMaxRequestSizeKb = 1024 * getOptionalIntEnvProperty(ENV_UPLOAD_MAX_REQUEST_SIZE_KB,
-                                                            DEFAULT_UPLOAD_MAX_REQUEST_SIZE_KB);
-        // file size threshold (the size at which incoming files are spooled to disk) is set to the
-        // max request size to avoid the spooling behavior. Our /tmp folder is backed by RAM anyways
-        // so it won't make a diff.
-        logger.info("Creating multipart config w/max file size {}kb and max request size {}kb",
-                multipartConfigMaxFileSizeKb, multipartConfigMaxRequestSizeKb);
-        restServletHolder.getRegistration()
-                .setMultipartConfig(new MultipartConfigElement("/tmp/uploads",
-                                        multipartConfigMaxFileSizeKb,
-                                        multipartConfigMaxRequestSizeKb,
-                                        multipartConfigMaxRequestSizeKb));
-
-        // Explicitly add Spring security to the following servlets: report, REST API, WebSocket messages
-        final FilterHolder filterHolder = new FilterHolder();
-        filterHolder.setFilter(new DelegatingFilterProxy());
-        filterHolder.setName("springSecurityFilterChain");
-        contextServer.addFilter(filterHolder, ServiceConfig.REPORT_CGI_PATH,
-                EnumSet.of(DispatcherType.REQUEST));
-        contextServer.addFilter(filterHolder, ApiWebsocketConfig.WEBSOCKET_URL,
-                EnumSet.of(DispatcherType.REQUEST));
-        for (String pathSpec : ExternalApiConfig.BASE_URL_MAPPINGS) {
-            contextServer.addServlet(restServletHolder, pathSpec);
-            contextServer.addFilter(filterHolder, pathSpec, EnumSet.of(DispatcherType.REQUEST));
-        }
+        addDispatcherToContext(rootContext, contextServer);
 
         // Setup Spring context
         final ContextLoaderListener springListener = new ContextLoaderListener(rootContext);
         contextServer.addEventListener(springListener);
         // Publish HTTP session lifecycle events to remove destroyed sessions from SessionRgistry
         contextServer.addEventListener(new HttpSessionEventPublisher());
-        return restContext;
+        return rootContext;
     }
 
     @Override

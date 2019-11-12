@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import java.sql.Date;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import org.jooq.InsertSetMoreStep;
@@ -58,7 +59,7 @@ public class ClusterStatsReaderTest {
         HistorydbIO.mappedSchemaForTests = testDbName;
         System.out.println("Initializing DB - " + testDbName);
         HistorydbIO.setSharedInstance(historydbIO);
-        historydbIO.init(true, null, testDbName);
+        historydbIO.init(true, null, testDbName, Optional.empty());
         clusterStatsReader = new ClusterStatsReader(historydbIO);
         populateTestData();
     }

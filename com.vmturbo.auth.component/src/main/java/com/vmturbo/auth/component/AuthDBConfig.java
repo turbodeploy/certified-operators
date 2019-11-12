@@ -9,6 +9,7 @@ import javax.annotation.Nonnull;
 import javax.sql.DataSource;
 
 import org.apache.commons.codec.binary.Hex;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.flywaydb.core.Flyway;
@@ -87,6 +88,15 @@ public class AuthDBConfig {
      */
     @Value("${dbSchemaName}")
     private String dbSchemaName;
+
+    /**
+     * The subpath to use to look for Flyway migrations in the classpath.
+     * If empty, Flyway will look through all files in the classpath for migration files that
+     * match the flyway naming convention.
+     * If set, Flyway will only look in the specified folder (relative to the classpath).
+     */
+    @Value("${migrationLocation:}")
+    private String migrationLocation;
 
     /**
      * The REST config.
@@ -294,6 +304,9 @@ public class AuthDBConfig {
         Flyway migrator = new Flyway();
         migrator.setDataSource(dataSource());
         migrator.setSchemas(dbSchemaName);
+        if (!StringUtils.isEmpty(migrationLocation)) {
+            migrator.setLocations(migrationLocation);
+        }
         migrator.migrate();
         return migrator;
     }

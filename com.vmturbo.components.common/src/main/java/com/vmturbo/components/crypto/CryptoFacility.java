@@ -25,6 +25,8 @@ import com.google.common.io.BaseEncoding;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.components.common.utils.EnvironmentUtils;
+
 /**
  * The CryptoFacility is a utility class that provides encryption and secure hash services.
  */
@@ -362,7 +364,7 @@ public class CryptoFacility {
         }
 
         final String location =
-                System.getProperty(VMT_ENCRYPTION_KEY_DIR_PARAM, VMT_ENCRYPTION_KEY_DIR);
+                EnvironmentUtils.getOptionalEnvProperty(VMT_ENCRYPTION_KEY_DIR_PARAM).orElse(VMT_ENCRYPTION_KEY_DIR);
         Path encryptionFile = Paths.get(location + "/" + VMT_ENCRYPTION_KEY_FILE);
         try {
             if (Files.exists(encryptionFile)) {

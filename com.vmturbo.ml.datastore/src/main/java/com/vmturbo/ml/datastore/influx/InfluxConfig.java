@@ -58,6 +58,9 @@ public class InfluxConfig {
     @Value("${authHost}")
     private String authHost;
 
+    @Value("${authRoute:}")
+    private String authRoute;
+
     @Value("${serverHttpPort}")
     private int authPort;
 
@@ -96,7 +99,7 @@ public class InfluxConfig {
 
     @Bean
     public InfluxMetricsWriterFactory influxDBConnectionFactory() {
-        DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, authPort,
+        DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, authPort, authRoute,
             authRetryDelaySecs);
 
         return new InfluxMetricsWriterFactory.Builder()

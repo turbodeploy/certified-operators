@@ -2,6 +2,7 @@ package com.vmturbo.history.db;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Optional;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -56,7 +57,7 @@ public class PlanStatsAggregatorInfinityCapacityTest {
         HistorydbIO.mappedSchemaForTests = testDbName;
         logger.info("Initializing DB - {}", testDbName);
         HistorydbIO.setSharedInstance(historydbIO);
-        historydbIO.init(true, null, testDbName);
+        historydbIO.init(true, null, testDbName, Optional.empty());
 
         BasedbIO.setSharedInstance(historydbIO);
 

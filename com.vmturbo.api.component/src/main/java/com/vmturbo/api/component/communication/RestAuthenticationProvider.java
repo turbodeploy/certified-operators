@@ -69,6 +69,8 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
      */
     private final int authPort_;
 
+    private final String authRoute;
+
     /**
      * The REST template.
      */
@@ -84,15 +86,18 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
      *
      * @param authHost     The authentication host.
      * @param authPort     The authentication port.
+     * @param authRoute    The route prefix to use for all auth URIs.
      * @param verifier     The verifier.
      * @param restTemplate The REST endpoint.
      */
     public RestAuthenticationProvider(final @Nonnull String authHost,
                                       final int authPort,
+                                      final @Nonnull String authRoute,
                                       final @Nonnull RestTemplate restTemplate,
                                       final @Nonnull JWTAuthorizationVerifier verifier) {
         authHost_ = authHost;
         authPort_ = authPort;
+        this.authRoute = authRoute;
         restTemplate_ = restTemplate;
         verifier_ = verifier;
     }
@@ -108,7 +113,7 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
                                    .scheme("http")
                                    .host(authHost_)
                                    .port(authPort_)
-                                   .path(AUTH_PATH_PREFIX);
+                                   .path(authRoute + AUTH_PATH_PREFIX);
     }
 
     /**

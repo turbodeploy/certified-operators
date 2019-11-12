@@ -1,10 +1,12 @@
 package com.vmturbo.api.component.external.api;
 
+import java.nio.file.Paths;
 import java.util.List;
 
 import javax.servlet.ServletContext;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -37,6 +39,12 @@ import com.vmturbo.components.common.LoggingFilter;
 @Configuration
 @Import({ApiSecurityConfig.class})
 public class ExternalApiConfig extends WebMvcConfigurerAdapter {
+
+    /**
+     * The path to the UX folder in the container. Must be absolute (start from root ('/')).
+     */
+    @Value("${ux-path:/www}")
+    private String uxPath;
 
     @Autowired
     private ServletContext servletContext;
@@ -85,16 +93,22 @@ public class ExternalApiConfig extends WebMvcConfigurerAdapter {
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
 
+        // We use "Paths" to normalize the paths to the relevant directories, and then we need to
+        // add a trailing "/" for the resource handler logic.
+        final String appLocation = Paths.get(uxPath, "app").normalize().toString() + "/";
+        final String assetsLocation = Paths.get(uxPath, "assets").normalize().toString() + "/";
+        final String docLocation = Paths.get(uxPath, "doc").normalize().toString() + "/";
+
         // resources for the Turbonomic UI
         registry.addResourceHandler("/app/**")
-                .addResourceLocations("file:/www/app/");
+                .addResourceLocations("file:" + appLocation);
         // In a production environment the assets and docs are in a resource bundle, and there
         // are no requests to those paths. But in a local development environment with an
         // un-compressed UI we need to support these routes or else the UI won't work.
         registry.addResourceHandler("/assets/**")
-                .addResourceLocations("file:/www/assets/");
+                .addResourceLocations("file:" + assetsLocation);
         registry.addResourceHandler("/doc/**")
-                .addResourceLocations("file:/www/doc/");
+                .addResourceLocations("file:" + docLocation);
         registry.addResourceHandler("/vmturbo/apidoc/**")
                 .addResourceLocations("file:/swagger/");
         registry.addResourceHandler("/swagger/**")

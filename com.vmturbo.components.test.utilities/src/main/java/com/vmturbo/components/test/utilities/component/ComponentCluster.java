@@ -172,7 +172,7 @@ public class ComponentCluster {
     public ComponentApiConnectionConfig getConnectionConfig(@Nonnull final String service) {
         final DockerPort dockerPort = components.get(service).getHttpPort();
         return ComponentApiConnectionConfig.newBuilder()
-            .setHostAndPort(dockerPort.getIp(), dockerPort.getExternalPort())
+            .setHostAndPort(dockerPort.getIp(), dockerPort.getExternalPort(), "")
             .build();
     }
 

@@ -8,13 +8,13 @@ import static org.mockito.Mockito.when;
 
 import java.util.Optional;
 
+import com.google.common.collect.Lists;
+
 import org.junit.Before;
 import org.junit.Test;
 
-import com.google.common.collect.Lists;
-
-import com.vmturbo.components.common.pagination.EntityStatsPaginator.SortCommodityValueGetter;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator.PaginatedStats;
+import com.vmturbo.components.common.pagination.EntityStatsPaginator.SortCommodityValueGetter;
 
 /**
  * Tests for the {@link EntityStatsPaginator}.

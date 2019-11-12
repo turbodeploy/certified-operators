@@ -77,6 +77,8 @@ public class AuthenticationService implements IAuthenticationService {
      */
     private final int authPort_;
 
+    private final String authRoute;
+
     /**
      * The REST template.
      */
@@ -103,12 +105,14 @@ public class AuthenticationService implements IAuthenticationService {
 
     public AuthenticationService(final @Nonnull String authHost,
                                  final int authPort,
+                                 final @Nonnull String authRoute,
                                  final @Nonnull JWTAuthorizationVerifier verifier,
                                  final @Nonnull RestTemplate restTemplate,
                                  final @Nonnull IComponentJwtStore componentJwtStore,
                                  final int sessionTimeoutSeconds) {
         authHost_ = authHost;
         authPort_ = authPort;
+        this.authRoute = authRoute;
         verifier_ = verifier;
         restTemplate_ = restTemplate;
         componentJwtStore_ = componentJwtStore;
@@ -126,7 +130,7 @@ public class AuthenticationService implements IAuthenticationService {
                 .scheme("http")
                 .host(authHost_)
                 .port(authPort_)
-                .path("/users/checkAdminInit");
+                .path(authRoute + "/users/checkAdminInit");
         final String request = builder.build().toUriString();
         ResponseEntity<Boolean> result;
         try {
@@ -149,7 +153,7 @@ public class AuthenticationService implements IAuthenticationService {
                 .scheme("http")
                 .host(authHost_)
                 .port(authPort_)
-                .path("/users/initAdmin");
+                .path(authRoute + "/users/initAdmin");
         final AuthUserDTO dto = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, username, password, null,
                 null, null, ImmutableList.of(ADMINISTRATOR), null);
         try {
@@ -181,6 +185,7 @@ public class AuthenticationService implements IAuthenticationService {
         RestAuthenticationProvider authProvider = new RestAuthenticationProvider(
                 authHost_,
                 authPort_,
+                authRoute,
                 restTemplate_,
                 verifier_);
         UserApiDTO user = new UserApiDTO();
@@ -263,6 +268,7 @@ public class AuthenticationService implements IAuthenticationService {
         final RestAuthenticationProvider authProvider = new RestAuthenticationProvider(
                 authHost_,
                 authPort_,
+                authRoute,
                 restTemplate_,
                 verifier_);
         try {

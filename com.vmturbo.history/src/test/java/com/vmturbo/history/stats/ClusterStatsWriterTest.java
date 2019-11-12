@@ -4,6 +4,7 @@ import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsByDay.CL
 import static org.junit.Assert.assertEquals;
 
 import java.math.BigDecimal;
+import java.util.Optional;
 
 import org.jooq.Result;
 import org.jooq.SelectConditionStep;
@@ -48,7 +49,7 @@ public class ClusterStatsWriterTest {
         historydbIO.setSchemaForTests(testDbName);
         System.out.println("Initializing DB - " + testDbName);
         HistorydbIO.setSharedInstance(historydbIO);
-        historydbIO.init(true, null, testDbName);
+        historydbIO.init(true, null, testDbName, Optional.empty());
         clusterStatsWriter = new ClusterStatsWriter(historydbIO);
     }
 

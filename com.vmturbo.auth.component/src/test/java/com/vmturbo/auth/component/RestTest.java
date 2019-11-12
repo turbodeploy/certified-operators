@@ -124,7 +124,7 @@ public class RestTest {
     /**
      * The K/V local auth store.
      */
-    private static AuthProvider authStore = new AuthProvider(kvStore);
+    private static AuthProvider authStore = new AuthProvider(kvStore, () -> System.getProperty("com.vmturbo.kvdir"));
 
     /**
      * The verifier.
