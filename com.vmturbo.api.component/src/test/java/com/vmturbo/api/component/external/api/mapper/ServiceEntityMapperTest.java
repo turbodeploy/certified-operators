@@ -21,6 +21,7 @@ import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
@@ -45,6 +46,9 @@ public class ServiceEntityMapperTest {
     private final static String PROBE_TYPE = "probe type";
     private final static String PROBE_CATEGORY = "probe category";
     private final static long PROBE_ID = 123123123;
+
+    private final static String PROVIDER_DISPLAY_NAME = "Standard_D2";
+    private final static long PROVIDER_OID = 132L;
 
     @Before
     public void setup() {
@@ -85,6 +89,7 @@ public class ServiceEntityMapperTest {
                         .putTags(
                             tagKey,
                             TagValuesDTO.newBuilder().addValues(tagValue).build()))
+                .addProviders(createComputeTierProvider())
                 .build();
 
         final ServiceEntityApiDTO serviceEntityApiDTO =
@@ -104,8 +109,17 @@ public class ServiceEntityMapperTest {
         Assert.assertEquals(1, serviceEntityApiDTO.getTags().size());
         Assert.assertEquals(1, serviceEntityApiDTO.getTags().get(tagKey).size());
         Assert.assertEquals(tagValue, serviceEntityApiDTO.getTags().get(tagKey).get(0));
+        Assert.assertEquals(PROVIDER_DISPLAY_NAME, serviceEntityApiDTO.getTemplate().getDisplayName());
 
         checkDiscoveredBy(serviceEntityApiDTO.getDiscoveredBy());
+    }
+
+    private RelatedEntity createComputeTierProvider() {
+        return RelatedEntity.newBuilder()
+                .setEntityType(EntityType.COMPUTE_TIER_VALUE)
+                .setOid(PROVIDER_OID)
+                .setDisplayName(PROVIDER_DISPLAY_NAME)
+                .build();
     }
 
     private void checkDiscoveredBy(@Nonnull final TargetApiDTO targetApiDTO) {

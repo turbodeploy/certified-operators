@@ -430,8 +430,10 @@ message PartialEntity {
 
             optional int32 entity_type = 2;
 
-            // Note - we don't serve the display name of the related entity because it's a bit
-            // expensive to get in cases where we DON'T use the topology graph.
+            // Currently this is populated only for realtime, since we don't need this information
+            // for plan API calls
+            // TODO: when this field is populated for plans, changes in ArangoDB will be required as well
+            optional string display_name = 3;
         }
     }
 

@@ -16,9 +16,11 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 
@@ -112,6 +114,17 @@ public class ServiceEntityMapper {
             topologyEntityDTO.getTags().getTagsMap().entrySet().stream()
                 .collect(
                     Collectors.toMap(Entry::getKey, entry -> entry.getValue().getValuesList())));
+
+        // template name
+        topologyEntityDTO.getProvidersList().stream()
+                .filter(provider -> provider.hasDisplayName() &&
+                        TopologyDTOUtil.PRIMARY_TIER_VALUES.contains(provider.getEntityType()))
+                .findAny()
+                .ifPresent(provider -> {
+                    TemplateApiDTO template = new TemplateApiDTO();
+                    template.setDisplayName(provider.getDisplayName());
+                    result.setTemplate(template);
+                });
 
         return result;
     }

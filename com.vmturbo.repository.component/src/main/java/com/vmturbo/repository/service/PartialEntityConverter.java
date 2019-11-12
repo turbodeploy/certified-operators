@@ -136,7 +136,8 @@ public class PartialEntityConverter {
     private RelatedEntity.Builder relatedEntity(@Nonnull final RepoGraphEntity repoGraphEntity) {
         return RelatedEntity.newBuilder()
             .setEntityType(repoGraphEntity.getEntityType())
-            .setOid(repoGraphEntity.getOid());
+            .setOid(repoGraphEntity.getOid())
+            .setDisplayName(repoGraphEntity.getDisplayName());
     }
 
     /**

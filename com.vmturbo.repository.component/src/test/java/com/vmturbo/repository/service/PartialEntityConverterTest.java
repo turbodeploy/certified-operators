@@ -215,15 +215,18 @@ public class PartialEntityConverterTest {
         assertThat(apiEntity.getProvidersList(), contains(RelatedEntity.newBuilder()
             .setEntityType(PROVIDER.getEntityType())
             .setOid(PROVIDER.getOid())
+            .setDisplayName(PROVIDER.getDisplayName())
             .build()));
         assertThat(apiEntity.getConnectedToList(), contains(
             RelatedEntity.newBuilder()
                 .setEntityType(CONNECTED_TO.getEntityType())
                 .setOid(CONNECTED_TO.getOid())
+                .setDisplayName(CONNECTED_TO.getDisplayName())
                 .build(),
             RelatedEntity.newBuilder()
                 .setEntityType(OWNS.getEntityType())
                 .setOid(OWNS.getOid())
+                .setDisplayName(OWNS.getDisplayName())
                 .build()));
     }
 
