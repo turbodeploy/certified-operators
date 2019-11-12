@@ -114,6 +114,12 @@ public class GroupStitchingManager {
                 .stream()
                 .map(StitchingGroup::getOid)
                 .collect(Collectors.toList()));
+        // These are groups that we know about, but they are related to targets, that are not
+        // discovered yet. We simply do not touch them.
+        if (!stitchingContext.getUndiscoveredTargets().isEmpty()) {
+            groupsToDelete.removeAll(
+                    groupStore.getGroupsByTargets(stitchingContext.getUndiscoveredTargets()));
+        }
         return new StitchingResult(stitchingGroups.values(), groupsToDelete);
     }
 

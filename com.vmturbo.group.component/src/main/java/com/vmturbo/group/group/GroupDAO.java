@@ -390,6 +390,20 @@ public class GroupDAO implements IGroupStore, Diagnosable {
         return Collections.unmodifiableCollection(result);
     }
 
+    @Nonnull
+    @Override
+    public Set<Long> getGroupsByTargets(@Nonnull Collection<Long> targets) {
+        if (targets.isEmpty()) {
+            return Collections.emptySet();
+        }
+        return dslContext.selectDistinct(GROUP_DISCOVER_TARGETS.GROUP_ID)
+                .from(GROUP_DISCOVER_TARGETS)
+                .where(GROUP_DISCOVER_TARGETS.TARGET_ID.in(targets))
+                .stream()
+                .map(Record1::value1)
+                .collect(Collectors.toSet());
+    }
+
     /**
      * Method performs validation of static members. It validates that group type in {@link
      * GroupDefinition} is the same as real group has.

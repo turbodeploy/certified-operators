@@ -1085,10 +1085,14 @@ public class GroupRpcService extends GroupServiceImplBase {
                 return;
             }
             final long targetId = record.getTargetId();
-            groupStitchingContext.setTargetGroups(targetId, record.getProbeType(),
-                    record.getUploadedGroupsList());
-            policiesByTarget.put(targetId, record.getDiscoveredPolicyInfosList());
-            settingPoliciesByTarget.put(targetId, record.getDiscoveredSettingPoliciesList());
+            if (record.getDataAvailable()) {
+                groupStitchingContext.setTargetGroups(targetId, record.getProbeType(),
+                        record.getUploadedGroupsList());
+                policiesByTarget.put(targetId, record.getDiscoveredPolicyInfosList());
+                settingPoliciesByTarget.put(targetId, record.getDiscoveredSettingPoliciesList());
+            } else {
+                groupStitchingContext.addUndiscoveredTarget(targetId);
+            }
         }
 
         @Override

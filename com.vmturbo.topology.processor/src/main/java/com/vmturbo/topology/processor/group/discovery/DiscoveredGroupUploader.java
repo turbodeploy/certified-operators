@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -44,6 +45,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
@@ -320,6 +322,15 @@ public class DiscoveredGroupUploader {
                         .map(req::addAllDiscoveredSettingPolicies);
                 requests.add(req.build());
             });
+            final Collection<Long> emptyTargets = new HashSet<>(
+                    targetStore.getAll().stream().map(Target::getId).collect(Collectors.toSet()));
+            emptyTargets.removeAll(groupsToUploadByTarget.keySet());
+            for (Long targetId : emptyTargets) {
+                requests.add(DiscoveredGroupsPoliciesSettings.newBuilder()
+                        .setTargetId(targetId)
+                        .setDataAvailable(false)
+                        .build());
+            }
         }
 
         // Upload the groups/policies/settings to group component.

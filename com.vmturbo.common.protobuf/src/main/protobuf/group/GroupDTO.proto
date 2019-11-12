@@ -336,6 +336,8 @@ message GetMembersResponse {
     }
 }
 
+// Information about the target. If the message for a target is not present, this means that
+// target has been deleted.
 message DiscoveredGroupsPoliciesSettings {
 
     // The ID of the target that discovered the groups/policies/settings.
@@ -366,6 +368,13 @@ message DiscoveredGroupsPoliciesSettings {
     // Groups referenced in these discovered setting policies must be contained in the
     // uploaded_groups field in this message.
     repeated DiscoveredSettingPolicyInfo discovered_setting_policies = 5;
+
+    // Indicates that data is available from the target. If this field is set to false, it means
+    // that target exists in the system, but it has not been discovered yet. As a result, groups,
+    // policies and settings should not be cleared. If this field is set to true and no
+    // uploaded groups, policies and settings then groups, policies and settings must be cleaned
+    // up for this target.
+    optional bool data_available = 6 [default = true];
 
     // the interpreted group to be uploaded to group component
     message UploadedGroup {

@@ -209,6 +209,37 @@ public class GroupStitchingManagerTest {
         Assert.assertEquals(Collections.emptySet(), result.getGroupsToDelete());
     }
 
+    /**
+     * Tests that stitching does not suggest removing of targets from undiscovered targets.
+     */
+    @Test
+    public void testUndiscoveredTargets() {
+        groupStitchingContext.setTargetGroups(TARGET_1, PROBE_TYPE,
+                Arrays.asList(group1, group2));
+        groupStitchingContext.setTargetGroups(TARGET_3, PROBE_TYPE, Collections.emptySet());
+        groupStitchingContext.addUndiscoveredTarget(TARGET_2);
+        final Collection<DiscoveredGroupId> discovered = new ArrayList<>(5);
+        final long oid1 = 123L;
+        final long oid2 = 234L;
+        final long oid1ToDelete = 345L;
+        final long oid2ToDelete = 346L;
+        discovered.add(new DiscoveredGroupIdImpl(oid1, TARGET_2, GROUP_ID, GroupType.REGULAR));
+        discovered.add(new DiscoveredGroupIdImpl(oid2, null, GROUP_ID, GroupType.RESOURCE));
+        discovered.add(
+                new DiscoveredGroupIdImpl(oid1ToDelete, TARGET_3, GROUP_ID_2, GroupType.REGULAR));
+        discovered.add(
+                new DiscoveredGroupIdImpl(oid2ToDelete, null, GROUP_ID_2, GroupType.RESOURCE));
+        Mockito.when(groupStore.getDiscoveredGroupsIds()).thenReturn(discovered);
+        // groups from undiscovered targets
+        Mockito.when(groupStore.getGroupsByTargets(Collections.singleton(TARGET_2)))
+                .thenReturn(Sets.newHashSet(oid1, oid2));
+
+        final StitchingResult result = stitchingManager.stitch(groupStore, groupStitchingContext);
+        Assert.assertEquals(Sets.newHashSet(oid1ToDelete, oid2ToDelete),
+                result.getGroupsToDelete());
+        Assert.assertEquals(2, result.getGroupsToAddOrUpdate().size());
+    }
+
     @Nonnull
     private Map<MemberType, Set<Long>> getMembers(@Nonnull GroupDefinition... groups) {
         final Map<MemberType, Set<Long>> result = new HashMap<>();

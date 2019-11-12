@@ -91,6 +91,7 @@ import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.components.common.identity.OidSet;
+import com.vmturbo.group.group.GroupDAO.DiscoveredGroupIdImpl;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.TemporaryGroupCache;
@@ -1128,6 +1129,49 @@ public class GroupRpcServiceTest {
         assertThat(membersByType.get(EntityType.DATABASE_VALUE), containsInAnyOrder(21L, 22L));
         // check that target ids are also merged
         assertThat(group.getTargetIds(), containsInAnyOrder(110L, 111L));
+    }
+
+    /**
+     * Test that resource groups are uploaded and stitched successfully in rpc call method.
+     *
+     * @throws StoreOperationException exception thrown if group is invalid
+     */
+    @Test
+    public void testUpdateGroupsUndiscoveredTargets() throws StoreOperationException {
+        final StreamObserver<StoreDiscoveredGroupsPoliciesSettingsResponse> responseObserver =
+                mock(StreamObserver.class);
+        final StreamObserver<DiscoveredGroupsPoliciesSettings> requestObserver =
+                spy(groupRpcService.storeDiscoveredGroupsPoliciesSettings(responseObserver));
+
+        // create two resource groups from two different probes
+        final UploadedGroup group1 = GroupTestUtils.createUploadedGroup(GroupType.REGULAR, "src1",
+                ImmutableMap.of(EntityType.VIRTUAL_MACHINE_VALUE, Sets.newHashSet(11L),
+                        EntityType.DATABASE_VALUE, Sets.newHashSet(21L)));
+        final long oid1 = 100001L;
+        final long oid2 = 100002L;
+        Mockito.when(
+                transactionProvider.getGroupStore().getGroupsByTargets(Collections.singleton(112L)))
+                .thenReturn(Collections.singleton(oid1));
+        Mockito.when(transactionProvider.getGroupStore().getDiscoveredGroupsIds())
+                .thenReturn(Arrays.asList(
+                        new DiscoveredGroupIdImpl(oid1, 112L, "src3", GroupType.RESOURCE),
+                        new DiscoveredGroupIdImpl(oid2, 110L, "src3", GroupType.RESOURCE)));
+        requestObserver.onNext(DiscoveredGroupsPoliciesSettings.newBuilder()
+                .setTargetId(110L)
+                .setProbeType(SDKProbeType.AZURE.toString())
+                .addUploadedGroups(group1)
+                .build());
+        requestObserver.onNext(DiscoveredGroupsPoliciesSettings.newBuilder()
+                .setTargetId(112L)
+                .setProbeType(SDKProbeType.VCENTER.toString())
+                .setDataAvailable(false)
+                .build());
+        requestObserver.onCompleted();
+
+        Mockito.verify(transactionProvider.getGroupStore())
+                .updateDiscoveredGroups(Mockito.anyCollectionOf(DiscoveredGroup.class),
+                        Mockito.anyCollectionOf(DiscoveredGroup.class),
+                        Mockito.eq(Collections.singleton(oid2)));
     }
 
     /**

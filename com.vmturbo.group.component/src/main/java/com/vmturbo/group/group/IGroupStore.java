@@ -108,6 +108,15 @@ public interface IGroupStore {
     Collection<DiscoveredGroupId> getDiscoveredGroupsIds();
 
     /**
+     * Returns a set of groups discovered by the specified targets.
+     *
+     * @param targets targets to search for
+     * @return set of group OIDs
+     */
+    @Nonnull
+    Set<Long> getGroupsByTargets(@Nonnull Collection<Long> targets);
+
+    /**
      * Returns all the tags present in the group component.
      *
      * @return tags multi-map
