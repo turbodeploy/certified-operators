@@ -2,10 +2,13 @@ package com.vmturbo.platform.analysis.ede;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.DoubleUnaryOperator;
 
-import com.vmturbo.platform.analysis.utilities.M2Utils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -288,6 +291,13 @@ public class Resizer {
                 numIncrements = (int) Math.floor(headroom / capacityIncrement);
             }
             double desiredIncreament = numIncrements * capacityIncrement;
+            if (rawMaterial == null) {
+                // This is possible in case of portchannel where the raw material is dummy value.
+                logger.debug("Raw material is null. Resizing up by {} for {} on {}",
+                        desiredIncreament, commSpec.getDebugInfoNeverUseInCode(),
+                        seller.getDebugInfoNeverUseInCode());
+                return desiredIncreament;
+            }
             // in the case of heap resizing up, we make sure that the sum of all heapCapacities sold by allServers
             // is less than the vMemSoldCapacity. This sum is not going to be same as vMemUsed and hence
             // this check is different from the rawMaterial validation.
