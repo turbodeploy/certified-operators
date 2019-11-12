@@ -49,10 +49,16 @@ import com.vmturbo.api.component.external.api.mapper.aspect.CloudAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualMachineAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
+import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.statistic.StatApiDTO;
+import com.vmturbo.api.dto.statistic.StatApiInputDTO;
+import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
+import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.enums.EntityState;
@@ -121,6 +127,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -193,6 +200,10 @@ public class ActionSpecMapperTest {
 
     private final ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
 
+    private final StatsQueryExecutor statsQueryExecutor = mock(StatsQueryExecutor.class);
+
+    private final UuidMapper uuidMapper = mock(UuidMapper.class);
+
     @Before
     public void setup() throws Exception {
         RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub riBuyContextFetchServiceStub =
@@ -239,6 +250,7 @@ public class ActionSpecMapperTest {
             null, serviceEntityMapper, supplyChainService);
         mapper = new ActionSpecMapper(actionSpecMappingContextFactory,
             serviceEntityMapper, reservedInstanceMapper, riBuyContextFetchServiceStub, costServiceBlockingStub,
+                statsQueryExecutor, uuidMapper,
                 reservedInstanceBoughtServiceBlockingStub, repositoryApi, REAL_TIME_TOPOLOGY_CONTEXT_ID);
     }
 
@@ -630,19 +642,25 @@ public class ActionSpecMapperTest {
                 .build();
         when(costServiceMole.getCloudCostStats(any())).thenReturn(serviceResult);
 
-        // mock ri coverage response from reservedInstanceBought service
-        Map<Long, Cost.EntityReservedInstanceCoverage> mockCoverageMap = new HashMap<>();
-        Cost.EntityReservedInstanceCoverage entityReservedInstanceCoverage = Cost.EntityReservedInstanceCoverage
-                .newBuilder()
-                .putCouponsCoveredByRi(1L, 10)
-                .build();
-        mockCoverageMap.put(1L, entityReservedInstanceCoverage);
-        Cost.GetEntityReservedInstanceCoverageResponse coverageResponse = Cost
-                .GetEntityReservedInstanceCoverageResponse
-                .newBuilder()
-                .putAllCoverageByEntityId(mockCoverageMap)
-                .build();
-        when(reservedInstanceBoughtServiceMole.getEntityReservedInstanceCoverage(any())).thenReturn(coverageResponse);
+        // mock stats response
+        final StatApiInputDTO cvgRequest = new StatApiInputDTO();
+        cvgRequest.setName(StringConstants.RI_COUPON_COVERAGE);
+        final StatPeriodApiInputDTO statInput = new StatPeriodApiInputDTO();
+        statInput.setStatistics(Collections.singletonList(cvgRequest));
+        StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
+        StatApiDTO statApiDTO = new StatApiDTO();
+        statApiDTO.setValue(10f);
+        StatValueApiDTO statValueApiDTO = new StatValueApiDTO();
+        statValueApiDTO.setAvg(20f);
+        statApiDTO.setCapacity(statValueApiDTO);
+        List<StatApiDTO> statSnapshotApiDTOS = new ArrayList<>();
+        statSnapshotApiDTOS.add(statApiDTO);
+        statSnapshotApiDTO.setStatistics(statSnapshotApiDTOS);
+        statSnapshotApiDTO.setDate(Long.toString(0L));
+        List<StatSnapshotApiDTO> statSnapshotApiDTOList = new ArrayList<>();
+        statSnapshotApiDTOList.add(statSnapshotApiDTO);
+        when(statsQueryExecutor.getAggregateStats(uuidMapper.fromOid(1L), statInput))
+                .thenReturn(statSnapshotApiDTOList);
 
         // act
         CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO = mapper.createCloudResizeActionDetailsDTO(targetId);

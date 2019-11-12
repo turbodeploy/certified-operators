@@ -13,6 +13,7 @@ import java.util.concurrent.Executors;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import org.junit.Before;
@@ -113,6 +114,10 @@ public class CompoundMoveTest {
 
     private final ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
 
+    private final StatsQueryExecutor statsQueryExecutor = mock(StatsQueryExecutor.class);
+
+    private final UuidMapper uuidMapper = mock(UuidMapper.class);
+
     @Before
     public void setup() throws Exception {
         final List<PolicyResponse> policyResponses = ImmutableList.of(
@@ -157,6 +162,7 @@ public class CompoundMoveTest {
 
         mapper = new ActionSpecMapper(actionSpecMappingContextFactory, serviceEntityMapper,
             mock(ReservedInstanceMapper.class), riBuyContextFetchServiceStub, costServiceBlockingStub,
+                statsQueryExecutor, uuidMapper,
                 reservedInstanceBoughtServiceBlockingStub, repositoryApi, REAL_TIME_TOPOLOGY_CONTEXT_ID);
         IdentityGenerator.initPrefix(0);
 

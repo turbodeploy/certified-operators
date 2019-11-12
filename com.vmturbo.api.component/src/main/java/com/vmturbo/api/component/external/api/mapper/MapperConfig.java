@@ -82,6 +82,8 @@ public class MapperConfig {
             mapperConfig.reservedInstanceMapper(),
             communicationConfig.riBuyContextFetchStub(),
             communicationConfig.costServiceBlockingStub(),
+            serviceConfig.statsQueryExecutor(),
+            uuidMapper(),
             communicationConfig.reservedInstanceBoughtServiceBlockingStub(),
             communicationConfig.repositoryApi(),
             communicationConfig.getRealtimeTopologyContextId());

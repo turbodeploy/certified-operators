@@ -47,6 +47,7 @@ import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotF
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundMatchOfferingClassException;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundMatchPaymentOptionException;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundMatchTenancyException;
+import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -59,13 +60,17 @@ import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
 import com.vmturbo.api.dto.reservedinstance.ReservedInstanceApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
+import com.vmturbo.api.dto.statistic.StatApiInputDTO;
+import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.ActionMode;
 import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.api.enums.ActionType;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.api.pagination.CommonComparators;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.Pair;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
@@ -174,6 +179,10 @@ public class ActionSpecMapper {
 
     private final RepositoryApi repositoryApi;
 
+    private final StatsQueryExecutor statsQueryExecutor;
+
+    private final UuidMapper uuidMapper;
+
     /**
      * The set of action states for operational actions (ie actions that have not
      * completed execution).
@@ -189,6 +198,8 @@ public class ActionSpecMapper {
                             @Nonnull final ReservedInstanceMapper reservedInstanceMapper,
                             @Nullable final RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub riStub,
                             @Nonnull final CostServiceBlockingStub costServiceBlockingStub,
+                            @Nonnull final StatsQueryExecutor statsQueryExecutor,
+                            @Nonnull final UuidMapper uuidMapper,
                             @Nonnull final ReservedInstanceBoughtServiceBlockingStub reservedInstanceBoughtServiceBlockingStub,
                             @Nonnull final RepositoryApi repositoryApi,
                             final long realtimeTopologyContextId) {
@@ -198,6 +209,8 @@ public class ActionSpecMapper {
         this.reservedInstanceMapper = Objects.requireNonNull(reservedInstanceMapper);
         this.costServiceBlockingStub = Objects.requireNonNull(costServiceBlockingStub);
         this.riStub = riStub;
+        this.statsQueryExecutor = statsQueryExecutor;
+        this.uuidMapper = uuidMapper;
         this.reservedInstanceBoughtServiceBlockingStub = reservedInstanceBoughtServiceBlockingStub;
         this.repositoryApi = repositoryApi;
     }
@@ -1492,7 +1505,7 @@ public class ActionSpecMapper {
      */
     private void setOnDemandRates(long entityUuid, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
         // set on-demand rates
-        // todo: template rates will added here after OM-51505
+        // todo: template rates will be added here after OM-51505
         cloudResizeActionDetailsApiDTO.setOnDemandRateBefore(0f);
         cloudResizeActionDetailsApiDTO.setOnDemandRateAfter(0f);
     }
@@ -1503,44 +1516,35 @@ public class ActionSpecMapper {
      * @param cloudResizeActionDetailsApiDTO - cloud resize action details DTO
      */
     private void setRiCoverage(long entityUuid, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
-        // get RI coverage real-time (before action)
-        GetEntityReservedInstanceCoverageRequest entityCoverageRequest = GetEntityReservedInstanceCoverageRequest
-                .newBuilder().build();
-        GetEntityReservedInstanceCoverageResponse entityCoverageMap = reservedInstanceBoughtServiceBlockingStub
-                .getEntityReservedInstanceCoverage(entityCoverageRequest);
-        EntityReservedInstanceCoverage reservedInstanceCoverage = entityCoverageMap.getCoverageByEntityIdMap()
-                .get(entityUuid);
-        // collect all entity uuids
-        Set<Long> ids = new HashSet<>();
-        ids.add(entityUuid);
-        // get entity obj from repo API to get coupon capacity
-        final List<TopologyDTO.TopologyEntityDTO> entityObjList = repositoryApi.entitiesRequest(ids)
-                .contextId(realtimeTopologyContextId)
-                .getFullEntities()
-                .collect(Collectors.toList());
-        int couponCapacity = 0;
-        if (!entityObjList.isEmpty()) {
-            couponCapacity = entityObjList.get(0).getTypeSpecificInfo().getComputeTier().getNumCoupons();
+        /* current/real-time RI coverage of target entity */
+        final StatApiInputDTO cvgRequest = new StatApiInputDTO();
+        cvgRequest.setName(StringConstants.RI_COUPON_COVERAGE);
+        final StatPeriodApiInputDTO statInput = new StatPeriodApiInputDTO();
+        statInput.setStatistics(Collections.singletonList(cvgRequest));
+        try {
+            final Optional<StatApiDTO> optRiCoverage =
+                    statsQueryExecutor.getAggregateStats(uuidMapper.fromOid(entityUuid), statInput)
+                            .stream()
+                            // Exclude projected snapshot
+                            .filter(snapshot -> DateTimeUtil.parseTime(snapshot.getDate()) < System.currentTimeMillis())
+                            // Get the snapshot with the most recent date assuming that it represents
+                            // current state
+                            .max((snapshot1, snapshot2) -> CommonComparators.longNumber().compare(
+                                    DateTimeUtil.parseTime(snapshot1.getDate()), DateTimeUtil.parseTime(snapshot2.getDate())))
+                            .flatMap(snapshot -> snapshot.getStatistics().stream().findFirst());
+            optRiCoverage.ifPresent(riCoverage -> {
+                // set riCoverage
+                cloudResizeActionDetailsApiDTO.setRiCoverageBefore(optRiCoverage.get());
+            });
+        } catch (OperationFailedException e) {
+            logger.error("Failed to get RI coverage for entity {} : {}",
+                    entityUuid, e.getMessage());
         }
-        StatApiDTO couponsStatApiDTO = new StatApiDTO();
-        StatValueApiDTO capacityStatValueDTO = new StatValueApiDTO();
-        // set RI coverage before (real-time) in details API Dto
-        if (reservedInstanceCoverage == null) {
-            capacityStatValueDTO.setAvg((float)couponCapacity);
-            couponsStatApiDTO.setCapacity(capacityStatValueDTO);
-            // no ri coverage; used coupons = 0
-            couponsStatApiDTO.setValue(0f);
-            cloudResizeActionDetailsApiDTO.setRiCoverageBefore(couponsStatApiDTO);
-        } else {
-            Double coverageValue = reservedInstanceCoverage.getCouponsCoveredByRiMap().get(entityUuid);
-            couponsStatApiDTO.setValue(coverageValue.floatValue());
-            capacityStatValueDTO.setAvg((float)couponCapacity);
-            couponsStatApiDTO.setCapacity(capacityStatValueDTO);
-            cloudResizeActionDetailsApiDTO.setRiCoverageBefore(couponsStatApiDTO);
-        }
+
         // set RI coverage after (projection)
         // todo: projection data will be available after OM-51301 & OM-51296
         // return empty DTO
+        StatValueApiDTO capacityStatValueDTO = new StatValueApiDTO();
         capacityStatValueDTO.setAvg(0f);
         StatApiDTO couponsStatApiDTOAfter = new StatApiDTO();
         couponsStatApiDTOAfter.setCapacity(capacityStatValueDTO);
