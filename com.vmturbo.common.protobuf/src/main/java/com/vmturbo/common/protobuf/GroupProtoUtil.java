@@ -1,7 +1,7 @@
 package com.vmturbo.common.protobuf;
 
-import java.util.Collections;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -9,16 +9,16 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
 import javax.annotation.Nonnull;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings.UploadedGroup;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinitionOrBuilder;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -29,9 +29,9 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByT
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
@@ -115,11 +115,18 @@ public class GroupProtoUtil {
      * @throws IllegalArgumentException If the {@link Grouping} does not have a valid entity type.
      */
     public static void checkEntityTypeForPolicy(@Nonnull final GroupingOrBuilder group) {
-        Preconditions.checkArgument(GroupProtoUtil.getEntityTypes(group).size() == 1,
-            "Policies can be defined only for groups with a single entity type");
+        final Set<UIEntityType> entityTypes = getEntityTypes(group);
+        if (entityTypes.isEmpty()) {
+            throw new IllegalArgumentException(String.format("Cannot define policy for group " +
+                    "'%s' (ID: %s). Entity types are empty.",
+                    group.getDefinition().getDisplayName(), group.getId()));
+        } else if (entityTypes.size() > 1) {
+            throw new IllegalArgumentException(String.format("Cannot define policy for group " +
+                    "'%s' (ID: %s). Multiple entity types found: %s",
+                    group.getDefinition().getDisplayName(), group.getId(), entityTypes));
+        }
     }
 
-    /**
     /**
      * Returns a set of entity types of expected members of the specified group.
      *
@@ -137,10 +144,7 @@ public class GroupProtoUtil {
     }
 
     /**
-    }
-
-    /**
-     * Get the source identifier  of a {@link Grouping}.
+     * Get the source identifier of a {@link Grouping}.
      *
      * @param group The {@link Grouping}.
      * @return The source identifier of the {@link Grouping} if present.
@@ -148,9 +152,8 @@ public class GroupProtoUtil {
      */
     @Nonnull
     public static Optional<String> getGroupSourceIdentifier(@Nonnull final Grouping group) {
-        String name = group.getDefinition().getDisplayName();
         if (group.getOrigin().getCreationOriginCase() == CreationOriginCase.DISCOVERED) {
-            Optional.ofNullable(group.getOrigin().getDiscovered().getSourceIdentifier());
+            return Optional.ofNullable(group.getOrigin().getDiscovered().getSourceIdentifier());
         }
         return Optional.empty();
     }
