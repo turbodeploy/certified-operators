@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.conversions.typespecific;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
 import java.util.List;
@@ -13,7 +14,10 @@ import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Architecture;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo.DriverInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualizationType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
@@ -48,6 +52,7 @@ public class VirtualMachineInfoMapperTest {
                         .setLicenseModel(licenseModel)
                         .setBillingType(VirtualMachineData.VMBillingType.BIDDING)
                         .addAllConnectedNetworks(CONNECTED_ENTITY_NAME_LIST)
+                        .setDriverInfo(DriverInfo.getDefaultInstance())
                         .build())
                 .build();
     }
@@ -80,5 +85,27 @@ public class VirtualMachineInfoMapperTest {
                 ImmutableMap.of(SupplyChainConstants.NUM_CPUS, "4"));
         // assert
         assertThat(result, equalTo(expected));
+    }
+
+    /**
+     * Test that the pre-requisite data is created correctly in the VirtualMachineInfo.
+     */
+    @Test
+    public void testExtractTypeSpecificInfoForPreReqData() {
+        // arrange
+        final EntityDTOOrBuilder vmEntityDTO = createEntityDTOBuilder(EntityDTO.LicenseModel.LICENSE_INCLUDED);
+        final VirtualMachineInfoMapper testBuilder = new VirtualMachineInfoMapper();
+        // act
+        TypeSpecificInfo result = testBuilder.mapEntityDtoToTypeSpecificInfo(vmEntityDTO,
+            ImmutableMap.of(
+                "isEnaSupported", "true",
+                "NVMe", "true",
+                "architecture", "64-bit",
+                "virtualizationType", "HVM"));
+        // assert
+        assertEquals(result.getVirtualMachine().getDriverInfo().getHasEnaDriver(), true);
+        assertEquals(result.getVirtualMachine().getDriverInfo().getHasNvmeDriver(), true);
+        assertEquals(result.getVirtualMachine().getArchitecture(), Architecture.BIT_64);
+        assertEquals(result.getVirtualMachine().getVirtualizationType(), VirtualizationType.HVM);
     }
 }

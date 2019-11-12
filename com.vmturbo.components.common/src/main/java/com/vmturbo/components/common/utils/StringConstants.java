@@ -375,4 +375,24 @@ public class StringConstants {
     public static final String ATTACHMENT = "attachment";
     public static final String ATTACHED = "VIRTUAL_VOLUME_ATTACHED";
     public static final String UNATTACHED = "VIRTUAL_VOLUME_UNATTACHED";
+
+    /**
+     * Constants used for creating pre-requisite data in TypeSpecificInfo.
+     */
+    public static final String PROPERTY_ENHANCED_NETWORKING_TYPE = "enhancedNetworkingType";
+    public static final String PROPERTY_VALUE_ENA = "ENA";
+    public static final String PROPERTY_REQUIRES_NVME = "NVMeRequired";
+    public static final String PROPERTY_ARCHITECTURE = "architecture";
+    public static final String PROPERTY_SUPPORTED_VIRTUALIZATION_TYPE = "supportedVirtualizationType";
+    public static final String BIT32_OR_BIT64 = "32-bit or 64-bit";
+    public static final String BIT_64 = "64-bit";
+    public static final String BIT_32 = "32-bit";
+    public static final String ARM_64 = "arm64";
+    public static final String PVM_AND_HVM = "PVM_AND_HVM";
+    public static final String HVM_ONLY = "HVM_ONLY";
+    public static final String HVM = "HVM";
+    public static final String PVM = "PVM";
+    public static final String PROPERTY_IS_ENA_SUPPORTED = "isEnaSupported";
+    public static final String PROPERTY_SUPPORTS_NVME = "NVMe";
+    public static final String PROPERTY_VM_VIRTUALIZATION_TYPE = "virtualizationType";
 }

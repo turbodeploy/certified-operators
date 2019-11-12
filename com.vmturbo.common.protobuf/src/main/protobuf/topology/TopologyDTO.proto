@@ -62,6 +62,22 @@ message TypeSpecificInfo {
 
         // The licensing model of the VM (license included in compute price vs. BYOL)
         optional .common_dto.EntityDTO.LicenseModel license_model = 7 [default = LICENSE_INCLUDED];
+
+        // Information about the drivers that this VM has
+        optional DriverInfo driverInfo = 8;
+
+        // Architecure of the VM
+        optional Architecture architecture = 9;
+
+        // Virtualization Type of the VM
+        optional VirtualizationType virtualizationType = 10;
+
+        message DriverInfo {
+            // Does the VM have driver for Elastic Network adapter? It is an AWS specific driver.
+            optional bool hasEnaDriver = 1;
+            // Does the VM have driver for NVMe? It is an AWS specific driver.
+            optional bool hasNvmeDriver = 2;
+        }
     }
 
     // Properties unique to a PhysicalMachine in the model
@@ -140,6 +156,33 @@ message TypeSpecificInfo {
         // Specifies the number of cores that the tier has
         // This is used for license price calculation (since not all templates are used by VMs)
         optional int32 num_cores = 4;
+
+        // Information about the types of customers this compute tier can support
+        optional SupportedCustomerInfo supported_customer_info = 5;
+
+        message SupportedCustomerInfo {
+            // Can the template only support VMs which have driver for ENA?
+            optional bool supportsOnlyEnaVms = 1;
+            // Can the template only support VMs which have driver for NVMe?
+            optional bool supportsOnlyNVMeVms = 2;
+            // The architectures of VMs that are supported by this compute tier.
+            repeated Architecture supportedArchitectures = 3;
+            // The virtualization type of VMs that are supported by this compute tier.
+            repeated VirtualizationType supportedVirtualizationTypes = 4;
+        }
+    }
+
+    // Architectures
+    enum Architecture {
+        BIT_32 = 0;
+        BIT_64 = 1;
+        ARM_64 = 2;
+    }
+
+    // Virtualization types
+    enum VirtualizationType {
+        HVM = 0;
+        PVM = 1;
     }
 
     message DatabaseInfo {
@@ -350,6 +393,9 @@ message PartialEntity {
 
         // Contains the commodities the action orchestrator needs.
         repeated .topology.CommoditySoldDTO commodity_sold = 10;
+
+        // Type specific info
+        optional TypeSpecificInfo type_specific_info = 11;
     }
 
     // Contains the fields required by the API for conversion to the external API's entities.

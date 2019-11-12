@@ -102,6 +102,7 @@ public class PartialEntityConverter {
                     long providerId = repoGraphEntity.getProviders().get(index).getOid();
                     actionEntityBldr.setPrimaryProviderId(providerId);
                 });
+                actionEntityBldr.setTypeSpecificInfo(repoGraphEntity.getTypeSpecificInfo());
                 partialEntityBldr.setAction(actionEntityBldr);
                 break;
             case API:
@@ -198,6 +199,7 @@ public class PartialEntityConverter {
                     long primaryProviderId = topoEntity.getCommoditiesBoughtFromProvidersList().get(index).getProviderId();
                     actionEntityBldr.setPrimaryProviderId(primaryProviderId);
                 });
+                actionEntityBldr.setTypeSpecificInfo(topoEntity.getTypeSpecificInfo());
                 partialEntityBldr.setAction(actionEntityBldr);
                 break;
             case API:
