@@ -1123,6 +1123,13 @@ public class GroupRpcService extends GroupServiceImplBase {
                     .collect(Collectors.toList());
             logger.info("Got {} new groups, {} for update and {} to delete", groupsToAdd.size(),
                     groupsToUpdate.size(), stitchingResult.getGroupsToDelete().size());
+            // First, we need to remove setting policies and placement policies for the groups
+            // that are removed. After the groups are removed themselves, a link between groups
+            // and policies will be lost
+            for (Long removedGroup : stitchingResult.getGroupsToDelete()) {
+                stores.getPlacementPolicyStore().deletePoliciesForGroupBeingRemoved(removedGroup);
+                stores.getSettingPolicyStore().onGroupDeleted(removedGroup);
+            }
             stores.getGroupStore()
                     .updateDiscoveredGroups(groupsToAdd, groupsToUpdate,
                             stitchingResult.getGroupsToDelete());
@@ -1136,10 +1143,6 @@ public class GroupRpcService extends GroupServiceImplBase {
                 stores.getSettingPolicyStore()
                         .updateTargetSettingPolicies(entry.getKey(), entry.getValue(),
                                 allGroupsMap.row(entry.getKey()));
-            }
-            for (Long removedGroup : stitchingResult.getGroupsToDelete()) {
-                stores.getPlacementPolicyStore().deletePoliciesForGroupBeingRemoved(removedGroup);
-                stores.getSettingPolicyStore().onGroupDeleted(removedGroup);
             }
             responseObserver.onNext(StoreDiscoveredGroupsPoliciesSettingsResponse.getDefaultInstance());
             responseObserver.onCompleted();
