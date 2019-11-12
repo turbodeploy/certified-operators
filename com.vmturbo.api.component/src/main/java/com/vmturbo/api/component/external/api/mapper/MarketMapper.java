@@ -105,11 +105,16 @@ public class MarketMapper {
                 return CREATED;
             case QUEUED:
                 return READY_TO_START;
-            case CONSTRUCTING_TOPOLOGY: case RUNNING_ANALYSIS: case WAITING_FOR_RESULT:
+            case CONSTRUCTING_TOPOLOGY:
+            case RUNNING_ANALYSIS:
+            case WAITING_FOR_RESULT:
+            case STARTING_BUY_RI:
+            case BUY_RI_COMPLETED:
                 return RUNNING;
             case SUCCEEDED:
                 return SUCCEEDED;
-            case FAILED: case STOPPED:
+            case FAILED:
+            case STOPPED:
                 return STOPPED;
             default:
                 throw new IllegalArgumentException("Unexpected plan status: " + status);

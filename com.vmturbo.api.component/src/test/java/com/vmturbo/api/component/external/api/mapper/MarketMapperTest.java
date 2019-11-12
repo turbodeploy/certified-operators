@@ -146,4 +146,29 @@ public class MarketMapperTest {
         Assert.assertTrue(failure.hasStatusNotification());
         Assert.assertEquals(Status.STOPPED, failure.getStatusNotification().getStatus());
     }
+
+    /**
+     * Test return Status.RUNNING when PlanStatus.STARTING_BUY_RI.
+     */
+    @Test
+    public void testNotificationWithPlanInstanceStartingBuyRI() {
+        MarketNotification startBuyRi = MarketMapper.notificationFromPlanInstance(BASE.toBuilder()
+                .setStatus(PlanStatus.STARTING_BUY_RI)
+                .setCreatedByUser(CREATED_BY_USER)
+                .build());
+        Assert.assertEquals(Status.RUNNING, startBuyRi.getStatusProgressNotification().getStatus());
+    }
+
+    /**
+     * Test return Status.RUNNING when PlanStatus.BUY_RI_COMPLETED.
+     */
+    @Test
+    public void testNotificationWithPlanInstanceStatusBuyRICompleted() {
+        MarketNotification buyRICompleted = MarketMapper.notificationFromPlanInstance(BASE.toBuilder()
+                .setStatus(PlanStatus.BUY_RI_COMPLETED)
+                .setCreatedByUser(CREATED_BY_USER)
+                .build());
+        Assert.assertEquals(Status.RUNNING, buyRICompleted.getStatusProgressNotification().getStatus());
+    }
+
 }
