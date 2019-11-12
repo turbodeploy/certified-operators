@@ -56,6 +56,7 @@ public class ActionDeletionRpcTest {
         new ActionsRpcService(clock, actionStorehouse,
             mock(ActionExecutor.class),
             mock(ActionTargetSelector.class),
+            mock(EntitiesAndSettingsSnapshotFactory.class),
             mock(ActionTranslator.class),
             paginatorFactory,
             workflowStore,

@@ -27,6 +27,7 @@ import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatu
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.ExecutableStep;
 import com.vmturbo.action.orchestrator.action.ExplanationComposer;
+import com.vmturbo.action.orchestrator.action.PrerequisiteDescriptionComposer;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.batch.translator.BatchTranslator;
 import com.vmturbo.action.orchestrator.translation.batch.translator.CloudMoveBatchTranslator;
@@ -265,6 +266,12 @@ public class ActionTranslator {
                 recommendationForDisplay, settingPolicyIdToSettingPolicyName))
             .setCategory(actionView.getActionCategory())
             .setDescription(actionView.getDescription());
+
+        // Compose pre-requisite description if action has any pre-requisite.
+        if (!recommendationForDisplay.getPrerequisiteList().isEmpty()) {
+            specBuilder.addAllPrerequisiteDescription(
+                PrerequisiteDescriptionComposer.composePrerequisiteDescription(recommendationForDisplay));
+        }
 
         actionView.getDecision()
             .ifPresent(specBuilder::setDecision);

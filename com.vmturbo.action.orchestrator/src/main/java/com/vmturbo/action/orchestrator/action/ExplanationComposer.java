@@ -1,6 +1,8 @@
 package com.vmturbo.action.orchestrator.action;
 
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyCommodityTypes;
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.buildEntityNameOrType;
+import static com.vmturbo.common.protobuf.action.ActionDTOUtil.buildEntityTypeAndName;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.getCommodityDisplayName;
 
 import java.text.MessageFormat;
@@ -39,7 +41,6 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * A utility with static methods that assist in composing explanations for actions.
@@ -479,35 +480,6 @@ public class ExplanationComposer {
                             .collect(Collectors.joining(", "));
         }
         return commUtilizationExplanation;
-    }
-
-    /**
-     * Given an {@link ActionEntity}, create a translation fragment that shows the entity type and name.
-     *
-     * e.g. For a VM named "Bill", create a fragment that would translate to "Virtual Machine Bill".
-     *
-     * @param entity
-     * @return
-     */
-    private static String buildEntityTypeAndName(ActionEntity entity) {
-        return ActionDTOUtil.upperUnderScoreToMixedSpaces(EntityType.forNumber(entity.getType()).name())
-                +" "+ ActionDTOUtil.createTranslationBlock(entity.getId(), "displayName", "");
-    }
-
-    /**
-     * Given an {@link ActionEntity}, create a translation fragment that shows the entity name, if
-     * available, otherwise will show the entity type if for some reason the entity cannot be found
-     * when the text is translated.
-     *
-     * For example, for a VM named "Bill", the fragment will render "Bill" if the entity name field
-     * is available, otherwise it will render "Virtual Machine".
-     *
-     * @param entity
-     * @return
-     */
-    private static String buildEntityNameOrType(ActionEntity entity) {
-        return ActionDTOUtil.createTranslationBlock(entity.getId(), "displayName",
-                ActionDTOUtil.upperUnderScoreToMixedSpaces(EntityType.forNumber(entity.getType()).name()));
     }
 
     /**
