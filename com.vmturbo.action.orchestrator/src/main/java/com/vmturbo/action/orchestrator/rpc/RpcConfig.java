@@ -68,6 +68,7 @@ public class RpcConfig {
             actionStoreConfig.actionStorehouse(),
             actionExecutor,
             actionTargetSelector,
+            actionStoreConfig.entitySettingsCache(),
             actionTranslator,
             actionPaginatorFactory(),
             workflowConfig.workflowStore(),

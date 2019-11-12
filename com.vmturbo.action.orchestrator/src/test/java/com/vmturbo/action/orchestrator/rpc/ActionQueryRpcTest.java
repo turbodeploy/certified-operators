@@ -113,6 +113,7 @@ public class ActionQueryRpcTest {
     private final ActionStore actionStore = Mockito.mock(ActionStore.class);
     private final ActionExecutor actionExecutor = mock(ActionExecutor.class);
     private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
+    private final EntitiesAndSettingsSnapshotFactory entitySettingsCache = mock(EntitiesAndSettingsSnapshotFactory.class);
     private final WorkflowStore workflowStore = mock(WorkflowStore.class);
     private final HistoricalActionStatReader historicalStatReader = mock(HistoricalActionStatReader.class);
     private final CurrentActionStatReader liveStatReader = mock(CurrentActionStatReader.class);
@@ -133,12 +134,12 @@ public class ActionQueryRpcTest {
     private final Clock clock = new MutableFixedClock(1_000_000);
 
     private ActionsRpcService actionsRpcService = new ActionsRpcService(clock,
-            actionStorehouse, actionExecutor, actionTargetSelector,
+            actionStorehouse, actionExecutor, actionTargetSelector, entitySettingsCache,
             actionTranslator, paginatorFactory, workflowStore,
             historicalStatReader, liveStatReader, userSessionContext);
 
     private ActionsRpcService actionsRpcServiceWithFailedTranslator = new ActionsRpcService(clock,
-            actionStorehouse, actionExecutor, actionTargetSelector,
+            actionStorehouse, actionExecutor, actionTargetSelector, entitySettingsCache,
             actionTranslatorWithFailedTranslation, paginatorFactory,
             workflowStore, historicalStatReader, liveStatReader,
             userSessionContext);

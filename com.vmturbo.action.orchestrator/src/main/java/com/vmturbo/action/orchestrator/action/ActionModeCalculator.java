@@ -162,27 +162,48 @@ public class ActionModeCalculator {
      * @return The {@link ActionMode} to use for the action.
      */
     @Nonnull
-    public ActionMode calculateActionMode(@Nonnull final ActionView action,
-                @Nullable final EntitiesAndSettingsSnapshot entitiesCache) {
+    ActionMode calculateActionMode(@Nonnull final ActionView action,
+                                   @Nullable final EntitiesAndSettingsSnapshot entitiesCache) {
         return calculateWorkflowActionMode(action, entitiesCache)
             .orElseGet(() -> {
-                switch (action.getRecommendation().getSupportingLevel()) {
-                    case UNSUPPORTED:
-                    case UNKNOWN:
-                        return ActionMode.DISABLED;
-                    case SHOW_ONLY:
-                        final ActionMode mode = getNonWorkflowActionMode(
-                            action, entitiesCache);
-                        return (mode.getNumber() > ActionMode.RECOMMEND_VALUE)
-                            ? ActionMode.RECOMMEND
-                            : mode;
-                    case SUPPORTED:
-                        return getNonWorkflowActionMode(
-                            action, entitiesCache);
-                    default:
-                        throw new IllegalArgumentException("Action SupportLevel is of unrecognized type.");
+                ActionMode supportingLevelActionMode =
+                    calculateActionModeFromSupportingLevel(action, entitiesCache);
+                if (action.getRecommendation().getPrerequisiteList().isEmpty()) {
+                    return supportingLevelActionMode;
+                } else {
+                    return ActionMode.RECOMMEND.compareTo(supportingLevelActionMode) < 0 ?
+                        ActionMode.RECOMMEND : supportingLevelActionMode;
                 }
             });
+    }
+
+    /**
+     * Calculate action mode based on supporting level.
+     *
+     * @param action an action
+     * @param entitiesCache a nullable entitis and settings snapshot
+     * @return the action mode
+     */
+    @Nonnull
+    private ActionMode calculateActionModeFromSupportingLevel(
+            @Nonnull final ActionView action,
+            @Nullable final EntitiesAndSettingsSnapshot entitiesCache) {
+        switch (action.getRecommendation().getSupportingLevel()) {
+            case UNSUPPORTED:
+            case UNKNOWN:
+                return ActionMode.DISABLED;
+            case SHOW_ONLY:
+                final ActionMode mode = getNonWorkflowActionMode(
+                    action, entitiesCache);
+                return (mode.getNumber() > ActionMode.RECOMMEND_VALUE)
+                    ? ActionMode.RECOMMEND
+                    : mode;
+            case SUPPORTED:
+                return getNonWorkflowActionMode(
+                    action, entitiesCache);
+            default:
+                throw new IllegalArgumentException("Action SupportLevel is of unrecognized type.");
+        }
     }
 
     @Nonnull

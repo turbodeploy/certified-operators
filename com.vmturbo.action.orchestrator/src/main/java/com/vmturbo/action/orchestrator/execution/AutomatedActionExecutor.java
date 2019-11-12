@@ -32,6 +32,7 @@ import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecu
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
 import com.vmturbo.action.orchestrator.state.machine.UnexpectedEventException;
 import com.vmturbo.action.orchestrator.store.ActionStore;
+import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
@@ -67,6 +68,8 @@ public class AutomatedActionExecutor {
      */
     private final ActionTargetSelector actionTargetSelector;
 
+    private final EntitiesAndSettingsSnapshotFactory entitySettingsCache;
+
     /**
      * the store for all the known {@link WorkflowDTO.Workflow} items
      */
@@ -77,15 +80,18 @@ public class AutomatedActionExecutor {
      * @param executorService to schedule actions for asynchronous execution
      * @param workflowStore to determine if any workflows should be used to execute actions
      * @param actionTargetSelector to select which target/probe to execute each action against
+     * @param entitySettingsCache  an entity snapshot factory
      */
     public AutomatedActionExecutor(@Nonnull final ActionExecutor actionExecutor,
                                    @Nonnull final ExecutorService executorService,
                                    @Nonnull final WorkflowStore workflowStore,
-                                   @Nonnull final ActionTargetSelector actionTargetSelector) {
+                                   @Nonnull final ActionTargetSelector actionTargetSelector,
+                                   @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache) {
         this.actionExecutor = Objects.requireNonNull(actionExecutor);
         this.executionService = Objects.requireNonNull(executorService);
         this.workflowStore = Objects.requireNonNull(workflowStore);
         this.actionTargetSelector = Objects.requireNonNull(actionTargetSelector);
+        this.entitySettingsCache = Objects.requireNonNull(entitySettingsCache);
     }
 
     /**
@@ -99,8 +105,7 @@ public class AutomatedActionExecutor {
         final Map<Long, Set<Long>> result = new HashMap<>();
         final Map<Long, ActionTargetInfo> targetIdsForActions =
                 actionTargetSelector.getTargetsForActions(allActions.values().stream()
-                    .map(Action::getRecommendation),
-                    Optional.empty());
+                    .map(Action::getRecommendation), entitySettingsCache.emptySnapshot());
         for(Entry<Long, ActionTargetInfo> targetIdForActionEntry : targetIdsForActions.entrySet()) {
             final Long actionId = targetIdForActionEntry.getKey();
             final ActionTargetInfo targetInfo = targetIdForActionEntry.getValue();

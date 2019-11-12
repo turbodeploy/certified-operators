@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +43,7 @@ import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.Prerequisite;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -209,8 +211,8 @@ public class LiveActionStore implements ActionStore {
 
             // This call requires some computation and an RPC call, so do it outside of the
             // action lock.
-            Collection<ActionDTO.Action> actionsWithSupportLevel =
-                actionsWithSupportLevel(actionPlan, snapshot.getEntityMap());
+            Collection<ActionDTO.Action> actionsWithAdditionalInfo =
+                actionsWithAdditionalInfo(actionPlan, snapshot);
 
             // RecommendationTracker to accelerate lookups of recommendations.
             RecommendationTracker recommendations = new RecommendationTracker();
@@ -254,7 +256,7 @@ public class LiveActionStore implements ActionStore {
             // TODO (marco, July 16 2019): We can do the translation before we do the support
             // level resolution. In this way we wouldn't need to go to the repository for entities
             // that fail translation.
-            final Stream<Action> translatedReadyActions = actionTranslator.translate(actionsWithSupportLevel.stream()
+            final Stream<Action> translatedReadyActions = actionTranslator.translate(actionsWithAdditionalInfo.stream()
                 .map(recommendedAction -> {
                     final Optional<Action> existingActionOpt = recommendations.take(recommendedAction.getInfo());
                     final Action action;
@@ -344,8 +346,17 @@ public class LiveActionStore implements ActionStore {
         return true;
     }
 
+    /**
+     * Add additional info to the actions.
+     *
+     * @param actionPlan an action plan containing actions
+     * @param snapshot the snapshot of entities
+     * @return a collection of actions
+     */
     @Nonnull
-    private Collection<ActionDTO.Action> actionsWithSupportLevel(@Nonnull final ActionPlan actionPlan, final Map<Long, ActionPartialEntity> partialEntityMap) {
+    private Collection<ActionDTO.Action> actionsWithAdditionalInfo(
+            @Nonnull final ActionPlan actionPlan,
+            @Nonnull final EntitiesAndSettingsSnapshot snapshot) {
         try (DataMetricTimer timer = Metrics.SUPPORT_LEVEL_CALCULATION.startTimer()) {
             // Attempt to fully refresh the cache - this gets the most up-to-date target and
             // probe information from the topology processor.
@@ -392,8 +403,7 @@ public class LiveActionStore implements ActionStore {
                             .collect(Collectors.toList());
 
             final Map<Long, ActionTargetInfo> actionAndTargetInfo =
-                actionTargetSelector.getTargetsForActions(newActions.stream(),
-                    Optional.of(partialEntityMap));
+                actionTargetSelector.getTargetsForActions(newActions.stream(), snapshot);
 
             // Increment the relevant counters.
             final Map<SupportLevel, Long> actionsBySupportLevel =
@@ -413,9 +423,15 @@ public class LiveActionStore implements ActionStore {
                     actionAndTargetInfo.get(action.getId()))
                     .map(ActionTargetInfo::supportingLevel)
                     .orElse(SupportLevel.UNSUPPORTED);
-                if (action.getSupportingLevel() != supportLevel) {
+                final Set<Prerequisite> prerequisites = Optional.ofNullable(
+                    actionAndTargetInfo.get(action.getId()))
+                    .map(ActionTargetInfo::prerequisites)
+                    .orElse(Collections.emptySet());
+
+                if (action.getSupportingLevel() != supportLevel || !prerequisites.isEmpty()) {
                     return action.toBuilder()
                         .setSupportingLevel(supportLevel)
+                        .addAllPrerequisite(prerequisites)
                         .build();
                 } else {
                     return action;
