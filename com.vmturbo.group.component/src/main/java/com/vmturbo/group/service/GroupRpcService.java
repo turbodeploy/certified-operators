@@ -102,6 +102,14 @@ public class GroupRpcService extends GroupServiceImplBase {
 
     private final GroupStitchingManager groupStitchingManager;
 
+    /**
+     * Constructs group gRPC service.
+     * @param tempGroupCache temporary groups cache to store temp groups
+     * @param searchServiceRpc search gRPC service client to resolve dynamic groups
+     * @param userSessionContext user session context
+     * @param groupStitchingManager groups stitching manager
+     * @param transactionProvider transaction provider
+     */
     public GroupRpcService(@Nonnull final TemporaryGroupCache tempGroupCache,
                            @Nonnull final SearchServiceBlockingStub searchServiceRpc,
                            @Nonnull final UserSessionContext userSessionContext,

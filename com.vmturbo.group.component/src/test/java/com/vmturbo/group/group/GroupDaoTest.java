@@ -19,7 +19,6 @@ import com.google.common.collect.Sets;
 
 import io.grpc.Status;
 
-import org.assertj.core.util.Lists;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.junit.Assert;
@@ -722,7 +721,7 @@ public class GroupDaoTest {
     }
 
     @Nonnull
-    public Origin createUserOrigin() {
+    private Origin createUserOrigin() {
         return Origin.newBuilder()
                 .setUser(Origin.User.newBuilder().setUsername("user-" + counter.getAndIncrement()))
                 .build();

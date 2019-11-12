@@ -9,7 +9,6 @@ import static com.vmturbo.group.db.tables.GroupTags.GROUP_TAGS;
 import static com.vmturbo.group.db.tables.Grouping.GROUPING;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -1081,7 +1080,6 @@ public class GroupDAO implements IGroupStore, Diagnosable {
      * @param groupsToAdd groups to add to the store.
      * @param groupsToUpdate groups to be updated in the store.
      * @param groupsToDelete groups to delete from the store.
-     * @return map of discovered source id to OID for the new groups.
      * @throws StoreOperationException if group configuration is incorrect
      */
     @Nonnull
