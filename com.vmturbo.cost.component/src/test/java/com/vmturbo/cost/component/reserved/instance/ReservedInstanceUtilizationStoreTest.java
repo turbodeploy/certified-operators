@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.junit.After;
@@ -65,6 +66,8 @@ public class ReservedInstanceUtilizationStoreTest {
 
     private ReservedInstanceUtilizationStore reservedInstanceUtilizationStore;
 
+    private ReservedInstanceCostCalculator reservedInstanceCostCalculator;
+
     private DSLContext dsl;
 
     final EntityRICoverageUpload coverageOne = EntityRICoverageUpload.newBuilder()
@@ -94,6 +97,10 @@ public class ReservedInstanceUtilizationStoreTest {
             .setAvailabilityZoneId(100L)
             .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder()
                     .setNumberOfCoupons(100))
+            .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
+                            .newBuilder()
+                            .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(15))
+                            .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
             .setNumBought(10)
             .build();
 
@@ -104,6 +111,10 @@ public class ReservedInstanceUtilizationStoreTest {
             .setAvailabilityZoneId(100L)
             .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder()
                     .setNumberOfCoupons(100))
+            .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
+                            .newBuilder()
+                            .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(15))
+                            .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
             .setNumBought(20)
             .build();
 
@@ -114,6 +125,10 @@ public class ReservedInstanceUtilizationStoreTest {
             .setAvailabilityZoneId(50L)
             .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder()
                     .setNumberOfCoupons(100))
+                    .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
+                                    .newBuilder()
+                                    .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(15))
+                                    .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
             .setNumBought(30)
             .build();
 
@@ -123,10 +138,10 @@ public class ReservedInstanceUtilizationStoreTest {
         dsl = dbConfig.dsl();
         flyway.clean();
         flyway.migrate();
+        reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl, new IdentityProvider(0), 10);
+        reservedInstanceCostCalculator = new ReservedInstanceCostCalculator(reservedInstanceSpecStore);
         reservedInstanceBoughtStore = new ReservedInstanceBoughtStore(dsl,
-                new IdentityProvider(0));
-        reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl,
-                new IdentityProvider(0), 10);
+                        new IdentityProvider(0), reservedInstanceCostCalculator);
         entityReservedInstanceMappingStore = new EntityReservedInstanceMappingStore(dsl);
         reservedInstanceUtilizationStore = new ReservedInstanceUtilizationStore(dsl, reservedInstanceBoughtStore,
                 reservedInstanceSpecStore, entityReservedInstanceMappingStore);
@@ -205,6 +220,13 @@ public class ReservedInstanceUtilizationStoreTest {
     }
 
     private void insertDefaultReservedInstanceSpec() {
+        final CloudCostDTO.ReservedInstanceType riType1 = CloudCostDTO.ReservedInstanceType.newBuilder().setTermYears(1).setOfferingClass(
+                        CloudCostDTO.ReservedInstanceType.OfferingClass.STANDARD).setPaymentOption(
+                        CloudCostDTO.ReservedInstanceType.PaymentOption.ALL_UPFRONT).build();
+
+        final CloudCostDTO.ReservedInstanceType riType2 = CloudCostDTO.ReservedInstanceType.newBuilder().setTermYears(2).setOfferingClass(
+                        CloudCostDTO.ReservedInstanceType.OfferingClass.STANDARD).setPaymentOption(
+                        CloudCostDTO.ReservedInstanceType.PaymentOption.ALL_UPFRONT).build();
         final ReservedInstanceSpecRecord specRecordOne = dsl.newRecord(Tables.RESERVED_INSTANCE_SPEC,
                 new ReservedInstanceSpecRecord(99L,
                         OfferingClass.STANDARD.getValue(),
@@ -214,7 +236,7 @@ public class ReservedInstanceUtilizationStoreTest {
                         OSType.LINUX.getValue(),
                         88L,
                         77L,
-                        ReservedInstanceSpecInfo.newBuilder().setRegionId(77L).build()));
+                        ReservedInstanceSpecInfo.newBuilder().setRegionId(77L).setType(riType1).build()));
         final ReservedInstanceSpecRecord specRecordTwo = dsl.newRecord(Tables.RESERVED_INSTANCE_SPEC,
                 new ReservedInstanceSpecRecord(100L,
                         OfferingClass.STANDARD.getValue(),
@@ -224,7 +246,7 @@ public class ReservedInstanceUtilizationStoreTest {
                         OSType.LINUX.getValue(),
                         90L,
                         78L,
-                        ReservedInstanceSpecInfo.getDefaultInstance()));
+                        ReservedInstanceSpecInfo.newBuilder().setRegionId(78L).setType(riType2).build()));
         dsl.batchInsert(Arrays.asList(specRecordOne, specRecordTwo)).execute();
     }
 
@@ -235,6 +257,7 @@ public class ReservedInstanceUtilizationStoreTest {
      */
     private List<EntityRICoverageUpload> stichRIOidToCoverageUploads(
             List<EntityRICoverageUpload> entityRICoverageUploads) {
+
         final Map<String, Long> riProbeIdToOid = reservedInstanceBoughtStore
                 .getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter.SELECT_ALL_FILTER)
                 .stream()

@@ -45,6 +45,10 @@ public class ReservedInstanceCoverageStoreTest {
 
     private ReservedInstanceBoughtStore reservedInstanceBoughtStore;
 
+    private ReservedInstanceSpecStore reservedInstanceSpecStore;
+
+    private ReservedInstanceCostCalculator reservedInstanceCostCalculator;
+
     private DSLContext dsl;
 
     private final ServiceEntityReservedInstanceCoverageRecord firstEntity =
@@ -81,8 +85,10 @@ public class ReservedInstanceCoverageStoreTest {
         dsl = dbConfig.dsl();
         flyway.clean();
         flyway.migrate();
+        reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl, new IdentityProvider(0), 10);
+        reservedInstanceCostCalculator = new ReservedInstanceCostCalculator(reservedInstanceSpecStore);
         reservedInstanceBoughtStore = new ReservedInstanceBoughtStore(dsl,
-                new IdentityProvider(0));
+                new IdentityProvider(0), reservedInstanceCostCalculator);
         reservedInstanceCoverageStore = new ReservedInstanceCoverageStore(dsl);
     }
 

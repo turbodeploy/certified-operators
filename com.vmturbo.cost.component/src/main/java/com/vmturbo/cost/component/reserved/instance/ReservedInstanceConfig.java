@@ -109,7 +109,7 @@ public class ReservedInstanceConfig {
     @Bean
     public ReservedInstanceBoughtStore reservedInstanceBoughtStore() {
         return new ReservedInstanceBoughtStore(databaseConfig.dsl(),
-                identityProviderConfig.identityProvider());
+                identityProviderConfig.identityProvider(), repositoryInstanceCostCalculator());
     }
 
     @Bean
@@ -285,7 +285,6 @@ public class ReservedInstanceConfig {
         return new ReservedInstanceCoverageValidatorFactory(
                 reservedInstanceBoughtStore(),
                 reservedInstanceSpecStore());
-
     }
 
     @Bean
@@ -316,5 +315,15 @@ public class ReservedInstanceConfig {
     @Bean
     public RepositoryServiceBlockingStub repositoryServiceClient() {
         return RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel());
+    }
+
+    /**
+     * Instantiate bean for ReservedInstanceCostCalculator class.
+     *
+     * @return object of type ReservedInstanceCostCalculator.
+     */
+    @Bean
+    public ReservedInstanceCostCalculator repositoryInstanceCostCalculator() {
+        return new ReservedInstanceCostCalculator(reservedInstanceSpecStore());
     }
 }

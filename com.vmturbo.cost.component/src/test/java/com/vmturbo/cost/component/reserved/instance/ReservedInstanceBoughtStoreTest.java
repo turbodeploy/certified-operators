@@ -1,10 +1,11 @@
 package com.vmturbo.cost.component.reserved.instance;
 
+import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_BOUGHT;
+import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_SPEC;
 import static org.junit.Assert.assertEquals;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -12,6 +13,7 @@ import java.util.stream.Collectors;
 
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
+import org.jooq.Result;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -25,16 +27,16 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCostFilter;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceSpecRecord;
 import com.vmturbo.cost.component.identity.IdentityProvider;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
+import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.Tenancy;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.OfferingClass;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.PaymentOption;
@@ -57,43 +59,63 @@ public class ReservedInstanceBoughtStoreTest {
 
     private ReservedInstanceBoughtStore reservedInstanceBoughtStore;
 
+    private ReservedInstanceSpecStore reservedInstanceSpecStore;
+
+    private ReservedInstanceCostCalculator reservedInstanceCostCalculator;
+
     private DSLContext dsl;
 
     private static final int REGION_VALUE = 54;
     private static final int AVAILABILITYZONE_VALUE = 55;
     private static final int BUSINESS_ACCOUNT_VALUE = 28;
+    private static final int NO_OF_MONTHS = 12;
+    private static final int MONTHLY_TO_HOURLY_CONVERSION = 730;
 
     final ReservedInstanceBoughtInfo riInfoOne = ReservedInstanceBoughtInfo.newBuilder()
-            .setBusinessAccountId(123L)
-            .setProbeReservedInstanceId("bar")
-            .setReservedInstanceSpec(99L)
-            .setAvailabilityZoneId(100L)
-            .setNumBought(10)
-            .build();
+                    .setBusinessAccountId(123L)
+                    .setProbeReservedInstanceId("bar")
+                    .setReservedInstanceSpec(101L)
+                    .setAvailabilityZoneId(100L)
+                    .setNumBought(10)
+                    .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost.newBuilder()
+                                    .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0))
+                                    .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
+                    .build();
 
     final ReservedInstanceBoughtInfo riInfoTwo = ReservedInstanceBoughtInfo.newBuilder()
-            .setBusinessAccountId(456L)
-            .setProbeReservedInstanceId("foo")
-            .setReservedInstanceSpec(99L)
-            .setAvailabilityZoneId(100L)
-            .setNumBought(20)
-            .build();
+                    .setBusinessAccountId(456L)
+                    .setProbeReservedInstanceId("foo")
+                    .setReservedInstanceSpec(102L)
+                    .setAvailabilityZoneId(100L)
+                    .setNumBought(20)
+                    .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
+                                    .newBuilder()
+                                    .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(15))
+                                    .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
+                    .build();
 
     final ReservedInstanceBoughtInfo riInfoThree = ReservedInstanceBoughtInfo.newBuilder()
-            .setBusinessAccountId(789L)
-            .setProbeReservedInstanceId("test")
-            .setReservedInstanceSpec(99L)
-            .setAvailabilityZoneId(50L)
-            .setNumBought(30)
-            .build();
+                    .setBusinessAccountId(789L)
+                    .setProbeReservedInstanceId("test")
+                    .setReservedInstanceSpec(102L)
+                    .setAvailabilityZoneId(50L)
+                    .setNumBought(30)
+                    .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
+                                    .newBuilder()
+                                    .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(15))
+                                    .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
+                    .build();
 
     final ReservedInstanceBoughtInfo riInfoFour = ReservedInstanceBoughtInfo.newBuilder()
-            .setBusinessAccountId(789L)
-            .setProbeReservedInstanceId("qux")
-            .setReservedInstanceSpec(100L)
-            .setAvailabilityZoneId(50L)
-            .setNumBought(40)
-            .build();
+                    .setBusinessAccountId(789L)
+                    .setProbeReservedInstanceId("qux")
+                    .setReservedInstanceSpec(101L)
+                    .setAvailabilityZoneId(50L)
+                    .setNumBought(40)
+                    .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost.newBuilder()
+                                    .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0))
+                                    .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
+                    .build();
 
     @Before
     public void setup() throws Exception {
@@ -101,8 +123,10 @@ public class ReservedInstanceBoughtStoreTest {
         dsl = dbConfig.dsl();
         flyway.clean();
         flyway.migrate();
+        reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl, new IdentityProvider(0), 10);
+        reservedInstanceCostCalculator = new ReservedInstanceCostCalculator(reservedInstanceSpecStore);
         reservedInstanceBoughtStore = new ReservedInstanceBoughtStore(dsl,
-                new IdentityProvider(0));
+                new IdentityProvider(0), reservedInstanceCostCalculator);
         insertDefaultReservedInstanceSpec();
     }
 
@@ -116,8 +140,8 @@ public class ReservedInstanceBoughtStoreTest {
         final List<ReservedInstanceBoughtInfo> reservedInstanceBoughtInfos =
                 Arrays.asList(riInfoOne, riInfoTwo, riInfoThree);
         reservedInstanceBoughtStore.updateReservedInstanceBought(dsl, reservedInstanceBoughtInfos);
-
         final List<ReservedInstanceBoughtRecord> records = dsl.selectFrom(Tables.RESERVED_INSTANCE_BOUGHT).fetch();
+        verifyAmortizedCosts(reservedInstanceBoughtInfos, records);
         assertEquals(3, records.size());
         assertEquals(Sets.newHashSet("bar", "foo", "test"), records.stream()
             .map(ReservedInstanceBoughtRecord::getProbeReservedInstanceId)
@@ -133,21 +157,22 @@ public class ReservedInstanceBoughtStoreTest {
                     .map(ReservedInstanceBoughtRecord::getId)
                     .collect(Collectors.toList());
         final ReservedInstanceBoughtInfo newRiInfoOne = ReservedInstanceBoughtInfo.newBuilder(riInfoOne)
-                .setReservedInstanceSpec(100L)
+                .setReservedInstanceSpec(102L)
                 .build();
         final ReservedInstanceBoughtInfo newRiInfoTwo = ReservedInstanceBoughtInfo.newBuilder(riInfoTwo)
-                .setReservedInstanceSpec(100L)
+                .setReservedInstanceSpec(101L)
                 .build();
         reservedInstanceBoughtStore.updateReservedInstanceBought(dsl,
                 Arrays.asList(newRiInfoOne, newRiInfoTwo));
         final List<ReservedInstanceBoughtRecord> records = dsl.selectFrom(Tables.RESERVED_INSTANCE_BOUGHT)
                 .where(Tables.RESERVED_INSTANCE_BOUGHT.ID.in(recordIds))
                 .fetch();
+        verifyAmortizedCosts(Arrays.asList(newRiInfoOne, newRiInfoTwo), records);
         assertEquals(2, records.size());
         assertEquals(Sets.newHashSet("bar", "foo"), records.stream()
                 .map(ReservedInstanceBoughtRecord::getProbeReservedInstanceId)
                 .collect(Collectors.toSet()));
-        assertEquals(Sets.newHashSet(100L), records.stream()
+        assertEquals(Sets.newHashSet(102L, 101L), records.stream()
                 .map(ReservedInstanceBoughtRecord::getReservedInstanceSpecId)
                 .collect(Collectors.toSet()));
     }
@@ -224,7 +249,7 @@ public class ReservedInstanceBoughtStoreTest {
                 .build();
         final List<ReservedInstanceBought> reservedInstancesByRegionIdFilter =
                 reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(regionIdFilter);
-        assertEquals(1, reservedInstancesByRegionIdFilter.size());
+        assertEquals(2, reservedInstancesByRegionIdFilter.size());
         assertEquals("bar", reservedInstancesByRegionIdFilter.get(0)
                 .getReservedInstanceBoughtInfo().getProbeReservedInstanceId());
 
@@ -277,8 +302,8 @@ public class ReservedInstanceBoughtStoreTest {
         final long countForSpecTwo = riCountMap.get(90L);
 
         assertEquals(2, riCountMap.size());
-        assertEquals(60L, countForSpecOne);
-        assertEquals(40L, countForSpecTwo);
+        assertEquals(50L, countForSpecOne);
+        assertEquals(50L, countForSpecTwo);
     }
 
     @Test
@@ -296,7 +321,7 @@ public class ReservedInstanceBoughtStoreTest {
         final long countForSpecOne = riCountMap.get(88L);
 
         assertEquals(1, riCountMap.size());
-        assertEquals(60L, countForSpecOne);
+        assertEquals(50L, countForSpecOne);
     }
 
     @Test
@@ -313,13 +338,90 @@ public class ReservedInstanceBoughtStoreTest {
         final Map<Long, Long> riCountMap = reservedInstanceBoughtStore.getReservedInstanceCountMap(filter);
         final long countForSpecOne = riCountMap.get(88L);
 
-        assertEquals(1, riCountMap.size());
-        assertEquals(30L, countForSpecOne);
+        assertEquals(2, riCountMap.size());
+        assertEquals(10L, countForSpecOne);
+    }
+
+    /**
+     * Test case to verify retrieving aggregated amortized cost by scoping based on availability zones.
+     */
+    @Test
+    public void testGetReservedInstanceAggregatedAmortizedCostFilterByAZ() {
+        final List<ReservedInstanceBoughtInfo> reservedInstanceInfos =
+                        Arrays.asList(riInfoOne, riInfoTwo, riInfoThree, riInfoFour);
+        reservedInstanceBoughtStore.updateReservedInstanceBought(dsl, reservedInstanceInfos);
+        List<Long> scopeIds = new ArrayList<>();
+        scopeIds.add(100L);
+        final ReservedInstanceCostFilter filter = ReservedInstanceCostFilter.newBuilder()
+                        .addAllScopeId(scopeIds)
+                        .setScopeEntityType(AVAILABILITYZONE_VALUE)
+                        .build();
+        final List<ReservedInstanceBoughtRecord> reservedInstanceBoughtRecords =
+                        dsl.selectFrom(Tables.RESERVED_INSTANCE_BOUGHT)
+                                        .where(filter.getConditions()).fetch();
+        final double expectedAggregatedAmortizedCost = calculateExpectedAggregatedAmortizedCosts(reservedInstanceBoughtRecords);
+        final Double reservedInstanceSummedCost = reservedInstanceBoughtStore.getReservedInstanceAggregatedAmortizedCost(filter);
+        assertEquals(expectedAggregatedAmortizedCost, reservedInstanceSummedCost, 0D);
+    }
+
+    /**
+     * Test case to verify retrieving aggregated amortized cost by scoping based on regions.
+     */
+    @Test
+    public void testGetReservedInstanceAggregatedAmortizedCostFilterByRegion() {
+        final List<ReservedInstanceBoughtInfo> reservedInstanceInfos =
+                        Arrays.asList(riInfoOne, riInfoTwo, riInfoThree, riInfoFour);
+        reservedInstanceBoughtStore.updateReservedInstanceBought(dsl, reservedInstanceInfos);
+        List<Long> scopeIds = new ArrayList<>();
+        scopeIds.add(77L);
+        final ReservedInstanceCostFilter filter = ReservedInstanceCostFilter.newBuilder()
+                        .addAllScopeId(scopeIds)
+                        .setScopeEntityType(REGION_VALUE)
+                        .build();
+        final Result<ReservedInstanceBoughtRecord> reservedInstanceBoughtRecords =
+                        dsl.select(RESERVED_INSTANCE_BOUGHT.fields()).from(RESERVED_INSTANCE_BOUGHT)
+                                        .join(RESERVED_INSTANCE_SPEC)
+                                        .on(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID
+                                                        .eq(RESERVED_INSTANCE_SPEC.ID))
+                                        .where(filter.getConditions()).fetch().into(RESERVED_INSTANCE_BOUGHT);
+        final double expectedAggregatedAmortizedCost = calculateExpectedAggregatedAmortizedCosts(reservedInstanceBoughtRecords);
+        final Double reservedInstanceSummedCost = reservedInstanceBoughtStore.getReservedInstanceAggregatedAmortizedCost(filter);
+        assertEquals(expectedAggregatedAmortizedCost, reservedInstanceSummedCost, 0D);
+    }
+
+    /**
+     * Test case to verify retrieving aggregated amortized cost by scoping based on business accounts.
+     */
+    @Test
+    public void testGetReservedInstanceAggregatedAmortizedCostFilterByBusinessAccount() {
+        final List<ReservedInstanceBoughtInfo> reservedInstanceInfos =
+                        Arrays.asList(riInfoOne, riInfoTwo, riInfoThree, riInfoFour);
+        reservedInstanceBoughtStore.updateReservedInstanceBought(dsl, reservedInstanceInfos);
+        List<Long> scopeIds = new ArrayList<>();
+        scopeIds.add(789L);
+        final ReservedInstanceCostFilter filter = ReservedInstanceCostFilter.newBuilder()
+                        .addAllScopeId(scopeIds)
+                        .setScopeEntityType(BUSINESS_ACCOUNT_VALUE)
+                        .build();
+        final List<ReservedInstanceBoughtRecord> reservedInstanceBoughtRecords =
+                        dsl.selectFrom(Tables.RESERVED_INSTANCE_BOUGHT)
+                                        .where(filter.getConditions()).fetch();
+        final double expectedAggregatedAmortizedCost = calculateExpectedAggregatedAmortizedCosts(reservedInstanceBoughtRecords);
+        final Double reservedInstanceSummedCost = reservedInstanceBoughtStore.getReservedInstanceAggregatedAmortizedCost(filter);
+        assertEquals(expectedAggregatedAmortizedCost, reservedInstanceSummedCost, 0D);
     }
 
     private void insertDefaultReservedInstanceSpec() {
+        final CloudCostDTO.ReservedInstanceType riType1 = CloudCostDTO.ReservedInstanceType.newBuilder().setTermYears(1).setOfferingClass(
+                        CloudCostDTO.ReservedInstanceType.OfferingClass.STANDARD).setPaymentOption(
+                        CloudCostDTO.ReservedInstanceType.PaymentOption.ALL_UPFRONT).build();
+
+        final CloudCostDTO.ReservedInstanceType riType2 = CloudCostDTO.ReservedInstanceType.newBuilder().setTermYears(2).setOfferingClass(
+                        CloudCostDTO.ReservedInstanceType.OfferingClass.STANDARD).setPaymentOption(
+                        CloudCostDTO.ReservedInstanceType.PaymentOption.ALL_UPFRONT).build();
+
         final ReservedInstanceSpecRecord specRecordOne = dsl.newRecord(Tables.RESERVED_INSTANCE_SPEC,
-                new ReservedInstanceSpecRecord(99L,
+                new ReservedInstanceSpecRecord(101L,
                         OfferingClass.STANDARD.getValue(),
                         PaymentOption.ALL_UPFRONT.getValue(),
                         1,
@@ -327,9 +429,9 @@ public class ReservedInstanceBoughtStoreTest {
                         OSType.LINUX.getValue(),
                         88L,
                         77L,
-                        ReservedInstanceSpecInfo.getDefaultInstance()));
+                        ReservedInstanceSpecInfo.newBuilder().setType(riType1).build()));
         final ReservedInstanceSpecRecord specRecordTwo = dsl.newRecord(Tables.RESERVED_INSTANCE_SPEC,
-                new ReservedInstanceSpecRecord(100L,
+                new ReservedInstanceSpecRecord(102L,
                         OfferingClass.STANDARD.getValue(),
                         PaymentOption.ALL_UPFRONT.getValue(),
                         2,
@@ -337,7 +439,46 @@ public class ReservedInstanceBoughtStoreTest {
                         OSType.LINUX.getValue(),
                         90L,
                         78L,
-                        ReservedInstanceSpecInfo.getDefaultInstance()));
+                        ReservedInstanceSpecInfo.newBuilder().setType(riType2).build()));
         dsl.batchInsert(Arrays.asList(specRecordOne, specRecordTwo)).execute();
+    }
+
+    private void verifyAmortizedCosts(List<ReservedInstanceBoughtInfo> reservedInstanceBoughtInfos, List<ReservedInstanceBoughtRecord> records) {
+        final Set<Long> riSpecIDSet =
+                        reservedInstanceBoughtInfos.stream().map(a -> a.getReservedInstanceSpec())
+                                        .collect(Collectors.toSet());
+        final Map<Long, Integer> riSpecToTermMap =
+                        reservedInstanceSpecStore.getReservedInstanceSpecByIds(riSpecIDSet).stream()
+                                        .collect(Collectors.toMap(ReservedInstanceSpec::getId,
+                                                        riSpec -> riSpec.getReservedInstanceSpecInfo()
+                                                                        .getType().getTermYears()));
+        final Map<String, Double> riToAmortizedCostMap = records.stream().collect(Collectors
+                        .toMap(ReservedInstanceBoughtRecord::getProbeReservedInstanceId,
+                                        ReservedInstanceBoughtRecord::getPerInstanceAmortizedCostHourly));
+        for (ReservedInstanceBoughtInfo reservedInstanceBoughtInfo : reservedInstanceBoughtInfos) {
+            final double expectedAmortizedCost = calculateExpectedAmortizedCost(reservedInstanceBoughtInfo
+                                            .getReservedInstanceBoughtCost()
+                                            .getFixedCost()
+                                            .getAmount(),
+                            reservedInstanceBoughtInfo
+                                            .getReservedInstanceBoughtCost()
+                                            .getRecurringCostPerHour()
+                                            .getAmount(),
+                            riSpecToTermMap.get(reservedInstanceBoughtInfo.getReservedInstanceSpec()));
+            assertEquals(expectedAmortizedCost, riToAmortizedCostMap.get(reservedInstanceBoughtInfo.getProbeReservedInstanceId()), 0D);
+        }
+    }
+
+    private double calculateExpectedAmortizedCost(double fixedCost, double recurringCost, int term) {
+        return ((fixedCost / (term * NO_OF_MONTHS * MONTHLY_TO_HOURLY_CONVERSION)) + recurringCost);
+    }
+
+    private double calculateExpectedAggregatedAmortizedCosts(List<ReservedInstanceBoughtRecord> reservedInstanceBoughtRecords) {
+        double aggregatedAmortizedCostPerRI = 0D;
+        for (ReservedInstanceBoughtRecord reservedInstanceBoughtRecord : reservedInstanceBoughtRecords) {
+            aggregatedAmortizedCostPerRI += reservedInstanceBoughtRecord.getPerInstanceAmortizedCostHourly()
+                            * reservedInstanceBoughtRecord.getCount();
+        }
+        return aggregatedAmortizedCostPerRI;
     }
 }
