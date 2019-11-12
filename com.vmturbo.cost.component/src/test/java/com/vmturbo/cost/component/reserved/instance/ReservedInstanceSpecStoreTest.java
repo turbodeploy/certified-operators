@@ -100,7 +100,7 @@ public class ReservedInstanceSpecStoreTest {
         flyway.clean();
         flyway.migrate();
         reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl,
-                new IdentityProvider(0));
+                new IdentityProvider(0), 10);
     }
 
     /**

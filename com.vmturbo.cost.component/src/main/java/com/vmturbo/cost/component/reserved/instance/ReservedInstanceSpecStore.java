@@ -13,10 +13,11 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
-
+import com.google.common.collect.Lists;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
@@ -31,6 +32,8 @@ import com.vmturbo.cost.component.identity.IdentityProvider;
 public class ReservedInstanceSpecStore {
     private static final Logger logger = LogManager.getLogger();
 
+    private final int riBatchSize;
+
     private final IdentityProvider identityProvider;
 
     private final DSLContext dsl;
@@ -42,17 +45,21 @@ public class ReservedInstanceSpecStore {
     ReservedInstanceSpecStore() {
         this.dsl = null;
         this.identityProvider = null;
+        this.riBatchSize = 10000;
     }
 
     /**
      * Constructor.
      * @param dsl database context.
      * @param identityProvider identity provivder to generate OIDs.
+     * @param riBatchSize max size of a batch to insert into 'reserved_instance_spec'.
      */
     public ReservedInstanceSpecStore(@Nonnull final DSLContext dsl,
-                                     @Nonnull final IdentityProvider identityProvider) {
+                                     @Nonnull final IdentityProvider identityProvider,
+                                     final int riBatchSize) {
         this.dsl = Objects.requireNonNull(dsl);
         this.identityProvider = Objects.requireNonNull(identityProvider);
+        this.riBatchSize = riBatchSize;
     }
 
     /**
@@ -127,7 +134,15 @@ public class ReservedInstanceSpecStore {
                     reservedInstanceSpecInfoToNewIdMap.get(newSpec.getReservedInstanceSpecInfo()));
         }
 
-        context.batchInsert(reservedInstanceSpecRecordsToAdd).execute();
+        if (!reservedInstanceSpecRecordsToAdd.isEmpty()) {
+            context.transaction(configuration -> {
+                final DSLContext transactionContext = DSL.using(configuration);
+                Lists.partition(reservedInstanceSpecRecordsToAdd, riBatchSize).forEach(batch -> {
+                    transactionContext.batchInsert(batch).execute();
+                });
+            });
+        }
+
         logger.debug("Finished updateReservedInstanceSpec: specLocalIdToRealIdMap.size={}",
             () -> specLocalIdToRealIdMap.size());
         return specLocalIdToRealIdMap;

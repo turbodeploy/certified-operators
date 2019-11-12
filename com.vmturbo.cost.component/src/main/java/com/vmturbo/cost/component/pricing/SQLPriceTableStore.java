@@ -18,12 +18,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.Param;
+import org.jooq.TableField;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTableKey;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
 import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.db.tables.records.PriceTableRecord;
 import com.vmturbo.cost.component.identity.PriceTableKeyIdentityStore;
 import com.vmturbo.cost.component.pricing.PriceTableMerge.PriceTableMergeFactory;
 import com.vmturbo.cost.component.pricing.utils.PriceTableKeySerializationHelper;
@@ -103,24 +106,36 @@ public class SQLPriceTableStore implements PriceTableStore {
                 final ReservedInstancePriceTable riPriceTable = table.getRiPriceTable();
                 final Long checkSum = table.getCheckSum();
                 try {
-                    long oid = priceTableKeyIdentityStore.fetchOrAssignOid(priceTableKey);
-                    String serializedPriceTableKey = PriceTableKeySerializationHelper.serializeProbeKeyMaterial(priceTableKey);
-                    final int modifiedRows = transactionContext.insertInto(Tables.PRICE_TABLE)
-                            .set(Tables.PRICE_TABLE.OID, oid)
-                            .set(Tables.PRICE_TABLE.PRICE_TABLE_KEY, serializedPriceTableKey)
-                            .set(Tables.PRICE_TABLE.LAST_UPDATE_TIME, curTime)
-                            .set(Tables.PRICE_TABLE.PRICE_TABLE_DATA, priceTable)
-                            .set(Tables.PRICE_TABLE.RI_PRICE_TABLE_DATA, riPriceTable)
-                            .set(Tables.PRICE_TABLE.CHECKSUM, checkSum)
-                            .onDuplicateKeyUpdate()
-                            .set(Tables.PRICE_TABLE.OID, oid)
-                            .set(Tables.PRICE_TABLE.LAST_UPDATE_TIME, curTime)
-                            .set(Tables.PRICE_TABLE.PRICE_TABLE_DATA, priceTable)
-                            .set(Tables.PRICE_TABLE.RI_PRICE_TABLE_DATA, riPriceTable)
-                            .set(Tables.PRICE_TABLE.CHECKSUM, checkSum)
-                            .execute();
-                    logger.info("Modified {} row after insert/update.",
-                            modifiedRows);
+                    final long oid = priceTableKeyIdentityStore.fetchOrAssignOid(priceTableKey);
+                    final String serializedPriceTableKey = PriceTableKeySerializationHelper
+                            .serializeProbeKeyMaterial(priceTableKey);
+                    // We avoid using 'InsertOnDuplicateStep.onDuplicateKeyUpdate()' because it can
+                    // cause an exceeding of 'max_allowed_packet' size.
+                    final boolean duplicateKey = transactionContext
+                            .fetchCount(Tables.PRICE_TABLE, Tables.PRICE_TABLE.OID.eq(oid)) > 0;
+                    final Param<PriceTable> pPriceTable
+                            = getParameter(Tables.PRICE_TABLE.PRICE_TABLE_DATA, priceTable);
+                    final Param<ReservedInstancePriceTable> pRiPriceTable
+                            = getParameter(Tables.PRICE_TABLE.RI_PRICE_TABLE_DATA, riPriceTable);
+                    int modified;
+                    if (duplicateKey) {
+                        modified = transactionContext.update(Tables.PRICE_TABLE)
+                                .set(Tables.PRICE_TABLE.PRICE_TABLE_KEY, serializedPriceTableKey)
+                                .set(Tables.PRICE_TABLE.LAST_UPDATE_TIME, curTime)
+                                .set(Tables.PRICE_TABLE.PRICE_TABLE_DATA, pPriceTable)
+                                .set(Tables.PRICE_TABLE.RI_PRICE_TABLE_DATA, pRiPriceTable)
+                                .set(Tables.PRICE_TABLE.CHECKSUM, checkSum)
+                                .where(Tables.PRICE_TABLE.OID.eq(oid)).execute();
+                    } else {
+                        modified = transactionContext.insertInto(Tables.PRICE_TABLE)
+                                .set(Tables.PRICE_TABLE.OID, oid)
+                                .set(Tables.PRICE_TABLE.PRICE_TABLE_KEY, serializedPriceTableKey)
+                                .set(Tables.PRICE_TABLE.LAST_UPDATE_TIME, curTime)
+                                .set(Tables.PRICE_TABLE.PRICE_TABLE_DATA, pPriceTable)
+                                .set(Tables.PRICE_TABLE.RI_PRICE_TABLE_DATA, pRiPriceTable)
+                                .set(Tables.PRICE_TABLE.CHECKSUM, checkSum).execute();
+                    }
+                    logger.info("Modified {} row after insert/update.", modified);
                 } catch (InvalidProtocolBufferException e) {
                     logger.error("unable to de-serialize priceTable : {}:", priceTableKey, e);
                 } catch (IdentityStoreException e) {
@@ -129,6 +144,12 @@ public class SQLPriceTableStore implements PriceTableStore {
                 }
             });
         });
+    }
+
+    private <T> Param<T> getParameter(TableField<PriceTableRecord, T> field, T value) {
+        Param<T> param = DSL.param(field.getName(), field);
+        param.setValue(value);
+        return param;
     }
 
     /**

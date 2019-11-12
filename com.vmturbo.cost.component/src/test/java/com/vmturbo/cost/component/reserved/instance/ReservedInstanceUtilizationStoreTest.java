@@ -126,7 +126,7 @@ public class ReservedInstanceUtilizationStoreTest {
         reservedInstanceBoughtStore = new ReservedInstanceBoughtStore(dsl,
                 new IdentityProvider(0));
         reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl,
-                new IdentityProvider(0));
+                new IdentityProvider(0), 10);
         entityReservedInstanceMappingStore = new EntityReservedInstanceMappingStore(dsl);
         reservedInstanceUtilizationStore = new ReservedInstanceUtilizationStore(dsl, reservedInstanceBoughtStore,
                 reservedInstanceSpecStore, entityReservedInstanceMappingStore);

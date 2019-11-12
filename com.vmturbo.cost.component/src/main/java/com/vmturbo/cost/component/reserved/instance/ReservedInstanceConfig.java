@@ -73,6 +73,12 @@ public class ReservedInstanceConfig {
     @Value("${concurrentSupplementalRICoverageAllocation:true}")
     private boolean concurrentSupplementalRICoverageAllocation;
 
+    /**
+     * Max size of a batch to insert into 'reserved_instance_spec'.
+     */
+    @Value("${riSpecStoreInsertBatch:10000}")
+    private int riBatchSize;
+
     @Autowired
     private GroupClientConfig groupClientConfig;
 
@@ -115,7 +121,7 @@ public class ReservedInstanceConfig {
     @Bean
     public ReservedInstanceSpecStore reservedInstanceSpecStore() {
         return new ReservedInstanceSpecStore(databaseConfig.dsl(),
-                identityProviderConfig.identityProvider());
+                identityProviderConfig.identityProvider(), riBatchSize);
     }
 
     @Bean
