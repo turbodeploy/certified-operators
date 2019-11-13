@@ -4,7 +4,6 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -16,7 +15,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -45,6 +43,7 @@ import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
@@ -66,7 +65,12 @@ import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -1037,6 +1041,11 @@ public class TargetsService implements ITargetsService {
         final Map<Long, ProbeInfo> probeMap = getProbeIdToProbeInfoMap();
         final ProbeInfo probeInfo = probeMap.get(probeId);
 
+        // set if possible the current businessAccount
+        if (probeInfo != null && StringConstants.CLOUD_MANAGEMENT.equals(probeInfo.getCategory())) {
+            setIfExistsCurrentBusinessAccount(targetApiDTO);
+        }
+
         // The probeInfo object of targets should always be present because it is stored in Consul
         // to survive a topology processor restart. It is also not removed from the ProbeStore
         // when a probe disconnects.
@@ -1090,6 +1099,54 @@ public class TargetsService implements ITargetsService {
         }
 
         return targetApiDTO;
+    }
+
+    /**
+     * Set the possible currentBusinessAccount filed in a TargetApiDTO object.
+     * @param targetApiDTO the TargetApiDTO of the target
+     */
+    private void setIfExistsCurrentBusinessAccount(TargetApiDTO targetApiDTO) {
+        List<TopologyEntityDTO> entityDTOs = repositoryApi.newSearchRequest(
+                        SearchProtoUtil.makeSearchParameters(SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT))
+                            .build())
+                        .getFullEntities()
+                        .filter(entity -> entity.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList()
+                                        .stream()
+                                        .anyMatch(id -> id == Long.parseLong(targetApiDTO.getUuid())))
+                        .collect(Collectors.toList());
+        if (!entityDTOs.isEmpty()) {
+            TopologyEntityDTO ba = entityDTOs.stream()
+                            .filter(ent ->
+                                ent.getConnectedEntityListList().stream()
+                                .filter(entity -> entity.getConnectedEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE)
+                                .collect(Collectors.toList()).size() > 0).findFirst().orElse(entityDTOs.get(0));
+
+            targetApiDTO.setCurrentBusinessAccount(createBusinessAccountWithMembersApiDTO(ba));
+        }
+    }
+
+    /**
+     * Create BusinessAccount DTO from a TopologyEntityDTO and populate its sub-accounts.
+     * @param entityDTO the TopologyEntityDTO of the BusinessAccount
+     * @return the
+     */
+    private BusinessUnitApiDTO createBusinessAccountWithMembersApiDTO(TopologyEntityDTO entityDTO) {
+        final BusinessUnitApiDTO businessUnitApiDTO = new BusinessUnitApiDTO();
+        businessUnitApiDTO.setDisplayName(entityDTO.getDisplayName());
+        businessUnitApiDTO.setUuid((Long.toString(entityDTO.getOid())));
+        businessUnitApiDTO.setClassName(StringConstants.BUSINESS_ACCOUNT);
+
+        final List<ConnectedEntity> accounts = entityDTO.getConnectedEntityListList().stream()
+                        .filter(entity -> entity.getConnectedEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE)
+                        .collect(Collectors.toList());
+        businessUnitApiDTO.setMembersCount(accounts.size());
+
+        businessUnitApiDTO.setChildrenBusinessUnits(accounts.stream()
+                        .map(connectedEntity -> String.valueOf(connectedEntity.getConnectedEntityId()))
+                        .collect(Collectors.toList()));
+        businessUnitApiDTO.setMaster(accounts.size() > 0);
+
+        return businessUnitApiDTO;
     }
 
     @Nonnull

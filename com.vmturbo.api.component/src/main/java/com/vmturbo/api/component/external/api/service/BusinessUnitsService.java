@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.service;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -236,8 +237,12 @@ public class BusinessUnitsService implements IBusinessUnitsService {
     @Override
     public Collection<BusinessUnitApiDTO> getRelatedBusinessUnits(@Nonnull String uuid,
                                                                   HierarchicalRelationship relationship) throws Exception {
-        // TODO OM-35804 implement required behavior
-        throw ApiUtils.notImplementedInXL();
+        BusinessUnitApiDTO ba = mapper.getBusinessUnitByOID(targetsService, uuid);
+
+        return ba.getChildrenBusinessUnits()
+                        .stream()
+                        .map(childUuid -> mapper.getBusinessUnitByOID(targetsService, childUuid))
+                        .collect(Collectors.toCollection(HashSet::new));
     }
 
     @Override

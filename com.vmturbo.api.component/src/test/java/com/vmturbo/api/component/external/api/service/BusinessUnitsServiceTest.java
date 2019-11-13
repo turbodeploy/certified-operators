@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +42,7 @@ import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.BusinessUnitType;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.enums.HierarchicalRelationship;
 import com.vmturbo.api.enums.ServicePricingModel;
 import com.vmturbo.api.pagination.EntityPaginationRequest;
 import com.vmturbo.api.pagination.EntityPaginationRequest.EntityPaginationResponse;
@@ -323,5 +325,28 @@ public class BusinessUnitsServiceTest {
         assertThat(paginationResponse.getRestResponse().getBody().size(), is(1));
         assertThat(paginationResponse.getRestResponse().getBody().get(0), is(serviceEntityDTO));
     }
+
+    /**
+     * Testing getRelatedBusinessUnits by business unit.
+     * @throws Exception If one of the necessary steps/RPCs failed.
+     */
+    @Test
+    public void testGetRelatedBusinessUnits() throws Exception {
+        BusinessUnitApiDTO baApiDTO = new BusinessUnitApiDTO();
+        baApiDTO.setDisplayName(TEST_DISPLAY_NAME);
+        baApiDTO.setUuid(UUID_STRING);
+        baApiDTO.setBusinessUnitType(BusinessUnitType.DISCOVERED);
+        baApiDTO.setChildrenBusinessUnits(ImmutableList.of(UUID_STRING));
+
+        when(mapper.getBusinessUnitByOID(targetsService, UUID_STRING)).thenReturn(baApiDTO);
+
+        HierarchicalRelationship relationship = null;
+
+        Collection<BusinessUnitApiDTO> resultDTOs = businessUnitsService.getRelatedBusinessUnits(UUID_STRING, relationship);
+
+        assertThat(resultDTOs.size(), is(1));
+        assertThat(resultDTOs.iterator().next().getUuid(), is(UUID_STRING));
+    }
+
 
 }

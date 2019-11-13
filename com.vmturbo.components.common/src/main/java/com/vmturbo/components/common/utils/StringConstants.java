@@ -197,6 +197,7 @@ public class StringConstants {
     public static final String ZONE = "Zone";
     public static final String REGION = "Region";
     public static final String CLOUD_SERVICE = "CloudService";
+    public static final String CLOUD_MANAGEMENT = "Cloud Management";
     public static final String TEMPLATE = "template";
     public static final String TIER = "tier";
     public static final String BUSINESS_UNIT = "businessUnit";
