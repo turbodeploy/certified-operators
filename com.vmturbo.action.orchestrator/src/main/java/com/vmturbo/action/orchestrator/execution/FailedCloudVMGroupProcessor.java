@@ -211,7 +211,8 @@ public class FailedCloudVMGroupProcessor {
             ActionDTO.Action actionDTO = action.getTranslationResultOrOriginal();
             ActionEntity actionEntity = ActionDTOUtil.getPrimaryEntity(actionDTO);
             if (!isValidAction(actionDTO, actionEntity)) {
-                logger.debug("Only processing action on VMs running Environment type Cloud of action type Move or Resize");
+                logger.debug("Only processing action on VMs running Environment type Cloud of " +
+                    "action type Move or Scale");
                 return;
             }
             recordVmActionWithLock(actionEntity.getId(), failed);
@@ -232,8 +233,8 @@ public class FailedCloudVMGroupProcessor {
     }
 
     /**
-     * checks if action entity is VM and if action is of type MOVE or RESIZE and EnvironmentType is CLOUD
-     * right now we are only interested in resize and move actions
+     * checks if action entity is VM and if action is of type MOVE or SCALE and EnvironmentType is
+     * CLOUD right now we are only interested in scale and move actions
      *
      * @param action
      * @param actionEntity
@@ -243,7 +244,7 @@ public class FailedCloudVMGroupProcessor {
         if (actionEntity.getType() == EntityType.VIRTUAL_MACHINE.getValue() &&
                 actionEntity.getEnvironmentType() == EnvironmentType.CLOUD) {
             ActionType actionType = ActionDTOUtil.getActionInfoActionType(action);
-            return actionType == ActionType.MOVE || actionType == ActionType.RESIZE;
+            return actionType == ActionType.MOVE || actionType == ActionType.SCALE;
         }
         return false;
     }
