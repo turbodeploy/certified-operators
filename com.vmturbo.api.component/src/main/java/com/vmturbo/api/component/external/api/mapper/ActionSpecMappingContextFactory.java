@@ -122,7 +122,8 @@ public class ActionSpecMappingContextFactory {
      * @param buyRIActions The Buy RI actions we need to generate the mapping for.
      * @return mapping of buy RI id to a pair of RI Bought and RI Spec.
      */
-    private Map<Long, Pair<ReservedInstanceBought, ReservedInstanceSpec>>
+    @VisibleForTesting
+    public Map<Long, Pair<ReservedInstanceBought, ReservedInstanceSpec>>
                                                         getBuyRIIdToRIBoughtandRISpec(List<BuyRI> buyRIActions) {
         Map<Long, Pair<ReservedInstanceBought, ReservedInstanceSpec>> buyRIIdToRIBoughtandRISpec =
                                                                                     new HashMap<>();
@@ -157,9 +158,9 @@ public class ActionSpecMappingContextFactory {
                 ReservedInstanceBought riBought = entry.getValue();
                 ReservedInstanceSpec riSpec = specIdToRISpec.get(riBought.getReservedInstanceBoughtInfo()
                                                 .getReservedInstanceSpec());
-                Pair<ReservedInstanceBought, ReservedInstanceSpec> pair
-                        = new Pair<>(riBought, riSpec);
-                buyRIIdToRIBoughtandRISpec.put(buyRIId, pair);
+                    Pair<ReservedInstanceBought, ReservedInstanceSpec> pair
+                            = new Pair<>(riBought, riSpec);
+                    buyRIIdToRIBoughtandRISpec.put(buyRIId, pair);
             }
         }
         return  buyRIIdToRIBoughtandRISpec;
