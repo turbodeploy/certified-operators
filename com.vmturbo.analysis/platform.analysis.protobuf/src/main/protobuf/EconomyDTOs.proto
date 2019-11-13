@@ -86,6 +86,10 @@ message Context {
 
     // Zone id of the zone to which the holding Trader belongs.
     optional int64 zone_id = 3;
+
+    optional double total_allocated_coupons = 4;
+
+    optional double total_requested_coupons = 5;
 }
 
 // A group of parameters effecting how a trader will be treated by the analysis engine.

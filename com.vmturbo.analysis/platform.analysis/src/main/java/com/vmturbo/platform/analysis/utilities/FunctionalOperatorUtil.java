@@ -139,22 +139,8 @@ public class FunctionalOperatorUtil {
                                                                 .collect(Collectors.toList()));
                                 return new double[] {commSold.getQuantity(), 0};
                             }
-                            long groupFactor = buyer.getGroupFactor();
-                            if (groupFactor == 0) {
-                                if (logger.isTraceEnabled()) {
-                                    logger.trace("UPDATE_COUPON_COMM attempting to update coupon" +
-                                        " commodity for non-leader scaling group member: "
-                                        + buyer.getBuyer().getDebugInfoNeverUseInCode()
-                                        + " which moved to: "
-                                        + seller.getDebugInfoNeverUseInCode()
-                                        + " mutable sellers: "
-                                        + mutableSellers.stream()
-                                        .map(Trader::getDebugInfoNeverUseInCode)
-                                        .collect(Collectors.toList()));
-                                }
-                                return new double[] {commSold.getQuantity(), 0};
-                            }
-
+                            // if we plan on simulating moves for every CSG member, maybe we dont have to consider the
+                            // groupFactor here. Especially since all the VMs are going to scale
                             if (overhead < 0) {
                                 logger.error("The overhead for CouponComm on CBTP " + seller.getDebugInfoNeverUseInCode()
                                 + " containing " + seller.getCustomers().size() + " is " + overhead);
@@ -181,19 +167,22 @@ public class FunctionalOperatorUtil {
                             // order to be able to provide a consistent discounted cost for all
                             // actions.  So, instead of one VM having 100% RI coverage and the other
                             // two having 0% coverage, all VMs will have 33% coverage.
-
                             int couponCommBaseType = buyer.getBasket().get(boughtIndex).getBaseType();
                             int indexOfCouponCommByTp = matchingTP.getBasketSold()
                                             .indexOfBaseType(couponCommBaseType);
                             CommoditySold couponCommSoldByTp =
                                             matchingTP.getCommoditiesSold().get(indexOfCouponCommByTp);
-                            double requestedCoupons = couponCommSoldByTp.getCapacity() * groupFactor;
+                            double requestedCoupons = couponCommSoldByTp.getCapacity();
                             // QuoteFunctionFactory.computeCost() already returns a cost that is
                             // scaled by the group factor, so adjust for a single buyer.
                             double templateCost = QuoteFunctionFactory.computeCost(buyer, matchingTP, false, economy)
-                                .getQuoteValue() / groupFactor;
+                                .getQuoteValue();
                             double availableCoupons = commSold.getCapacity() - commSold.getQuantity();
-
+                            // because we replay moves of every single VM into this CBTP, we dont have to worry about
+                            // existing coverage. If a VM already has a coverage of say 16 coupons and is scaling UP,
+                            // when we come here for that VM, the soldCommUsed is still 0 (NOT 16) because of that VM.
+                            // we then find out the right usage for that VM (HIGHER or LOWER) and add that as the VMs
+                            // contribution to the usage.
                             double discountedCost = 0;
                             double discountCoefficient = 0;
                             double totalAllocatedCoupons = 0;
@@ -202,6 +191,11 @@ public class FunctionalOperatorUtil {
                                 discountCoefficient = totalAllocatedCoupons / requestedCoupons;
                                 // normalize total allocated coupons for a single buyer
                                 buyer.setQuantity(boughtIndex, totalAllocatedCoupons);
+                                // TODO SS: consider updating tier in context
+                                // tier information is updated here indirectly through TotalRequestedCoupons update
+                                buyer.getBuyer().getSettings().getContext().setTotalAllocatedCoupons((long)totalAllocatedCoupons)
+                                                                           .setTotalRequestedCoupons((long)requestedCoupons);
+                                // buyer.getBuyer().getSettings().getContext().setTier();
                                 discountedCost = ((1 - discountCoefficient) * templateCost) + (discountCoefficient
                                                 * ((1 - cbtpResourceBundle.getDiscountPercentage()) * templateCost));
                             }
@@ -215,7 +209,6 @@ public class FunctionalOperatorUtil {
                                              + cbtpResourceBundle.getDiscountPercentage()
                                              + " on TP " + matchingTP.getDebugInfoNeverUseInCode()
                                              + " with a templateCost of " + templateCost
-                                             + " and a group factor of " + groupFactor
                                              + " at a discountCoeff of " + discountCoefficient
                                              + " with a final discount of " + discountedCost
                                              + " requests " + requestedCoupons
@@ -230,6 +223,8 @@ public class FunctionalOperatorUtil {
                              * requested by buyer.
                              */
                             return new double[]
+                                    // the couponCovered is included in totalAllocatedCoupons so to avoid double counting,
+                                    // subtract couponCovered from the used on the commSold
                                     {commSold.getQuantity() + totalAllocatedCoupons, 0};
                         };
                         return UPDATE_COUPON_COMM;

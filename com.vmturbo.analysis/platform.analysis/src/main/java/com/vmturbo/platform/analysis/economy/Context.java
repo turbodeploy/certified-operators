@@ -1,5 +1,8 @@
 package com.vmturbo.platform.analysis.economy;
 
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
+
+import javax.annotation.Nonnull;
 import java.util.Objects;
 
 /**
@@ -10,6 +13,25 @@ public class Context {
     private long regionId_;
     private long zoneId_;
     private BalanceAccount balanceAccount_;
+    private long totalRequestedCoupons_;
+    private long totalAllocatedCoupons_;
+
+    /**
+     * Constructor for the Context.
+     *
+     * @param regionId The regionId associated with the context
+     * @param zoneId The zoneId associated with the context
+     * @param balanceAccount The balance account associated with the context
+     * @param totalRequestedCoupons
+     * @param totalAllocatedCoupons
+     */
+    public Context(long regionId, long zoneId, BalanceAccount balanceAccount, long totalRequestedCoupons, long totalAllocatedCoupons) {
+        regionId_ = regionId;
+        zoneId_ = zoneId;
+        balanceAccount_ = balanceAccount;
+        totalRequestedCoupons_ = totalRequestedCoupons;
+        totalAllocatedCoupons_ = totalAllocatedCoupons;
+    }
 
     /**
      * Constructor for the Context.
@@ -22,6 +44,8 @@ public class Context {
         regionId_ = regionId;
         zoneId_ = zoneId;
         balanceAccount_ = balanceAccount;
+        totalRequestedCoupons_ = 0;
+        totalAllocatedCoupons_ = 0;
     }
 
     public long getRegionId() {
@@ -32,8 +56,35 @@ public class Context {
         return zoneId_;
     }
 
+    public long getTotalRequestedCoupons() {
+        return totalRequestedCoupons_;
+    }
+
+    public @Nonnull Context setTotalRequestedCoupons(long totalRequestedCoupons) {
+        totalRequestedCoupons_ = totalRequestedCoupons;
+        return this;
+    }
+
+    public long getTotalAllocatedCoupons() {
+        return totalAllocatedCoupons_;
+    }
+
+    public @Nonnull Context setTotalAllocatedCoupons(long totalAllocatedCoupons) {
+        totalAllocatedCoupons_ = totalAllocatedCoupons;
+        return this;
+    }
+
     public BalanceAccount getBalanceAccount() {
         return balanceAccount_;
+    }
+
+    public boolean equals(EconomyDTOs.Context other) {
+        return this.getTotalRequestedCoupons() == other.getTotalRequestedCoupons() &&
+                this.getTotalAllocatedCoupons() == other.getTotalAllocatedCoupons();
+    }
+
+    public boolean hasValidContext() {
+        return this.getTotalRequestedCoupons() != 0;
     }
 
     /**

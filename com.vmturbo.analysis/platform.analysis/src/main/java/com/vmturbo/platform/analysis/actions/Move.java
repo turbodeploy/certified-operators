@@ -107,13 +107,25 @@ public class Move extends MoveBase implements Action { // inheritance for code r
     @Override
     public @NonNull Move take() {
         super.take();
-        if (getSource() != getDestination()) {
+        if (getSource() != getDestination() ||
+                isContextChangeValid(getTarget().getBuyer())) {
             getTarget().move(destination_);
             updateQuantities(getEconomy(), getTarget(), getSource(), FunctionalOperatorUtil.SUB_COMM);
             updateQuantities(getEconomy(), getTarget(), getDestination(), FunctionalOperatorUtil.ADD_COMM);
             getTarget().setContext(getContext().orElse(null));
         }
         return this;
+    }
+
+    public boolean isContextChangeValid(Trader buyer) {
+        return getContext().isPresent() &&
+                ((buyer != null) ?
+                        ((buyer.getSettings() != null) ?
+                                ((buyer.getSettings().getContext() != null) ?
+                                        !buyer.getSettings().getContext().equals(getContext()) : false)
+                                : false)
+                        : false);
+
     }
 
     @Override
@@ -288,11 +300,17 @@ public class Move extends MoveBase implements Action { // inheritance for code r
             // while moving in
 
             // incomingSl is TRUE when the VM is moving in and false when moving out
+            // TODO SS: check if breaking incomingSl semantic has any adverse effect (happens when src and dest are the same)
             boolean incomingSl = traderToUpdate.getCustomers().contains(sl);
             double overhead = commoditySold.getQuantity();
             for (ShoppingList customer : traderToUpdate.getCustomers()) {
                 int commIndex = customer.getBasket().indexOf(specificationSold);
-                if (customer != sl && commIndex != -1) {
+                if ((customer != sl && commIndex != -1) ||
+                        // if a consumer hasContext, consider for overhead subtraction
+                        // hasContext true means VM on CBTP
+                        (sl.getBuyer().getSettings() != null &&
+                                sl.getBuyer().getSettings().getContext() != null &&
+                                sl.getBuyer().getSettings().getContext().hasValidContext())) {
                     // subtract the used value of comm in question of all the customers but the
                     // incoming shoppingList from the current used value of the sold commodity
                     overhead -= customer.getQuantity(commIndex);

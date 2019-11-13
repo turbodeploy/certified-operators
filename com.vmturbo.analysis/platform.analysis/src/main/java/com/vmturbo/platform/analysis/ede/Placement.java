@@ -260,7 +260,11 @@ public class Placement {
         if ((shoppingList.getGroupFactor() > 1 && Double.isFinite(cheapestQuote)) ||
             Math.min(MOVE_COST_FACTOR_MAX_COMM_SIZE, shoppingList.getBasket().size())
                         * buyer.getSettings().getMoveCostFactor() + cheapestQuote
-                        < currentQuote * buyer.getSettings().getQuoteFactor()) {
+                        < currentQuote * buyer.getSettings().getQuoteFactor() ||
+                (cheapestSeller == shoppingList.getSupplier()
+                        && minimizer.getBestQuote().getContext().isPresent()
+                        && !shoppingList.getBuyer().getSettings().getContext()
+                            .equals(minimizer.getBestQuote().getContext()))) {
             double savings = currentQuote - cheapestQuote;
             if (Double.isInfinite(savings)) {
                 savings = Double.MAX_VALUE;

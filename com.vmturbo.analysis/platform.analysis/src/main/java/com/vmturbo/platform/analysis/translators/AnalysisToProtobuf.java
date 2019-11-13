@@ -211,7 +211,9 @@ public final class AnalysisToProtobuf {
         if (shoppingList.getContext().isPresent()) {
             Context context = shoppingList.getContext().get();
             Context contextBuilder = Context.newBuilder().setRegionId(context.getRegionId())
-                    .setBalanceAccount(context.getBalanceAccount()).build();
+                    .setBalanceAccount(context.getBalanceAccount())
+                    .setTotalRequestedCoupons(context.getTotalRequestedCoupons())
+                    .setTotalAllocatedCoupons(context.getTotalAllocatedCoupons()).build();
             builder.setContext(contextBuilder);
         }
         // This mirrors the behavior in AnalysisToProtobuf::actionTO, in which we're resolving

@@ -43,6 +43,7 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     private QuoteFunction quoteFunction_ = QuoteFunctionFactory.sumOfCommodityQuoteFunction();
     private Context context_;
     private boolean isDaemon_ = false;
+
     // Whether the trader resizes commodity capacities through its Supplier cloning or suspending.
     private boolean isResizeThroughSupplier_ = false;
 
@@ -325,12 +326,12 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     }
 
     @Override
-    public void setContext(final Context context) {
-        context_ = context;
+    public Context getContext() {
+        return context_;
     }
 
     @Override
-    public Context getContext() {
-        return context_;
+    public void setContext(Context context) {
+        this.context_ = context;
     }
 } // end TraderWithSettings class

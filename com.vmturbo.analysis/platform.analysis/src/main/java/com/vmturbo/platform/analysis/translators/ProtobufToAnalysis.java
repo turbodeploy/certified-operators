@@ -7,6 +7,8 @@ import java.util.Map;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 
+import com.vmturbo.platform.analysis.economy.*;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -45,7 +47,6 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
@@ -560,7 +561,9 @@ public final class ProtobufToAnalysis {
         final long regionId = source.getCurrentContext().hasRegionId() ? source.getCurrentContext()
                 .getRegionId() : -1L;
         final EconomyDTOs.Context sourceContext = source.getCurrentContext();
-        final Context context = new Context(regionId, sourceContext.getZoneId(), balanceAccount);
+        // TODO SS: populate the couponCount and the currentTier
+        final Context context = new Context(regionId, sourceContext.getZoneId(), balanceAccount,
+                (long)sourceContext.getTotalRequestedCoupons(), (long)sourceContext.getTotalAllocatedCoupons());
         destination.setContext(context);
     }
 

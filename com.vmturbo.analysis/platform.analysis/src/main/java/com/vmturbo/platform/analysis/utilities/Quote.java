@@ -342,7 +342,8 @@ public abstract class Quote {
 
         protected CommodityCloudQuote(@Nullable final Trader seller,
                                       final double quoteValue,
-                                      @Nullable final Long regionId, @Nullable final Long balanceAccountId) {
+                                      @Nullable final Long regionId,
+                                      @Nullable final Long balanceAccountId) {
             super(seller, quoteValue);
             Context.Builder builder = Context.newBuilder();
             if (regionId != null) {
@@ -353,6 +354,25 @@ public abstract class Quote {
                 builder.setBalanceAccount(balanceAccount);
             }
             moveContext = builder.build();
+        }
+
+        protected CommodityCloudQuote(@Nullable final Trader seller,
+                                      final double quoteValue,
+                                      @Nullable final Context context,
+                                      @Nullable final Double requestedCoupons,
+                                      @Nullable final Double allocatedCoupons) {
+            super(seller, quoteValue);
+            if (context != null) {
+                Context.Builder builder = Context.newBuilder();
+                builder.setRegionId(context.getRegionId());
+                builder.setZoneId(context.getZoneId());
+                BalanceAccountDTO balanceAccount = BalanceAccountDTO.newBuilder()
+                        .setId(context.getBalanceAccount().getId()).build();
+                builder.setBalanceAccount(balanceAccount);
+                builder.setTotalRequestedCoupons(requestedCoupons);
+                builder.setTotalAllocatedCoupons(allocatedCoupons);
+                moveContext = builder.build();
+            }
         }
 
         @Override
