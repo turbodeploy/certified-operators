@@ -244,9 +244,7 @@ public class PlanRpcService extends PlanServiceImplBase {
         try {
             StartBuyRIAnalysisRequest request = PlanRpcServiceUtil.createBuyRIRequest(scenarioInfo,
                     riScenario, planId);
-            analysisExecutor.submit(() -> {
-                buyRIService.startBuyRIAnalysis(request);
-            });
+            buyRIService.startBuyRIAnalysis(request);
             planDao.updatePlanInstance(planId, oldInstance ->
                     oldInstance.setStatus(PlanStatus.STARTING_BUY_RI));
             logger.info("Started buy RI for plan {} on region {} account {}", planId,
