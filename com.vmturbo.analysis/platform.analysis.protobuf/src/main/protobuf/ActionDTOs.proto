@@ -176,6 +176,9 @@ message ResizeTO {
 
     // The end utilization of resize commodity after resize
     optional float end_utilization = 6;
+
+    // scaling group ID
+    optional string scaling_group_id = 7;
 }
 
 // An action to move a list of shopping lists bought by a trader from a number of old providers to

@@ -6,6 +6,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
@@ -522,8 +523,8 @@ public final class AnalysisToProtobuf {
             builder.setProvisionBySupply(provSupplyTO);
         } else if (input instanceof Resize) {
             Resize resize = (Resize)input;
-            builder.setResize(ResizeTO.newBuilder()
-                            .setSellingTrader(traderOid.get(resize.getSellingTrader()))
+            ResizeTO.Builder resizeBuilder = ResizeTO.newBuilder()
+                .setSellingTrader(traderOid.get(resize.getSellingTrader()))
                 .setSpecification(commoditySpecificationTO(resize.getResizedCommoditySpec()))
                 .setOldCapacity((float)resize.getOldCapacity())
                 .setNewCapacity((float)resize.getNewCapacity())
@@ -535,7 +536,12 @@ public final class AnalysisToProtobuf {
                                             .getUtilizationUpperBound() *
                                             resize.getOldCapacity())))
                 .setEndUtilization((float)(resize.getResizedCommodity().getStartQuantity() /
-                            resize.getResizedCommodity().getEffectiveCapacity())));
+                            resize.getResizedCommodity().getEffectiveCapacity()));
+            String scalingGroupId = resize.getSellingTrader().getScalingGroupId();
+            if (!scalingGroupId.isEmpty()) {
+                resizeBuilder.setScalingGroupId(scalingGroupId);
+            }
+            builder.setResize(resizeBuilder);
         } else if (input instanceof CompoundMove) {
             CompoundMove compoundMove = (CompoundMove)input;
             CompoundMoveTO.Builder compoundMoveTO = CompoundMoveTO.newBuilder();
