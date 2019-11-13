@@ -1,5 +1,6 @@
 package com.vmturbo.mediation.conversion.util;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -174,4 +175,16 @@ public class ConverterUtils {
     public static final int GP2_IOPS_TO_STORAGE_AMOUNT_RATIO = 3;
     public static final String GP2 = "GP2";
     public static final String IO1 = "IO1";
+
+    /**
+     * Gets set of {@link CloudService}s filtered by a given {@link SDKProbeType}.
+     *
+     * @param probeType A {@link SDKProbeType} for filtration requirements.
+     * @return Set of {@link CloudService}s filtered by a given {@link SDKProbeType}.
+     */
+    public static Set<CloudService> getCloudServicesByProbeType(SDKProbeType probeType) {
+        return Arrays.stream(CloudService.values())
+                .filter(cs -> cs.getProbeType() == probeType)
+                .collect(Collectors.toSet());
+    }
 }

@@ -37,6 +37,11 @@ import com.vmturbo.topology.processor.stitching.StitchingContext;
  */
 public class AccountExpensesUploader {
     private static final Logger logger = LogManager.getLogger();
+    private static final String CSP_OUTPUT_FORMAT = "%s::CS::%s";
+    private static final int CSP_NAME_INDEX = 0;
+    private static final int AZURE_CS_NAME_INDEX = 2;
+    private static final int AWS_CS_NAME_INDEX = 3;
+    private static final int NUMBER_OF_CS_SPECS = 4;
 
     private final RIAndExpenseUploadServiceBlockingStub costServiceClient;
 
@@ -104,7 +109,7 @@ public class AccountExpensesUploader {
                 UPLOAD_REQUEST_BUILD_STAGE).startTimer();
 
         // get the account expenses
-        Map<Long,AccountExpenses.Builder> accountExpensesByOid = createAccountExpenses(cloudEntitiesMap,
+        Map<Long, AccountExpenses.Builder> accountExpensesByOid = createAccountExpenses(cloudEntitiesMap,
                 stitchingContext, costDataByTarget);
         logger.debug("Created {} AccountExpenses.", accountExpensesByOid.size());
 
@@ -157,7 +162,7 @@ public class AccountExpensesUploader {
 
         // create the initial AccountExpenses objects w/receipt time based on target discovery time
         // in the future, this will be based on a billing time when that data is available.
-        Map<Long,AccountExpenses.Builder> expensesByAccountOid = new HashMap<>();
+        Map<Long, AccountExpenses.Builder> expensesByAccountOid = new HashMap<>();
         stitchingContext.getEntitiesOfType(EntityType.BUSINESS_ACCOUNT).forEach(stitchingEntity -> {
             // TODO: use the discovery time as the expense received time until we can find a better
             // expense-related time source. (e.g. the billing data itself). The time will be
@@ -214,8 +219,7 @@ public class AccountExpensesUploader {
                     // account-agnostic cloud service 'local id' by slicing the account id out of the
                     // cloud service's regular account-specific local id. We will use this modified
                     // local id to find the shared, account-agnostic cloud service topology entity.
-                    String sharedCloudServiceLocalId = sanitizeCloudServiceId(costData.getId(),
-                            costData.getAccountId());
+                    String sharedCloudServiceLocalId = sanitizeCloudServiceId(costData.getId());
                     Long cloudServiceOid = cloudEntitiesMap.get(sharedCloudServiceLocalId);
                     if (cloudServiceOid == null) {
                         logger.warn("Couldn't find a cloud service oid for service {}", sharedCloudServiceLocalId);
@@ -257,16 +261,34 @@ public class AccountExpensesUploader {
     /**
      * This function takes a cloud service id -- that may contain an account id in it -- and removes
      * the account id from it, if it exists. The resulting string should be usable as an account-
-     * agnostic cloud service local id. e.g.:
+     * agnostic cloud service local id.
+     * If the input cloud service id does not formatted properly,
+     * the output will remain the same and appropriate log message will be printed.
+     * currently, the Input Id format for AWS and Azure is not consistent e.g.:
      *
      * Input: "aws::192821421245::CS::AmazonS3" (account id 192821421245)
-     * Output: "aws::CS::AmazonS3"
+     * Output: "aws::CS::AmazonS3".
+     * Input: "azure::CS::Storage::26080bd2-d98f-4420-a737-9de8"
+     * (subscription id 26080bd2-d98f-4420-a737-9de8).
+     * Output: "azure::CS::Storage"
      *
-     * @param accountSpecificCloudServiceId
-     * @return
+     * @param accountSpecificCloudServiceId account specified CS id.
+     * contains account id which might got hashed.
+     * @return edited account specified CS id without its account id/subscription id.
      */
-    public String sanitizeCloudServiceId(String accountSpecificCloudServiceId, String accountId) {
-        return accountSpecificCloudServiceId.replace("::"+ accountId, "");
+    public String sanitizeCloudServiceId(String accountSpecificCloudServiceId) {
+        String[] csIdSpecs = accountSpecificCloudServiceId.split("::");
+        if (csIdSpecs.length != NUMBER_OF_CS_SPECS) {
+            logger.warn(
+                "Cloud Service: '{}' did not sanitize correctly - "
+                        + "has wrong id format in its costData", accountSpecificCloudServiceId);
+            return accountSpecificCloudServiceId;
+        }
+        final String cspName = csIdSpecs[CSP_NAME_INDEX];
+        return cspName.equals("azure")
+            ? String.format(CSP_OUTPUT_FORMAT, cspName, csIdSpecs[AZURE_CS_NAME_INDEX])
+            : String.format(CSP_OUTPUT_FORMAT, cspName, csIdSpecs[AWS_CS_NAME_INDEX]);
     }
-
 }
+
+

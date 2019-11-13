@@ -31,6 +31,8 @@ import com.vmturbo.mediation.conversion.cloud.converter.StorageConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
 import com.vmturbo.mediation.conversion.util.CloudService;
+import com.vmturbo.mediation.conversion.util.ConverterUtils;
+
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
@@ -60,12 +62,6 @@ public class GcpConversionContext implements CloudProviderConversionContext {
         converters.put(EntityType.DISK_ARRAY, new DiskArrayConverter());
         GCP_ENTITY_CONVERTERS = Collections.unmodifiableMap(converters);
     }
-
-    // cloud services that need to be created for gcp
-    private static Set<CloudService> GCP_CLOUD_SERVICES = ImmutableSet.of(
-            CloudService.GCP_VIRTUAL_MACHINES,
-            CloudService.GCP_STORAGE
-    );
 
     // map showing which EntityType to be owned by which CloudService
     private static final Map<EntityType, CloudService> ENTITY_TYPE_OWNED_BY_CLOUD_SERVICE_MAP =
@@ -128,7 +124,7 @@ public class GcpConversionContext implements CloudProviderConversionContext {
     @Nonnull
     @Override
     public Set<CloudService> getCloudServicesToCreate() {
-        return GCP_CLOUD_SERVICES;
+        return ConverterUtils.getCloudServicesByProbeType(SDKProbeType.GCP);
     }
 
     @Nonnull
