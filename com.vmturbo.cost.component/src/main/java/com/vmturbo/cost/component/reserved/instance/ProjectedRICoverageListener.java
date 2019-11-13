@@ -144,7 +144,7 @@ public class ProjectedRICoverageListener implements ProjectedReservedInstanceCov
             @Nonnull final Status status,
             @Nullable final String description) {
         final Builder projectedRiCoverageNotificationBuilder = StatusUpdate.newBuilder()
-                .setType(StatusUpdateType.SOURCE_RI_COVERAGE_UPDATE)
+                .setType(StatusUpdateType.PROJECTED_RI_COVERAGE_UPDATE)
                 .setTopologyId(originalTopologyInfo.getTopologyId())
                 .setTopologyContextId(originalTopologyInfo.getTopologyContextId())
                 .setStatus(status);
