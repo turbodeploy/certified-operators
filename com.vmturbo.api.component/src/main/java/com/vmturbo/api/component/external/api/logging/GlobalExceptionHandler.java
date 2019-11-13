@@ -11,6 +11,9 @@ import javax.validation.ConstraintViolationException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.base.Throwables;
 
+import io.grpc.Status.Code;
+import io.grpc.StatusRuntimeException;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.http.HttpStatus;
@@ -217,10 +220,27 @@ public class GlobalExceptionHandler {
         return createErrorDTO(req, ex, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
+    /**
+     * Repackaged {@link StatusRuntimeException} as an ErrorApiDTO to remove stack trace.
+     *
+     * @param req request {@link HttpServletRequest}.
+     * @param ex exception {@link StatusRuntimeException}.
+     * @return {@link ErrorApiDTO}.
+     */
+    @ExceptionHandler(StatusRuntimeException.class)
+    @ResponseBody
+    public ResponseEntity<ErrorApiDTO> handleStatusRuntimeException(HttpServletRequest req,
+            StatusRuntimeException ex) {
+        if (ex.getStatus() != null && ex.getStatus().getCode() == Code.INVALID_ARGUMENT) {
+            return createErrorDTO(req, ex, HttpStatus.BAD_REQUEST);
+        }
+        return createErrorDTO(req, ex, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
     protected ResponseEntity<ErrorApiDTO> createErrorDTO(@Nonnull HttpServletRequest req, @Nonnull Exception ex,
                                                        HttpStatus statusCode) {
         String logMsg = "API Status Code: " + statusCode.value();
-        if (req != null) {
+        if (req != null && req.getRequestURI() != null) {
             String url = req.getRequestURL().toString();
             logMsg += " URL: " + url;
         }

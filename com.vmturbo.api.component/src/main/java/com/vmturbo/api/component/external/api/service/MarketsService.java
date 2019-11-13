@@ -566,7 +566,7 @@ public class MarketsService implements IMarketsService {
                 .targetName(policyApiInputDTO.getPolicyName())
                 .audit();
             logger.error("Error while adding a policy with name "
-                    + policyApiInputDTO.getPolicyName(), e);
+                    + policyApiInputDTO.getPolicyName(), e.getMessage());
             throw e;
         }
     }
