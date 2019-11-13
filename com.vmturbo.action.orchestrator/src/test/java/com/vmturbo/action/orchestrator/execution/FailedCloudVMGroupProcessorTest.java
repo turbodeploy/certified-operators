@@ -103,20 +103,6 @@ public class FailedCloudVMGroupProcessorTest {
             .setExplanation(Explanation.getDefaultInstance())
             .build();
 
-    private final ActionDTO.Action scaleOnCloud = ActionDTO.Action.newBuilder()
-        .setId(actionId)
-        .setDeprecatedImportance(0)
-        .setSupportingLevel(SupportLevel.SUPPORTED)
-        .setInfo(ActionInfo.newBuilder()
-            .setScale(ActionDTO.Scale.newBuilder()
-                .setTarget(ActionEntity.newBuilder()
-                    .setId(5L)
-                    .setType(EntityType.VIRTUAL_MACHINE_VALUE)
-                    .setEnvironmentType(EnvironmentType.CLOUD))
-                .build()))
-        .setExplanation(Explanation.getDefaultInstance())
-        .build();
-
     private final ActionDTO.Action recommendationOnPrem = ActionDTO.Action.newBuilder()
             .setId(actionId)
             .setDeprecatedImportance(0)
@@ -197,19 +183,7 @@ public class FailedCloudVMGroupProcessorTest {
     }
 
     /**
-     * Tests that failed scale action results in adding failed vm in failed vm set.
-     */
-    @Test
-    public void isValidScaleActionTest() {
-        when(testGroupService.getGroups(eq(GET_GROUP_REQUEST))).thenReturn(Collections.emptyList());
-        Action testAction = makeAction(scaleOnCloud);
-        failedCloudVMGroupProcessor.handleActionFailure(testAction);
-        assertThat("Incorrect set size ", failedCloudVMGroupProcessor.getFailedOidsSet(),
-            containsInAnyOrder(5L));
-    }
-
-    /**
-     * Test the ability to add multiple unique entities in set for processing.
+     * Test the ability to add multiple unique entities in set for processing
      */
     @Test
     public void addMultipleVMInSet() {

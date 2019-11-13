@@ -155,7 +155,6 @@ public class ActionSpecMapperTest {
     private static final String SOURCE = "Source";
     private static final String DESTINATION = "Destination";
     private static final String DEFAULT_EXPLANATION = "default explanation";
-    private static final String DEFAULT_PREREQUISITE_DESCRIPTON = "default pre-requisite description";
 
     private static final long TARGET_ID = 10L;
     private static final String TARGET_DISPLAY_NAME = "target display name";
@@ -1147,8 +1146,6 @@ public class ActionSpecMapperTest {
             Arrays.asList(buildActionSpec(compoundMoveInfo, Explanation.newBuilder()
                 .setMove(moveExplanation2).build())), CONTEXT_ID);
         Assert.assertEquals(DEFAULT_EXPLANATION, dtos2.get(0).getRisk().getDescription());
-        Assert.assertEquals(Collections.singletonList(DEFAULT_PREREQUISITE_DESCRIPTON),
-            dtos2.get(0).getPrerequisites());
     }
 
     /**
@@ -1585,8 +1582,7 @@ public class ActionSpecMapperTest {
             .setActionState(ActionState.READY)
             .setActionMode(ActionMode.MANUAL)
             .setIsExecutable(true)
-            .setExplanation(DEFAULT_EXPLANATION)
-            .addPrerequisiteDescription(DEFAULT_PREREQUISITE_DESCRIPTON);
+            .setExplanation(DEFAULT_EXPLANATION);
 
         decision.ifPresent(builder::setDecision);
         return builder.build();

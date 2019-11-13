@@ -109,10 +109,9 @@ public class ActionStoreConfig {
     @Bean
     public AutomatedActionExecutor automatedActionExecutor() {
         return new AutomatedActionExecutor(actionExecutionConfig.actionExecutor(),
-            automatedActionThreadpool(),
-            workflowConfig.workflowStore(),
-            actionExecutionConfig.actionTargetSelector(),
-            entitySettingsCache());
+                automatedActionThreadpool(),
+                workflowConfig.workflowStore(),
+                actionExecutionConfig.actionTargetSelector());
     }
 
     @Bean

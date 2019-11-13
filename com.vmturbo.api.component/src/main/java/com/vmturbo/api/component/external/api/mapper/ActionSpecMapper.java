@@ -375,13 +375,6 @@ public class ActionSpecMapper {
 
         actionApiDTO.setDisplayName(actionMode.name());
 
-        // Set prerequisites for actionApiDTO if actionSpec has any pre-requisite description.
-        if (!actionSpec.getPrerequisiteDescriptionList().isEmpty()) {
-            actionApiDTO.setPrerequisites(actionSpec.getPrerequisiteDescriptionList().stream()
-                .map(description -> translateExplanation(description, context))
-                .collect(Collectors.toList()));
-        }
-
         // map the recommendation info
         final ActionDTO.Action recommendation = actionSpec.getRecommendation();
         LogEntryApiDTO risk = new LogEntryApiDTO();

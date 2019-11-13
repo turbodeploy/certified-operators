@@ -7,6 +7,7 @@ import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -42,7 +43,7 @@ import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor.ActionExecutionTask;
 import com.vmturbo.action.orchestrator.store.ActionStore;
-import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
+import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
@@ -65,8 +66,6 @@ public class AutomatedActionExecutorTest {
             Mockito.spy(new ActionExecutor(channel, clock, 1, TimeUnit.HOURS));
     private final ActionTargetSelector actionTargetSelector =
             Mockito.mock(ActionTargetSelector.class);
-    private final EntitiesAndSettingsSnapshotFactory entitySettingsCache =
-        Mockito.mock(EntitiesAndSettingsSnapshotFactory.class);
     private final ActionStore actionStore = Mockito.mock(ActionStore.class);
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
@@ -76,8 +75,7 @@ public class AutomatedActionExecutorTest {
             new AutomatedActionExecutor(actionExecutor,
                     executorService,
                     workflowStore,
-                    actionTargetSelector,
-                    entitySettingsCache);
+                    actionTargetSelector);
 
     private final long timeout = 30L;
     private final TimeUnit unit = TimeUnit.SECONDS;
@@ -433,7 +431,7 @@ public class AutomatedActionExecutorTest {
         ActionExecutor testActionExecutor = mock(ActionExecutor.class);
         final AutomatedActionExecutor automatedActionExecutor =
                 new AutomatedActionExecutor(testActionExecutor, testExecutor,
-                        workflowStore, actionTargetSelector, entitySettingsCache);
+                        workflowStore, actionTargetSelector);
         long actionId = 1L;
         Callable<Action> mockCallable = new Callable<Action>() {
             @Override

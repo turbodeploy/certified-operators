@@ -231,12 +231,13 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
     /**
      * Creates an empty snapshot. It only has a topology context id.
      *
+     * @param topologyContextId The topology context id
      * @return An empty {@link EntitiesAndSettingsSnapshot}
      */
     @Nonnull
-    public EntitiesAndSettingsSnapshot emptySnapshot() {
+    public EntitiesAndSettingsSnapshot emptySnapshot(final long topologyContextId) {
         return new EntitiesAndSettingsSnapshot(Collections.emptyMap(), Maps.newHashMap(),
-            OwnershipGraph.empty(), realtimeTopologyContextId);
+            OwnershipGraph.empty(), topologyContextId);
     }
 
     /**

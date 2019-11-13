@@ -28,7 +28,6 @@ import com.vmturbo.mediation.conversion.cloud.converter.StorageConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
 import com.vmturbo.mediation.conversion.util.CloudService;
-import com.vmturbo.mediation.conversion.util.ConverterUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
@@ -56,6 +55,18 @@ public class AzureConversionContext implements CloudProviderConversionContext {
         converters.put(EntityType.DISK_ARRAY, new DiskArrayConverter());
         AZURE_ENTITY_CONVERTERS = Collections.unmodifiableMap(converters);
     }
+
+    // cloud services that need to be created for azure
+    // todo: these cloud services are hardcoded for now, we may want to decide which of these to
+    // create based on existence of NonMarketEntityDTO
+    private static Set<CloudService> AZURE_CLOUD_SERVICES = ImmutableSet.of(
+            CloudService.AZURE_VIRTUAL_MACHINES,
+            CloudService.AZURE_DATA_SERVICES,
+            CloudService.AZURE_STORAGE,
+            CloudService.AZURE_NETWORKING,
+            CloudService.AZURE_DATA_MANAGEMENT,
+            CloudService.AZURE_IDENTITY
+    );
 
     // map showing which EntityType to be owned by which CloudService
     private static final Map<EntityType, CloudService> ENTITY_TYPE_OWNED_BY_CLOUD_SERVICE_MAP =
@@ -123,7 +134,7 @@ public class AzureConversionContext implements CloudProviderConversionContext {
     @Nonnull
     @Override
     public Set<CloudService> getCloudServicesToCreate() {
-        return ConverterUtils.getCloudServicesByProbeType(SDKProbeType.AZURE);
+        return AZURE_CLOUD_SERVICES;
     }
 
     @Override

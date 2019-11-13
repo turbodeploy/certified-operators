@@ -450,26 +450,6 @@ message Action {
         // Shouldn't be shown, cannot be executed
         UNSUPPORTED = 3;
     }
-
-    // A list of pre-requisites.
-    repeated Prerequisite prerequisite = 8;
-
-    // For the time being, we only have PrerequisiteType inside this message.
-    // Later, we'll add more info for Azure core quota.
-    message Prerequisite {
-        optional PrerequisiteType prerequisite_type = 1;
-    }
-
-    // The pre-requisite types supported
-    enum PrerequisiteType {
-        // AWS execution pre-requisites
-        ENA = 1;
-        NVME = 2;
-        ARCHITECTURE = 3;
-        VIRTUALIZATION_TYPE = 4;
-        // Azure execution pre-requisites
-        CORE_QUOTAS = 5;
-    }
 }
 
 // Auxiliary information for an action plan.
@@ -864,8 +844,6 @@ message ActionSpec {
     // The action description that will be set by AO and returned to the API.
     optional string description = 11;
 
-    // A list of prerequisite description.
-    repeated string prerequisite_description = 12;
 }
 
 // A filter to be supplied with action queries.

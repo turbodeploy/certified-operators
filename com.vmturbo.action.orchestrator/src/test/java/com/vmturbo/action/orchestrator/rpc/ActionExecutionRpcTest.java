@@ -131,7 +131,6 @@ public class ActionExecutionRpcTest {
             actionStorehouse,
             actionExecutor,
             actionTargetSelector,
-            entitySettingsCache,
             actionTranslator,
             paginatorFactory,
             workflowStore,
@@ -158,7 +157,7 @@ public class ActionExecutionRpcTest {
             Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
             return actions.collect(Collectors.toMap(ActionDTO.Action::getId, action -> targetInfo));
         });
-        when(actionTargetSelector.getTargetForAction(any(), any())).thenReturn(targetInfo);
+        when(actionTargetSelector.getTargetForAction(any())).thenReturn(targetInfo);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
         actionStoreSpy =
@@ -315,7 +314,7 @@ public class ActionExecutionRpcTest {
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
         actionStorehouse.storeActions(plan);
-        when(actionTargetSelector.getTargetForAction(eq(recommendation), any()))
+        when(actionTargetSelector.getTargetForAction(eq(recommendation)))
             .thenReturn(ImmutableActionTargetInfo.builder()
                 .supportingLevel(SupportLevel.UNSUPPORTED)
                 .build());
@@ -343,7 +342,7 @@ public class ActionExecutionRpcTest {
 
         actionStorehouse.storeActions(plan);
 
-        when(actionTargetSelector.getTargetForAction(Mockito.eq(recommendation), any())).thenReturn(
+        when(actionTargetSelector.getTargetForAction(Mockito.eq(recommendation))).thenReturn(
             ImmutableActionTargetInfo.builder()
                 .supportingLevel(SupportLevel.SUPPORTED)
                 .targetId(targetId)
@@ -389,7 +388,6 @@ public class ActionExecutionRpcTest {
                     actionStorehouse,
                     actionExecutor,
                     actionTargetSelector,
-                    entitySettingsCache,
                     actionTranslator,
                     paginatorFactory,
                     workflowStore,
@@ -408,7 +406,7 @@ public class ActionExecutionRpcTest {
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
 
         actionStorehouse.storeActions(plan);
-        when(actionTargetSelector.getTargetForAction(Mockito.eq(recommendation), any())).thenReturn(
+        when(actionTargetSelector.getTargetForAction(Mockito.eq(recommendation))).thenReturn(
             ImmutableActionTargetInfo.builder()
                 .supportingLevel(SupportLevel.SUPPORTED)
                 .targetId(targetId)

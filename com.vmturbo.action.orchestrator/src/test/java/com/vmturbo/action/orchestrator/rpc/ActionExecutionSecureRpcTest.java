@@ -144,7 +144,6 @@ public class ActionExecutionSecureRpcTest {
             actionStorehouse,
             actionExecutor,
             actionTargetSelector,
-            entitySettingsCache,
             actionTranslator,
             paginatorFactory,
             workflowStore,
@@ -216,7 +215,7 @@ public class ActionExecutionSecureRpcTest {
             Stream<Action> actions = invocation.getArgumentAt(0, Stream.class);
             return actions.collect(Collectors.toMap(ActionDTO.Action::getId, action -> targetInfo));
         });
-        when(actionTargetSelector.getTargetForAction(any(), any())).thenReturn(targetInfo);
+        when(actionTargetSelector.getTargetForAction(any())).thenReturn(targetInfo);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
         // mock action store

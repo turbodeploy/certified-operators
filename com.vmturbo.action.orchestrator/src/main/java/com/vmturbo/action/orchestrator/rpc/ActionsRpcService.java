@@ -46,7 +46,6 @@ import com.vmturbo.action.orchestrator.stats.query.live.FailedActionQueryExcepti
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse.StoreDeletionException;
-import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
@@ -125,8 +124,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      */
     private final ActionTargetSelector actionTargetSelector;
 
-    private final EntitiesAndSettingsSnapshotFactory entitySettingsCache;
-
     /**
      * To translate an action from the market's domain-agnostic form to the domain-specific form
      * relevant for execution and display in the real world.
@@ -157,7 +154,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      * @param actionStorehouse     The storehouse containing action stores.
      * @param actionExecutor       The executor for executing actions.
      * @param actionTargetSelector For selecting which target/probe to execute each action against
-     * @param entitySettingsCache  an entity snapshot factory
      * @param actionTranslator     The translator for translating actions (from market to real-world).
      * @param paginatorFactory     For paginating views of actions
      * @param workflowStore        the store for all the known {@link WorkflowDTO.Workflow} items
@@ -166,7 +162,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                              @Nonnull final ActionStorehouse actionStorehouse,
                              @Nonnull final ActionExecutor actionExecutor,
                              @Nonnull final ActionTargetSelector actionTargetSelector,
-                             @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache,
                              @Nonnull final ActionTranslator actionTranslator,
                              @Nonnull final ActionPaginatorFactory paginatorFactory,
                              @Nonnull final WorkflowStore workflowStore,
@@ -177,7 +172,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
         this.actionExecutor = Objects.requireNonNull(actionExecutor);
         this.actionTargetSelector = Objects.requireNonNull(actionTargetSelector);
-        this.entitySettingsCache = Objects.requireNonNull(entitySettingsCache);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.paginatorFactory = Objects.requireNonNull(paginatorFactory);
         this.workflowStore = Objects.requireNonNull(workflowStore);
@@ -640,9 +634,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         Optional<FailureEvent> failure = Optional.empty();
 
         ActionTargetInfo actionTargetInfo = actionTargetSelector.getTargetForAction(
-                action.getTranslationResultOrOriginal(), entitySettingsCache);
-        if (actionTargetInfo.supportingLevel() == SupportLevel.SUPPORTED &&
-            action.getMode().getNumber() >= ActionMode.MANUAL_VALUE) {
+                action.getTranslationResultOrOriginal());
+        if (actionTargetInfo.supportingLevel() == SupportLevel.SUPPORTED) {
             // Target should be set if support level is "supported".
             actionTargetId = actionTargetInfo.targetId().get();
         } else {

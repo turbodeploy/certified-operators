@@ -760,35 +760,6 @@ public class ActionDTOUtil {
     }
 
     /**
-     * Given an {@link ActionEntity}, create a translation fragment that shows the entity type and name.
-     *
-     * <p>e.g. For a VM named "Bill", create a fragment that would translate to "Virtual Machine Bill".
-     *
-     * @param entity an {@link ActionEntity}
-     * @return the translation
-     */
-    public static String buildEntityTypeAndName(ActionEntity entity) {
-        return ActionDTOUtil.upperUnderScoreToMixedSpaces(EntityType.forNumber(entity.getType()).name())
-            + " " + ActionDTOUtil.createTranslationBlock(entity.getId(), "displayName", "");
-    }
-
-    /**
-     * Given an {@link ActionEntity}, create a translation fragment that shows the entity name, if
-     * available, otherwise will show the entity type if for some reason the entity cannot be found
-     * when the text is translated.
-     *
-     * <p>For example, for a VM named "Bill", the fragment will render "Bill" if the entity name field
-     * is available, otherwise it will render "Virtual Machine".
-     *
-     * @param entity an {@link ActionEntity}
-     * @return the translation
-     */
-    public static String buildEntityNameOrType(ActionEntity entity) {
-        return ActionDTOUtil.createTranslationBlock(entity.getId(), "displayName",
-            ActionDTOUtil.upperUnderScoreToMixedSpaces(EntityType.forNumber(entity.getType()).name()));
-    }
-
-    /**
      * Convert a list of commodity type numbers to a comma-separated string of readable commodity names.
      *
      * Example: BALLOONING, SWAPPING, CPU_ALLOCATION -> Ballooning, Swapping, Cpu Allocation

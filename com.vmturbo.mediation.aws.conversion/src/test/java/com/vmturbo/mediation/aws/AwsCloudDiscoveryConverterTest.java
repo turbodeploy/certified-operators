@@ -266,10 +266,6 @@ public class AwsCloudDiscoveryConverterTest {
             // check ct owned by CloudService
             assertThat(awsConverter.getNewEntityBuilder(CloudService.AWS_EC2.getId()).getConsistsOfList(),
                     hasItem(entityId));
-
-            // check entity properties
-            assertEquals(newEntity.getEntityPropertiesList(),
-                awsConverter.getProfileDTO(newEntity.getId()).getEntityPropertiesList());
         });
     }
 

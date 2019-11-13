@@ -4,16 +4,17 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -25,14 +26,12 @@ import org.mockito.Captor;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
-import com.google.common.collect.Maps;
+import com.google.common.collect.Lists;
 
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.TargetInfoResolver;
 import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache.CachedCapabilities;
-import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
-import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
@@ -60,11 +59,6 @@ public class ActionTargetSelectorTest {
 
     // The class under test
     private ActionTargetSelector actionTargetSelector;
-
-    private final EntitiesAndSettingsSnapshotFactory entitySettingsCache =
-        mock(EntitiesAndSettingsSnapshotFactory.class);
-
-    private final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
 
     private RepositoryServiceMole repositoryServiceSpy = spy(new RepositoryServiceMole());
 
@@ -96,8 +90,6 @@ public class ActionTargetSelectorTest {
     @Before
     public void setup() {
         when(probeCapabilityCache.getCachedCapabilities()).thenReturn(cachedCapabilities);
-        when(entitySettingsCache.emptySnapshot()).thenReturn(new EntitiesAndSettingsSnapshot(
-            Collections.emptyMap(), Maps.newHashMap(), null, 0));
         targetEntitySelectorMock = mock(ActionExecutionEntitySelector.class);
         MockitoAnnotations.initMocks(this);
         // The class under test
@@ -154,7 +146,7 @@ public class ActionTargetSelectorTest {
             .thenReturn(Optional.of(probe2Id));
 
         final ActionTargetInfo targetInfo =
-            targetInfoResolver.getTargetInfoForAction(action, actionEntity, entityInfo, snapshot);
+            targetInfoResolver.getTargetInfoForAction(action, actionEntity, entityInfo);
         assertThat(targetInfo.supportingLevel(), is(SupportLevel.SUPPORTED));
         assertThat(targetInfo.targetId().get(), is(target2Id));
 
@@ -181,8 +173,8 @@ public class ActionTargetSelectorTest {
         when(cachedCapabilities.getProbeFromTarget(target1Id))
             .thenReturn(Optional.of(probe1Id));
 
-        final ActionTargetInfo targetInfo = targetInfoResolver.getTargetInfoForAction(
-            action, actionEntity, actionPartialEntity, snapshot);
+        final ActionTargetInfo targetInfo =
+            targetInfoResolver.getTargetInfoForAction(action, actionEntity, actionPartialEntity);
         assertThat(targetInfo.supportingLevel(), is(SupportLevel.UNSUPPORTED));
         assertThat(targetInfo.targetId().get(), is(target1Id));
     }
@@ -200,8 +192,8 @@ public class ActionTargetSelectorTest {
         targetToProbe.put(1L, 2L);
         when(cachedCapabilities.getProbeFromTarget(1L))
             .thenReturn(Optional.of(2L));
-        final ActionTargetInfo targetInfo = targetInfoResolver.getTargetInfoForAction(
-            action, actionEntity, actionPartialEntity, snapshot);
+        final ActionTargetInfo targetInfo =
+            targetInfoResolver.getTargetInfoForAction(action, actionEntity, actionPartialEntity);
         assertThat(targetInfo.supportingLevel(), is(SupportLevel.UNSUPPORTED));
         assertFalse(targetInfo.targetId().isPresent());
     }
@@ -238,8 +230,8 @@ public class ActionTargetSelectorTest {
         when(cachedCapabilities.getProbeFromTarget(target2Id))
             .thenReturn(Optional.of(probe2Id));
 
-        final ActionTargetInfo targetInfo = targetInfoResolver.getTargetInfoForAction(
-            action, actionEntity, actionPartialEntity, snapshot);
+        final ActionTargetInfo targetInfo =
+            targetInfoResolver.getTargetInfoForAction(action, actionEntity, actionPartialEntity);
         assertThat(targetInfo.supportingLevel(), is(SupportLevel.SUPPORTED));
         // The selected target should be the one with higher priority.
         assertThat(targetInfo.targetId().get(), is(target2Id));
@@ -277,8 +269,8 @@ public class ActionTargetSelectorTest {
             .thenReturn(Optional.of(probe1Id));
         when(cachedCapabilities.getProbeFromTarget(target2Id))
             .thenReturn(Optional.of(probe2Id));
-        final ActionTargetInfo targetInfo = targetInfoResolver.getTargetInfoForAction(
-            action, actionEntity, actionPartialEntity, snapshot);
+        final ActionTargetInfo targetInfo =
+            targetInfoResolver.getTargetInfoForAction(action, actionEntity, actionPartialEntity);
         assertThat(targetInfo.supportingLevel(), is(SupportLevel.SUPPORTED));
         // The selected target should be the one with the explicitly-specified priority.
         assertThat(targetInfo.targetId().get(), is(target1Id));
@@ -318,8 +310,8 @@ public class ActionTargetSelectorTest {
         when(cachedCapabilities.getProbeFromTarget(target2Id))
             .thenReturn(Optional.of(probe2Id));
 
-        final ActionTargetInfo targetInfo = targetInfoResolver.getTargetInfoForAction(
-            action, actionEntity, actionPartialEntity, snapshot);
+        final ActionTargetInfo targetInfo =
+            targetInfoResolver.getTargetInfoForAction(action, actionEntity, actionPartialEntity);
         assertThat(targetInfo.supportingLevel(), is(SupportLevel.SUPPORTED));
         // The selected target should be the one with the explicitly-specified priority.
         assertThat(targetInfo.targetId().get(), is(target1Id));
@@ -353,11 +345,10 @@ public class ActionTargetSelectorTest {
         when(cachedCapabilities.getProbeFromTarget(targetId)).thenReturn(Optional.of(probeId));
         when(cachedCapabilities.getProbeFromTarget(targetId))
             .thenReturn(Optional.of(probeId));
-        when(mockTargetInfoResolver.getTargetInfoForAction(eq(action),
-                eq(selectedEntity), eq(actionPartialEntity), any()))
+        when(mockTargetInfoResolver.getTargetInfoForAction(action,
+                selectedEntity, actionPartialEntity))
             .thenReturn(actionTargetInfo);
-        Assert.assertEquals(actionTargetInfo,
-            actionTargetSelector.getTargetForAction(action, entitySettingsCache));
+        Assert.assertEquals(actionTargetInfo, actionTargetSelector.getTargetForAction(action));
 
         // However, the backend should have been called, and we can capture
         // and examine the arguments.
@@ -392,8 +383,7 @@ public class ActionTargetSelectorTest {
 
         when(repositoryServiceSpy.retrieveTopologyEntities(any())).thenReturn(Arrays.asList(batch));
         // No target will be selected since we don't have entity data for the selected entity.
-        assertThat(actionTargetSelector.getTargetForAction(action, entitySettingsCache).supportingLevel(),
-            is(SupportLevel.UNSUPPORTED));
+        assertThat(actionTargetSelector.getTargetForAction(action).supportingLevel(), is(SupportLevel.UNSUPPORTED));
     }
 
     @Test
@@ -413,8 +403,7 @@ public class ActionTargetSelectorTest {
                 )
                 .build();
         // Expect a no target, because this action doesn't have a valid type.
-        assertThat(actionTargetSelector.getTargetForAction(bogusAction, entitySettingsCache).supportingLevel(),
-            is(SupportLevel.UNSUPPORTED));
+        assertThat(actionTargetSelector.getTargetForAction(bogusAction).supportingLevel(), is(SupportLevel.UNSUPPORTED));
     }
 
     @Test
@@ -425,7 +414,6 @@ public class ActionTargetSelectorTest {
         when(targetEntitySelectorMock.getEntity(any()))
             .thenReturn(Optional.empty());
         // Expect a no target, because we can't select an entity to be the primary entity.
-        assertThat(actionTargetSelector.getTargetForAction(action, entitySettingsCache).supportingLevel(),
-            is(SupportLevel.UNSUPPORTED));
+        assertThat(actionTargetSelector.getTargetForAction(action).supportingLevel(), is(SupportLevel.UNSUPPORTED));
     }
 }
