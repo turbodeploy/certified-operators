@@ -450,8 +450,9 @@ public class AuthProvider {
             Files.write(encryptionFile,
                         CryptoFacility.encrypt(compact).getBytes(CHARSET_CRYPTO));
             try {
-                return addImpl(AuthUserDTO.PROVIDER.LOCAL, userName, password,
+                String adminUser = addImpl(AuthUserDTO.PROVIDER.LOCAL, userName, password,
                     ImmutableList.of("ADMINISTRATOR"), null);
+                return !adminUser.isEmpty();
             }  catch (IllegalArgumentException e) {
                 return false;
             }
@@ -768,10 +769,10 @@ public class AuthProvider {
      * @param password  The password.
      * @param roleNames The roles.
      * @param scopeGroups The group id's in the user scope (if any).
-     * @return The {@code true} iff successful.
+     * @return The uuid of the user that was added, or empty string if it fails.
      * @throws SecurityException In case of an error parsing or decrypting the data.
      */
-    private boolean addImpl(final @Nonnull AuthUserDTO.PROVIDER provider,
+    private String addImpl(final @Nonnull AuthUserDTO.PROVIDER provider,
                             final @Nonnull String userName,
                             final @Nonnull String password,
                             final @Nonnull List<String> roleNames,
@@ -797,11 +798,11 @@ public class AuthProvider {
             info.scopeGroups = scopeGroups;
             putKVValue(composeUserInfoKey(provider, userName), GSON.toJson(info));
             logger_.info("AUDIT::SUCCESS: Success adding user: " + userName);
-            return true;
+            return info.uuid;
         } catch (Exception e) {
             logger_.error("Error adding user", e);
             logger_.error("AUDIT::FAILURE:AUTH: Error adding user: " + userName);
-            return false;
+            return "";
         }
     }
 
@@ -835,11 +836,11 @@ public class AuthProvider {
      * @param password  The password.
      * @param roleNames The roles.
      * @param scopeGroups The entity groups in the user scope, if any.
-     * @return The {@code true} iff successful.
+     * @return The uuid of the user that was added or an empty string if it fails.
      * @throws SecurityException In case of an error adding the user.
      */
     @PreAuthorize("hasRole('ADMINISTRATOR')")
-    public boolean add(final @Nonnull AuthUserDTO.PROVIDER provider,
+    public String add(final @Nonnull AuthUserDTO.PROVIDER provider,
                        final @Nonnull String userName,
                        final @Nonnull String password,
                        final @Nonnull List<String> roleNames,

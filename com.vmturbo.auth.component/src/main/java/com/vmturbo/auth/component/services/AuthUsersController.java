@@ -223,10 +223,11 @@ public class AuthUsersController {
     @ResponseBody
     public @Nonnull ResponseEntity<String> addUser(@RequestBody AuthUserDTO dto) throws Exception {
         try {
-            boolean success = targetStore_.add(dto.getProvider(), dto.getUser(),
+            String userUuid = targetStore_.add(dto.getProvider(), dto.getUser(),
                 dto.getPassword(), dto.getRoles(), dto.getScopeGroups());
-            if (success) {
-                return new ResponseEntity<>("users://" + dto.getUser(), HttpStatus.OK);
+            if (!userUuid.isEmpty()) {
+                // return the uuid of the newly created user
+                return new ResponseEntity<>( userUuid, HttpStatus.OK);
             }
         } catch (Exception e) {
             return new ResponseEntity<>(e.getMessage(),

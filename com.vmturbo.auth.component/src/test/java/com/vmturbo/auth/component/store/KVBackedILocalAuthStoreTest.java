@@ -143,9 +143,9 @@ public class KVBackedILocalAuthStoreTest {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier);
 
-        boolean result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
+        String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
                                    ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
-        Assert.assertTrue(result);
+        Assert.assertFalse(result.isEmpty());
 
         Optional<String> jsonData = keyValueStore.get(PREFIX + AuthUserDTO.PROVIDER.LOCAL.name()
                                                       + "/USER0");
@@ -193,9 +193,9 @@ public class KVBackedILocalAuthStoreTest {
                                 .build());
 
         // shared advisor should be allowed w/group 1
-        boolean result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
+        String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
                 ImmutableList.of("SHARED_ADVISOR"), ImmutableList.of(1L));
-        Assert.assertTrue(result);
+        Assert.assertFalse(result.isEmpty());
 
         Mockito.doReturn(Arrays.asList(Grouping.newBuilder()
                         .addExpectedTypes(MemberType.newBuilder()
@@ -210,8 +210,9 @@ public class KVBackedILocalAuthStoreTest {
                                 .build());
 
         // regular advisor should be allowed w/group 2
-        Assert.assertTrue(store.add(AuthUserDTO.PROVIDER.LOCAL, "user1", "password0",
-                ImmutableList.of("ADVISOR"), ImmutableList.of(2L)));
+        String result2 = store.add(AuthUserDTO.PROVIDER.LOCAL, "user1", "password0",
+                ImmutableList.of("ADVISOR"), ImmutableList.of(2L));
+        Assert.assertFalse(result2.isEmpty());
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -243,9 +244,9 @@ public class KVBackedILocalAuthStoreTest {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
 
-        boolean result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
+        String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
                                    ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
-        Assert.assertTrue(result);
+        Assert.assertFalse(result.isEmpty());
 
         Optional<String> jsonData = keyValueStore.get(PREFIX + AuthUserDTO.PROVIDER.LOCAL.name()
                                                       + "/USER0");
@@ -267,9 +268,9 @@ public class KVBackedILocalAuthStoreTest {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
 
-        boolean result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user1", "password0",
+        String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user1", "password0",
                 ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
-        Assert.assertTrue(result);
+        Assert.assertFalse(result.isEmpty());
 
         Optional<String> jsonData = keyValueStore.get(PREFIX + AuthUserDTO.PROVIDER.LOCAL.name()
                 + "/USER1");
@@ -291,9 +292,9 @@ public class KVBackedILocalAuthStoreTest {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
 
-        boolean result = store.add(PROVIDER.LDAP, "user1", "password0",
+        String result = store.add(PROVIDER.LDAP, "user1", "password0",
                 ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
-        Assert.assertTrue(result);
+        Assert.assertFalse(result.isEmpty());
 
         Optional<String> jsonData = keyValueStore.get(PREFIX + PROVIDER.LDAP.name()
                 + "/USER1");
@@ -313,9 +314,9 @@ public class KVBackedILocalAuthStoreTest {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
 
-        boolean result = store.add(PROVIDER.LDAP, "user1", "password0",
+        String result = store.add(PROVIDER.LDAP, "user1", "password0",
                 ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
-        Assert.assertTrue(result);
+        Assert.assertFalse(result.isEmpty());
 
         Optional<String> jsonData = keyValueStore.get(PREFIX + PROVIDER.LDAP.name()
                 + "/USER1");
@@ -360,10 +361,9 @@ public class KVBackedILocalAuthStoreTest {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
 
-        boolean result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
+        String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
                                    ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
-        Assert.assertTrue(result);
-        Assert.assertTrue(result);
+        Assert.assertFalse(result.isEmpty());
         Set<GrantedAuthority> grantedAuths = new HashSet<>();
         grantedAuths.add(new SimpleGrantedAuthority("ROLE_NONADMINISTRATOR"));
         // The password is hidden.
@@ -397,9 +397,9 @@ public class KVBackedILocalAuthStoreTest {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier);
 
-        boolean result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
+        String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
                                    ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
-        Assert.assertTrue(result);
+        Assert.assertFalse(result.isEmpty());
         ResponseEntity<String> result2 = store.setRoles(AuthUserDTO.PROVIDER.LOCAL, "user0",
             ImmutableList.of("ADMIN2", "USER2"), ImmutableList.of(2L));
         Assert.assertEquals(HttpStatus.OK, result2.getStatusCode());
@@ -447,9 +447,9 @@ public class KVBackedILocalAuthStoreTest {
                                                 .addId(2L))
                                 .build());
 
-        boolean result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
+        String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
                 ImmutableList.of("SHARED_ADVISOR", "USER"), ImmutableList.of(1L));
-        Assert.assertTrue(result);
+        Assert.assertFalse(result.isEmpty());
 
         // change to invalid group should be rejected with a 400 error
         ResponseEntity<String> result2 = store.setRoles(AuthUserDTO.PROVIDER.LOCAL, "user0",
@@ -462,9 +462,9 @@ public class KVBackedILocalAuthStoreTest {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
 
-        boolean result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
+        String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
                                    ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
-        Assert.assertTrue(result);
+        Assert.assertFalse(result.isEmpty());
         Assert.assertTrue(store.remove("user0").isPresent());
 
         Optional<String> jsonData = keyValueStore.get(PREFIX + "USER0");
@@ -487,9 +487,9 @@ public class KVBackedILocalAuthStoreTest {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
 
-        boolean result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
+        String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
                                    ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
-        Assert.assertTrue(result);
+        Assert.assertFalse(result.isEmpty());
 
         Optional<String> jsonData = keyValueStore.get(PREFIX + AuthUserDTO.PROVIDER.LOCAL.name()
                                                       + "/USER0");
@@ -514,9 +514,9 @@ public class KVBackedILocalAuthStoreTest {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
 
-        boolean result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
+        String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
                                    ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
-        Assert.assertTrue(result);
+        Assert.assertFalse(result.isEmpty());
 
         Optional<String> jsonData = keyValueStore.get(PREFIX + AuthUserDTO.PROVIDER.LOCAL.name()
                                                       + "/USER0");

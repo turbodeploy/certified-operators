@@ -287,15 +287,16 @@ public class UsersService implements IUsersService {
             // Make sure that the currently authenticated user's token is present.
             HttpHeaders headers = composeHttpHeaders();
             HttpEntity<AuthUserDTO> entity = new HttpEntity<>(dto, headers);
-            restTemplate_.exchange(baseRequest().path("/users/add").build().toUriString(),
+            final ResponseEntity<String> result = restTemplate_.exchange(baseRequest().path("/users/add").build().toUriString(),
                 HttpMethod.POST, entity, String.class);
             // Return data.
             UserApiDTO user = new UserApiDTO();
             user.setLoginProvider(userApiDTO.getLoginProvider());
             user.setUsername(userApiDTO.getUsername());
+            user.setDisplayName(userApiDTO.getUsername());
             user.setRoleName(userApiDTO.getRoleName());
             user.setScope(userApiDTO.getScope());
-            user.setUuid(userApiDTO.getUuid());
+            user.setUuid(result.getBody());
             AuditLog.newEntry(AuditAction.CREATE_USER,
                 String.format("Created new user %s", userApiDTO.getUsername()), true)
                 .targetName(userApiDTO.getUsername())

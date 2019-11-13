@@ -308,8 +308,20 @@ public class RestTest {
         String result = mockMvc.perform(postAdd(0))
                                .andExpect(status().isOk())
                                .andReturn().getResponse().getContentAsString();
-        Assert.assertEquals("users://user0", result);
+        validateAddUserResult(result);
         SecurityContextHolder.getContext().setAuthentication(null);
+    }
+
+    /**
+     * Validate that the add user result is a oid which is a string
+     * with a long number
+     * @param result from calling post to add a new user
+     */
+    private void validateAddUserResult(String result) {
+        Assert.assertNotNull(result);
+        Assert.assertFalse(result.isEmpty());
+        Long value = Long.parseLong(result);
+        Assert.assertTrue(value > 0);
     }
 
     @Test
@@ -328,7 +340,7 @@ public class RestTest {
         String result = mockMvc.perform(postAdd(1))
                                .andExpect(status().isOk())
                                .andReturn().getResponse().getContentAsString();
-        Assert.assertEquals("users://user1", result);
+       validateAddUserResult(result);
 
         // The authenticate call does not require any prior authentication.
         SecurityContextHolder.getContext().setAuthentication(null);
@@ -345,7 +357,7 @@ public class RestTest {
         String result = mockMvc.perform(postAdd(2))
                                .andExpect(status().isOk())
                                .andReturn().getResponse().getContentAsString();
-        Assert.assertEquals("users://user2", result);
+       validateAddUserResult(result);
 
         AuthUserDTO userToModify = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user" + 2,
                                                       constructPassword(2), null, null, null,
@@ -385,7 +397,7 @@ public class RestTest {
         String result = mockMvc.perform(postAdd(12))
                                .andExpect(status().isOk())
                                .andReturn().getResponse().getContentAsString();
-        Assert.assertEquals("users://user12", result);
+        validateAddUserResult(result);
 
         AuthUserDTO dto = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user" + 12, null,
                                           ImmutableList.of("ADMIN", "USER2"));
@@ -432,7 +444,7 @@ public class RestTest {
         String result = mockMvc.perform(postAdd(25))
                                .andExpect(status().isOk())
                                .andReturn().getResponse().getContentAsString();
-        Assert.assertEquals("users://user25", result);
+        validateAddUserResult(result);
 
         AuthUserDTO dto = new AuthUserDTO("user" + 25, null, ImmutableList.of("ADMIN", "USER2"));
         String json = GSON.toJson(dto, AuthUserDTO.class);
@@ -452,7 +464,7 @@ public class RestTest {
         logon("ADMINISTRATOR");
         String result = mockMvc.perform(postAdd(3))
                 .andReturn().getResponse().getContentAsString();
-        Assert.assertEquals("users://user3", result);
+        validateAddUserResult(result);
         // Create another local admin user
         mockMvc.perform(postAdd(4))
                 .andReturn().getResponse().getContentAsString();
@@ -486,7 +498,7 @@ public class RestTest {
         String result = mockMvc.perform(postAdd(4))
                                .andExpect(status().isOk())
                                .andReturn().getResponse().getContentAsString();
-        Assert.assertEquals("users://user4", result);
+        validateAddUserResult(result);
 
         String gson = constructLockDTO(4);
         mockMvc.perform(put("/users/lock")
@@ -511,7 +523,7 @@ public class RestTest {
         String result = mockMvc.perform(postAdd(5))
                                .andExpect(status().isOk())
                                .andReturn().getResponse().getContentAsString();
-        Assert.assertEquals("users://user5", result);
+        validateAddUserResult(result);
 
         String gson = constructLockDTO(5);
         mockMvc.perform(put("/users/lock")
@@ -595,7 +607,7 @@ public class RestTest {
         String result = mockMvc.perform(postAddSSO(11))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
-        Assert.assertEquals("users://user11", result);
+        validateAddUserResult(result);
 
         // The authenticate call does not require any prior authentication.
         //SecurityContextHolder.getContext().setAuthentication(null);
@@ -615,7 +627,7 @@ public class RestTest {
         String result = mockMvc.perform(postAddSSO(1))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
-        Assert.assertEquals("users://user1", result);
+        validateAddUserResult(result);
 
         // The authorization call require valid JWT token with administrator role
         SecurityContextHolder.getContext().setAuthentication(null);
