@@ -19,8 +19,13 @@ public class CloudTypeMapper {
                     .put(SDKProbeType.AWS.getProbeType(), CloudType.AWS)
                     .put(SDKProbeType.AWS_COST.getProbeType(), CloudType.AWS)
                     .put(SDKProbeType.AWS_BILLING.getProbeType(), CloudType.AWS)
+                    .put(SDKProbeType.AWS_LAMBDA.getProbeType(), CloudType.AWS)
                     .put(SDKProbeType.AZURE.getProbeType(), CloudType.AZURE)
                     .put(SDKProbeType.AZURE_EA.getProbeType(), CloudType.AZURE)
+                    .put(SDKProbeType.AZURE_SERVICE_PRINCIPAL.getProbeType(), CloudType.AZURE)
+                    .put(SDKProbeType.AZURE_STORAGE_BROWSE.getProbeType(), CloudType.AZURE)
+                    .put(SDKProbeType.AZURE_COST.getProbeType(), CloudType.AZURE)
+                    .put(SDKProbeType.APPINSIGHTS.getProbeType(), CloudType.AZURE)
                     .put(SDKProbeType.GCP.getProbeType(), CloudType.GCP)
                     .build();
 

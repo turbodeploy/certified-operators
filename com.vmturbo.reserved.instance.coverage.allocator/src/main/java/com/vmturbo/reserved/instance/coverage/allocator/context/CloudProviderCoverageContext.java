@@ -37,16 +37,23 @@ public class CloudProviderCoverageContext {
     public enum CloudServiceProvider {
         UNKNOWN,
         AWS,
-        AZURE
+        AZURE,
+        GCP
     };
 
     private static final Map<SDKProbeType, CloudServiceProvider> PROBE_TYPE_TO_CSP =
             ImmutableMap.<SDKProbeType, CloudServiceProvider>builder()
                     .put(SDKProbeType.AWS, CloudServiceProvider.AWS)
+                    .put(SDKProbeType.AWS_COST, CloudServiceProvider.AWS)
                     .put(SDKProbeType.AWS_BILLING, CloudServiceProvider.AWS)
+                    .put(SDKProbeType.AWS_LAMBDA, CloudServiceProvider.AWS)
                     .put(SDKProbeType.AZURE, CloudServiceProvider.AZURE)
-                    .put(SDKProbeType.AZURE_SERVICE_PRINCIPAL, CloudServiceProvider.AZURE)
                     .put(SDKProbeType.AZURE_EA, CloudServiceProvider.AZURE)
+                    .put(SDKProbeType.AZURE_SERVICE_PRINCIPAL, CloudServiceProvider.AZURE)
+                    .put(SDKProbeType.AZURE_STORAGE_BROWSE, CloudServiceProvider.AZURE)
+                    .put(SDKProbeType.AZURE_COST, CloudServiceProvider.AZURE)
+                    .put(SDKProbeType.APPINSIGHTS, CloudServiceProvider.AZURE)
+                    .put(SDKProbeType.GCP, CloudServiceProvider.GCP)
                     .build();
 
     private final CloudServiceProvider cloudServiceProvider;
