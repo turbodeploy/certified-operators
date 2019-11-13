@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -422,12 +423,14 @@ public class BusinessUnitMapper {
             .getFullEntities()
             .collect(Collectors.toList());
 
+        final List<TargetApiDTO> cloudTargetList = getCloudTargets(targetsService);
+
         return businessAccounts.stream()
             .filter(entity -> scopeTargets.isEmpty()
                 || entity.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList()
                 .stream()
                 .anyMatch(scopeTargets::contains))
-            .map(tpDto -> buildDiscoveredBusinessUnitApiDTO(tpDto, targetsService))
+            .map(tpDto -> buildDiscoveredBusinessUnitApiDTO(tpDto, cloudTargetList))
             .filter(Optional::isPresent)
             .map(Optional::get)
             .collect(Collectors.toList());
@@ -452,7 +455,8 @@ public class BusinessUnitMapper {
                         .findAny()
                         .orElseThrow(() -> new UnsupportedOperationException("Cannot find Business Unit with OID: " + oid));
 
-        return buildDiscoveredBusinessUnitApiDTO(outputDTO, targetsService)
+        List<TargetApiDTO> cloudTargetList = getCloudTargets(targetsService);;
+        return buildDiscoveredBusinessUnitApiDTO(outputDTO, cloudTargetList)
                         .orElseThrow(() -> new UnsupportedOperationException("Invalid Business Unit for OID: " + oid));
     }
 
@@ -460,11 +464,11 @@ public class BusinessUnitMapper {
      * Build discovered business unit API DTO.
      *
      * @param topologyEntityDTO topology entity DTOP for the business account
-     * @param targetsService    target service to get the account's target
+     * @param cloudTargetList    cloud targets as returned by the target service
      * @return BusinessUnitApiDTO
      */
     private Optional<BusinessUnitApiDTO> buildDiscoveredBusinessUnitApiDTO(@Nonnull final TopologyEntityDTO topologyEntityDTO,
-                                                                           @Nonnull final ITargetsService targetsService) {
+                                                                           @Nonnull final List<TargetApiDTO> cloudTargetList) {
         final CloudType cloudType = CloudType.fromProbeType(getTargetType(topologyEntityDTO.getOid())
             .map(TargetApiDTO::getType)
             .orElse(TARGET_TYPE_UNKNOWN));
@@ -522,16 +526,11 @@ public class BusinessUnitMapper {
         }
         businessUnitApiDTO.setMaster(accounts.size() > 0);
         final Map<String, TargetApiDTO> targetApiDtoByTargetId = new HashMap<>();
-        try {
-            targetsService.getTargets(EnvironmentType.CLOUD)
-                .forEach(targetApiDTO -> {
-                    targetApiDTO.setType(cloudType.name());
-                    targetApiDtoByTargetId.put(targetApiDTO.getUuid(), targetApiDTO);
-                });
-        } catch (UnknownObjectException e) {
-            logger.warn("Could not get target list due to exception {}.  "
-                + "Cannot populate targets in BusinessUnitApiDTO.", e);
-        }
+        cloudTargetList.stream()
+            .forEach(targetApiDTO -> {
+                targetApiDTO.setType(cloudType.name());
+                targetApiDtoByTargetId.put(targetApiDTO.getUuid(), targetApiDTO);
+            });
         final List<TargetApiDTO> targetApiDTOS = topologyEntityDTO
                 .getOrigin()
                 .getDiscoveryOrigin()
@@ -591,4 +590,23 @@ public class BusinessUnitMapper {
             super(s);
         }
     }
+
+    /**
+     * Get the cloud Targets from the provided Targets Service.
+     * @param targetsService object of type ITargetsService.
+     * @return List of targets with EnvironmentType.CLOUD.
+     */
+    private List<TargetApiDTO> getCloudTargets(ITargetsService targetsService) {
+        List<TargetApiDTO> cloudTargetList = new ArrayList<>();
+
+        try {
+            cloudTargetList.addAll(targetsService.getTargets(EnvironmentType.CLOUD));
+        } catch (UnknownObjectException e) {
+            logger.warn("Could not get target list due to exception {}.  "
+                            + "Cannot populate targets in BusinessUnitApiDTO.", e);
+        }
+
+        return cloudTargetList;
+    }
+
 }
