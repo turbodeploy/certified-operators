@@ -378,6 +378,10 @@ public class TopologyConverter {
         return TopologyDTOUtil.isPlan(topologyInfo);
     }
 
+    private boolean isOptimizeCloudPlan() {
+        return TopologyDTOUtil.isOptimizeCloudPlan(topologyInfo);
+    }
+
     /**
      * Convert a collection of common protobuf topology entity DTOs to analysis protobuf economy DTOs.
      * @param topology list of topology entity DTOs
@@ -1649,7 +1653,8 @@ public class TopologyConverter {
             if (bottomOfSupplyChain && active) {
                 suspendable = false;
             }
-            if (isPlan() && entityType == EntityType.VIRTUAL_MACHINE_VALUE) {
+            if ((isPlan() && entityType == EntityType.VIRTUAL_MACHINE_VALUE) ||
+                (isOptimizeCloudPlan() && entityType == EntityType.LOAD_BALANCER_VALUE)) {
                 suspendable = false;
             }
             // Checking isPlan here is redundant, but since Set.contains(.) might be expensive,

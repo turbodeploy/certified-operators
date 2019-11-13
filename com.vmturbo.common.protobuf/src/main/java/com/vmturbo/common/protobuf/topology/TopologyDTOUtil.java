@@ -34,6 +34,11 @@ public final class TopologyDTOUtil {
     private static final String ALLEVIATE_PRESSURE_PLAN_TYPE = "ALLEVIATE_PRESSURE";
 
     /**
+     * Name of optimize cloud plan type.
+     */
+    private static final String OPTIMIZE_CLOUD_PLAN = "OPTIMIZE_CLOUD";
+
+    /**
      * The primary tiers entity types. Cloud consumers like VMs and DBs can only consume from one
      * primary tier like compute / database tier. But they can consume from multiple
      * secondary tiers like storage tiers.
@@ -88,6 +93,18 @@ public final class TopologyDTOUtil {
      */
     public static boolean isPlan(@Nonnull final TopologyDTO.TopologyInfo topologyInfo) {
         return topologyInfo.hasPlanInfo();
+    }
+
+    /**
+     * Determine whether or not the topology described by a {@link TopologyDTO.TopologyInfo}
+     * is generated for an optimize cloud plan.
+     *
+     * @param topologyInfo The {@link TopologyDTO.TopologyInfo} describing a topology.
+     * @return Whether or not the described topology is generated for a optimize cloud plan.
+     */
+    public static boolean isOptimizeCloudPlan(@Nonnull final TopologyDTO.TopologyInfo topologyInfo) {
+        return isPlan(topologyInfo) && topologyInfo.getPlanInfo().hasPlanType() &&
+                OPTIMIZE_CLOUD_PLAN.equals(topologyInfo.getPlanInfo().getPlanType());
     }
 
     /**

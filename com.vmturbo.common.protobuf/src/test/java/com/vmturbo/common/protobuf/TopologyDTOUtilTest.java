@@ -58,6 +58,30 @@ public class TopologyDTOUtilTest {
                 .build()));
     }
 
+    /**
+     * Determine whether or not the topology described by a topology
+     * is generated for an optimize cloud plan.
+     */
+    @Test
+    public void testIsOptimizeCloudPlan() {
+        Assert.assertTrue(TopologyDTOUtil.isOptimizeCloudPlan(TopologyInfo.newBuilder()
+                .setPlanInfo(PlanTopologyInfo.newBuilder().setPlanType("OPTIMIZE_CLOUD").build())
+                .build()));
+    }
+
+    /**
+     * Determine whether or not the topology described by a topology
+     * is generated for an optimize cloud plan.
+     */
+    @Test
+    public void testIsNotOptimizeCloudPlan() {
+        Assert.assertFalse(TopologyDTOUtil.isOptimizeCloudPlan(TopologyInfo.newBuilder()
+                .build()));
+        Assert.assertFalse(TopologyDTOUtil.isOptimizeCloudPlan(TopologyInfo.newBuilder()
+                .setPlanInfo(PlanTopologyInfo.getDefaultInstance())
+                .build()));
+    }
+
     @Test
     public void testIsPlanByType() {
         Assert.assertTrue(TopologyDTOUtil.isPlanType(
