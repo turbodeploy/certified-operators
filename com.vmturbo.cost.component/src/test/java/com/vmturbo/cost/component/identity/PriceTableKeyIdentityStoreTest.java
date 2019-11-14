@@ -1,6 +1,6 @@
 package com.vmturbo.cost.component.identity;
 
-import static com.vmturbo.cost.component.identity.PriceTableKeyIdentityStore.getMatchingAttributes;
+import static com.vmturbo.cost.component.identity.PriceTableKeyExtractor.getMatchingAttributes;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -67,9 +67,9 @@ public class PriceTableKeyIdentityStoreTest {
 
     private final Type type = new TypeToken<Map<String, String>>() {
     }.getType();
+
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
-    private MutableFixedClock clock = new MutableFixedClock(Instant.ofEpochMilli(1_000_000_000),
-            ZoneId.systemDefault());
+    private MutableFixedClock clock = new MutableFixedClock(Instant.ofEpochMilli(1_000_000_000), ZoneId.systemDefault());
 
     @Autowired
     protected TestSQLDatabaseConfig dbConfig;
@@ -132,13 +132,14 @@ public class PriceTableKeyIdentityStoreTest {
         Set<IdentityMatchingAttributes> identityMatchingAttributes = matchingAttributesLongMap.keySet();
 
         IdentityMatchingAttribute identityMatchingAttribute = identityMatchingAttributes.iterator()
-                .next().getMatchingAttribute(PriceTableKeyIdentityStore.PRICE_TABLE_KEY_IDENTIFIERS);
+                .next().getMatchingAttribute(PriceTableKeyExtractor.PRICE_TABLE_KEY_IDENTIFIERS);
+
         Map<String, String> identityMatchingAttributeMap = GSON.fromJson(
                 identityMatchingAttribute.getAttributeValue(), type);
 
         assertThat(identityMatchingAttributeMap.get("enrollmentId"), is("123"));
         assertThat(identityMatchingAttributeMap.get("offerId"), is("456"));
-        assertThat(identityMatchingAttributeMap.get("probe_type"), is("aws"));
+        assertThat(identityMatchingAttributeMap.get("root_probe_type"), is("aws"));
     }
 
 
@@ -169,13 +170,12 @@ public class PriceTableKeyIdentityStoreTest {
         PriceTableKey priceTableKey = mockPriceTableKey("azure");
         testIdentityStore.fetchOrAssignOid(priceTableKey);
 
-        priceTableKey = priceTableKey.newBuilderForType().setProbeType("aws").build();
+        priceTableKey = priceTableKey.newBuilderForType().setRootProbeType("aws").build();
         testIdentityStore.fetchOrAssignOid(priceTableKey);
 
         Map<IdentityMatchingAttributes, Long> matchingAttributesLongMap = testIdentityStore.fetchAllOidMappings(dsl);
         assertThat(matchingAttributesLongMap.size(), is(2));
     }
-
 
     /**
      * Testing deletion of price table keys.
@@ -198,7 +198,7 @@ public class PriceTableKeyIdentityStoreTest {
                 .putRiPricesBySpecId(1L, ReservedInstancePrice.getDefaultInstance())
                 .build();
         sqlPriceTableStore.putProbePriceTables(ImmutableMap.of(priceTableKey,
-                new PriceTables(null, fooPriceTable, 111L)));
+                new PriceTables(PriceTable.getDefaultInstance(), fooPriceTable, 111L)));
 
 
         assertThat(getRowCount(), is(1));
@@ -217,7 +217,7 @@ public class PriceTableKeyIdentityStoreTest {
     /**
      * Test querying of price tables by oids.
      *
-     * @throws IdentityStoreException An IdentityStore Exception.
+     * @throws DbException Exception when unable to access DB.
      */
     @Test
     public void testGetOidToPriceTableMapping() throws IdentityStoreException {
@@ -234,8 +234,10 @@ public class PriceTableKeyIdentityStoreTest {
         SQLPriceTableStore sqlPriceTableStore = new SQLPriceTableStore(clock, dsl, new PriceTableKeyIdentityStore(dsl,
                 new IdentityProvider(0)), mergeFactory);
 
-        sqlPriceTableStore.putProbePriceTables(ImmutableMap.of(priceTableKey1, new PriceTables(priceTable1, null, 111L)));
-        sqlPriceTableStore.putProbePriceTables(ImmutableMap.of(priceTableKey2, new PriceTables(priceTable2, null, 222L)));
+        sqlPriceTableStore.putProbePriceTables(ImmutableMap.of(priceTableKey1, new PriceTables(priceTable1,
+                ReservedInstancePriceTable.getDefaultInstance(), 111L)));
+        sqlPriceTableStore.putProbePriceTables(ImmutableMap.of(priceTableKey2, new PriceTables(priceTable2,
+                ReservedInstancePriceTable.getDefaultInstance(), 222L)));
 
         Map<Long, PriceTable> oidToPriceTable = sqlPriceTableStore.getPriceTables(Arrays.asList(oid1, oid2));
 
@@ -274,6 +276,7 @@ public class PriceTableKeyIdentityStoreTest {
     /**
      * Testing restoring diags to {@link Tables#PRICE_TABLE_KEY_OID}.
      *
+     * @throws DbException Exception when unable to access DB.
      * @throws DiagnosticsException   if exception occurs while collecting diags.
      */
     @Test
@@ -296,6 +299,7 @@ public class PriceTableKeyIdentityStoreTest {
     /**
      * Test collect and restore diags using a newer store.
      *
+     * @throws DbException          Exception when unable to access DB.
      * @throws DiagnosticsException   exception during collecting or restoring diags.
      */
     @Test
@@ -323,14 +327,16 @@ public class PriceTableKeyIdentityStoreTest {
                 new IdentityProvider(0)), mergeFactory);
 
         sqlPriceTableStore.putProbePriceTables(ImmutableMap.of(priceTableKey,
-                new PriceTables(null, null, 111L)));
+                new PriceTables(PriceTable.getDefaultInstance(),
+                        ReservedInstancePriceTable.getDefaultInstance(), 111L)));
         final PriceTable priceTable = mockPriceTable(2L);
-        sqlPriceTableStore.putProbePriceTables(ImmutableMap.of(priceTableKey, new PriceTables(priceTable, null, 222L)));
+        sqlPriceTableStore.putProbePriceTables(ImmutableMap.of(priceTableKey, new PriceTables(priceTable,
+                ReservedInstancePriceTable.getDefaultInstance(), 222L)));
 
     }
 
     private PriceTableKey mockPriceTableKey(final String probeType) {
-        return PriceTableKey.newBuilder().setProbeType(probeType)
+        return PriceTableKey.newBuilder().setRootProbeType(probeType)
                 .putProbeKeyMaterial("enrollmentId", "123")
                 .putProbeKeyMaterial("offerId", "456")
                 .build();

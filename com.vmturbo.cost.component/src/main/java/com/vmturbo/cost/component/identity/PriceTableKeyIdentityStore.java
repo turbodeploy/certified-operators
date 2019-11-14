@@ -1,9 +1,13 @@
 package com.vmturbo.cost.component.identity;
 
+import static com.vmturbo.cost.component.identity.PriceTableKeyExtractor.PRICE_TABLE_KEY_IDENTIFIERS;
+
 import java.text.MessageFormat;
+import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -17,7 +21,6 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
@@ -34,7 +37,6 @@ import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.PriceTableKeyOidRecord;
-import com.vmturbo.identity.attributes.AttributeExtractor;
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
 import com.vmturbo.identity.attributes.SimpleMatchingAttributes;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
@@ -44,12 +46,6 @@ import com.vmturbo.sql.utils.DbException;
  * Persistence for price table key oids for {@link Tables#PRICE_TABLE}.
  */
 public class PriceTableKeyIdentityStore implements Diagnosable {
-
-    /**
-     * String representing the Price Table key identifiers.
-     */
-    public static final String PRICE_TABLE_KEY_IDENTIFIERS = "price_table_key_identifiers";
-
     private static final Logger logger = LogManager.getLogger();
     private final DSLContext dsl;
     private final IdentityProvider identityProvider;
@@ -95,7 +91,8 @@ public class PriceTableKeyIdentityStore implements Diagnosable {
                 .from(Tables.PRICE_TABLE_KEY_OID)
                 .fetchInto(PriceTableKeyOidRecord.class)
                 .forEach(entry -> identityMatchingAttributesLongMap.put(
-                        getMatchingAttributes(entry.getPriceTableKey()), entry.getId()));
+                        PriceTableKeyExtractor.getMatchingAttributes(entry.getPriceTableKey()),
+                        entry.getId()));
         return identityMatchingAttributesLongMap;
     }
 
@@ -114,7 +111,8 @@ public class PriceTableKeyIdentityStore implements Diagnosable {
                 DSLContext transactionDsl = DSL.using(configuration);
                 final Map<IdentityMatchingAttributes, Long> currentPriceKeys =
                         fetchAllOidMappings(transactionDsl);
-                return assignPriceTableKeyOid(transactionDsl, newPriceTableKey, currentPriceKeys);
+                return assignPriceTableKeyOid(transactionDsl, newPriceTableKey, currentPriceKeys)
+                        .getValue();
             });
         } catch (DataAccessException e) {
             throw new IdentityStoreException("Exception while fetching new OID", e);
@@ -254,8 +252,8 @@ public class PriceTableKeyIdentityStore implements Diagnosable {
                     PriceTableKeyOid priceTableKeyOid = null;
                     try {
                         priceTableKeyOid = gson.fromJson(diag, PriceTableKeyOid.class);
-                        final IdentityMatchingAttributes attrs = getMatchingAttributes(priceTableKeyOid
-                                .priceTableKeyIdentifiers);
+                        final IdentityMatchingAttributes attrs = PriceTableKeyExtractor
+                                .getMatchingAttributes(priceTableKeyOid.priceTableKeyIdentifiers);
                         saveNewOid(context, attrs, priceTableKeyOid.id);
                     } catch (JsonParseException e) {
                         logger.error("Could not convert diag JSON : {} to priceTableKeyOid.", diag, e);
@@ -279,22 +277,6 @@ public class PriceTableKeyIdentityStore implements Diagnosable {
     }
 
     /**
-     * Construct a {@link SimpleMatchingAttributes} object representing this priceTableKeyOID DB table row.
-     *
-     * @param priceTableKey This includes the unique id and PriceTableKey.
-     *                      of the priceTableKey.
-     * @return a new {@link SimpleMatchingAttributes} initialized with the priceTableKey.
-     */
-    @VisibleForTesting
-    @Nonnull
-    public static SimpleMatchingAttributes getMatchingAttributes(@Nonnull final String priceTableKey) {
-        return new SimpleMatchingAttributes.Builder()
-                .addAttribute(PRICE_TABLE_KEY_IDENTIFIERS,
-                        priceTableKey)
-                .build();
-    }
-
-    /**
      * Assigns a new OID for a given PriceTableKey; if not found in {@param currentPriceTableKeys}.
      *
      * @param context          DSL context.
@@ -303,9 +285,11 @@ public class PriceTableKeyIdentityStore implements Diagnosable {
      * @return OID for {@param priceTableKey}.
      * @throws IdentityStoreException if IdentityStore was unable generate a new OID.
      */
-    public long assignPriceTableKeyOid(@Nonnull final DSLContext context,
-                                       @Nonnull final PriceTableKey newPriceTableKey,
-                                       @Nonnull final Map<IdentityMatchingAttributes, Long> currentPriceTableKeys)
+    @Nonnull
+    public Entry<IdentityMatchingAttributes, Long> assignPriceTableKeyOid(
+            @Nonnull final DSLContext context,
+            @Nonnull final PriceTableKey newPriceTableKey,
+            @Nonnull final Map<IdentityMatchingAttributes, Long> currentPriceTableKeys)
             throws IdentityStoreException {
         final PriceTableKeyExtractor priceTableKeyExtractor = new PriceTableKeyExtractor();
         final IdentityMatchingAttributes identityMatchingAttributes =
@@ -313,7 +297,8 @@ public class PriceTableKeyIdentityStore implements Diagnosable {
         if (currentPriceTableKeys.containsKey(identityMatchingAttributes)) {
             //use old oid.
             logger.debug("matching priceTableKey found.");
-            return currentPriceTableKeys.get(identityMatchingAttributes);
+            return new SimpleImmutableEntry<>(identityMatchingAttributes,
+                    currentPriceTableKeys.get(identityMatchingAttributes));
         } else {
             //generate new oid..
             logger.debug("matching priceTableKey not found. Generating a new OID.");
@@ -322,27 +307,7 @@ public class PriceTableKeyIdentityStore implements Diagnosable {
                     new HashSet<>(currentPriceTableKeys.values());
             newOid = generateNewOid(currentPriceTableKeyValues);
             saveNewOid(context, identityMatchingAttributes, newOid);
-            return newOid;
-        }
-    }
-
-    /**
-     * Extract the matching com.vmturbo.identity.attributes from a PriceTable.PriceTableKey.
-     *
-     * <p>PriceTableKey is a map keys used to uniquely identify a PriceTable.
-     **/
-    private static class PriceTableKeyExtractor implements AttributeExtractor<PriceTableKey> {
-
-        @Override
-        @Nonnull
-        public IdentityMatchingAttributes extractAttributes(@Nonnull PriceTableKey priceTableKey) {
-            Map<String, String> probeKeyMaterialMap = Maps.newHashMap(priceTableKey.getProbeKeyMaterialMap());
-
-            probeKeyMaterialMap.put("probe_type", priceTableKey.getProbeType());
-            final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
-            return SimpleMatchingAttributes.newBuilder()
-                    .addAttribute(PRICE_TABLE_KEY_IDENTIFIERS, gson.toJson(probeKeyMaterialMap))
-                    .build();
+            return new SimpleImmutableEntry<>(identityMatchingAttributes, newOid);
         }
     }
 

@@ -13,6 +13,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ArrayListMultimap;
@@ -43,6 +45,7 @@ import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTableChecksum;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTableKey;
+import com.vmturbo.common.protobuf.cost.Pricing.PriceTableKey.Builder;
 import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTableSegment;
 import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTableSegment.ProbePriceTableChunk;
 import com.vmturbo.common.protobuf.cost.Pricing.ProbePriceTableSegment.ProbePriceTableHeader;
@@ -62,14 +65,15 @@ import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
+import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
  * Uploads price tables discovered by the cloud cost probes, to the cost component.
  *
- * We expect to see one price table per probe type. We will cache the last discovered price table
+ * <p>We expect to see one price table per probe type. We will cache the last discovered price table
  * for each probe type, and upload them to the cost probe during the cloud cost upload topology
  * pipeline stage.
- *
+ *</p>
  * Because price data is expected to change infrequently, we will do a checksum comparison with the
  * latest price table checksum from the cost component before initiating a new upload.
  */
@@ -92,33 +96,41 @@ public class PriceTableUploader implements Diagnosable {
 
     private final int riSpecPriceChunkSize;
 
+    private final TargetStore targetStore;
+
     /**
      * a cache of last price table received per probe type. We assume any price tables returned by
      * any target of the same probe type will be equivalent, so we will keep one table per probe
      * type, rather than one per-target.
      *
-     * Not using a concurrent hash map like we do in the RIandExpenses uploader, because we expect
+     * <p>Not using a concurrent hash map like we do in the RIandExpenses uploader, because we expect
      * fewer cost probe targets as well as fewer discoveries due to the lower frequency of data
      *  updates.
+     *  </p>
      */
-    private final Map<SDKProbeType, PricingDTO.PriceTable> sourcePriceTableByProbeType
+    private final Map<Long, PricingDTO.PriceTable> sourcePriceTableByTargetId
             = Collections.synchronizedMap(new HashMap<>());
 
     public PriceTableUploader(@Nonnull final PricingServiceStub priceServiceClient,
                               @Nonnull final Clock clock,
-                              final int riSpecPriceChunkSize) {
+                              final int riSpecPriceChunkSize,
+                              @Nonnull TargetStore targetStore) {
         this.priceServiceClient = priceServiceClient;
         this.clock = clock;
         this.riSpecPriceChunkSize = riSpecPriceChunkSize;
+        this.targetStore = targetStore;
     }
 
     /**
      * Cache the price table for this probe type, for potentially later upload.
      *
-     * @param probeType the probe type this price table was discovered by
+     * @param targetId   record priceTables by {@link this.sourcePriceTableByTargetId}
+     * @param probeType  the probe type this price table was discovered by
      * @param priceTable the discovered price table
      */
-    public void recordPriceTable(SDKProbeType probeType, PricingDTO.PriceTable priceTable) {
+
+    public void recordPriceTable(final long targetId, @Nonnull SDKProbeType probeType,
+                                 @Nullable PricingDTO.PriceTable priceTable) {
         if (probeType.getProbeCategory() != ProbeCategory.COST) {
             logger.warn("Skipping price tables for non-Cost probe {}.", probeType.getProbeType());
             return;
@@ -130,20 +142,21 @@ public class PriceTableUploader implements Diagnosable {
                     priceTable.getSerializedSize(), probeType);
         }
 
-        sourcePriceTableByProbeType.put(probeType, priceTable);
+        sourcePriceTableByTargetId.put(targetId, priceTable);
     }
 
     @Nonnull
-    Map<SDKProbeType, PricingDTO.PriceTable> getSourcePriceTables() {
-        return Collections.unmodifiableMap(sourcePriceTableByProbeType);
+    Map<Long, PricingDTO.PriceTable> getSourcePriceTables() {
+        return Collections.unmodifiableMap(sourcePriceTableByTargetId);
     }
 
     /**
      * When a target is removed, we will clear the cached price table for it's probe type.
      *
+     * @param targetId target Id used for indexing sourcePriceTableByTargetId.
      * @param probeType the probe type of the removed target
      */
-    public void targetRemoved(@Nonnull SDKProbeType probeType) {
+    public void targetRemoved(@Nonnull Long targetId, final SDKProbeType probeType) {
         if (probeType.getProbeCategory() != ProbeCategory.COST) {
             return;
         }
@@ -152,9 +165,10 @@ public class PriceTableUploader implements Diagnosable {
         // need to remove the price table yet since it would theoretically be discovered by the other
         // target(s). We can handle that a number of ways, but not going to worry about that case
         // until we know we need to support it.
-        if (sourcePriceTableByProbeType.containsKey(probeType)) {
-            logger.info("Clearing cached source price table for probe type {}", probeType);
-            sourcePriceTableByProbeType.remove(probeType);
+        if (sourcePriceTableByTargetId.containsKey(targetId)) {
+            logger.info("Clearing cached source price table for target id : {} with probe type {}",
+                    targetId, probeType);
+            sourcePriceTableByTargetId.remove(targetId);
         }
     }
 
@@ -163,12 +177,14 @@ public class PriceTableUploader implements Diagnosable {
      * Then build a list of ProbePriceData based on the {@link CloudEntitiesMap}.
      * Upload whatever price tables we have gathered, into the cost component.
      *
+     * @param probeTypesForTargetId map of probeTypes indexed by targetID.
      * @param cloudEntitiesMap the {@link CloudEntitiesMap} containing local id's to oids
      */
-    public void checkForUpload(@Nonnull CloudEntitiesMap cloudEntitiesMap) {
+    public void checkForUpload(@Nonnull final Map<Long, SDKProbeType> probeTypesForTargetId,
+                               @Nonnull CloudEntitiesMap cloudEntitiesMap) {
 
         DataMetricTimer timer = PRICE_TABLE_HASH_CALCULATION_TIME.startTimer();
-        final List<ProbePriceData> probePricesList = buildPricesToUpload(cloudEntitiesMap);
+        final List<ProbePriceData> probePricesList = buildPricesToUpload(probeTypesForTargetId, cloudEntitiesMap);
         int cloudEntitiesMapHash = cloudEntitiesMap.hashCode();
         // Get a mapping of hash codes to probe price data
         Map<Long, ProbePriceData> hashCodesToProbePriceDataMap = probePricesList.stream()
@@ -193,8 +209,7 @@ public class PriceTableUploader implements Diagnosable {
                 long hashcode = entry.getKey();
                 ProbePriceData probePriceData = entry.getValue();
                 if (probePriceData.probeType != null) {
-                    PriceTableKey priceTableKey = PriceTableKey.newBuilder().setProbeType(probePriceData.probeType).build();
-                    Long previousHashCode = previousPriceTableKeyToChecksumMap.get(priceTableKey);
+                    Long previousHashCode = previousPriceTableKeyToChecksumMap.get(probePriceData.priceTableKey);
                     if (previousHashCode != null && previousHashCode == hashcode) {
                         logger.info("Last processed upload hash is the same as this one [{}], skipping upload" +
                                         " for this price table.",
@@ -242,26 +257,58 @@ public class PriceTableUploader implements Diagnosable {
     }
 
     @VisibleForTesting
-    List<ProbePriceData> buildPricesToUpload(@Nonnull CloudEntitiesMap cloudEntitiesMap) {
+    @Nonnull
+    List<ProbePriceData> buildPricesToUpload(@Nonnull final Map<Long, SDKProbeType> probeTypesForTargetId,
+                                             @Nonnull CloudEntitiesMap cloudEntitiesMap) {
         // Build a new set of price objects to upload.
         DataMetricTimer buildTimer = CLOUD_COST_UPLOAD_TIME.labels(CLOUD_COST_PRICES_SECTION,
             UPLOAD_REQUEST_BUILD_STAGE).startTimer();
         List<ProbePriceData> probePricesList = new ArrayList<>();
-        synchronized (sourcePriceTableByProbeType) {
-            sourcePriceTableByProbeType.forEach((probeType, priceTable) -> {
+        synchronized (sourcePriceTableByTargetId) {
+            sourcePriceTableByTargetId.forEach((targetId, priceTable) -> {
+                SDKProbeType sdkProbeType = probeTypesForTargetId.get(targetId);
                 ProbePriceData probePriceData = new ProbePriceData();
-                probePriceData.probeType = probeType.getProbeType();
+                probePriceData.probeType = sdkProbeType.getProbeType();
                 // convert the price table for this probe type
-                probePriceData.priceTable = priceTableToCostPriceTable(priceTable, cloudEntitiesMap, probeType);
+                probePriceData.priceTable = priceTableToCostPriceTable(priceTable, cloudEntitiesMap,
+                        SDKProbeType.create(sdkProbeType.getProbeType()));
                 // add the RI price table for this probe type
                 probePriceData.riSpecPrices = getRISpecPrices(priceTable, cloudEntitiesMap);
+                probePriceData.priceTableKey = generatePriceTableKey(priceTable, targetId);
                 probePricesList.add(probePriceData);
             });
         }
         buildTimer.observe();
-        logger.debug("Build of {} price tables took {} secs", sourcePriceTableByProbeType.size(),
+        logger.debug("Build of {} price tables took {} secs", sourcePriceTableByTargetId.size(),
             buildTimer.getTimeElapsedSecs());
         return probePricesList;
+    }
+
+    /**
+     * Generate {@link PriceTableKey} from a given priceTableKeyList and its probeType.
+     *
+     * @param priceTable used to extract priceTableKeys.
+     * @param targetId  targetId to which priceTable belongs to. Used to determine {@link SDKProbeType}.
+     * @return {@link PriceTableKey} which is sent to cost component.
+     */
+    @Nonnull
+    private PriceTableKey generatePriceTableKey(@Nonnull final PricingDTO.PriceTable priceTable,
+                                                @Nonnull final Long targetId) {
+        Builder priceTableKeyBuilder = PriceTableKey.newBuilder();
+        priceTable.getPriceTableKeysList().forEach(pricingIdentifier -> {
+            priceTableKeyBuilder.putProbeKeyMaterial(pricingIdentifier.getIdentifierName().name(),
+                    pricingIdentifier.getIdentifierValue());
+        });
+
+        Optional<Long> rootTarget = targetStore.findRootTarget(targetId);
+        if (rootTarget.isPresent()) {
+            final Optional<SDKProbeType> rootProbeType = targetStore.getProbeTypeForTarget(rootTarget.get());
+            rootProbeType.ifPresent(sdkProbeType -> priceTableKeyBuilder
+                    .setRootProbeType(sdkProbeType.getProbeType()));
+        } else {
+            logger.error("TargetID {} was not found in the targetStore.", targetId);
+        }
+        return priceTableKeyBuilder.build();
     }
 
     @VisibleForTesting
@@ -297,22 +344,23 @@ public class PriceTableUploader implements Diagnosable {
         }
         uploadTimer.observe();
         logger.info("Upload of {} price tables took {} secs",
-            sourcePriceTableByProbeType.size(), uploadTimer.getTimeElapsedSecs() );
+            sourcePriceTableByTargetId.size(), uploadTimer.getTimeElapsedSecs() );
     }
     /**
      * Build an XL protobuf price table based on the price table received from a probe.
      * Note that we are modifying the price table that is passed in, and if an
      * exception occurs during this method, it's possible the price table will be partially updated.
      *
-     * If this is a concern, we can change the semantics to return a modified copy of the source
+     * <p>If this is a concern, we can change the semantics to return a modified copy of the source
      * price table rather than modify the source in-place, so that exceptions can cause a copy of
      * the original object to be returned, if that is preferred.
-     *
+     *</p>
      * @param sourcePriceTable the input {@link PriceTable}
      * @param cloudEntitiesMap the map of cloud entity id's -> oids
      * @param probeType the probe type that discovered this price table
      * @return the resulted protobuf price table
      */
+
     @VisibleForTesting
     PriceTable priceTableToCostPriceTable(@Nonnull PricingDTO.PriceTable sourcePriceTable,
                                           @Nonnull final Map<String, Long>  cloudEntitiesMap,
@@ -531,18 +579,18 @@ public class PriceTableUploader implements Diagnosable {
     @Nonnull
     @Override
     public Stream<String> collectDiagsStream() throws DiagnosticsException {
-        synchronized (sourcePriceTableByProbeType) {
+        synchronized (sourcePriceTableByTargetId) {
             final JsonFormat.Printer printer = JsonFormat.printer().omittingInsignificantWhitespace();
             try {
-                return sourcePriceTableByProbeType.entrySet().stream()
+                return sourcePriceTableByTargetId.entrySet().stream()
                     .map(probeTypePriceTableEntry -> {
-                        final SDKProbeType probeType = probeTypePriceTableEntry.getKey();
+                        final long targetId = probeTypePriceTableEntry.getKey();
                         final PricingDTO.PriceTable priceTable = probeTypePriceTableEntry.getValue();
                         try {
-                            return Stream.of(probeType.getProbeType(),
+                            return Stream.of(String.valueOf(targetId),
                                 printer.print(priceTable));
                         } catch (InvalidProtocolBufferException ex) {
-                            throw new ProtoDtoPrintError("Error mapping probe type " + probeType +
+                            throw new ProtoDtoPrintError("Error mapping targetId " + targetId +
                                 " priceTable " + priceTable, ex);
                         }
                     })
@@ -571,24 +619,20 @@ public class PriceTableUploader implements Diagnosable {
             throw new DiagnosticsException("Unexpected diags - should be even length.");
         }
 
-        synchronized (sourcePriceTableByProbeType) {
+        synchronized (sourcePriceTableByTargetId) {
             final JsonFormat.Parser parser = JsonFormat.parser().ignoringUnknownFields();
             for (int i = 0; i + 2 <= collectedDiags.size(); i += 2) {
-                String probeType = collectedDiags.get(i);
-                String priceTableStr = collectedDiags.get(i + 1);
-                SDKProbeType sdkProbeType = SDKProbeType.create(probeType);
-                if (sdkProbeType == null) {
-                    logger.error("Failed to find SDK probe type for probe type: {}", probeType);
-                } else {
-                    PricingDTO.PriceTable.Builder priceTableBldr = PricingDTO.PriceTable.newBuilder();
                     try {
+                    Long targetId = Long.valueOf(collectedDiags.get(i));
+                    String priceTableStr = collectedDiags.get(i + 1);
+                    PricingDTO.PriceTable.Builder priceTableBldr = PricingDTO.PriceTable.newBuilder();
                         parser.merge(priceTableStr, priceTableBldr);
-                        sourcePriceTableByProbeType.put(sdkProbeType, priceTableBldr.build());
-                        sourcePriceTableByProbeType.put(sdkProbeType, priceTableBldr.build());
+                        sourcePriceTableByTargetId.put(targetId, priceTableBldr.build());
                     } catch (InvalidProtocolBufferException e) {
-                        logger.error("Failed to deserialize price table for probe: {}. Error: {}", probeType, e.getMessage());
+                        logger.error("Failed to deserialize price table. Error: {}", e.getMessage());
+                    } catch (NumberFormatException e) {
+                        logger.error("Failed to find targetId for : {}", collectedDiags.get(i));
                     }
-                }
             }
         }
     }
@@ -598,7 +642,8 @@ public class PriceTableUploader implements Diagnosable {
      */
     public static class ProbePriceData {
         public String probeType;
-        public PriceTable priceTable;
+        public  PriceTable priceTable;
+        public PriceTableKey priceTableKey;
         public List<ReservedInstanceSpecPrice> riSpecPrices;
 
         @Override
@@ -641,15 +686,15 @@ public class PriceTableUploader implements Diagnosable {
             for (Map.Entry<Long, ProbePriceData> entry : priceTablesToUpload.entrySet()) {
                 long checksum = entry.getKey();
                 ProbePriceData probePriceData = entry.getValue();
-                if (probePriceData.priceTable != null) {
+                if (probePriceData.priceTable != null &&
+                        probePriceData.priceTableKey.getRootProbeType() != null) {
                     logger.debug("Sending price table for probe {}", probePriceData.probeType);
                     sendSegment(ProbePriceTableSegment.newBuilder().setHeader((ProbePriceTableHeader.newBuilder()
                             .setCreatedTime(clock.millis())
                             .addPriceTableChecksums(PriceTableChecksum.newBuilder()
                                     .setCheckSum(checksum))))
                             .setProbePriceTable(ProbePriceTableChunk.newBuilder()
-                                    .setPriceTableKey(PriceTableKey.newBuilder()
-                                            .setProbeType(probePriceData.probeType))
+                                    .setPriceTableKey(probePriceData.priceTableKey)
                                 .setPriceTable(probePriceData.priceTable))
                             .build());
                 }
@@ -659,8 +704,7 @@ public class PriceTableUploader implements Diagnosable {
                     int x = 0;
                     ProbePriceTableSegment.Builder nextSegmentBuilder = ProbePriceTableSegment.newBuilder()
                             .setProbeRiSpecPrices(ProbeRISpecPriceChunk.newBuilder()
-                                .setPriceTableKey(PriceTableKey.newBuilder()
-                                        .setProbeType(probePriceData.probeType)));
+                                .setPriceTableKey(probePriceData.priceTableKey));
                     while (x < probePriceData.riSpecPrices.size()) {
                         // add to the next chunk
                         nextSegmentBuilder.getProbeRiSpecPricesBuilder()
@@ -671,8 +715,7 @@ public class PriceTableUploader implements Diagnosable {
                             sendSegment(nextSegmentBuilder.build());
                             nextSegmentBuilder = ProbePriceTableSegment.newBuilder()
                                     .setProbeRiSpecPrices(ProbeRISpecPriceChunk.newBuilder()
-                                            .setPriceTableKey(PriceTableKey.newBuilder()
-                                                    .setProbeType(probePriceData.probeType)));
+                                            .setPriceTableKey(probePriceData.priceTableKey));
                         }
                     }
                     // if there is still an unfinished segment to send, send it now.

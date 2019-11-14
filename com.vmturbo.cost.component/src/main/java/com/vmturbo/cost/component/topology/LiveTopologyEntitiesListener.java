@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
@@ -83,7 +84,7 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
             return;
         }
         logger.info("Received live topology with topologyId: {}", topologyInfo.getTopologyId());
-        businessAccountHelper.resetBusinessAccountToTargetIdMap();
+
 
         final CloudTopology<TopologyEntityDTO> cloudTopology =
                 cloudTopologyFactory.newCloudTopology(topologyContextId, entityIterator);
@@ -93,7 +94,9 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
             // Store allocation demand in db
             computeTierDemandStatsWriter.calculateAndStoreRIDemandStats(topologyInfo, cloudTopology, false);
             // Consumption demand in stored in db in CostComponentProjectedEntityTopologyListener
-            storeBusinessAccountIdToTargetIdMapping(cloudTopology.getEntities());
+            if (topologyInfo.getTopologyType() == TopologyType.REALTIME) {
+                storeBusinessAccountIdToTargetIdMapping(cloudTopology.getEntities());
+            }
 
             invoker.invokeRIBuyIfBusinessAccountsUpdated(businessAccountHelper.getAllBusinessAccounts());
 
@@ -102,7 +105,7 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
             // RI coverage
             reservedInstanceCoverageUpdate.updateAllEntityRICoverageIntoDB(topologyInfo, cloudTopology);
 
-            final TopologyCostCalculator topologyCostCalculator = topologyCostCalculatorFactory.newCalculator(topologyInfo);
+            final TopologyCostCalculator topologyCostCalculator = topologyCostCalculatorFactory.newCalculator(topologyInfo, cloudTopology);
             final Map<Long, CostJournal<TopologyEntityDTO>> costs =
                 topologyCostCalculator.calculateCosts(cloudTopology);
 
@@ -121,11 +124,14 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
 
     // store the mapping between business account id to discovered target id
     private void storeBusinessAccountIdToTargetIdMapping(@Nonnull final Map<Long, TopologyEntityDTO> cloudEntities) {
+        //clean up old businessAccounts.
+        businessAccountHelper.resetBusinessAccounts();
         for (TopologyEntityDTO entityDTO : cloudEntities.values()) {
             // If the entity is a business account, store the discovered target id.
             if (entityDTO.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE) {
-                        businessAccountHelper
-                                .storeTargetMapping(entityDTO.getOid(), getTargetId(entityDTO));
+                long baOID = entityDTO.getOid();
+                businessAccountHelper
+                        .storeTargetMapping(baOID, getTargetId(entityDTO));
             }
         }
     }

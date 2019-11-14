@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.StampedLock;
 import java.util.stream.Collectors;
@@ -33,7 +34,6 @@ import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
-import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
  * This class is responsible for extracting the cloud cost data and
@@ -61,8 +61,7 @@ public class DiscoveredCloudCostUploader implements Diagnosable {
 
     protected static final String UPLOAD_REQUEST_BUILD_STAGE = "build";
     protected static final String UPLOAD_REQUEST_UPLOAD_STAGE = "upload";
-
-    private final TargetStore targetStore;
+    private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
 
     private final RICostDataUploader riCostDataUploader;
 
@@ -70,7 +69,8 @@ public class DiscoveredCloudCostUploader implements Diagnosable {
 
     private final PriceTableUploader priceTableUploader;
 
-    private final static Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
+
+    private final BusinessAccountPriceTableKeyUploader businessAccountPriceTableKeyUploader;
 
     // a cache of all the cloud service non-market entities and cost dto's discovered by cloud
     // probes. The concurrent map is probably overkill, but the idea is to support concurrent writes.
@@ -87,11 +87,12 @@ public class DiscoveredCloudCostUploader implements Diagnosable {
     public DiscoveredCloudCostUploader(@Nonnull RICostDataUploader riCostDataUploader,
                                        @Nonnull AccountExpensesUploader accountExpensesUploader,
                                        @Nonnull PriceTableUploader priceTableUploader,
-                                       @Nonnull final TargetStore targetStore) {
+                                       @Nonnull final BusinessAccountPriceTableKeyUploader
+                                               businessAccountPriceTableKeyUploader) {
         this.riCostDataUploader = riCostDataUploader;
         this.accountExpensesUploader = accountExpensesUploader;
         this.priceTableUploader = priceTableUploader;
-        this.targetStore = targetStore;
+        this.businessAccountPriceTableKeyUploader = businessAccountPriceTableKeyUploader;
     }
 
 
@@ -138,7 +139,7 @@ public class DiscoveredCloudCostUploader implements Diagnosable {
 
     /**
      * This is called when a discovery completes.
-     *
+     * <p>
      * Set aside any cloud cost data contained in the discovery response for the given target.
      * We will use this data later, in the topology pipeline.
      *
@@ -147,11 +148,12 @@ public class DiscoveredCloudCostUploader implements Diagnosable {
      * @param nonMarketEntityDTOS
      */
     public void recordTargetCostData(long targetId,
-                                @Nonnull Discovery discovery,
-                                @Nonnull final List<NonMarketEntityDTO> nonMarketEntityDTOS,
-                                @Nonnull final List<CostDataDTO> costDataDTOS,
-                                @Nullable final PriceTable priceTable) {
-        SDKProbeType probeType = targetStore.getProbeTypeForTarget(targetId).orElse(null);
+                                     @Nonnull final Optional<SDKProbeType> optionalSDKProbeType,
+                                     @Nonnull Discovery discovery,
+                                     @Nonnull final List<NonMarketEntityDTO> nonMarketEntityDTOS,
+                                     @Nonnull final List<CostDataDTO> costDataDTOS,
+                                     @Nullable final PriceTable priceTable) {
+        SDKProbeType probeType = optionalSDKProbeType.orElse(null);
         if (probeType == null) {
             logger.warn("Skipping price tables for unknown probeType for targetId {}.", targetId);
             return;
@@ -172,7 +174,7 @@ public class DiscoveredCloudCostUploader implements Diagnosable {
         cacheCostData(costData);
 
         // the price table helper will cache it's own data
-        priceTableUploader.recordPriceTable(probeType, priceTable);
+        priceTableUploader.recordPriceTable(targetId, probeType, priceTable);
     }
 
     /**
@@ -186,7 +188,7 @@ public class DiscoveredCloudCostUploader implements Diagnosable {
         // If the target is not in the probe type map yet, then no data will have been stored for it.
         final SDKProbeType probeType = probeTypesForTargetId.get(targetId);
         if (probeType != null) {
-            priceTableUploader.targetRemoved(probeType);
+            priceTableUploader.targetRemoved(targetId, probeType);
             probeTypesForTargetId.remove(targetId);
             long stamp = targetCostDataCacheLock.readLock();
             try {
@@ -199,15 +201,16 @@ public class DiscoveredCloudCostUploader implements Diagnosable {
     }
 
     /**
-     * Upload the cloud cost data.
-     *
+     * <p>Upload the cloud cost data.
+     * </p>
      * Called in the topology pipeline after the stitching context has been created, but before
      * it has been converted to a topology map. Ths is because a lot of the data we need is in the
      * raw cloud entity data, much of which we lose in the conversion to topology map.
      *
-     * We will be cross-referencing data from the cost DTO's, non-market entities, and topology
+     * <p>We will be cross-referencing data from the cost DTO's, non-market entities, and topology
      * entities (in stitching entity form), from the billing and discovery probes. So there may be
      * some sensitivity to discovery mismatches between billing and discovery probe data.
+     * </p>
      *
      * @param topologyInfo
      * @param stitchingContext
@@ -226,7 +229,11 @@ public class DiscoveredCloudCostUploader implements Diagnosable {
                     stitchingContext, cloudEntitiesMap);
             riCostDataUploader.uploadRIData(costDataByTargetIdSnapshot, topologyInfo,
                     stitchingContext, cloudEntitiesMap);
-            priceTableUploader.checkForUpload(cloudEntitiesMap);
+            businessAccountPriceTableKeyUploader.uploadAccountPriceTableKeys(stitchingContext,
+                    probeTypesForTargetId);
+
+            priceTableUploader.checkForUpload(probeTypesForTargetId, cloudEntitiesMap);
+
         } finally {
             // there will be exceptions if cost component is not running, we should remove
             // ReservedInstance from topology regardless of whether cost component is started or
@@ -246,7 +253,7 @@ public class DiscoveredCloudCostUploader implements Diagnosable {
     @Override
     public Stream<String> collectDiagsStream() {
         final Map<Long, String> strProbeTypesForTargetId = probeTypesForTargetId.entrySet().stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getProbeType()));
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getProbeType()));
 
         // return the type -> targets map serialized, and then each cost data item serialized
         return Stream.concat(

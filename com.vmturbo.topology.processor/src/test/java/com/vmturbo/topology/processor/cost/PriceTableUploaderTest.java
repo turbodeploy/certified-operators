@@ -3,12 +3,15 @@ package com.vmturbo.topology.processor.cost;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.junit.Assert;
@@ -19,6 +22,7 @@ import org.mockito.Mockito;
 import org.mockito.internal.util.reflection.Whitebox;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 
 import io.grpc.Channel;
 
@@ -77,6 +81,7 @@ public class PriceTableUploaderTest {
     private static final String PROBE_TYPE_FIELD = "probeType";
     private static final Long INDEX_ONE = 1L;
     private static final double IP_PRICE_AMOUNT = 0.5;
+    private static final Long TARGET_ID  = 0L;
 
     private static final Builder REGION_ENTITY_BUILDER =
         createBuilder(REGION_ONE, REGION_ONE, EntityType.REGION);
@@ -109,7 +114,9 @@ public class PriceTableUploaderTest {
         cloudOidByLocalId.put(COMPUTE_TIER_ONE, 10L);
         cloudOidByLocalId.put(DB_TIER_ONE, 20L);
         cloudOidByLocalId.put(AWS_STORAGE_TIER_ONE, 30L);
-        priceTableUploader = new PriceTableUploader(priceServiceClient, Clock.systemUTC(), 100);
+        priceTableUploader = new PriceTableUploader(priceServiceClient, Clock.systemUTC(),
+                100, targetStore);
+        when(targetStore.getProbeTypeForTarget(TARGET_ID)).thenReturn(Optional.of(SDKProbeType.AWS));
     }
 
     private static Builder createBuilder(String id, String displayName, EntityType entityType) {
@@ -318,18 +325,19 @@ public class PriceTableUploaderTest {
                         .setPriceAmount(CurrencyAmount.newBuilder()
                             .setAmount(IP_PRICE_AMOUNT))))))
             .build();
-        priceTableUploader.recordPriceTable(SDKProbeType.AZURE_COST, sourcePriceTable);
+        priceTableUploader.recordPriceTable(TARGET_ID, SDKProbeType.AZURE_COST, sourcePriceTable);
 
-        final Map<SDKProbeType, PricingDTO.PriceTable> originalSrcTables = priceTableUploader.getSourcePriceTables();
-        assertThat(originalSrcTables.keySet(), containsInAnyOrder(SDKProbeType.AZURE_COST));
-        assertThat(originalSrcTables.get(SDKProbeType.AZURE_COST), is(sourcePriceTable));
+        final Map<Long, PricingDTO.PriceTable> originalSrcTables = priceTableUploader.getSourcePriceTables();
+        assertThat(originalSrcTables.keySet(), containsInAnyOrder(TARGET_ID));
+        assertThat(originalSrcTables.get(TARGET_ID), is(sourcePriceTable));
 
         // ACT
         List<String> diags = priceTableUploader.collectDiagsStream().collect(Collectors.toList());
 
-        PriceTableUploader newUploader = new PriceTableUploader(priceServiceClient, Clock.systemUTC(), 100);
+        PriceTableUploader newUploader = new PriceTableUploader(priceServiceClient, Clock.systemUTC(),
+                100, targetStore);
         newUploader.restoreDiags(diags);
-        final Map<SDKProbeType, PricingDTO.PriceTable> newSrcTables = newUploader.getSourcePriceTables();
+        final Map<Long, PricingDTO.PriceTable> newSrcTables = newUploader.getSourcePriceTables();
 
         assertThat(newSrcTables, is(originalSrcTables));
     }
@@ -341,16 +349,16 @@ public class PriceTableUploaderTest {
     public void testTargetRemoved() {
         PricingDTO.PriceTable sourcePriceTable = createDefaultPriceTable();
         // Trying to record price with a non cost probe
-        priceTableUploader.recordPriceTable(SDKProbeType.AZURE, sourcePriceTable);
+        priceTableUploader.recordPriceTable(TARGET_ID, SDKProbeType.AZURE, sourcePriceTable);
         Assert.assertEquals(0, priceTableUploader.getSourcePriceTables().size());
         // Trying to record price with a cost probe
-        priceTableUploader.recordPriceTable(SDKProbeType.AZURE_COST, sourcePriceTable);
+        priceTableUploader.recordPriceTable(TARGET_ID, SDKProbeType.AZURE_COST, sourcePriceTable);
         Assert.assertEquals(1, priceTableUploader.getSourcePriceTables().size());
         // Trying to remove an invalid target
-        priceTableUploader.targetRemoved(SDKProbeType.AWS);
+        priceTableUploader.targetRemoved(TARGET_ID, SDKProbeType.AWS);
         Assert.assertEquals(1, priceTableUploader.getSourcePriceTables().size());
         // Trying to remove a valid target
-        priceTableUploader.targetRemoved(SDKProbeType.AZURE_COST);
+        priceTableUploader.targetRemoved(TARGET_ID, SDKProbeType.AZURE_COST);
         Assert.assertEquals(0, priceTableUploader.getSourcePriceTables().size());
     }
 
@@ -359,20 +367,23 @@ public class PriceTableUploaderTest {
      */
     @Test
     public void testBuildPricesToUpload() {
+        when(targetStore.findRootTarget(anyLong())).thenReturn(Optional.of(TARGET_ID));
         TopologyProcessorCostTestUtils utils = new TopologyProcessorCostTestUtils();
         final StitchingContext stitchingContext = utils.setupStitchingContext();
         CloudEntitiesMap cloudEntitiesMap = new CloudEntitiesMap(stitchingContext, new HashMap<>());
         PricingDTO.PriceTable sourcePriceTable = createDefaultPriceTable();
         // Adding the price table that will be tested
-        priceTableUploader.recordPriceTable(SDKProbeType.AZURE_COST, sourcePriceTable);
+        priceTableUploader.recordPriceTable(TARGET_ID, SDKProbeType.AZURE_COST, sourcePriceTable);
+        Map<Long, SDKProbeType> probeTypesForTargetId = Maps.newHashMap(
+                ImmutableMap.of(TARGET_ID, SDKProbeType.AZURE_COST));
         // Triggering 'buildPricesToUpload' method a few time instead of saving re result in order
         // to no add a mvn dependency for ProbePriceData
         ImmutableMap<Long, ProbePriceData> checksumToProbePriceData = ImmutableMap.of(0L,
-                priceTableUploader.buildPricesToUpload(cloudEntitiesMap).get(0));
+                priceTableUploader.buildPricesToUpload(probeTypesForTargetId, cloudEntitiesMap).get(0));
         priceTableUploader.uploadPrices(checksumToProbePriceData);
-        Assert.assertEquals(1, priceTableUploader.buildPricesToUpload(cloudEntitiesMap).size());
+        Assert.assertEquals(1, priceTableUploader.buildPricesToUpload(probeTypesForTargetId, cloudEntitiesMap).size());
         String probeType = (String)Whitebox.getInternalState(priceTableUploader
-            .buildPricesToUpload(cloudEntitiesMap).get(0), PROBE_TYPE_FIELD);
+            .buildPricesToUpload(probeTypesForTargetId, cloudEntitiesMap).get(0), PROBE_TYPE_FIELD);
         Assert.assertEquals(SDKProbeType.AZURE_COST.getProbeType(), probeType);
     }
 

@@ -286,8 +286,8 @@ public class BusinessAccountPriceTableKeyStoreTest {
         assertThat(priceTableKeyOids.values().contains(priceTableKeyOid), is(true));
     }
 
-    private PriceTableKey mockPriceTable(final String probeType) {
-        return PriceTableKey.newBuilder().setProbeType(probeType)
+    private PriceTableKey mockPriceTable(final String rootProbeType) {
+        return PriceTableKey.newBuilder().setRootProbeType(rootProbeType)
                 .putProbeKeyMaterial("enrollmentId", "123")
                 .putProbeKeyMaterial("offerId", "456")
                 .build();

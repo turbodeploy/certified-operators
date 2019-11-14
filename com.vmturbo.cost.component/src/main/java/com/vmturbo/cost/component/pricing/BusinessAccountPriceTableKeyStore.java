@@ -114,7 +114,6 @@ public class BusinessAccountPriceTableKeyStore implements Diagnosable {
                 DSLContext transactionDsl = DSL.using(configuration);
                 Map<IdentityMatchingAttributes, Long> currentPriceTableKeys = priceTableKeyIdentityStore
                         .fetchAllOidMappings(transactionDsl);
-                removeAllOids();
                 Set<Query> queries = businessAccountPriceTableKey
                         .getBusinessAccountPriceTableKeyMap().entrySet()
                         .stream()
@@ -126,19 +125,6 @@ public class BusinessAccountPriceTableKeyStore implements Diagnosable {
             });
             } catch (DataAccessException e) {
                 logger.error("Exception while trying to upload businessAccount to priceTable mappings.", e);
-        }
-        removeUnusedPriceTableKeys();
-    }
-
-    private void removeUnusedPriceTableKeys() {
-        try {
-            Map<Long, Long> businessAccountToPriceTableKeyOidMap =
-                    fetchPriceTableKeyOidsByBusinessAccount(Collections.emptySet());
-            Collection<Long> priceTablesKeyOids = priceTableKeyIdentityStore.fetchAllOidMappings().values();
-            priceTablesKeyOids.removeAll(businessAccountToPriceTableKeyOidMap.values());
-            priceTableKeyIdentityStore.removeOidMappings(Sets.newHashSet(priceTablesKeyOids));
-        } catch (DbException e) {
-            logger.error("Exception while removing unused priceTableKeys.", e);
         }
     }
 
@@ -162,12 +148,16 @@ public class BusinessAccountPriceTableKeyStore implements Diagnosable {
     }
 
     /**
-     * Remove BA oid from {@link Tables#BUSINESS_ACCOUNT_PRICE_TABLE_KEY}.
-     * Also remove the priceTableKeys which are not used by any other BA OIDs.
+     * Remove BA oid from {@link Tables#BUSINESS_ACCOUNT_PRICE_TABLE_KEY} and remove orphaned
+     * priceTableOids. We determine priceTableOids which are still being used in
+     * {@link Tables#BUSINESS_ACCOUNT_PRICE_TABLE_KEY} and remove it from the list of
+     * priceTableOids to be removed from {@link PriceTableKeyIdentityStore}.
+     *
      * @param businessAccountOIDs businessAccount to be removed.
-     * @throws DbException if
+     * @throws DbException if exception during reading/removing from DB.
      */
-    public void removeBusinessAccountAndPriceTableKeyOid(Set<Long> businessAccountOIDs) throws DbException {
+    public void removeBusinessAccountAndPriceTableKeyOid(@Nonnull Set<Long> businessAccountOIDs)
+            throws DbException {
         Map<Long, Long> baOidToPriceTableKeyMap = fetchPriceTableKeyOidsByBusinessAccount(businessAccountOIDs);
         Collection<Long> priceTableKeyOids = baOidToPriceTableKeyMap.values();
         try {
@@ -210,11 +200,13 @@ public class BusinessAccountPriceTableKeyStore implements Diagnosable {
         Long businessAccountOID = longPriceTableKeyEntry.getKey();
         try {
             // assign oid using priceTableKeyIdentityStore.
-            long priceTableKeyOid = priceTableKeyIdentityStore.assignPriceTableKeyOid(context,
-                    priceTableKey, currentPriceTableKeys);
+            Entry<IdentityMatchingAttributes, Long> newPriceTableKeyOidEntry = priceTableKeyIdentityStore
+                    .assignPriceTableKeyOid(context, priceTableKey, currentPriceTableKeys);
+            currentPriceTableKeys.put(newPriceTableKeyOidEntry.getKey(),
+                    newPriceTableKeyOidEntry.getValue());
             BusinessAccountPriceTableKeyRecord businessAccountPriceTableKeyRecord =
                     new BusinessAccountPriceTableKeyRecord(businessAccountOID,
-                            priceTableKeyOid);
+                            newPriceTableKeyOidEntry.getValue());
             return context.insertInto(Tables.BUSINESS_ACCOUNT_PRICE_TABLE_KEY)
                     .set(businessAccountPriceTableKeyRecord)
                     .onDuplicateKeyUpdate()

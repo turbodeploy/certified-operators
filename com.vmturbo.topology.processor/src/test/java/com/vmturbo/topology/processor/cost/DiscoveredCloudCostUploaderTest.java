@@ -2,7 +2,11 @@ package com.vmturbo.topology.processor.cost;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyMap;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -16,11 +20,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.google.common.collect.ImmutableMap;
-
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.NonMarketDTO.CostDataDTO;
 import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO;
@@ -28,11 +29,8 @@ import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO.NonMarket
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.TargetCostData;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
-import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
-import com.vmturbo.topology.processor.stitching.StitchingEntityData;
-import com.vmturbo.topology.processor.targets.TargetStore;
 
 public class DiscoveredCloudCostUploaderTest {
 
@@ -41,7 +39,8 @@ public class DiscoveredCloudCostUploaderTest {
     private RICostDataUploader riCostDataUploader =  mock(RICostDataUploader.class);
     private AccountExpensesUploader accountExpensesUploader = mock(AccountExpensesUploader.class);
     private PriceTableUploader priceTableUploader = mock(PriceTableUploader.class);
-    private TargetStore targetStore = mock(TargetStore.class);
+    private BusinessAccountPriceTableKeyUploader businessAccountPriceTableKeyUploader =
+            mock(BusinessAccountPriceTableKeyUploader.class);
     private TopologyInfo topologyInfo = TopologyInfo.newBuilder()
             .setTopologyContextId(1L)
             .setTopologyId(10L)
@@ -54,7 +53,8 @@ public class DiscoveredCloudCostUploaderTest {
         TopologyProcessorCostTestUtils utils = new TopologyProcessorCostTestUtils();
         stitchingContext = utils.setupStitchingContext();
         cloudCostUploader = new DiscoveredCloudCostUploader(riCostDataUploader,
-                accountExpensesUploader, priceTableUploader, targetStore);
+                accountExpensesUploader, priceTableUploader,
+                businessAccountPriceTableKeyUploader );
     }
 
     @Test
@@ -62,6 +62,8 @@ public class DiscoveredCloudCostUploaderTest {
         Assert.assertEquals(2, stitchingContext.getEntitiesOfType(EntityType.RESERVED_INSTANCE).count());
         cloudCostUploader.uploadCostData(topologyInfo, stitchingContext);
         Assert.assertEquals(0, stitchingContext.getEntitiesOfType(EntityType.RESERVED_INSTANCE).count());
+        verify(businessAccountPriceTableKeyUploader, times(1))
+                .uploadAccountPriceTableKeys(any(), anyMap());
     }
 
     @Test
@@ -77,12 +79,12 @@ public class DiscoveredCloudCostUploaderTest {
     @Test
     public void testDiags() throws DiagnosticsException {
         final long targetId = 1;
-        when(targetStore.getProbeTypeForTarget(targetId)).thenReturn(Optional.of(SDKProbeType.AWS));
 
         IdentityProvider idProvider = mock(IdentityProvider.class);
         when(idProvider.generateOperationId()).thenReturn(1000L);
         Discovery discovery = new Discovery(2L, targetId, idProvider);
-        cloudCostUploader.recordTargetCostData(1L, discovery,
+        cloudCostUploader.recordTargetCostData(1L, Optional.of(SDKProbeType.AWS),
+                discovery,
             Collections.singletonList(NonMarketEntityDTO.newBuilder()
                 .setDisplayName("foo")
                 .setId("id")
@@ -102,7 +104,8 @@ public class DiscoveredCloudCostUploaderTest {
         List<String> diags = cloudCostUploader.collectDiagsStream().collect(Collectors.toList());
 
         final DiscoveredCloudCostUploader newUploader =
-            new DiscoveredCloudCostUploader(riCostDataUploader, accountExpensesUploader, priceTableUploader, targetStore);
+            new DiscoveredCloudCostUploader(riCostDataUploader, accountExpensesUploader, priceTableUploader,
+                    businessAccountPriceTableKeyUploader);
 
         newUploader.restoreDiags(diags);
 

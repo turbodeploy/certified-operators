@@ -17,6 +17,7 @@ import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCost
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
+import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsWriter;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceCoverageUpdate;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisInvoker;

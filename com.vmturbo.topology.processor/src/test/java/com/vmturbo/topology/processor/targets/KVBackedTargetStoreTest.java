@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.targets;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -34,6 +35,7 @@ import com.google.gson.stream.JsonWriter;
 import com.google.protobuf.util.JsonFormat;
 
 import com.vmturbo.components.crypto.CryptoFacility;
+import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.identity.store.IdentityStoreUpdate;
 import com.vmturbo.kvstore.KeyValueStore;
@@ -321,7 +323,6 @@ public class KVBackedTargetStoreTest {
                 Assert.assertEquals("theUserName", av.getStringValue());
             }
         }
-
     }
 
     private static class InternalTargetInfo {
@@ -536,6 +537,9 @@ public class KVBackedTargetStoreTest {
         verifyDerivedTargetIdsList(
                 Lists.newArrayList(String.valueOf(derived3.getId())),
                 getDerivedTargetIds(derived1));
+        assertEquals(parent.getId(), (long)targetStore.findRootTarget(derived3.getId()).get());
+        assertEquals(parent.getId(), (long)targetStore.findRootTarget(derived2.getId()).get());
+        assertEquals(parent.getId(), (long)targetStore.findRootTarget(derived1.getId()).get());
     }
 
     /**
@@ -771,5 +775,21 @@ public class KVBackedTargetStoreTest {
         final Target target = targetStore.createTarget(spec.toDto());
         Assert.assertEquals(ProbeCategory.HYPERVISOR, targetStore.getProbeCategoryForTarget(target.getId()).get());
 
+    }
+
+
+    @Test
+    public void testInvalidTargetAndRootTarget() throws DuplicateTargetException, InvalidTargetException, IdentityStoreException {
+        prepareInitialProbe();
+        final Target parent = targetStore.createTarget(createTargetSpec(0L, 666));
+        final TargetSpec derivedTargetSpec1 = TargetSpec.newBuilder()
+                .setProbeId(DERIVED_PROBE_ID)
+                .setParentId(parent.getId())
+                .setIsHidden(true)
+                .addAllAccountValue(createAccountValue(100))
+                .build();
+        final Target derived1 = targetStore.createTarget(derivedTargetSpec1);
+        assertEquals(Optional.of(parent.getId()), targetStore.findRootTarget(derived1.getId()));
+        assertEquals(Optional.empty(), targetStore.findRootTarget(100L));
     }
 }

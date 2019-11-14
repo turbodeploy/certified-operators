@@ -46,8 +46,9 @@ message PriceTable {
 
 // PriceTableKey contains information which describes the source of price table.
 message PriceTableKey {
-    // eg: probe_type like aws,azure ea etc.
-    optional string probe_type = 1;
+    // eg: root_probe_type like aws,azure ea etc.
+    // root_probe_type is determined by looking up the root probe in target store of a given target.
+    optional string root_probe_type = 1;
 
     // probe_key_material is a map of miscellaneous information about the price table which helps to
     // uniquely identify a price table and to which account it might be related to.

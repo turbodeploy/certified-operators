@@ -34,9 +34,9 @@ public class BusinessAccountHelper {
     }
 
     /**
-     * Reset map before new we receive new topology data.
+     * Reset map before we receive new topology data.
      */
-    public void resetBusinessAccountToTargetIdMap() {
+    public void resetBusinessAccounts() {
         businessAccountToTargetIdMap.clear();
     }
 
