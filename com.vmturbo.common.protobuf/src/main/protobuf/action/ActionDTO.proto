@@ -452,6 +452,8 @@ message Action {
     }
 
     // A list of pre-requisites.
+    // Pre-requisites of an action means that some pre-requisites need to be satisfied
+    // in order to execute an action.
     repeated Prerequisite prerequisite = 8;
 
     // For the time being, we only have PrerequisiteType inside this message.
@@ -463,9 +465,15 @@ message Action {
     // The pre-requisite types supported
     enum PrerequisiteType {
         // AWS execution pre-requisites
+        // ENA (Elastic Network Adapter) driver is necessary for access to
+        // Enhanced Networking on AWS EC2 instances.
         ENA = 1;
+        // NVMMe (non-volatile memory express) driver is necessary for access to
+        // NVMMe block device such as EBS volumes and instance store volumes.
         NVME = 2;
+        // Architecture can be 32-bit, 64-bit or arm64.
         ARCHITECTURE = 3;
+        // Virtualization type can be HVM or PVM.
         VIRTUALIZATION_TYPE = 4;
         // Azure execution pre-requisites
         CORE_QUOTAS = 5;
@@ -864,7 +872,7 @@ message ActionSpec {
     // The action description that will be set by AO and returned to the API.
     optional string description = 11;
 
-    // A list of prerequisite description.
+    // A list of prerequisite descriptions.
     repeated string prerequisite_description = 12;
 }
 

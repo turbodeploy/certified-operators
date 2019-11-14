@@ -22,7 +22,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 
 /**
- * A class responsible for calculating pre-requisites of an action.
+ * A class responsible for calculating pre-requisites of an action. Here pre-requisites of an action
+ * means that some pre-requisites need to be satisfied in order to execute an action.
+ *
+ * <p>For example, if an action recommends moving a 32-bit VM to a compute tier that only supports
+ * 64-bit, then a pre-requisite of enabling 64-bit AMIs for the VM or excluding templates that
+ * require 64-bit AMIs will be generated along with the action.
  */
 class PrerequisiteCalculator {
 
@@ -44,8 +49,8 @@ class PrerequisiteCalculator {
      *
      * @param action the action pre-requisites will be calculated for
      * @param target the target of the action
-     * @param snapshot the snapshot of entities
-     * @param probeCategory the category of the probe
+     * @param snapshot the snapshot of entities used to fetch entity information
+     * @param probeCategory the category of the probe which discovers the target
      * @return a set of pre-requisites
      */
     @Nonnull
@@ -54,6 +59,10 @@ class PrerequisiteCalculator {
             @Nonnull final ActionPartialEntity target,
             @Nonnull final EntitiesAndSettingsSnapshot snapshot,
             @Nonnull final ProbeCategory probeCategory) {
+        // Check if the category of the probe which discovers the target is CLOUD_MANAGEMENT and this
+        // action is a Move action and the target of the action has virtual machine type specific info.
+        // If not, there's no need to calculate pre-requisites for this action because
+        // no pre-requisites will be generated for such an action.
         if (probeCategory != ProbeCategory.CLOUD_MANAGEMENT ||
             action.getInfo().getActionTypeCase() != ActionTypeCase.MOVE ||
             !target.getTypeSpecificInfo().hasVirtualMachine()) {
@@ -61,20 +70,22 @@ class PrerequisiteCalculator {
         }
 
         for (ChangeProvider changeProvider : action.getInfo().getMove().getChangesList()) {
-            long destinationId = changeProvider.getDestination().getId();
-            Optional<ActionPartialEntity> destinationOptional =
-                snapshot.getEntityFromOid(destinationId);
-            if (destinationOptional.isPresent() &&
-                destinationOptional.get().getTypeSpecificInfo().hasComputeTier()) {
-                // Calculate pre-requisites when target has VirtualMachineInfo and
-                // destination has ComputeTierInfo.
-                return prerequisiteCalculators.stream()
-                    .map(calculator -> calculator.calculate(
-                        target.getTypeSpecificInfo().getVirtualMachine(),
-                        destinationOptional.get().getTypeSpecificInfo().getComputeTier()))
-                    .filter(Optional::isPresent)
-                    .map(Optional::get)
-                    .collect(Collectors.toSet());
+            if (changeProvider.hasDestination()) {
+                long destinationId = changeProvider.getDestination().getId();
+                Optional<ActionPartialEntity> destinationOptional =
+                    snapshot.getEntityFromOid(destinationId);
+                if (destinationOptional.isPresent() &&
+                    destinationOptional.get().getTypeSpecificInfo().hasComputeTier()) {
+                    // Calculate pre-requisites when target has VirtualMachineInfo and
+                    // destination has ComputeTierInfo.
+                    return prerequisiteCalculators.stream()
+                        .map(calculator -> calculator.calculate(
+                            target.getTypeSpecificInfo().getVirtualMachine(),
+                            destinationOptional.get().getTypeSpecificInfo().getComputeTier()))
+                        .filter(Optional::isPresent)
+                        .map(Optional::get)
+                        .collect(Collectors.toSet());
+                }
             }
         }
 
@@ -98,7 +109,8 @@ class PrerequisiteCalculator {
     }
 
     /**
-     * Calculate Ena pre-requisite.
+     * Calculate ENA pre-requisite. ENA (Elastic Network Adapter) driver is necessary for access to
+     * Enhanced Networking on AWS EC2 instances.
      *
      * @param virtualMachineInfo virtualMachineInfo which contains pre-requisite info
      * @param computeTierInfo computeTierInfo which contains pre-requisite info
@@ -125,7 +137,8 @@ class PrerequisiteCalculator {
     }
 
     /**
-     * Calculate NVMme pre-requisite.
+     * Calculate NVMMe pre-requisite. NVMMe (non-volatile memory express) driver is necessary for access to
+     * NVMMe block device such as EBS volumes and instance store volumes.
      *
      * @param virtualMachineInfo virtualMachineInfo which contains pre-requisite info
      * @param computeTierInfo computeTierInfo which contains pre-requisite info

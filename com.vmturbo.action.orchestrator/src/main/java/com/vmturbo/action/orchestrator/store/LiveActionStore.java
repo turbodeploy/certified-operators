@@ -342,11 +342,11 @@ public class LiveActionStore implements ActionStore {
     }
 
     /**
-     * Add additional info to the actions.
+     * Add additional info to the actions, such as support level and pre-requisites of an action.
      *
      * @param actionPlan an action plan containing actions
      * @param snapshot the snapshot of entities
-     * @return a collection of actions
+     * @return a collection of actions with additional information added to them
      */
     @Nonnull
     private Collection<ActionDTO.Action> actionsWithAdditionalInfo(
@@ -423,6 +423,7 @@ public class LiveActionStore implements ActionStore {
                     .map(ActionTargetInfo::prerequisites)
                     .orElse(Collections.emptySet());
 
+                // If there are any updates to the action, update and rebuild it.
                 if (action.getSupportingLevel() != supportLevel || !prerequisites.isEmpty()) {
                     return action.toBuilder()
                         .setSupportingLevel(supportLevel)

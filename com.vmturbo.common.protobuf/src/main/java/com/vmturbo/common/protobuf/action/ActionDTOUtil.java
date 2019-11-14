@@ -85,6 +85,9 @@ public class ActionDTOUtil {
         EntityType.COMPUTE_TIER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE,
         EntityType.DATABASE_TIER_VALUE);
 
+    // String constant for displayName.
+    private static final String DISPLAY_NAME = "displayName";
+
     private ActionDTOUtil() {}
 
     /**
@@ -769,7 +772,7 @@ public class ActionDTOUtil {
      */
     public static String buildEntityTypeAndName(ActionEntity entity) {
         return ActionDTOUtil.upperUnderScoreToMixedSpaces(EntityType.forNumber(entity.getType()).name())
-            + " " + ActionDTOUtil.createTranslationBlock(entity.getId(), "displayName", "");
+            + " " + ActionDTOUtil.createTranslationBlock(entity.getId(), DISPLAY_NAME, "");
     }
 
     /**
@@ -784,7 +787,7 @@ public class ActionDTOUtil {
      * @return the translation
      */
     public static String buildEntityNameOrType(ActionEntity entity) {
-        return ActionDTOUtil.createTranslationBlock(entity.getId(), "displayName",
+        return ActionDTOUtil.createTranslationBlock(entity.getId(), DISPLAY_NAME,
             ActionDTOUtil.upperUnderScoreToMixedSpaces(EntityType.forNumber(entity.getType()).name()));
     }
 

@@ -125,6 +125,10 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      */
     private final ActionTargetSelector actionTargetSelector;
 
+    /**
+     *  An entity snapshot factory used for creating entity snapshot.
+     *  It is now only used for creating empty entity snapshot.
+     */
     private final EntitiesAndSettingsSnapshotFactory entitySettingsCache;
 
     /**
@@ -157,7 +161,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      * @param actionStorehouse     The storehouse containing action stores.
      * @param actionExecutor       The executor for executing actions.
      * @param actionTargetSelector For selecting which target/probe to execute each action against
-     * @param entitySettingsCache  an entity snapshot factory
+     * @param entitySettingsCache  an entity snapshot factory used for creating entity snapshot
      * @param actionTranslator     The translator for translating actions (from market to real-world).
      * @param paginatorFactory     For paginating views of actions
      * @param workflowStore        the store for all the known {@link WorkflowDTO.Workflow} items
@@ -648,7 +652,7 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         } else {
             failure = Optional.of(new FailureEvent(
                 "Action cannot be executed by any target. Support level: " +
-                    actionTargetInfo.supportingLevel()));
+                    actionTargetInfo.supportingLevel() + "Action mode: " + action.getMode()));
         }
 
         failure.ifPresent(failureEvent ->

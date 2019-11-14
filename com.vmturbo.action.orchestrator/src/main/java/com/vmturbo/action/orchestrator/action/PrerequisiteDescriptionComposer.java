@@ -40,7 +40,7 @@ public class PrerequisiteDescriptionComposer {
     private static final String VIRTUALIZATION_TYPE_PREREQUISITE_FORMAT =
         "To unblock, enable HVM AMIs for {0}. " +
             "Alternatively, you can exclude templates that require HVM AMIs";
-    private static final String ACTION_TYPE_ERROR =
+    private static final String ACTION_TYPE_ERROR_MESSAGE =
         "Can not give a proper pre-requisite description as action type is not defined";
 
     // A mapping from PrerequisiteType to the display string.
@@ -73,7 +73,7 @@ public class PrerequisiteDescriptionComposer {
                         buildEntityNameOrType(ActionDTOUtil.getPrimaryEntity(action)));
                 } catch (UnsupportedActionException e) {
                     logger.error("Cannot build action pre-requisite description", e);
-                    return ACTION_TYPE_ERROR;
+                    return ACTION_TYPE_ERROR_MESSAGE;
                 }
             })
             .collect(Collectors.toList());

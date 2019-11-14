@@ -178,7 +178,7 @@ public class ActionModeCalculator {
     }
 
     /**
-     * Calculate action mode based on supporting level.
+     * Calculate action mode based on support level from probe.
      *
      * @param action an action
      * @param entitiesCache a nullable entitis and settings snapshot

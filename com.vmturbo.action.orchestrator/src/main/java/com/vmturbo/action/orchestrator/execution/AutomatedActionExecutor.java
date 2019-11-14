@@ -80,7 +80,8 @@ public class AutomatedActionExecutor {
      * @param executorService to schedule actions for asynchronous execution
      * @param workflowStore to determine if any workflows should be used to execute actions
      * @param actionTargetSelector to select which target/probe to execute each action against
-     * @param entitySettingsCache  an entity snapshot factory
+     * @param entitySettingsCache an entity snapshot factory used for creating entity snapshot.
+     *                            It is now only used for creating empty entity snapshot.
      */
     public AutomatedActionExecutor(@Nonnull final ActionExecutor actionExecutor,
                                    @Nonnull final ExecutorService executorService,
