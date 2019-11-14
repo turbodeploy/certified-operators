@@ -71,13 +71,22 @@ public class ComputeTierDemandStatsWriterTest {
         final TopologyEntityDTO computeTierDTO2 = buildComputeTierDTO();
         entityDTOs.add(computeTierDTO1);
         entityDTOs.add(computeTierDTO2);
-        TopologyEntityDTO vm1 = buildVMDTO(computeTierDTO1.getOid(), "vm1", OSType.LINUX, Tenancy.DEFAULT);
-        TopologyEntityDTO vm2 = buildVMDTO(computeTierDTO1.getOid(), "vm2", OSType.LINUX, Tenancy.DEFAULT);
-        TopologyEntityDTO vm3 = buildVMDTO(computeTierDTO1.getOid(), "vm3", OSType.WINDOWS, Tenancy.DEFAULT);
-        TopologyEntityDTO vm4 = buildVMDTO(computeTierDTO2.getOid(), "vm4", OSType.LINUX, Tenancy.DEFAULT);
-        TopologyEntityDTO vm5 = buildVMDTO(computeTierDTO2.getOid(), "vm5", OSType.LINUX, Tenancy.DEFAULT);
-        TopologyEntityDTO vm6 = buildVMDTO(computeTierDTO2.getOid(), "vm6", OSType.LINUX, Tenancy.DEDICATED);
-        List<TopologyEntityDTO> vmDTOs = Lists.newArrayList(vm1, vm2, vm3, vm4, vm5, vm6);
+        TopologyEntityDTO vm1 = buildVMDTO(computeTierDTO1.getOid(), "vm1", OSType.LINUX,
+                Tenancy.DEFAULT, EntityState.POWERED_ON);
+        TopologyEntityDTO vm2 = buildVMDTO(computeTierDTO1.getOid(), "vm2", OSType.LINUX,
+                Tenancy.DEFAULT, EntityState.POWERED_ON);
+        TopologyEntityDTO vm3 = buildVMDTO(computeTierDTO1.getOid(), "vm3", OSType.WINDOWS,
+                Tenancy.DEFAULT, EntityState.POWERED_ON);
+        TopologyEntityDTO vm4 = buildVMDTO(computeTierDTO2.getOid(), "vm4", OSType.LINUX,
+                Tenancy.DEFAULT, EntityState.POWERED_ON);
+        TopologyEntityDTO vm5 = buildVMDTO(computeTierDTO2.getOid(), "vm5", OSType.LINUX,
+                Tenancy.DEFAULT, EntityState.POWERED_ON);
+        TopologyEntityDTO vm6 = buildVMDTO(computeTierDTO2.getOid(), "vm6", OSType.LINUX,
+                Tenancy.DEDICATED, EntityState.POWERED_ON);
+        // Demand for this VM will not be counted as it is powered off.
+        TopologyEntityDTO vm7 = buildVMDTO(computeTierDTO1.getOid(), "vm7", OSType.LINUX,
+                Tenancy.DEFAULT, EntityState.POWERED_OFF);
+        List<TopologyEntityDTO> vmDTOs = Lists.newArrayList(vm1, vm2, vm3, vm4, vm5, vm6, vm7);
         final List<ConnectedEntity> connectedEntities = getConnectedEntities(vmDTOs);
         TopologyEntityDTO businessAccount = buildBusinessAccountDTO(connectedEntities);
         entityDTOs.addAll(vmDTOs);
@@ -151,8 +160,8 @@ public class ComputeTierDemandStatsWriterTest {
                 .build();
     }
 
-    private TopologyEntityDTO buildVMDTO(Long computeTierProviderId,
-                                                   String displayName, OSType osType, Tenancy tenancy) {
+    private TopologyEntityDTO buildVMDTO(Long computeTierProviderId, String displayName,
+                                         OSType osType, Tenancy tenancy, EntityState entityState) {
         return TopologyEntityDTO.newBuilder()
                 .setOid(oidProvider.incrementAndGet())
                 .setDisplayName(displayName)
@@ -163,10 +172,10 @@ public class ComputeTierDemandStatsWriterTest {
                                 .setGuestOsInfo(OS.newBuilder()
                                         .setGuestOsType(osType))
                                 .setTenancy(tenancy)))
+                .setEntityState(entityState)
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                         .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE)
                         .setProviderId(computeTierProviderId))
-                .setEntityState(EntityState.POWERED_ON)
                 .addConnectedEntityList(ConnectedEntity.newBuilder()
                         .setConnectedEntityId(availabilityZone.getOid())
                         .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)

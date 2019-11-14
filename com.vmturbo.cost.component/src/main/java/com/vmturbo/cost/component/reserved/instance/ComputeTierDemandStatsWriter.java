@@ -22,6 +22,7 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -214,6 +215,12 @@ public class ComputeTierDemandStatsWriter {
         for (TopologyEntityDTO workLoadDto : cloudVms) {
             final Long workLoadId = workLoadDto.getOid();
             final String workLoadDisplayName = workLoadDto.getDisplayName();
+
+            if (workLoadDto.getEntityState() != EntityState.POWERED_ON) {
+                logger.debug("Skipping. Workload {} is not powered on. Current state is : {}",
+                        workLoadDisplayName, workLoadDto.getEntityState());
+                continue;
+            }
 
             if (!workLoadDto.hasTypeSpecificInfo() &&
                     !workLoadDto.getTypeSpecificInfo().hasVirtualMachine()) {
