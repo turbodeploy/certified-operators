@@ -66,7 +66,7 @@ public class AuthenticationService implements IAuthenticationService {
     private static final String AUTH_SERVICE_NOT_AVAILABLE_MSG =
             "The Authorization Service is not responding";
     @VisibleForTesting
-    static final String LOGIN_MANAGER = "LoginManager";
+    public static final String LOGIN_MANAGER = "LoginManager";
     /**
      * The auth service host.
      */

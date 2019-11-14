@@ -37,7 +37,7 @@ import com.vmturbo.components.common.LoggingFilter;
  * to support the V1 REST API, then we would simply add an additional DispatcherServlet.
  */
 @Configuration
-@Import({ApiSecurityConfig.class})
+@Import({ApiSecurityConfig.class, HeaderApiSecurityConfig.class})
 public class ExternalApiConfig extends WebMvcConfigurerAdapter {
 
     /**

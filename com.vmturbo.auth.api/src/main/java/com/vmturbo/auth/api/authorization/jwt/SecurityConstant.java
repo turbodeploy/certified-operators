@@ -54,4 +54,24 @@ public class SecurityConstant {
 
     public static final String ROLE_STRING = "ROLE_";
     public static final String ADMINISTRATOR = "administrator";
+
+    /**
+     * The HTTP turbo JWT token header.
+     */
+    public static final String X_TURBO_TOKEN = "x-turbo-token";
+
+    /**
+     * The HTTP turbo user name header.
+     */
+    public static final String X_TURBO_USER = "x-turbo-user";
+
+    /**
+     * The HTTP turbo role header.
+     */
+    public static final String X_TURBO_ROLE = "x-turbo-roles";
+
+    /**
+     * Default credential.
+     */
+    public static final String CREDENTIALS = "***";
 }

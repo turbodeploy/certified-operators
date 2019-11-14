@@ -17,6 +17,7 @@ import org.springframework.context.annotation.PropertySource;
 import org.springframework.security.saml.userdetails.SAMLUserDetailsService;
 
 import com.vmturbo.api.component.communication.CommunicationConfig;
+import com.vmturbo.api.component.communication.HeaderAuthenticationProvider;
 import com.vmturbo.api.component.external.api.SAML.SAMLCondition;
 import com.vmturbo.api.component.external.api.SAML.SAMLUserDetailsServiceImpl;
 import com.vmturbo.api.component.external.api.listener.HttpSessionListener;
@@ -40,6 +41,7 @@ import com.vmturbo.api.component.external.api.util.stats.query.impl.RIStatsSubQu
 import com.vmturbo.api.component.external.api.util.stats.query.impl.ScopedUserCountStatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.StorageStatsSubQuery;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
+import com.vmturbo.api.component.security.HeaderAuthenticationCondition;
 import com.vmturbo.api.serviceinterfaces.ISAMLService;
 import com.vmturbo.api.serviceinterfaces.IWorkflowsService;
 import com.vmturbo.auth.api.SpringSecurityConfig;
@@ -194,6 +196,24 @@ public class ServiceConfig {
                 sessionTimeoutSeconds);
     }
 
+    /**
+     * Header security bean.
+     *
+     * @return header security bean.
+     */
+    @Bean
+    @Conditional(HeaderAuthenticationCondition.class)
+    public HeaderAuthenticationProvider headerAuthorizationProvider() {
+        return new HeaderAuthenticationProvider(authConfig.getAuthHost(), authConfig.getAuthPort(),
+                authConfig.getAuthRoute(), communicationConfig.serviceRestTemplate(),
+                securityConfig.verifier(), targetStore());
+    }
+
+    /**
+     * SAML service bean.
+     *
+     * @return SAML service bean.
+     */
     @Bean
     public ISAMLService samlService() {
         return new SAMLService(apiComponentType, communicationConfig.clusterMgr());

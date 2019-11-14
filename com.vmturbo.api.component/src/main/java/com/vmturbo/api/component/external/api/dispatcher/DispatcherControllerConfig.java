@@ -11,6 +11,7 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
 import com.vmturbo.api.component.external.api.ApiSecurityConfig;
+import com.vmturbo.api.component.external.api.HeaderApiSecurityConfig;
 import com.vmturbo.api.component.external.api.logging.GlobalExceptionHandler;
 import com.vmturbo.api.component.external.api.service.ServiceConfig;
 import com.vmturbo.api.controller.ActionsController;
@@ -64,7 +65,7 @@ import com.vmturbo.api.validators.TemplatesValidator;
 @Configuration
 @EnableWebMvc
 @EnableWebSecurity
-@Import({ApiSecurityConfig.class, SecurityChainProxyInvoker.class})
+@Import({ApiSecurityConfig.class, SecurityChainProxyInvoker.class, HeaderApiSecurityConfig.class})
 // DO NOT import configurations outside the external.api.dispatcher package here, because
 // that will re-create the configuration's beans in the child context for the dispatcher servlet.
 // You will end up with multiple instances of the same beans, which could lead to tricky bugs.

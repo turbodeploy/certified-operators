@@ -79,7 +79,7 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
     /**
      * The verifier.
      */
-    private final JWTAuthorizationVerifier verifier_;
+    protected final JWTAuthorizationVerifier verifier_;
 
     /**
      * Construct the authentication provider.
@@ -187,7 +187,7 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
     }
 
     @Nonnull
-    private Authentication getAuthentication(final String password,
+    protected Authentication getAuthentication(final String password,
                                              final String username,
                                              final JWTAuthorizationToken token,
                                              final String remoteIpAddress) {

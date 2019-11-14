@@ -17,6 +17,7 @@ import com.google.common.base.Throwables;
 
 import com.vmturbo.api.dto.ErrorApiDTO;
 import com.vmturbo.auth.api.authentication.AuthenticationException;
+import com.vmturbo.auth.api.authorization.AuthorizationException;
 
 /**
  * Any exception thrown by the Controller, or implementing service will be repackaged as
@@ -37,6 +38,25 @@ public class GlobalExceptionHandler {
         return createErrorDTO(req, ex, responseStatus != null ?
             responseStatus.value() : HttpStatus.INTERNAL_SERVER_ERROR);
     }
+
+    /**
+     * Handle authorization exception.
+     *
+     * @param req request.
+     * @param ex authorization exception.
+     * @return {@link ErrorApiDTO} object.
+     */
+    @ExceptionHandler(AuthorizationException.class)
+    @ResponseBody
+    public ResponseEntity<ErrorApiDTO> handleException(HttpServletRequest req,
+            AuthorizationException ex) {
+        final ResponseStatus responseStatus = ex.getClass().getAnnotation(ResponseStatus.class);
+        // API component is expecting HttpServerErrorException for authorizationException, so
+        // setting HttpStatus as INTERNAL_SERVER_ERROR
+        return createErrorDTO(req, ex,
+                responseStatus != null ? responseStatus.value() : HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
 
     private ResponseEntity<ErrorApiDTO> createErrorDTO(@Nonnull final HttpServletRequest req,
                                                          @Nonnull final Exception ex,

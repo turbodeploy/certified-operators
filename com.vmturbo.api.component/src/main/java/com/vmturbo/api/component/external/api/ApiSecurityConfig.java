@@ -1,5 +1,7 @@
 package com.vmturbo.api.component.external.api;
 
+import static com.vmturbo.api.component.external.api.service.AuthenticationService.LOGIN_MANAGER;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -17,6 +19,8 @@ import com.google.common.collect.Lists;
 import org.apache.commons.httpclient.protocol.Protocol;
 import org.apache.commons.httpclient.protocol.ProtocolSocketFactory;
 import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.velocity.app.VelocityEngine;
 import org.opensaml.saml2.metadata.provider.DOMMetadataProvider;
 import org.opensaml.saml2.metadata.provider.MetadataProvider;
@@ -96,8 +100,11 @@ import org.xml.sax.SAXException;
 import com.vmturbo.api.component.external.api.SAML.SAMLCondition;
 import com.vmturbo.api.component.external.api.SAML.SAMLUtils;
 import com.vmturbo.api.component.external.api.SAML.WebSSOProfileConsumerImplExt;
+import com.vmturbo.api.component.security.UserPolicyCondition;
 import com.vmturbo.api.component.security.FailedAuthRequestAuditor;
 import com.vmturbo.auth.api.Base64CodecUtils;
+import com.vmturbo.auth.api.auditing.AuditAction;
+import com.vmturbo.auth.api.auditing.AuditLog;
 
 /**
  * Configure security for the REST API Dispatcher here.
@@ -127,9 +134,11 @@ import com.vmturbo.auth.api.Base64CodecUtils;
  * </ul>
  */
 @Configuration
+@Conditional(UserPolicyCondition.class)
 @EnableWebSecurity
 @EnableGlobalMethodSecurity(prePostEnabled = true)
 public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
+    private static final Logger logger = LogManager.getLogger();
 
     private static final String TURBO = "turbo";
     private static final String HTTPS_SLASH = "https://";
@@ -209,6 +218,11 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
                     .authenticationEntryPoint(samlEntryPoint());
             http.addFilterBefore(metadataGeneratorFilter(), ChannelProcessingFilter.class)
                     .addFilterAfter(samlFilter(), BasicAuthenticationFilter.class);
+            logger.info("System enabled SAML authentication and authorization.");
+            AuditLog.newEntry(AuditAction.SET_DEFAULT_AUTH,
+                    "Enabled SAML authentication and authorization.", true)
+                    .targetName(LOGIN_MANAGER)
+                    .audit();
         }
         // Add a custom authentication exception entry point to replace the default handler.
         // The reason is, for example, if there are some request without login authenticated, the default

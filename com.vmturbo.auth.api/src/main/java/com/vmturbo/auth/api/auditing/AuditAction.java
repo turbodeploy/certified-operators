@@ -40,7 +40,10 @@ public enum AuditAction {
     DELETE_POLICY("Delete Policy"),
     CHANGE_POLICY("Change Policy"),
     ADD_LICENSE("Add License"),
-    DELETE_LICENSE("Delete License");
+    DELETE_LICENSE("Delete License"),
+    SET_SAML_AUTH("Configure SAML authentication and authorization"),
+    SET_DEFAULT_AUTH("Configure local and AD authentication and authorization"),
+    SET_HEADER_AUTH("Configure header authentication and authorization");
 
     private String displayName;
 
