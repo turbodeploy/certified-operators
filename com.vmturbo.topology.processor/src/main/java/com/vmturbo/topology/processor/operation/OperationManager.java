@@ -1043,7 +1043,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             response.getWorkflowList());
                         DISCOVERY_SIZE_SUMMARY.observe((double)response.getEntityDTOCount());
                         derivedTargetParser.instantiateDerivedTargets(targetId, response.getDerivedTargetList());
-                        discoveredCloudCostUploader.recordTargetCostData(targetId, discovery,
+                        discoveredCloudCostUploader.recordTargetCostData(targetId,
+                                targetStore.getProbeTypeForTarget(targetId), discovery,
                             response.getNonMarketEntityDTOList(), response.getCostDTOList(),
                             response.getPriceTable());
                         if (response.hasDiscoveryContext()) {

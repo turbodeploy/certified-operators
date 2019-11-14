@@ -8,7 +8,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -27,23 +26,21 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.DiscountApplicator;
-import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.LicensePriceTuple;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DeploymentType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.LicenseModel;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList.DatabaseTierConfigPrice;
@@ -114,24 +111,13 @@ public class MarketPriceTable {
             .put("Linux_SQL_Web", OSType.LINUX_WITH_SQL_WEB)
             .build();
 
-    /**
-     * The {@link DiscountApplicator}s associated with each business account in the cloud topology.
-     */
-    private final Map<Long, DiscountApplicator<TopologyEntityDTO>> discountsByBusinessAccount;
 
     MarketPriceTable(@Nonnull final CloudCostData cloudCostData,
                             @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology,
-                            @Nonnull final EntityInfoExtractor<TopologyEntityDTO> entityInfoExtractor,
-                            @Nonnull final DiscountApplicatorFactory<TopologyEntityDTO> discountApplicatorFactory) {
+                            @Nonnull final EntityInfoExtractor<TopologyEntityDTO> entityInfoExtractor) {
         this.cloudCostData = Objects.requireNonNull(cloudCostData);
         this.cloudTopology = Objects.requireNonNull(cloudTopology);
         this.entityInfoExtractor = Objects.requireNonNull(entityInfoExtractor);
-        this.discountsByBusinessAccount = Collections.unmodifiableMap(cloudTopology.getEntities().values().stream()
-            .filter(entity -> entity.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE)
-            .map(TopologyEntityDTO::getOid)
-            .collect(Collectors.toMap(Function.identity(), accountId ->
-                discountApplicatorFactory.accountDiscountApplicator(accountId,
-                    cloudTopology, entityInfoExtractor, cloudCostData))));
     }
 
     /**
@@ -140,17 +126,24 @@ public class MarketPriceTable {
      *
      * @param tier The compute tier.
      * @param regionId The ID of the region.
+     * @param accountPricingData The account specific pricing data.
+     *
      * @return A {@link ComputePriceBundle} of the different configurations available for this tier
      *         and region in the topology the {@link MarketPriceTable} was constructed with. If
      *         the tier or region are not found in the price table, returns an empty price
      *         bundle.
      */
     @Nonnull
-    public ComputePriceBundle getComputePriceBundle(final TopologyEntityDTO tier, final long regionId) {
+    public ComputePriceBundle getComputePriceBundle(final TopologyEntityDTO tier, final long regionId,
+                                                    final AccountPricingData accountPricingData) {
         long tierId = tier.getOid();
         final ComputePriceBundle.Builder priceBuilder = ComputePriceBundle.newBuilder();
 
-        OnDemandPriceTable regionPriceTable = getOnDemandPriceTable(tierId, regionId);
+        if (accountPricingData == null || accountPricingData.getPriceTable() == null) {
+            return priceBuilder.build();
+        }
+
+        OnDemandPriceTable regionPriceTable = getOnDemandPriceTable(tierId, regionId, accountPricingData);
         if (regionPriceTable == null) {
             return priceBuilder.build();
         }
@@ -167,11 +160,10 @@ public class MarketPriceTable {
         final double baseHourlyPrice =
                 computeTierPrices.getBasePrice().getPricesList().get(0).getPriceAmount().getAmount();
 
+        DiscountApplicator<TopologyEntityDTO> discountApplicator = accountPricingData.getDiscountApplicator();
         entityInfoExtractor.getComputeTierConfig(tier).ifPresent(computeTierConfig -> {
-            discountsByBusinessAccount.forEach((accountId, discountApplicator) -> {
                 final double discount = (1.0 - discountApplicator.getDiscountPercentage(tierId).getValue());
                 final double basePriceWithDiscount = baseHourlyPrice * discount;
-
                 // for each OS - calculate its license price and save its total price
                 tier.getCommoditySoldListList().stream()
                     .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
@@ -180,14 +172,13 @@ public class MarketPriceTable {
                     .forEach(osType -> {
                         // let cost calculation component figure out the correct
                         // license price that should be added to the base price
-                        final LicensePriceTuple licensePrice = cloudCostData.getLicensePriceForOS(osType,
+                        final LicensePriceTuple licensePrice = accountPricingData.getLicensePriceForOS(osType,
                             computeTierConfig.getNumCores(), computeTierPrices);
                         final double totalLicensePrice = licensePrice.getImplicitLicensePrice() * discount
                             + licensePrice.getExplicitLicensePrice();
-                        priceBuilder.addPrice(accountId, osType,
+                        priceBuilder.addPrice(accountPricingData.getAccountPricingDataOid(), osType,
                             basePriceWithDiscount + totalLicensePrice, osType == baseOsType);
                     });
-            });
         });
         return priceBuilder.build();
     }
@@ -198,16 +189,22 @@ public class MarketPriceTable {
      *
      * @param tierId The ID of the compute tier.
      * @param regionId The ID of the region.
+     * @param accountPricingData The account specific pricing data.
+     *
      * @return A {@link DatabasePriceBundle} of the different configurations available for this tier
      *         and region in the topology the {@link MarketPriceTable} was constructed with. If
      *         the tier or region are not found in the price table, returns an empty price
      *         bundle.
      */
     @Nonnull
-    public DatabasePriceBundle getDatabasePriceBundle(final long tierId, final long regionId) {
+    public DatabasePriceBundle getDatabasePriceBundle(final long tierId, final long regionId,
+                                                      final AccountPricingData accountPricingData) {
         final DatabasePriceBundle.Builder priceBuilder = DatabasePriceBundle.newBuilder();
-
-        OnDemandPriceTable regionPriceTable = getOnDemandPriceTable(tierId, regionId);
+        if (accountPricingData == null || accountPricingData.getPriceTable() == null) {
+            logger.error("No account pricing data found for business account oid {}");
+            return priceBuilder.build();
+        }
+        OnDemandPriceTable regionPriceTable = getOnDemandPriceTable(tierId, regionId, accountPricingData);
         if (regionPriceTable == null) {
             return priceBuilder.build();
         }
@@ -226,38 +223,36 @@ public class MarketPriceTable {
         final LicenseModel licenseModel = dbTierPrices.getBasePrice().getDbLicenseModel();
         final double baseHourlyPrice =
                 dbTierPrices.getBasePrice().getPricesList().get(0).getPriceAmount().getAmount();
-
-        discountsByBusinessAccount.forEach((accountId, discountApplicator) -> {
+        DiscountApplicator<TopologyEntityDTO> discountApplicator = accountPricingData.getDiscountApplicator();
             // Add the base configuration price.
-            priceBuilder.addPrice(accountId, dbEngine,
+        priceBuilder.addPrice(accountPricingData.getAccountPricingDataOid(), dbEngine,
                     dbEdition,
                     deploymentType,
                     licenseModel,
                     baseHourlyPrice * (1.0 - discountApplicator.getDiscountPercentage(tierId).getValue()));
 
-            for (DatabaseTierConfigPrice dbTierConfigPrice : dbTierPrices.getConfigurationPriceAdjustmentsList()) {
-                if (dbTierConfigPrice.getPricesList().size() == 0) {
-                    logger.warn("There is no price associated with "
-                        + dbTierConfigPrice.getDbEngine() + ":"
-                        + dbTierConfigPrice.getDbEdition() + ":"
-                        + dbTierConfigPrice.getDbDeploymentType() + ":"
-                        + dbTierConfigPrice.getDbLicenseModel());
-                    continue;
-                }
-                priceBuilder.addPrice(accountId,
-                    dbTierConfigPrice.getDbEngine(),
-                    dbTierConfigPrice.getDbEdition(),
-                    dbTierConfigPrice.getDbDeploymentType(),
-                    dbTierConfigPrice.getDbLicenseModel(),
-                    (baseHourlyPrice + dbTierConfigPrice.getPricesList().get(0).getPriceAmount().getAmount())
-                                    * (1.0 - discountApplicator.getDiscountPercentage(tierId).getValue()));
+        for (DatabaseTierConfigPrice dbTierConfigPrice : dbTierPrices.getConfigurationPriceAdjustmentsList()) {
+            if (dbTierConfigPrice.getPricesList().size() == 0) {
+                logger.warn("There is no price associated with "
+                    + dbTierConfigPrice.getDbEngine() + ":"
+                    + dbTierConfigPrice.getDbEdition() + ":"
+                    + dbTierConfigPrice.getDbDeploymentType() + ":"
+                    + dbTierConfigPrice.getDbLicenseModel());
+                continue;
             }
-        });
+            priceBuilder.addPrice(accountPricingData.getAccountPricingDataOid(),
+                dbTierConfigPrice.getDbEngine(),
+                dbTierConfigPrice.getDbEdition(),
+                dbTierConfigPrice.getDbDeploymentType(),
+                dbTierConfigPrice.getDbLicenseModel(),
+                (baseHourlyPrice + dbTierConfigPrice.getPricesList().get(0).getPriceAmount().getAmount())
+                                * (1.0 - discountApplicator.getDiscountPercentage(tierId).getValue()));
+        }
         return priceBuilder.build();
     }
 
     @Nullable
-    OnDemandPriceTable getOnDemandPriceTable(final long tierId, final long regionId) {
+    OnDemandPriceTable getOnDemandPriceTable(final long tierId, final long regionId, AccountPricingData accountPricingData) {
         if (!cloudTopology.getEntity(tierId).isPresent()) {
             logger.error("Tier {} not found in topology. Returning empty price bundle.", tierId);
             return null;
@@ -266,8 +261,8 @@ public class MarketPriceTable {
             return null;
         }
 
-        final OnDemandPriceTable regionPriceTable =
-                cloudCostData.getPriceTable().getOnDemandPriceByRegionIdMap().get(regionId);
+        final OnDemandPriceTable regionPriceTable = accountPricingData.getPriceTable()
+                .getOnDemandPriceByRegionIdMap().get(regionId);
         if (regionPriceTable == null) {
             logger.warn("On-Demand price table not found for region {}." +
                     " Cost data might not have been uploaded yet.", regionId);
@@ -282,13 +277,18 @@ public class MarketPriceTable {
      *
      * @param tierId The ID of the storage tier.
      * @param regionId The ID of the region.
+     * @param accountPricingData The accountPricingData object containing pricing information for a business account.
      * @return A {@link StoragePriceBundle} of the different configurations available for this tier
      *         and region in the topology the {@link MarketPriceTable} was constructed with. If
      *         the tier or region are not found in the price table, returns an empty price bundle.
      */
     @Nonnull
-    public StoragePriceBundle getStoragePriceBundle(final long tierId, final long regionId) {
+    public StoragePriceBundle getStoragePriceBundle(final long tierId, final long regionId, final AccountPricingData accountPricingData) {
         final StoragePriceBundle.Builder priceBuilder = StoragePriceBundle.newBuilder();
+        if (accountPricingData == null || accountPricingData.getPriceTable() == null) {
+            logger.error("No account pricing data found for business account oid {}");
+            return null;
+        }
         final Optional<TopologyEntityDTO> storageTierOpt = cloudTopology.getEntity(tierId);
         if (!storageTierOpt.isPresent()) {
             logger.error("Tier {} not found in topology. Returning empty price bundle.", tierId);
@@ -320,8 +320,7 @@ public class MarketPriceTable {
                     "Not able to provide GB price bundles.", storageTier.getDisplayName(), tierId);
         }
 
-        final OnDemandPriceTable regionPriceTable =
-                cloudCostData.getPriceTable().getOnDemandPriceByRegionIdMap().get(regionId);
+        final OnDemandPriceTable regionPriceTable = accountPricingData.getPriceTable().getOnDemandPriceByRegionIdMap().get(regionId);
         if (regionPriceTable == null) {
             logger.warn("On-Demand price table not found for region {}." +
                     " Cost data might not have been uploaded yet.", regionId);
@@ -336,57 +335,55 @@ public class MarketPriceTable {
                     tierId, regionId);
             return priceBuilder.build();
         }
+        DiscountApplicator<TopologyEntityDTO> discountApplicator = accountPricingData.getDiscountApplicator();
+        tierPriceList.getCloudStoragePriceList().forEach(storagePrice -> {
+            // Group the prices by unit. The unit will determine whether a price is for the
+            // "access" (IOPS) or "amount" (GB) commodities sold by the storage tier.
+            final Map<Price.Unit, List<Price>> pricesByUnit =
+                storagePrice.getPricesList().stream()
+                    .collect(Collectors.groupingBy(Price::getUnit));
+            pricesByUnit.forEach((unit, priceList) -> {
+                // Each price in the price list is considered "accumulative" if the price list
+                // contains different costs for different ranges. It's called "accumulative"
+                // because to get the total price we need to "accumulate" the prices for the
+                // individual ranges.
+                final boolean isAccumulativePrice = priceList.stream()
+                        .anyMatch(price -> price.getEndRangeInUnits() > 0 &&
+                                price.getEndRangeInUnits() < Long.MAX_VALUE);
 
-        discountsByBusinessAccount.forEach((accountId, discountApplicator) -> {
-            tierPriceList.getCloudStoragePriceList().forEach(storagePrice -> {
-                // Group the prices by unit. The unit will determine whether a price is for the
-                // "access" (IOPS) or "amount" (GB) commodities sold by the storage tier.
-                final Map<Price.Unit, List<Price>> pricesByUnit =
-                    storagePrice.getPricesList().stream()
-                        .collect(Collectors.groupingBy(Price::getUnit));
-                pricesByUnit.forEach((unit, priceList) -> {
-                    // Each price in the price list is considered "accumulative" if the price list
-                    // contains different costs for different ranges. It's called "accumulative"
-                    // because to get the total price we need to "accumulate" the prices for the
-                    // individual ranges.
-                    final boolean isAccumulativePrice = priceList.stream()
-                            .anyMatch(price -> price.getEndRangeInUnits() > 0 &&
-                                    price.getEndRangeInUnits() < Long.MAX_VALUE);
+                // A price is considered a "unit" price if the amount of units consumed
+                // affects the price.
+                final boolean isUnitPrice = unit == Unit.GB_MONTH || unit == Unit.MILLION_IOPS;
 
-                    // A price is considered a "unit" price if the amount of units consumed
-                    // affects the price.
-                    final boolean isUnitPrice = unit == Unit.GB_MONTH || unit == Unit.MILLION_IOPS;
+                // Based on the unit, determine the commodity types the prices are for.
+                // The same prices apply to all commodities of the same type - the price table
+                // does not make any distinction based on commodity key.
+                final Set<TopologyDTO.CommodityType> soldCommTypes =
+                        unit == Unit.MILLION_IOPS ? soldAccessTypes : soldAmountTypes;
+                priceList.forEach(price -> {
+                    final double discountPercentage = discountApplicator.getDiscountPercentage(tierId).getValue();
 
-                    // Based on the unit, determine the commodity types the prices are for.
-                    // The same prices apply to all commodities of the same type - the price table
-                    // does not make any distinction based on commodity key.
-                    final Set<TopologyDTO.CommodityType> soldCommTypes =
-                            unit == Unit.MILLION_IOPS ? soldAccessTypes : soldAmountTypes;
-                    priceList.forEach(price -> {
-                        final double discountPercentage = discountApplicator.getDiscountPercentage(tierId).getValue();
+                    // Note: We probably don't need to normalize to hours in month because currently
+                    // storage prices are monthly. But it's technically possible to get hourly
+                    // storage price, so we do this to be safe.
+                    final double hourlyPriceAmount = CostProtoUtil.getHourlyPriceAmount(price);
 
-                        // Note: We probably don't need to normalize to hours in month because currently
-                        // storage prices are monthly. But it's technically possible to get hourly
-                        // storage price, so we do this to be safe.
-                        final double hourlyPriceAmount = CostProtoUtil.getHourlyPriceAmount(price);
+                    final StorageTierPriceData.Builder priceDataBuilder = StorageTierPriceData.newBuilder()
+                            .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(accountPricingData.getAccountPricingDataOid()).setRegionId(regionId)
+                                    .setPrice(hourlyPriceAmount * (1 - discountPercentage)).build())
+                            .setIsUnitPrice(isUnitPrice)
+                            .setIsAccumulativeCost(isAccumulativePrice);
 
-                        final StorageTierPriceData.Builder priceDataBuilder = StorageTierPriceData.newBuilder()
-                                .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(accountId).setRegionId(regionId)
-                                        .setPrice(hourlyPriceAmount * (1 - discountPercentage)).build())
-                                .setIsUnitPrice(isUnitPrice)
-                                .setIsAccumulativeCost(isAccumulativePrice);
+                    // Even in an accumulative price, the last price will have no valid end range.
+                    if (price.getEndRangeInUnits() > 0 && price.getEndRangeInUnits() < Long.MAX_VALUE) {
+                        priceDataBuilder.setUpperBound(price.getEndRangeInUnits());
+                    } else {
+                        priceDataBuilder.setUpperBound(Double.POSITIVE_INFINITY);
+                    }
 
-                        // Even in an accumulative price, the last price will have no valid end range.
-                        if (price.getEndRangeInUnits() > 0 && price.getEndRangeInUnits() < Long.MAX_VALUE) {
-                            priceDataBuilder.setUpperBound(price.getEndRangeInUnits());
-                        } else {
-                            priceDataBuilder.setUpperBound(Double.POSITIVE_INFINITY);
-                        }
-
-                        final StorageTierPriceData priceData = priceDataBuilder.build();
-                        soldCommTypes.forEach(soldCommType ->
-                            priceBuilder.addPrice(soldCommType, priceData));
-                    });
+                    final StorageTierPriceData priceData = priceDataBuilder.build();
+                    soldCommTypes.forEach(soldCommType ->
+                        priceBuilder.addPrice(soldCommType, priceData));
                 });
             });
         });

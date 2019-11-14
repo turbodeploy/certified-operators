@@ -19,10 +19,8 @@ import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.ServiceLevelDiscount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.TierLevelDiscount;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.trax.TraxNumber;
 
 /**
@@ -183,31 +181,20 @@ public class DiscountApplicator<ENTITY_CLASS> {
     public interface DiscountApplicatorFactory<ENTITY_CLASS> {
 
         /**
-         * Get the {@link DiscountApplicator} for a particular entity in the topology.
+         * Get an applicator for a particular business account.
          *
-         * @param entity The entity.
-         * @param cloudTopology The {@link CloudTopology} the entity is in.
-         * @param infoExtractor The {@link EntityInfoExtractor} to extract information from entities
-         *                      in the topology.
-         * @param cloudCostData The {@link CloudCostData} containing, among other things, the discounts.
-         * @return A {@link DiscountApplicator} for the entity.
+         * @param accountId The account id.
+         * @param cloudTopology The cloud topology.
+         * @param infoExtractor The info extractor.
+         * @param discount The discount associated with an account.
+         *
+         * @return The discount applicator.
          */
         @Nonnull
-        DiscountApplicator<ENTITY_CLASS> entityDiscountApplicator(@Nonnull final ENTITY_CLASS entity,
-                                          @Nonnull final CloudTopology<ENTITY_CLASS> cloudTopology,
-                                          @Nonnull final EntityInfoExtractor<ENTITY_CLASS> infoExtractor,
-                                          @Nonnull final CloudCostData cloudCostData);
-
-        /**
-         * Get an applicator for a particular business account. This is a utility method - it's
-         * the equivalent of getting the entity associated with the account, and calling
-         * {@link DiscountApplicatorFactory#entityDiscountApplicator(Object, CloudTopology, EntityInfoExtractor, CloudCostData)}.
-         */
-        @Nonnull
-        DiscountApplicator<ENTITY_CLASS> accountDiscountApplicator(final long accountId,
-                                          @Nonnull final CloudTopology<ENTITY_CLASS> cloudTopology,
-                                          @Nonnull final EntityInfoExtractor<ENTITY_CLASS> infoExtractor,
-                                          @Nonnull final CloudCostData cloudCostData);
+        DiscountApplicator<ENTITY_CLASS> accountDiscountApplicator(@Nonnull Long accountId,
+                                          @Nonnull CloudTopology<ENTITY_CLASS> cloudTopology,
+                                          @Nonnull EntityInfoExtractor<ENTITY_CLASS> infoExtractor,
+                                          @Nonnull Optional<Discount> discount);
     }
 
 
@@ -222,39 +209,25 @@ public class DiscountApplicator<ENTITY_CLASS> {
         private DefaultDiscountApplicatorFactory() {}
 
         /**
-         * {@inheritDoc}
+         * Get the discount applicator for an entity which would always be a business account.
+         *
+         * @param entity The business account entity.
+         * @param cloudTopology The cloud topology.
+         * @param infoExtractor The info extractor.
+         * @param discount The discount.
+         *
+         * @return The DiscountApplicator.
          */
-        @Override
         @Nonnull
-        public DiscountApplicator<ENTITY_CLASS> entityDiscountApplicator(@Nonnull final ENTITY_CLASS entity,
+        private DiscountApplicator<ENTITY_CLASS> getDiscountApplicator(@Nonnull final ENTITY_CLASS entity,
                      @Nonnull final CloudTopology<ENTITY_CLASS> cloudTopology,
                      @Nonnull final EntityInfoExtractor<ENTITY_CLASS> infoExtractor,
-                     @Nonnull final CloudCostData cloudCostData) {
-            Optional<Discount> discountOpt;
-            Optional<ENTITY_CLASS> lastOwnerOpt = Optional.of(entity);
-            // Walk up the business accounts owning the entity until there are no more owners,
-            // or until we find a discount.
-            do {
-                lastOwnerOpt = lastOwnerOpt.flatMap(lastOwner -> {
-                    final long lastOwnerId = infoExtractor.getId(lastOwner);
-                    return cloudTopology.getOwner(lastOwnerId)
-                        .filter(newOwner -> {
-                            final int newOwnerType = infoExtractor.getEntityType(newOwner);
-                            if (newOwnerType != EntityType.BUSINESS_ACCOUNT_VALUE) {
-                                logger.warn("Entity {} has unexpected owner type {}", lastOwnerId, newOwnerType);
-                                return false;
-                            } else {
-                                return true;
-                            }
-                        });
-                });
-
-                discountOpt = lastOwnerOpt.flatMap(owner ->
-                        cloudCostData.getDiscountForAccount(infoExtractor.getId(owner)));
-            } while (lastOwnerOpt.isPresent() && !discountOpt.isPresent());
-
-            return discountOpt.map(discount -> new DiscountApplicator<>(entity, discount, cloudTopology, infoExtractor))
-                .orElseGet(DiscountApplicator::noDiscount);
+                     @Nonnull final Optional<Discount> discount) {
+            if (discount.isPresent()) {
+                return new DiscountApplicator(entity, discount.get(), cloudTopology, infoExtractor);
+            } else {
+                return DiscountApplicator.noDiscount();
+            }
         }
 
         /**
@@ -262,12 +235,12 @@ public class DiscountApplicator<ENTITY_CLASS> {
          */
         @Override
         @Nonnull
-        public DiscountApplicator<ENTITY_CLASS> accountDiscountApplicator(final long accountId,
-                      @Nonnull final CloudTopology<ENTITY_CLASS> cloudTopology,
-                      @Nonnull final EntityInfoExtractor<ENTITY_CLASS> infoExtractor,
-                      @Nonnull final CloudCostData cloudCostData) {
+        public DiscountApplicator<ENTITY_CLASS> accountDiscountApplicator(@Nonnull final Long accountId,
+                                                                          @Nonnull final CloudTopology<ENTITY_CLASS> cloudTopology,
+                                                                          @Nonnull final EntityInfoExtractor<ENTITY_CLASS> infoExtractor,
+                                                                          @Nonnull final Optional<Discount> discount) {
             return cloudTopology.getEntity(accountId)
-                .map(accountEntity -> entityDiscountApplicator(accountEntity, cloudTopology, infoExtractor, cloudCostData))
+                .map(accountEntity -> getDiscountApplicator(accountEntity, cloudTopology, infoExtractor, discount))
                 .orElseGet(DiscountApplicator::noDiscount);
         }
     }

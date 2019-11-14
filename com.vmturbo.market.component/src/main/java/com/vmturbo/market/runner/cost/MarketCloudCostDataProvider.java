@@ -13,9 +13,7 @@ import javax.annotation.Nonnull;
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
-import com.vmturbo.common.protobuf.cost.Cost.Discount;
 import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterRequest;
-import com.vmturbo.common.protobuf.cost.Cost.GetDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
@@ -28,17 +26,18 @@ import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterResp
 import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc.BuyReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
-import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
-import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableRequest;
-import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc;
-import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.ReservedInstanceSpecServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.topology.AccountPricingData;
+import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
 
 /**
  * An implementation of {@link CloudCostDataProvider} that gets the relevant
@@ -46,22 +45,28 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
  */
 public class MarketCloudCostDataProvider implements CloudCostDataProvider {
 
-    private final PricingServiceBlockingStub pricingServiceClient;
-
-    private final CostServiceBlockingStub costServiceClient;
-
     private final ReservedInstanceBoughtServiceBlockingStub riBoughtServiceClient;
 
     private final ReservedInstanceSpecServiceBlockingStub riSpecServiceClient;
 
     private final BuyReservedInstanceServiceBlockingStub buyRIServiceClient;
 
-    public MarketCloudCostDataProvider(@Nonnull final Channel costChannel) {
-        this.pricingServiceClient = Objects.requireNonNull(PricingServiceGrpc.newBlockingStub(costChannel));
-        this.costServiceClient = Objects.requireNonNull(CostServiceGrpc.newBlockingStub(costChannel));
+    private final MarketPricingResolver marketPricingResolver;
+
+    /**
+     * Constructor for the market cloud cost data provider.
+     *
+     * @param costChannel The cost channel required for constructing the clients.
+     * @param discountApplicatorFactory The discount applicator factory instance.
+     * @param topologyEntityInfoExtractor The topology entity info extractor.
+     */
+    public MarketCloudCostDataProvider(@Nonnull final Channel costChannel, @Nonnull DiscountApplicatorFactory discountApplicatorFactory,
+                                       @Nonnull TopologyEntityInfoExtractor topologyEntityInfoExtractor) {
         this.riBoughtServiceClient = Objects.requireNonNull(ReservedInstanceBoughtServiceGrpc.newBlockingStub(costChannel));
         this.riSpecServiceClient = Objects.requireNonNull(ReservedInstanceSpecServiceGrpc.newBlockingStub(costChannel));
         this.buyRIServiceClient = Objects.requireNonNull(BuyReservedInstanceServiceGrpc.newBlockingStub(costChannel));
+        this.marketPricingResolver = Objects.requireNonNull(new MarketPricingResolver(PricingServiceGrpc.newBlockingStub(costChannel),
+                Objects.requireNonNull(CostServiceGrpc.newBlockingStub(costChannel)), discountApplicatorFactory, topologyEntityInfoExtractor));
     }
 
     /**
@@ -69,17 +74,14 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
      */
     @Nonnull
     @Override
-    public CloudCostData getCloudCostData(@Nonnull TopologyInfo topoInfo)
+    public CloudCostData getCloudCostData(@Nonnull TopologyInfo topoInfo, @Nonnull CloudTopology<TopologyEntityDTO> cloudTopo,
+                                          @Nonnull final TopologyEntityInfoExtractor topologyEntityInfoExtractor)
                     throws CloudCostDataRetrievalException {
         try {
-            // Get the price table.
-            final PriceTable priceTable = pricingServiceClient.getPriceTable(
-                    GetPriceTableRequest.getDefaultInstance()).getGlobalPriceTable();
 
-            // Get the discounts.
-            final Map<Long, Discount> discountsByAccount = new HashMap<>();
-            costServiceClient.getDiscounts(GetDiscountRequest.getDefaultInstance())
-                .forEachRemaining(discount -> discountsByAccount.put(discount.getAssociatedAccountId(), discount));
+            //Get a mapping of business account oid to Account Pricing Data.
+            final Map<Long, AccountPricingData> accountPricingDataByBusinessAccountOid = marketPricingResolver
+                    .getAccountPricingDataByBusinessAccount(cloudTopo);
 
             // Get the existing RI bought.
             final GetReservedInstanceBoughtByFilterResponse riBoughtResponse =
@@ -129,12 +131,10 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
                 riBoughtServiceClient.getEntityReservedInstanceCoverage(
                     GetEntityReservedInstanceCoverageRequest.getDefaultInstance());
 
-            return new CloudCostData(priceTable,
-                    discountsByAccount,
-                    coverageResponse.getCoverageByEntityIdMap(),
+            return new CloudCostData(coverageResponse.getCoverageByEntityIdMap(),
                     riBoughtById,
                     riSpecsById,
-                    buyRIBoughtById);
+                    buyRIBoughtById, accountPricingDataByBusinessAccountOid);
         } catch (StatusRuntimeException e) {
             throw new CloudCostDataRetrievalException(e);
         }

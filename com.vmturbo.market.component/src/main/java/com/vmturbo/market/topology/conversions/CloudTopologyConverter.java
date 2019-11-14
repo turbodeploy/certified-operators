@@ -24,7 +24,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -32,6 +31,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
+import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
@@ -70,6 +70,7 @@ public class CloudTopologyConverter {
     private final Map<TopologyEntityDTO, TopologyEntityDTO> azToRegionMap;
     private final Set<TopologyEntityDTO> businessAccounts;
     private final CloudCostData cloudCostData;
+    private Map<Long, AccountPricingData> accountPricingDataByBusinessAccountOid = new HashMap<>();
 
     /**
      * @param topology the topologyEntityDTOs which came into market-component
@@ -127,7 +128,7 @@ public class CloudTopologyConverter {
             TierConverter converter = converterMap.get(entity.getEntityType());
             if (converter != null) {
                 Map<TraderTO.Builder, MarketTier> traderTOBuildersForEntity =
-                        converter.createMarketTierTraderTOs(entity, topology, businessAccounts);
+                        converter.createMarketTierTraderTOs(entity, topology, businessAccounts, accountPricingDataByBusinessAccountOid);
                 traderTOBuilders.addAll(traderTOBuildersForEntity.keySet());
                 if (entity.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
                     computeMarketTierBuilders.addAll(traderTOBuildersForEntity.keySet());
@@ -404,5 +405,27 @@ public class CloudTopologyConverter {
      */
     public Optional<EntityReservedInstanceCoverage> getRiCoverageForEntity(long entityId) {
         return cloudCostData.getRiCoverageForEntity(entityId);
+    }
+
+    /**
+     * Get the AccountPricing Id from the business account.
+     *
+     * @param businessAccountOid The business account oid.
+     *
+     * @return An optional of AccountPricingData
+     */
+    public Optional<AccountPricingData> getAccountPricingIdFromBusinessAccount(Long businessAccountOid) {
+        return cloudCostData.getAccountPricingData(businessAccountOid);
+    }
+
+    /**
+     * Populate the accountPricingDataByBusinessAccountOid map.
+     *
+     * @param businessAccountOid The business account oid.
+     * @param accountPricingData The account pricing data.
+     */
+    public void insertIntoAccountPricingDataByBusinessAccountOidMap(Long businessAccountOid,
+                                                                    AccountPricingData accountPricingData) {
+        accountPricingDataByBusinessAccountOid.put(businessAccountOid, accountPricingData);
     }
 }

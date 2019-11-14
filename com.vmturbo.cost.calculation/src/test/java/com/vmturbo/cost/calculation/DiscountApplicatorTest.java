@@ -29,6 +29,7 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostD
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class DiscountApplicatorTest {
@@ -43,13 +44,15 @@ public class DiscountApplicatorTest {
 
     private DiscountApplicatorFactory<TestEntityClass> factory = DiscountApplicator.newFactory();
 
-    private CloudCostData emptyCloudCostData = new CloudCostData(PriceTable.getDefaultInstance(),
-         Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+    private final AccountPricingData accountPricingData = mock(AccountPricingData.class);
+
+    private CloudCostData emptyCloudCostData = new CloudCostData(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
          Collections.emptyMap(), Collections.emptyMap());
 
     @Before
     public void setup() {
-        when(cloudCostData.getDiscountForAccount(anyLong())).thenReturn(Optional.empty());
+        when(cloudCostData.getAccountPricingData(anyLong())).thenReturn(Optional.ofNullable(accountPricingData));
+        when(cloudCostData.getAccountPricingData(anyLong()).get().getDiscountApplicator()).thenReturn(null);
         when(topology.getOwner(anyLong())).thenReturn(Optional.empty());
     }
 
@@ -66,10 +69,10 @@ public class DiscountApplicatorTest {
         final Discount discount = Discount.newBuilder()
                 .setId(100)
                 .build();
-        when(cloudCostData.getDiscountForAccount(owner.getId())).thenReturn(Optional.of(discount));
-
+        when(topology.getEntity(entity.getId())).thenReturn(Optional.ofNullable(entity));
+        when(topology.getEntity(owner.getId())).thenReturn(Optional.ofNullable(owner));
         final DiscountApplicator<TestEntityClass> applicator =
-                factory.entityDiscountApplicator(entity, topology, infoExtractor, cloudCostData);
+                factory.accountDiscountApplicator(owner.getId(), topology, infoExtractor, Optional.ofNullable(discount));
         assertThat(applicator.getDiscount(), is(discount));
     }
 
@@ -92,10 +95,11 @@ public class DiscountApplicatorTest {
         final Discount discount = Discount.newBuilder()
                 .setId(100)
                 .build();
-        when(cloudCostData.getDiscountForAccount(masterAccount.getId())).thenReturn(Optional.of(discount));
 
+        when(topology.getEntity(entity.getId())).thenReturn(Optional.ofNullable(entity));
+        when(topology.getEntity(masterAccount.getId())).thenReturn(Optional.ofNullable(masterAccount));
         final DiscountApplicator<TestEntityClass> applicator =
-                factory.entityDiscountApplicator(entity, topology, infoExtractor, cloudCostData);
+                factory.accountDiscountApplicator(masterAccount.getId(), topology, infoExtractor, Optional.of(discount));
         assertThat(applicator.getDiscount(), is(discount));
     }
 
@@ -108,21 +112,11 @@ public class DiscountApplicatorTest {
                 .setType(EntityType.BUSINESS_ACCOUNT_VALUE)
                 .build(infoExtractor);
 
+        when(topology.getEntity(entity.getId())).thenReturn(Optional.ofNullable(entity));
         when(topology.getOwner(entity.getId())).thenReturn(Optional.of(owner));
-
+        Optional<Discount> discount = Optional.ofNullable(null);
         final DiscountApplicator<TestEntityClass> applicator =
-                factory.entityDiscountApplicator(entity, topology, infoExtractor, cloudCostData);
-        assertThat(applicator, is(DiscountApplicator.noDiscount()));
-    }
-
-    @Test
-    public void testFactoryEntityNoOwner() {
-        final TestEntityClass entity = TestEntityClass.newBuilder(7)
-                .build(infoExtractor);
-
-
-        final DiscountApplicator<TestEntityClass> applicator =
-                factory.entityDiscountApplicator(entity, topology, infoExtractor, cloudCostData);
+                factory.accountDiscountApplicator(entity.getId(), topology, infoExtractor, discount);
         assertThat(applicator, is(DiscountApplicator.noDiscount()));
     }
 
@@ -145,10 +139,9 @@ public class DiscountApplicatorTest {
         final Discount discount = Discount.newBuilder()
                 .setId(100)
                 .build();
-        when(cloudCostData.getDiscountForAccount(masterAccount.getId())).thenReturn(Optional.of(discount));
 
         final DiscountApplicator<TestEntityClass> applicator =
-                factory.accountDiscountApplicator(subAccount.getId(), topology, infoExtractor, cloudCostData);
+                factory.accountDiscountApplicator(subAccount.getId(), topology, infoExtractor, Optional.ofNullable(discount));
         assertThat(applicator.getDiscount(), is(discount));
     }
 
@@ -238,7 +231,6 @@ public class DiscountApplicatorTest {
 
     @Test
     public void testEmptyCloudCostData(){
-        Assert.assertFalse(emptyCloudCostData.getDiscountForAccount(1L).isPresent());
         Assert.assertFalse(emptyCloudCostData.getRiCoverageForEntity(1L).isPresent());
         Assert.assertTrue(emptyCloudCostData.getCurrentRiCoverage().isEmpty());
         Assert.assertFalse(emptyCloudCostData.getExistingRiBoughtData(1L).isPresent());
@@ -282,10 +274,10 @@ public class DiscountApplicatorTest {
                 .build(infoExtractor);
 
         when(topology.getOwner(entity.getId())).thenReturn(Optional.of(owner));
-        when(cloudCostData.getDiscountForAccount(owner.getId())).thenReturn(Optional.of(discount));
+        when(topology.getEntity(entity.getId())).thenReturn(Optional.ofNullable(entity));
 
         final DiscountApplicator<TestEntityClass> applicator =
-                factory.entityDiscountApplicator(entity, topology, infoExtractor, cloudCostData);
+                factory.accountDiscountApplicator(entity.getId(), topology, infoExtractor, Optional.ofNullable(discount));
         assertThat(applicator.getDiscount(), is(discount));
         return applicator;
     }

@@ -35,6 +35,7 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostD
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.LicensePriceTuple;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.ComputePrice;
@@ -72,6 +73,8 @@ public class MarketPriceTableTest {
     private static final double WINDOWS_PRICE_ADJUSTMENT = 0.092;
     private static final double WINDOWS_SQL_WEB_PRICE_ADJUSTMENT = 0.02;
     private static final double RHEL_PRICE_ADJUSTMENT = 0.06;
+
+    private static final long BUSINESS_ACCOUNT_ID = 5;
 
     // License Prices
     private static final double WINDOWS_SQL_WEB_LICENSE_PRICE = 0.005;
@@ -227,22 +230,25 @@ public class MarketPriceTableTest {
 
     private EntityInfoExtractor<TopologyEntityDTO> infoExtractor = new TopologyEntityInfoExtractor();
 
+    private AccountPricingData accountPricingData = mock(AccountPricingData.class);
+
     private DiscountApplicatorFactory<TopologyEntityDTO> discountApplicatorFactory =
             mock(DiscountApplicatorFactory.class);
 
     @Before
     public void setup() {
-        when(cloudCostData.getPriceTable()).thenReturn(COMPUTE_PRICE_TABLE);
+        when(cloudCostData.getAccountPricingData(BUSINESS_ACCOUNT_ID)).thenReturn(Optional.ofNullable(accountPricingData));
+        when(cloudCostData.getAccountPricingData(BUSINESS_ACCOUNT_ID).get().getPriceTable()).thenReturn(COMPUTE_PRICE_TABLE);
         when(topology.getEntity(REGION_ID)).thenReturn(Optional.of(REGION));
         when(topology.getEntity(AWS_COMPUTE_TIER_ID)).thenReturn(Optional.of(AWS_COMPUTE_TIER));
         when(topology.getEntity(AZURE_COMPUTE_TIER_ID)).thenReturn(Optional.of(AZURE_COMPUTE_TIER));
         when(topology.getEntity(STORAGE_TIER_ID)).thenReturn(Optional.of(STORAGE_TIER));
-        initializeAWSLicensePriceTuples();
-        initializeAzureLicensePriceTuples();
+        /*initializeAWSLicensePriceTuples();
+        initializeAzureLicensePriceTuples();*/
     }
 
     private ComputeTierPriceList getComputePriceList(long tierID) {
-        return cloudCostData.getPriceTable().getOnDemandPriceByRegionIdMap().get(REGION_ID)
+        return cloudCostData.getAccountPricingData(BUSINESS_ACCOUNT_ID).get().getPriceTable().getOnDemandPriceByRegionIdMap().get(REGION_ID)
             .getComputePricesByTierIdMap().get(tierID);
     }
 
@@ -254,41 +260,41 @@ public class MarketPriceTableTest {
         return licensePriceTuple;
     }
 
-    private void initializeAWSLicensePriceTuples() {
+    private void initializeAWSLicensePriceTuples(Long businessAccountId) {
         ComputeTierPriceList priceList = getComputePriceList(AWS_COMPUTE_TIER_ID);
         LicensePriceTuple emptyLicenseTuple = createLicensePriceTuple(0.0, 0.0);
-        when(cloudCostData.getLicensePriceForOS(OSType.LINUX, NUM_OF_CORES, priceList))
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePriceForOS(OSType.LINUX, NUM_OF_CORES, priceList))
             .thenReturn(emptyLicenseTuple);
         LicensePriceTuple windowsLicenseTuple = createLicensePriceTuple(WINDOWS_PRICE_ADJUSTMENT,
             0.0);
-        when(cloudCostData.getLicensePriceForOS(OSType.WINDOWS, NUM_OF_CORES, priceList))
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePriceForOS(OSType.WINDOWS, NUM_OF_CORES, priceList))
             .thenReturn(windowsLicenseTuple);
         LicensePriceTuple windowsPALicenseTuple = createLicensePriceTuple(
             WINDOWS_SQL_WEB_PRICE_ADJUSTMENT, 0.0);
-        when(cloudCostData.getLicensePriceForOS(OSType.WINDOWS_WITH_SQL_WEB, NUM_OF_CORES, priceList))
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePriceForOS(OSType.WINDOWS_WITH_SQL_WEB, NUM_OF_CORES, priceList))
             .thenReturn(windowsPALicenseTuple);
         LicensePriceTuple redHatPALicenseTuple = createLicensePriceTuple(RHEL_PRICE_ADJUSTMENT,
             0.0);
-        when(cloudCostData.getLicensePriceForOS(OSType.RHEL, NUM_OF_CORES, priceList))
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePriceForOS(OSType.RHEL, NUM_OF_CORES, priceList))
             .thenReturn(redHatPALicenseTuple);
     }
 
-    private void initializeAzureLicensePriceTuples() {
+    private void initializeAzureLicensePriceTuples(Long businessAccountId) {
         ComputeTierPriceList priceList = getComputePriceList(AZURE_COMPUTE_TIER_ID);
         LicensePriceTuple emptyLicenseTuple = createLicensePriceTuple(0.0, 0.0);
-        when(cloudCostData.getLicensePriceForOS(OSType.LINUX, NUM_OF_CORES, priceList))
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePriceForOS(OSType.LINUX, NUM_OF_CORES, priceList))
             .thenReturn(emptyLicenseTuple);
         LicensePriceTuple windowsLicenseTuple = createLicensePriceTuple(WINDOWS_PRICE_ADJUSTMENT,
             0.0);
-        when(cloudCostData.getLicensePriceForOS(OSType.WINDOWS, NUM_OF_CORES, priceList))
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePriceForOS(OSType.WINDOWS, NUM_OF_CORES, priceList))
             .thenReturn(windowsLicenseTuple);
         LicensePriceTuple windowsSqlWebPriceTuple = createLicensePriceTuple(WINDOWS_PRICE_ADJUSTMENT,
             WINDOWS_SQL_WEB_LICENSE_PRICE);
-        when(cloudCostData.getLicensePriceForOS(OSType.WINDOWS_WITH_SQL_WEB, NUM_OF_CORES, priceList))
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePriceForOS(OSType.WINDOWS_WITH_SQL_WEB, NUM_OF_CORES, priceList))
             .thenReturn(windowsSqlWebPriceTuple);
         LicensePriceTuple redHatLpPriceTuple = createLicensePriceTuple(0.0,
             RHEL_LICENSE_PRICE);
-        when(cloudCostData.getLicensePriceForOS(OSType.RHEL, NUM_OF_CORES, priceList))
+        when(cloudCostData.getAccountPricingData(businessAccountId).get().getLicensePriceForOS(OSType.RHEL, NUM_OF_CORES, priceList))
             .thenReturn(redHatLpPriceTuple);
     }
 
@@ -298,9 +304,16 @@ public class MarketPriceTableTest {
         doReturn(ImmutableMap.of(baId, makeBusinessAccount(baId, DiscountApplicator.noDiscount())))
             .when(topology).getEntities();
         final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
-                infoExtractor, discountApplicatorFactory);
+                infoExtractor);
 
-        ComputePriceBundle priceBundle = mktPriceTable.getComputePriceBundle(AWS_COMPUTE_TIER, REGION_ID);
+        AccountPricingData accountPricingData1 = Mockito.mock(AccountPricingData.class);
+        when(accountPricingData1.getDiscountApplicator()).thenReturn(DiscountApplicator.noDiscount());
+        when(accountPricingData1.getPriceTable()).thenReturn(COMPUTE_PRICE_TABLE);
+        when(accountPricingData1.getAccountPricingDataOid()).thenReturn(baId);
+        when(cloudCostData.getAccountPricingData(baId)).thenReturn(Optional.ofNullable(accountPricingData1));
+        initializeAWSLicensePriceTuples(baId);
+
+        ComputePriceBundle priceBundle = mktPriceTable.getComputePriceBundle(AWS_COMPUTE_TIER, REGION_ID, accountPricingData1);
 
         assertThat(priceBundle.getPrices(), containsInAnyOrder(
             new ComputePrice(baId, OSType.LINUX, LINUX_PRICE, true),
@@ -315,12 +328,17 @@ public class MarketPriceTableTest {
     @Test
     public void testAzureComputePriceBundleNoDiscount() {
         final long baId = 7L;
-        doReturn(ImmutableMap.of(baId, makeBusinessAccount(baId, DiscountApplicator.noDiscount())))
-            .when(topology).getEntities();
         final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
-            infoExtractor, discountApplicatorFactory);
+            infoExtractor);
 
-        ComputePriceBundle priceBundle = mktPriceTable.getComputePriceBundle(AZURE_COMPUTE_TIER, REGION_ID);
+        AccountPricingData accountPricingData1 = Mockito.mock(AccountPricingData.class);
+        when(accountPricingData1.getDiscountApplicator()).thenReturn(DiscountApplicator.noDiscount());
+        when(accountPricingData1.getPriceTable()).thenReturn(COMPUTE_PRICE_TABLE);
+        when(accountPricingData1.getAccountPricingDataOid()).thenReturn(baId);
+        when(cloudCostData.getAccountPricingData(baId)).thenReturn(Optional.ofNullable(accountPricingData1));
+        initializeAzureLicensePriceTuples(baId);
+
+        ComputePriceBundle priceBundle = mktPriceTable.getComputePriceBundle(AZURE_COMPUTE_TIER, REGION_ID, accountPricingData1);
 
         assertThat(priceBundle.getPrices(), containsInAnyOrder(
             new ComputePrice(baId, OSType.LINUX, LINUX_PRICE, true),
@@ -341,31 +359,45 @@ public class MarketPriceTableTest {
         final DiscountApplicator<TopologyEntityDTO> discount = mock(DiscountApplicator.class);
         when(discount.getDiscountPercentage(AWS_COMPUTE_TIER_ID)).thenReturn(trax(0.2));
 
-        doReturn(ImmutableMap.of(
-                noDiscountBaId, makeBusinessAccount(noDiscountBaId, noDiscount),
-                discountBaId, makeBusinessAccount(discountBaId, discount)))
-            .when(topology).getEntities();
-
         final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
-                infoExtractor, discountApplicatorFactory);
-        final ComputePriceBundle priceBundle = mktPriceTable.getComputePriceBundle(AWS_COMPUTE_TIER, REGION_ID);
+                infoExtractor);
 
-        assertThat(priceBundle.getPrices(), containsInAnyOrder(
+        AccountPricingData accountPricingData1 = Mockito.mock(AccountPricingData.class);
+        when(accountPricingData1.getDiscountApplicator()).thenReturn(noDiscount);
+        when(accountPricingData1.getPriceTable()).thenReturn(COMPUTE_PRICE_TABLE);
+        when(accountPricingData1.getAccountPricingDataOid()).thenReturn(noDiscountBaId);
+        when(cloudCostData.getAccountPricingData(noDiscountBaId)).thenReturn(Optional.ofNullable(accountPricingData1));
+        initializeAWSLicensePriceTuples(noDiscountBaId);
+
+        AccountPricingData accountPricingData2 = Mockito.mock(AccountPricingData.class);
+        when(accountPricingData2.getDiscountApplicator()).thenReturn(discount);
+        when(accountPricingData2.getPriceTable()).thenReturn(COMPUTE_PRICE_TABLE);
+        when(accountPricingData2.getAccountPricingDataOid()).thenReturn(discountBaId);
+        when(cloudCostData.getAccountPricingData(discountBaId)).thenReturn(Optional.ofNullable(accountPricingData2));
+        initializeAWSLicensePriceTuples(discountBaId);
+
+        final ComputePriceBundle priceBundle1 = mktPriceTable.getComputePriceBundle(AWS_COMPUTE_TIER, REGION_ID, accountPricingData1);
+
+        final ComputePriceBundle priceBundle2 = mktPriceTable.getComputePriceBundle(AWS_COMPUTE_TIER, REGION_ID, accountPricingData2);
+
+        assertThat(priceBundle1.getPrices(), containsInAnyOrder(
                 new ComputePrice(noDiscountBaId, OSType.LINUX, LINUX_PRICE, true),
                 new ComputePrice(noDiscountBaId, OSType.WINDOWS, LINUX_PRICE +
                     WINDOWS_PRICE_ADJUSTMENT, false),
                 new ComputePrice(noDiscountBaId, OSType.WINDOWS_WITH_SQL_WEB,
                     LINUX_PRICE + WINDOWS_SQL_WEB_PRICE_ADJUSTMENT, false),
                 new ComputePrice(noDiscountBaId, OSType.RHEL, LINUX_PRICE +
-                    RHEL_PRICE_ADJUSTMENT, false),
-                new ComputePrice(discountBaId, OSType.LINUX, LINUX_PRICE * 0.8, true),
+                    RHEL_PRICE_ADJUSTMENT, false)));
+
+        assertThat(priceBundle2.getPrices(), containsInAnyOrder(new ComputePrice(discountBaId, OSType.LINUX,
+                        LINUX_PRICE * 0.8, true),
                 new ComputePrice(discountBaId, OSType.WINDOWS,
                     (LINUX_PRICE + WINDOWS_PRICE_ADJUSTMENT) * 0.8, false),
                 new ComputePrice(discountBaId, OSType.WINDOWS_WITH_SQL_WEB,
                     (LINUX_PRICE + WINDOWS_SQL_WEB_PRICE_ADJUSTMENT) * 0.8, false),
                 new ComputePrice(discountBaId, OSType.RHEL,
-                    (LINUX_PRICE + RHEL_PRICE_ADJUSTMENT) * 0.8, false)
-        ));
+                    (LINUX_PRICE + RHEL_PRICE_ADJUSTMENT) * 0.8, false)));
+
     }
 
     @Test
@@ -377,33 +409,44 @@ public class MarketPriceTableTest {
         final DiscountApplicator<TopologyEntityDTO> discount = mock(DiscountApplicator.class);
         when(discount.getDiscountPercentage(AZURE_COMPUTE_TIER_ID)).thenReturn(trax(0.2));
 
-        doReturn(ImmutableMap.of(
-            noDiscountBaId, makeBusinessAccount(noDiscountBaId, noDiscount),
-            discountBaId, makeBusinessAccount(discountBaId, discount)))
-            .when(topology).getEntities();
+        final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology, infoExtractor);
 
-        final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
-            infoExtractor, discountApplicatorFactory);
-        final ComputePriceBundle priceBundle = mktPriceTable.getComputePriceBundle(AZURE_COMPUTE_TIER, REGION_ID);
+        AccountPricingData accountPricingData1 = Mockito.mock(AccountPricingData.class);
+        when(accountPricingData1.getDiscountApplicator()).thenReturn(noDiscount);
+        when(accountPricingData1.getPriceTable()).thenReturn(COMPUTE_PRICE_TABLE);
+        when(accountPricingData1.getAccountPricingDataOid()).thenReturn(noDiscountBaId);
+        when(cloudCostData.getAccountPricingData(noDiscountBaId)).thenReturn(Optional.ofNullable(accountPricingData1));
+        initializeAzureLicensePriceTuples(noDiscountBaId);
 
-        assertThat(priceBundle.getPrices(), containsInAnyOrder(
-            new ComputePrice(noDiscountBaId, OSType.LINUX, LINUX_PRICE, true),
-            new ComputePrice(noDiscountBaId, OSType.WINDOWS, LINUX_PRICE +
-                WINDOWS_PRICE_ADJUSTMENT, false),
-            new ComputePrice(noDiscountBaId, OSType.WINDOWS_WITH_SQL_WEB,
-                LINUX_PRICE + WINDOWS_PRICE_ADJUSTMENT + WINDOWS_SQL_WEB_LICENSE_PRICE,
-                false),
-            new ComputePrice(noDiscountBaId, OSType.RHEL, LINUX_PRICE + RHEL_LICENSE_PRICE,
-                false),
-            new ComputePrice(discountBaId, OSType.LINUX, LINUX_PRICE * 0.8, true),
-            new ComputePrice(discountBaId, OSType.WINDOWS,
-                (LINUX_PRICE + WINDOWS_PRICE_ADJUSTMENT) * 0.8, false),
-            new ComputePrice(discountBaId, OSType.WINDOWS_WITH_SQL_WEB,
-                (LINUX_PRICE + WINDOWS_PRICE_ADJUSTMENT) * 0.8
-                    + WINDOWS_SQL_WEB_LICENSE_PRICE, false),
-            new ComputePrice(discountBaId, OSType.RHEL,
-                LINUX_PRICE * 0.8 + RHEL_LICENSE_PRICE, false)
-        ));
+        AccountPricingData accountPricingData2 = Mockito.mock(AccountPricingData.class);
+        when(accountPricingData2.getDiscountApplicator()).thenReturn(discount);
+        when(accountPricingData2.getPriceTable()).thenReturn(COMPUTE_PRICE_TABLE);
+        when(accountPricingData2.getAccountPricingDataOid()).thenReturn(discountBaId);
+        when(cloudCostData.getAccountPricingData(discountBaId)).thenReturn(Optional.ofNullable(accountPricingData2));
+        initializeAzureLicensePriceTuples(discountBaId);
+
+        final ComputePriceBundle priceBundle1 = mktPriceTable.getComputePriceBundle(AZURE_COMPUTE_TIER, REGION_ID, accountPricingData1);
+
+        final ComputePriceBundle priceBundle2 = mktPriceTable.getComputePriceBundle(AZURE_COMPUTE_TIER, REGION_ID, accountPricingData2);
+
+        assertThat(priceBundle1.getPrices(), containsInAnyOrder(
+                new ComputePrice(noDiscountBaId, OSType.LINUX, LINUX_PRICE, true),
+                new ComputePrice(noDiscountBaId, OSType.WINDOWS, LINUX_PRICE +
+                        WINDOWS_PRICE_ADJUSTMENT, false),
+                new ComputePrice(noDiscountBaId, OSType.WINDOWS_WITH_SQL_WEB,
+                        LINUX_PRICE + WINDOWS_PRICE_ADJUSTMENT + WINDOWS_SQL_WEB_LICENSE_PRICE,
+                        false),
+                new ComputePrice(noDiscountBaId, OSType.RHEL, LINUX_PRICE + RHEL_LICENSE_PRICE,
+                        false)));
+
+        assertThat(priceBundle2.getPrices(), containsInAnyOrder(new ComputePrice(discountBaId, OSType.LINUX, LINUX_PRICE * 0.8, true),
+                new ComputePrice(discountBaId, OSType.WINDOWS,
+                        (LINUX_PRICE + WINDOWS_PRICE_ADJUSTMENT) * 0.8, false),
+                new ComputePrice(discountBaId, OSType.WINDOWS_WITH_SQL_WEB,
+                        (LINUX_PRICE + WINDOWS_PRICE_ADJUSTMENT) * 0.8
+                                + WINDOWS_SQL_WEB_LICENSE_PRICE, false),
+                new ComputePrice(discountBaId, OSType.RHEL,
+                        LINUX_PRICE * 0.8 + RHEL_LICENSE_PRICE, false)));
     }
 
     @Test
@@ -430,15 +473,12 @@ public class MarketPriceTableTest {
                     .build())
                 .build())
             .build();
-        when(cloudCostData.getPriceTable()).thenReturn(priceTable);
-
         final long baId = 7L;
-        doReturn(ImmutableMap.of(baId, makeBusinessAccount(baId, DiscountApplicator.noDiscount())))
-                .when(topology).getEntities();
         final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
-                infoExtractor, discountApplicatorFactory);
+                infoExtractor);
+        AccountPricingData accountPricingData = new AccountPricingData(DiscountApplicator.noDiscount(), priceTable, baId);
         final StoragePriceBundle storagePriceBundle =
-                mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID);
+                mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID, accountPricingData);
         final StorageTierPriceData[] expectedData = new StorageTierPriceData[]{
                 StorageTierPriceData.newBuilder()
                     .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
@@ -495,15 +535,15 @@ public class MarketPriceTableTest {
                     .build())
                 .build())
             .build();
-        when(cloudCostData.getPriceTable()).thenReturn(priceTable);
 
         final long baId = 7L;
         doReturn(ImmutableMap.of(baId, makeBusinessAccount(baId, DiscountApplicator.noDiscount())))
                 .when(topology).getEntities();
         final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
-                infoExtractor, discountApplicatorFactory);
+                infoExtractor);
+        AccountPricingData accountPricingData = new AccountPricingData(DiscountApplicator.noDiscount(), priceTable, baId);
         final StoragePriceBundle storagePriceBundle =
-                mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID);
+                mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID, accountPricingData);
 
         final List<StorageTierPriceData> expectedData = Lists.newArrayList(StorageTierPriceData.newBuilder()
                 .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
@@ -546,15 +586,17 @@ public class MarketPriceTableTest {
                     .build())
                 .build())
             .build();
-        when(cloudCostData.getPriceTable()).thenReturn(priceTable);
-
+        when(cloudCostData.getAccountPricingData(BUSINESS_ACCOUNT_ID)).thenReturn(Optional.ofNullable(accountPricingData));
+        when(cloudCostData.getAccountPricingData(BUSINESS_ACCOUNT_ID).get().getPriceTable()).thenReturn(priceTable);
+        when(accountPricingData.getDiscountApplicator()).thenReturn(DiscountApplicator.noDiscount());
         final long baId = 7L;
+        when(accountPricingData.getAccountPricingDataOid()).thenReturn(baId);
         doReturn(ImmutableMap.of(baId, makeBusinessAccount(baId, DiscountApplicator.noDiscount())))
                 .when(topology).getEntities();
         final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
-                infoExtractor, discountApplicatorFactory);
+                infoExtractor);
         final StoragePriceBundle storagePriceBundle =
-                mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID);
+                mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID, accountPricingData);
 
         final StorageTierPriceData expectedData = StorageTierPriceData.newBuilder()
                 .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
@@ -591,15 +633,19 @@ public class MarketPriceTableTest {
                     .build())
                 .build())
             .build();
-        when(cloudCostData.getPriceTable()).thenReturn(priceTable);
 
         final long baId = 7L;
         doReturn(ImmutableMap.of(baId, makeBusinessAccount(baId, DiscountApplicator.noDiscount())))
                 .when(topology).getEntities();
         final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
-                infoExtractor, discountApplicatorFactory);
+                infoExtractor);
+        AccountPricingData accountPricingData = Mockito.mock(AccountPricingData.class);
+        when(accountPricingData.getAccountPricingDataOid()).thenReturn(baId);
+        when(accountPricingData.getDiscountApplicator()).thenReturn(DiscountApplicator.noDiscount());
+        when(cloudCostData.getAccountPricingData(baId)).thenReturn(Optional.ofNullable(accountPricingData));
+        when(cloudCostData.getAccountPricingData(baId).get().getPriceTable()).thenReturn(priceTable);
         final StoragePriceBundle storagePriceBundle =
-                mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID);
+                mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID, accountPricingData);
 
         final List<StorageTierPriceData> expectedData = Lists.newArrayList(
             StorageTierPriceData.newBuilder()
@@ -648,19 +694,21 @@ public class MarketPriceTableTest {
                     .build())
                 .build())
             .build();
-        when(cloudCostData.getPriceTable()).thenReturn(priceTable);
 
         final long baId = 7L;
         // Add a 20% discount for the storage tier.
         final DiscountApplicator<TopologyEntityDTO> discount = mock(DiscountApplicator.class);
         when(discount.getDiscountPercentage(STORAGE_TIER_ID)).thenReturn(trax(0.2));
-        doReturn(ImmutableMap.of(baId, makeBusinessAccount(baId, discount)))
-                .when(topology).getEntities();
 
         final MarketPriceTable mktPriceTable = new MarketPriceTable(cloudCostData, topology,
-                infoExtractor, discountApplicatorFactory);
+                infoExtractor);
+        AccountPricingData accountPricingData = Mockito.mock(AccountPricingData.class);
+        when(cloudCostData.getAccountPricingData(baId)).thenReturn(Optional.ofNullable(accountPricingData));
+        when(cloudCostData.getAccountPricingData(baId).get().getPriceTable()).thenReturn(priceTable);
+        when(accountPricingData.getDiscountApplicator()).thenReturn(discount);
+        when(accountPricingData.getAccountPricingDataOid()).thenReturn(baId);
         final StoragePriceBundle storagePriceBundle =
-                mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID);
+                mktPriceTable.getStoragePriceBundle(STORAGE_TIER_ID, REGION_ID, accountPricingData);
         final List<StorageTierPriceData> expectedData = Lists.newArrayList(
                 StorageTierPriceData.newBuilder()
                     .addCostTupleList(CostTuple.newBuilder().setBusinessAccountId(baId)
@@ -696,7 +744,8 @@ public class MarketPriceTableTest {
                 .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
                 .setOid(id)
                 .build();
-        doReturn(discountApplicator).when(discountApplicatorFactory).accountDiscountApplicator(id, topology, infoExtractor, cloudCostData);
+        doReturn(discountApplicator).when(discountApplicatorFactory).accountDiscountApplicator(id, topology, infoExtractor,
+                Optional.ofNullable(discountApplicator.getDiscount()));
         return businessAccount;
     }
 }

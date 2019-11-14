@@ -7,13 +7,13 @@ import java.util.concurrent.ThreadFactory;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -159,6 +159,11 @@ public class MarketRunnerConfig {
         return new DefaultWastedFilesAnalysisFactory();
     }
 
+    /**
+     * Get the instance of the topologyCostCalculator factory.
+     *
+     * @return The topology cost calculator factory.
+     */
     @Bean
     public TopologyCostCalculatorFactory topologyCostCalculatorFactory() {
         return new DefaultTopologyCostCalculatorFactory(topologyEntityInfoExtractor(),
@@ -198,9 +203,15 @@ public class MarketRunnerConfig {
         return DiscountApplicator.newFactory();
     }
 
+    /**
+     * Get the market cloud cost data provider.
+     *
+     * @return The market cloud cost data provider.
+     */
     @Bean
     public MarketCloudCostDataProvider marketCloudCostDataProvider() {
-        return new MarketCloudCostDataProvider(costClientConfig.costChannel());
+        return new MarketCloudCostDataProvider(costClientConfig.costChannel(), discountApplicatorFactory(),
+                topologyEntityInfoExtractor());
     }
 
     /**

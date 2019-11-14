@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -38,6 +39,7 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.NetworkConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.VirtualVolumeConfig;
+import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
@@ -109,6 +111,8 @@ public class CloudCostCalculatorTest {
     private static final long V_VOLUME_SIZRE_IOPS = 17;
 
     private static final long REGION_ID = 1;
+    private static final long BUSINESS_ACCOUNT_ID = 2;
+    private static final long PRICE_TABLE_KEY_OID = 15;
     private static final long STORAGE_TIER_ID = 10;
     private static final long COMPUTE_TIER_ID = 11;
     private static final long DB_TIER_ID = 4;
@@ -120,6 +124,8 @@ public class CloudCostCalculatorTest {
 
     private static final TestEntityClass region = TestEntityClass.newBuilder(REGION_ID)
                     .build(infoExtractor);
+    private static final TestEntityClass businessAccount = TestEntityClass.newBuilder(BUSINESS_ACCOUNT_ID)
+            .build(infoExtractor);
     private static final TestEntityClass storageTier = TestEntityClass.newBuilder(STORAGE_TIER_ID)
                     .build(infoExtractor);
     private static final TestEntityClass computeTier = TestEntityClass.newBuilder(COMPUTE_TIER_ID)
@@ -130,10 +136,9 @@ public class CloudCostCalculatorTest {
         .build(infoExtractor);
 
     private static final PriceTable PRICE_TABLE = thePriceTable();
-    private static final CloudCostData CLOUD_COST_DATA = new CloudCostData(PRICE_TABLE,
-        Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+
+    private static final CloudCostData CLOUD_COST_DATA = new CloudCostData(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
         Collections.emptyMap(), Collections.emptyMap());
-    private static final CloudCostCalculator<TestEntityClass> CALCULATOR = calculator();
 
     private static final double DELTA = 0.0001;
 
@@ -151,16 +156,11 @@ public class CloudCostCalculatorTest {
             .build(infoExtractor);
         // Configure CloudTopology
         when(topology.getConnectedRegion(DEFAULT_VM_ID)).thenReturn(Optional.of(region));
+        when(topology.getOwner(DEFAULT_VM_ID)).thenReturn(Optional.of(businessAccount));
         when(topology.getConnectedService(COMPUTE_TIER_ID)).thenReturn(Optional.of(service));
         when(topology.getComputeTier(DEFAULT_VM_ID)).thenReturn(Optional.of(computeTier));
 
-        // Configure ReservedInstanceApplicator
-        final ReservedInstanceApplicator<TestEntityClass> riApplicator =
-            mock(ReservedInstanceApplicator.class);
-        when(riApplicator.recordRICoverage(computeTier)).thenReturn(trax(DEFAULT_RI_COVERAGE));
-        when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(
-            any(), eq(infoExtractor), eq(CLOUD_COST_DATA), eq(topologyRiCoverage)))
-            .thenReturn(riApplicator);
+
     }
 
     private TestEntityClass createVmTestEntity(long id, int entityType, OSType osType, Tenancy tenancy,
@@ -177,7 +177,7 @@ public class CloudCostCalculatorTest {
         DiscountApplicator<TestEntityClass> discountApplicator =
                 (DiscountApplicator<TestEntityClass>)mock(DiscountApplicator.class);
         when(discountApplicator.getDiscountPercentage(any())).thenReturn(trax(returnDiscount));
-        when(discountApplicatorFactory.entityDiscountApplicator(any(), any(), any(), any()))
+        when(discountApplicatorFactory.accountDiscountApplicator(any(), any(), any(), any()))
                 .thenReturn(discountApplicator);
         return discountApplicator;
     }
@@ -189,7 +189,17 @@ public class CloudCostCalculatorTest {
             OSType.WINDOWS_WITH_SQL_ENTERPRISE, Tenancy.DEFAULT, VMBillingType.ONDEMAND, 4,
                 EntityDTO.LicenseModel.LICENSE_INCLUDED);
         // act
-        final CostJournal<TestEntityClass> journal1 = CALCULATOR.calculateCost(wsqlVm4Cores);
+        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE, 15L);
+        CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
+        CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
+        // Configure ReservedInstanceApplicator
+        final ReservedInstanceApplicator<TestEntityClass> riApplicator =
+                mock(ReservedInstanceApplicator.class);
+        when(riApplicator.recordRICoverage(computeTier)).thenReturn(trax(DEFAULT_RI_COVERAGE));
+        when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(
+                any(), eq(infoExtractor), eq(cloudCostData), eq(topologyRiCoverage)))
+                .thenReturn(riApplicator);
+        final CostJournal<TestEntityClass> journal1 = cloudCostCalculator.calculateCost(wsqlVm4Cores);
 
         // assert
         double expectedIpAdjustment = IP_RANGE * IP_PRICE_RANGE_1 + (IP_COUNT - IP_RANGE) * IP_PRICE;
@@ -215,14 +225,14 @@ public class CloudCostCalculatorTest {
         TestEntityClass wsqlVm2Cores = createVmTestEntity(DEFAULT_VM_ID, EntityType.VIRTUAL_MACHINE_VALUE,
             OSType.WINDOWS_WITH_SQL_ENTERPRISE, Tenancy.DEFAULT, VMBillingType.ONDEMAND, 2,
                 EntityDTO.LicenseModel.LICENSE_INCLUDED);
-        final CostJournal<TestEntityClass> journal2 = CALCULATOR.calculateCost(wsqlVm2Cores);
+        final CostJournal<TestEntityClass> journal2 = cloudCostCalculator.calculateCost(wsqlVm2Cores);
         assertThat(journal2.getHourlyCostForCategory(CostCategory.LICENSE).getValue(),
             is(WSQL_ADJUSTMENT * (1 - DEFAULT_RI_COVERAGE) + WSQL_ENTERPRISE_2));
 
         final TestEntityClass spotVm = createVmTestEntity(DEFAULT_VM_ID, EntityType.VIRTUAL_MACHINE_VALUE,
             OSType.SUSE, Tenancy.DEFAULT, VMBillingType.BIDDING, 2,
                 EntityDTO.LicenseModel.LICENSE_INCLUDED);
-        final CostJournal<TestEntityClass> spotJournal = CALCULATOR.calculateCost(spotVm);
+        final CostJournal<TestEntityClass> spotJournal = cloudCostCalculator.calculateCost(spotVm);
         assertThat(spotJournal.getHourlyCostForCategory(CostCategory.SPOT).getValue(),
             is(BASE_PRICE * (1 - DEFAULT_RI_COVERAGE)));
         // No adjustment and license costs for spot instances
@@ -232,7 +242,7 @@ public class CloudCostCalculatorTest {
             OSType.SUSE, Tenancy.DEFAULT, VMBillingType.ONDEMAND, 2,
                 EntityDTO.LicenseModel.LICENSE_INCLUDED);
 
-        final CostJournal<TestEntityClass> journal3 = CALCULATOR.calculateCost(suseVm);
+        final CostJournal<TestEntityClass> journal3 = cloudCostCalculator.calculateCost(suseVm);
         assertThat(journal3.getHourlyCostForCategory(CostCategory.LICENSE).getValue(),
             is(SUSE_ADJUSTMENT * (1 - DEFAULT_RI_COVERAGE)));
     }
@@ -244,14 +254,24 @@ public class CloudCostCalculatorTest {
     @Test
     public void testCalculateOnDemandCostForComputeForAhub() {
         DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
-
         TestEntityClass windowsVm4CoresBYOL = createVmTestEntity(DEFAULT_VM_ID,
                 EntityType.VIRTUAL_MACHINE_VALUE, OSType.WINDOWS, Tenancy.DEFAULT,
                 VMBillingType.ONDEMAND, 4, EntityDTO.LicenseModel.AHUB);
         double expectedIpAdjustment = IP_RANGE * IP_PRICE_RANGE_1 + (IP_COUNT - IP_RANGE) * IP_PRICE;
 
+        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE, 15L);
+        CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
+        CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
+
+        // Configure ReservedInstanceApplicator
+        final ReservedInstanceApplicator<TestEntityClass> riApplicator =
+                mock(ReservedInstanceApplicator.class);
+        when(riApplicator.recordRICoverage(computeTier)).thenReturn(trax(DEFAULT_RI_COVERAGE));
+        when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(
+                any(), eq(infoExtractor), eq(cloudCostData), eq(topologyRiCoverage)))
+                .thenReturn(riApplicator);
         // act
-        final CostJournal<TestEntityClass> journal1 = CALCULATOR.calculateCost(windowsVm4CoresBYOL);
+        final CostJournal<TestEntityClass> journal1 = cloudCostCalculator.calculateCost(windowsVm4CoresBYOL);
 
         // The cost of the RI isn't factored in because we mocked out the RI Applicator.
         assertThat(journal1.getTotalHourlyCost().getValue(), is(BASE_PRICE * (1 - DEFAULT_RI_COVERAGE)
@@ -277,18 +297,22 @@ public class CloudCostCalculatorTest {
                 .setType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .build(infoExtractor);
         when(topology.getConnectedRegion(vmId)).thenReturn(Optional.of(region));
+        when(topology.getOwner(vmId)).thenReturn(Optional.of(businessAccount));
         when(topology.getStorageTier(vmId)).thenReturn(Optional.of(storageTier));
         when(topology.getComputeTier(vmId)).thenReturn(Optional.of(computeTier));
 
         // Set up the discount applicator (no discount)
         DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
 
+        AccountPricingData accountPricingData = new AccountPricingData(setupDiscountApplicator(0.0), PRICE_TABLE, 15L);
+        CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
+
         // Set up the RI applicator (no RI)
         final ReservedInstanceApplicator<TestEntityClass> riApplicator =
                 mock(ReservedInstanceApplicator.class);
         when(riApplicator.recordRICoverage(computeTier)).thenReturn(trax(0.0));
         when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(
-            any(), eq(infoExtractor), eq(CLOUD_COST_DATA), eq(topologyRiCoverage)))
+            any(), eq(infoExtractor), eq(cloudCostData), eq(topologyRiCoverage)))
                 .thenReturn(riApplicator);
 
         // Set up a volume, and the cost lookup for the volume.
@@ -311,8 +335,7 @@ public class CloudCostCalculatorTest {
         final DependentCostLookup<TestEntityClass> volumeCostLookup = e -> volumeJournal;
 
         final CloudCostCalculator<TestEntityClass> calculator =
-                calculatorFactory.newCalculator(CLOUD_COST_DATA, topology, infoExtractor,
-                        discountApplicatorFactory, reservedInstanceApplicatorFactory,
+                calculatorFactory.newCalculator(cloudCostData, topology, infoExtractor, reservedInstanceApplicatorFactory,
                         volumeCostLookup, topologyRiCoverage);
 
         final CostJournal<TestEntityClass> vmJournal = calculator.calculateCost(vm);
@@ -338,11 +361,12 @@ public class CloudCostCalculatorTest {
                 .setVolumeConfig(new VirtualVolumeConfig(V_VOLUME_SIZRE_IOPS, 0))
                 .build(infoExtractor);
         when(topology.getConnectedRegion(VOLUME_ID)).thenReturn(Optional.of(region));
+        when(topology.getOwner(VOLUME_ID)).thenReturn(Optional.of(businessAccount));
         when(topology.getStorageTier(VOLUME_ID)).thenReturn(Optional.of(storageTier));
-
-        setupDiscountApplicator(0.0);
-
-        final CostJournal<TestEntityClass> journal = CALCULATOR.calculateCost(volume);
+        AccountPricingData accountPricingData = new AccountPricingData(setupDiscountApplicator(0.0), PRICE_TABLE, 15L);
+        CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
+        CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
+        final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(volume);
         assertThat(journal.getTotalHourlyCost().getValue(),
             closeTo(IOPS_RANGE * IOPS_PRICE_RANGE_1 + (V_VOLUME_SIZRE_IOPS - IOPS_RANGE)
                     * IOPS_PRICE, DELTA));
@@ -362,11 +386,12 @@ public class CloudCostCalculatorTest {
                 .setVolumeConfig(new VirtualVolumeConfig(0, vVolSizeMb * 1024))
                 .build(infoExtractor);
         when(topology.getConnectedRegion(VOLUME_ID)).thenReturn(Optional.of(region));
+        when(topology.getOwner(VOLUME_ID)).thenReturn(Optional.of(businessAccount));
         when(topology.getStorageTier(VOLUME_ID)).thenReturn(Optional.of(storageTier));
-
-        setupDiscountApplicator(0.0);
-
-        final CostJournal<TestEntityClass> journal = CALCULATOR.calculateCost(volume);
+        AccountPricingData accountPricingData = new AccountPricingData(setupDiscountApplicator(0.0), PRICE_TABLE, 15L);
+        CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
+        CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
+        final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(volume);
         assertThat(journal.getTotalHourlyCost().getValue(),
             closeTo(GB_RANGE * GB_PRICE_RANGE_1 + (vVolSizeMb - GB_RANGE) * GB_PRICE
                 + GB_MONTH_PRICE_20, DELTA));
@@ -390,11 +415,15 @@ public class CloudCostCalculatorTest {
                 .build(infoExtractor);
 
         when(topology.getConnectedRegion(dbId)).thenReturn(Optional.of(region));
+        when(topology.getOwner(dbId)).thenReturn(Optional.of(businessAccount));
         when(topology.getDatabaseTier(dbId)).thenReturn(Optional.of(databaseTier));
 
         final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
+        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE, 15L);
+        CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
+        CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
         // act
-        final CostJournal<TestEntityClass> journal = CALCULATOR.calculateCost(db);
+        final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(db);
 
         // assert
         assertThat(journal.getTotalHourlyCost().getValue(), is(BASE_PRICE + MYSQL_ADJUSTMENT));
@@ -422,11 +451,15 @@ public class CloudCostCalculatorTest {
             .build(infoExtractor);
 
         when(topology.getConnectedRegion(dbId)).thenReturn(Optional.of(region));
+        when(topology.getOwner(dbId)).thenReturn(Optional.of(businessAccount));
         when(topology.getDatabaseServerTier(dbId)).thenReturn(Optional.of(databaseServerTier));
 
         final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
+        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE, 15L);
+        CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
+        CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
         // act
-        final CostJournal<TestEntityClass> journal = CALCULATOR.calculateCost(db);
+        final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(db);
 
         // assert
         assertThat(journal.getTotalHourlyCost().getValue(), is(BASE_PRICE + MYSQL_ADJUSTMENT));
@@ -449,7 +482,10 @@ public class CloudCostCalculatorTest {
         final TestEntityClass noCostEntity = TestEntityClass.newBuilder(7)
             .setType(EntityType.NETWORK_VALUE)
             .build(infoExtractor);
-        final CostJournal<TestEntityClass> journal = CALCULATOR.calculateCost(noCostEntity);
+        AccountPricingData accountPricingData = new AccountPricingData(setupDiscountApplicator(0.0), PRICE_TABLE, 15L);
+        CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
+        CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
+        final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(noCostEntity);
         assertThat(journal.getEntity(), is(noCostEntity));
         assertThat(journal.getTotalHourlyCost().getValue(), is(0.0));
         assertThat(journal.getCategories(), is(Collections.emptySet()));
@@ -555,9 +591,24 @@ public class CloudCostCalculatorTest {
             .build();
     }
 
-    private static CloudCostCalculator<TestEntityClass> calculator() {
-        return calculatorFactory.newCalculator(CLOUD_COST_DATA, topology, infoExtractor,
-            discountApplicatorFactory, reservedInstanceApplicatorFactory,
+    private static CloudCostCalculator<TestEntityClass> calculator(CloudCostData cloudCostData) {
+        return calculatorFactory.newCalculator(cloudCostData, topology, infoExtractor, reservedInstanceApplicatorFactory,
             e -> null, topologyRiCoverage);
+    }
+
+    /**
+     * Populate and return the cloud cost data object with given business account and accountPricing Data mapping.
+     *
+     * @param baOid The business account oid.
+     * @param accountPricingData The account pricing data.
+     *
+     * @return The cloud cost data object.
+     */
+    public CloudCostData createCloudCostDataWithAccountPricingTable(Long baOid, AccountPricingData accountPricingData) {
+        Map<Long, AccountPricingData> accountPricingDataByBusinessAccount = new HashMap<>();
+        accountPricingDataByBusinessAccount.put(baOid, accountPricingData);
+        CloudCostData cloudCostData = new CloudCostData(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+                Collections.emptyMap(), accountPricingDataByBusinessAccount);
+        return cloudCostData;
     }
 }

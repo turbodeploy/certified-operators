@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -61,6 +62,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
+import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
@@ -105,6 +107,7 @@ public class TopologyConverterToMarketTest {
     private MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
     private CloudCostData ccd = mock(CloudCostData.class);
     private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
+    private AccountPricingData accountPricingData = mock(AccountPricingData.class);
 
     @Before
     public void setup() {
@@ -1099,6 +1102,8 @@ public class TopologyConverterToMarketTest {
         final long vmId = 3L;
         final long baId = 2L;
         final EntityState on = EntityState.POWERED_ON;
+        when(ccd.getAccountPricingData(baId)).thenReturn(Optional.ofNullable(accountPricingData));
+        when(accountPricingData.getAccountPricingDataOid()).thenReturn(baId);
         final TopologyEntityDTO region = entity(EntityType.REGION_VALUE, regionId, on,
                 null, Collections.singletonList(createSoldCommodity(CommodityDTO
                         .CommodityType.DATACENTER_VALUE)));
@@ -1135,6 +1140,8 @@ public class TopologyConverterToMarketTest {
         final long zoneId = 4L;
         final long vmId = 3L;
         final long baId = 2L;
+        when(ccd.getAccountPricingData(baId)).thenReturn(Optional.ofNullable(accountPricingData));
+        when(accountPricingData.getAccountPricingDataOid()).thenReturn(baId);
         final EntityState on = EntityState.POWERED_ON;
         final TopologyEntityDTO zone = entity(EntityType.AVAILABILITY_ZONE_VALUE, zoneId, on,
                 null, null);

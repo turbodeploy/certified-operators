@@ -31,7 +31,7 @@ public interface MarketPriceTableFactory {
         @Override
         public MarketPriceTable newPriceTable(@Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology,
                                               @Nonnull final CloudCostData cloudCostData) {
-            return new MarketPriceTable(cloudCostData, cloudTopology, entityInfoExtractor, discountApplicatorFactory);
+            return new MarketPriceTable(cloudCostData, cloudTopology, entityInfoExtractor);
         }
     }
 }

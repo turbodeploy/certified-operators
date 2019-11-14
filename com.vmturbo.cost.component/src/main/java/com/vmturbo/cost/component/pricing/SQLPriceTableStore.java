@@ -87,10 +87,10 @@ public class SQLPriceTableStore implements PriceTableStore {
 
     @Override
     public Map<Long, PriceTable> getPriceTables(final Collection<Long> oids) {
-        Map<Long, PriceTable> oidToPriceTableMap = dsl.select(Tables.PRICE_TABLE.OID, Tables.PRICE_TABLE.PRICE_TABLE_DATA)
+        return dsl.select(Tables.PRICE_TABLE.OID, Tables.PRICE_TABLE.PRICE_TABLE_DATA)
                 .from(Tables.PRICE_TABLE)
-                .where(filterByOidsCondition(oids)).fetchMap(Tables.PRICE_TABLE.OID, Tables.PRICE_TABLE.PRICE_TABLE_DATA);
-        return oidToPriceTableMap;
+                .where(filterByOidsCondition(oids)).fetchMap(Tables.PRICE_TABLE.OID,
+                        Tables.PRICE_TABLE.PRICE_TABLE_DATA);
     }
 
     /**

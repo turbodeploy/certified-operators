@@ -9,10 +9,10 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Lists;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -40,11 +40,11 @@ public class TopologyCostCalculator {
 
     private final CloudCostCalculatorFactory<TopologyEntityDTO> cloudCostCalculatorFactory;
 
-    private final DiscountApplicatorFactory<TopologyEntityDTO> discountApplicatorFactory;
-
     private final ReservedInstanceApplicatorFactory<TopologyEntityDTO> riApplicatorFactory;
 
     private final CloudCostData cloudCostData;
+
+    private final CloudTopology<TopologyEntityDTO> cloudTopo;
 
     private final TopologyInfo topoInfo;
 
@@ -53,15 +53,15 @@ public class TopologyCostCalculator {
                   @Nonnull final CloudCostDataProvider cloudCostDataProvider,
                   @Nonnull final DiscountApplicatorFactory<TopologyEntityDTO> discountApplicatorFactory,
                   @Nonnull final ReservedInstanceApplicatorFactory<TopologyEntityDTO> riApplicatorFactory,
-                  @Nonnull final TopologyInfo topoInfo) {
+                  @Nonnull final TopologyInfo topoInfo, @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) {
         this.topologyEntityInfoExtractor = Objects.requireNonNull(topologyEntityInfoExtractor);
         this.cloudCostCalculatorFactory = Objects.requireNonNull(cloudCostCalculatorFactory);
-        this.discountApplicatorFactory = Objects.requireNonNull(discountApplicatorFactory);
         this.riApplicatorFactory = Objects.requireNonNull(riApplicatorFactory);
-        this.topoInfo = topoInfo;
+        this.topoInfo = Objects.requireNonNull(topoInfo);
+        this.cloudTopo = Objects.requireNonNull(cloudTopology);
         CloudCostData cloudCostData;
         try {
-            cloudCostData = cloudCostDataProvider.getCloudCostData(topoInfo);
+            cloudCostData = cloudCostDataProvider.getCloudCostData(topoInfo, this.cloudTopo, topologyEntityInfoExtractor);
         } catch (CloudCostDataRetrievalException e) {
             logger.error("Failed to fetch cloud cost data. Error: {}.\n Using empty (no costs)",
                     e.getLocalizedMessage());
@@ -137,7 +137,6 @@ public class TopologyCostCalculator {
         costCalculator = cloudCostCalculatorFactory.newCalculator(cloudCostData,
                 cloudTopology,
                 topologyEntityInfoExtractor,
-                discountApplicatorFactory,
                 riApplicatorFactory,
                 dependentCostLookup,
                 topologyRICoverage);
@@ -156,10 +155,13 @@ public class TopologyCostCalculator {
          * Create a new {@link TopologyCostCalculator} with fresh cost-related data from
          * the {@link CloudCostDataProvider} used by the factory.
          *
+         * @param topologyInfo the topology info.
+         * @param originalCloudTopology The cloud topology.
+         *
          * @return A {@link TopologyCostCalculator}.
          */
         @Nonnull
-        TopologyCostCalculator newCalculator(TopologyInfo topologyInfo);
+        TopologyCostCalculator newCalculator(TopologyInfo topologyInfo, CloudTopology<TopologyEntityDTO> originalCloudTopology);
 
         /**
          * The default implementation of {@link TopologyCostCalculatorFactory}, for use in "real"
@@ -195,13 +197,13 @@ public class TopologyCostCalculator {
              */
             @Nonnull
             @Override
-            public TopologyCostCalculator newCalculator(@Nonnull TopologyInfo topoInfo) {
+            public TopologyCostCalculator newCalculator(@Nonnull TopologyInfo topoInfo, final CloudTopology<TopologyEntityDTO> originalCloudTopology) {
                 return new TopologyCostCalculator(topologyEntityInfoExtractor,
                         cloudCostCalculatorFactory,
                         cloudCostDataProvider,
                         discountApplicatorFactory,
                         riApplicatorFactory,
-                        topoInfo);
+                        topoInfo, originalCloudTopology);
             }
         }
     }

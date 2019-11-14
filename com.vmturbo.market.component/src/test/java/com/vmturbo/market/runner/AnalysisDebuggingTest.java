@@ -259,11 +259,11 @@ public class AnalysisDebuggingTest {
         final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
         when(cloudCostCalculator.getCloudCostData()).thenReturn(CloudCostData.empty());
         final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
-        when(cloudCostCalculatorFactory.newCalculator(topoInfo)).thenReturn(cloudCostCalculator);
+        when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
+        when(cloudCostCalculatorFactory.newCalculator(topoInfo, any())).thenReturn(cloudCostCalculator);
 
         final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
         when(priceTableFactory.newPriceTable(any(), eq(CloudCostData.empty()))).thenReturn(mock(MarketPriceTable.class));
-        when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
         final WastedFilesAnalysisFactory wastedFilesAnalysisFactory =
             mock(WastedFilesAnalysisFactory.class);
 

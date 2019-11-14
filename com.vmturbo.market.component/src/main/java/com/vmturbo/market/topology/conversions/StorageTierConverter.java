@@ -16,6 +16,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
@@ -50,7 +51,8 @@ public class StorageTierConverter implements TierConverter {
     public Map<TraderTO.Builder, MarketTier> createMarketTierTraderTOs(
             @Nonnull TopologyEntityDTO storageTier,
             @Nonnull Map<Long, TopologyEntityDTO> topology,
-            @Nonnull Set<TopologyEntityDTO> businessAccounts) {
+            @Nonnull Set<TopologyEntityDTO> businessAccounts,
+            @Nonnull Map<Long, AccountPricingData> accountPricingDataMapByBusinessAccountOid) {
         Map<TraderTO.Builder, MarketTier> traderTOs = new HashMap<>();
         List<TopologyEntityDTO> connectedRegions = TopologyDTOUtil.getConnectedEntitiesOfType(
                 storageTier, EntityType.REGION_VALUE, topology);
@@ -69,7 +71,7 @@ public class StorageTierConverter implements TierConverter {
                 .setQuoteFunction(QuoteFunctionDTO.newBuilder()
                         .setRiskBased(RiskBased.newBuilder()
                                 .setCloudCost(costDTOCreator.createStorageTierCostDTO(
-                                        storageTier, connectedRegions, businessAccounts)).build()))
+                                        storageTier, connectedRegions, businessAccounts, accountPricingDataMapByBusinessAccountOid)).build()))
                 .setQuoteFactor(1)
                 .build();
 

@@ -170,4 +170,13 @@ public interface TargetStore {
      * @return ProbeCategory for the target if it exists
      */
     Optional<ProbeCategory> getProbeCategoryForTarget(long targetId);
+
+    /**
+     * Get the root target for a given target.
+     * If a given targetId is root. return same targetId.
+     * If given targetId is invalid ie: no target is found in targetStore. return Optional.empty.
+     * @param targetId oid of a derived target.
+     * @return oid of the parent id.
+     */
+    Optional<Long> findRootTarget(long targetId);
 }

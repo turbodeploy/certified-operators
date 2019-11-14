@@ -141,10 +141,10 @@ public class ScopedTopologyTest {
         final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
         final TopologyCostCalculator topologyCostCalculator = mock(TopologyCostCalculator.class);
         when(topologyCostCalculator.getCloudCostData()).thenReturn(mock(CloudCostData.class));
-        when(cloudCostCalculatorFactory.newCalculator(PLAN_TOPOLOGY_INFO)).thenReturn(topologyCostCalculator);
+        when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
+        when(cloudCostCalculatorFactory.newCalculator(PLAN_TOPOLOGY_INFO, any())).thenReturn(topologyCostCalculator);
         final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
         when(priceTableFactory.newPriceTable(any(), any())).thenReturn(mock(MarketPriceTable.class));
-        when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
         when(ccd.getExistingRiBought()).thenReturn(new ArrayList<>());
         final WastedFilesAnalysisFactory wastedFilesAnalysisFactory =
             mock(WastedFilesAnalysisFactory.class);
@@ -297,10 +297,10 @@ public class ScopedTopologyTest {
         TopologyCostCalculatorFactory topologyCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
         TopologyCostCalculator topologyCostCalculator = mock(TopologyCostCalculator.class);
         when(topologyCostCalculator.getCloudCostData()).thenReturn(CloudCostData.empty());
-        when(topologyCostCalculatorFactory.newCalculator(PLAN_TOPOLOGY_INFO)).thenReturn(topologyCostCalculator);
         TopologyEntityCloudTopologyFactory cloudTopologyFactory =
                 mock(TopologyEntityCloudTopologyFactory.class);
         when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
+        when(topologyCostCalculatorFactory.newCalculator(PLAN_TOPOLOGY_INFO, any())).thenReturn(topologyCostCalculator);
         MarketRunner runner = new MarketRunner(threadPool, serverApi, analysisFactory, Optional.empty());
 
         long topologyContextId = 1000;
@@ -330,7 +330,7 @@ public class ScopedTopologyTest {
 
                 final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
                 when(priceTableFactory.newPriceTable(any(), any())).thenReturn(mock(MarketPriceTable.class));
-                when(topologyCostCalculatorFactory.newCalculator(any())).thenReturn(topologyCostCalculator);
+                when(topologyCostCalculatorFactory.newCalculator(any(), any())).thenReturn(topologyCostCalculator);
                 return new Analysis(topologyInfo, topologyDTOs,
                         groupServiceClient, Clock.systemUTC(), configBuilder.build(),
                         cloudTopologyFactory, topologyCostCalculatorFactory, priceTableFactory,

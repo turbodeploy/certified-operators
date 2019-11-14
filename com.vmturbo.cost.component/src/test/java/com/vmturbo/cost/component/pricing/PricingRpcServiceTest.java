@@ -71,7 +71,7 @@ public class PricingRpcServiceTest {
     private static final PriceTableKey PRICE_TABLE_KEY = PriceTableKey.newBuilder()
             .putProbeKeyMaterial("enrollmentId", "123")
             .putProbeKeyMaterial("offerId", "234")
-            .setProbeType("aws").build();
+            .setRootProbeType("aws").build();
 
     private PriceTableStore priceTableStore = mock(PriceTableStore.class);
 

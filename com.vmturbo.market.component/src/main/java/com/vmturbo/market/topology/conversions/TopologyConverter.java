@@ -60,6 +60,7 @@ import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.market.runner.ReservedCapacityAnalysis;
 import com.vmturbo.market.runner.WastedFilesAnalysis;
@@ -435,6 +436,10 @@ public class TopologyConverter {
                         dbs.forEach(db -> cloudEntityToBusinessAccount.put(db, entity));
                         dbss.forEach(db -> cloudEntityToBusinessAccount.put(db, entity));
                         businessAccounts.add(entity);
+                        if (cloudTc.getAccountPricingIdFromBusinessAccount(entity.getOid()).isPresent()) {
+                            cloudTc.insertIntoAccountPricingDataByBusinessAccountOidMap(entity.getOid(),
+                                    cloudTc.getAccountPricingIdFromBusinessAccount(entity.getOid()).get());
+                        }
                     }
                 }
             }
@@ -1760,8 +1765,9 @@ public class TopologyConverter {
         // We create default balance account
         double defaultBudgetValue = 100000000d;
         float spent = 0f;
+        Optional<AccountPricingData> accountPricingData = cloudTc.getAccountPricingIdFromBusinessAccount(businessAccount.getOid());
         return BalanceAccountDTO.newBuilder().setBudget(defaultBudgetValue).setSpent(spent)
-                .setId(businessAccount.getOid()).build();
+                .setId(accountPricingData.isPresent() ? accountPricingData.get().getAccountPricingDataOid() : null).build();
     }
 
     private @Nonnull List<CommoditySoldTO> createAllCommoditySoldTO(@Nonnull TopologyEntityDTO topologyDTO) {
@@ -1828,7 +1834,7 @@ public class TopologyConverter {
     /**
      * Entity type is included in the converted topology if {@link #includeGuaranteedBuyer} is
      * true (in which case it is included regardless of its actual type), or else if the type
-     * is not in the list of {@link AnalysisUtil#GUARANTEED_BUYER_TYPES}. This method is used
+     * is not in the list of {@link AnalysisUtil#{GUARANTEED_BUYER_TYPES}. This method is used
      * to decide whether to include an entity in the topology by its type, and whether to
      * include a shopping list by its provider type.
      *

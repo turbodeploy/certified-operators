@@ -155,10 +155,10 @@ public class AnalysisTest {
         final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
         when(cloudCostCalculator.getCloudCostData()).thenReturn(CloudCostData.empty());
         final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
-        when(cloudCostCalculatorFactory.newCalculator(topoInfo)).thenReturn(cloudCostCalculator);
         final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
         when(priceTableFactory.newPriceTable(any(), eq(CloudCostData.empty()))).thenReturn(mock(MarketPriceTable.class));
         final TopologyEntityCloudTopology cloudTopology = mock(TopologyEntityCloudTopology.class);
+        when(cloudCostCalculatorFactory.newCalculator(topoInfo, cloudTopology)).thenReturn(cloudCostCalculator);
         final long vmOid = 123L;
         final TopologyEntityDTO cloudVm = TopologyEntityDTO.newBuilder()
                 .setEnvironmentType(EnvironmentType.CLOUD).setOid(vmOid)

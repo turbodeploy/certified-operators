@@ -15,6 +15,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
+import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.ComputePrice;
@@ -48,52 +49,56 @@ public class CostDTOCreator {
     /**
      * Create CostDTO for a given tier and region based traderDTO.
      *
-     * @param tier is topology entity DTO representation of the tier
-     * @param regions list of region topology entity DTOs
-     * @param businessAccountDTOs all business accounts in the topology
+     * @param tier is topology entity DTO representation of the tier.
+     * @param regions list of region topology entity DTOs.
+     * @param businessAccountDTOs all business accounts in the topology.
+     * @param accountPricingDataMapByBusinessAccountOid The mapping of the business account id to the account pricing data.
      *
      * @return CostDTO
      */
-    public CostDTO createCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> regions, Set<TopologyEntityDTO> businessAccountDTOs) {
+    public CostDTO createCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> regions, Set<TopologyEntityDTO> businessAccountDTOs, Map<Long, AccountPricingData> accountPricingDataMapByBusinessAccountOid) {
         if (tier.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
-            return createComputeTierCostDTO(tier, regions, businessAccountDTOs);
+            return createComputeTierCostDTO(tier, regions, businessAccountDTOs, accountPricingDataMapByBusinessAccountOid );
         } else {
-            return createDatabaseTierCostDTO(tier, regions, businessAccountDTOs);
+            return createDatabaseTierCostDTO(tier, regions, businessAccountDTOs, accountPricingDataMapByBusinessAccountOid);
         }
     }
 
     /**
      * Create CostDTO for a given tier and region based traderDTO.
      *
-     * @param tier the compute tier topology entity DTO
-     * @param regions list of region topology entity DTOs
-     * @param businessAccountDTOs all business accounts in the topology
+     * @param tier the compute tier topology entity DTO.
+     * @param regions list of region topology entity DTOs.
+     * @param businessAccountDTOs all business accounts in the topology.
+     * @param accountPricingDataMapByBusinessAccountOid The mapping of the business account id to the account pricing data.
      *
      * @return CostDTO
      */
-    public CostDTO createComputeTierCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> regions, Set<TopologyEntityDTO> businessAccountDTOs) {
+    public CostDTO createComputeTierCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> regions, Set<TopologyEntityDTO> businessAccountDTOs,
+                                            Map<Long, AccountPricingData> accountPricingDataMapByBusinessAccountOid) {
         ComputeTierCostDTO.Builder computeTierDTOBuilder = ComputeTierCostDTO.newBuilder();
-        for (TopologyEntityDTO region: regions) {
-            ComputePriceBundle priceBundle = marketPriceTable.getComputePriceBundle(tier, region.getOid());
-            if (priceBundle == null) {
-                logger.warn("Failed to get pricing information for tier {} on region {}",
-                        tier.getDisplayName(), region.getDisplayName());
-                return CostDTO.newBuilder().setComputeTierCost(computeTierDTOBuilder.build()).build();
-            }
-            Map<Long, Map<OSType, ComputePrice>> computePrices = Maps.newHashMap();
-            priceBundle.getPrices().forEach(price ->
-                    computePrices.computeIfAbsent(price.getAccountId(), ba -> Maps.newHashMap())
-                            .computeIfAbsent(price.getOsType(), os -> price));
-            Set<CommodityType> licenseCommoditySet = tier.getCommoditySoldListList().stream()
-                    .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
-                    .map(CommoditySoldDTO::getCommodityType)
-                    .collect(Collectors.toSet());
-            Set<Long> baOidSet = businessAccountDTOs.stream().map(TopologyEntityDTO::getOid).collect(Collectors.toSet());
-            for (long baOid : baOidSet) {
-                Map<OSType, ComputePrice> pricesForBa = computePrices.get(baOid);
+        Set<Long> baOidSet = businessAccountDTOs.stream().map(TopologyEntityDTO::getOid).collect(Collectors.toSet());
+        for (AccountPricingData accountPricingData : accountPricingDataMapByBusinessAccountOid.values()) {
+            for (TopologyEntityDTO region: regions) {
+                ComputePriceBundle priceBundle = marketPriceTable.getComputePriceBundle(tier, region.getOid(), accountPricingData);
+                if (priceBundle == null) {
+                    logger.warn("Failed to get pricing information for tier {} on region {}",
+                            tier.getDisplayName(), region.getDisplayName());
+                    return CostDTO.newBuilder().setComputeTierCost(computeTierDTOBuilder.build()).build();
+                }
+                Map<Long, Map<OSType, ComputePrice>> computePrices = Maps.newHashMap();
+                priceBundle.getPrices().forEach(price ->
+                        computePrices.computeIfAbsent(price.getAccountId(), ba -> Maps.newHashMap())
+                                .computeIfAbsent(price.getOsType(), os -> price));
+                Set<CommodityType> licenseCommoditySet = tier.getCommoditySoldListList().stream()
+                        .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
+                        .map(CommoditySoldDTO::getCommodityType)
+                        .collect(Collectors.toSet());
+
+                Map<OSType, ComputePrice> pricesForBa = computePrices.get(accountPricingData.getAccountPricingDataOid());
                 if (pricesForBa == null) {
                     logger.warn("Cost not found for tier {} - region {} - BA {}",
-                            tier.getDisplayName(), region.getDisplayName(), baOid);
+                            tier.getDisplayName(), region.getDisplayName(), accountPricingData);
                 }
                 for (CommodityType licenseCommodity : licenseCommoditySet) {
                     double price = Double.POSITIVE_INFINITY;
@@ -110,7 +115,7 @@ public class CostDTOCreator {
                                 // this should not happen, it is more of a safety mechanism)
                                 if (computePrice.isBasePrice()) {
                                     computeTierDTOBuilder
-                                            .addCostTupleList(createCostTuple(baOid, -1,
+                                            .addCostTupleList(createCostTuple(accountPricingData.getAccountPricingDataOid(), -1,
                                                     price, region.getOid()));
                                 }
                             } else {
@@ -121,7 +126,7 @@ public class CostDTOCreator {
                         }
                         computeTierDTOBuilder
                                 .addCostTupleList(CostTuple.newBuilder()
-                                        .setBusinessAccountId(baOid)
+                                        .setBusinessAccountId(accountPricingData.getAccountPricingDataOid())
                                         .setRegionId(region.getOid())
                                         .setLicenseCommodityType(commodityConverter
                                                 .toMarketCommodityId(licenseCommodity))
@@ -156,30 +161,40 @@ public class CostDTOCreator {
      * @param tier the database tier topology entity DTO
      * @param regions the regions topology entity DTO
      * @param businessAccountDTOs all business accounts in the topology
+     * @param accountPricingDataMapByBusinessAccountOid The mapping of the business account id to the account pricing data.
      *
      * @return CostDTO
      */
-    public CostDTO createDatabaseTierCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> regions, Set<TopologyEntityDTO> businessAccountDTOs) {
+    public CostDTO createDatabaseTierCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> regions,
+                                             Set<TopologyEntityDTO> businessAccountDTOs,
+                                             Map<Long, AccountPricingData> accountPricingDataMapByBusinessAccountOid) {
         ComputeTierCostDTO.Builder dbTierDTOBuilder = ComputeTierCostDTO.newBuilder();
-        for (TopologyEntityDTO region: regions) {
-            DatabasePriceBundle priceBundle = marketPriceTable.getDatabasePriceBundle(tier.getOid(), region.getOid());
-            Set<CommodityType> licenseCommoditySet = tier.getCommoditySoldListList().stream()
-                    .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
-                    .map(CommoditySoldDTO::getCommodityType)
-                    .collect(Collectors.toSet());
-            Set<Long> baOidSet = businessAccountDTOs.stream().map(TopologyEntityDTO::getOid).collect(Collectors.toSet());
+        Set<Long> baOidSet = businessAccountDTOs.stream().map(TopologyEntityDTO::getOid).collect(Collectors.toSet());
+        for (AccountPricingData accountPricingData : accountPricingDataMapByBusinessAccountOid.values()) {
+            for (TopologyEntityDTO region: regions) {
+                DatabasePriceBundle priceBundle = marketPriceTable.getDatabasePriceBundle(tier.getOid(),
+                        region.getOid(), accountPricingData);
+                if (priceBundle == null) {
+                    logger.warn("Failed to get pricing information for tier {} on region {}",
+                            tier.getDisplayName(), region.getDisplayName());
+                    return CostDTO.newBuilder().setComputeTierCost(dbTierDTOBuilder.build()).build();
+                }
+                Set<CommodityType> licenseCommoditySet = tier.getCommoditySoldListList().stream()
+                        .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
+                        .map(CommoditySoldDTO::getCommodityType)
+                        .collect(Collectors.toSet());
 
-            Map<Long, Map<String, DatabasePrice>> databasePriceMap = Maps.newHashMap();
-            priceBundle.getPrices().forEach(price ->
-                    databasePriceMap.computeIfAbsent(price.getAccountId(), ba -> Maps.newHashMap())
-                            .computeIfAbsent(price.toString(), id -> price));
-            Optional<CommodityType> dataCenterAccessCommodity = Optional.ofNullable(region.getCommoditySoldListList()
-                    .get(0).getCommodityType());
-            for (long baOid : baOidSet) {
-                Map<String, DatabasePrice> pricesForBa = databasePriceMap.get(baOid);
+                Map<Long, Map<String, DatabasePrice>> databasePriceMap = Maps.newHashMap();
+                priceBundle.getPrices().forEach(price ->
+                        databasePriceMap.computeIfAbsent(price.getAccountId(), ba -> Maps.newHashMap())
+                                .computeIfAbsent(price.toString(), id -> price));
+                Optional<CommodityType> dataCenterAccessCommodity = Optional.ofNullable(region.getCommoditySoldListList()
+                        .get(0).getCommodityType());
+
+                Map<String, DatabasePrice> pricesForBa = databasePriceMap.get(accountPricingData.getAccountPricingDataOid());
                 if (pricesForBa == null) {
                     logger.warn("Cost not found for tier {} - region {} - BA {}",
-                            tier.getDisplayName(), region.getDisplayName(), baOid);
+                            tier.getDisplayName(), region.getDisplayName());
                     continue;
                 }
                 for (CommodityType licenseCommodity : licenseCommoditySet) {
@@ -196,24 +211,24 @@ public class CostDTOCreator {
                             price = databasePrice.getHourlyPrice();
                         } else {
                             // MULTL-AZ licenses are going to be given INFINITE cost
-                            logger.trace("Cost not found for tier {} - region {} - BA {} - license {}",
-                                    tier.getDisplayName(), region.getDisplayName(), baOid, licenseId);
+                            logger.trace("Cost not found for tier {} - region {} - BA - license {}",
+                                    tier.getDisplayName(), region.getDisplayName(), licenseId);
                         }
                     } else {
                         // License is for BYOL, return INFINITE price
                         if (logger.isTraceEnabled()) {
                             logger.trace("Returning INFINITE price for {} license sold by tier {} - region {} - BA {}",
-                                    licenseId, tier.getDisplayName(), region.getDisplayName(), baOid);
+                                    licenseId, tier.getDisplayName(), region.getDisplayName());
                         }
                     }
                     dbTierDTOBuilder
-                            .addCostTupleList(createCostTuple(baOid, commodityConverter
+                            .addCostTupleList(createCostTuple(accountPricingData.getAccountPricingDataOid(), commodityConverter
                                     .toMarketCommodityId(licenseCommodity), price, region.getOid()));
                 }
                 // price when license isn't available
                 dbTierDTOBuilder
                         .addCostTupleList(CostTuple.newBuilder()
-                                .setBusinessAccountId(baOid)
+                                .setBusinessAccountId(accountPricingData.getAccountPricingDataOid())
                                 .setLicenseCommodityType(-1)
                                 .setRegionId(dataCenterAccessCommodity.isPresent() ?
                                         commodityConverter.toMarketCommodityId(dataCenterAccessCommodity.get()) : null)
@@ -255,52 +270,55 @@ public class CostDTOCreator {
     /**
      * Create CostDTO for a given storage tier and region based traderDTO.
      *
-     * @param tier the storage tier topology entity DTO
-     * @param connectedRegions the region topology entity DTO
-     * @param businessAccountDTOs all business accounts in the topology
+     * @param tier the storage tier topology entity DTO.
+     * @param connectedRegions the region topology entity DTO.
+     * @param businessAccountDTOs all business accounts in the topology.
+     * @param accountPricingDataMapByBusinessAccountOid The mapping of the business account id to the account pricing data.
      *
      * @return CostDTO
      */
     public CostDTO createStorageTierCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> connectedRegions,
-                                            Set<TopologyEntityDTO> businessAccountDTOs) {
+                                            Set<TopologyEntityDTO> businessAccountDTOs, Map<Long, AccountPricingData> accountPricingDataMapByBusinessAccountOid) {
         CostDTO.StorageTierCostDTO.Builder storageDTO =  StorageTierCostDTO.newBuilder();
         StorageTierCostDTO.StorageResourceCost.Builder builder = StorageTierCostDTO.StorageResourceCost
                 .newBuilder();
         for (TopologyEntityDTO region: connectedRegions) {
-            StoragePriceBundle storageCostBundle = marketPriceTable
-                    .getStoragePriceBundle(tier.getOid(), region.getOid());
-            if (storageCostBundle == null) {
-                logger.warn("Failed to get pricing information for tier {} on region {}",
-                        tier.getDisplayName(), region.getDisplayName());
-                return CostDTO.newBuilder().setStorageTierCost(storageDTO.build()).build();
+            for (AccountPricingData accountPricingData : accountPricingDataMapByBusinessAccountOid.values()) {
+                StoragePriceBundle storageCostBundle = marketPriceTable
+                        .getStoragePriceBundle(tier.getOid(), region.getOid(), accountPricingData);
+                if (storageCostBundle == null) {
+                    logger.warn("Failed to get pricing information for tier {} on region {}",
+                            tier.getDisplayName(), region.getDisplayName());
+                    return CostDTO.newBuilder().setStorageTierCost(storageDTO.build()).build();
+                }
+                tier.getCommoditySoldListList().forEach(c -> {
+                    CommodityType commType = c.getCommodityType();
+                    // populates the min and max capacity for a given commodity
+                    if (c.hasMaxAmountForConsumer() && c.hasMinAmountForConsumer()) {
+                        storageDTO.addStorageResourceLimitation(StorageTierCostDTO
+                                .StorageResourceLimitation.newBuilder()
+                                .setResourceType(commodityConverter.commoditySpecification(commType))
+                                .setMaxCapacity(c.getMaxAmountForConsumer())
+                                .setMinCapacity(c.getMinAmountForConsumer())
+                                .build());
+                    }
+                    // populates the ratio dependency between max this commodity and its base commodity
+                    if (c.hasRatioDependency()) {
+                        storageDTO.addStorageResourceDependency(StorageTierCostDTO
+                                .StorageResourceDependency.newBuilder()
+                                .setBaseResourceType(commodityConverter
+                                        .commoditySpecification(c.getRatioDependency().getBaseCommodity()))
+                                .setDependentResourceType(commodityConverter.commoditySpecification(commType))
+                                .setRatio(c.getRatioDependency().getRatio())
+                                .build());
+                    }
+                    if (!storageCostBundle.getPrices(commType).isEmpty()) {
+                        builder.setResourceType(commodityConverter.commoditySpecification(commType));
+                        storageCostBundle.getPrices(commType).forEach(p -> builder.addStorageTierPriceData(p));
+                        storageDTO.addStorageResourceCost(builder.build());
+                    }
+                });
             }
-            tier.getCommoditySoldListList().forEach(c -> {
-                CommodityType commType = c.getCommodityType();
-                // populates the min and max capacity for a given commodity
-                if (c.hasMaxAmountForConsumer() && c.hasMinAmountForConsumer()) {
-                    storageDTO.addStorageResourceLimitation(StorageTierCostDTO
-                            .StorageResourceLimitation.newBuilder()
-                            .setResourceType(commodityConverter.commoditySpecification(commType))
-                            .setMaxCapacity(c.getMaxAmountForConsumer())
-                            .setMinCapacity(c.getMinAmountForConsumer())
-                            .build());
-                }
-                // populates the ratio dependency between max this commodity and its base commodity
-                if (c.hasRatioDependency()) {
-                    storageDTO.addStorageResourceDependency(StorageTierCostDTO
-                            .StorageResourceDependency.newBuilder()
-                            .setBaseResourceType(commodityConverter
-                                    .commoditySpecification(c.getRatioDependency().getBaseCommodity()))
-                            .setDependentResourceType(commodityConverter.commoditySpecification(commType))
-                            .setRatio(c.getRatioDependency().getRatio())
-                            .build());
-                }
-                if (!storageCostBundle.getPrices(commType).isEmpty()) {
-                    builder.setResourceType(commodityConverter.commoditySpecification(commType));
-                    storageCostBundle.getPrices(commType).forEach(p -> builder.addStorageTierPriceData(p));
-                    storageDTO.addStorageResourceCost(builder.build());
-                }
-            });
         }
         return CostDTO.newBuilder().setStorageTierCost(storageDTO.build()).build();
     }

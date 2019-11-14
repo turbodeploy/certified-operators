@@ -31,6 +31,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -54,6 +55,7 @@ import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
+import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.market.runner.Analysis;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
@@ -529,9 +531,13 @@ public class TopologyEntitiesHandlerTest {
         Map<OSType, Double> m1MediumPrices = new HashMap<>();
         m1MediumPrices.put(OSType.LINUX, 4d);
         m1MediumPrices.put(OSType.RHEL, 2d);
-        when(marketPriceTable.getComputePriceBundle(m1Large, region.getOid()))
+        AccountPricingData accountPricingData = mock(AccountPricingData.class);
+        when(ccd.getAccountPricingData(ba.getOid())).thenReturn(Optional.ofNullable(accountPricingData));
+        when(accountPricingData.getAccountPricingDataOid()).thenReturn(ba.getOid());
+        when(ccd.getAccountPricingData(ba.getOid())).thenReturn(Optional.ofNullable(accountPricingData));
+        when(marketPriceTable.getComputePriceBundle(m1Large, region.getOid(), accountPricingData))
                         .thenReturn(mockComputePriceBundle(ba.getOid(), m1LargePrices));
-        when(marketPriceTable.getComputePriceBundle(m1Medium, region.getOid()))
+        when(marketPriceTable.getComputePriceBundle(m1Medium, region.getOid(), accountPricingData))
                         .thenReturn(mockComputePriceBundle(ba.getOid(), m1MediumPrices));
         when(ccd.getRiCoverageForEntity(anyLong())).thenReturn(Optional.empty());
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
@@ -631,10 +637,11 @@ public class TopologyEntitiesHandlerTest {
             dbm3MediumPrices.put(DatabaseEngine.POSTGRESQL, 4d);
             dbm3MediumPrices.put(DatabaseEngine.MARIADB, 2d);
 
+            AccountPricingData accountPricingData = Mockito.mock(AccountPricingData.class);
             // calculateCost
-            when(marketPriceTable.getDatabasePriceBundle(dbm3Medium.getOid(), region.getOid()))
+            when(marketPriceTable.getDatabasePriceBundle(dbm3Medium.getOid(), region.getOid(), accountPricingData))
                             .thenReturn(mockDatabasePriceBundle(ba.getOid(), dbm3MediumPrices));
-            when(marketPriceTable.getDatabasePriceBundle(dbm3Large.getOid(), region.getOid()))
+            when(marketPriceTable.getDatabasePriceBundle(dbm3Large.getOid(), region.getOid(), accountPricingData))
                             .thenReturn(mockDatabasePriceBundle(ba.getOid(), dbm3LargePrices));
             when(ccd.getRiCoverageForEntity(anyLong())).thenReturn(Optional.empty());
             final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,

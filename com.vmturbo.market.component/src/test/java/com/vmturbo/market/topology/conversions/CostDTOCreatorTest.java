@@ -1,6 +1,7 @@
 package com.vmturbo.market.topology.conversions;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTOREST.CommoditySoldDTO;
+import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -8,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -133,10 +135,10 @@ public class CostDTOCreatorTest {
                 .commoditySpecification(ioTpCommType);
         Mockito.doReturn(netCommSpecTO).when(converter)
                 .commoditySpecification(netTpCommType);
-
+        AccountPricingData accountPricingData = Mockito.mock(AccountPricingData.class);
         DatabasePriceBundle databasePriceBundle = DatabasePriceBundle.newBuilder().addPrice(BA_ID, DatabaseEngine.MYSQL, DatabaseEdition.ORACLE_STANDARD,
                 DeploymentType.MULTI_AZ, LicenseModel.BRING_YOUR_OWN_LICENSE, 0.4).build();
-        when(marketPriceTable.getDatabasePriceBundle(TIER_ID, REGION_ID)).thenReturn(databasePriceBundle);
+        when(marketPriceTable.getDatabasePriceBundle(TIER_ID, REGION_ID, accountPricingData)).thenReturn(databasePriceBundle);
         ComputePriceBundle computeBundle = ComputePriceBundle.newBuilder()
                 .addPrice(BA_ID, OSType.LINUX, 0.5, true)
                 .build();
@@ -168,7 +170,7 @@ public class CostDTOCreatorTest {
                         .build())
                 .build();
 
-        when(marketPriceTable.getComputePriceBundle(tier, REGION_ID))
+        when(marketPriceTable.getComputePriceBundle(tier, REGION_ID, accountPricingData))
             .thenReturn(computeBundle);
         return tier;
     }
@@ -181,11 +183,15 @@ public class CostDTOCreatorTest {
         final TopologyEntityDTO tier = getTestComputeTier();
         Set<TopologyEntityDTO> bas = new HashSet<>();
         bas.add(BA);
+        Map<Long, AccountPricingData> accountPricingDatabyBusinessAccountMap = new HashMap<>();
         CostDTOCreator costDTOCreator = new CostDTOCreator(converter, marketPriceTable);
-        CostDTO costDTO = costDTOCreator.createComputeTierCostDTO(tier, REGIONS, bas);
-        CostDTO databaseCostDTO = costDTOCreator.createDatabaseTierCostDTO(tier, REGIONS, bas);
+        AccountPricingData accountPricingData = mock(AccountPricingData.class);
+        for (TopologyEntityDTO region: REGIONS) {
+            when(marketPriceTable.getComputePriceBundle(tier, region.getOid(), accountPricingData)).thenReturn(ComputePriceBundle.newBuilder().build());
+        }
+        accountPricingDatabyBusinessAccountMap.put(BA_ID, accountPricingData);
+        CostDTO costDTO = costDTOCreator.createComputeTierCostDTO(tier, REGIONS, bas, accountPricingDatabyBusinessAccountMap);
         Assert.assertEquals(1, costDTO.getComputeTierCost().getComputeResourceDepedencyCount());
-        Assert.assertEquals(Double.POSITIVE_INFINITY, databaseCostDTO.getComputeTierCost().getCostTupleList(0).getPrice(), 0);
         ComputeResourceDependency dependency = costDTO.getComputeTierCost().getComputeResourceDepedency(0);
         Assert.assertNotNull(dependency.getBaseResourceType());
         Assert.assertEquals(NETSPEC_BASE_TYPE, dependency.getBaseResourceType().getBaseType());

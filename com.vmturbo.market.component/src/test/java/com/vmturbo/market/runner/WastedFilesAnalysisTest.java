@@ -203,8 +203,8 @@ public class WastedFilesAnalysisTest {
         final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
         when(cloudCostCalculator.getCloudCostData()).thenReturn(CloudCostData.empty());
         final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
-        when(cloudCostCalculatorFactory.newCalculator(topologyInfo)).thenReturn(cloudCostCalculator);
         final CloudTopology<TopologyEntityDTO> originalCloudTopology = mock(CloudTopology.class);
+        when(cloudCostCalculatorFactory.newCalculator(topologyInfo, originalCloudTopology)).thenReturn(cloudCostCalculator);
 
         final WastedFilesAnalysis analysis = new WastedFilesAnalysis(topologyInfo,
             createTestOnPremTopology(), mockClock, cloudCostCalculator, originalCloudTopology);
@@ -248,8 +248,8 @@ public class WastedFilesAnalysisTest {
         final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
 
         final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
-        when(cloudCostCalculatorFactory.newCalculator(topologyInfo)).thenReturn(cloudCostCalculator);
         final CloudTopology<TopologyEntityDTO> originalCloudTopology = mock(CloudTopology.class);
+        when(cloudCostCalculatorFactory.newCalculator(topologyInfo, originalCloudTopology)).thenReturn(cloudCostCalculator);
 
         Map<Long, TopologyEntityDTO> cloudTopology = createTestCloudTopology();
         final WastedFilesAnalysis analysis = new WastedFilesAnalysis(topologyInfo,

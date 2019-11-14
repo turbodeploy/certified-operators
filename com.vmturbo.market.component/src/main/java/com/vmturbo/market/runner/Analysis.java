@@ -305,7 +305,7 @@ public class Analysis {
         }
 
         final TopologyCostCalculator topologyCostCalculator = topologyCostCalculatorFactory
-                .newCalculator(topologyInfo);
+                .newCalculator(topologyInfo, originalCloudTopology);
         // Use the cloud cost data we use for cost calculations for the price table.
         final MarketPriceTable marketPriceTable = marketPriceTableFactory.newPriceTable(
                 this.originalCloudTopology, topologyCostCalculator.getCloudCostData());

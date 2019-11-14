@@ -311,7 +311,7 @@ public class SQLPriceTableStoreTest {
         probeKeyMaterial.put("offerid", String.valueOf(key).concat("oId"));
         return PriceTableKey.newBuilder()
                 .putAllProbeKeyMaterial(probeKeyMaterial)
-                .setProbeType(String.valueOf(key))
+                .setRootProbeType(String.valueOf(key))
                 .build();
     }
 
