@@ -62,6 +62,11 @@ public class AccountExpensesUploaderTest {
     private static final long TARGET_ID_AWS_DISCOVERY_1 = 1;
     private static final long TARGET_ID_AWS_BILLING_1 = 2;
 
+    private static final String AWS_CS_ID = "aws::192821421245::CS::AmazonS3";
+    private static final String AZURE_CS_ID = "azure::CS::Storage::26080bd2-d98f-4420-a737-9de8";
+    private static final String BAD_CS_ID =
+            "azure::CS::Storage::BUSINESS_ACCOUNT::26080bd2-d98f-4420-a737-9de8";
+
     // simple KV store for the test identity provider
     private KeyValueStore keyValueStore = new MapKeyValueStore();
     {
@@ -352,6 +357,22 @@ public class AccountExpensesUploaderTest {
         Assert.assertEquals(1, awsAccount2Expenses.getAccountExpensesInfo().getServiceExpensesCount());
         Assert.assertEquals(0.5, awsAccount2Expenses.getAccountExpensesInfo().getServiceExpenses(0).getExpenses().getAmount(), 0);
         Assert.assertEquals(0, awsAccount2Expenses.getAccountExpensesInfo().getTierExpensesCount());
+    }
+
+
+    @Test
+    public void testSanitizeCloudServiceId() {
+        final String sanitizedAwsId =
+                accountExpensesUploader.sanitizeCloudServiceId(AWS_CS_ID);
+        final String sanitizedAzureId =
+                accountExpensesUploader.sanitizeCloudServiceId(AZURE_CS_ID);
+        final String sanitizedBadCsId =
+                accountExpensesUploader.sanitizeCloudServiceId(BAD_CS_ID);
+
+        Assert.assertEquals("aws::CS::AmazonS3", sanitizedAwsId);
+        Assert.assertEquals("azure::CS::Storage", sanitizedAzureId);
+        Assert.assertEquals("azure::CS::Storage::BUSINESS_ACCOUNT::26080bd2-d98f-4420-a737-9de8",
+                sanitizedBadCsId);
     }
 
     public static class TestCostService extends RIAndExpenseUploadServiceImplBase {

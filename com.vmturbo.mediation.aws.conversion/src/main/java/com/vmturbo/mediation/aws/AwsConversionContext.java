@@ -13,7 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.mediation.conversion.cloud.CloudProviderConversionContext;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
@@ -31,6 +30,7 @@ import com.vmturbo.mediation.conversion.cloud.converter.StorageConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
 import com.vmturbo.mediation.conversion.util.CloudService;
+import com.vmturbo.mediation.conversion.util.ConverterUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
@@ -60,28 +60,6 @@ public class AwsConversionContext implements CloudProviderConversionContext {
         converters.put(EntityType.DISK_ARRAY, new DiskArrayConverter());
         AWS_ENTITY_CONVERTERS = Collections.unmodifiableMap(converters);
     }
-
-    // cloud services that need to be created for aws, we hardcoded this list for now is because
-    // aws main probe only returns NonMarketEntityDTO for AWS_EC2 and AWS_RDS, so we can not
-    // set up the relationship between AWS_EBS and storage tier.
-    // todo: these cloud services are hardcoded for now, we may want to decide which of these to
-    // create based on existence of NonMarketEntityDTO.
-    private static Set<CloudService> AWS_CLOUD_SERVICES = ImmutableSet.of(
-            CloudService.AWS_EC2,
-            CloudService.AWS_RDS,
-            CloudService.AWS_EBS,
-            CloudService.AWS_S3,
-            CloudService.AWS_DEV_SUPPORT,
-            CloudService.AWS_CLOUDTRAIL,
-            CloudService.AWS_CLOUDWATCH,
-            CloudService.AWS_QUICKSIGHT,
-            CloudService.AWS_DYNAMODB,
-            CloudService.AWS_VPC,
-            CloudService.AWS_KMS,
-            CloudService.AWS_EKS,
-            CloudService.AWS_LAMBDA,
-            CloudService.AWS_SNS
-    );
 
     // map showing which EntityType to be owned by which CloudService
     private static final Map<EntityType, CloudService> ENTITY_TYPE_OWNED_BY_CLOUD_SERVICE_MAP =
@@ -145,7 +123,7 @@ public class AwsConversionContext implements CloudProviderConversionContext {
     @Nonnull
     @Override
     public Set<CloudService> getCloudServicesToCreate() {
-        return AWS_CLOUD_SERVICES;
+        return ConverterUtils.getCloudServicesByProbeType(SDKProbeType.AWS);
     }
 
     @Nonnull

@@ -65,7 +65,7 @@ public class AzureConversionProbeTest extends AzureConversionProbe {
         assertEquals(44, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
         assertEquals(91, entitiesByType.get(EntityType.VIRTUAL_VOLUME).size());
         assertEquals(1, entitiesByType.get(EntityType.BUSINESS_ACCOUNT).size());
-        assertEquals(6, entitiesByType.get(EntityType.CLOUD_SERVICE).size());
+        assertEquals(119, entitiesByType.get(EntityType.CLOUD_SERVICE).size());
         assertEquals(216, entitiesByType.get(EntityType.COMPUTE_TIER).size());
         assertEquals(19, entitiesByType.get(EntityType.DATABASE_TIER).size());
         assertEquals(4, entitiesByType.get(EntityType.STORAGE_TIER).size());
@@ -96,7 +96,7 @@ public class AzureConversionProbeTest extends AzureConversionProbe {
         assertEquals(6, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
         assertEquals(6, entitiesByType.get(EntityType.VIRTUAL_VOLUME).size());
         assertEquals(1, entitiesByType.get(EntityType.BUSINESS_ACCOUNT).size());
-        assertEquals(6, entitiesByType.get(EntityType.CLOUD_SERVICE).size());
+        assertEquals(119, entitiesByType.get(EntityType.CLOUD_SERVICE).size());
         assertEquals(210, entitiesByType.get(EntityType.COMPUTE_TIER).size());
         assertEquals(19, entitiesByType.get(EntityType.DATABASE_TIER).size());
         assertEquals(4, entitiesByType.get(EntityType.STORAGE_TIER).size());
