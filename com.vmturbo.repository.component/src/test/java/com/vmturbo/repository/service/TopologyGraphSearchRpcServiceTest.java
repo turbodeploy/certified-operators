@@ -202,9 +202,9 @@ public class TopologyGraphSearchRpcServiceTest {
 
         verify(searchResolver).search(paramsCaptor.capture(), any());
         List<SearchParameters> params = paramsCaptor.getValue();
-        assertThat(params, containsInAnyOrder(SearchProtoUtil.makeSearchParameters(SearchProtoUtil.idFilter(entityOids))
-            .addSearchFilter(SearchProtoUtil.searchFilterProperty(SEARCH_PARAMS.getStartingFilter()))
-            .build()));
+        assertThat(params, containsInAnyOrder(
+            SearchProtoUtil.makeSearchParameters(SEARCH_PARAMS.getStartingFilter())
+            .addSearchFilter(SearchProtoUtil.searchFilterProperty(SearchProtoUtil.idFilter(entityOids))).build()));
     }
 
     private RepoGraphEntity createEntity(long oid) {

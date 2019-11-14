@@ -353,17 +353,16 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
         // TODO (roman, July 3 2019): Remove the separate list of OID inputs. Convert all callers
         // to provide a list of IDs as the starting filter.
         if (!entityOidList.isEmpty()) {
-            final PropertyFilter newStartFilter = SearchProtoUtil.idFilter(entityOidList);
+            final PropertyFilter idFilter = SearchProtoUtil.idFilter(entityOidList);
             if (params.isEmpty()) {
-                finalParams = Collections.singletonList(SearchProtoUtil.makeSearchParameters(newStartFilter).build());
+                finalParams = Collections.singletonList(SearchProtoUtil.makeSearchParameters(idFilter).build());
             } else {
                 finalParams = params.stream()
                     .map(oldParam -> {
                         final SearchParameters.Builder bldr = oldParam.toBuilder();
                         // Add the previous starting filter as the first search filter. This preserves
                         // the order of filters relative to each other.
-                        bldr.addSearchFilter(0, SearchProtoUtil.searchFilterProperty(bldr.getStartingFilter()));
-                        bldr.setStartingFilter(newStartFilter);
+                        bldr.addSearchFilter(SearchProtoUtil.searchFilterProperty(idFilter));
                         return bldr.build();
                     })
                     .collect(Collectors.toList());
