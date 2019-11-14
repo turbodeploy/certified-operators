@@ -241,35 +241,38 @@ public class PlanRpcService extends PlanServiceImplBase {
     @VisibleForTesting
     void triggerBuyRI(@Nonnull ScenarioInfo scenarioInfo,
                               @Nonnull ScenarioChange riScenario, long planId) {
-        try {
-            StartBuyRIAnalysisRequest request = PlanRpcServiceUtil.createBuyRIRequest(scenarioInfo,
-                    riScenario, planId);
-            buyRIService.startBuyRIAnalysis(request);
-            planDao.updatePlanInstance(planId, oldInstance ->
-                    oldInstance.setStatus(PlanStatus.STARTING_BUY_RI));
-            logger.info("Started buy RI for plan {} on region {} account {}", planId,
-                    request.getRegionsList(), request.getAccountsList());
-        } catch (IntegrityException | NoSuchObjectException e) {
-            logger.warn("Failed to update status after run buy RI for plan {}", planId);
-        } catch (StatusRuntimeException statusException) {
+        analysisExecutor.submit(() -> {
             try {
-                logger.error("Failed to start buy RI for plan {}  because the gRPC call failed with status: {}",
-                        planId, statusException.getStatus());
-                planDao.updatePlanInstance(planId, oldInstance -> {
-                        oldInstance.setStatus(PlanStatus.FAILED);});
-            } catch (IntegrityException integrityException) {
-                logger.warn("Referential integrity violated while changing plan status to failed for plan {}"
+                StartBuyRIAnalysisRequest request = PlanRpcServiceUtil.createBuyRIRequest(scenarioInfo,
+                        riScenario, planId);
+                buyRIService.startBuyRIAnalysis(request);
+                planDao.updatePlanInstance(planId, oldInstance ->
+                        oldInstance.setStatus(PlanStatus.STARTING_BUY_RI));
+                logger.info("Started buy RI for plan {} on region {} account {}", planId,
+                        request.getRegionsList(), request.getAccountsList());
+            } catch (IntegrityException | NoSuchObjectException e) {
+                logger.warn("Failed to update status after run buy RI for plan {}", planId);
+            } catch (StatusRuntimeException statusException) {
+                try {
+                    logger.error("Failed to start buy RI for plan {}  because the gRPC call failed with status: {}",
+                            planId, statusException.getStatus());
+                    planDao.updatePlanInstance(planId, oldInstance -> {
+                        oldInstance.setStatus(PlanStatus.FAILED);
+                    });
+                } catch (IntegrityException integrityException) {
+                    logger.warn("Referential integrity violated while changing plan status to failed for plan {}"
                             + " after starting buy RI", planId);
-            } catch (NoSuchObjectException noObjectException) {
-                // This could happen in the rare case where the plan got deleted
-                // between queueing the analysis and starting it.
-                logger.warn("Can not find plan object while changing plan status to failed for plan {}."
+                } catch (NoSuchObjectException noObjectException) {
+                    // This could happen in the rare case where the plan got deleted
+                    // between queueing the analysis and starting it.
+                    logger.warn("Can not find plan object while changing plan status to failed for plan {}."
                             + " Did the plan get deleted?", planId);
-            }
-        } catch (RuntimeException runtimeEx) {
-            logger.error("Failed to start buy RI analysis for plan " + planId +
+                }
+            } catch (RuntimeException runtimeEx) {
+                logger.error("Failed to start buy RI analysis for plan " + planId +
                         "due to unexpected runtime exception.", runtimeEx);
-        }
+            }
+        });
     }
 
     public void triggerAnalysis(@Nonnull PlanInstance planInstance) {

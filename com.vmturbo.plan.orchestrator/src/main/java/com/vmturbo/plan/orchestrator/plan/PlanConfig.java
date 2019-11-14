@@ -198,10 +198,7 @@ public class PlanConfig {
         final ThreadFactory threadFactory = new ThreadFactoryBuilder()
                 .setNameFormat("plan-analysis-starter-%d")
                 .build();
-        // Using a single thread executor right now to avoid overwhelming
-        // the topology processor, since the construction and broadcast
-        // of topologies is expensive and we already have issues with OOM crashes.
-        return Executors.newSingleThreadExecutor(threadFactory);
+        return Executors.newFixedThreadPool(5, threadFactory);
     }
 
     @Bean
