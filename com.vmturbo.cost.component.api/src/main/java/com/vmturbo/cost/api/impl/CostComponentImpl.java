@@ -33,7 +33,8 @@ public class CostComponentImpl extends
     public CostComponentImpl(
             @Nullable final IMessageReceiver<CostNotification> costNotificationMessageReceiver,
             @Nonnull final ExecutorService executorService, int kafkaReceiverTimeoutSeconds) {
-        super(costNotificationMessageReceiver, executorService, kafkaReceiverTimeoutSeconds);
+        super(costNotificationMessageReceiver, executorService, kafkaReceiverTimeoutSeconds,
+                msg -> listener -> listener.onCostNotificationReceived(msg));
     }
 
     @Override
