@@ -81,6 +81,9 @@ message ReconfigureTO {
 
     // The base type of commodity which the shopping list requests but can not find in sellers
     repeated int32 commodity_to_reconfigure = 3;
+
+    // scaling group ID
+    optional string scaling_group_id = 4;
 }
 
 // An action to activate a deactivated (suspended) trader.

@@ -420,6 +420,12 @@ public final class AnalysisToProtobuf {
                     }
                 }
             }
+            if (reconfigure.getActionTarget() != null) {
+                String scalingGroupId = reconfigure.getActionTarget().getScalingGroupId();
+                if (!scalingGroupId.isEmpty()) {
+                    reconfigureTO.setScalingGroupId(scalingGroupId);
+                }
+            }
             builder.setReconfigure(reconfigureTO);
         } else if (input instanceof Activate) {
             Activate activate = (Activate)input;
