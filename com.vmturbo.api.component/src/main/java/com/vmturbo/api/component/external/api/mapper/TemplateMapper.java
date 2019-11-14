@@ -26,7 +26,6 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiInputDTO;
-import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfile;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
@@ -116,10 +115,10 @@ public class TemplateMapper {
      *
      * @param templateInfo {@link TemplateInfo} that contains the fields
      * @param templateSpec matched with template parameter.
-     * @throws UnauthorizedObjectException If the template is invalid.
+     * @throws IllegalArgumentException If the template is invalid.
      */
     private void checkIfValidTemplate(TemplateInfo templateInfo, TemplateSpec templateSpec)
-            throws UnauthorizedObjectException {
+            throws IllegalArgumentException {
         Map<String, TemplateSpecField> templateSpecFieldMap = templateSpec.getResourcesList().stream()
             .map(TemplateSpecResource::getFieldsList)
             .flatMap(List::stream)
@@ -129,7 +128,7 @@ public class TemplateMapper {
         for (TemplateResource resource : templateResourceList) {
             for (TemplateField field : resource.getFieldsList()) {
                 if (!templateSpecFieldMap.containsKey(field.getName())) {
-                    throw new UnauthorizedObjectException("Wrong field " + field.getName() +
+                    throw new IllegalArgumentException("Wrong field " + field.getName() +
                         " for template of entity type " + templateSpec.getEntityType());
                 }
             }
@@ -145,11 +144,11 @@ public class TemplateMapper {
      * @param templateSpec matched template spec contains template field constant information.
      * @param entityType value of template entity type.
      * @return converted {@link TemplateInfo}
-     * @throws UnauthorizedObjectException If the template is invalid.
+     * @throws IllegalArgumentException If the template is invalid.
      */
     public TemplateInfo mapToTemplateInfo(TemplateApiInputDTO inputDTO,
                                           TemplateSpec templateSpec,
-                                          int entityType) throws UnauthorizedObjectException {
+                                          int entityType) throws IllegalArgumentException {
         Builder templateInfoBuilder = TemplateInfo.newBuilder()
             .setName(inputDTO.getDisplayName())
             .setTemplateSpecId(templateSpec.getId());

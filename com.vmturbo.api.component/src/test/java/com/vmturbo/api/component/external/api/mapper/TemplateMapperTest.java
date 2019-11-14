@@ -12,7 +12,6 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiInputDTO;
-import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
@@ -148,7 +147,7 @@ public class TemplateMapperTest {
     }
 
     @Test
-    public void testVMApiInputDTOtoTemplateInfo() throws UnauthorizedObjectException {
+    public void testVMApiInputDTOtoTemplateInfo() throws IllegalArgumentException {
         final TemplateApiInputDTO templateApiInputDTO = new TemplateApiInputDTO();
         templateApiInputDTO.setDisplayName("test-VM-template");
         templateApiInputDTO.setClassName("VirtualMachineProfile");
@@ -166,9 +165,10 @@ public class TemplateMapperTest {
     /**
      * Test mapping from an external TemplateApiInputDTO with fields for a PM
      * to a TemplateInfo internal protobuf.
+     * @throws IllegalArgumentException
      */
     @Test
-    public void testPMApiInputDTOtoTemplateInfo() throws UnauthorizedObjectException {
+    public void testPMApiInputDTOtoTemplateInfo() throws IllegalArgumentException {
         final TemplateApiInputDTO templateApiInputDTO = new TemplateApiInputDTO();
         templateApiInputDTO.setDisplayName("test-PM-template");
         templateApiInputDTO.setClassName("PhysicalMachineProfile");
@@ -185,7 +185,7 @@ public class TemplateMapperTest {
     }
 
     @Test
-    public void testSTApiInputDTOtoTemplateInfo() throws UnauthorizedObjectException {
+    public void testSTApiInputDTOtoTemplateInfo() throws IllegalArgumentException {
         final TemplateApiInputDTO templateApiInputDTO = new TemplateApiInputDTO();
         templateApiInputDTO.setDisplayName("test-ST-template");
         templateApiInputDTO.setClassName("StorageProfile");
@@ -200,8 +200,13 @@ public class TemplateMapperTest {
         assertEquals(TEMPLATE_ST_INFO, templateInfo);
     }
 
-    @Test(expected = UnauthorizedObjectException.class)
-    public void testCheckNotValidTemplate() throws UnauthorizedObjectException {
+    /**
+     * Test a non valid template.
+     *
+     * @throws IllegalArgumentException
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testCheckNotValidTemplate() throws IllegalArgumentException {
         final TemplateApiInputDTO templateApiInputDTO = new TemplateApiInputDTO();
         templateApiInputDTO.setDisplayName("test-ST-template");
         templateApiInputDTO.setClassName("StorageProfile");
