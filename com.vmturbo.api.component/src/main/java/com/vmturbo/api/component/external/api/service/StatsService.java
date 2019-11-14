@@ -197,13 +197,6 @@ public class StatsService implements IStatsService {
             UIEntityType.DATACENTER, UIEntityType.PHYSICAL_MACHINE
     );
 
-    // list of entity types which are counted as workload for cloud
-    public static final List<String> ENTITY_TYPES_COUNTED_AS_WORKLOAD = ImmutableList.of(
-        UIEntityType.VIRTUAL_MACHINE.apiStr(),
-        UIEntityType.DATABASE.apiStr(),
-        UIEntityType.DATABASE_SERVER.apiStr()
-    );
-
     StatsService(@Nonnull final StatsHistoryServiceBlockingStub statsServiceRpc,
                  @Nonnull final PlanServiceBlockingStub planRpcService,
                  @Nonnull final RepositoryApi repositoryApi,

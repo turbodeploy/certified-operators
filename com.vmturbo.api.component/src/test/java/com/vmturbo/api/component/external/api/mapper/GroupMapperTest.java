@@ -1,5 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static com.vmturbo.components.common.utils.StringConstants.RESOURCE_GROUP;
+import static com.vmturbo.components.common.utils.StringConstants.WORKLOAD;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
@@ -794,6 +796,62 @@ public class GroupMapperTest {
         assertThat(mappedDto.getGroupType(), is(VM_TYPE));
         assertThat(mappedDto.getEnvironmentType(), is(EnvironmentType.CLOUD));
         assertThat(mappedDto.getClassName(), is("Group"));
+    }
+
+    /**
+     * Tests conversion of a Resource Group message.
+     */
+    @Test
+    public void testMapResourceGroup() {
+        final Grouping group = Grouping.newBuilder().setId(8L)
+            .setOrigin(Origin.newBuilder().setUser(Origin.User.newBuilder()))
+            .setDefinition(GroupDefinition.newBuilder().setType(GroupType.RESOURCE)
+                .setDisplayName("foo")
+                .setStaticGroupMembers(StaticMembers.newBuilder()
+                    .addMembersByType(StaticMembersByType
+                        .newBuilder()
+                        .setType(MemberType
+                            .newBuilder()
+                            .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+                        .addMembers(1L)
+                        .addMembers(2L))
+                    .addMembersByType(StaticMembersByType
+                        .newBuilder()
+                        .setType(MemberType
+                            .newBuilder()
+                            .setEntity(UIEntityType.DATABASE.typeNumber()))
+                        .addMembers(3L))
+                    .addMembersByType(StaticMembersByType
+                        .newBuilder()
+                        .setType(MemberType
+                            .newBuilder()
+                            .setEntity(UIEntityType.DATABASE_SERVER.typeNumber()))
+                        .addMembers(4L))
+                    .addMembersByType(StaticMembersByType
+                        .newBuilder()
+                        .setType(MemberType
+                            .newBuilder()
+                            .setEntity(UIEntityType.VIRTUAL_VOLUME.typeNumber()))
+                        .addAllMembers(Arrays.asList(5L, 6L, 7L, 8L, 9L)))
+                ))
+            .build();
+
+        when(groupExpander.getMembersForGroup(group)).thenReturn(ImmutableGroupAndMembers.builder()
+            .group(group).entities(GroupProtoUtil.getStaticMembers(group))
+            .members(GroupProtoUtil.getStaticMembers(group)).build());
+
+        final GroupApiDTO mappedDto = groupMapper.toGroupApiDto(group, EnvironmentType.CLOUD);
+
+        assertThat(mappedDto.getTemporary(), is(false));
+        assertThat(mappedDto.getUuid(), is("8"));
+        assertThat(mappedDto.getIsStatic(), is(true));
+        assertThat(mappedDto.getEntitiesCount(), is(9));
+        assertThat(mappedDto.getMembersCount(), is(4));
+        assertThat(mappedDto.getMemberUuidList(), containsInAnyOrder("1", "2", "3",
+            "4", "5", "6", "7", "8", "9"));
+        assertThat(mappedDto.getGroupType(), is(WORKLOAD));
+        assertThat(mappedDto.getEnvironmentType(), is(EnvironmentType.CLOUD));
+        assertThat(mappedDto.getClassName(), is(RESOURCE_GROUP));
     }
 
     @Test

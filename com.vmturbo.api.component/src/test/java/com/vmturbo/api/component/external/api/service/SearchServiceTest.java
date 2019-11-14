@@ -805,6 +805,68 @@ public class SearchServiceTest {
         ));
     }
 
+
+    /**
+     * Test getMembersBasedOnFilterQuery when we are searching for workloads
+     * in scope of Resource Group.
+     *
+     * @throws Exception in case of error
+     */
+    @Test
+    public void testGetMembersOfResourceGroupBasedOnFilterQuery() throws Exception {
+        final long oid = 1234;
+        GroupApiDTO request = new GroupApiDTO();
+        request.setClassName(StringConstants.WORKLOAD);
+        request.setCriteriaList(Collections.emptyList());
+        request.setScope(Arrays.asList(String.valueOf(oid)));
+
+        List<ApiPartialEntity> entities = setupEntitiesForMemberQuery();
+        when(searchServiceSpy.searchEntities(any())).thenReturn(SearchEntitiesResponse.newBuilder()
+            .addAllEntities(entities.stream()
+                .map(e -> PartialEntity.newBuilder().setApi(e).build())
+                .collect(Collectors.toList()))
+            .setPaginationResponse(PaginationResponse.newBuilder())
+            .build());
+
+        final ArgumentCaptor<List<BaseApiDTO>> resultCaptor =
+            ArgumentCaptor.forClass((Class)List.class);
+        final SearchPaginationRequest paginationRequest = mock(SearchPaginationRequest.class);
+        Mockito.when(paginationRequest.getCursor()).thenReturn(Optional.empty());
+        Mockito.when(paginationRequest.allResultsResponse(any()))
+            .thenReturn(mock(SearchPaginationResponse.class));
+        Mockito.when(paginationRequest.getOrderBy())
+            .thenReturn(SearchOrderBy.NAME);
+
+        SingleEntityRequest singleEntityRequest = mock(SingleEntityRequest.class);
+        when(repositoryApi.entityRequest(oid)).thenReturn(singleEntityRequest);
+
+        when(singleEntityRequest.getFullEntity()).thenReturn(Optional.empty());
+
+        when(groupExpander.getGroup(eq(String.valueOf(oid)))).thenReturn(Optional.of(Grouping.newBuilder()
+            .setId(oid)
+            .setDefinition(GroupDefinition.getDefaultInstance())
+            .build()
+        ));
+
+        when(groupsService.expandUuids(any(), any(), any())).thenReturn(ImmutableSet.of(1L, 4L,
+            5L));
+
+        searchService.getMembersBasedOnFilter("foo", request, paginationRequest);
+        verify(paginationRequest).finalPageResponse(resultCaptor.capture());
+
+        final List<Long> resultIds = resultCaptor.getValue()
+            .stream()
+            .map(BaseApiDTO::getUuid)
+            .map(Long::parseLong)
+            .collect(Collectors.toList());
+
+        final Map<Long, BaseApiDTO> resultById = resultCaptor.getValue().stream()
+            .collect(Collectors.toMap(se -> Long.valueOf(se.getUuid()), Function.identity()));
+
+        assertThat(resultIds.size(), is(3));
+        assertThat(resultById.keySet(), containsInAnyOrder(1L, 4L, 5L));
+    }
+
     /**
      * The options for the tags fields should come from the tags that are in the live topology.
      * These can be fetched by calling the tag service.

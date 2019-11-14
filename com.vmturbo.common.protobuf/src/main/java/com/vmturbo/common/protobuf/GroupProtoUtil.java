@@ -92,6 +92,18 @@ public class GroupProtoUtil {
                     GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER);
 
     /**
+     * The entity types that we consider WORKLOAD.
+     */
+    public static final Set<UIEntityType> WORKLOAD_ENTITY_TYPES = ImmutableSet.of(
+        UIEntityType.VIRTUAL_MACHINE, UIEntityType.DATABASE, UIEntityType.DATABASE_SERVER);
+
+    /**
+     * The API String for entity types that we consider as workload.
+     */
+    public static final Set<String> WORKLOAD_ENTITY_TYPES_API_STR = WORKLOAD_ENTITY_TYPES
+        .stream().map(UIEntityType::apiStr).collect(Collectors.toSet());
+
+    /**
      * Match the name with filter. If the filter has case sensitive set to true,
      * matching is case sensitive; otherwise matching is case insensitive.
      * @param name The name to compare with the filter.

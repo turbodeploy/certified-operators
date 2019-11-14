@@ -1,6 +1,6 @@
 package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
-import static com.vmturbo.api.component.external.api.service.StatsService.ENTITY_TYPES_COUNTED_AS_WORKLOAD;
+import static com.vmturbo.common.protobuf.GroupProtoUtil.WORKLOAD_ENTITY_TYPES_API_STR;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -176,7 +176,7 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
                                                         long contextId) throws OperationFailedException {
         // fetch related entities ids for given scopes
         final Map<String, Set<Long>> idsByEntityType = getRelatedEntities(scopes,
-            ENTITY_TYPES_COUNTED_AS_WORKLOAD);
+            new ArrayList<>(WORKLOAD_ENTITY_TYPES_API_STR));
         return idsByEntityType.entrySet().stream()
             .flatMap(entry -> fetchNumEntitiesByTierStats(entry.getValue(), contextId,
                 StringConstants.NUM_WORKLOADS, StringConstants.TEMPLATE,

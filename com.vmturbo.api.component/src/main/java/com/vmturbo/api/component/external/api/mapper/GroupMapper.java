@@ -1,5 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static com.vmturbo.common.protobuf.GroupProtoUtil.WORKLOAD_ENTITY_TYPES;
+
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -270,7 +272,7 @@ public class GroupMapper {
         outputDTO.setDisplayName(group.getDefinition().getDisplayName());
         outputDTO.setUuid(Long.toString(group.getId()));
 
-        outputDTO.setMembersCount(groupAndMembers.members().size());
+        outputDTO.setMembersCount(getMembersCount(groupAndMembers));
         outputDTO.setMemberUuidList(groupAndMembers.members().stream()
             .map(oid -> Long.toString(oid))
             .collect(Collectors.toList()));
@@ -285,6 +287,25 @@ public class GroupMapper {
         }
 
         return outputDTO;
+    }
+
+    private int getMembersCount(GroupAndMembers groupAndMembers) {
+        if (groupAndMembers.group().getDefinition().getType() == GroupType.RESOURCE) {
+            return groupAndMembers.group()
+                .getDefinition()
+                .getStaticGroupMembers()
+                .getMembersByTypeList()
+                .stream()
+                .filter(membersByType -> membersByType.getType().hasEntity()
+                    && WORKLOAD_ENTITY_TYPES.contains(
+                        UIEntityType.fromType(membersByType.getType().getEntity())))
+                .map(StaticMembersByType::getMembersCount)
+                .mapToInt(Integer::intValue)
+                .sum();
+
+        } else {
+            return groupAndMembers.members().size();
+        }
     }
 
     /**

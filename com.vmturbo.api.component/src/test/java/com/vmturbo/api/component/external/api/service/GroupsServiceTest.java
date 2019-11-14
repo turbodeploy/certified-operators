@@ -670,7 +670,7 @@ public class GroupsServiceTest {
         final GroupApiDTO groupApiDtoMock = new GroupApiDTO();
         groupApiDtoMock.setUuid("2");
         groupApiDtoMock.setDisplayName(name);
-        groupApiDtoMock.setClassName(CommonDTO.GroupDTO.ConstraintType.CLUSTER.name());
+        groupApiDtoMock.setClassName(StringConstants.CLUSTER);
         groupApiDtoMock.setSeverity(Severity.NORMAL.toString());
 
         final Grouping cluster = Grouping.newBuilder()
@@ -709,7 +709,129 @@ public class GroupsServiceTest {
         assertThat(groupApiDTOs.size(), is(1));
         final GroupApiDTO groupApiDTO = groupApiDTOs.get(0);
         assertEquals(name, groupApiDTO.getDisplayName());
-        assertEquals(CommonDTO.GroupDTO.ConstraintType.CLUSTER.name(), groupApiDTO.getClassName());
+        assertEquals(StringConstants.CLUSTER, groupApiDTO.getClassName());
+        assertEquals("2", groupApiDTO.getUuid());
+        assertThat(groupApiDTO.getSeverity(), is(Severity.NORMAL.name()));
+    }
+
+    /**
+     * Tests the case when we are trying to get resource groups inside the scope of group of
+     * resource groups.
+     *
+     * @throws Exception when something goes wrong.
+     */
+    @Test
+    public void getResourceGroupsInAGroupOfResourceGroups() throws Exception {
+        //Arrange
+        final ApiId entityApiId = mock(ApiId.class);
+        when(entityApiId.isGroup()).thenReturn(true);
+
+        when(uuidMapper.fromUuid("1")).thenReturn(entityApiId);
+
+        final GroupDefinition groupDefinitionRg = GroupDefinition
+            .newBuilder()
+            .setType(GroupType.REGULAR)
+            .setStaticGroupMembers(GroupDTO.StaticMembers.newBuilder()
+                .addMembersByType(GroupDTO.StaticMembers.StaticMembersByType.newBuilder()
+                    .setType(GroupDTO.MemberType.newBuilder().setGroup(GroupType.RESOURCE).build())
+                    .addMembers(2L)
+                    .build())
+                .build())
+            .build();
+
+        final Grouping rgGroup = Grouping.newBuilder()
+            .setDefinition(groupDefinitionRg)
+            .setId(1L)
+            .build();
+
+
+        final GroupAndMembers groupAndMembers = ImmutableGroupAndMembers.builder()
+            .group(rgGroup)
+            .members(Arrays.asList(2L))
+            .entities(Arrays.asList(3L, 4L))
+            .build();
+
+        when(groupExpander.getGroupWithMembers("1"))
+            .thenReturn(Optional.of(groupAndMembers));
+
+
+        final GroupDefinition groupDefinitionVm = GroupDefinition
+            .newBuilder()
+            .setType(GroupType.REGULAR)
+            .setStaticGroupMembers(GroupDTO.StaticMembers.newBuilder()
+                .addMembersByType(GroupDTO.StaticMembers.StaticMembersByType.newBuilder()
+                    .setType(GroupDTO.MemberType.newBuilder()
+                        .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()).build())
+                    .addMembers(11L)
+                    .build())
+                .build())
+            .build();
+
+        final Grouping vmGroup = Grouping.newBuilder()
+            .setDefinition(groupDefinitionVm)
+            .setId(10L)
+            .build();
+
+
+        final GroupAndMembers vmGroupAndMembers = ImmutableGroupAndMembers.builder()
+            .group(vmGroup)
+            .members(Arrays.asList(10L))
+            .entities(Arrays.asList(10L))
+            .build();
+
+        when(groupExpander.getGroupWithMembers("10"))
+            .thenReturn(Optional.of(vmGroupAndMembers));
+
+        final GroupFilter groupFilter = GroupFilter.newBuilder()
+            .setGroupType(GroupType.RESOURCE)
+            .addId(2L)
+            .build();
+
+        final GetGroupsRequest groupsRequest = GetGroupsRequest.newBuilder()
+            .setGroupFilter(groupFilter)
+            .build();
+
+        when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.RESOURCE),
+            eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
+                .setGroupType(GroupType.RESOURCE).build());
+
+        final Grouping childRG = Grouping.newBuilder()
+            .setId(2L)
+            .build();
+
+        final GroupAndMembers childRgGroupAndMembers = ImmutableGroupAndMembers.builder()
+            .group(childRG)
+            .members(Collections.emptyList())
+            .entities(Collections.emptyList())
+            .build();
+
+        when(groupExpander.getGroupsWithMembers(eq(groupsRequest))).thenReturn(
+            Collections.singleton(childRgGroupAndMembers).stream());
+
+        final String rgName = "testRG";
+
+        final GroupApiDTO groupApiDtoMock = new GroupApiDTO();
+        groupApiDtoMock.setUuid("2");
+        groupApiDtoMock.setDisplayName(rgName);
+        groupApiDtoMock.setClassName(StringConstants.RESOURCE_GROUP);
+        groupApiDtoMock.setSeverity(Severity.NORMAL.toString());
+
+        when(groupMapper.getEnvironmentTypeForGroup(eq(childRgGroupAndMembers)))
+            .thenReturn(EnvironmentType.CLOUD);
+
+        when(groupMapper.toGroupApiDto(childRgGroupAndMembers, EnvironmentType.CLOUD, true))
+            .thenReturn(groupApiDtoMock);
+
+        //Act
+        final List<GroupApiDTO> groupApiDTOs =
+            groupsService.getGroupsByType(GroupType.RESOURCE,
+                Arrays.asList("1", "10"), Collections.emptyList());
+
+        //Assert
+        assertThat(groupApiDTOs.size(), is(1));
+        final GroupApiDTO groupApiDTO = groupApiDTOs.get(0);
+        assertEquals(rgName, groupApiDTO.getDisplayName());
+        assertEquals(StringConstants.RESOURCE_GROUP, groupApiDTO.getClassName());
         assertEquals("2", groupApiDTO.getUuid());
         assertThat(groupApiDTO.getSeverity(), is(Severity.NORMAL.name()));
     }
@@ -795,21 +917,20 @@ public class GroupsServiceTest {
         String templateId = "3333";
 
         Template template = Template.newBuilder()
-                .setId(Long.parseLong(templateId))
-                .setType(Template.Type.SYSTEM)
-                .setTemplateInfo(TemplateInfo.newBuilder()
-                        .setName("template name"))
-                .build();
+            .setId(Long.parseLong(templateId))
+            .setType(Template.Type.SYSTEM)
+            .setTemplateInfo(TemplateInfo.newBuilder()
+                .setName("template name"))
+            .build();
         when(templateServiceSpy.getTemplates(any(GetTemplatesRequest.class)))
-                .thenReturn(Arrays.asList(GetTemplatesResponse.newBuilder()
-                        .addTemplates(SingleTemplateResponse.newBuilder()
-                                .setTemplate(template))
-                       .build()));
+            .thenReturn(Arrays.asList(GetTemplatesResponse.newBuilder()
+                .addTemplates(SingleTemplateResponse.newBuilder()
+                    .setTemplate(template))
+                .build()));
         groupsService.getSettingsByGroupUuid(groupUuid, false);
         verify(groupServiceSpy).getGroup(GroupID.newBuilder()
-                .setId(Long.valueOf(groupUuid))
-                .build());
+            .setId(Long.valueOf(groupUuid))
+            .build());
         assertEquals(template, templateServiceSpy.getTemplates(any()).get(0).getTemplates(0).getTemplate());
     }
-
 }

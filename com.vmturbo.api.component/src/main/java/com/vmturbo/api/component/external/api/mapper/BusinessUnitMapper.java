@@ -1,5 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static com.vmturbo.common.protobuf.GroupProtoUtil.WORKLOAD_ENTITY_TYPES_API_STR;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -87,11 +89,6 @@ public class BusinessUnitMapper {
             EntityType.COMPUTE_TIER_VALUE,
             EntityType.DATABASE_TIER_VALUE,
             EntityType.STORAGE_TIER_VALUE);
-
-    private static final Set<String> WORKLOAD_ENTITY_TYPES = ImmutableSet.of(
-            StringConstants.VIRTUAL_MACHINE,
-            StringConstants.DATABASE,
-            StringConstants.DATABASE_SERVER);
 
     private final long realtimeTopologyContextId;
 
@@ -499,7 +496,7 @@ public class BusinessUnitMapper {
                 .getSEMap()
                 .values()
                 .stream()
-                .filter(se -> WORKLOAD_ENTITY_TYPES.contains(se.getClassName()))
+                .filter(se -> WORKLOAD_ENTITY_TYPES_API_STR.contains(se.getClassName()))
                 .collect(Collectors.toList());
         businessUnitApiDTO.setMembersCount(results.size());
 

@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
-import static com.vmturbo.api.component.external.api.service.StatsService.ENTITY_TYPES_COUNTED_AS_WORKLOAD;
+import static com.vmturbo.common.protobuf.GroupProtoUtil.WORKLOAD_ENTITY_TYPES;
+import static com.vmturbo.common.protobuf.GroupProtoUtil.WORKLOAD_ENTITY_TYPES_API_STR;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -82,7 +83,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         StringConstants.NUM_VMS, Collections.singletonList(UIEntityType.VIRTUAL_MACHINE.apiStr()),
         StringConstants.NUM_DBS, Collections.singletonList(UIEntityType.DATABASE.apiStr()),
         StringConstants.NUM_DBSS, Collections.singletonList(UIEntityType.DATABASE_SERVER.apiStr()),
-        StringConstants.NUM_WORKLOADS, ENTITY_TYPES_COUNTED_AS_WORKLOAD
+        StringConstants.NUM_WORKLOADS, new ArrayList<>(WORKLOAD_ENTITY_TYPES_API_STR)
     );
     /**
      * Cloud target constant to match UI request, also used in test case
@@ -202,7 +203,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             final Set<Long> cloudEntityOids;
             if (context.getInputScope().isPlan()) {
                 cloudEntityOids = supplyChainFetcherFactory.expandScope(context.getQueryScope().getEntities(),
-                    ENTITY_TYPES_COUNTED_AS_WORKLOAD);
+                    new ArrayList<>(WORKLOAD_ENTITY_TYPES_API_STR));
             } else {
                 // Do we need to get the related workload entities here too?
                 cloudEntityOids = context.getQueryScope().getEntities();
@@ -626,8 +627,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             .forEach(statApiInputDTO -> {
                 String entityType = statApiInputDTO.getRelatedEntityType();
                 if (CompositeEntityTypesSpec.WORKLOAD_ENTITYTYPE.equals(entityType)) {
-                    relatedEntityTypes.addAll(ENTITY_TYPES_COUNTED_AS_WORKLOAD.stream()
-                        .map(UIEntityType::fromString)
+                    relatedEntityTypes.addAll(WORKLOAD_ENTITY_TYPES.stream()
                         .map(UIEntityType::typeNumber)
                         .collect(Collectors.toSet())
                     );

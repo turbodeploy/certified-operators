@@ -1200,17 +1200,28 @@ public class GroupsService implements IGroupsService {
             .map(groupExpander::getGroupWithMembers)
             .filter(Optional::isPresent)
             .map(Optional::get)
-            .filter(groupAndMembers -> {
-                final Grouping group = groupAndMembers.group();
-                return group.getDefinition().hasGroupFilters()
-                        && group.getDefinition()
-                            .getGroupFilters().getGroupFilterList()
-                                .stream()
-                                .anyMatch(groupFilter -> groupFilter.getGroupType() == groupType);
-            })
+            .filter(groupAndMembers -> isNestedGroupOfType(groupAndMembers, groupType))
             .forEach(clusterAndMembers -> clusterAndMembers.members().forEach(builder::addId));
         reqBuilder.setGroupFilter(builder);
         return getGroupApiDTOS(reqBuilder.build(), true);
+    }
+
+    private boolean isNestedGroupOfType(GroupAndMembers groupAndMembers, GroupType groupType) {
+        final GroupDefinition group = groupAndMembers.group().getDefinition();
+        if (group.hasStaticGroupMembers()) {
+            return group.getStaticGroupMembers()
+                .getMembersByTypeList()
+                .stream()
+                .anyMatch(staticMembersByType -> staticMembersByType.getType().hasGroup()
+                        && staticMembersByType.getType().getGroup() == groupType);
+        } else if (group.hasGroupFilters()) {
+            return group
+                .getGroupFilters().getGroupFilterList()
+                .stream()
+                .anyMatch(groupFilter -> groupFilter.getGroupType() == groupType);
+        } else {
+            return false;
+        }
     }
 
     /**

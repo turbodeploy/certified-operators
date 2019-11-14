@@ -91,6 +91,13 @@ public class EntityFilterMapper {
     public static final String ELEMENTS_DELIMITER = ":";
     public static final String NESTED_FIELD_DELIMITER = "\\.";
 
+    /**
+     * We prepend  and append \Q and \E to string when we want to
+     * match something literally in regex if we have string with only those that is an empty
+     * string as well.
+     */
+    public static final String EMPTY_QUERY_STRING = "\\Q\\E";
+
 
     // set of supported traversal types, the string should be the same as groupBuilderUsecases.json
     private static final Set<String> TRAVERSAL_TYPES = ImmutableSet.of(
@@ -143,7 +150,7 @@ public class EntityFilterMapper {
         return filterTypesToProcessors.build();
     }
 
-    private static StoppingCondition.Builder buildStoppingCondition(String currentToken) {
+    private static StoppingCondition.Builder buildStoppingCondition(List<String> currentToken) {
         return StoppingCondition.newBuilder().setStoppingPropertyFilter(
                         SearchProtoUtil.entityTypeFilter(currentToken));
     }
@@ -222,6 +229,33 @@ public class EntityFilterMapper {
      * group request, UI use groupType field store entityType.
      *
      * @param criteriaList list of {@link FilterApiDTO}  received from the UI
+     * @param entityTypes the name of entity types, such as VirtualMachine
+     * @param nameQuery user specified search query for entity name. If it is not null, it will be
+     *                  converted to a entity name filter.
+     * @return list of search parameters to use for querying the repository
+     */
+    public List<SearchParameters> convertToSearchParameters(@Nonnull List<FilterApiDTO> criteriaList,
+                                                            @Nonnull List<String> entityTypes,
+                                                            @Nullable String nameQuery) {
+        Optional<List<FilterApiDTO>> filterApiDTOList =
+                (criteriaList != null && !criteriaList.isEmpty())
+                        ? Optional.of(criteriaList)
+                        : Optional.empty();
+        return filterApiDTOList
+                .map(filterApiDTOs -> filterApiDTOs.stream()
+                        .map(filterApiDTO -> filter2parameters(filterApiDTO, entityTypes,
+                            nameQuery))
+                        .collect(Collectors.toList()))
+                .orElse(ImmutableList.of(searchParametersForEmptyCriteria(entityTypes, nameQuery)));
+    }
+
+    /**
+     * Convert a list of  {@link FilterApiDTO} to a list of search parameters. Right now the
+     * entity type sources have inconsistency between search service with group service requests.
+     * For search service request, UI use class name field store entityType, but for creating
+     * group request, UI use groupType field store entityType.
+     *
+     * @param criteriaList list of {@link FilterApiDTO}  received from the UI
      * @param entityType the name of entity type, such as VirtualMachine
      * @param nameQuery user specified search query for entity name. If it is not null, it will be
      *                  converted to a entity name filter.
@@ -230,15 +264,8 @@ public class EntityFilterMapper {
     public List<SearchParameters> convertToSearchParameters(@Nonnull List<FilterApiDTO> criteriaList,
                                                             @Nonnull String entityType,
                                                             @Nullable String nameQuery) {
-        Optional<List<FilterApiDTO>> filterApiDTOList =
-                (criteriaList != null && !criteriaList.isEmpty())
-                        ? Optional.of(criteriaList)
-                        : Optional.empty();
-        return filterApiDTOList
-                .map(filterApiDTOs -> filterApiDTOs.stream()
-                        .map(filterApiDTO -> filter2parameters(filterApiDTO, entityType, nameQuery))
-                        .collect(Collectors.toList()))
-                .orElse(ImmutableList.of(searchParametersForEmptyCriteria(entityType, nameQuery)));
+        return convertToSearchParameters(criteriaList, Collections.singletonList(entityType),
+            nameQuery);
     }
 
     /**
@@ -394,12 +421,12 @@ public class EntityFilterMapper {
      *                  converted to a entity name filter.
      * @return a search parameters object only contains starting filter with entity type
      */
-    private SearchParameters searchParametersForEmptyCriteria(@Nonnull final String entityType,
-                                                              @Nullable final String nameQuery) {
+    private SearchParameters searchParametersForEmptyCriteria(@Nonnull final List<String>
+            entityType, @Nullable final String nameQuery) {
         PropertyFilter byType = SearchProtoUtil.entityTypeFilter(entityType);
         final SearchParameters.Builder searchParameters = SearchParameters.newBuilder()
                         .setStartingFilter(byType);
-        if (!StringUtils.isEmpty(nameQuery)) {
+        if (!StringUtils.isEmpty(nameQuery) && !EMPTY_QUERY_STRING.equals(nameQuery)) {
             // For the query string, we want to use a "contains"-type query.
             searchParameters.addSearchFilter(SearchProtoUtil.searchFilterProperty(
                             SearchProtoUtil.nameFilterRegex(".*" + nameQuery + ".*")));
@@ -424,13 +451,13 @@ public class EntityFilterMapper {
      * conditions. If this becomes necessary then we'll need to update this implementation.</p>
      *
      * @param filter a filter
-     * @param entityType class name of the byName filter
+     * @param entityTypes entity types if the filter
      * @param nameQuery user specified search query for entity name. If it is not null, it will be
      *                  converted to a entity name filter.
      * @return parameters full search parameters
      */
     private SearchParameters filter2parameters(@Nonnull FilterApiDTO filter,
-                                               @Nonnull String entityType,
+                                               @Nonnull List<String> entityTypes,
                                                @Nullable String nameQuery) {
         GroupUseCaseCriteria useCase = groupUseCaseParser.getUseCasesByFilterType()
                         .get(filter.getFilterType());
@@ -450,13 +477,13 @@ public class EntityFilterMapper {
         if (UIEntityType.fromString(firstToken) != UIEntityType.UNKNOWN) {
             parametersBuilder.setStartingFilter(SearchProtoUtil.entityTypeFilter(firstToken));
         } else {
-            parametersBuilder.setStartingFilter(SearchProtoUtil.entityTypeFilter(entityType));
+            parametersBuilder.setStartingFilter(SearchProtoUtil.entityTypeFilter(entityTypes));
             iterator = elements.iterator();
         }
 
         final ImmutableList.Builder<SearchFilter> searchFilters = new ImmutableList.Builder<>();
         while (iterator.hasNext()) {
-            searchFilters.addAll(processToken(filter, entityType, iterator, useCase.getInputType(),
+            searchFilters.addAll(processToken(filter, entityTypes, iterator, useCase.getInputType(),
                             firstToken));
         }
         if (!StringUtils.isEmpty(nameQuery)) {
@@ -506,7 +533,7 @@ public class EntityFilterMapper {
      * @return list of SearchFilters for given tokens
      */
     private List<SearchFilter> processToken(@Nonnull FilterApiDTO filter,
-                                            @Nonnull String entityType,
+                                            @Nonnull List<String> entityType,
                                             @Nonnull Iterator<String> iterator,
                                             @Nonnull String inputType,
                                             @Nonnull String firstToken) {
@@ -741,7 +768,7 @@ public class EntityFilterMapper {
 
         private final Iterator<String> iterator;
 
-        private final String entityType;
+        private final List<String> entityTypes;
 
         private final String currentToken;
 
@@ -750,10 +777,11 @@ public class EntityFilterMapper {
         private final String firstToken;
 
         SearchFilterContext(@Nonnull FilterApiDTO filter, @Nonnull Iterator<String> iterator,
-                        @Nonnull String entityType, @Nonnull String currentToken, @Nonnull String firstToken) {
+                        @Nonnull List<String> entityTypes, @Nonnull String currentToken,
+                            @Nonnull String firstToken) {
             this.filter = Objects.requireNonNull(filter);
             this.iterator = Objects.requireNonNull(iterator);
-            this.entityType = Objects.requireNonNull(entityType);
+            this.entityTypes = Objects.requireNonNull(entityTypes);
             this.currentToken = Objects.requireNonNull(currentToken);
             this.firstToken = Objects.requireNonNull(firstToken);
         }
@@ -769,8 +797,8 @@ public class EntityFilterMapper {
         }
 
         @Nonnull
-        public String getEntityType() {
-            return entityType;
+        public List<String> getEntityTypes() {
+            return entityTypes;
         }
 
         @Nonnull
@@ -804,7 +832,7 @@ public class EntityFilterMapper {
             TraversalDirection direction = TraversalDirection.valueOf(context.getCurrentToken());
             final StoppingCondition.Builder stopperBuilder;
             final Iterator<String> iterator = context.getIterator();
-            final String entityType = context.getEntityType();
+            final List<String> entityTypes = context.getEntityTypes();
             if (iterator.hasNext()) {
                 final String currentToken = iterator.next();
                 // An explicit stopper can either be the number of hops, or an
@@ -823,14 +851,15 @@ public class EntityFilterMapper {
                     }
                 } else {
                     // For example: Produces:VirtualMachine
-                    stopperBuilder = buildStoppingCondition(currentToken);
+                    stopperBuilder =
+                        buildStoppingCondition(Collections.singletonList(currentToken));
                     // set condition for number of connected vertices if required
                     if (context.shouldFilterByNumConnectedVertices()) {
                         setVerticesCondition(stopperBuilder, currentToken, context);
                     }
                 }
             } else {
-                stopperBuilder = buildStoppingCondition(entityType);
+                stopperBuilder = buildStoppingCondition(entityTypes);
             }
 
             TraversalFilter traversal = TraversalFilter.newBuilder()
@@ -845,7 +874,7 @@ public class EntityFilterMapper {
             // if it's a filter by number of connected vertices, we don't need to filter on PM type again
             if (context.isHopCountBasedTraverse(stopperBuilder) && !context.shouldFilterByNumConnectedVertices()) {
                 searchFilters.add(SearchProtoUtil.searchFilterProperty(SearchProtoUtil
-                                .entityTypeFilter(entityType)));
+                                .entityTypeFilter(entityTypes)));
             }
             return searchFilters.build();
         }

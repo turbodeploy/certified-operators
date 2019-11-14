@@ -4,13 +4,12 @@ import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.A
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.CONNECTED_STORAGE_TIER_FILTER_PATH;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.STATE;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.VOLUME_ATTACHMENT_STATE_FILTER_PATH;
-import static com.vmturbo.components.common.utils.StringConstants.DATABASE;
-import static com.vmturbo.components.common.utils.StringConstants.DATABASE_SERVER;
+import static com.vmturbo.common.protobuf.GroupProtoUtil.WORKLOAD_ENTITY_TYPES;
+import static com.vmturbo.common.protobuf.GroupProtoUtil.WORKLOAD_ENTITY_TYPES_API_STR;
 import static com.vmturbo.components.common.utils.StringConstants.CLUSTER;
 import static com.vmturbo.components.common.utils.StringConstants.GROUP;
 import static com.vmturbo.components.common.utils.StringConstants.RESOURCE_GROUP;
 import static com.vmturbo.components.common.utils.StringConstants.STORAGE_CLUSTER;
-import static com.vmturbo.components.common.utils.StringConstants.VIRTUAL_MACHINE;
 import static com.vmturbo.components.common.utils.StringConstants.VIRTUAL_MACHINE_CLUSTER;
 import static com.vmturbo.components.common.utils.StringConstants.WORKLOAD;
 
@@ -125,9 +124,6 @@ import com.vmturbo.repository.api.RepositoryClient;
 public class SearchService implements ISearchService {
 
     private static final Logger logger = LogManager.getLogger();
-
-    private static final Set<String> WORKLOAD_ENTITY_TYPES = ImmutableSet.of(
-            VIRTUAL_MACHINE, DATABASE, DATABASE_SERVER);
 
     private final RepositoryApi repositoryApi;
 
@@ -511,12 +507,14 @@ public class SearchService implements ISearchService {
                 }
 
                 SingleEntityRequest entityRequest = repositoryApi.entityRequest(businessAccountId);
-                TopologyEntityDTO topologyEntityDTO = entityRequest
-                                .getFullEntity()
-                                .orElseThrow(() -> new UnsupportedOperationException(
-                                        "Missing Business Unit with ID: " + businessAccountId));
+                Optional<TopologyEntityDTO> topologyEntityDTO = entityRequest
+                                .getFullEntity();
+                if (!topologyEntityDTO.isPresent()) {
+                    // if this is not business account try regular search
+                    return searchEntitiesByParameters(inputDTO, query, paginationRequest);
+                }
 
-                Set<Long> entitiesOid = topologyEntityDTO.getConnectedEntityListList()
+                Set<Long> entitiesOid = topologyEntityDTO.get().getConnectedEntityListList()
                                 .stream()
                                 .map(entity -> entity.getConnectedEntityId())
                                 .collect(Collectors.toSet());
@@ -525,7 +523,7 @@ public class SearchService implements ISearchService {
                         .getSEMap()
                         .values()
                         .stream()
-                        .filter(se -> WORKLOAD_ENTITY_TYPES.contains(se.getClassName()))
+                        .filter(se -> WORKLOAD_ENTITY_TYPES_API_STR.contains(se.getClassName()))
                         .collect(Collectors.toList());
 
                 return paginationRequest.allResultsResponse(results);
@@ -579,9 +577,10 @@ public class SearchService implements ISearchService {
                                                                 @Nonnull SearchPaginationRequest paginationRequest)
                 throws OperationFailedException {
         final String updatedQuery = escapeSpecialCharactersInSearchQueryPattern(nameQuery);
+        final List<String> entityTypes = getEntityTypes(inputDTO.getClassName());
         final List<SearchParameters> searchParameters =
                 entityFilterMapper.convertToSearchParameters(
-                                inputDTO.getCriteriaList(), inputDTO.getClassName(), updatedQuery)
+                                inputDTO.getCriteriaList(), entityTypes, updatedQuery)
                 .stream()
                 // Convert any cluster membership filters to property filters.
                 .map(this::resolveClusterFilters)
@@ -594,8 +593,6 @@ public class SearchService implements ISearchService {
                 .orElse(ImmutableSet.of());
         final boolean isGlobalScope = containsGlobalScope(scopeList);
 
-        final List<String> entityTypes = inputDTO.getClassName() == null
-            ? Collections.emptyList() : Collections.singletonList(inputDTO.getClassName());
         EnvironmentType envType = inputDTO.getEnvironmentType();
         final Set<Long> expandedIds = groupsService.expandUuids(scopeList, entityTypes, envType);
 
@@ -640,12 +637,25 @@ public class SearchService implements ISearchService {
         }
     }
 
+    private List<String> getEntityTypes(String className) {
+        if (className == null) {
+            return Collections.emptyList();
+        } else if (className.equals(WORKLOAD)) {
+            return WORKLOAD_ENTITY_TYPES.stream()
+                .map(UIEntityType::apiStr)
+                .collect(Collectors.toList());
+        } else {
+            return Collections.singletonList(className);
+        }
+    }
+
     /**
      * Implement search pagination with order by severity.  The query workflow will be: 1: The
      * query will first go to repository (if need) to get all candidates oids. 2: All candidates
      * oids will passed to Action Orchestrator and perform pagination based on entity severity,
      * and only return Top X candidates. 3: Query repository to get entity information only for
      * top X entities.
+     *
      * <p>
      * Because action severity data is already stored at Action Orchestrator, and it can be changed
      * when some action is executed. In this way, we can avoid store duplicate severity data and inconsistent
