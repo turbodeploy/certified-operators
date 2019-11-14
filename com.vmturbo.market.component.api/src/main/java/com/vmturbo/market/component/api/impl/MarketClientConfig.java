@@ -10,6 +10,7 @@ import java.util.concurrent.ThreadFactory;
 import javax.annotation.Nonnull;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -42,6 +43,10 @@ public class MarketClientConfig {
 
     @Autowired
     private BaseKafkaConsumerConfig baseKafkaConfig;
+
+    @Value("${kafkaReceiverTimeoutSeconds:3600}")
+    private int kafkaReceiverTimeoutSeconds;
+
     @Bean
     protected IMessageReceiver<ActionPlan> actionPlanReceiver(final Optional<StartFrom> startFromOverride) {
         return startFromOverride
@@ -141,6 +146,7 @@ public class MarketClientConfig {
                 analysisSummaryReceiver(topicsAndOverrides.get(Topic.AnalysisSummary)) : null;
         return new MarketComponentNotificationReceiver(projectedTopologyReceiver,
                 projectedEntityCostReceiver, projectedEntityRiCoverageReceiver, actionPlansReceiver,
-                planAnalysisTopologyReceiver, analysisSummaryReceiver, marketClientThreadPool());
+                planAnalysisTopologyReceiver, analysisSummaryReceiver, marketClientThreadPool(),
+                kafkaReceiverTimeoutSeconds);
     }
 }

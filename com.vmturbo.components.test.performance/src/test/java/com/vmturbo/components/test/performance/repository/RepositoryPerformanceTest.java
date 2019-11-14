@@ -62,7 +62,7 @@ import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSe
 public class RepositoryPerformanceTest {
     private static final Logger logger = LogManager.getLogger();
 
-    private Repository repository;
+    private RepositoryNotificationReceiver repository;
     private SupplyChainServiceBlockingStub supplyChainService;
     private KafkaMessageConsumer kafkaConsumer;
     private IMessageReceiver<RepositoryNotification> messageReceiver;
@@ -89,7 +89,7 @@ public class RepositoryPerformanceTest {
                 "RepositoryPerformanceTest");
         messageReceiver = kafkaConsumer.messageReceiver(RepositoryNotificationReceiver
                 .TOPOLOGY_TOPIC, RepositoryNotification::parseFrom);
-        repository = new RepositoryNotificationReceiver(messageReceiver, threadPool);
+        repository = new RepositoryNotificationReceiver(messageReceiver, threadPool, 0);
         kafkaConsumer.start();
 
         final Channel repositoryChannel = componentTestRule.getCluster().newGrpcChannel("repository");

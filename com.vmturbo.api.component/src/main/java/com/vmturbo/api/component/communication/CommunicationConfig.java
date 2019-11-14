@@ -167,7 +167,7 @@ public class CommunicationConfig {
         throws CommunicationException, InterruptedException, URISyntaxException {
         final ApiComponentActionListener actionsListener =
             new ApiComponentActionListener(websocketConfig.websocketHandler());
-        aoClientConfig.actionOrchestratorClient().addActionsListener(actionsListener);
+        aoClientConfig.actionOrchestratorClient().addListener(actionsListener);
         return actionsListener;
     }
 
@@ -457,7 +457,7 @@ public class CommunicationConfig {
     public ApiComponentTargetListener apiComponentTargetListener() {
         final ApiComponentTargetListener apiComponentTargetListener =
                 new ApiComponentTargetListener(topologyService(), websocketConfig.websocketHandler());
-        historyClientConfig.historyComponent().addStatsListener(apiComponentTargetListener);
+        historyClientConfig.historyComponent().addListener(apiComponentTargetListener);
         repositoryClientConfig.repository().addListener(apiComponentTargetListener);
         topologyProcessor().addTargetListener(apiComponentTargetListener);
         return apiComponentTargetListener;
@@ -467,7 +467,7 @@ public class CommunicationConfig {
     public ApiComponentNotificationListener apiComponentNotificationListener() {
         final ApiComponentNotificationListener listener =
                 new ApiComponentNotificationListener(notificationStore());
-        notificationClientConfig.systemNotificationListener().addNotificationListener(listener);
+        notificationClientConfig.systemNotificationListener().addListener(listener);
         return listener;
     }
 

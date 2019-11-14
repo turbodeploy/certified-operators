@@ -226,7 +226,7 @@ public class ReportingTestConfig {
 
     @Bean
     public ReportingNotificationReceiver notificationReceiver() {
-        return new ReportingNotificationReceiver(messageChannel(), threadPool());
+        return new ReportingNotificationReceiver(messageChannel(), threadPool(), 0);
     }
 
     @Bean

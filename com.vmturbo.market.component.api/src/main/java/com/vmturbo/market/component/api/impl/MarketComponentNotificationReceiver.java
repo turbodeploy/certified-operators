@@ -31,6 +31,7 @@ import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.api.client.ApiClientException;
 import com.vmturbo.components.api.client.ComponentNotificationReceiver;
 import com.vmturbo.components.api.client.IMessageReceiver;
+import com.vmturbo.components.api.client.MulticastNotificationReceiver;
 import com.vmturbo.market.component.api.ActionsListener;
 import com.vmturbo.market.component.api.AnalysisSummaryListener;
 import com.vmturbo.market.component.api.MarketComponent;
@@ -85,20 +86,7 @@ public class MarketComponentNotificationReceiver extends
     private final ChunkingReceiver<ProjectedTopologyEntity> projectedTopologyChunkReceiver;
     private final ChunkingReceiver<EntityCost> projectedEntityCostChunkReceiver;
     private final ChunkingReceiver<EntityReservedInstanceCoverage> projectedEntityRiCoverageChunkReceiver;
-    private final Set<AnalysisSummaryListener> analysisSummaryListenerSet;
-
-    private <LISTENER_TYPE> void doWithListeners(@Nonnull final Set<LISTENER_TYPE> listeners,
-                                                 final Consumer<LISTENER_TYPE> command) {
-        for (final LISTENER_TYPE listener : listeners) {
-            getExecutorService().submit(() -> {
-                try {
-                    command.accept(listener);
-                } catch (RuntimeException e) {
-                    getLogger().error("Error executing command for listener " + listener, e);
-                }
-            });
-        }
-    }
+    private final MulticastNotificationReceiver<AnalysisSummary, AnalysisSummaryListener> analysisSummaryHandler;
 
     public MarketComponentNotificationReceiver(
             @Nullable final IMessageReceiver<ProjectedTopology> projectedTopologyReceiver,
@@ -107,7 +95,8 @@ public class MarketComponentNotificationReceiver extends
             @Nullable final IMessageReceiver<ActionPlan> actionPlanReceiver,
             @Nullable final IMessageReceiver<Topology> planAnalysisTopologyReceiver,
             @Nullable final IMessageReceiver<AnalysisSummary> analysisSummaryReceiver,
-            @Nonnull final ExecutorService executorService) {
+            @Nonnull final ExecutorService executorService,
+            final int kafkaReceiverTimeoutSeconds) {
         super(actionPlanReceiver, executorService);
         if (projectedTopologyReceiver != null) {
             projectedTopologyListenersSet = Sets.newConcurrentHashSet();
@@ -147,10 +136,10 @@ public class MarketComponentNotificationReceiver extends
             planAnalysisTopologyListenersSet = Collections.emptySet();
         }
         if (analysisSummaryReceiver == null) {
-            analysisSummaryListenerSet = Sets.newConcurrentHashSet();
+            analysisSummaryHandler = null;
         } else {
-            analysisSummaryListenerSet = Collections.newSetFromMap(new ConcurrentHashMap<>());
-            analysisSummaryReceiver.addListener(this::processAnalysisSummary);
+            analysisSummaryHandler = new MulticastNotificationReceiver<>(analysisSummaryReceiver, executorService,
+                    kafkaReceiverTimeoutSeconds, analysisSummary -> l -> l.onAnalysisSummary(analysisSummary));
         }
     }
 
@@ -182,7 +171,10 @@ public class MarketComponentNotificationReceiver extends
 
     @Override
     public void addAnalysisSummaryListener(@Nonnull final AnalysisSummaryListener listener) {
-        analysisSummaryListenerSet.add(Objects.requireNonNull(listener));
+        if (analysisSummaryHandler == null) {
+            throw new IllegalStateException("The analysis summary topic has not been subscribed to.");
+        }
+        analysisSummaryHandler.addListener(Objects.requireNonNull(listener));
     }
 
     @Override
@@ -287,19 +279,6 @@ public class MarketComponentNotificationReceiver extends
                 getLogger().warn("Unknown broadcast data segment received: {}",
                                 projectedCoverageSegment.getSegmentCase());
         }
-    }
-
-    /**
-     * Process the Analysis results.
-     *
-     * @param analysisSummary the analysis results to process
-     * @param commitCommand a Runnable command to be processed when the whole stream has been processed
-     */
-    private void processAnalysisSummary(final AnalysisSummary analysisSummary,
-                                        @Nonnull Runnable commitCommand){
-
-        doWithListeners(analysisSummaryListenerSet, l -> l.onAnalysisSummary(analysisSummary));
-        commitCommand.run();
     }
 
     /**

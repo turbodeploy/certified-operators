@@ -10,9 +10,13 @@ import java.util.function.Consumer;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.components.api.client.ApiClientException;
 import com.vmturbo.components.api.client.ComponentNotificationReceiver;
 import com.vmturbo.components.api.client.IMessageReceiver;
+import com.vmturbo.components.api.client.MulticastNotificationReceiver;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportNotification;
 
 /**
@@ -20,17 +24,14 @@ import com.vmturbo.reporting.api.protobuf.Reporting.ReportNotification;
  */
 @ThreadSafe
 public class ReportingNotificationReceiver extends
-        ComponentNotificationReceiver<ReportNotification> {
+        MulticastNotificationReceiver<ReportNotification, ReportListener> {
+
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * Topic used for reports notifications.
      */
     public static final String REPORT_GENERATED_TOPIC = "report-generation-notifications";
-    /**
-     * Set of registered listeners.
-     */
-    private final Set<ReportListener> listeners =
-            Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     /**
      * Constructs reporting notification receiver.
@@ -40,25 +41,15 @@ public class ReportingNotificationReceiver extends
      */
     public ReportingNotificationReceiver(
             @Nonnull IMessageReceiver<ReportNotification> messageReceiver,
-            @Nonnull ExecutorService threadPool) {
-        super(Objects.requireNonNull(messageReceiver), threadPool);
-    }
-
-    @Override
-    protected void processMessage(@Nonnull ReportNotification message)
-            throws ApiClientException, InterruptedException {
-        final long reportId = message.getReportId();
-        getLogger().trace("Received notification {} for report {}", message::getNotificationCase,
-                message::getReportId);
-        final Consumer<ReportListener> notification = createNotificator(message);
-        for (final ReportListener listener : listeners) {
-            getExecutorService().execute(() -> notification.accept(listener));
-        }
+            @Nonnull ExecutorService threadPool, int kafkaReceiverTimeoutSeconds) {
+        super(Objects.requireNonNull(messageReceiver), threadPool, kafkaReceiverTimeoutSeconds,
+                ReportingNotificationReceiver::createNotificator);
     }
 
     @Nonnull
-    private static Consumer<ReportListener> createNotificator(@Nonnull ReportNotification message)
-            throws ApiClientException {
+    private static Consumer<ReportListener> createNotificator(@Nonnull ReportNotification message) {
+        logger.trace("Received notification {} for report {}", message::getNotificationCase,
+                message::getReportId);
         switch (message.getNotificationCase()) {
             case GENERATED:
                 return listener -> listener.onReportGenerated(message.getReportId());
@@ -66,17 +57,8 @@ public class ReportingNotificationReceiver extends
                 return listener -> listener.onReportFailed(message.getReportId(),
                         message.getFailed());
             default:
-                throw new ApiClientException(
-                        "Notification type not recognized: " + message.toString());
+                logger.error("Notification type not recognized: " + message.toString());
+                return listener -> { };
         }
-    }
-
-    /**
-     * Registers a listener to receive reports status notifications.
-     *
-     * @param listener listener to add
-     */
-    public void addListener(@Nonnull ReportListener listener) {
-        listeners.add(Objects.requireNonNull(listener));
     }
 }

@@ -37,6 +37,9 @@ public class ReportingClientConfig {
     @Value("${grpcPingIntervalSeconds}")
     private long grpcPingIntervalSeconds;
 
+    @Value("${kafkaReceiverTimeoutSeconds:3600}")
+    private int kafkaReceiverTimeoutSeconds;
+
     /**
      * GRPC channel to connect to reporting component's GRPC services.
      *
@@ -66,6 +69,6 @@ public class ReportingClientConfig {
     @Bean
     public ReportingNotificationReceiver reportingNotificationReceiver() {
         return new ReportingNotificationReceiver(reportNotificationIMessageReceiver(),
-                reportingThreadPool());
+                reportingThreadPool(), kafkaReceiverTimeoutSeconds);
     }
 }

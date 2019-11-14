@@ -8,14 +8,13 @@ import com.vmturbo.common.protobuf.sample.Echo.EchoResponse;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
-import com.vmturbo.sample.api.SampleComponent;
 import com.vmturbo.sample.api.SampleNotifications.SampleNotification;
 import com.vmturbo.sample.api.impl.SampleComponentNotificationReceiver;
 import com.vmturbo.sample.component.echo.EchoRpcConfig;
 
 /**
  * This is the server-side backend that's responsible for sending notifications to
- * all {@link SampleComponent} clients.
+ * all {@link SampleComponentNotificationReceiver} clients.
  *
  * {@link SampleComponentNotificationSender} opens a websocket endpoint. When clients
  * (i.e. other components) create a {@link SampleComponentNotificationReceiver} the implementation

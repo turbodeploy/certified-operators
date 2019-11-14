@@ -80,7 +80,7 @@ public class PlanNotificationsTest {
         server = new IntegrationTestServer(testName, PlanTestConfig.class);
         threadPool = Executors.newCachedThreadPool();
         messageReceiver = server.getBean("messageChannel");
-        client = new PlanOrchestratorClientImpl(messageReceiver, threadPool);
+        client = new PlanOrchestratorClientImpl(messageReceiver, threadPool, 0);
         planDao = server.getBean(PlanDao.class);
         actionsListener = server.getBean(PlanProgressListener.class);
         reservationPlacementHandler = server.getBean(ReservationPlacementHandler.class);

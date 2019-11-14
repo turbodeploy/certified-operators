@@ -2,7 +2,6 @@ package com.vmturbo.components.test.performance.action.orchestrator;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +16,12 @@ import java.util.stream.LongStream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+
+import io.grpc.Channel;
+import io.grpc.stub.StreamObserver;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.After;
@@ -25,20 +30,11 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-
-import io.grpc.Channel;
-import io.grpc.stub.StreamObserver;
 import tec.units.ri.unit.MetricPrefix;
 
-import com.vmturbo.action.orchestrator.api.ActionOrchestrator;
 import com.vmturbo.action.orchestrator.api.ActionsListener;
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorNotificationReceiver;
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionOrchestratorNotification;
-import com.vmturbo.common.protobuf.action.ActionDTO.Action;
-import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
@@ -46,6 +42,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
+import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -53,6 +50,7 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.SeverityCountsResponse;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
+import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
@@ -115,7 +113,7 @@ public class ActionOrchestratorPerformanceTest {
         IdentityGenerator.initPrefix(0);
     }
 
-    private ActionOrchestrator actionOrchestrator;
+    private ActionOrchestratorNotificationReceiver actionOrchestrator;
     private ActionsServiceBlockingStub actionsService;
     private EntitySeverityServiceBlockingStub severitiesService;
     private KafkaMessageConsumer messageConsumer;
@@ -139,7 +137,7 @@ public class ActionOrchestratorPerformanceTest {
         marketNotificationSender =
                 MarketKafkaSender.createMarketSender(componentTestRule.getKafkaMessageProducer());
         actionOrchestrator =
-                new ActionOrchestratorNotificationReceiver(messageReceiver, threadPool);
+                new ActionOrchestratorNotificationReceiver(messageReceiver, threadPool, 0);
         messageConsumer.start();
     }
 
@@ -228,11 +226,18 @@ public class ActionOrchestratorPerformanceTest {
             deleteActionsResponse.getActionCount());
     }
 
-    public void populateActions(@Nonnull final ActionOrchestrator actionOrchestrator,
+    /**
+     * Send the specified action plan to the action orchestrator for processing.
+     *
+     * @param actionOrchestrator The action orchestrator.
+     * @param actionPlan The action plan.
+     * @param type The type.
+     */
+    public void populateActions(@Nonnull final ActionOrchestratorNotificationReceiver actionOrchestrator,
                                 @Nonnull final ActionPlan actionPlan,
                                 @Nonnull final String type) throws Exception {
         final CompletableFuture<ActionsUpdated> actionsUpdatedFuture = new CompletableFuture<>();
-        actionOrchestrator.addActionsListener(new TestActionsListener(actionsUpdatedFuture));
+        actionOrchestrator.addListener(new TestActionsListener(actionsUpdatedFuture));
 
         final long start = System.currentTimeMillis();
         marketNotificationSender.notifyActionsRecommended(actionPlan);

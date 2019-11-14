@@ -47,7 +47,7 @@ import com.vmturbo.licensing.License;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.State;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification.Category;
-import com.vmturbo.repository.api.Repository;
+import com.vmturbo.repository.api.impl.RepositoryNotificationReceiver;
 
 /**
  * Test cases for {@link LicenseCheckService}.
@@ -96,7 +96,7 @@ public class LicenseCheckServiceTest {
         licenseManagerService = mock(LicenseManagerService.class);
         final SearchServiceBlockingStub searchServiceClient =
                 SearchServiceGrpc.newBlockingStub(testServer.getChannel());
-        final Repository repository = mock(Repository.class);
+        final RepositoryNotificationReceiver repository = mock(RepositoryNotificationReceiver.class);
         final IMessageSender<LicenseSummary> licenseSummaryIMessageSender = mock(IMessageSender.class);
         systemNotificationIMessageSender = mock(IMessageSender.class);
         mailManager = mock(MailManager.class);

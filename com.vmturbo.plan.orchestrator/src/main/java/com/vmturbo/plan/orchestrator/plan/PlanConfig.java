@@ -153,9 +153,9 @@ public class PlanConfig {
     public PlanProgressListener planProgressListener() {
         final PlanProgressListener listener =  new PlanProgressListener(planDao(), planService(),
                 reservationConfig.reservationPlacementHandler(), realtimeTopologyContextId);
-        aoClientConfig.actionOrchestratorClient().addActionsListener(listener);
+        aoClientConfig.actionOrchestratorClient().addListener(listener);
         repositoryClientConfig.repository().addListener(listener);
-        historyClientConfig.historyComponent().addStatsListener(listener);
+        historyClientConfig.historyComponent().addListener(listener);
         costComponent().addCostNotificationListener(listener);
         return listener;
     }

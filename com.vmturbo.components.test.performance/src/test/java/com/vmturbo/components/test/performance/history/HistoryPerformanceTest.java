@@ -13,11 +13,11 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Lists;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Before;
-
-import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.EntityStatsOrderBy;
@@ -40,8 +40,8 @@ import com.vmturbo.components.api.server.KafkaMessageProducer;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
 import com.vmturbo.components.test.utilities.utils.TopologyUtils;
-import com.vmturbo.history.component.api.HistoryComponent;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.HistoryComponentNotification;
+import com.vmturbo.history.component.api.impl.HistoryComponentNotificationReceiver;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.api.MarketKafkaSender;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -54,7 +54,7 @@ public abstract class HistoryPerformanceTest {
     protected MarketNotificationSender marketSender;
     protected TopologyProcessorNotificationSender tpSender;
 
-    protected HistoryComponent historyComponent;
+    protected HistoryComponentNotificationReceiver historyComponent;
     protected IMessageReceiver<HistoryComponentNotification> historyMessageReceiver;
     protected StatsHistoryServiceBlockingStub statsService;
     protected ExecutorService threadPool = Executors.newCachedThreadPool();

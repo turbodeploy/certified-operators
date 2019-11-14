@@ -63,7 +63,7 @@ public class SystemNotificationApiIntegrationTest {
 
         integrationTestServer = new IntegrationTestServer(testName, TestApiServerConfig.class);
         messageReceiver = integrationTestServer.getBean("notificationsChannel");
-        notificationReceiver = new NotificationReceiver(messageReceiver, threadPool);
+        notificationReceiver = new NotificationReceiver(messageReceiver, threadPool, 0);
 
         notificationSender = integrationTestServer.getBean(NotificationSender.class);
         logger.debug("Finished @Before");
@@ -85,7 +85,7 @@ public class SystemNotificationApiIntegrationTest {
     @Test
     public void testNotifySystemNotification() throws Exception {
         final NotificationsListener listener = Mockito.mock(NotificationsListener.class);
-        notificationReceiver.addNotificationListener(listener);
+        notificationReceiver.addListener(listener);
 
         final SystemNotification systemNotification = SystemNotification.newBuilder()
                 .setBroadcastId(1)

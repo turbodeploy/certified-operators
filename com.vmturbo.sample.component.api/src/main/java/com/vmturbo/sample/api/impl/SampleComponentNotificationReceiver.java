@@ -1,8 +1,5 @@
 package com.vmturbo.sample.api.impl;
 
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
@@ -10,27 +7,23 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.sample.Echo.EchoResponse;
 import com.vmturbo.components.api.client.ApiClientException;
-import com.vmturbo.components.api.client.ComponentNotificationReceiver;
 import com.vmturbo.components.api.client.IMessageReceiver;
+import com.vmturbo.components.api.client.MulticastNotificationReceiver;
 import com.vmturbo.sample.api.EchoListener;
-import com.vmturbo.sample.api.SampleComponent;
 import com.vmturbo.sample.api.SampleNotifications.SampleNotification;
 
 /**
- * This is the implementation of {@link SampleComponent}.
+ * Receiver for Sample Component nofication messages.
  *
  * Other components that want to receive notifications from the sample component create an
  * instance for this class, providing the connection information to the sample component, and
- * register listeners using {@link SampleComponent#addEchoListener(EchoListener)}.
+ * register listeners using {@link SampleComponentNotificationReceiver#addListener(EchoListener)}.
  */
 public class SampleComponentNotificationReceiver
-        extends ComponentNotificationReceiver<SampleNotification> implements SampleComponent {
+        extends MulticastNotificationReceiver<SampleNotification, EchoListener> {
 
     private final Logger logger = LogManager.getLogger();
-
-    private final Set<EchoListener> listeners = Collections.synchronizedSet(new HashSet<>());
 
     /**
      * {@inheritDoc}
@@ -38,7 +31,7 @@ public class SampleComponentNotificationReceiver
     public SampleComponentNotificationReceiver(
             @Nonnull final IMessageReceiver<SampleNotification> messageReceiver,
             @Nonnull final ExecutorService executorService) {
-        super(messageReceiver, executorService);
+        super(messageReceiver, executorService, 0);
     }
 
     @Override
@@ -46,25 +39,10 @@ public class SampleComponentNotificationReceiver
             throws ApiClientException {
         switch (message.getTypeCase()) {
             case ECHO_RESPONSE:
-                notifyEchoListeners(message.getEchoResponse());
+                invokeListeners(listener -> listener.onEchoResponse(message.getEchoResponse()));
                 break;
             default:
                 logger.error("Invalid notification.");
         }
-    }
-
-    private void notifyEchoListeners(@Nonnull final EchoResponse echoResponse) {
-        listeners.forEach(listener -> getExecutorService().submit(() -> {
-            try {
-                listener.onEchoResponse(echoResponse);
-            } catch (RuntimeException e) {
-                logger.error("Error processing echo response.", e);
-            }
-        }));
-    }
-
-    @Override
-    public void addEchoListener(@Nonnull final EchoListener listener) {
-        listeners.add(listener);
     }
 }

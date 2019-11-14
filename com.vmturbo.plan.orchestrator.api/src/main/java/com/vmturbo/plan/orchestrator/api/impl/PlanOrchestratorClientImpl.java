@@ -8,10 +8,14 @@ import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.components.api.client.ApiClientException;
 import com.vmturbo.components.api.client.ComponentNotificationReceiver;
 import com.vmturbo.components.api.client.IMessageReceiver;
+import com.vmturbo.components.api.client.MulticastNotificationReceiver;
 import com.vmturbo.plan.orchestrator.api.PlanListener;
 import com.vmturbo.plan.orchestrator.api.PlanOrchestrator;
 
@@ -19,28 +23,25 @@ import com.vmturbo.plan.orchestrator.api.PlanOrchestrator;
  * Implementation of plan orchestrator client.
  */
 public class PlanOrchestratorClientImpl extends
-        ComponentNotificationReceiver<PlanInstance> implements PlanOrchestrator {
+        MulticastNotificationReceiver<PlanInstance, PlanListener> implements PlanOrchestrator {
 
+    private static final Logger logger = LogManager.getLogger();
+
+    /**
+     * The topic name for plan orchestrator statuses
+     */
     public static final String STATUS_CHANGED_TOPIC = "plan-orchestrator-status-changed";
 
-    private final Set<PlanListener> listeners =
-            Collections.newSetFromMap(new ConcurrentHashMap<>());
-
     public PlanOrchestratorClientImpl(@Nonnull final IMessageReceiver<PlanInstance> messageReceiver,
-            @Nonnull final ExecutorService executorService) {
-        super(messageReceiver, executorService);
+            @Nonnull final ExecutorService executorService, int kafkaReceiverTimeoutSeconds) {
+        super(messageReceiver, executorService, kafkaReceiverTimeoutSeconds, message -> {
+            logger.debug("Received plan instance {}", message.hasPlanId());
+            return listener -> listener.onPlanStatusChanged(message);
+        });
     }
 
     @Override
-    protected void processMessage(@Nonnull PlanInstance message) throws ApiClientException {
-        getLogger().debug("Received plan instance {}", message.hasPlanId());
-        for (PlanListener listener : listeners) {
-            getExecutorService().submit(() -> listener.onPlanStatusChanged(message));
-        }
-    }
-
-    @Override
-    public void addPlanListener(@Nonnull final PlanListener listener) {
-        listeners.add(Objects.requireNonNull(listener, "Listener should not be null"));
+    public void addPlanListener(@Nonnull final PlanListener planListener) {
+        addListener(planListener);
     }
 }

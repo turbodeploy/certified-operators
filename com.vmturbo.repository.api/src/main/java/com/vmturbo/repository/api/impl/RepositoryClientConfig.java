@@ -53,6 +53,9 @@ public class RepositoryClientConfig {
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
+    @Value("${kafkaReceiverTimeoutSeconds:3600}")
+    private int kafkaReceiverTimeoutSeconds;
+
     @Autowired
     private BaseKafkaConsumerConfig kafkaConsumerConfig;
 
@@ -71,9 +74,9 @@ public class RepositoryClientConfig {
     }
 
     @Bean
-    public Repository repository() {
+    public RepositoryNotificationReceiver repository() {
         return new RepositoryNotificationReceiver(repositoryClientMessageReceiver(),
-                repositoryClientThreadPool());
+                repositoryClientThreadPool(), kafkaReceiverTimeoutSeconds);
     }
 
     @Bean

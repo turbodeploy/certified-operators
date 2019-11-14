@@ -41,6 +41,9 @@ public class PlanOrchestratorClientConfig {
     @Value("${grpcPingIntervalSeconds}")
     private long grpcPingIntervalSeconds;
 
+    @Value("${kafkaReceiverTimeoutSeconds:3600}")
+    private int kafkaReceiverTimeoutSeconds;
+
     @Autowired
     private BaseKafkaConsumerConfig consumerConfig;
 
@@ -61,7 +64,7 @@ public class PlanOrchestratorClientConfig {
     @Bean
     public PlanOrchestrator planOrchestrator() {
         return new PlanOrchestratorClientImpl(planInstanceReceiver(),
-                planOrchestratorClientThreadPool());
+                planOrchestratorClientThreadPool(), kafkaReceiverTimeoutSeconds);
     }
 
     @Bean

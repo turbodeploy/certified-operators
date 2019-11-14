@@ -1,17 +1,17 @@
 package com.vmturbo.ml.datastore.topology;
 
-import com.vmturbo.action.orchestrator.api.ActionOrchestrator;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
-import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
+import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorNotificationReceiver;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.market.component.api.impl.MarketSubscription;
 import com.vmturbo.market.component.api.impl.MarketSubscription.Topic;
 import com.vmturbo.ml.datastore.influx.InfluxConfig;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
 
 /**
  * Configuration for integration with the Topology Processor. The ML datstore receives
@@ -39,7 +39,7 @@ public class ActionsListenerConfig {
         final ActionMetricsListener actionMetricsListener =
             new ActionMetricsListener(influxConfig.influxDBConnectionFactory(),
                 influxConfig.metricsStoreWhitelist());
-        actionsProcessor().addActionsListener(actionMetricsListener);
+        actionsProcessor().addListener(actionMetricsListener);
         marketComponent().addActionsListener(actionMetricsListener);
         return actionMetricsListener;
     }
@@ -52,7 +52,7 @@ public class ActionsListenerConfig {
     }
 
     @Bean
-    public ActionOrchestrator actionsProcessor() {
+    public ActionOrchestratorNotificationReceiver actionsProcessor() {
         // Only listen to actions.
         return aoConfig.actionOrchestratorClient();
     }

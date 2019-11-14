@@ -12,5 +12,6 @@ public interface Repository {
      *
      * @param planListener listener to register
      */
-    void addListener(@Nonnull RepositoryListener planListener);
+//    @Deprecated
+//    void addListener(@Nonnull RepositoryListener planListener);
 }

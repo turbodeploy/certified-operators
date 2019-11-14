@@ -45,6 +45,9 @@ public class RepositoryClientConfig {
     @Value("${grpcPingIntervalSeconds}")
     private long grpcPingIntervalSeconds;
 
+    @Value("${kafkaReceiverTimeoutSeconds:3600}")
+    private int kafkaReceiverTimeoutSeconds;
+
     @Bean
     public Channel repositoryChannel() {
         return GrpcChannelFactory.newChannelBuilder(repositoryHost, grpcPort)
@@ -65,10 +68,9 @@ public class RepositoryClientConfig {
     }
 
     @Bean
-    public Repository repositoryListener() {
+    public RepositoryNotificationReceiver repositoryListener() {
         return new RepositoryNotificationReceiver(repositoryClientMessageReceiver(),
-                Executors.newCachedThreadPool());
+                Executors.newCachedThreadPool(), kafkaReceiverTimeoutSeconds);
     }
-
 
 }

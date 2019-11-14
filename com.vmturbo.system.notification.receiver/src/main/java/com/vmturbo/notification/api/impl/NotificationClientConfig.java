@@ -4,18 +4,18 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
-import com.vmturbo.notification.api.SystemNotificationListener;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification;
 
 /**
@@ -29,6 +29,9 @@ public class NotificationClientConfig {
 
     @Autowired
     private BaseKafkaConsumerConfig kafkaConsumerConfig;
+
+    @Value("${kafkaReceiverTimeoutSeconds:3600}")
+    private int kafkaReceiverTimeoutSeconds;
 
     @Bean(destroyMethod = "shutdownNow")
     ExecutorService notificationClientThreadPool() {
@@ -46,7 +49,8 @@ public class NotificationClientConfig {
     }
 
     @Bean
-    public SystemNotificationListener systemNotificationListener() {
-        return new NotificationReceiver(notificationClientMessageReceiver(), notificationClientThreadPool());
+    public NotificationReceiver systemNotificationListener() {
+        return new NotificationReceiver(notificationClientMessageReceiver(),
+                notificationClientThreadPool(), kafkaReceiverTimeoutSeconds);
     }
 }

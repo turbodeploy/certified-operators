@@ -113,7 +113,7 @@ public class MarketPerformanceTest {
             AnalysisSummary::parseFrom);
         marketComponent = new MarketComponentNotificationReceiver(projectedTopologyReceiver,
                 projectedEntityCostReceiver, projectedEntityRiCoverageReceiver, actionsReceiver,
-            null, analysisSummaryReceiver, threadPool);
+            null, analysisSummaryReceiver, threadPool, 0);
         kafkaMessageConsumer.start();
     }
 

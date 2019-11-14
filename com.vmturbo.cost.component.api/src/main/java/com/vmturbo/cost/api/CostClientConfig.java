@@ -49,6 +49,9 @@ public class CostClientConfig {
     @Value("${grpcPingIntervalSeconds}")
     private long grpcPingIntervalSeconds;
 
+    @Value("${kafkaReceiverTimeoutSeconds:3600}")
+    private int kafkaReceiverTimeoutSeconds;
+
     @Autowired
     private BaseKafkaConsumerConfig baseKafkaConfig;
 
@@ -98,7 +101,8 @@ public class CostClientConfig {
 
         return new CostComponentImpl(
                 costNotificationReceiver,
-                costNotificationClientThreadPool());
+                costNotificationClientThreadPool(),
+                kafkaReceiverTimeoutSeconds);
     }
 
 }

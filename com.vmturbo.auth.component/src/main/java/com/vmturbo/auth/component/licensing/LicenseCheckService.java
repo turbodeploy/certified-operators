@@ -50,6 +50,7 @@ import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification.Category;
 import com.vmturbo.repository.api.Repository;
 import com.vmturbo.repository.api.RepositoryListener;
+import com.vmturbo.repository.api.impl.RepositoryNotificationReceiver;
 
 /**
  * The LicenseCheckService is a close confederate of the {@link LicenseManagerService}. It's responsibilities
@@ -131,7 +132,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
     private final SearchServiceBlockingStub searchServiceClient;
 
     @Nonnull
-    private final Repository repositoryListener;
+    private final RepositoryNotificationReceiver repositoryListener;
 
     @Nonnull
     private final LicenseSummaryPublisher licenseSummaryPublisher;
@@ -155,7 +156,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
 
     public LicenseCheckService(@Nonnull final LicenseManagerService licenseManagerService,
                                @Nonnull final SearchServiceBlockingStub searchServiceClient,
-                               @Nonnull final Repository repositoryListener,
+                               @Nonnull final RepositoryNotificationReceiver repositoryListener,
                                @Nonnull final IMessageSender<LicenseSummary> licenseSummarySender,
                                @Nonnull final IMessageSender<SystemNotification> notificationSender,
                                @Nonnull final MailManager mailManager,

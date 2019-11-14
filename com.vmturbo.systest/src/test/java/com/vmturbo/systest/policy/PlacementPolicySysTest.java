@@ -304,7 +304,7 @@ public class PlacementPolicySysTest {
             TopologyDTO.AnalysisSummary::parseFrom);
         marketComponent = new MarketComponentNotificationReceiver(
                 projectedTopologyReceiver, projectedEntityCostReceiver, projectedEntityRiCoverageReceiver,
-                actionsReceiver, tpTopologyReceiver, analysisSummaryReceiver, threadPool);
+                actionsReceiver, tpTopologyReceiver, analysisSummaryReceiver, threadPool, 0);
         kafkaMessageConsumer.start();
     }
 

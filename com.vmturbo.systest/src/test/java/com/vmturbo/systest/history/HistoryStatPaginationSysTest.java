@@ -18,6 +18,10 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Lists;
+
+import io.grpc.Channel;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -25,9 +29,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
-import com.google.common.collect.Lists;
-
-import io.grpc.Channel;
 import tec.units.ri.unit.MetricPrefix;
 
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
@@ -57,7 +58,6 @@ import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
 import com.vmturbo.components.test.utilities.component.DockerEnvironment;
-import com.vmturbo.history.component.api.HistoryComponent;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.HistoryComponentNotification;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable;
 import com.vmturbo.history.component.api.StatsListener;
@@ -77,7 +77,7 @@ public class HistoryStatPaginationSysTest {
     protected MarketNotificationSender marketSender;
     protected TopologyProcessorNotificationSender tpSender;
 
-    protected HistoryComponent historyComponent;
+    protected HistoryComponentNotificationReceiver historyComponent;
     protected IMessageReceiver<HistoryComponentNotification> historyMessageReceiver;
     protected StatsHistoryServiceBlockingStub statsService;
     protected ExecutorService threadPool = Executors.newCachedThreadPool();
@@ -103,8 +103,8 @@ public class HistoryStatPaginationSysTest {
                 "HistoryPerformanceTest");
         historyMessageReceiver = HistoryMessageReceiver.create(messageConsumer);
         historyComponent =
-                new HistoryComponentNotificationReceiver(historyMessageReceiver, threadPool);
-        historyComponent.addStatsListener(statsListener);
+                new HistoryComponentNotificationReceiver(historyMessageReceiver, threadPool, 0);
+        historyComponent.addListener(statsListener);
         messageConsumer.start();
 
         final Channel historyChannel = componentTestRule.getCluster().newGrpcChannel("history");
