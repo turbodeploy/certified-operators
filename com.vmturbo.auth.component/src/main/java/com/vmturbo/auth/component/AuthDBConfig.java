@@ -8,6 +8,8 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 import javax.sql.DataSource;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -61,7 +63,8 @@ public class AuthDBConfig {
     /**
      * The Consul key
      */
-    private static final String CONSUL_KEY = "dbcreds";
+    @VisibleForTesting
+    static final String CONSUL_KEY = "dbcreds";
 
     /**
      * The Consul root DB username key.
@@ -237,7 +240,7 @@ public class AuthDBConfig {
         try {
             if (credentials.isPresent()) {
                 dataSource.setUser(dbSchemaName);
-                dataSource.setPassword(credentials.get());
+                dataSource.setPassword(getDecryptPassword(credentials.get()));
             } else {
                 // Use the well worn out defaults.
                 dataSource.setUser(getRootSqlDBUser());
@@ -257,6 +260,25 @@ public class AuthDBConfig {
                 logger.info("Connection is unavailable, wait for it", e);
                 uninterruptedSleep(RECONNECT_SLEEP_MS);
             }
+        }
+    }
+
+    /**
+     * Get plan text password from encrypted the cipher text.
+     * Note: if the password is not encrypted, we will encrypted and persistent it.
+     *
+     * @param encryptedPassword encrypted password
+     * @return plan text password
+     */
+    @VisibleForTesting
+    String getDecryptPassword(@Nonnull final String encryptedPassword) {
+        try {
+            return CryptoFacility.decrypt(encryptedPassword);
+        } catch (SecurityException e) {
+            logger.debug("Auth db user password is in plain text, will encrypt it.");
+            authKVConfig.authKeyValueStore()
+                    .put(CONSUL_KEY, CryptoFacility.encrypt(encryptedPassword));
+            return encryptedPassword;
         }
     }
 
@@ -373,7 +395,7 @@ public class AuthDBConfig {
                 } catch (SQLException e) {
                     throw new RuntimeException(e);
                 }
-                authKVConfig.authKeyValueStore().put(CONSUL_KEY, dbPassword);
+                authKVConfig.authKeyValueStore().put(CONSUL_KEY, CryptoFacility.encrypt(dbPassword));
                 dataSource.setUser(dbSchemaName);
                 dataSource.setPassword(dbPassword);
             }
@@ -417,5 +439,15 @@ public class AuthDBConfig {
      */
     private String getDbUrl() {
         return databaseConfig.getSQLConfigObject().getDbUrl();
+    }
+
+    /**
+     * For testing only.
+     *
+     * @param config {@link AuthKVConfig}.
+     */
+    @VisibleForTesting
+    AuthDBConfig(@Nonnull final AuthKVConfig config) {
+        this.authKVConfig = config;
     }
 }
