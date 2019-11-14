@@ -171,7 +171,8 @@ public class ReservedInstanceConfig {
 
     @Bean
     public ProjectedRICoverageAndUtilStore projectedEntityRICoverageAndUtilStore() {
-        return new ProjectedRICoverageAndUtilStore(repositoryClientConfig.repositoryClient(),
+        return new ProjectedRICoverageAndUtilStore(realtimeTopologyContextId,
+                        repositoryClientConfig.repositoryClient(),
                         supplyChainRpcService());
     }
 

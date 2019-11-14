@@ -82,7 +82,7 @@ public class ProjectedRICoverageAndUtilStoreTest {
         testServer.start();
         supplyChainService = SupplyChainServiceGrpc.newBlockingStub(testServer.getChannel());
         store = Mockito.spy(new ProjectedRICoverageAndUtilStore(
-                        repositoryClient, supplyChainService));
+                        realtimeTopologyContextId, repositoryClient, supplyChainService));
     }
 
     /**

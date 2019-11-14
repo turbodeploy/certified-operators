@@ -38,8 +38,8 @@ public class ProjectedRICoverageAndUtilStore {
 
     private final SupplyChainServiceBlockingStub supplyChainServiceBlockingStub;
 
-    // This should be the same as realtimeTopologyContextId.
-    private long topologyContextId;
+    // The realtimeTopologyContextId.
+    private long realtimeTopologyContextId;
 
     // so we update all the information before any other access to the information
     private final Object lockObject = new Object();
@@ -47,14 +47,18 @@ public class ProjectedRICoverageAndUtilStore {
     /**
      * Constructor that takes references to use to get information about requested scope.
      *
+     * @param realtimeTopologyContextId
+     *     The real time topology context ID
      * @param repositoryClient
      *     The repository client to access the scope information
      * @param supplyChainServiceBlockingStub
      *     The supply chain service blocking stub to pass to the scope processing
      */
     public ProjectedRICoverageAndUtilStore(
+                    long realtimeTopologyContextId,
                     @Nonnull RepositoryClient repositoryClient,
                     @Nonnull SupplyChainServiceBlockingStub supplyChainServiceBlockingStub) {
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
         this.supplyChainServiceBlockingStub =
                         Objects.requireNonNull(supplyChainServiceBlockingStub);
@@ -74,7 +78,6 @@ public class ProjectedRICoverageAndUtilStore {
                     @Nonnull final List<EntityReservedInstanceCoverage> entityRICoverage) {
         synchronized (lockObject) {
             Objects.requireNonNull(originalTopologyInfo, "topology info must not be null");
-            topologyContextId = originalTopologyInfo.getTopologyContextId();
             final Map<Long, Map<Long, Double>> newCostsByEntity = entityRICoverage.stream()
                             .collect(Collectors.toMap(EntityReservedInstanceCoverage::getEntityId,
                                             EntityReservedInstanceCoverage::getCouponsCoveredByRiMap));
@@ -107,19 +110,26 @@ public class ProjectedRICoverageAndUtilStore {
     @Nonnull
     public Map<Long, Map<Long, Double>>
                     getScopedProjectedEntitiesRICoverages(ReservedInstanceFilter filter) {
-        // do the RPC before getting the lock, since the RPC can take a long time.
+        // Do the RPC before getting the lock, since the RPC can take a long time.
         List<Long> scopeIds = filter.getScopeIds();
-        // getEntityOidsByType gets all entities in the realtime topology if the scopeIds is empty.
+        // getEntityOidsByType gets all entities in the real time topology if scopeIds is empty.
         Map<EntityType, Set<Long>> scopeMap = repositoryClient.getEntityOidsByType(scopeIds,
-                        topologyContextId, supplyChainServiceBlockingStub);
+                        realtimeTopologyContextId, supplyChainServiceBlockingStub);
+        // this may return null if there are no VMs in scope, check below.
         Set<Long> scopedOids = scopeMap.get(EntityType.VIRTUAL_MACHINE);
         //TODO: add support for database VMs, make sure DATABASE is correct EntityType for them
         //scopedOids.addAll(scopeMap.get(EntityType.DATABASE));
         Map<Long, Map<Long, Double>> filteredMap = new HashMap<>();
         synchronized (lockObject) {
-            logger.debug("projectedEntityRICoverageMap has {} entries, scopedOids has {} entries"
-                            + ", scopeIds has {} entries", projectedEntityRICoverageMap::size,
-                            scopedOids::size, scopeIds::size);
+            if (scopedOids == null) {
+                logger.debug("projectedEntityRICoverageMap.size() {}, scopeIds.size() {}"
+                                + ", no entities found in scope",
+                                projectedEntityRICoverageMap::size, scopeIds::size);
+                return filteredMap;
+            }
+            logger.debug("projectedEntityRICoverageMap.size() {}, scopeIds.size() {}"
+                            + ", scopedOids.size() {}", projectedEntityRICoverageMap::size,
+                            scopeIds::size, scopedOids::size);
             for (Long anOid : scopedOids) {
                 Map<Long, Double> value = projectedEntityRICoverageMap.get(anOid);
                 if (value != null) {
