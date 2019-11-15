@@ -29,13 +29,17 @@ public class PrerequisiteDescriptionComposer {
     private static final Logger logger = LogManager.getLogger();
 
     private static final String ENA_PREREQUISITE_FORMAT =
-        "To unblock this action, enable ENA for {0}";
+        "To unblock, enable ENA for {0}. " +
+            "Alternatively, you can exclude templates that require ENA";
     private static final String NVME_PREREQUISITE_FORMAT =
-        "To execute this action, enable NVMe for {0} and change instance type in the AWS Console";
+        "To unblock, enable NVMe for {0} and change instance type in the AWS Console. " +
+            "Alternatively, you can exclude templates that require NVMe";
     private static final String ARCHITECTURE_PREREQUISITE_FORMAT =
-        "To unblock this action, enable 64-bit AMIs for {0} or exclude templates that require 64-bit AMIs";
+        "To unblock, enable 64-bit AMIs for {0}. " +
+            "Alternatively, you can exclude templates that require 64-bit AMIs";
     private static final String VIRTUALIZATION_TYPE_PREREQUISITE_FORMAT =
-        "To unblock this action, enable HVM AMIs for {0} or exclude templates that require HVM AMIs";
+        "To unblock, enable HVM AMIs for {0}. " +
+            "Alternatively, you can exclude templates that require HVM AMIs";
     private static final String ACTION_TYPE_ERROR =
         "Can not give a proper pre-requisite description as action type is not defined";
 

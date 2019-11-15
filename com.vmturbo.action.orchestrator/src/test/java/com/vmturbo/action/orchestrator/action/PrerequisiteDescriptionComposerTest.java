@@ -40,13 +40,14 @@ public class PrerequisiteDescriptionComposerTest {
             .build();
 
         assertEquals(new HashSet<>(Arrays.asList(
-            "(^_^)~To unblock this action, enable ENA for {entity:1:displayName:Virtual Machine}",
-            "(^_^)~To execute this action, enable NVMe for {entity:1:displayName:Virtual Machine} and " +
-                "change instance type in the AWS Console",
-            "(^_^)~To unblock this action, enable 64-bit AMIs for {entity:1:displayName:Virtual Machine} " +
-                "or exclude templates that require 64-bit AMIs",
-            "(^_^)~To unblock this action, enable HVM AMIs for {entity:1:displayName:Virtual Machine} " +
-                "or exclude templates that require HVM AMIs")),
+            "(^_^)~To unblock, enable ENA for {entity:1:displayName:Virtual Machine}. " +
+                "Alternatively, you can exclude templates that require ENA",
+            "(^_^)~To unblock, enable NVMe for {entity:1:displayName:Virtual Machine} and change " +
+                "instance type in the AWS Console. Alternatively, you can exclude templates that require NVMe",
+            "(^_^)~To unblock, enable 64-bit AMIs for {entity:1:displayName:Virtual Machine}. " +
+                "Alternatively, you can exclude templates that require 64-bit AMIs",
+            "(^_^)~To unblock, enable HVM AMIs for {entity:1:displayName:Virtual Machine}. " +
+                "Alternatively, you can exclude templates that require HVM AMIs")),
             new HashSet<>(PrerequisiteDescriptionComposer.composePrerequisiteDescription(action)));
     }
 }
