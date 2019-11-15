@@ -5,13 +5,13 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.mediation.azure.AzureAccount;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -75,7 +75,7 @@ public class AzureVolumesConversionProbe extends AzureVolumesProbe {
     @Nonnull
     @Override
     public Set<TemplateDTO> getSupplyChainDefinition() {
-        final Set<TemplateDTO> sc = Sets.newHashSet();
+        final Set<TemplateDTO> sc = Sets.newHashSet(super.getSupplyChainDefinition());
 
         // create supply chain nodes for new non-shared entities
         for (EntityType entityType : NEW_NON_SHARED_ENTITY_TYPES) {
