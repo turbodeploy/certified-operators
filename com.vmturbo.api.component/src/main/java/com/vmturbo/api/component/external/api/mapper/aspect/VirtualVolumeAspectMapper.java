@@ -348,7 +348,8 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
         // create mapping from volume id to storage tier and region
         final Map<Long, ServiceEntityApiDTO> storageTierByVolumeId = Maps.newHashMap();
         final Map<Long, ApiPartialEntity> regionByVolumeId = Maps.newHashMap();
-        final Map<Long, Long> storageTierIdToVolumeOid = Maps.newHashMap();
+        final Map<Long, Long> storageTierIdByVolumeId = Maps.newHashMap();
+        final Set<Long> storageTierIds = Sets.newHashSet();
 
         vols.forEach(vol -> {
             for (ConnectedEntity connectedEntity : vol.getConnectedEntityListList()) {
@@ -369,7 +370,8 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
                             .ifPresent(region -> regionByVolumeId.put(vol.getOid(), region));
                         break;
                     case EntityType.STORAGE_TIER_VALUE:
-                        storageTierIdToVolumeOid.put(connectedEntity.getConnectedEntityId(), vol.getOid());
+                        storageTierIdByVolumeId.put(vol.getOid(), connectedEntity.getConnectedEntityId());
+                        storageTierIds.add(connectedEntity.getConnectedEntityId());
                         break;
                     default:
                         break;
@@ -385,11 +387,13 @@ public class VirtualVolumeAspectMapper implements IAspectMapper {
                         vmByVolumeId.put(vol.getOid(), vm));
         });
 
-        repositoryApi.entitiesRequest(storageTierIdToVolumeOid.keySet())
-                .getSEMap().entrySet()
-                .forEach(storageTierKeyValue -> storageTierByVolumeId.put(
-                        storageTierIdToVolumeOid.get(storageTierKeyValue.getKey()),
-                        storageTierKeyValue.getValue()));
+        // get storage tier for each volume
+        final Map<Long, ServiceEntityApiDTO> storageTierSEMap = repositoryApi
+                .entitiesRequest(storageTierIds)
+                .getSEMap();
+        storageTierIdByVolumeId.forEach((volId, stId) ->
+            storageTierByVolumeId.put(volId, storageTierSEMap.get(stId))
+        );
 
         // get cost stats for all volumes
         final Map<Long, List<StatApiDTO>> volumeCostStatById = getVolumeCostStats(vols, topologyContextId);

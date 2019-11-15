@@ -1,8 +1,11 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -11,6 +14,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -310,7 +314,7 @@ public class VirtualVolumeAspectMapperTest {
     private final int storageAmountCapacityInMB = 2 * 1024;
     private final String snapshotId = "snap-vv1";
 
-    private Function<EnvironmentType, TopologyEntityDTO> getVirtualVolume = (envType) -> TopologyEntityDTO.newBuilder()
+    private final BiFunction<Long, EnvironmentType, TopologyEntityDTO> getVirtualVolumeWithId = (virtualVolumeId, envType) -> TopologyEntityDTO.newBuilder()
             .setOid(virtualVolumeId)
             .setDisplayName(virtualVolumeDisplayName)
             .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
@@ -336,6 +340,8 @@ public class VirtualVolumeAspectMapperTest {
                             .setEncryption(true)
                             .build()))
             .build();
+
+    private Function<EnvironmentType, TopologyEntityDTO> getVirtualVolume = environmentType -> getVirtualVolumeWithId.apply(virtualVolumeId, environmentType);
 
     private Supplier<TopologyEntityDTO> getAzureVirtualVolume = () -> TopologyEntityDTO.newBuilder()
         .setOid(azureVolumeId)
@@ -363,6 +369,74 @@ public class VirtualVolumeAspectMapperTest {
                 .setEncryption(true)
                 .build()))
         .build();
+
+    /**
+     * Test mapVirtualVolume for multiple volume with same storage tier.
+     * Two volumes, connected to the same VM, same storage tier.  Each of them should have all the information.
+     */
+    @Test
+    public void testMapCloudVolumes() {
+        storageTierSEApiDTO.setUuid(storageTierId1.toString());
+        storageTierSEApiDTO.setDisplayName(storageDisplayName);
+
+        volumeConnectedBusinessAccount.setUuid(volumeConnectedBusinessAccountId.toString());
+        volumeConnectedBusinessAccount.setDisplayName(volumeConnectedBusinessAccountDisplayName);
+
+        doAnswer(invocation -> {
+            SearchParameters param = invocation.getArgumentAt(0, SearchParameters.class);
+            if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_MACHINE))) {
+                return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(vm1));
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId + 1, TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_MACHINE))) {
+                return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(vm1));
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeConnectedZoneId, TraversalDirection.CONNECTED_FROM, UIEntityType.REGION))) {
+                return ApiTestUtils.mockSearchReq(Lists.newArrayList(volumeConnectedZone));
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.CONNECTED_FROM, UIEntityType.BUSINESS_ACCOUNT))) {
+                return ApiTestUtils.mockSearchSEReq(Lists.newArrayList(volumeConnectedBusinessAccount));
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId + 1, TraversalDirection.CONNECTED_FROM, UIEntityType.BUSINESS_ACCOUNT))) {
+                return ApiTestUtils.mockSearchSEReq(Lists.newArrayList(volumeConnectedBusinessAccount));
+            } else {
+                throw new IllegalArgumentException(param.toString());
+            }
+        }).when(repositoryApi).newSearchRequest(any(SearchParameters.class));
+
+        RepositoryApi.MultiEntityRequest storageTierRequest = ApiTestUtils.mockMultiSEReq(Lists.newArrayList(storageTierSEApiDTO));
+        when(repositoryApi.entitiesRequest(Sets.newHashSet(storageTierId1))).thenReturn(storageTierRequest);
+
+        VirtualDisksAspectApiDTO aspect = (VirtualDisksAspectApiDTO)volumeAspectMapper.mapEntitiesToAspect(
+            Lists.newArrayList(getVirtualVolume.apply(EnvironmentType.CLOUD), getVirtualVolumeWithId.apply(virtualVolumeId + 1, EnvironmentType.CLOUD)));
+
+        assertEquals(2, aspect.getVirtualDisks().size());
+
+        // check the virtual disks for each file on the wasted storage
+        VirtualDiskApiDTO volumeAspect = null;
+        for (VirtualDiskApiDTO virtualDiskApiDTO : aspect.getVirtualDisks()) {
+            if (virtualDiskApiDTO.getDisplayName().equals(virtualVolumeDisplayName)) {
+                volumeAspect = virtualDiskApiDTO;
+
+                assertNotNull(volumeAspect);
+                assertThat(volumeAspect.getUuid(), anyOf(is(String.valueOf(virtualVolumeId)), is(String.valueOf(virtualVolumeId + 1))));
+                assertEquals(String.valueOf(storageTierId1), volumeAspect.getProvider().getUuid());
+                assertEquals(String.valueOf(volumeConnectedZoneId), volumeAspect.getDataCenter().getUuid());
+                assertEquals(String.valueOf(volumeConnectedBusinessAccountId), volumeAspect.getBusinessAccount().getUuid());
+
+                // check stats for volume
+                java.util.List<StatApiDTO> stats = volumeAspect.getStats();
+                assertEquals(2, stats.size());
+                java.util.Optional<StatApiDTO> statApiDTOStorageAccess = stats.stream().filter(stat -> stat.getName() == "StorageAccess").findFirst();
+                assertEquals(statApiDTOStorageAccess.get().getCapacity().getAvg().longValue(), storageAccessCapacity);
+                java.util.Optional<StatApiDTO> statApiDTOStorageAmount = stats.stream().filter(stat -> stat.getName() == "StorageAmount").findFirst();
+                assertEquals(storageAmountCapacityInMB / 1024F, statApiDTOStorageAmount.get().getCapacity().getAvg().longValue(), 0.00001);
+                assertEquals(VirtualVolumeAspectMapper.CLOUD_STORAGE_AMOUNT_UNIT, statApiDTOStorageAmount.get().getUnits());
+
+                assertEquals(snapshotId, volumeAspect.getSnapshotId());
+                assertEquals(AttachmentState.IN_USE.name(), volumeAspect.getAttachmentState());
+                assertEquals("Enabled", volumeAspect.getEncryption());
+                assertEquals(virtualVolumeDisplayName, volumeAspect.getDisplayName());
+
+                assertEquals(String.valueOf(vmId1), volumeAspect.getAttachedVirtualMachine().getUuid());
+            }
+        }
+    }
 
     /**
      * Test mapOnVolume for Cloud Volume.
