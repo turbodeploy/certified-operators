@@ -17,6 +17,7 @@ import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 public class HistoricalEditorConfig {
     private EntitySettingsCollection entitySettings;
     private TopologyGraph<TopologyEntity> graph;
+    private boolean isPlan;
 
     /**
      * Entity settings only get available way after construction at certain pipeline stage.
@@ -24,10 +25,12 @@ public class HistoricalEditorConfig {
      * This should be initialized when the stage begins.
      *
      * @param graph topology graph with settings
+     * @param isPlan whether invoked in plan broadcast context
      */
-    public void initSettings(@Nonnull GraphWithSettings graph) {
+    public void initSettings(@Nonnull GraphWithSettings graph, boolean isPlan) {
         this.entitySettings = graph.constructEntitySettingsCollection();
         this.graph = graph.getTopologyGraph();
+        this.isPlan = isPlan;
     }
 
     /**
@@ -48,6 +51,15 @@ public class HistoricalEditorConfig {
             throw new HistoryCalculationException("Settings are not initialized for history calculation");
         }
         return entitySettings.getEntitySettingValue(oid, settingSpec, cls);
+    }
+
+    /**
+     * Whether invoked in plan broadcast context.
+     *
+     * @return true when for plan
+     */
+    public boolean isPlan() {
+        return isPlan;
     }
 
     /**

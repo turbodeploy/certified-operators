@@ -42,9 +42,10 @@ public abstract class AbstractHistoricalEditor<Config extends HistoricalEditorCo
 
     @Override
     public void initContext(@Nonnull GraphWithSettings graph,
-                            @Nonnull ICommodityFieldAccessor accessor)
+                            @Nonnull ICommodityFieldAccessor accessor,
+                            boolean isPlan)
                     throws HistoryCalculationException, InterruptedException {
-        config.initSettings(graph);
+        config.initSettings(graph, isPlan);
         this.commodityFieldAccessor = accessor;
     }
 

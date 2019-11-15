@@ -73,18 +73,21 @@ public class PercentileCommodityData
             return;
         }
         try {
-            UtilizationData utilizationData = commodityFieldsAccessor.getUtilizationData(field);
-            if (utilizationData != null) {
-                utilizationCounts.addPoints(utilizationData.getPointList(), capacity,
-                                            utilizationData.getLastPointTimestampMs() - utilizationData
-                                                            .getIntervalMs() * (utilizationData.getPointCount() - 1));
-            } else {
-                // if this commodity is selected for percentile analysis, but mediation passed no data,
-                // generate a single point from real-time usage
-                Double used = commodityFieldsAccessor.getRealTimeValue(field);
-                if (used != null) {
-                    utilizationCounts.addPoints(Collections.singletonList(used / capacity * 100), capacity,
-                                                System.currentTimeMillis());
+            // do not update values in plan context, only set the result
+            if (!config.isPlan()) {
+                UtilizationData utilizationData = commodityFieldsAccessor.getUtilizationData(field);
+                if (utilizationData != null) {
+                    utilizationCounts.addPoints(utilizationData.getPointList(), capacity,
+                                                utilizationData.getLastPointTimestampMs() - utilizationData
+                                                                .getIntervalMs() * (utilizationData.getPointCount() - 1));
+                } else {
+                    // if this commodity is selected for percentile analysis, but mediation passed no data,
+                    // generate a single point from real-time usage
+                    Double used = commodityFieldsAccessor.getRealTimeValue(field);
+                    if (used != null) {
+                        utilizationCounts.addPoints(Collections.singletonList(used / capacity * 100), capacity,
+                                                    System.currentTimeMillis());
+                    }
                 }
             }
 

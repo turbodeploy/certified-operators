@@ -118,7 +118,8 @@ public class HistoryAggregator {
         // set up commodity builders lazy/fast access
         ICommodityFieldAccessor accessor = new CommodityFieldAccessor(graph.getTopologyGraph());
 
-        forEachEditor(editorsToRun, editor -> editor.initContext(graph, accessor), "initialization",
+        forEachEditor(editorsToRun, editor -> editor.initContext(graph, accessor, !CollectionUtils.isEmpty(changes)),
+                      "initialization",
                       "The time spent initializing historical data cache for {}");
 
         try {

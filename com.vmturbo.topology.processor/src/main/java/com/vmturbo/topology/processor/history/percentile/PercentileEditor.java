@@ -161,13 +161,16 @@ public class PercentileEditor extends
 
     @Override
     public void initContext(@Nonnull GraphWithSettings graph,
-                            @Nonnull ICommodityFieldAccessor accessor)
+                            @Nonnull ICommodityFieldAccessor accessor,
+                            boolean isPlan)
                     throws HistoryCalculationException, InterruptedException {
-        super.initContext(graph, accessor);
+        super.initContext(graph, accessor, isPlan);
         this.graph = graph.getTopologyGraph();
 
         loadPersistedData();
-        checkObservationPeriodsChanged(graph);
+        if (!isPlan) {
+            checkObservationPeriodsChanged(graph);
+        }
     }
 
     @Override
@@ -192,6 +195,9 @@ public class PercentileEditor extends
 
     @Override
     public void completeBroadcast() throws HistoryCalculationException, InterruptedException {
+        if (getConfig().isPlan()) {
+            return;
+        }
         // persist the daily blob
         PercentileCounts.Builder builder = PercentileCounts.newBuilder();
         getCache().forEach((commRef, data) -> {

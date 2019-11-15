@@ -100,10 +100,12 @@ public interface IHistoricalEditor<Config extends HistoricalEditorConfig> {
      *
      * @param graph topology graph with settings
      * @param accessor commodity fields' accessor for the current graph - performance optimization
+     * @param isPlan whether in plan context
      * @throws HistoryCalculationException when initialization fails
      * @throws InterruptedException when interrupted
      */
-    void initContext(@Nonnull GraphWithSettings graph, @Nonnull ICommodityFieldAccessor accessor)
+    void initContext(@Nonnull GraphWithSettings graph, @Nonnull ICommodityFieldAccessor accessor,
+                     boolean isPlan)
                     throws HistoryCalculationException, InterruptedException;
 
     /**

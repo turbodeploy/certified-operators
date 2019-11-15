@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.history;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -40,6 +42,8 @@ public class HistoryAggregationConfig {
     @Value("${historyAggregationCalculationChunkSize}")
     private int historyAggregationCalculationChunkSize = 10000;
 
+    @Value("${historyAggregation.percentileEnabled:true}")
+    private boolean percentileEnabled = true;
     @Value("${historyAggregation.percentileMaintenanceWindowHours}")
     private int percentileMaintenanceWindowHours = PercentileHistoricalEditorConfig.defaultMaintenanceWindowHours;
     @Value("${historyAggregation.percentileBuckets.VCPU:}")
@@ -149,8 +153,11 @@ public class HistoryAggregationConfig {
      */
     @Bean
     public HistoryAggregator historyAggregationStage() {
-        return new HistoryAggregator(historyAggregationThreadPool(), ImmutableSet
-                        .of(percentileHistoryEditor()));
+        Set<IHistoricalEditor<?>> editors = new HashSet<>();
+        if (percentileEnabled) {
+            editors.add(percentileHistoryEditor());
+        }
+        return new HistoryAggregator(historyAggregationThreadPool(), ImmutableSet.copyOf(editors));
     }
 
 }
