@@ -3,8 +3,6 @@ package com.vmturbo.action.orchestrator.stats.query.live;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.isA;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -17,18 +15,18 @@ import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
 
+import io.grpc.Status.Code;
+
 import org.jooq.exception.DataAccessException;
 import org.junit.Assert;
 import org.junit.Test;
 
-import io.grpc.Status.Code;
-
+import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.stats.query.live.CombinedStatsBuckets.CombinedStatsBucketsFactory;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.query.MapBackedActionViews;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -64,7 +62,7 @@ public class CurrentActionStatReaderTest {
         .build();
 
     @Test
-    public void testReadActionStatsNoStoreForContext() throws FailedActionQueryException {
+    public void testReadActionStatsNoStoreForContext() {
         final long context1 = 182;
         final SingleQuery query1 = SingleQuery.newBuilder()
             .setQueryId(1)
@@ -90,7 +88,7 @@ public class CurrentActionStatReaderTest {
     }
 
     @Test
-    public void testReadActionStatsStoreDataAccessException() throws FailedActionQueryException {
+    public void testReadActionStatsStoreDataAccessException() {
         final long context1 = 182;
         final SingleQuery query1 = SingleQuery.newBuilder()
             .setQueryId(1)
@@ -172,12 +170,10 @@ public class CurrentActionStatReaderTest {
         when(actionStorehouse.getStore(context1)).thenReturn(Optional.of(actionStore1));
         when(actionStorehouse.getStore(context2)).thenReturn(Optional.of(actionStore2));
 
-        final ActionView actionView1 = mock(ActionView.class);
-        final ActionView actionView2 = mock(ActionView.class);
+        final ActionView actionView1 = ActionOrchestratorTestUtils.mockActionView(ACTION);
+        final ActionView actionView2 = ActionOrchestratorTestUtils.mockActionView(ACTION);
         when(queryInfo1.viewPredicate()).thenReturn(actionInfo -> actionInfo.action() == actionView1);
         when(queryInfo2.viewPredicate()).thenReturn(actionInfo -> actionInfo.action() == actionView2);
-        when(actionView1.getRecommendation()).thenReturn(ACTION);
-        when(actionView2.getRecommendation()).thenReturn(ACTION);
         when(actionStore1.getActionViews()).thenReturn(new MapBackedActionViews(ImmutableMap.of(1L, actionView1)));
         when(actionStore2.getActionViews()).thenReturn(new MapBackedActionViews(ImmutableMap.of(2L, actionView2)));
 
@@ -194,6 +190,8 @@ public class CurrentActionStatReaderTest {
         verify(statsBucketsFactory).bucketsForQuery(queryInfo2);
         verify(actionStorehouse).getStore(context1);
         verify(actionStorehouse).getStore(context2);
+        verify(bucket1).addActionInfo(any());
+        verify(bucket2).addActionInfo(any());
 
         assertThat(statsByQueryId.get(query1.getQueryId()), contains(stat1));
         assertThat(statsByQueryId.get(query2.getQueryId()), contains(stat2));

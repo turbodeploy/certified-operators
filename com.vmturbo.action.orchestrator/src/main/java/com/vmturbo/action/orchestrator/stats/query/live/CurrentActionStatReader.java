@@ -19,8 +19,6 @@ import com.google.common.collect.Sets;
 
 import io.grpc.Status;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.action.orchestrator.action.Action;
@@ -50,7 +48,6 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
  * reads pre-calculated stats from the action stat tables in the database.
  */
 public class CurrentActionStatReader {
-    private static final Logger logger = LogManager.getLogger();
 
     private final QueryInfoFactory queryInfoFactory;
 
@@ -157,9 +154,10 @@ public class CurrentActionStatReader {
             .collect(Collectors.groupingBy(query -> query.query().getScopeFilter().getScopeCase()));
 
         final Stream<ActionView> candidateActionViews;
-        if (queriesByScopeCase.containsKey(ScopeCase.GLOBAL)) {
-            candidateActionViews = actionViews.getAll();
-        } else if (queriesByScopeCase.containsKey(ScopeCase.ENTITY_LIST)) {
+        // If requested scope for all queries is based on entity IDs then get action views for
+        // requested entities. Otherwise get all action views.
+        if (queriesByScopeCase.containsKey(ScopeCase.ENTITY_LIST)
+                && queriesByScopeCase.keySet().size() == 1) {
             // Actions are indexed by entity ID, so here we can run each query separately.
             candidateActionViews = queriesByScopeCase.get(ScopeCase.ENTITY_LIST).stream()
                 .flatMap(queryInfo -> {
@@ -168,8 +166,7 @@ public class CurrentActionStatReader {
                     return actionViews.getByEntity(desiredEntityIds);
                 });
         } else {
-            logger.warn("Queries for action store had neither global nor entity list scopes.");
-            candidateActionViews = Stream.empty();
+            candidateActionViews = actionViews.getAll();
         }
 
         candidateActionViews
