@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.api.component.external.api.service.UsersService.HTTP_ACCEPT;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -291,6 +292,40 @@ public class UserServiceTest {
         // This should throw an illegal argument exception
         expectedException.expect(IllegalArgumentException.class);
         UserApiDTO resultUser = usersService.editUser(userId, userApiDTO);
+    }
+
+    /**
+     * Testing that when the api input has an empty password, the service will
+     * throw an IllegalArgumentException.
+     * @throws Exception when the service fails to create or edit the user.
+     */
+    @Test
+    public void testEmptyPassword() throws Exception {
+        final String userId = "1234";
+        final String userName = "testUser2";
+        final String userType = "DedicatedCustomer";
+        final String password = "";
+        final String userRole = "ADMINISTRATOR";
+        final String userLoginProvider = "LOCAL";
+
+        UserApiDTO userApiDTO = new UserApiDTO();
+        userApiDTO.setUsername(userName);
+        userApiDTO.setType(userType);
+        userApiDTO.setRoleName(userRole);
+        userApiDTO.setPassword(password);
+        userApiDTO.setLoginProvider(userLoginProvider);
+
+        try {
+            // create user case.
+            usersService.createUser(userApiDTO);
+            fail("the illegal argument exception should throw");
+        } catch (IllegalArgumentException e) {
+            // Catch the exception there, so we can continue to the next test.
+        }
+        // This should throw an illegal argument exception
+        expectedException.expect(IllegalArgumentException.class);
+        // edit user case.
+        usersService.editUser(userId, userApiDTO);
     }
 
     private HttpHeaders composeHttpHeaders() {

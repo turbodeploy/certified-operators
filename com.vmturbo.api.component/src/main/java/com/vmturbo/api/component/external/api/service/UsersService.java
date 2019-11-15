@@ -441,6 +441,9 @@ public class UsersService implements IUsersService {
         if (StringUtils.isBlank(userApiDTO.getType())) {
             throw new IllegalArgumentException("No type specified for user.");
         }
+        if (StringUtils.isBlank(userApiDTO.getPassword())) {
+            throw new IllegalArgumentException("User password is empty.");
+        }
     }
 
     /**
