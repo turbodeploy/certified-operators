@@ -30,6 +30,7 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
@@ -101,8 +102,9 @@ public class ClusterActionAggregator extends ActionAggregator {
                 // For clusters we don't expect any hy
                 requestBuilder.addSeeds(SupplyChainSeed.newBuilder()
                     .setSeedOid(clusterId)
-                    .addAllStartingEntityOid(clusterEntities)
-                    .addAllEntityTypesToInclude(EXPANDED_SCOPE_ENTITY_TYPES));
+                    .setScope(SupplyChainScope.newBuilder()
+                        .addAllStartingEntityOid(clusterEntities)
+                        .addAllEntityTypesToInclude(EXPANDED_SCOPE_ENTITY_TYPES)));
             });
 
             try {

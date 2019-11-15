@@ -1,0 +1,471 @@
+package com.vmturbo.repository.service;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import javax.annotation.Nonnull;
+
+import com.google.common.collect.Sets;
+
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
+import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat;
+import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery;
+import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.GroupBy;
+import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter;
+import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter.EntityScope;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsRequest.SingleQuery;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsResponse.SingleResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
+import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
+import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainGroupBy;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainStat;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainStat.StatGroup;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
+import com.vmturbo.repository.service.SupplyChainStatistician.SupplementaryData;
+import com.vmturbo.repository.service.SupplyChainStatistician.SupplementaryDataFactory;
+import com.vmturbo.repository.service.SupplyChainStatistician.TopologyEntityLookup;
+
+/**
+ * Unit tests for {@link SupplyChainStatistician}.
+ */
+public class SupplyChainStatisticianTest {
+
+    /*
+     * Discovered by Target 111:
+     *
+     * BA11
+     *  |
+     * VM1
+     *  |
+     * Tier111
+     *
+     * Discovered by Target 222:
+     *
+     * BA11    BA22
+     *  |        |
+     * VM1     VM2 (powered off)
+     *  |        |
+     * Tier111 Tier222
+     *
+     * Note: BA11 and VM1 are discovered by both targets!
+     * The business accounts are not in the actual supply chain.
+     */
+
+    private static final long VM_OID = 1;
+
+    private static final long DISABLED_VM_OID = 2;
+
+    private static final long TIER_1_OID = 111;
+
+    private static final long TIER_2_OID = 222;
+
+    private static final long BUSINESS_ACCOUNT_1_OID = 11;
+
+    private static final long BUSINESS_ACCOUNT_2_OID = 22;
+
+    private static final long TARGET_1_OID = 111;
+    private static final long TARGET_2_OID = 222;
+
+    private static final SupplyChain SUPPLY_CHAIN = SupplyChain.newBuilder()
+        .addSupplyChainNodes(SupplyChainNode.newBuilder()
+            .setEntityType(UIEntityType.COMPUTE_TIER.apiStr())
+            .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
+                .addMemberOids(TIER_1_OID)
+                .addMemberOids(TIER_2_OID)
+                .build()))
+        .addSupplyChainNodes(SupplyChainNode.newBuilder()
+            .setEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr())
+            .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
+                .addMemberOids(VM_OID)
+                .addMemberOids(DISABLED_VM_OID)
+                .build()))
+        .build();
+
+    private EntitySeverityServiceMole entitySeverityServiceBackend = spy(EntitySeverityServiceMole.class);
+
+    private ActionsServiceMole actionsServiceMole = spy(ActionsServiceMole.class);
+
+    /**
+     * Test server to mock out gRPC dependencies.
+     */
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(entitySeverityServiceBackend, actionsServiceMole);
+
+
+    private SupplementaryDataFactory mockSupplementaryDataFactory = mock(SupplementaryDataFactory.class);
+
+    private SupplementaryData mockSupplementaryData = mock(SupplementaryData.class);
+
+    private SupplyChainStatistician statistician = new SupplyChainStatistician(mockSupplementaryDataFactory);
+
+    private TopologyEntityLookup entityLookup;
+
+    private RepoGraphEntity mockEntity(final long oid,
+                                       @Nonnull final UIEntityType type,
+                                       @Nonnull final EntityState state,
+                                       @Nonnull final Set<Long> discoveringTargetIds) {
+        final RepoGraphEntity entity = mock(RepoGraphEntity.class);
+        when(entity.getOid()).thenReturn(oid);
+        when(entity.getEntityType()).thenReturn(type.typeNumber());
+        when(entity.getEntityState()).thenReturn(state);
+        when(entity.getDiscoveringTargetIds()).thenAnswer(invocation -> discoveringTargetIds.stream());
+        when(entity.getOwner()).thenReturn(Optional.empty());
+        return entity;
+    }
+
+    /**
+     * Common setup code before all methods.
+     * This sets up the supply chain we use for all the tests.
+     */
+    @Before
+    public void setup() {
+        final RepoGraphEntity ba1 = mockEntity(BUSINESS_ACCOUNT_1_OID, UIEntityType.BUSINESS_ACCOUNT,
+            EntityState.POWERED_ON, Sets.newHashSet(TARGET_1_OID, TARGET_2_OID));
+        final RepoGraphEntity ba2 = mockEntity(BUSINESS_ACCOUNT_2_OID, UIEntityType.BUSINESS_ACCOUNT,
+            EntityState.POWERED_ON, Sets.newHashSet(TARGET_2_OID));
+
+        final RepoGraphEntity tier1 = mockEntity(TIER_1_OID, UIEntityType.COMPUTE_TIER,
+            EntityState.POWERED_ON, Sets.newHashSet(TARGET_1_OID, TARGET_2_OID));
+
+        final RepoGraphEntity tier2 = mockEntity(TIER_2_OID, UIEntityType.COMPUTE_TIER,
+            EntityState.POWERED_ON, Sets.newHashSet(TARGET_2_OID));
+
+        final RepoGraphEntity vm = mockEntity(VM_OID, UIEntityType.VIRTUAL_MACHINE,
+            EntityState.POWERED_ON, Sets.newHashSet(TARGET_1_OID, TARGET_2_OID));
+        when(vm.getOwner()).thenReturn(Optional.of(ba1));
+        final RepoGraphEntity poweredOffVm = mockEntity(DISABLED_VM_OID, UIEntityType.VIRTUAL_MACHINE,
+            EntityState.POWERED_OFF, Sets.newHashSet(TARGET_2_OID));
+        when(poweredOffVm.getOwner()).thenReturn(Optional.of(ba2));
+
+        final Map<Long, RepoGraphEntity> entityMap = Stream.of(tier1, tier2, vm, poweredOffVm)
+            .collect(Collectors.toMap(RepoGraphEntity::getOid, Function.identity()));
+        entityLookup = (oid) -> Optional.ofNullable(entityMap.get(oid));
+
+
+        when(mockSupplementaryDataFactory.newSupplementaryData(any(), any()))
+            .thenReturn(mockSupplementaryData);
+    }
+
+    /**
+     * Test calculating stats with no group-by criteria.
+     */
+    @Test
+    public void testNoGroupBy() {
+        final List<SupplyChainStat> stats =
+            statistician.calculateStats(SUPPLY_CHAIN, Collections.emptyList(), entityLookup);
+        assertThat(stats, contains(SupplyChainStat.newBuilder()
+            .setStatGroup(StatGroup.getDefaultInstance())
+            .setNumEntities(4)
+            .build()));
+    }
+
+    /**
+     * Test calculating stats, grouping by business account.
+     */
+    @Test
+    public void testGroupByBusinessAccount() {
+        final List<SupplyChainStat> stats =
+            statistician.calculateStats(SUPPLY_CHAIN,
+                Collections.singletonList(SupplyChainGroupBy.BUSINESS_ACCOUNT_ID), entityLookup);
+        assertThat(stats, containsInAnyOrder(
+            SupplyChainStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder())
+                .setNumEntities(2)
+                .build(),
+            SupplyChainStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder()
+                    .setAccountId(BUSINESS_ACCOUNT_1_OID))
+                .setNumEntities(1)
+                .build(),
+            SupplyChainStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder()
+                    .setAccountId(BUSINESS_ACCOUNT_2_OID))
+                .setNumEntities(1)
+                .build()));
+    }
+
+    /**
+     * Test calculating stats, grouping by discovering target id.
+     */
+    @Test
+    public void testGroupByTarget() {
+        final List<SupplyChainStat> stats =
+            statistician.calculateStats(SUPPLY_CHAIN,
+                Collections.singletonList(SupplyChainGroupBy.TARGET), entityLookup);
+        assertThat(stats, containsInAnyOrder(
+            SupplyChainStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder()
+                    .setTargetId(TARGET_1_OID))
+                .setNumEntities(2)
+                .build(),
+            SupplyChainStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder()
+                    .setTargetId(TARGET_2_OID))
+                .setNumEntities(4)
+                .build()));
+    }
+
+    /**
+     * Test calculating stats, grouping by entity type.
+     */
+    @Test
+    public void testGroupByEntityType() {
+        final List<SupplyChainStat> stats =
+            statistician.calculateStats(SUPPLY_CHAIN,
+                Collections.singletonList(SupplyChainGroupBy.ENTITY_TYPE), entityLookup);
+        assertThat(stats, containsInAnyOrder(
+            SupplyChainStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder()
+                    .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+                .setNumEntities(2)
+                .build(),
+            SupplyChainStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder()
+                    .setEntityType(UIEntityType.COMPUTE_TIER.typeNumber()))
+                .setNumEntities(2)
+                .build()));
+    }
+
+    /**
+     * Test calculating stats, grouping by entity state.
+     */
+    @Test
+    public void testGroupByEntityState() {
+        final List<SupplyChainStat> stats =
+            statistician.calculateStats(SUPPLY_CHAIN,
+                Collections.singletonList(SupplyChainGroupBy.ENTITY_STATE), entityLookup);
+        assertThat(stats, containsInAnyOrder(
+            SupplyChainStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder()
+                    .setEntityState(EntityState.POWERED_ON))
+                .setNumEntities(3)
+                .build(),
+            SupplyChainStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder()
+                    .setEntityState(EntityState.POWERED_OFF))
+                .setNumEntities(1)
+                .build()));
+    }
+
+    /**
+     * Test calculating stats, grouping by severity.
+     */
+    @Test
+    public void testGroupBySeverity() {
+        when(mockSupplementaryData.getSeverity(anyLong())).thenReturn(Severity.NORMAL);
+        when(mockSupplementaryData.getSeverity(VM_OID)).thenReturn(Severity.CRITICAL);
+
+        final List<SupplyChainStat> stats =
+            statistician.calculateStats(SUPPLY_CHAIN,
+                Collections.singletonList(SupplyChainGroupBy.SEVERITY), entityLookup);
+        assertThat(stats, containsInAnyOrder(
+            SupplyChainStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder()
+                    .setSeverity(Severity.NORMAL))
+                .setNumEntities(3)
+                .build(),
+            SupplyChainStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder()
+                    .setSeverity(Severity.CRITICAL))
+                .setNumEntities(1)
+                .build()));
+    }
+
+    /**
+     * Test calculating stats, grouping by action category.
+     */
+    @Test
+    public void testGroupByCategory() {
+        when(mockSupplementaryData.getCategories(anyLong())).thenReturn(Collections.emptySet());
+        when(mockSupplementaryData.getCategories(VM_OID)).thenReturn(Sets.newHashSet(
+            ActionCategory.PERFORMANCE_ASSURANCE,
+            ActionCategory.EFFICIENCY_IMPROVEMENT));
+
+        final List<SupplyChainStat> stats =
+            statistician.calculateStats(SUPPLY_CHAIN,
+                Collections.singletonList(SupplyChainGroupBy.ACTION_CATEGORY), entityLookup);
+        assertThat(stats, containsInAnyOrder(
+            SupplyChainStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder()
+                    .setActionCategory(ActionCategory.PERFORMANCE_ASSURANCE))
+                .setNumEntities(1)
+                .build(),
+            SupplyChainStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder()
+                    .setActionCategory(ActionCategory.EFFICIENCY_IMPROVEMENT))
+                .setNumEntities(1)
+                .build(),
+            SupplyChainStat.newBuilder()
+                // Unset because 3 entities have no categories.
+                .setStatGroup(StatGroup.newBuilder())
+                .setNumEntities(3)
+                .build()));
+    }
+
+    /**
+     * Test calculating stats, grouping by target, entity type, and action category.
+     */
+    @Test
+    public void testByTargetAndEntityTypeAndCategories() {
+        when(mockSupplementaryData.getCategories(anyLong())).thenReturn(Collections.emptySet());
+        when(mockSupplementaryData.getCategories(VM_OID)).thenReturn(Sets.newHashSet(
+            ActionCategory.PERFORMANCE_ASSURANCE));
+
+        final List<SupplyChainStat> stats =
+            statistician.calculateStats(SUPPLY_CHAIN,
+                Arrays.asList(SupplyChainGroupBy.TARGET, SupplyChainGroupBy.ENTITY_TYPE, SupplyChainGroupBy.ACTION_CATEGORY), entityLookup);
+        assertThat(stats, containsInAnyOrder(
+            SupplyChainStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder()
+                    .setTargetId(TARGET_1_OID)
+                    .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                    .setActionCategory(ActionCategory.PERFORMANCE_ASSURANCE))
+                .setNumEntities(1)
+                .build(),
+            SupplyChainStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder()
+                    .setTargetId(TARGET_2_OID)
+                    // 1 VM with no action category
+                    .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+                .setNumEntities(1)
+                .build(),
+            SupplyChainStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder()
+                    .setTargetId(TARGET_2_OID)
+                    // 1 VM with PERFORMANCE_ASSURANCE
+                    .setActionCategory(ActionCategory.PERFORMANCE_ASSURANCE)
+                    .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+                .setNumEntities(1)
+                .build(),
+            SupplyChainStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder()
+                    .setTargetId(TARGET_1_OID)
+                    .setEntityType(UIEntityType.COMPUTE_TIER.typeNumber()))
+                .setNumEntities(1)
+                .build(),
+            SupplyChainStat.newBuilder()
+                .setStatGroup(StatGroup.newBuilder()
+                    .setTargetId(TARGET_2_OID)
+                    .setEntityType(UIEntityType.COMPUTE_TIER.typeNumber()))
+                .setNumEntities(2)
+                .build()));
+    }
+
+    /**
+     * Test that the {@link SupplementaryDataFactory} requests and parses action category
+     * information for supply chain entities.
+     */
+    @Test
+    public void testSupplementaryFactoryActionCategories() {
+        final SupplementaryDataFactory factory = new SupplementaryDataFactory(
+            EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+
+        final List<Long> entities = Arrays.asList(1L, 2L);
+
+        when(actionsServiceMole.getCurrentActionStats(any()))
+            .thenReturn(GetCurrentActionStatsResponse.newBuilder()
+                .addResponses(SingleResponse.newBuilder()
+                    .setQueryId(1L)
+                    .addActionStats(CurrentActionStat.newBuilder()
+                        .setStatGroup(CurrentActionStat.StatGroup.newBuilder()
+                            .setTargetEntityId(1L)
+                            .setActionCategory(ActionCategory.PERFORMANCE_ASSURANCE))
+                        .setActionCount(1))
+                    .addActionStats(CurrentActionStat.newBuilder()
+                        .setStatGroup(CurrentActionStat.StatGroup.newBuilder()
+                            .setTargetEntityId(1L)
+                            .setActionCategory(ActionCategory.EFFICIENCY_IMPROVEMENT))
+                        .setActionCount(1)))
+                    .build());
+
+        final SupplementaryData suppData = factory.newSupplementaryData(
+            entities, Collections.singletonList(SupplyChainGroupBy.ACTION_CATEGORY));
+        assertThat(suppData.getCategories(1L),
+            containsInAnyOrder(ActionCategory.PERFORMANCE_ASSURANCE, ActionCategory.EFFICIENCY_IMPROVEMENT));
+        assertThat(suppData.getCategories(2L),
+            is(Collections.emptySet()));
+
+        verify(actionsServiceMole).getCurrentActionStats(GetCurrentActionStatsRequest.newBuilder()
+            .addQueries(SingleQuery.newBuilder()
+                .setQueryId(1L)
+                .setQuery(CurrentActionStatsQuery.newBuilder()
+                    .setScopeFilter(ScopeFilter.newBuilder()
+                        .setEntityList(EntityScope.newBuilder()
+                            .addAllOids(entities)))
+                    .addGroupBy(GroupBy.TARGET_ENTITY_ID)
+                    .addGroupBy(GroupBy.ACTION_CATEGORY)))
+            .build());
+    }
+
+    /**
+     * Test that the {@link SupplementaryDataFactory} requests and parses entity severities
+     * for supply chain entities.
+     */
+    @Test
+    public void testSupplementaryFactorySeverities() {
+        final SupplementaryDataFactory factory = new SupplementaryDataFactory(
+            EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+
+        final List<Long> entities = Arrays.asList(1L, 2L, 3L);
+
+        when(entitySeverityServiceBackend.getEntitySeverities(any()))
+            .thenReturn(EntitySeveritiesResponse.newBuilder()
+                .addEntitySeverity(EntitySeverity.newBuilder()
+                    .setEntityId(1L)
+                    .setSeverity(Severity.CRITICAL))
+                .addEntitySeverity(EntitySeverity.newBuilder()
+                    .setEntityId(2L)
+                    .setSeverity(Severity.MAJOR))
+                .build());
+
+        final SupplementaryData suppData = factory.newSupplementaryData(
+            entities, Collections.singletonList(SupplyChainGroupBy.SEVERITY));
+        assertThat(suppData.getSeverity(1L), is(Severity.CRITICAL));
+        assertThat(suppData.getSeverity(2L), is(Severity.MAJOR));
+        // Normal by default
+        assertThat(suppData.getSeverity(3L), is(Severity.NORMAL));
+
+        verify(entitySeverityServiceBackend).getEntitySeverities(MultiEntityRequest.newBuilder()
+            .addAllEntityIds(entities)
+            .build());
+    }
+
+}

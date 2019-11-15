@@ -4,8 +4,6 @@ import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.A
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.CONNECTED_STORAGE_TIER_FILTER_PATH;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.STATE;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.VOLUME_ATTACHMENT_STATE_FILTER_PATH;
-import static com.vmturbo.common.protobuf.GroupProtoUtil.WORKLOAD_ENTITY_TYPES;
-import static com.vmturbo.common.protobuf.GroupProtoUtil.WORKLOAD_ENTITY_TYPES_API_STR;
 import static com.vmturbo.components.common.utils.StringConstants.CLUSTER;
 import static com.vmturbo.components.common.utils.StringConstants.GROUP;
 import static com.vmturbo.components.common.utils.StringConstants.RESOURCE_GROUP;
@@ -47,7 +45,6 @@ import org.springframework.util.CollectionUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
-import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.BusinessUnitMapper;
 import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
@@ -58,6 +55,7 @@ import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -523,7 +521,7 @@ public class SearchService implements ISearchService {
                         .getSEMap()
                         .values()
                         .stream()
-                        .filter(se -> WORKLOAD_ENTITY_TYPES_API_STR.contains(se.getClassName()))
+                        .filter(se -> UIEntityType.WORKLOAD_ENTITY_TYPES.contains(UIEntityType.fromString(se.getClassName())))
                         .collect(Collectors.toList());
 
                 return paginationRequest.allResultsResponse(results);
@@ -641,7 +639,7 @@ public class SearchService implements ISearchService {
         if (className == null) {
             return Collections.emptyList();
         } else if (className.equals(WORKLOAD)) {
-            return WORKLOAD_ENTITY_TYPES.stream()
+            return UIEntityType.WORKLOAD_ENTITY_TYPES.stream()
                 .map(UIEntityType::apiStr)
                 .collect(Collectors.toList());
         } else {

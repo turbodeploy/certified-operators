@@ -15,19 +15,22 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.base.MoreObjects;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
+import io.grpc.StatusRuntimeException;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.base.MoreObjects;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
@@ -52,9 +55,13 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainStatsRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainGroupBy;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainStat;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -62,6 +69,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEnt
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
+import com.vmturbo.components.common.utils.StringConstants;
 
 /**
  * A factory class for various {@link SupplychainFetcher}s.
@@ -250,6 +258,21 @@ public class SupplyChainFetcherFactory {
                         + e.getMessage());
             }
         }
+
+        @Override
+        @Nonnull
+        public List<SupplyChainStat> fetchStats(@Nonnull final List<SupplyChainGroupBy> groupBy)
+            throws OperationFailedException {
+            try {
+                return new SupplychainNodeFetcher(
+                    topologyContextId, seedUuids, entityTypes, environmentType,
+                    supplyChainRpcService, groupExpander, enforceUserScope)
+                    .fetchStats(groupBy);
+            } catch (StatusRuntimeException e) {
+                throw new OperationFailedException("Failed to fetch supply chain stats! Error: " +
+                    e.getMessage());
+            }
+        }
     }
 
     /**
@@ -334,6 +357,22 @@ public class SupplyChainFetcherFactory {
             } catch (ExecutionException | TimeoutException e) {
                 throw new OperationFailedException("Failed to fetch supply chain! Error: "
                         + e.getMessage());
+            }
+        }
+
+        @Override
+        @Nonnull
+        public List<SupplyChainStat> fetchStats(@Nonnull final List<SupplyChainGroupBy> groupBy)
+            throws OperationFailedException {
+            try {
+                return new SupplychainApiDTOFetcher(
+                    topologyContextId, seedUuids, entityTypes, environmentType,
+                    entityDetailType, includeHealthSummary, supplyChainRpcService,
+                    severityRpcService, repositoryApi, groupExpander, entityAspectMapper, enforceUserScope)
+                        .fetchStats(groupBy);
+            } catch (StatusRuntimeException e) {
+                throw new OperationFailedException("Failed to fetch supply chain stats! Error: " +
+                    e.getMessage());
             }
         }
     }
@@ -439,7 +478,19 @@ public class SupplyChainFetcherFactory {
          */
         public B entityTypes(@Nullable List<String> entityTypes) {
             if (entityTypes != null) {
-                this.entityTypes.addAll(entityTypes);
+                entityTypes.stream()
+                    .flatMap(type -> {
+                        if (type.equals(StringConstants.WORKLOAD)) {
+                            // The "Workload" type is UI-only, and represents a collection of
+                            // entity types that count as a workload in our system. Expand the
+                            // magic type into the real types it represents.
+                            return UIEntityType.WORKLOAD_ENTITY_TYPES.stream()
+                                .map(UIEntityType::apiStr);
+                        } else {
+                            return Stream.of(type);
+                        }
+                    })
+                    .forEach(this.entityTypes::add);
             }
             return (B)this;
         }
@@ -483,6 +534,9 @@ public class SupplyChainFetcherFactory {
             return (B)this;
         }
 
+        @Nonnull
+        public abstract List<SupplyChainStat> fetchStats(@Nonnull List<SupplyChainGroupBy> groupBy)
+            throws OperationFailedException;
     }
 
     /**
@@ -551,6 +605,47 @@ public class SupplyChainFetcherFactory {
                     .collect(Collectors.toSet());
         }
 
+        private Optional<SupplyChainScope> createSupplyChainScope() {
+            SupplyChainScope.Builder scopeBuilder = SupplyChainScope.newBuilder();
+            // if list of seed uuids has limited scope,then expand it; if global scope, don't expand
+            if (UuidMapper.hasLimitedScope(seedUuids)) {
+
+                // expand any groups in the input list of seeds
+                Set<String> expandedUuids = groupExpander.expandUuids(seedUuids).stream()
+                    .map(l -> Long.toString(l))
+                    .collect(Collectors.toSet());
+                // empty expanded list?  If so, return immediately
+                if (expandedUuids.isEmpty()) {
+                    return Optional.empty();
+                }
+                // otherwise add the expanded list of seed uuids to the request
+                scopeBuilder.addAllStartingEntityOid(expandedUuids.stream()
+                    .map(Long::valueOf)
+                    .collect(Collectors.toList()));
+            }
+
+            // If entityTypes is specified, include that in the request
+            if (CollectionUtils.isNotEmpty(entityTypes)) {
+                scopeBuilder.addAllEntityTypesToInclude(entityTypes);
+            }
+
+            environmentType.ifPresent(scopeBuilder::setEnvironmentType);
+            return Optional.of(scopeBuilder.build());
+        }
+
+        final List<SupplyChainStat> fetchStats(@Nonnull final List<SupplyChainGroupBy> groupBy) {
+            Optional<SupplyChainScope> scope = createSupplyChainScope();
+            if (scope.isPresent()) {
+                return supplyChainRpcService.getSupplyChainStats(GetSupplyChainStatsRequest.newBuilder()
+                        .setScope(scope.get())
+                        .addAllGroupBy(groupBy)
+                        .build())
+                    .getStatsList();
+            } else {
+                return Collections.emptyList();
+            }
+        }
+
         /**
          * Fetch the requested supply chain in a blocking fashion, waiting at most the duration
          * of the timeout.
@@ -560,75 +655,57 @@ public class SupplyChainFetcherFactory {
         final List<SupplyChainNode> fetchSupplyChainNodes()
                 throws InterruptedException, ExecutionException, TimeoutException {
 
-            final GetSupplyChainRequest.Builder requestBuilder = GetSupplyChainRequest.newBuilder();
+            // START Mad(ish) Hax.
+            // Handle a very particular special case where we are asking for the supply chain
+            // of a group, restricted to the entity type of the group (e.g. give me the supply
+            // chain of Group 1 of PhysicalMachines, containing only PhysicalMachine nodes).
+            // The request is, essentially, asking for the members of the group, so we don't need
+            // to do any supply chain queries.
+            //
+            // The reason this even happens is because some information (e.g. grouped severities
+            // for supply chain stats, or aspects for entities) is only available via the
+            // supply chain API. In the long term there should be a better API to retrieve this
+            // (e.g. some sort of "entity counts" API for grouped severities,
+            //       and/or options on the /search API for aspects)
+            if (UuidMapper.hasLimitedScope(seedUuids) &&
+                    seedUuids.size() == 1 && CollectionUtils.size(entityTypes) == 1) {
+                final String groupUuid = seedUuids.iterator().next();
+                final String desiredEntityType = entityTypes.iterator().next();
+                final Optional<GroupAndMembers> groupWithMembers =
+                    groupExpander.getGroupWithMembers(groupUuid);
+                if (groupWithMembers.isPresent()) {
+                    final Grouping group = groupWithMembers.get().group();
+                    final List<String> groupTypes =  GroupProtoUtil
+                        .getEntityTypes(group)
+                        .stream()
+                        .map(UIEntityType::apiStr)
+                        .collect(Collectors.toList());
 
-            // if list of seed uuids has limited scope,then expand it; if global scope, don't expand
-            if (UuidMapper.hasLimitedScope(seedUuids)) {
-                // START Mad(ish) Hax.
-                // Handle a very particular special case where we are asking for the supply chain
-                // of a group, restricted to the entity type of the group (e.g. give me the supply
-                // chain of Group 1 of PhysicalMachines, containing only PhysicalMachine nodes).
-                // The request is, essentially, asking for the members of the group, so we don't need
-                // to do any supply chain queries.
-                //
-                // The reason this even happens is because some information (e.g. grouped severities
-                // for supply chain stats, or aspects for entities) is only available via the
-                // supply chain API. In the long term there should be a better API to retrieve this
-                // (e.g. some sort of "entity counts" API for grouped severities,
-                //       and/or options on the /search API for aspects)
-                if (seedUuids.size() == 1 && CollectionUtils.size(entityTypes) == 1) {
-                    final String groupUuid = seedUuids.iterator().next();
-                    final String desiredEntityType = entityTypes.iterator().next();
-                    final Optional<GroupAndMembers> groupWithMembers =
-                        groupExpander.getGroupWithMembers(groupUuid);
-                    if (groupWithMembers.isPresent()) {
-                        final Grouping group = groupWithMembers.get().group();
-                        final List<String> groupTypes =  GroupProtoUtil
-                                        .getEntityTypes(group)
-                                        .stream()
-                                        .map(UIEntityType::apiStr)
-                                        .collect(Collectors.toList());
-
-                        if (groupTypes.contains(desiredEntityType)) {
-                            if (groupWithMembers.get().members().isEmpty()) {
-                                return Collections.emptyList();
-                            }
-                            return Collections.singletonList(SupplyChainNode.newBuilder()
-                                .setEntityType(desiredEntityType)
-                                .putMembersByState(EntityState.POWERED_ON_VALUE,
-                                    MemberList.newBuilder()
-                                        .addAllMemberOids(groupExpander.expandUuid(groupUuid))
-                                        .build())
-                                .build());
+                    if (groupTypes.contains(desiredEntityType)) {
+                        if (groupWithMembers.get().members().isEmpty()) {
+                            return Collections.emptyList();
                         }
+                        return Collections.singletonList(SupplyChainNode.newBuilder()
+                            .setEntityType(desiredEntityType)
+                            .putMembersByState(EntityState.POWERED_ON_VALUE,
+                                MemberList.newBuilder()
+                                    .addAllMemberOids(groupExpander.expandUuid(groupUuid))
+                                    .build())
+                            .build());
                     }
                 }
-                // END Mad(ish) Hax.
+            }
+            // END Mad(ish) Hax.
 
-                // expand any groups in the input list of seeds
-                Set<String> expandedUuids = groupExpander.expandUuids(seedUuids).stream()
-                        .map(l -> Long.toString(l))
-                        .collect(Collectors.toSet());
-                // empty expanded list?  If so, return immediately
-                if (expandedUuids.isEmpty()) {
-                    return Collections.emptyList();
-                }
-                // otherwise add the expanded list of seed uuids to the request
-                requestBuilder.addAllStartingEntityOid(expandedUuids.stream()
-                        .map(Long::valueOf)
-                        .collect(Collectors.toList()));
+            Optional<SupplyChainScope> scope = createSupplyChainScope();
+            if (!scope.isPresent()) {
+                return Collections.emptyList();
             }
 
-            // If entityTypes is specified, include that in the request
-            if (CollectionUtils.isNotEmpty(entityTypes)) {
-                requestBuilder.addAllEntityTypesToInclude(entityTypes);
-            }
-
-            environmentType.ifPresent(requestBuilder::setEnvironmentType);
-
-            requestBuilder.setEnforceUserScope(enforceUserScope);
-
-            GetSupplyChainRequest request = requestBuilder.build();
+            final GetSupplyChainRequest request = GetSupplyChainRequest.newBuilder()
+                .setScope(scope.get())
+                .setEnforceUserScope(enforceUserScope)
+                .build();
 
             final GetSupplyChainResponse response = supplyChainRpcService.getSupplyChain(request);
             if (!response.getSupplyChain().getMissingStartingEntitiesList().isEmpty()) {

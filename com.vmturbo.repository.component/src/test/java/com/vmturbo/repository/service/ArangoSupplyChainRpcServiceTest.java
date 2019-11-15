@@ -25,13 +25,6 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
-import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
-
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -39,6 +32,14 @@ import com.google.common.collect.Sets;
 import io.grpc.Status;
 import io.grpc.Status.Code;
 import io.grpc.stub.StreamObserver;
+
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.ExpectedException;
+import org.mockito.Mockito;
+import org.mockito.MockitoAnnotations;
+
 import javaslang.control.Either;
 import reactor.core.publisher.Mono;
 
@@ -52,6 +53,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRes
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
@@ -174,16 +176,18 @@ public class ArangoSupplyChainRpcServiceTest {
     public void testGetMultiSupplyChainsSuccess() throws Exception {
         final long contextId = 123L;
         final SupplyChainSeed seed1 = SupplyChainSeed.newBuilder()
-                .setSeedOid(1L)
-                .addStartingEntityOid(1L)
-                .build();
+            .setSeedOid(1L)
+            .setScope(SupplyChainScope.newBuilder()
+                .addStartingEntityOid(1L))
+            .build();
         final SupplyChainNode node1 = SupplyChainNode.newBuilder()
                 .setEntityType("foo")
                 .build();
         final SupplyChainSeed seed2 = SupplyChainSeed.newBuilder()
-                .setSeedOid(2L)
-                .addStartingEntityOid(2L)
-                .build();
+            .setSeedOid(2L)
+            .setScope(SupplyChainScope.newBuilder()
+                .addStartingEntityOid(2L))
+            .build();
         final SupplyChainNode node2 = SupplyChainNode.newBuilder()
                 .setEntityType("bar")
                 .build();
@@ -194,13 +198,13 @@ public class ArangoSupplyChainRpcServiceTest {
             final GetSupplyChainRequest request = invocation.getArgumentAt(0, GetSupplyChainRequest.class);
             final StreamObserver<GetSupplyChainResponse> nodeObserver =
                     invocation.getArgumentAt(1, StreamObserver.class);
-            if (request.getStartingEntityOidList().equals(seed1.getStartingEntityOidList())) {
+            if (request.getScope().getStartingEntityOidList().equals(seed1.getScope().getStartingEntityOidList())) {
                 nodeObserver.onNext(GetSupplyChainResponse.newBuilder()
                     .setSupplyChain(SupplyChain.newBuilder()
                         .addSupplyChainNodes(node1))
                     .build());
                 nodeObserver.onCompleted();;
-            } else if (request.getStartingEntityOidList().equals(seed2.getStartingEntityOidList())) {
+            } else if (request.getScope().getStartingEntityOidList().equals(seed2.getScope().getStartingEntityOidList())) {
                 nodeObserver.onNext(GetSupplyChainResponse.newBuilder()
                     .setSupplyChain(SupplyChain.newBuilder()
                         .addSupplyChainNodes(node2))
@@ -249,10 +253,11 @@ public class ArangoSupplyChainRpcServiceTest {
                 eq(ArangoSupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN));
 
         final GetSupplyChainResponse response =
-                supplyChainStub.getSupplyChain(GetSupplyChainRequest.newBuilder()
-                        .setContextId(1234L)
-                        .addAllStartingEntityOid(Lists.newArrayList(11L, 12L))
-                        .build());
+            supplyChainStub.getSupplyChain(GetSupplyChainRequest.newBuilder()
+                .setContextId(1234L)
+                .setScope(SupplyChainScope.newBuilder()
+                    .addAllStartingEntityOid(Lists.newArrayList(11L, 12L)))
+                .build());
 
         final SupplyChainNode vmNode1And2combined = cloudVMNode1.toBuilder().putMembersByState(0,
                 MemberList.newBuilder()
@@ -280,13 +285,15 @@ public class ArangoSupplyChainRpcServiceTest {
     public void testGetMultiSupplyChainsError() throws Exception {
         final long contextId = 123L;
         final SupplyChainSeed seed1 = SupplyChainSeed.newBuilder()
-                .setSeedOid(1L)
-                .addStartingEntityOid(1L)
-                .build();
+            .setSeedOid(1L)
+            .setScope(SupplyChainScope.newBuilder()
+                .addStartingEntityOid(1L))
+            .build();
         final SupplyChainSeed seed2 = SupplyChainSeed.newBuilder()
-                .setSeedOid(2L)
-                .addStartingEntityOid(2L)
-                .build();
+            .setSeedOid(2L)
+            .setScope(SupplyChainScope.newBuilder()
+                .addStartingEntityOid(2L))
+            .build();
         final SupplyChain sc2 = SupplyChain.newBuilder()
             .addSupplyChainNodes(SupplyChainNode.newBuilder()
                 .setEntityType("bar"))
@@ -303,9 +310,9 @@ public class ArangoSupplyChainRpcServiceTest {
             // The first seed will result in an error, and the second seed will work fine.
             // But we shouldn't make it to the second seed - we should error out as soon as we
             // encounter an error!
-            if (request.getStartingEntityOidList().equals(seed1.getStartingEntityOidList())) {
+            if (request.getScope().getStartingEntityOidList().equals(seed1.getScope().getStartingEntityOidList())) {
                 nodeObserver.onError(error);
-            } else if (request.getStartingEntityOidList().equals(seed2.getStartingEntityOidList())) {
+            } else if (request.getScope().getStartingEntityOidList().equals(seed2.getScope().getStartingEntityOidList())) {
                 nodeObserver.onNext(GetSupplyChainResponse.newBuilder()
                     .setSupplyChain(sc2)
                     .build());
@@ -336,7 +343,8 @@ public class ArangoSupplyChainRpcServiceTest {
         final GetSupplyChainResponse response = supplyChainStub.getSupplyChain(
             GetSupplyChainRequest.newBuilder()
                 .setContextId(1234L)
-                .addAllStartingEntityOid(Lists.newArrayList(5678L))
+                .setScope(SupplyChainScope.newBuilder()
+                    .addAllStartingEntityOid(Lists.newArrayList(5678L)))
                 .build());
 
         final List<SupplyChainNode> nodes = response.getSupplyChain().getSupplyChainNodesList();
@@ -356,8 +364,9 @@ public class ArangoSupplyChainRpcServiceTest {
         final GetSupplyChainResponse response = supplyChainStub.getSupplyChain(
             GetSupplyChainRequest.newBuilder()
                 .setContextId(1234L)
-                .addAllEntityTypesToInclude(Lists.newArrayList("VirtualMachine"))
-                .addAllStartingEntityOid(Lists.newArrayList(5678L))
+                .setScope(SupplyChainScope.newBuilder()
+                    .addAllEntityTypesToInclude(Lists.newArrayList("VirtualMachine"))
+                    .addAllStartingEntityOid(Lists.newArrayList(5678L)))
                 .build());
 
         final List<SupplyChainNode> nodes = response.getSupplyChain().getSupplyChainNodesList();
@@ -387,7 +396,8 @@ public class ArangoSupplyChainRpcServiceTest {
         final GetSupplyChainResponse response = supplyChainStub.getSupplyChain(
             GetSupplyChainRequest.newBuilder()
                 .setContextId(1234L)
-                .addAllStartingEntityOid(Lists.newArrayList(11L))
+                .setScope(SupplyChainScope.newBuilder()
+                    .addAllStartingEntityOid(Lists.newArrayList(11L)))
                 .build());
 
         // verify that it requested another supply chain starting from zone to only traverse the
@@ -424,7 +434,8 @@ public class ArangoSupplyChainRpcServiceTest {
         final GetSupplyChainResponse response = supplyChainStub.getSupplyChain(
             GetSupplyChainRequest.newBuilder()
                 .setContextId(1234L)
-                .addAllStartingEntityOid(Lists.newArrayList(31L))
+                .setScope(SupplyChainScope.newBuilder()
+                    .addAllStartingEntityOid(Lists.newArrayList(31L)))
                 .build());
 
         // verify that it only requested once the complete supply chain starting from zone
@@ -464,7 +475,8 @@ public class ArangoSupplyChainRpcServiceTest {
         final GetSupplyChainResponse response = supplyChainStub.getSupplyChain(
             GetSupplyChainRequest.newBuilder()
                 .setContextId(1234L)
-                .addAllStartingEntityOid(Lists.newArrayList(41L))
+                .setScope(SupplyChainScope.newBuilder()
+                    .addAllStartingEntityOid(Lists.newArrayList(41L)))
                 .build());
 
         final List<SupplyChainNode> nodes = response.getSupplyChain().getSupplyChainNodesList();
@@ -494,7 +506,8 @@ public class ArangoSupplyChainRpcServiceTest {
         final GetSupplyChainResponse response = supplyChainStub.getSupplyChain(
             GetSupplyChainRequest.newBuilder()
                 .setContextId(1234L)
-                .addAllStartingEntityOid(Lists.newArrayList(51L))
+                .setScope(SupplyChainScope.newBuilder()
+                    .addAllStartingEntityOid(Lists.newArrayList(51L)))
                 .build());
 
         final List<SupplyChainNode> nodes = response.getSupplyChain().getSupplyChainNodesList();
@@ -518,7 +531,8 @@ public class ArangoSupplyChainRpcServiceTest {
         final GetSupplyChainResponse response = supplyChainStub.getSupplyChain(
             GetSupplyChainRequest.newBuilder()
                 .setContextId(1234L)
-                .addAllStartingEntityOid(Lists.newArrayList(51L))
+                .setScope(SupplyChainScope.newBuilder()
+                    .addAllStartingEntityOid(Lists.newArrayList(51L)))
                 .build());
 
         final List<SupplyChainNode> nodes = response.getSupplyChain().getSupplyChainNodesList();
@@ -544,8 +558,9 @@ public class ArangoSupplyChainRpcServiceTest {
         // Force evaluation of the stream
         supplyChainStub.getSupplyChain(GetSupplyChainRequest.newBuilder()
             .setContextId(1234L)
-            .setEnvironmentType(EnvironmentType.CLOUD)
-            .addAllStartingEntityOid(Lists.newArrayList(5678L))
+            .setScope(SupplyChainScope.newBuilder()
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .addAllStartingEntityOid(Lists.newArrayList(5678L)))
             .build());
     }
 
@@ -559,8 +574,9 @@ public class ArangoSupplyChainRpcServiceTest {
 
         final GetSupplyChainResponse response = supplyChainStub.getSupplyChain(GetSupplyChainRequest.newBuilder()
             .setContextId(1234L)
-            .setEnvironmentType(EnvironmentType.CLOUD)
-            .addAllStartingEntityOid(Lists.newArrayList(5678L))
+            .setScope(SupplyChainScope.newBuilder()
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .addAllStartingEntityOid(Lists.newArrayList(5678L)))
             .build());
 
         assertThat(response.getSupplyChain().getMissingStartingEntitiesList(), contains(5678L));
@@ -614,8 +630,9 @@ public class ArangoSupplyChainRpcServiceTest {
         final GetSupplyChainResponse response = supplyChainStub.getSupplyChain(
             GetSupplyChainRequest.newBuilder()
                 .setContextId(1234L)
-                .setEnvironmentType(EnvironmentType.CLOUD)
-                .addAllStartingEntityOid(Lists.newArrayList(5678L, 91011L))
+                .setScope(SupplyChainScope.newBuilder()
+                    .setEnvironmentType(EnvironmentType.CLOUD)
+                    .addAllStartingEntityOid(Lists.newArrayList(5678L, 91011L)))
                 .build());
 
         final List<SupplyChainNode> nodes = response.getSupplyChain().getSupplyChainNodesList();
@@ -672,9 +689,10 @@ public class ArangoSupplyChainRpcServiceTest {
         final GetSupplyChainResponse response = supplyChainStub.getSupplyChain(
             GetSupplyChainRequest.newBuilder()
                 .setContextId(1234L)
-                .setEnvironmentType(EnvironmentType.CLOUD)
-                .addAllEntityTypesToInclude(Lists.newArrayList("PhysicalMachine"))
-                .addAllStartingEntityOid(Lists.newArrayList(5678L, 91011L))
+                .setScope(SupplyChainScope.newBuilder()
+                    .setEnvironmentType(EnvironmentType.CLOUD)
+                    .addAllEntityTypesToInclude(Lists.newArrayList("PhysicalMachine"))
+                    .addAllStartingEntityOid(Lists.newArrayList(5678L, 91011L)))
                 .build());
 
         final List<SupplyChainNode> nodes = response.getSupplyChain().getSupplyChainNodesList();
@@ -696,7 +714,8 @@ public class ArangoSupplyChainRpcServiceTest {
         final GetSupplyChainResponse response = supplyChainStub.getSupplyChain(
             GetSupplyChainRequest.newBuilder()
                 .setContextId(1234L)
-                .setEnvironmentType(EnvironmentType.CLOUD)
+                .setScope(SupplyChainScope.newBuilder()
+                    .setEnvironmentType(EnvironmentType.CLOUD))
                 .build());
         final List<SupplyChainNode> nodes = response.getSupplyChain().getSupplyChainNodesList();
         assertThat(nodes, containsInAnyOrder(pmNode, vmNode));
@@ -716,7 +735,8 @@ public class ArangoSupplyChainRpcServiceTest {
         // Force evaluation of the stream
         Lists.newArrayList(supplyChainStub.getSupplyChain(GetSupplyChainRequest.newBuilder()
             .setContextId(1234L)
-            .setEnvironmentType(EnvironmentType.CLOUD)
+            .setScope(SupplyChainScope.newBuilder()
+                .setEnvironmentType(EnvironmentType.CLOUD))
             .build()));
     }
 

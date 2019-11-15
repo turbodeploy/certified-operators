@@ -37,6 +37,7 @@ import org.springframework.web.client.RestTemplate;
 import javaslang.circuitbreaker.CircuitBreakerConfig;
 import javaslang.circuitbreaker.CircuitBreakerRegistry;
 
+import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.arangodb.ArangoHealthMonitor;
 import com.vmturbo.arangodb.tool.ArangoDump;
 import com.vmturbo.arangodb.tool.ArangoRestore;
@@ -44,6 +45,8 @@ import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.auth.api.db.DBPasswordUtil;
+import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
+import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOREST.RepositoryServiceController;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceImplBase;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoREST.SupplyChainServiceController;
@@ -56,11 +59,11 @@ import com.vmturbo.components.api.ComponentRestTemplate;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
 import com.vmturbo.components.common.BaseVmtComponent;
-import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
-import com.vmturbo.components.common.diagnostics.FileFolderZipper;
 import com.vmturbo.components.common.OsCommandProcessRunner;
+import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory.DefaultDiagsZipReader;
+import com.vmturbo.components.common.diagnostics.FileFolderZipper;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory.DefaultEntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
@@ -92,6 +95,7 @@ import com.vmturbo.repository.service.GraphDBService;
 import com.vmturbo.repository.service.LiveTopologyPaginator;
 import com.vmturbo.repository.service.PartialEntityConverter;
 import com.vmturbo.repository.service.SupplyChainService;
+import com.vmturbo.repository.service.SupplyChainStatistician;
 import com.vmturbo.repository.service.TopologyGraphRepositoryRpcService;
 import com.vmturbo.repository.service.TopologyGraphSearchRpcService;
 import com.vmturbo.repository.service.TopologyGraphSupplyChainRpcService;
@@ -109,6 +113,7 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
 @Import({
     RepositoryApiConfig.class,
     TopologyProcessorClientConfig.class,
+    ActionOrchestratorClientConfig.class,
     MarketClientConfig.class,
     RepositorySecurityConfig.class,
     RepositoryProperties.class,
@@ -132,6 +137,9 @@ public class RepositoryComponent extends BaseVmtComponent {
 
     @Autowired
     RepositoryApiConfig apiConfig;
+
+    @Autowired
+    private ActionOrchestratorClientConfig actionOrchestratorClientConfig;
 
     @Autowired
     private TopologyProcessorClientConfig tpClientConfig;
@@ -506,12 +514,27 @@ public class RepositoryComponent extends BaseVmtComponent {
                 supplyChainResolver(),
                 liveTopologyStore(),
                 arangoService,
+                supplyChainStatistician(),
                 realtimeTopologyContextId);
         } else {
             return arangoService;
         }
     }
 
+    @Bean
+    public SupplyChainStatistician supplyChainStatistician() {
+        return new SupplyChainStatistician(
+            EntitySeverityServiceGrpc.newBlockingStub(
+                actionOrchestratorClientConfig.actionOrchestratorChannel()),
+            ActionsServiceGrpc.newBlockingStub(
+                actionOrchestratorClientConfig.actionOrchestratorChannel()));
+    }
+
+    /**
+     * The {@link SupplyChainResolver} to use for the realtime supply chain.
+     *
+     * @return The {@link SupplyChainResolver}.
+     */
     @Bean
     public SupplyChainResolver<RepoGraphEntity> supplyChainResolver() {
         return new SupplyChainResolver<>();

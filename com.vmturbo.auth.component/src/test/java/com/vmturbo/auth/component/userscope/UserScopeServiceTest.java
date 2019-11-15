@@ -10,6 +10,8 @@ import java.util.List;
 
 import com.google.common.collect.ImmutableList;
 
+import io.grpc.stub.StreamObserver;
+
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Assert;
@@ -20,8 +22,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-
-import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
@@ -38,6 +38,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRes
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
@@ -122,15 +123,17 @@ public class UserScopeServiceTest {
         doReturn(GetSupplyChainResponse.newBuilder()
             .setSupplyChain(TEST_SUPPLY_CHAIN)
             .build()).when(supplyChainService).getSupplyChain(GetSupplyChainRequest.newBuilder()
-                .addStartingEntityOid(memberId)
+                .setScope(SupplyChainScope.newBuilder()
+                    .addStartingEntityOid(memberId))
                 .build());
 
         // if asked for a "shared" user, return a subset.
         doReturn(GetSupplyChainResponse.newBuilder()
             .setSupplyChain(TEST_NON_INFRASTRUCTURE_SUPPLY_CHAIN)
             .build()).when(supplyChainService).getSupplyChain(GetSupplyChainRequest.newBuilder()
-                .addStartingEntityOid(memberId)
-                .addAllEntityTypesToInclude(UserScopeUtils.SHARED_USER_ENTITY_TYPES)
+                .setScope(SupplyChainScope.newBuilder()
+                    .addStartingEntityOid(memberId)
+                    .addAllEntityTypesToInclude(UserScopeUtils.SHARED_USER_ENTITY_TYPES))
                 .build());
 
         groupServiceClient = GroupServiceGrpc.newBlockingStub(mockServer.getChannel());

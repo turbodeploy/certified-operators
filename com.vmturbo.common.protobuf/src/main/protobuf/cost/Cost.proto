@@ -355,7 +355,7 @@ message UpdateDiscountResponse {
 // * Enterprise Agreement [Azure]
 // Entity costs in Turbonomic should reflect what the customer actually pays.
 // All discounts to be entered by user [Cannot be discovered].
-// It's one to one mapping between busniess account and discount.
+// It's one to one mappserviceng between busniess account and discount.
 // Discount is assumed on global region basis. We could extend it to support tier-level if needed.
 message Discount {
     // The oid for the discount

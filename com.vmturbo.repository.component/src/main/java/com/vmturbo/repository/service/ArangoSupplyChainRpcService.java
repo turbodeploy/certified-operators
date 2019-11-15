@@ -19,16 +19,17 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import javaslang.control.Either;
 
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -40,6 +41,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainReq
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceImplBase;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
@@ -48,6 +50,7 @@ import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.repository.service.SupplyChainMerger.MergedSupplyChain;
+import com.vmturbo.repository.service.SupplyChainMerger.MergedSupplyChainException;
 import com.vmturbo.repository.service.SupplyChainMerger.SingleSourceSupplyChain;
 
 /**
@@ -131,16 +134,17 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
                                StreamObserver<GetSupplyChainResponse> responseObserver) {
         final Optional<Long> contextId = request.hasContextId() ?
             Optional.of(request.getContextId()) : Optional.empty();
+        final SupplyChainScope scope = request.getScope();
 
-        final Optional<UIEnvironmentType> envType = request.hasEnvironmentType() ?
-                Optional.of(UIEnvironmentType.fromEnvType(request.getEnvironmentType())) :
+        final Optional<UIEnvironmentType> envType = scope.hasEnvironmentType() ?
+                Optional.of(UIEnvironmentType.fromEnvType(scope.getEnvironmentType())) :
                 Optional.empty();
-        if (request.getStartingEntityOidCount() > 0) {
-            getMultiSourceSupplyChain(request.getStartingEntityOidList(),
-                    request.getEntityTypesToIncludeList(), contextId, envType,
+        if (scope.getStartingEntityOidCount() > 0) {
+            getMultiSourceSupplyChain(scope.getStartingEntityOidList(),
+                    scope.getEntityTypesToIncludeList(), contextId, envType,
                     request.getEnforceUserScope(), responseObserver);
         } else {
-            getGlobalSupplyChain(request.getEntityTypesToIncludeList(), envType,
+            getGlobalSupplyChain(scope.getEntityTypesToIncludeList(), envType,
                     contextId, responseObserver);
         }
     }
@@ -195,11 +199,7 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
     private GetSupplyChainRequest supplyChainSeedToRequest(final Optional<Long> contextId,
                                                         @Nonnull final SupplyChainSeed supplyChainSeed) {
         GetSupplyChainRequest.Builder reqBuilder = GetSupplyChainRequest.newBuilder();
-        if (supplyChainSeed.hasEnvironmentType()) {
-            reqBuilder.setEnvironmentType(supplyChainSeed.getEnvironmentType());
-        }
-        reqBuilder.addAllEntityTypesToInclude(supplyChainSeed.getEntityTypesToIncludeList());
-        reqBuilder.addAllStartingEntityOid(supplyChainSeed.getStartingEntityOidList());
+        reqBuilder.setScope(supplyChainSeed.getScope());
         contextId.ifPresent(reqBuilder::setContextId);
         return reqBuilder.build();
     }
@@ -299,15 +299,13 @@ public class ArangoSupplyChainRpcService extends SupplyChainServiceImplBase {
         }
 
         final MergedSupplyChain supplyChain = supplyChainMerger.merge();
-        if (supplyChain.getErrors().isEmpty()) {
+        try {
             responseObserver.onNext(GetSupplyChainResponse.newBuilder()
                 .setSupplyChain(supplyChain.getSupplyChain(entityTypesToIncludeList))
                 .build());
             responseObserver.onCompleted();
-        } else {
-            responseObserver.onError(Status.INTERNAL.withDescription(
-                supplyChain.getErrors().stream()
-                    .collect(Collectors.joining(", "))).asException());
+        } catch (MergedSupplyChainException e) {
+            responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
     }
 

@@ -56,6 +56,7 @@ import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.Reserved
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
@@ -279,8 +280,9 @@ public class ActionSpecMappingContextFactory {
         entityOids.forEach(oid -> {
             requestBuilder.addSeeds(SupplyChainSeed.newBuilder()
                 .setSeedOid(oid)
-                .addStartingEntityOid(oid)
-                .addEntityTypesToInclude(UIEntityType.DATACENTER.apiStr()));
+                .setScope(SupplyChainScope.newBuilder()
+                    .addStartingEntityOid(oid)
+                    .addEntityTypesToInclude(UIEntityType.DATACENTER.apiStr())));
         });
         final Map<Long, Long> dcOidMap = Maps.newHashMap();
         supplyChainServiceClient.getMultiSupplyChains(requestBuilder.build())

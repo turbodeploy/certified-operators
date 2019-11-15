@@ -4,41 +4,41 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.HashMap;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -53,6 +53,8 @@ import com.vmturbo.api.dto.entityaspect.VirtualDisksAspectApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.enums.EntityDetailType;
+import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
@@ -68,9 +70,13 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainStatsResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainGroupBy;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainStat;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -320,7 +326,26 @@ public class SupplyChainFetcherFactoryTest {
     }
 
     @Test
-    public void testSupplyChainStateSummary() throws Exception {
+    public void testFetchStats() throws OperationFailedException {
+        final String seed = "100";
+
+        when(groupExpander.expandUuids(Collections.singleton(seed)))
+            .thenReturn(Collections.singleton(Long.parseLong(seed)));
+
+        final SupplyChainStat stat = SupplyChainStat.newBuilder()
+            .setNumEntities(100)
+            .build();
+
+        when(supplyChainServiceBackend.getSupplyChainStats(any()))
+            .thenReturn(GetSupplyChainStatsResponse.newBuilder()
+                .addStats(stat)
+                .build());
+
+        assertThat(supplyChainFetcherFactory.newNodeFetcher()
+            .addSeedUuid(seed)
+            .apiEnvironmentType(EnvironmentType.CLOUD)
+            .entityTypes(Collections.singletonList(UIEntityType.VIRTUAL_MACHINE.apiStr()))
+            .fetchStats(Collections.singletonList(SupplyChainGroupBy.BUSINESS_ACCOUNT_ID)), containsInAnyOrder(stat));
     }
 
     @Test
@@ -331,7 +356,8 @@ public class SupplyChainFetcherFactoryTest {
                         MemberList.newBuilder().addMemberOids(1L).build())
                 .build();
         when(supplyChainServiceBackend.getSupplyChain(GetSupplyChainRequest.newBuilder()
-                .addEntityTypesToInclude(VM)
+                .setScope(SupplyChainScope.newBuilder()
+                    .addEntityTypesToInclude(VM))
                 .setEnforceUserScope(true)
                 .build()))
             .thenReturn(GetSupplyChainResponse.newBuilder()
@@ -373,7 +399,8 @@ public class SupplyChainFetcherFactoryTest {
                 MemberList.newBuilder().addMemberOids(1L).build())
             .build();
         when(supplyChainServiceBackend.getSupplyChain(GetSupplyChainRequest.newBuilder()
-            .addEntityTypesToInclude(VM)
+            .setScope(SupplyChainScope.newBuilder()
+                .addEntityTypesToInclude(VM))
             .setEnforceUserScope(true)
             .build()))
             .thenReturn(GetSupplyChainResponse.newBuilder()
@@ -406,8 +433,9 @@ public class SupplyChainFetcherFactoryTest {
         when(groupExpander.expandUuids(eq(seedIdStrings))).thenReturn(seedsIds);
         when(supplyChainServiceBackend.getSupplyChain(
                 GetSupplyChainRequest.newBuilder()
-                    .addAllEntityTypesToInclude(relatedEntityTypes)
-                    .addAllStartingEntityOid(seedsIds)
+                    .setScope(SupplyChainScope.newBuilder()
+                        .addAllEntityTypesToInclude(relatedEntityTypes)
+                        .addAllStartingEntityOid(seedsIds))
                     .setEnforceUserScope(true)
                     .build()))
             .thenReturn(

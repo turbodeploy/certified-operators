@@ -9,6 +9,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.base.Preconditions;
+import com.google.common.base.Stopwatch;
+import com.google.protobuf.util.JsonFormat;
+
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.mutable.MutableLong;
@@ -17,10 +21,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Ignore;
 import org.junit.Test;
-
-import com.google.common.base.Preconditions;
-import com.google.common.base.Stopwatch;
-import com.google.protobuf.util.JsonFormat;
 
 import jdk.nashorn.internal.ir.debug.ObjectSizeCalculator;
 
@@ -105,7 +105,6 @@ public class LiveTopologyStoreMeasurementIT {
         stopwatch.stop();
         logger.info("Took {} to de-compress {} entities", stopwatch.elapsed(TimeUnit.SECONDS), cnt.intValue());
     }
-
 
     @Test
     @Ignore

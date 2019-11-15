@@ -15,12 +15,10 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
-import com.google.common.collect.ImmutableSet;
+import io.grpc.stub.StreamObserver;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.auth.api.authorization.scoping.AccessScopeCacheKey;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
@@ -29,8 +27,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.common.protobuf.userscope.UserScope.CurrentUserEntityAccessScopeRequest;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeContents;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeRequest;
@@ -280,12 +278,13 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
 
         // now, use the set of entities to make a supply chain request.
         final GetSupplyChainRequest.Builder supplyChainRequestBuilder = GetSupplyChainRequest.newBuilder()
-                .addAllStartingEntityOid(scopeGroupEntityOids);
+            .setScope(SupplyChainScope.newBuilder()
+                .addAllStartingEntityOid(scopeGroupEntityOids));
 
         // for "shared" users, we should only include specific entity types.
         if (excludeInfrastructureEntities) {
             logger.debug("Adding filter for shared entity types: {}", UserScopeUtils.SHARED_USER_ENTITY_TYPES);
-            supplyChainRequestBuilder.addAllEntityTypesToInclude(UserScopeUtils.SHARED_USER_ENTITY_TYPES);
+            supplyChainRequestBuilder.getScopeBuilder().addAllEntityTypesToInclude(UserScopeUtils.SHARED_USER_ENTITY_TYPES);
         }
         final GetSupplyChainRequest supplyChainRequest = supplyChainRequestBuilder.build();
 

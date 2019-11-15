@@ -19,16 +19,16 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+
+import io.grpc.Status;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-
-import io.grpc.Status;
 
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsLatestRecord;
 import com.vmturbo.action.orchestrator.stats.ImmutableStatsActionView;
@@ -59,6 +59,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyCha
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -426,14 +427,16 @@ public class ClusterActionAggregatorTest {
 
         final GetMultiSupplyChainsRequest expectedSupplyChainRequest = GetMultiSupplyChainsRequest.newBuilder()
                 .addSeeds(SupplyChainSeed.newBuilder()
-                        .setSeedOid(CLUSTER_1.getId())
+                    .setSeedOid(CLUSTER_1.getId())
+                    .setScope(SupplyChainScope.newBuilder()
                         .addEntityTypesToInclude("VirtualMachine")
                         .addStartingEntityOid(CLUSTER_1_PM_1.getId())
-                        .addStartingEntityOid(CLUSTER_1_PM_2.getId()))
+                        .addStartingEntityOid(CLUSTER_1_PM_2.getId())))
                 .addSeeds(SupplyChainSeed.newBuilder()
-                        .setSeedOid(CLUSTER_2.getId())
+                    .setSeedOid(CLUSTER_2.getId())
+                    .setScope(SupplyChainScope.newBuilder()
                         .addEntityTypesToInclude("VirtualMachine")
-                        .addStartingEntityOid(CLUSTER_2_PM.getId()))
+                        .addStartingEntityOid(CLUSTER_2_PM.getId())))
                 .build();
         when(supplyChainServiceMole.getMultiSupplyChains(any()))
             .thenReturn(Arrays.asList(

@@ -1,9 +1,12 @@
 package com.vmturbo.common.protobuf.topology;
 
+import java.util.Set;
+
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.StringUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
@@ -49,6 +52,15 @@ public enum UIEntityType {
     DESKTOP_POOL("DesktopPool", EntityType.DESKTOP_POOL),
     BUSINESS_USER("BusinessUser", EntityType.BUSINESS_USER),
     UNKNOWN("Unknown", EntityType.UNKNOWN);
+
+    /**
+     * These are the entity types that count as "Workloads" in our system.
+     *
+     * <p>Workloads are "arbitrary units of functionality", but we use it to encapsulate certain
+     * important entity types for management and licensing purposes.
+     */
+    public static final Set<UIEntityType> WORKLOAD_ENTITY_TYPES = ImmutableSet.of(
+        UIEntityType.VIRTUAL_MACHINE, UIEntityType.DATABASE, UIEntityType.DATABASE_SERVER);
 
     private final String uiStr;
 

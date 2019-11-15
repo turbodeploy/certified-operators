@@ -2,7 +2,6 @@ package com.vmturbo.repository.service;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -203,8 +202,21 @@ public class SupplyChainMerger {
             this.errors = errors;
         }
 
+        /**
+         * Get the final merged supply chain.
+         * @param entityTypesToIncludeList The entity types to include in the supply chain.
+         *                                 Empty means include all entity types.
+         * @return The {@link SupplyChain} protobuf describing the merged supply chain.
+         * @throws MergedSupplyChainException If there were error smerging the individual supply
+         * chains into the final version.
+         */
         @Nonnull
-        public SupplyChain getSupplyChain(@Nonnull final List<String> entityTypesToIncludeList) {
+        public SupplyChain getSupplyChain(@Nonnull final List<String> entityTypesToIncludeList)
+                throws MergedSupplyChainException {
+            if (!errors.isEmpty()) {
+                throw new MergedSupplyChainException(errors);
+            }
+
             final SupplyChain.Builder retBuilder = SupplyChain.newBuilder()
                 .addAllMissingStartingEntities(notFoundIds);
 
@@ -215,9 +227,14 @@ public class SupplyChainMerger {
 
             return retBuilder.build();
         }
+    }
 
-        public List<String> getErrors() {
-            return errors;
+    /**
+     * Exception thrown if merging supply chains encounters errors.
+     */
+    public static class MergedSupplyChainException extends Exception {
+        MergedSupplyChainException(@Nonnull final List<String> errors) {
+            super(String.join(", ", errors));
         }
     }
 

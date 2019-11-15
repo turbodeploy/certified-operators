@@ -163,7 +163,8 @@ public class RepositoryPerformanceTest {
                                 @Nonnull final String message) {
         final GetSupplyChainRequest.Builder supplyChainRequest = GetSupplyChainRequest.newBuilder()
             .setContextId(contextId);
-        startingEntityOid.ifPresent(supplyChainRequest::addStartingEntityOid);
+        startingEntityOid.ifPresent(startingEntity ->
+            supplyChainRequest.getScopeBuilder().addStartingEntityOid(startingEntity));
 
         final SupplyChain supplyChain =
             supplyChainService.getSupplyChain(supplyChainRequest.build()).getSupplyChain();

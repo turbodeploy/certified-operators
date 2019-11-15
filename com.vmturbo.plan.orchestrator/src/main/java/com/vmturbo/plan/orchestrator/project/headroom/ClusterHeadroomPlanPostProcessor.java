@@ -49,6 +49,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
@@ -287,8 +288,9 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         final GetMultiSupplyChainsRequest.Builder requestBuilder = GetMultiSupplyChainsRequest.newBuilder();
         clusters.forEach(cluster -> requestBuilder.addSeeds(SupplyChainSeed.newBuilder()
             .setSeedOid(cluster.getId())
-            .addAllStartingEntityOid(GroupProtoUtil.getAllStaticMembers(cluster.getDefinition()))
-            .addAllEntityTypesToInclude(HEADROOM_ENTITY_TYPES)));
+            .setScope(SupplyChainScope.newBuilder()
+                .addAllStartingEntityOid(GroupProtoUtil.getAllStaticMembers(cluster.getDefinition()))
+                .addAllEntityTypesToInclude(HEADROOM_ENTITY_TYPES))));
 
         // Make a supply chain rpc call to fetch supply chain information, which is used to
         // determine which cluster a projected entity belongs to and

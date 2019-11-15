@@ -491,12 +491,10 @@ public class ServiceConfig {
     public SupplyChainsService supplyChainService() {
         return new SupplyChainsService(communicationConfig.supplyChainFetcher(),
             communicationConfig.planRpcService(),
-            mapperConfig.actionSpecMapper(),
-            communicationConfig.actionsRpcService(),
             communicationConfig.getRealtimeTopologyContextId(),
             communicationConfig.groupExpander(),
             mapperConfig.entityAspectMapper(),
-            userSessionConfig.userSessionContext());
+            Clock.systemUTC());
     }
 
     @Bean

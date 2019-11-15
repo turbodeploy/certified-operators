@@ -135,6 +135,10 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>market-component-api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>action-orchestrator-api</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>

@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResp
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
@@ -211,7 +212,7 @@ public class RepositoryClient {
      *
      * @param scopeIds  The topology scope seed IDs.
      * @param realtimeTopologyContextId The real-time context id.
-     * @param supplCchainServiceBlockingStub the Supply Chain Service to make calls to to get the topology
+     * @param supplyChainServiceBlockingStub the Supply Chain Service to make calls to to get the topology
      * nodes associated with the scopeIds.
      * @return A Map containing the relevant cloud scopes, keyed by scope type and mapped to scope OIDs.
      */
@@ -222,10 +223,11 @@ public class RepositoryClient {
         try {
             final GetSupplyChainRequest.Builder requestBuilder = GetSupplyChainRequest.newBuilder();
             GetSupplyChainRequest request = requestBuilder
-                            .setContextId(realtimeTopologyContextId)
-                            .addAllStartingEntityOid(scopeIds)
-                            .setEnvironmentType(EnvironmentType.CLOUD)
-                            .build();
+                .setContextId(realtimeTopologyContextId)
+                .setScope(SupplyChainScope.newBuilder()
+                    .addAllStartingEntityOid(scopeIds)
+                    .setEnvironmentType(EnvironmentType.CLOUD))
+                .build();
 
             final GetSupplyChainResponse response = supplyChainServiceBlockingStub
                             .getSupplyChain(request);
@@ -244,11 +246,9 @@ public class RepositoryClient {
                     case BUSINESS_ACCOUNT:
                         // Make adjustment for Business Accounts/Subscriptions.  Get all related
                         // accounts in the family.
-                        List<Long> allRelatedBaOids =
-                                                    getRelatedBusinessAccountOrSubscriptionOids(
-                                                            scopeIds.stream()
-                                                            .collect(Collectors.toList()),
-                                                            realtimeTopologyContextId);
+                        List<Long> allRelatedBaOids = getRelatedBusinessAccountOrSubscriptionOids(
+                            scopeIds.stream().collect(Collectors.toList()),
+                            realtimeTopologyContextId);
                         topologyMap.put(EntityType.BUSINESS_ACCOUNT, allRelatedBaOids.stream()
                                         .collect(Collectors.toSet()));
                         break;

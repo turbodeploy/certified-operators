@@ -45,6 +45,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByT
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.reports.component.data.ReportDataUtils.EntitiesTableGeneratedId;
@@ -283,9 +284,10 @@ public class GroupGeneratorDelegate {
                                                       final @Nonnull String entityType,
                                                       final @Nonnull Collection<Long> staticMemberOidsList) {
         final GetSupplyChainRequest request = GetSupplyChainRequest.newBuilder()
-            .setEnvironmentType(EnvironmentType.ON_PREM)
-            .addAllStartingEntityOid(staticMemberOidsList)
-            .addAllEntityTypesToInclude(Collections.singleton(entityType))
+            .setScope(SupplyChainScope.newBuilder()
+                .setEnvironmentType(EnvironmentType.ON_PREM)
+                .addAllStartingEntityOid(staticMemberOidsList)
+                .addAllEntityTypesToInclude(Collections.singleton(entityType)))
             .build();
         final GetSupplyChainResponse response = getGetSupplyChainResponse(context, request);
         return response.getSupplyChain().getSupplyChainNodesList();
