@@ -5,11 +5,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,6 +35,13 @@ import com.vmturbo.components.common.utils.StringConstants;
  * Maps action count stats from XL format to API {@link StatSnapshotApiDTO}s.
  */
 class ActionStatsMapper {
+
+    private static final Map<ActionCostType, String> COST_TYPE_STR =
+        ImmutableMap.<ActionCostType, String>builder()
+            .put(ActionCostType.SAVING, StringConstants.SAVINGS)
+            .put(ActionCostType.INVESTMENT, StringConstants.INVESTMENT)
+            .put(ActionCostType.SUPER_SAVING, StringConstants.SUPER_SAVINGS)
+            .build();
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -179,7 +188,12 @@ class ActionStatsMapper {
                 numberToAPIStatValue(actionStat.getEntityCount())));
         }
 
-        query.getCostType().ifPresent(actionCostType -> {
+        // The "costType" specified in the query is a filter that restricts the types of action
+        // cost stats we return. If it's not set, we return all non-zero ones.
+        final Stream<ActionCostType> costTypes = query.getCostType()
+            .map(Stream::of)
+            .orElseGet(() -> Stream.of(ActionCostType.values()));
+        costTypes.forEach(actionCostType -> {
             // We only want to return cost stats when investments/savings are non-zero, even
             // if they are explicitly set to zero.
             if (actionCostType == ActionCostType.INVESTMENT) {
@@ -194,6 +208,9 @@ class ActionStatsMapper {
                         numberToAPIStatValue((float) actionStat.getSavings()),
                         ActionCostType.SAVING));
                 }
+            } else if (actionCostType == ActionCostType.SUPER_SAVING) {
+                // We don't currently support super-savings, but this is not an error.
+                logger.debug("Skipping action cost type: {}", actionCostType);
             } else {
                 logger.error("Action cost type: {} not supported for action stats queries.",
                     actionCostType);
@@ -280,6 +297,10 @@ class ActionStatsMapper {
         Preconditions.checkArgument(actionCostType == ActionCostType.INVESTMENT ||
             actionCostType == ActionCostType.SAVING);
         final StatApiDTO value = newApiStat(StringConstants.COST_PRICE, groupByFilters, statValue);
+        final String costFilterValue = COST_TYPE_STR.get(actionCostType);
+        if (costFilterValue != null) {
+            value.addFilter(StringConstants.PROPERTY, costFilterValue);
+        }
         value.setUnits(StringConstants.DOLLARS_PER_HOUR);
         return value;
     }

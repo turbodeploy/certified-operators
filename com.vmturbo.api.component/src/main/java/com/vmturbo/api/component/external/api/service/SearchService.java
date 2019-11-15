@@ -4,6 +4,7 @@ import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.A
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.CONNECTED_STORAGE_TIER_FILTER_PATH;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.STATE;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.VOLUME_ATTACHMENT_STATE_FILTER_PATH;
+import static com.vmturbo.components.common.utils.StringConstants.BUSINESS_ACCOUNT;
 import static com.vmturbo.components.common.utils.StringConstants.CLUSTER;
 import static com.vmturbo.components.common.utils.StringConstants.GROUP;
 import static com.vmturbo.components.common.utils.StringConstants.RESOURCE_GROUP;
@@ -45,7 +46,6 @@ import org.springframework.util.CollectionUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
-import com.vmturbo.api.component.external.api.mapper.BusinessUnitMapper;
 import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
@@ -56,8 +56,8 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
+import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
-import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -114,7 +114,6 @@ import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
-import com.vmturbo.repository.api.RepositoryClient;
 
 /**
  * Service entry points to search the Repository.
@@ -143,23 +142,15 @@ public class SearchService implements ISearchService {
 
     private final StatsHistoryServiceBlockingStub statsHistoryServiceRpc;
 
-    private final GroupMapper groupMapper;
-
     private final PaginationMapper paginationMapper;
 
-    private final SupplyChainFetcherFactory supplyChainFetcherFactory;
-
     private final GroupUseCaseParser groupUseCaseParser;
-
-    private final UuidMapper uuidMapper;
 
     private final long realtimeContextId;
 
     private final TagsService tagsService;
 
-    private final RepositoryClient repositoryClient;
-
-    private BusinessUnitMapper businessUnitMapper;
+    private BusinessAccountRetriever businessAccountRetriever;
 
     private final UserSessionContext userSessionContext;
 
@@ -178,14 +169,10 @@ public class SearchService implements ISearchService {
                   @Nonnull final SeverityPopulator severityPopulator,
                   @Nonnull final StatsHistoryServiceBlockingStub statsHistoryServiceRpc,
                   @Nonnull GroupExpander groupExpander,
-                  @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
-                  @Nonnull final GroupMapper groupMapper,
                   @Nonnull final PaginationMapper paginationMapper,
                   @Nonnull final GroupUseCaseParser groupUseCaseParser,
-                  @Nonnull UuidMapper uuidMapper,
                   @Nonnull TagsService tagsService,
-                  @Nonnull RepositoryClient repositoryClient,
-                  @Nonnull BusinessUnitMapper businessUnitMapper,
+                  @Nonnull BusinessAccountRetriever businessAccountRetriever,
                   final long realtimeTopologyContextId,
                   @Nonnull final UserSessionContext userSessionContext,
                   @Nonnull final GroupServiceBlockingStub groupServiceRpc,
@@ -201,14 +188,10 @@ public class SearchService implements ISearchService {
         this.severityPopulator = Objects.requireNonNull(severityPopulator);
         this.statsHistoryServiceRpc = Objects.requireNonNull(statsHistoryServiceRpc);
         this.groupExpander = Objects.requireNonNull(groupExpander);
-        this.groupMapper = Objects.requireNonNull(groupMapper);
         this.paginationMapper = Objects.requireNonNull(paginationMapper);
         this.groupUseCaseParser = groupUseCaseParser;
-        this.supplyChainFetcherFactory = supplyChainFetcherFactory;
-        this.uuidMapper = uuidMapper;
         this.tagsService = tagsService;
-        this.repositoryClient = repositoryClient;
-        this.businessUnitMapper = businessUnitMapper;
+        this.businessAccountRetriever = businessAccountRetriever;
         this.realtimeContextId = realtimeTopologyContextId;
         this.userSessionContext = userSessionContext;
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
@@ -233,7 +216,7 @@ public class SearchService implements ISearchService {
         }
 
         try {
-            return businessUnitMapper.getBusinessUnitByOID(targetsService, uuidString);
+            return businessAccountRetriever.getBusinessAccount(uuidString);
         } catch (UnsupportedOperationException ex) {
             // Not a valid business account either
             logger.info("Entity with " + uuidString + " UUID is not a valid Business Unit");
@@ -354,11 +337,11 @@ public class SearchService implements ISearchService {
             } else if (types.contains(UIEntityType.BUSINESS_ACCOUNT.apiStr())) {
                 // TODO handle different scopes (not just target scope)
                 final Collection<BusinessUnitApiDTO> businessAccounts =
-                        businessUnitMapper.getAndConvertDiscoveredBusinessUnits(targetsService,
-                            scopes);
+                        businessAccountRetriever.getBusinessAccountsInScope(scopes);
                 return paginationRequest.allResultsResponse(Lists.newArrayList(businessAccounts));
             } else if (types.contains(StringConstants.BILLING_FAMILY)) {
-                return paginationRequest.allResultsResponse(fetchBillingFamilyApiDTOs());
+                return paginationRequest.allResultsResponse(
+                    Lists.newArrayList(businessAccountRetriever.getBillingFamilies()));
             }
         }
 
@@ -398,23 +381,6 @@ public class SearchService implements ISearchService {
                 probeTypes.contains(se.getDiscoveredBy().getType()))
             .collect(Collectors.toList());
         return paginationRequest.allResultsResponse(result);
-    }
-
-    /**
-     * Find master business accounts and convert them to BillingFamilyApiDTO.
-     *
-     * @return list of BillingFamilyApiDTOs
-     */
-    private List<BaseApiDTO> fetchBillingFamilyApiDTOs() throws Exception {
-        final List<BusinessUnitApiDTO> businessAccounts =
-            businessUnitMapper.getAndConvertDiscoveredBusinessUnits(targetsService);
-        final Map<String, String> accountIdToDisplayName = businessAccounts.stream()
-            .collect(Collectors.toMap(BusinessUnitApiDTO::getUuid, BusinessUnitApiDTO::getDisplayName));
-        return businessAccounts.stream()
-            .filter(BusinessUnitApiDTO::isMaster)
-            .map(masterAccount -> businessUnitMapper.businessUnitToBillingFamily(masterAccount,
-                accountIdToDisplayName))
-            .collect(Collectors.toList());
     }
 
     private static ExecutorService executor = Executors.newFixedThreadPool(3);
@@ -489,6 +455,9 @@ public class SearchService implements ISearchService {
                                         addNameMatcher(query,
                                                 inputDTO.getCriteriaList(),
                                                 GroupFilterMapper.RESOURCE_GROUP_BY_NAME_FILTER_TYPE))));
+            case BUSINESS_ACCOUNT:
+                return paginationRequest.allResultsResponse(Lists.newArrayList(
+                    businessAccountRetriever.getBusinessAccountsInScope(inputDTO.getScope())));
             case WORKLOAD:
                 List<String> scope = inputDTO.getScope();
 

@@ -1,14 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import static com.vmturbo.common.protobuf.GroupProtoUtil.WORKLOAD_ENTITY_TYPES_API_STR;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -19,7 +12,6 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
@@ -32,17 +24,12 @@ import com.vmturbo.api.dto.businessunit.CloudServicePriceAdjustmentApiDTO;
 import com.vmturbo.api.dto.businessunit.EntityDiscountDTO;
 import com.vmturbo.api.dto.businessunit.EntityPriceDTO;
 import com.vmturbo.api.dto.businessunit.TemplatePriceAdjustmentDTO;
-import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
-import com.vmturbo.api.dto.group.BillingFamilyApiDTO;
-import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.BusinessUnitType;
 import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.ServicePricingModel;
 import com.vmturbo.api.exceptions.InvalidOperationException;
-import com.vmturbo.api.exceptions.UnknownObjectException;
-import com.vmturbo.api.serviceinterfaces.ITargetsService;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.cost.Cost.Discount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
@@ -50,16 +37,12 @@ import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.ServiceLevelDiscount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.ServiceLevelDiscount.Builder;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.TierLevelDiscount;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
-import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
 
 /**
  * Mapping between Cost domain DTO {@link Discount} and API DTOs
@@ -69,28 +52,13 @@ import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
  *
  * @Todo: consider adding business unit abstraction to handle CRUD operations, when supporting other business unit types.
  */
-public class BusinessUnitMapper {
-
-    private static final String TARGET_ADDRESS = "address";
-
-    private static final String FAILED_TO_GET_TARGET_NAME_FROM_TARGET = "Failed to get target name from target: ";
-
-    private static final String REPOSITORY_CANNOT_RESOLVE_OIDS = "Repository cannot resolve oids: ";
-
-    private static final String FAILED_TO_GET_TARGET_INFORMATION_BY_TARGET_ORIGIN_ID = "Failed to get target information by target originId: ";
-
-    private static final String TARGET_TYPE_UNKNOWN = "UNKNOWN";
-
-    private static final double ZERO = 0.0;
-
+public class DiscountMapper {
     private static final Logger logger = LogManager.getLogger();
 
     private static final Set<Integer> TIER_TYPES = ImmutableSet.of(
             EntityType.COMPUTE_TIER_VALUE,
             EntityType.DATABASE_TIER_VALUE,
             EntityType.STORAGE_TIER_VALUE);
-
-    private final long realtimeTopologyContextId;
 
     private final RepositoryApi repositoryApi;
 
@@ -101,8 +69,12 @@ public class BusinessUnitMapper {
             dto.getPriceAdjustment() != null
             && dto.getPriceAdjustment().getValue() != null;
 
-    public BusinessUnitMapper(final long realtimeTopologyContextId, @Nonnull final RepositoryApi repositoryApi) {
-        this.realtimeTopologyContextId = realtimeTopologyContextId;
+    /**
+     * Constructor for the {@link DiscountMapper}.
+     *
+     * @param repositoryApi {@link RepositoryApi} for calls to the repository to get entity information.
+     */
+    public DiscountMapper(@Nonnull final RepositoryApi repositoryApi) {
         this.repositoryApi = repositoryApi;
     }
 
@@ -267,7 +239,6 @@ public class BusinessUnitMapper {
         return cloudServiceDiscountApiDTOs;
     }
 
-
     /**
      * Get all discovered Cloud services from search service
      *
@@ -363,247 +334,4 @@ public class BusinessUnitMapper {
     private String getFamilyName(@Nonnull final String displayName) {
         return displayName.split("\\.")[0];
     }
-
-    /**
-     * Find all the discovered business unit with discount type
-     *
-     * @param targetsService   target service to find the Cloud type (AWS or Azure)
-     * @return discovered business unit with discount type
-     * @throws InvalidOperationException if search operation failed
-     */
-    public List<BusinessUnitApiDTO> getAndConvertDiscoveredBusinessUnits(
-        @Nonnull final ITargetsService targetsService)
-        throws Exception {
-        return this.getAndConvertDiscoveredBusinessUnits(targetsService, Collections.emptyList());
-    }
-
-    /**
-     * Find all discovered business units discovered by targets in the scope.  If scope is null
-     * or empty, return all discovered business units.
-     *
-     * @param targetsService target service needed to enforce scope and populate target information
-     *                       in the {@link BusinessUnitApiDTO}.
-     * @param scopes a list of target ids.
-     * @return Set of discovered business units.
-     */
-    public List<BusinessUnitApiDTO> getAndConvertDiscoveredBusinessUnits(
-        @Nonnull final ITargetsService targetsService,
-        List<String> scopes) {
-        final Set<Long> scopeTargets = new HashSet<>();
-        final Set<String> validTargetIds = new HashSet<>();
-        if (scopes != null && !scopes.isEmpty()) {
-            try {
-                targetsService.getTargets(EnvironmentType.CLOUD)
-                    .forEach(targetApiDTO -> validTargetIds.add(targetApiDTO.getUuid()));
-            } catch (UnknownObjectException e) {
-                logger.warn("Could not get target list due to exception {}.  Cannot enforce scope.", e);
-            }
-        }
-        if (!validTargetIds.isEmpty()) {
-            scopes.forEach(targetId -> {
-                try {
-                    if (validTargetIds.contains(targetId)) {
-                        scopeTargets.add(Long.parseLong(targetId));
-                    } else {
-                        logger.warn("No target matching target ID {} found."
-                            + "  {} will not be added to scope.", targetId, targetId);
-                    }
-                } catch (NumberFormatException nfe) {
-                    // should never happen
-                    logger.warn("Could not parse target id: {}", targetId);
-                }
-            });
-        }
-        final List<TopologyEntityDTO> businessAccounts = repositoryApi.newSearchRequest(
-            SearchProtoUtil.makeSearchParameters(SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT))
-                .build())
-            .getFullEntities()
-            .collect(Collectors.toList());
-
-        final List<TargetApiDTO> cloudTargetList = getCloudTargets(targetsService);
-
-        return businessAccounts.stream()
-            .filter(entity -> scopeTargets.isEmpty()
-                || entity.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList()
-                .stream()
-                .anyMatch(scopeTargets::contains))
-            .map(tpDto -> buildDiscoveredBusinessUnitApiDTO(tpDto, cloudTargetList))
-            .filter(Optional::isPresent)
-            .map(Optional::get)
-            .collect(Collectors.toList());
-    }
-
-    /**
-     * Get the Business Unit for the input OID.
-     *
-     * @param targetsService The target service to find the cloud type(AWS or Azure).
-     * @param oid The input OID value.
-     *
-     * @return The Business Unit DTO for the input OID.
-     * @throws UnsupportedOperationException if the Business Unit cannot be found or is invalid.
-     */
-    public BusinessUnitApiDTO getBusinessUnitByOID(ITargetsService targetsService, String oid) {
-        TopologyEntityDTO outputDTO = repositoryApi.newSearchRequest(
-                        SearchProtoUtil.makeSearchParameters(SearchProtoUtil.stringPropertyFilterExact(SearchableProperties.OID, ImmutableList.of(oid) ))
-                        .build())
-                        .getFullEntities()
-                        .collect(Collectors.toList())
-                        .stream()
-                        .findAny()
-                        .orElseThrow(() -> new UnsupportedOperationException("Cannot find Business Unit with OID: " + oid));
-
-        List<TargetApiDTO> cloudTargetList = getCloudTargets(targetsService);;
-        return buildDiscoveredBusinessUnitApiDTO(outputDTO, cloudTargetList)
-                        .orElseThrow(() -> new UnsupportedOperationException("Invalid Business Unit for OID: " + oid));
-    }
-
-    /**
-     * Build discovered business unit API DTO.
-     *
-     * @param topologyEntityDTO topology entity DTOP for the business account
-     * @param cloudTargetList    cloud targets as returned by the target service
-     * @return BusinessUnitApiDTO
-     */
-    private Optional<BusinessUnitApiDTO> buildDiscoveredBusinessUnitApiDTO(@Nonnull final TopologyEntityDTO topologyEntityDTO,
-                                                                           @Nonnull final List<TargetApiDTO> cloudTargetList) {
-        final CloudType cloudType = CloudType.fromProbeType(getTargetType(topologyEntityDTO.getOid())
-            .map(TargetApiDTO::getType)
-            .orElse(TARGET_TYPE_UNKNOWN));
-        final BusinessUnitApiDTO businessUnitApiDTO = new BusinessUnitApiDTO();
-        businessUnitApiDTO.setBusinessUnitType(BusinessUnitType.DISCOVERED);
-        businessUnitApiDTO.setUuid(Long.toString(topologyEntityDTO.getOid()));
-        businessUnitApiDTO.setEnvironmentType(EnvironmentType.CLOUD);
-        businessUnitApiDTO.setClassName(UIEntityType.BUSINESS_ACCOUNT.apiStr());
-        businessUnitApiDTO.setBudget(new StatApiDTO());
-
-        // TODO set cost
-        businessUnitApiDTO.setCostPrice(0.0f);
-        // discovered account doesn't have discount (yet)
-        businessUnitApiDTO.setDiscount(0.0f);
-
-        businessUnitApiDTO.setMemberType(StringConstants.WORKLOAD);
-        final List<ConnectedEntity> accounts = topologyEntityDTO.getConnectedEntityListList().stream()
-                .filter(entity -> entity.getConnectedEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE)
-                .collect(Collectors.toList());
-
-        // Get the OIDs of the entities owned by the BusinessAccount
-        Set<Long> entityOids = topologyEntityDTO.getConnectedEntityListList()
-                        .stream()
-                        .map(entity -> entity.getConnectedEntityId())
-                        .collect(Collectors.toSet());
-
-        List<ServiceEntityApiDTO> results = repositoryApi.entitiesRequest(entityOids)
-                .getSEMap()
-                .values()
-                .stream()
-                .filter(se -> WORKLOAD_ENTITY_TYPES_API_STR.contains(se.getClassName()))
-                .collect(Collectors.toList());
-        businessUnitApiDTO.setMembersCount(results.size());
-
-        businessUnitApiDTO.setChildrenBusinessUnits(accounts.stream()
-                .map(connectedEntity -> String.valueOf(connectedEntity.getConnectedEntityId()))
-                .collect(Collectors.toList()));
-        businessUnitApiDTO.setCloudType(cloudType);
-        businessUnitApiDTO.setDisplayName(topologyEntityDTO.getDisplayName());
-        if (topologyEntityDTO.hasTypeSpecificInfo()
-            && topologyEntityDTO.getTypeSpecificInfo().hasBusinessAccount()) {
-            BusinessAccountInfo bizInfo =
-                topologyEntityDTO.getTypeSpecificInfo().getBusinessAccount();
-            if (bizInfo.hasAccountId()) {
-                businessUnitApiDTO.setAccountId(bizInfo.getAccountId());
-            }
-            if (bizInfo.hasAssociatedTargetId()) {
-                businessUnitApiDTO.setAssociatedTargetId(
-                    bizInfo.getAssociatedTargetId());
-            }
-            businessUnitApiDTO.setPricingIdentifiers(bizInfo.getPricingIdentifiersList()
-                .stream()
-                .collect(Collectors.toMap(pricingId -> pricingId.getIdentifierName().name(),
-                    PricingIdentifier::getIdentifierValue)));
-        }
-        businessUnitApiDTO.setMaster(accounts.size() > 0);
-        final Map<String, TargetApiDTO> targetApiDtoByTargetId = new HashMap<>();
-        cloudTargetList.stream()
-            .forEach(targetApiDTO -> {
-                targetApiDTO.setType(cloudType.name());
-                targetApiDtoByTargetId.put(targetApiDTO.getUuid(), targetApiDTO);
-            });
-        final List<TargetApiDTO> targetApiDTOS = topologyEntityDTO
-                .getOrigin()
-                .getDiscoveryOrigin()
-                .getDiscoveringTargetIdsList()
-                .stream()
-                .map(String::valueOf)
-                .map(targetApiDtoByTargetId::get)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-        businessUnitApiDTO.setTargets(targetApiDTOS);
-        return Optional.of(businessUnitApiDTO);
-    }
-
-    /**
-     * Convert a {@link BusinessUnitApiDTO} to {@link BillingFamilyApiDTO}.
-     *
-     * @param masterAccount the master BusinessAccount to convert
-     * @param accountIdToDisplayName map from account id to its displayName
-     * @return the converted BillingFamilyApiDTO for the given BusinessUnitApiDTO
-     */
-    public BillingFamilyApiDTO businessUnitToBillingFamily(@Nonnull BusinessUnitApiDTO masterAccount,
-                                                           @Nonnull Map<String, String> accountIdToDisplayName) {
-        BillingFamilyApiDTO billingFamilyApiDTO = new BillingFamilyApiDTO();
-        billingFamilyApiDTO.setMasterAccountUuid(masterAccount.getUuid());
-        Map<String, String> uuidToName = new HashMap<>();
-        uuidToName.put(masterAccount.getUuid(), masterAccount.getDisplayName());
-        masterAccount.getChildrenBusinessUnits().forEach(subAccountId ->
-            uuidToName.put(subAccountId, accountIdToDisplayName.get(subAccountId)));
-        billingFamilyApiDTO.setUuidToNameMap(uuidToName);
-        billingFamilyApiDTO.setMembersCount(masterAccount.getChildrenBusinessUnits().size());
-        billingFamilyApiDTO.setClassName(StringConstants.BILLING_FAMILY);
-        billingFamilyApiDTO.setDisplayName(masterAccount.getDisplayName());
-        billingFamilyApiDTO.setEnvironmentType(EnvironmentType.CLOUD);
-        return billingFamilyApiDTO;
-    }
-
-    /**
-     * Throws when target name is NOT in the target.
-     */
-    private class MissingTargetNameException extends RuntimeException {
-
-        private static final long serialVersionUID = -6058086629099834840L;
-
-        public MissingTargetNameException(final String msg) {
-            super(msg);
-        }
-    }
-
-    /**
-     * Throws when the repository cannot find the oid
-     */
-    class MissingTopologyEntityException extends RuntimeException {
-
-        private static final long serialVersionUID = 7240718389533990427L;
-
-        public MissingTopologyEntityException(final String s) {
-            super(s);
-        }
-    }
-
-    /**
-     * Get the cloud Targets from the provided Targets Service.
-     * @param targetsService object of type ITargetsService.
-     * @return List of targets with EnvironmentType.CLOUD.
-     */
-    private List<TargetApiDTO> getCloudTargets(ITargetsService targetsService) {
-        List<TargetApiDTO> cloudTargetList = new ArrayList<>();
-
-        try {
-            cloudTargetList.addAll(targetsService.getTargets(EnvironmentType.CLOUD));
-        } catch (UnknownObjectException e) {
-            logger.warn("Could not get target list due to exception {}.  "
-                            + "Cannot populate targets in BusinessUnitApiDTO.", e);
-        }
-
-        return cloudTargetList;
-    }
-
 }

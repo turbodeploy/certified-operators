@@ -1,15 +1,20 @@
 package com.vmturbo.cost.component.expenses;
 
-import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+
+import com.google.common.collect.ImmutableSet;
 
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
@@ -22,13 +27,14 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.google.common.collect.ImmutableSet;
-
+import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo.ServiceExpenses;
-import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
+import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest.AccountExpenseQueryScope;
+import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest.AccountExpenseQueryScope.IdList;
 import com.vmturbo.components.api.test.MutableFixedClock;
+import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.util.AccountExpensesFilter;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.sql.utils.DbException;
@@ -48,14 +54,18 @@ public class SqlAccountExpensesStoreTest {
             .addServiceExpenses(ServiceExpenses
                     .newBuilder()
                     .setAssociatedServiceId(2l)
-                    .setExpenses(CurrencyAmount.newBuilder().setAmount(ACCOUNT_EXPENSES_PERCENTAGE1).build())
+                    .setExpenses(CurrencyAmount.newBuilder()
+                        .setCurrency(840)
+                        .setAmount(ACCOUNT_EXPENSES_PERCENTAGE1).build())
                     .build())
             .build();
     final AccountExpenses.AccountExpensesInfo accountExpensesInfo1 = AccountExpensesInfo.newBuilder()
             .addServiceExpenses(ServiceExpenses
                     .newBuilder()
                     .setAssociatedServiceId(1l)
-                    .setExpenses(CurrencyAmount.newBuilder().setAmount(ACCOUNT_EXPENSES_PERCENTAGE2).build())
+                    .setExpenses(CurrencyAmount.newBuilder()
+                        .setCurrency(840)
+                        .setAmount(ACCOUNT_EXPENSES_PERCENTAGE2).build())
                     .build())
             .build();
 
@@ -85,33 +95,6 @@ public class SqlAccountExpensesStoreTest {
         flyway.clean();
     }
 
-    @Test
-    public void testCRD() throws AccountExpenseNotFoundException, DbException {
-
-        // INSERT
-        saveExpense();
-
-        LocalDateTime now = LocalDateTime.now(clock);
-        // READ by associated account id
-        List<AccountExpenses> accountExpenses2 = expensesStore
-                .getAccountExpensesByAssociatedAccountId(ASSOCIATED_ACCOUNT_ID);
-        assertEquals(ASSOCIATED_ACCOUNT_ID, accountExpenses2.get(0).getAssociatedAccountId());
-
-        accountExpenses2 = expensesStore
-                .getAccountExpensesByAssociatedAccountId(accountExpenses2.get(0).getAssociatedAccountId());
-        assertEquals(ACCOUNT_EXPENSES_PERCENTAGE1, accountExpenses2.get(0)
-                .getAccountExpensesInfo()
-                .getServiceExpensesList()
-                .get(0).getExpenses().getAmount(), 0.001);
-
-
-        // DELETE
-        expensesStore
-                .deleteAccountExpensesByAssociatedAccountId(ASSOCIATED_ACCOUNT_ID);
-        List<AccountExpenses> allAccountExpenses = expensesStore.getAllAccountExpenses();
-        assertEquals(0, allAccountExpenses.size());
-    }
-
 
     @Test
     public void testGetLatestExpense() throws AccountExpenseNotFoundException, DbException {
@@ -134,6 +117,70 @@ public class SqlAccountExpensesStoreTest {
                 .deleteAccountExpensesByAssociatedAccountId(ASSOCIATED_ACCOUNT_ID);
         List<AccountExpenses> allAccountExpenses = expensesStore.getAllAccountExpenses();
         assertEquals(0, allAccountExpenses.size());
+    }
+
+    /**
+     * Test getting current account expenses for specific accounts.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test
+    public void testGetCurrentExpenseByAccount() throws Exception {
+        expensesStore.persistAccountExpenses(ASSOCIATED_ACCOUNT_ID, accountExpensesInfo);
+        expensesStore.persistAccountExpenses(ASSOCIATED_ACCOUNT_ID + 1, accountExpensesInfo1);
+
+        final long timestamp = clock.millis();
+
+        clock.changeInstant(clock.instant().plusMillis(1000));
+
+        Collection<AccountExpenses> ret = expensesStore.getCurrentAccountExpenses(
+            AccountExpenseQueryScope.newBuilder()
+                .setSpecificAccounts(IdList.newBuilder()
+                    .addAccountIds(ASSOCIATED_ACCOUNT_ID))
+                .build());
+        assertThat(ret.size(), is(1));
+        assertThat(ret.iterator().next(), is(AccountExpenses.newBuilder()
+            .setAssociatedAccountId(ASSOCIATED_ACCOUNT_ID)
+            .setAccountExpensesInfo(accountExpensesInfo)
+            .setExpenseReceivedTimestamp(timestamp)
+            .build()));
+    }
+
+    /**
+     * Test getting current account expenses for all accounts.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test
+    public void testGetCurrentExpensesAll() throws Exception {
+        expensesStore.persistAccountExpenses(ASSOCIATED_ACCOUNT_ID, accountExpensesInfo);
+        expensesStore.persistAccountExpenses(ASSOCIATED_ACCOUNT_ID + 1, accountExpensesInfo1);
+
+        final long timestamp = clock.millis();
+
+        clock.changeInstant(clock.instant().plusMillis(1000));
+
+        Collection<AccountExpenses> ret = expensesStore.getCurrentAccountExpenses(
+            AccountExpenseQueryScope.newBuilder()
+                .setAll(true)
+                .build());
+        assertThat(ret.size(), is(2));
+        assertThat(ret.stream()
+            .map(AccountExpenses::getAccountExpensesInfo)
+            .collect(Collectors.toList()), containsInAnyOrder(accountExpensesInfo, accountExpensesInfo1));
+        assertThat(ret, containsInAnyOrder(
+            AccountExpenses.newBuilder()
+                .setAssociatedAccountId(ASSOCIATED_ACCOUNT_ID)
+                .setAccountExpensesInfo(accountExpensesInfo)
+                .setExpenseReceivedTimestamp(timestamp)
+                .build(),
+            AccountExpenses.newBuilder()
+                .setAssociatedAccountId(ASSOCIATED_ACCOUNT_ID + 1)
+                .setAccountExpensesInfo(accountExpensesInfo1)
+                .setExpenseReceivedTimestamp(timestamp)
+                .build()));
+
+        assertThat(ret.iterator().next().getAccountExpensesInfo(), is(accountExpensesInfo));
     }
 
     @Test

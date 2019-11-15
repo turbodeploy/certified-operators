@@ -26,7 +26,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
-import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder;
@@ -261,7 +260,7 @@ public class SupplyChainsService implements ISupplyChainsService {
                 .apiEnvironmentType(supplyChainStatsApiInputDTO.getEnvironmentType());
         final List<SupplyChainGroupBy> groupByCriteria = new ArrayList<>();
         for (EntitiesCountCriteria criteria : CollectionUtils.emptyIfNull(supplyChainStatsApiInputDTO.getGroupBy())) {
-            groupByCriteria.add(supplyChainStatMapper.countCriteriaToGroupBy(criteria));
+            supplyChainStatMapper.countCriteriaToGroupBy(criteria).ifPresent(groupByCriteria::add);
         }
 
         final List<SupplyChainStat> scStats = fetcherBuilder.fetchStats(groupByCriteria);
@@ -320,27 +319,27 @@ public class SupplyChainsService implements ISupplyChainsService {
         }
 
         @Nonnull
-        SupplyChainGroupBy countCriteriaToGroupBy(@Nonnull final EntitiesCountCriteria criteria)
+        Optional<SupplyChainGroupBy> countCriteriaToGroupBy(@Nonnull final EntitiesCountCriteria criteria)
             throws InvalidOperationException {
             switch (criteria) {
                 case entityType:
-                    return SupplyChainGroupBy.ENTITY_TYPE;
+                    return Optional.of(SupplyChainGroupBy.ENTITY_TYPE);
                 case state:
-                    return SupplyChainGroupBy.ENTITY_STATE;
+                    return Optional.of(SupplyChainGroupBy.ENTITY_STATE);
                 case severity:
-                    return SupplyChainGroupBy.SEVERITY;
+                    return Optional.of(SupplyChainGroupBy.SEVERITY);
                 case riskSubCategory:
-                    return SupplyChainGroupBy.ACTION_CATEGORY;
+                    return Optional.of(SupplyChainGroupBy.ACTION_CATEGORY);
                 case target:
-                    return SupplyChainGroupBy.TARGET;
+                    return Optional.of(SupplyChainGroupBy.TARGET);
                 case businessUnit:
-                    return SupplyChainGroupBy.BUSINESS_ACCOUNT_ID;
+                    return Optional.of(SupplyChainGroupBy.BUSINESS_ACCOUNT_ID);
                 case template:
                 case resourceGroup:
                     // TODO (roman, Nov 14 2019) OM-52583: Support these options, down to
                     // the repository.
                     logger.error("Group by {} not implemented in XL.", criteria);
-                    throw ApiUtils.notImplementedInXL();
+                    return Optional.empty();
                 default:
                     logger.error("Unexpected entities count criteria: {}", criteria);
                     throw new InvalidOperationException("Invalid criteria: " + criteria);

@@ -30,6 +30,7 @@ import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 
@@ -83,6 +84,13 @@ public class ApiTestUtils {
         return req;
     }
 
+    @Nonnull
+    public static RepositoryApi.SingleEntityRequest mockSingleEntityRequest(@Nonnull final EntityWithConnections entity) {
+        SingleEntityRequest req = mockSingleEntityRequest();
+        when(req.getEntityWithConnections()).thenReturn(Optional.of(entity));
+        return req;
+    }
+
 
     @Nonnull
     private static RepositoryApi.MultiEntityRequest mockMultiEntityRequest() {
@@ -121,6 +129,13 @@ public class ApiTestUtils {
     }
 
     @Nonnull
+    public static RepositoryApi.MultiEntityRequest mockMultiEntityWithConnectionsReq(List<EntityWithConnections> entities) {
+        MultiEntityRequest req = mockMultiEntityRequest();
+        when(req.getEntitiesWithConnections()).then(invocation -> entities.stream());
+        return req;
+    }
+
+    @Nonnull
     public static RepositoryApi.MultiEntityRequest mockMultiEntityReq(List<ApiPartialEntity> entities) {
         MultiEntityRequest req = mockMultiEntityRequest();
         when(req.getEntities()).then(invocation -> entities.stream());
@@ -146,6 +161,13 @@ public class ApiTestUtils {
     public static RepositoryApi.SearchRequest mockSearchMinReq(List<MinimalEntity> entities) {
         SearchRequest req = mockSearchReq();
         when(req.getMinimalEntities()).then(invocation -> entities.stream());
+        return req;
+    }
+
+    @Nonnull
+    public static RepositoryApi.SearchRequest mockSearchWithConnectionsReq(List<EntityWithConnections> entities) {
+        SearchRequest req = mockSearchReq();
+        when(req.getEntitiesWithConnections()).then(invocation -> entities.stream());
         return req;
     }
 

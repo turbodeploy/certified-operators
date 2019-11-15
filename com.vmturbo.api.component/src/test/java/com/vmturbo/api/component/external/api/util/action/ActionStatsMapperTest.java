@@ -21,9 +21,10 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import org.junit.Test;
-
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+
+import org.junit.Test;
 
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor.ActionStatsQuery;
 import com.vmturbo.api.component.external.api.util.action.GroupByFilters.GroupByFiltersFactory;
@@ -132,11 +133,11 @@ public class ActionStatsMapperTest {
         when(query.actionInput()).thenReturn(inputDTO);
 
         final GroupByFilters stat1Filters = mock(GroupByFilters.class);
-        final List<StatFilterApiDTO> stat1ApiFilters = Collections.singletonList(new StatFilterApiDTO());
+        final List<StatFilterApiDTO> stat1ApiFilters = Lists.newArrayList(new StatFilterApiDTO());
         when(stat1Filters.getFilters()).thenReturn(stat1ApiFilters);
 
         final GroupByFilters stat2Filters = mock(GroupByFilters.class);
-        final List<StatFilterApiDTO> stat2ApiFilters = Collections.singletonList(new StatFilterApiDTO());
+        final List<StatFilterApiDTO> stat2ApiFilters = Lists.newArrayList(new StatFilterApiDTO());
         when(stat2Filters.getFilters()).thenReturn(stat2ApiFilters);
 
         when(groupByFiltersFactory.filtersForQuery(query)).thenReturn(stat1Filters, stat2Filters);
@@ -157,7 +158,8 @@ public class ActionStatsMapperTest {
         verify(stat1Filters, times(2)).getFilters();
         verifyNoMoreInteractions(stat1Filters);
 
-        verify(stat2Filters, times(2)).getFilters();
+        // Stat2 has investments and savings.
+        verify(stat2Filters, times(4)).getFilters();
         verifyNoMoreInteractions(stat2Filters);
     }
 
@@ -281,7 +283,7 @@ public class ActionStatsMapperTest {
         when(query.getCostType()).thenReturn(Optional.of(ActionCostType.SAVING));
 
         final GroupByFilters groupByFilters = mock(GroupByFilters.class);
-        final List<StatFilterApiDTO> apiFilters = Collections.singletonList(new StatFilterApiDTO());
+        final List<StatFilterApiDTO> apiFilters = Lists.newArrayList(new StatFilterApiDTO());
         when(groupByFilters.getFilters()).thenReturn(apiFilters);
         when(groupByFiltersFactory.filtersForQuery(query)).thenReturn(groupByFilters);
 
@@ -328,7 +330,7 @@ public class ActionStatsMapperTest {
         when(query.getCostType()).thenReturn(Optional.of(ActionCostType.INVESTMENT));
 
         final GroupByFilters groupByFilters = mock(GroupByFilters.class);
-        final List<StatFilterApiDTO> apiFilters = Collections.singletonList(new StatFilterApiDTO());
+        final List<StatFilterApiDTO> apiFilters = Lists.newArrayList(new StatFilterApiDTO());
         when(groupByFilters.getFilters()).thenReturn(apiFilters);
         when(groupByFiltersFactory.filtersForQuery(query)).thenReturn(groupByFilters);
 
@@ -358,7 +360,7 @@ public class ActionStatsMapperTest {
             .build();
 
         final GroupByFilters groupByFilters = mock(GroupByFilters.class);
-        final List<StatFilterApiDTO> apiFilters = Collections.singletonList(new StatFilterApiDTO());
+        final List<StatFilterApiDTO> apiFilters = Lists.newArrayList(new StatFilterApiDTO());
         when(groupByFilters.getFilters()).thenReturn(apiFilters);
 
         final ActionStatsQuery query = mock(ActionStatsQuery.class);
@@ -389,7 +391,7 @@ public class ActionStatsMapperTest {
             .build();
 
         final GroupByFilters groupByFilters = mock(GroupByFilters.class);
-        final List<StatFilterApiDTO> apiFilters = Collections.singletonList(new StatFilterApiDTO());
+        final List<StatFilterApiDTO> apiFilters = Lists.newArrayList(new StatFilterApiDTO());
         when(groupByFilters.getFilters()).thenReturn(apiFilters);
 
         final ActionStatsQuery query = mock(ActionStatsQuery.class);

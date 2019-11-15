@@ -4,6 +4,8 @@ import com.google.common.collect.ImmutableSet;
 
 import java.util.Set;
 
+import com.vmturbo.common.protobuf.topology.UIEntityType;
+
 public class StringConstants {
     public static final String ALL_GROUP_MEMBERS = "AllGroupMembers";
     public static final String ASSN_ID = "assn_id";
@@ -334,7 +336,12 @@ public class StringConstants {
      */
     public static final String AUTOMATIC = "AUTOMATIC";
     public static final String RESIZE = "resize";
-    public static final String BUSINESS_ACCOUNT = "BUSINESSACCOUNT";
+
+    /**
+     * String indicating the Business Account entity type in the UI.
+     */
+    public static final String BUSINESS_ACCOUNT = "BusinessAccount";
+
     public final static String RESULTS_TYPE = "resultsType";
     public final static String BEFORE_PLAN = "beforePlan";
     public final static String ON_DEMAND_COMPUTE_LICENSE_COST = "ON_DEMAND_COMPUTE_LICENSE_COST";

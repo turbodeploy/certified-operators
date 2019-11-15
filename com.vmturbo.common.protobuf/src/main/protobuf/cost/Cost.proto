@@ -243,25 +243,34 @@ message ProjectedEntityReservedInstanceCoverage {
 
 
 // A message used to retrieve account expenses.
-message ExpenseRequest {
-    // A filter to be applied to the account expense retrieved. If no filter is supplied
-    // all account expenses are returned.
-    optional ExpenseQueryFilter filter = 1;
+message GetCurrentAccountExpensesRequest {
+    message AccountExpenseQueryScope {
+        message IdList {
+            repeated int64 account_ids = 1;
+        }
 
-    // The pagination parameters for the request.
-    // If not set, the service will use the default sort order and limit.
-    optional common.PaginationParameters pagination_params = 2;
+        // Using a oneof to prevent accidentally asking for "all" with an empty ID list on
+        // the client. We've been hit by those bugs multiple times, and each time it's a
+        // high-priority performance issue.
+        oneof scope {
+            // A list of specific account IDs to get expenses for.
+            // If the list is empty, returns no expenses.
+            IdList specific_accounts = 1;
+
+            // Get expenses for ALL account IDs in the latest uploaded expenses.
+            bool all = 2;
+        }
+    }
+
+    optional AccountExpenseQueryScope scope = 1;
 }
 
 // Response to the expense request
-message ExpenseResponse {
+message GetCurrentAccountExpensesResponse {
     // The list of account expense.
     // The length of this list will not exceed the limit set in the request pagination parameters.
     // The account expense will be ordered according to the order in the request pagination parameters.
     repeated AccountExpenses account_expense = 1;
-
-    // The response message containing pagination-related response parameters.
-    optional common.PaginationResponse pagination_response = 2;
 }
 
 // A message used to retrieve discounts.
@@ -269,27 +278,6 @@ message GetDiscountRequest {
     // A filter to be applied to the discount retrieved. If no filter is supplied
     // all account discounts are returned.
     optional DiscountQueryFilter filter = 1;
-}
-
-// A filter to be supplied with expense queries.
-// The conditions in the query filter will be AND-ed together, so only
-// expenses that match all of them will be returned.
-message ExpenseQueryFilter {
-    // There are two types of filters.
-    // - Account filter: used to filter account
-    // - Cloud service filter: used to filter Cloud service
-
-    // Include only expenses in the given accounts. It's optional and return all expenses if empty.
-    repeated int64 associated_account_id = 1;
-
-    // Include only expenses in the given Cloud service. It's optional and return all expenses if empty.
-    repeated int64 associated_cloud_service_id = 2;
-
-    // date range for the request; dates are epoch longs, e.g. Unix Timestamp
-    // We currently require both start_date and end_date to be not null.
-    optional int64 start_date = 3;
-
-    optional int64 end_date = 4;
 }
 
 // A filter to be supplied with discount queries.
@@ -1016,6 +1004,8 @@ service CostService {
 
     // Get information about account expense
     rpc GetAccountExpenseStats(GetCloudExpenseStatsRequest) returns (GetCloudCostStatsResponse);
+
+    rpc GetCurrentAccountExpenses(GetCurrentAccountExpensesRequest) returns (GetCurrentAccountExpensesResponse);
 }
 
 service RIAndExpenseUploadService {

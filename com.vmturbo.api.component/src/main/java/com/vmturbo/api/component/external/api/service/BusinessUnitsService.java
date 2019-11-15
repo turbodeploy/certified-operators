@@ -2,7 +2,7 @@ package com.vmturbo.api.component.external.api.service;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -12,18 +12,19 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.validation.Errors;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
-import com.vmturbo.api.component.external.api.mapper.BusinessUnitMapper;
+import com.vmturbo.api.component.external.api.mapper.DiscountMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
+import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
@@ -72,7 +73,7 @@ public class BusinessUnitsService implements IBusinessUnitsService {
 
     private final CostServiceBlockingStub costService;
 
-    private final BusinessUnitMapper mapper;
+    private final DiscountMapper mapper;
 
     private final ITargetsService targetsService;
 
@@ -84,14 +85,17 @@ public class BusinessUnitsService implements IBusinessUnitsService {
 
     private final SupplyChainFetcherFactory supplyChainFetcherFactory;
 
+    private final BusinessAccountRetriever businessAccountRetriever;
+
     public BusinessUnitsService(@Nonnull final CostServiceBlockingStub costServiceBlockingStub,
-                                @Nonnull final BusinessUnitMapper mapper,
+                                @Nonnull final DiscountMapper mapper,
                                 @Nonnull final ITargetsService targetsService,
                                 final long realtimeTopologyContextId,
                                 @Nonnull final UuidMapper uuidMapper,
                                 @Nonnull final EntitiesService entitiesService,
                                 @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
-                                @Nonnull final RepositoryApi repositoryApi) {
+                                @Nonnull final RepositoryApi repositoryApi,
+                                @Nonnull final BusinessAccountRetriever businessAccountRetriever) {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.costService = Objects.requireNonNull(costServiceBlockingStub);
         this.mapper = Objects.requireNonNull(mapper);
@@ -100,6 +104,7 @@ public class BusinessUnitsService implements IBusinessUnitsService {
         this.entitiesService = entitiesService;
         this.supplyChainFetcherFactory = supplyChainFetcherFactory;
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
+        this.businessAccountRetriever = Objects.requireNonNull(businessAccountRetriever);
     }
 
     /**
@@ -118,14 +123,14 @@ public class BusinessUnitsService implements IBusinessUnitsService {
                     .build());
             return mapper.toDiscountBusinessUnitApiDTO(discounts);
         } else if (BusinessUnitType.DISCOVERED.equals(type)) {
-            return mapper.getAndConvertDiscoveredBusinessUnits(targetsService);
+            return businessAccountRetriever.getBusinessAccountsInScope(Collections.emptyList());
         }
         return ImmutableList.of(new BusinessUnitApiDTO());
     }
 
     @Override
     public BusinessUnitApiDTO getBusinessUnitByUuid(final String uuid) throws Exception {
-        return mapper.getBusinessUnitByOID(targetsService, uuid);
+        return businessAccountRetriever.getBusinessAccount(uuid);
     }
 
     /**
@@ -237,12 +242,8 @@ public class BusinessUnitsService implements IBusinessUnitsService {
     @Override
     public Collection<BusinessUnitApiDTO> getRelatedBusinessUnits(@Nonnull String uuid,
                                                                   HierarchicalRelationship relationship) throws Exception {
-        BusinessUnitApiDTO ba = mapper.getBusinessUnitByOID(targetsService, uuid);
-
-        return ba.getChildrenBusinessUnits()
-                        .stream()
-                        .map(childUuid -> mapper.getBusinessUnitByOID(targetsService, childUuid))
-                        .collect(Collectors.toCollection(HashSet::new));
+        // TODO (roman, Nov 14 2019): Handle other relationship types (parent, siblings).
+        return businessAccountRetriever.getChildAccounts(uuid);
     }
 
     @Override

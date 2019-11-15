@@ -50,6 +50,8 @@ import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest.GroupByType;
+import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountResponse;
@@ -293,21 +295,37 @@ public class CostRpcService extends CostServiceImplBase {
         }
     }
 
+    @Override
+    public void getCurrentAccountExpenses(GetCurrentAccountExpensesRequest request,
+                                          StreamObserver<GetCurrentAccountExpensesResponse> responseObserver) {
+        try {
+            final Collection<AccountExpenses> expenses = accountExpensesStore.getCurrentAccountExpenses(
+                request.getScope());
+            responseObserver.onNext(GetCurrentAccountExpensesResponse.newBuilder()
+                .addAllAccountExpense(expenses)
+                .build());
+            responseObserver.onCompleted();
+        } catch (DbException e) {
+            logger.error("DB Exception when querying for account expenses.", e);
+            responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
+        }
+    }
+
     /**
      * Fetch a sequence of StatSnapshot's based on the time range and filters in the StatsRequest.
      * The stats will be provided from the Cost database.
-     * <p>
-     * Currently (Sep 26, 2019), it only supports requests for account expense with GroupBy
+     *
+     * <p>Currently (Sep 26, 2019), it only supports requests for account expense with GroupBy
      * with CSP, target, and cloudService.
-     * <p>
-     * The 'entitiesList' in the {@link GetCloudExpenseStatsRequest} is not currently used.
+     *
+     * <p>The 'entitiesList' in the {@link GetCloudExpenseStatsRequest} is not currently used.
      *
      * @param request          a set of parameters describing how to fetch the snapshot and what entities.
      * @param responseObserver the sync for each result value {@link StatSnapshot}
      */
     @Override
     public void getAccountExpenseStats(GetCloudExpenseStatsRequest request,
-                                       StreamObserver<GetCloudCostStatsResponse> responseObserver) {
+                                          StreamObserver<GetCloudCostStatsResponse> responseObserver) {
         if (request.hasGroupBy()) {
             try {
                 final TimeFrame timeFrame = timeFrameCalculator.millis2TimeFrame(request.getStartDate());

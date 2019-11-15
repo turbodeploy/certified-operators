@@ -239,8 +239,8 @@ public class MapperConfig {
     }
 
     @Bean
-    public BusinessUnitMapper businessUnitMapper() {
-        return new BusinessUnitMapper(communicationConfig.getRealtimeTopologyContextId(), communicationConfig.repositoryApi());
+    public DiscountMapper discountMapper() {
+        return new DiscountMapper(communicationConfig.repositoryApi());
     }
 
     @Bean

@@ -7,26 +7,34 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Lists;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jooq.BatchBindStep;
 import org.jooq.Condition;
 import org.jooq.Configuration;
 import org.jooq.DSLContext;
 import org.jooq.Field;
+import org.jooq.Record1;
 import org.jooq.Record6;
 import org.jooq.Result;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
-
-import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
@@ -34,6 +42,7 @@ import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo.Builder;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo.ServiceExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo.TierExpenses;
+import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest.AccountExpenseQueryScope;
 import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.cost.component.db.tables.records.AccountExpensesRecord;
 import com.vmturbo.cost.component.util.CostFilter;
@@ -42,15 +51,20 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.sql.utils.DbException;
 
 /**
- * {@inheritDoc}
+ * {@link AccountExpensesStore} that stores expenses to the SQL database.
  */
 public class SqlAccountExpensesStore implements AccountExpensesStore {
+
+    private static final Logger logger = LogManager.getLogger();
 
     private final DSLContext dsl;
 
     private final Clock clock;
 
     private final int chunkSize;
+
+    private final AtomicReference<LocalDateTime> inProgressBatchTime =
+        new AtomicReference<>(null);
 
     public SqlAccountExpensesStore(@Nonnull final DSLContext dsl,
                                    @Nonnull final Clock clock,
@@ -70,6 +84,7 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
             throws DbException {
         Objects.requireNonNull(accountExpensesInfo);
         final LocalDateTime curTime = LocalDateTime.now(clock);
+        inProgressBatchTime.set(curTime);
         try {
             // We chunk the transactions for speed, and to avoid overloading the DB buffers
             // on large topologies. Ideally this should be one transaction.
@@ -113,6 +128,8 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
             });
         } catch (DataAccessException dataAccessException) {
             throw new DbException(dataAccessException.getMessage());
+        } finally {
+            inProgressBatchTime.set(null);
         }
     }
 
@@ -131,18 +148,76 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
                         .set(ACCOUNT_EXPENSES.AMOUNT, BigDecimal.valueOf(0)));
     }
 
+    @VisibleForTesting
+    Optional<LocalDateTime> findRecentSnapshot() {
+        // Find the most recent snapshot, but if we're in the process of saving another batch
+        // don't return the time of that batch (since it is not completely written to the DB yet).
+        LocalDateTime inProgressTime = inProgressBatchTime.get();
+        if (inProgressTime == null) {
+            inProgressTime = LocalDateTime.now(clock);
+        }
+
+        // First find the most recent snapshot time.
+        final Optional<LocalDateTime> recentSnapshotTime =
+            dsl.selectDistinct(ACCOUNT_EXPENSES.SNAPSHOT_TIME)
+                .from(ACCOUNT_EXPENSES)
+                .where(ACCOUNT_EXPENSES.SNAPSHOT_TIME.lessThan(inProgressTime))
+                .orderBy(ACCOUNT_EXPENSES.SNAPSHOT_TIME.desc())
+                .limit(1)
+                .fetch()
+                .stream()
+                .findFirst()
+                .map(Record1::value1);
+
+        if (!recentSnapshotTime.isPresent()) {
+            logger.warn("No recent snapshot found with time less than {} " +
+                "for current account expense query", inProgressTime);
+        }
+
+        return recentSnapshotTime;
+    }
+
     /**
      * {@inheritDoc}
      */
     @Nonnull
     @Override
-    public List<AccountExpenses> getAccountExpensesByAssociatedAccountId(final long associatedAccountId)
+    public Collection<AccountExpenses> getCurrentAccountExpenses(@Nonnull final AccountExpenseQueryScope queryScope)
             throws DbException {
         try {
-            return dsl.selectFrom(ACCOUNT_EXPENSES)
-                    .where(ACCOUNT_EXPENSES.ASSOCIATED_ACCOUNT_ID.eq(associatedAccountId))
-                    .fetch()
-                    .map(this::toDTO);
+            Optional<LocalDateTime> recentSnapshotTime = findRecentSnapshot();
+            if (!recentSnapshotTime.isPresent()) {
+                return Collections.emptyList();
+            }
+
+            final List<Condition> conditions = new ArrayList<>();
+            conditions.add(ACCOUNT_EXPENSES.SNAPSHOT_TIME.eq(recentSnapshotTime.get()));
+            if (!queryScope.getAll()) {
+                conditions.add(ACCOUNT_EXPENSES.ASSOCIATED_ACCOUNT_ID.in(
+                    queryScope.getSpecificAccounts().getAccountIdsList()));
+            }
+
+            final Result<Record6<Long, LocalDateTime, Long, Integer, Integer, BigDecimal>> records = dsl
+                    .select(ACCOUNT_EXPENSES.ASSOCIATED_ACCOUNT_ID,
+                        ACCOUNT_EXPENSES.SNAPSHOT_TIME, ACCOUNT_EXPENSES.ASSOCIATED_ENTITY_ID,
+                        ACCOUNT_EXPENSES.ENTITY_TYPE, ACCOUNT_EXPENSES.CURRENCY, ACCOUNT_EXPENSES.AMOUNT)
+                    .from(ACCOUNT_EXPENSES)
+                    .where(conditions)
+                    .fetch();
+            final Map<Long, Map<Long, Cost.AccountExpenses>> expensesByTimeAndAccountId =
+                constructExpensesMap(records);
+
+            if (expensesByTimeAndAccountId.size() != 1) {
+                // This shouldn't happen, since we know the snapshot is in the database, and
+                // we ask for it by SNAPSHOT_TIME!
+                logger.warn("Expense map didn't return exactly one record with " +
+                    "expected timestamp: {}. Expense Map: {}", recentSnapshotTime.get(),
+                    expensesByTimeAndAccountId);
+            }
+            return expensesByTimeAndAccountId.values().stream()
+                .findFirst()
+                .map(Map::values)
+                .orElse(Collections.emptyList());
         } catch (DataAccessException dataAccessException) {
             throw new DbException(dataAccessException.getMessage());
         }

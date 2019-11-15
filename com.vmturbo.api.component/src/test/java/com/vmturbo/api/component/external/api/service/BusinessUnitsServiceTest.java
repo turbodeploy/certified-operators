@@ -10,27 +10,29 @@ import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
-import com.vmturbo.api.component.external.api.mapper.BusinessUnitMapper;
+import com.vmturbo.api.component.external.api.mapper.DiscountMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.service.BusinessUnitsService.MissingDiscountException;
+import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
@@ -72,7 +74,10 @@ public class BusinessUnitsServiceTest {
     public static final String TIER_DISCOUNT_UUID = "4";
     public static final float TIER_DISCOUNT = 11f;
     public static final float SERVICE_DISCOUNT = 22f;
-    private final BusinessUnitMapper mapper = Mockito.mock(BusinessUnitMapper.class);
+
+    private final DiscountMapper mapper = Mockito.mock(DiscountMapper.class);
+
+    private final BusinessAccountRetriever accountRetriever = Mockito.mock(BusinessAccountRetriever.class);
 
     private final UuidMapper uuidMapper = Mockito.mock(UuidMapper.class);
 
@@ -122,14 +127,15 @@ public class BusinessUnitsServiceTest {
         costService = CostServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
 
         businessUnitsService = new BusinessUnitsService(
-                        costService,
-                        mapper,
-                        targetsService,
-                        CONTEXT_ID,
-                        uuidMapper,
-                        entitiesService,
-                        supplyChainFetcherFactory,
-                        repositoryApi);
+            costService,
+            mapper,
+            targetsService,
+            CONTEXT_ID,
+            uuidMapper,
+            entitiesService,
+            supplyChainFetcherFactory,
+            repositoryApi,
+            accountRetriever);
     }
 
     @Test
@@ -149,7 +155,7 @@ public class BusinessUnitsServiceTest {
         apiDTO.setDisplayName(TEST_DISPLAY_NAME);
         apiDTO.setUuid(UUID_STRING);
         apiDTO.setBusinessUnitType(BusinessUnitType.DISCOVERED);
-        when(mapper.getAndConvertDiscoveredBusinessUnits(any())).thenReturn(ImmutableList.of(apiDTO));
+        when(accountRetriever.getBusinessAccountsInScope(any())).thenReturn(ImmutableList.of(apiDTO));
         List<BusinessUnitApiDTO> businessUnitApiDTOList = businessUnitsService.getBusinessUnits(BusinessUnitType.DISCOVERED, null, null, null);
         assertEquals(1, businessUnitApiDTOList.size());
         assertEquals(TEST_DISPLAY_NAME, businessUnitApiDTOList.get(0).getDisplayName());
@@ -164,7 +170,7 @@ public class BusinessUnitsServiceTest {
         apiDTO.setUuid(UUID_STRING);
         apiDTO.setBusinessUnitType(BusinessUnitType.DISCOVERED);
 
-        when(mapper.getBusinessUnitByOID(targetsService, UUID_STRING)).thenReturn(apiDTO);
+        when(accountRetriever.getBusinessAccount(UUID_STRING)).thenReturn(apiDTO);
 
         BusinessUnitApiDTO businessUnitApiDTO = businessUnitsService.getBusinessUnitByUuid(UUID_STRING);
 
@@ -338,11 +344,13 @@ public class BusinessUnitsServiceTest {
         baApiDTO.setBusinessUnitType(BusinessUnitType.DISCOVERED);
         baApiDTO.setChildrenBusinessUnits(ImmutableList.of(UUID_STRING));
 
-        when(mapper.getBusinessUnitByOID(targetsService, UUID_STRING)).thenReturn(baApiDTO);
+        when(accountRetriever.getChildAccounts(UUID_STRING)).thenReturn(Collections.singletonList(baApiDTO));
 
-        HierarchicalRelationship relationship = null;
+        Collection<BusinessUnitApiDTO> resultDTOs =
+            businessUnitsService.getRelatedBusinessUnits(UUID_STRING, HierarchicalRelationship.CHILDREN);
 
-        Collection<BusinessUnitApiDTO> resultDTOs = businessUnitsService.getRelatedBusinessUnits(UUID_STRING, relationship);
+        assertThat(resultDTOs.size(), is(1));
+        assertThat(resultDTOs.iterator().next(), is(baApiDTO));
 
         assertThat(resultDTOs.size(), is(1));
         assertThat(resultDTOs.iterator().next().getUuid(), is(UUID_STRING));

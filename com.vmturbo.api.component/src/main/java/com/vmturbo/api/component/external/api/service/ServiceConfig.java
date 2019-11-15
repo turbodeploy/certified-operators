@@ -24,6 +24,7 @@ import com.vmturbo.api.component.external.api.listener.HttpSessionListener;
 import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
 import com.vmturbo.api.component.external.api.serviceinterfaces.IProbesService;
+import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
@@ -226,16 +227,29 @@ public class ServiceConfig {
     }
 
     @Bean
+    public BusinessAccountRetriever businessAccountRetriever() {
+        return new BusinessAccountRetriever(communicationConfig.repositoryApi(),
+            communicationConfig.costServiceBlockingStub(),
+            communicationConfig.thinTargetCache());
+    }
+
+    /**
+     * The {@link BusinessUnitsService} bean.
+     *
+     * @return The {@link BusinessUnitsService}.
+     */
+    @Bean
     public BusinessUnitsService businessUnitsService() {
         return new BusinessUnitsService(
-                communicationConfig.costServiceBlockingStub(),
-                mapperConfig.businessUnitMapper(),
-                targetService(),
-                communicationConfig.getRealtimeTopologyContextId(),
-                mapperConfig.uuidMapper(),
-                entitiesService(),
-                communicationConfig.supplyChainFetcher(),
-                communicationConfig.repositoryApi());
+            communicationConfig.costServiceBlockingStub(),
+            mapperConfig.discountMapper(),
+            targetService(),
+            communicationConfig.getRealtimeTopologyContextId(),
+            mapperConfig.uuidMapper(),
+            entitiesService(),
+            communicationConfig.supplyChainFetcher(),
+            communicationConfig.repositoryApi(),
+            businessAccountRetriever());
     }
 
     @Bean
@@ -435,14 +449,10 @@ public class ServiceConfig {
                 communicationConfig.severityPopulator(),
                 communicationConfig.historyRpcService(),
                 communicationConfig.groupExpander(),
-                communicationConfig.supplyChainFetcher(),
-                mapperConfig.groupMapper(),
                 mapperConfig.paginationMapper(),
                 mapperConfig.groupUseCaseParser(),
-                mapperConfig.uuidMapper(),
                 tagsService(),
-                repositoryClientConfig.repositoryClient(),
-                mapperConfig.businessUnitMapper(),
+                businessAccountRetriever(),
                 communicationConfig.getRealtimeTopologyContextId(),
                 userSessionContext(),
                 communicationConfig.groupRpcService(),

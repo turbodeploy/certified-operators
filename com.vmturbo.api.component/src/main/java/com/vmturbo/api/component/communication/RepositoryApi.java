@@ -15,10 +15,10 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.Sets;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
@@ -166,6 +167,12 @@ public class RepositoryApi {
         Stream<MinimalEntity> getMinimalEntities() {
             return entityStream(Type.MINIMAL)
                 .map(PartialEntity::getMinimal);
+        }
+
+        @Nonnull
+        Stream<EntityWithConnections> getEntitiesWithConnections() {
+            return entityStream(Type.WITH_CONNECTIONS)
+                .map(PartialEntity::getWithConnections);
         }
 
         @Nonnull
@@ -303,6 +310,17 @@ public class RepositoryApi {
             return retriever.getMinimalEntities();
         }
 
+        /**
+         * Get the {@link EntityWithConnections} representation of entities that match this
+         * search.
+         *
+         * @return The {@link EntityWithConnections} stream.
+         */
+        @Nonnull
+        public Stream<EntityWithConnections> getEntitiesWithConnections() {
+            return retriever.getEntitiesWithConnections();
+        }
+
         @Nonnull
         public Stream<ApiPartialEntity> getEntities() {
             return retriever.getEntities();
@@ -363,6 +381,16 @@ public class RepositoryApi {
             return retriever.getMinimalEntities().findFirst();
         }
 
+        /**
+         * Get the {@link EntityWithConnections} representation of this entity.
+         *
+         * @return  The {@link EntityWithConnections}.
+         */
+        @Nonnull
+        public Optional<EntityWithConnections> getEntityWithConnections() {
+            return retriever.getEntitiesWithConnections().findFirst();
+        }
+
         @Nonnull
         public Optional<ApiPartialEntity> getEntity() {
             return retriever.getEntities().findFirst();
@@ -405,6 +433,16 @@ public class RepositoryApi {
         @Nonnull
         public Stream<MinimalEntity> getMinimalEntities() {
             return retriever.getMinimalEntities();
+        }
+
+        /**
+         * Get the entities targetted by this request as {@link EntityWithConnections}.
+         *
+         * @return {@link EntityWithConnections} stream.
+         */
+        @Nonnull
+        public Stream<EntityWithConnections> getEntitiesWithConnections() {
+            return retriever.getEntitiesWithConnections();
         }
 
         @Nonnull

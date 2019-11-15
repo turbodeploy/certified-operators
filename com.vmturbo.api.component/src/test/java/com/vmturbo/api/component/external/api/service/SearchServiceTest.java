@@ -31,7 +31,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -54,7 +53,6 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
-import com.vmturbo.api.component.external.api.mapper.BusinessUnitMapper;
 import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
@@ -64,6 +62,7 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
+import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
 import com.vmturbo.api.component.external.api.util.ImmutableGroupAndMembers;
@@ -118,20 +117,19 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 /**
@@ -153,8 +151,7 @@ public class SearchServiceTest {
     private final GroupExpander groupExpander = mock(GroupExpander.class);
     private final PaginationMapper paginationMapperSpy = spy(new PaginationMapper());
     private final TagsService tagsService = mock(TagsService.class);
-    private final RepositoryClient repositoryClient = mock(RepositoryClient.class);
-    private final BusinessUnitMapper businessUnitMapper = mock(BusinessUnitMapper.class);
+    private final BusinessAccountRetriever businessAccountRetriever = mock(BusinessAccountRetriever.class);
     private final UserSessionContext userSessionContext = mock(UserSessionContext.class);
     private final EntityFilterMapper entityFilterMapper = new EntityFilterMapper(groupUseCaseParser);
     private final GroupFilterMapper groupFilterMapper = new GroupFilterMapper();
@@ -212,14 +209,10 @@ public class SearchServiceTest {
                 severityPopulator,
                 statsHistoryServiceStub,
                 groupExpander,
-                supplyChainFetcherFactory,
-                groupMapper,
                 paginationMapperSpy,
                 groupUseCaseParser,
-                uuidMapper,
                 tagsService,
-                repositoryClient,
-                businessUnitMapper,
+                businessAccountRetriever,
                 realTimeContextId,
                 userSessionContext,
                 groupServiceBlockingStub,
@@ -249,7 +242,7 @@ public class SearchServiceTest {
             .when(groupsService).getGroupByUuid(anyString(),anyBoolean());
 
         doThrow(UnsupportedOperationException.class)
-            .when(businessUnitMapper).getBusinessUnitByOID(targetsService, entityUuid);
+            .when(businessAccountRetriever).getBusinessAccount(entityUuid);
 
         SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(desiredResponse);
         when(repositoryApi.entityRequest(Long.valueOf(entityUuid))).thenReturn(req);
@@ -278,7 +271,7 @@ public class SearchServiceTest {
         verify(targetsService).getTargets(null);
 
         getSearchResults(searchService, null, Lists.newArrayList("BusinessAccount"), null, null, null, EnvironmentType.CLOUD, null, null);
-        verify(businessUnitMapper).getAndConvertDiscoveredBusinessUnits(targetsService, null);
+        verify(businessAccountRetriever).getBusinessAccountsInScope(null);
 
         when(groupsService.getPaginatedGroupApiDTOS(any(), any(), any())).thenReturn(paginationResponse);
         assertEquals(paginationResponse, searchService.getSearchResults(
@@ -516,8 +509,8 @@ public class SearchServiceTest {
     }
 
     /**
-     * Test that SearchService.getSearchResults calls businessUnitMapper with the right args when
-     * BusinessAccount is the type and scope is sent.
+     * Test that SearchService.getSearchResults calls {@link BusinessAccountRetriever} with the
+     * right args when BusinessAccount is the type and scope is sent.
      *
      * @throws Exception if getSearchResults throws an Exception.
      */
@@ -529,8 +522,7 @@ public class SearchServiceTest {
         final List<String> types = ImmutableList.of(UIEntityType.BUSINESS_ACCOUNT.apiStr());
         Collection<BaseApiDTO> results = getSearchResults(searchService, null, types, scopes,
             null, null, null, null, null);
-        verify(businessUnitMapper).getAndConvertDiscoveredBusinessUnits(targetsService,
-            scopes);
+        verify(businessAccountRetriever).getBusinessAccountsInScope(scopes);
     }
 
     @Test

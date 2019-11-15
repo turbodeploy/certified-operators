@@ -1,6 +1,6 @@
 package com.vmturbo.cost.component.expenses;
 
-import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -10,6 +10,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo;
+import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest.AccountExpenseQueryScope;
 import com.vmturbo.cost.component.util.CostFilter;
 import com.vmturbo.sql.utils.DbException;
 
@@ -41,12 +42,12 @@ public interface AccountExpensesStore {
     /**
      * Get account expenses by associated account id.
      *
-     * @param associatedAccountId associated account id
-     * @return set of account expenses match the associated account id
+     * @param queryScope Describes which accounts to return expenses for.
+     * @return Collection of account expenses match the associated account id
      * @throws DbException if anything goes wrong in the database
      */
     @Nonnull
-    List<Cost.AccountExpenses> getAccountExpensesByAssociatedAccountId(final long associatedAccountId) throws DbException;
+    Collection<AccountExpenses> getCurrentAccountExpenses(AccountExpenseQueryScope queryScope) throws DbException;
 
     /**
      * Get the latest account expenses.

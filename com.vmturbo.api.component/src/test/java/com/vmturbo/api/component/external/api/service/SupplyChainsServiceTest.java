@@ -11,11 +11,11 @@ import static org.mockito.Mockito.when;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import com.google.common.collect.ImmutableList;
 
 import org.apache.commons.collections4.CollectionUtils;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -295,7 +295,7 @@ public class SupplyChainsServiceTest {
             .setNumEntities(100)
             .build();
 
-        when(mockStatMapper.countCriteriaToGroupBy(any())).thenReturn(SupplyChainGroupBy.BUSINESS_ACCOUNT_ID);
+        when(mockStatMapper.countCriteriaToGroupBy(any())).thenReturn(Optional.of(SupplyChainGroupBy.BUSINESS_ACCOUNT_ID));
         final StatApiDTO retDto = mock(StatApiDTO.class);
         when(mockStatMapper.supplyChainStatToApi(any())).thenReturn(retDto);
         when(supplyChainMock.fetchStats(any())).thenReturn(Collections.singletonList(stat));
@@ -325,12 +325,13 @@ public class SupplyChainsServiceTest {
     @Test
     public void testSupplyChainStatMapperCriteria() throws InvalidOperationException {
         final SupplyChainStatMapper mapper = new SupplyChainStatMapper();
-        assertThat(mapper.countCriteriaToGroupBy(EntitiesCountCriteria.businessUnit), is(SupplyChainGroupBy.BUSINESS_ACCOUNT_ID));
-        assertThat(mapper.countCriteriaToGroupBy(EntitiesCountCriteria.entityType), is(SupplyChainGroupBy.ENTITY_TYPE));
-        assertThat(mapper.countCriteriaToGroupBy(EntitiesCountCriteria.riskSubCategory), is(SupplyChainGroupBy.ACTION_CATEGORY));
-        assertThat(mapper.countCriteriaToGroupBy(EntitiesCountCriteria.severity), is(SupplyChainGroupBy.SEVERITY));
-        assertThat(mapper.countCriteriaToGroupBy(EntitiesCountCriteria.state), is(SupplyChainGroupBy.ENTITY_STATE));
-        assertThat(mapper.countCriteriaToGroupBy(EntitiesCountCriteria.target), is(SupplyChainGroupBy.TARGET));
+        assertThat(mapper.countCriteriaToGroupBy(EntitiesCountCriteria.businessUnit),
+            is(Optional.of(SupplyChainGroupBy.BUSINESS_ACCOUNT_ID)));
+        assertThat(mapper.countCriteriaToGroupBy(EntitiesCountCriteria.entityType), is(Optional.of(SupplyChainGroupBy.ENTITY_TYPE)));
+        assertThat(mapper.countCriteriaToGroupBy(EntitiesCountCriteria.riskSubCategory), is(Optional.of(SupplyChainGroupBy.ACTION_CATEGORY)));
+        assertThat(mapper.countCriteriaToGroupBy(EntitiesCountCriteria.severity), is(Optional.of(SupplyChainGroupBy.SEVERITY)));
+        assertThat(mapper.countCriteriaToGroupBy(EntitiesCountCriteria.state), is(Optional.of(SupplyChainGroupBy.ENTITY_STATE)));
+        assertThat(mapper.countCriteriaToGroupBy(EntitiesCountCriteria.target), is(Optional.of(SupplyChainGroupBy.TARGET)));
     }
 
     /**
@@ -341,17 +342,8 @@ public class SupplyChainsServiceTest {
     @Test
     public void testSupplyChainStatMapperUnsupportedCriteria() throws InvalidOperationException {
         final SupplyChainStatMapper mapper = new SupplyChainStatMapper();
-        try {
-            mapper.countCriteriaToGroupBy(EntitiesCountCriteria.template);
-            Assert.fail("Expected unsupported exception for template criteria.");
-        } catch (UnsupportedOperationException e) {
-        }
-
-        try {
-            mapper.countCriteriaToGroupBy(EntitiesCountCriteria.resourceGroup);
-            Assert.fail("Expected unsupported exception for resource group criteria.");
-        } catch (UnsupportedOperationException e) {
-        }
+        assertThat(mapper.countCriteriaToGroupBy(EntitiesCountCriteria.template), is(Optional.empty()));
+        assertThat(mapper.countCriteriaToGroupBy(EntitiesCountCriteria.resourceGroup), is(Optional.empty()));
     }
 
     /**
