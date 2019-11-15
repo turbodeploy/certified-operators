@@ -4,15 +4,21 @@ import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.hamcrest.CoreMatchers;
+import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -20,6 +26,7 @@ import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.powermock.api.mockito.PowerMockito;
+import org.powermock.core.classloader.annotations.PowerMockIgnore;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 
@@ -37,6 +44,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.Units;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.commons.forecasting.TimeInMillisConstants;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -59,6 +67,7 @@ import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreato
  */
 @RunWith(PowerMockRunner.class)
 @PrepareForTest({StatsHistoryServiceStub.class})
+@PowerMockIgnore("javax.management.*")
 public class PercentileEditorTest extends BaseGraphRelatedTest {
     private static final long TIMESTAMP_AUG_28_2019_12_00 = 1566993600000L;
     private static final long TIMESTAMP_AUG_29_2019_00_00 = 1567036800000L;
@@ -206,15 +215,55 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
     }
 
     /**
-     * Test that {@link PercentileEditor#initContext}
-     * correctly handles case when observation period of entity changed.
+     * Test that {@link PercentileEditor} correctly handles case when observation period of entity
+     * changed. Particularly checks that in case observation window changed before next maintenance
+     * operation will happen than oldest day will not be subtracted from total utilization points,
+     * i.e. total blob from cache will be sent to database without any changes.
      *
      * @throws InterruptedException when interrupted
      * @throws HistoryCalculationException when failed
      */
     @Test
-    public void testCheckObservationPeriodsChanged()
+    public void testCheckObservationPeriodsChangedSaveTotal()
+                    throws InterruptedException, HistoryCalculationException {
+        final List<Integer> buUtilizations = Arrays.asList(214, 218, 222, 226, 230);
+        final List<Integer> vmUtilizations = Arrays.asList(148, 156, 164, 172, 180);
+        checkObservationWindowChanged(TIMESTAMP_INIT_START_SEP_1_2019 + 2000,
+                        TIMESTAMP_INIT_START_SEP_1_2019,
+                        Arrays.asList(vmUtilizations, buUtilizations), buUtilizations,
+                        vmUtilizations);
+    }
+
+    /**
+     * Test that {@link PercentileEditor} correctly handles case when observation period of entity
+     * changed. Particularly checks that in case observation window changed after timestamp when next maintenance
+     * operation was scheduled than oldest day will be subtracted from total utilization points,
+     * i.e. 'normal' maintenance workflow will be passed.
+     *
+     * @throws InterruptedException when interrupted
+     * @throws HistoryCalculationException when failed
+     */
+    @Test
+    public void testCheckObservationPeriodsChangedSaveTotalWithRemoval()
             throws InterruptedException, HistoryCalculationException {
+        final long nextScheduledCheckpointMs = TIMESTAMP_INIT_START_SEP_1_2019
+                        + PERCENTILE_HISTORICAL_EDITOR_CONFIG.getMaintenanceWindowHours()
+                        * TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS;
+        checkObservationWindowChanged(nextScheduledCheckpointMs + 2000, nextScheduledCheckpointMs,
+                        Arrays.asList(Arrays.asList(112, 119, 126, 133, 140),
+                                        Arrays.asList(153, 156, 159, 162, 165)),
+                        Arrays.asList(214, 218, 222, 226, 230),
+                        Arrays.asList(148, 156, 164, 172, 180));
+    }
+
+    private void checkObservationWindowChanged(long broadcastTimeAfterWindowChanged,
+                    long periodMsForTotalBlob, List<List<Integer>> expectedTotalUtilizations,
+                    List<Integer> buUtilizations, List<Integer> vmUtilizations)
+                    throws HistoryCalculationException, InterruptedException {
+        final PercentileTaskStub stub = Mockito.spy(new PercentileTaskStub(statsHistoryServiceStub));
+        percentileEditor = new PercentileEditorCacheAccess(PERCENTILE_HISTORICAL_EDITOR_CONFIG,
+                        statsHistoryServiceStub, clock,
+                        (service) -> stub);
         Mockito.when(clock.millis()).thenReturn(TIMESTAMP_INIT_START_SEP_1_2019);
         // First initializing history from db.
         percentileEditor.initContext(graphWithSettings, commodityFieldAccessor, false);
@@ -250,8 +299,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                         .getUtilizationCountStore()
                         .checkpoint(Collections.emptySet())
                         .build();
-        Assert.assertEquals(Arrays.asList(148, 156, 164, 172, 180),
-                vCpuPercentileRecord.getUtilizationList());
+        Assert.assertEquals(vmUtilizations, vCpuPercentileRecord.getUtilizationList());
         Assert.assertEquals(NEW_VIRTUAL_MACHINE_OBSERVATION_PERIOD,
                 vCpuPercentileRecord.getPeriod());
 
@@ -271,10 +319,32 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                         .getUtilizationCountStore()
                         .checkpoint(Collections.emptySet())
                         .build();
-        Assert.assertEquals(Arrays.asList(214, 218, 222, 226, 230),
-                imageCpuPercentileRecord.getUtilizationList());
+        Assert.assertEquals(buUtilizations, imageCpuPercentileRecord.getUtilizationList());
         Assert.assertEquals(NEW_BUSINESS_USER_OBSERVATION_PERIOD,
                 imageCpuPercentileRecord.getPeriod());
+        // Check that maintenance will be called
+        Mockito.when(clock.millis()).thenReturn(broadcastTimeAfterWindowChanged);
+        percentileEditor.completeBroadcast();
+        final ArgumentCaptor<PercentileCounts> percentileCountsCaptor =
+                        ArgumentCaptor.forClass(PercentileCounts.class);
+        final ArgumentCaptor<Long> periodCaptor = ArgumentCaptor.forClass(Long.class);
+        Mockito.verify(stub, Mockito.atLeastOnce())
+                        .save(percentileCountsCaptor.capture(), periodCaptor.capture(), Mockito.any());
+        final PercentileCounts counts = percentileCountsCaptor.getValue();
+        final List<PercentileRecord> percentileRecords = counts.getPercentileRecordsList();
+        final Set<Long> periods =
+                        percentileRecords.stream().filter(Objects::nonNull)
+                                        .map(r -> (long)r.getPeriod())
+                                        .collect(Collectors.toSet());
+        Assert.assertThat(periodCaptor.getValue(),
+                        CoreMatchers.is(periodMsForTotalBlob));
+        Assert.assertThat(percentileRecords.stream()
+                                        .sorted(Comparator.comparingLong(PercentileRecord::getEntityOid))
+                                        .map(PercentileRecord::getUtilizationList).collect(Collectors.toList()),
+                        CoreMatchers.is(expectedTotalUtilizations));
+        Assert.assertThat(periods.size(), CoreMatchers.is(2));
+        Assert.assertThat(periods, Matchers.containsInAnyOrder(NEW_BUSINESS_USER_OBSERVATION_PERIOD,
+                        NEW_VIRTUAL_MACHINE_OBSERVATION_PERIOD));
     }
 
     /**

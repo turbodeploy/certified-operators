@@ -17,9 +17,9 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -31,8 +31,8 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
-import com.vmturbo.commons.Units;
 import com.vmturbo.commons.forecasting.TimeInMillisConstants;
+import com.vmturbo.components.common.utils.ThrowingFunction;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -48,6 +48,7 @@ import com.vmturbo.topology.processor.history.HistoryCalculationException;
 import com.vmturbo.topology.processor.history.ICommodityFieldAccessor;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
+import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord.Builder;
 
 /**
  * Calculate and provide percentile historical value for topology commodities.
@@ -82,6 +83,7 @@ public class PercentileEditor extends
                                .withHelp("The time spent on daily maintenance of percentile cache "
                                          + "(this is also part of tp_historical_completion_time_percentile)")
                                .build();
+    private static final String TOTAL = "total";
 
     private final Clock clock;
     private boolean historyInitialized;
@@ -90,6 +92,12 @@ public class PercentileEditor extends
     // number of checkpoints happened so far for logging purposes
     private long checkpoints;
     private TopologyGraph<TopologyEntity> graph;
+    /*
+     * Flag set to true in case we need to enforce maintenance. Currently there is only one use
+     * case for this - when percentile observation window changed. In case there are no changes
+     * in percentile observation window than it is setting to false.
+     */
+    private boolean enforceMaintenance;
 
     /**
      * Construct the instance of percentile editor.
@@ -199,19 +207,25 @@ public class PercentileEditor extends
             return;
         }
         // persist the daily blob
-        PercentileCounts.Builder builder = PercentileCounts.newBuilder();
-        getCache().forEach((commRef, data) -> {
-            builder.addPercentileRecords(data.getUtilizationCountStore().getLatestCountsRecord());
-        });
-        createTask(getCheckpoint()).save(builder.build(),
-                              (long)(getConfig().getMaintenanceWindowHours() * Units.HOUR_MS),
-                              getConfig());
+        persistBlob(getCheckpoint(), getMaintenanceWindowInMs(),
+                        UtilizationCountStore::getLatestCountsRecord);
 
         // perform daily maintenance if needed - synchronously within broadcast (consider scheduling)
         maintenance();
         // print the utilization counts from cache for the configured OID in logs
         // if debug is enabled.
         debugLogPercentileValues();
+    }
+
+    private void persistBlob(long taskTimestamp, long periodMs,
+                    ThrowingFunction<UtilizationCountStore, Builder, HistoryCalculationException> countStoreToRecordStore)
+                    throws HistoryCalculationException, InterruptedException {
+        final PercentileCounts.Builder builder = PercentileCounts.newBuilder();
+        for (PercentileCommodityData data : getCache().values()) {
+            builder.addPercentileRecords(
+                            countStoreToRecordStore.apply(data.getUtilizationCountStore()));
+        }
+        writeBlob(builder, periodMs, taskTimestamp);
     }
 
     private void debugLogPercentileValues() {
@@ -314,6 +328,7 @@ public class PercentileEditor extends
 
         if (changedPeriodEntries.isEmpty()) {
             logger.debug("Observation periods for cache entries have not changed.");
+            enforceMaintenance = false;
             return;
         }
 
@@ -362,7 +377,7 @@ public class PercentileEditor extends
                 }
                 startTimestamp += windowMillis;
             }
-
+            enforceMaintenance = true;
             backup.keepCacheOnClose();
             logger.info(
                     "Percentile observation windows changed for {} entries, recalculated from {} pages in {}",
@@ -375,18 +390,24 @@ public class PercentileEditor extends
             throw new HistoryCalculationException("History is not initialized.");
         }
 
-        long checkpointMs = getCheckpoint();
-        if (checkpointMs <= lastCheckpointMs) {
+        final long checkpointMs = getCheckpoint();
+
+        if (!enforceMaintenance && checkpointMs <= lastCheckpointMs) {
             logger.trace("Percentile cache checkpoint skipped - not enough time passed since last checkpoint "
                          + lastCheckpointMs);
             return;
         }
 
-        Stopwatch sw = Stopwatch.createStarted();
+        final Stopwatch sw = Stopwatch.createStarted();
         try (DataMetricTimer timer = MAINTENANCE_SUMMARY_METRIC.startTimer();
                         CacheBackup backup = new CacheBackup(getCache())) {
-            logger.debug("Performing percentile cache maintenance {}", ++checkpoints);
-
+            logger.debug("Performing percentile cache maintenance {} for {}", ++checkpoints, checkpointMs);
+            if (enforceMaintenance
+                            && lastCheckpointMs + getMaintenanceWindowInMs() > checkpointMs) {
+                persistBlob(PercentilePersistenceTask.TOTAL_TIMESTAMP, lastCheckpointMs,
+                                store -> store.checkpoint(Collections.emptyList()));
+                return;
+            }
             final Map<Long, Integer> entity2period = getEntityToPeriod(graph);
             final Set<Integer> periods = new HashSet<>(entity2period.values());
             final PercentileCounts.Builder total = PercentileCounts.newBuilder();
@@ -428,22 +449,28 @@ public class PercentileEditor extends
                                         oldRecord != null ? Collections.singletonList(oldRecord) :
                                                         Collections.emptyList();
                         logger.trace("Checkpoint record for entity reference {}", ref);
-                        final PercentileRecord.Builder checkpoint = entry.getValue().getUtilizationCountStore()
-                                        .checkpoint(oldValuesForCurrentRef);
+                        final PercentileRecord.Builder checkpoint =
+                                        entry.getValue().getUtilizationCountStore()
+                                                        .checkpoint(oldValuesForCurrentRef);
                         total.addPercentileRecords(checkpoint);
                     }
                 }
             }
-
-            logger.debug("Writing total percentile with timestamp {}", checkpointMs);
-            createTask(PercentilePersistenceTask.TOTAL_TIMESTAMP).save(total.build(), checkpointMs, getConfig());
-
+            writeBlob(total, checkpointMs, PercentilePersistenceTask.TOTAL_TIMESTAMP);
             lastCheckpointMs = checkpointMs;
             backup.keepCacheOnClose();
 
         } finally {
-            logger.info("Percentile cache maintenance {} took {}", checkpoints, sw);
+            logger.info("Percentile cache {}maintenance {} took {}",
+                            enforceMaintenance ? "enforced " : "", checkpoints, sw);
         }
+    }
+
+    private void writeBlob(PercentileCounts.Builder blob, long periodMs, long startTimestamp)
+                    throws HistoryCalculationException, InterruptedException {
+        logger.debug("Writing percentile with timestamp {} and period {}", startTimestamp,
+                        periodMs);
+        createTask(startTimestamp).save(blob.build(), periodMs, getConfig());
     }
 
     private Map<Long, Integer> getEntityToPeriod(TopologyGraph<TopologyEntity> graph) {
@@ -496,5 +523,4 @@ public class PercentileEditor extends
             }
         }
     }
-
 }
