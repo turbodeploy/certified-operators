@@ -241,7 +241,7 @@ public class SearchServiceTest {
         doThrow(UnknownObjectException.class)
             .when(groupsService).getGroupByUuid(anyString(),anyBoolean());
 
-        doThrow(UnsupportedOperationException.class)
+        doThrow(UnknownObjectException.class)
             .when(businessAccountRetriever).getBusinessAccount(entityUuid);
 
         SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(desiredResponse);

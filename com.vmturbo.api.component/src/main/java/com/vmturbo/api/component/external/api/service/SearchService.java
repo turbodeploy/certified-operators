@@ -215,9 +215,13 @@ public class SearchService implements ISearchService {
             // not a group or cluster...fall through
         }
 
+        /**
+         * Search for business units next. We cannot use Repository API entity request call
+         * because BusinessUnitApiDTO doesn't inherit from ServiceEntityApiDTO class.
+         */
         try {
             return businessAccountRetriever.getBusinessAccount(uuidString);
-        } catch (UnsupportedOperationException ex) {
+        } catch (InvalidOperationException | UnknownObjectException ex) {
             // Not a valid business account either
             logger.info("Entity with " + uuidString + " UUID is not a valid Business Unit");
         }
