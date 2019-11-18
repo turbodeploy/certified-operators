@@ -38,8 +38,8 @@ public class AwsStorageConverter extends StorageConverter {
         );
 
     private static final Map<String, AttachmentState> STRING_TO_ATTACHMENT_STATE = ImmutableMap.of(
-        VolumeState.InUse.toString(), AttachmentState.IN_USE,
-        VolumeState.Available.toString(), AttachmentState.AVAILABLE
+        VolumeState.InUse.toString(), AttachmentState.ATTACHED,
+        VolumeState.Available.toString(), AttachmentState.UNATTACHED
     );
 
     AwsStorageConverter() {
@@ -63,7 +63,7 @@ public class AwsStorageConverter extends StorageConverter {
     private static void setVolumeAttachmentState(@Nonnull final VirtualVolumeData.Builder builder,
                                                  @Nonnull final String stateString) {
         final AttachmentState attachmentState =
-            STRING_TO_ATTACHMENT_STATE.getOrDefault(stateString, AttachmentState.UNKNOWN);
+            STRING_TO_ATTACHMENT_STATE.getOrDefault(stateString, AttachmentState.ATTACHED);
         builder.setAttachmentState(attachmentState);
     }
 }

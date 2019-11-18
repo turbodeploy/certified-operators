@@ -408,7 +408,7 @@ public class AwsCloudDiscoveryConverterTest {
             Arrays.asList(TAG_ENTITY_PROPERTY, THROUGHPUT_ENTITY_PROPERTY, UNKNOWN_ENTITY_PROPERTY,
                 UNKNOWN_STATE_ENTITY_PROPERTY));
 
-        assertEquals(AttachmentState.UNKNOWN, resultUnknownState.getAttachmentState());
+        assertEquals(AttachmentState.ATTACHED, resultUnknownState.getAttachmentState());
         assertFalse(resultUnknownState.getEncrypted());
         assertEquals(123, resultUnknownState.getIoThroughputCapacity(), .001);
 
@@ -416,7 +416,7 @@ public class AwsCloudDiscoveryConverterTest {
             Arrays.asList(TAG_ENTITY_PROPERTY, THROUGHPUT_ENTITY_PROPERTY, UNKNOWN_ENTITY_PROPERTY,
                 KNOWN_STATE_ENTITY_PROPERTY, ENCRYPTION_PROPERTY));
 
-        assertEquals(AttachmentState.AVAILABLE, resultKnownState.getAttachmentState());
+        assertEquals(AttachmentState.UNATTACHED, resultKnownState.getAttachmentState());
         assertTrue(resultKnownState.getEncrypted());
         assertEquals(123, resultKnownState.getIoThroughputCapacity(), .001);
     }

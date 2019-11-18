@@ -36,7 +36,7 @@ public class VirtualVolumeInfoRepoDTOTest {
                         .setStorageAmountCapacity(STORAGE_AMOUNT_CAPACITY)
                         .setRedundancyType(REDUNDANCY_TYPE)
                         .setSnapshotId(SNAPSHOT_ID)
-                        .setAttachmentState(AttachmentState.IN_USE)
+                        .setAttachmentState(AttachmentState.ATTACHED)
                         .setEncryption(true)
                         .build())
                 .build();
@@ -53,7 +53,7 @@ public class VirtualVolumeInfoRepoDTOTest {
         assertEquals(Integer.valueOf(REDUNDANCY_TYPE.getNumber()),
                 testVirtualVolumeRepoDTO.getRedundancyType());
         assertEquals(SNAPSHOT_ID, testVirtualVolumeRepoDTO.getSnapshotId());
-        assertEquals(Integer.valueOf(AttachmentState.IN_USE.getNumber()),
+        assertEquals(Integer.valueOf(AttachmentState.ATTACHED.getNumber()),
                 testVirtualVolumeRepoDTO.getAttachmentState());
         assertTrue(testVirtualVolumeRepoDTO.getEncryption());
     }
@@ -90,14 +90,14 @@ public class VirtualVolumeInfoRepoDTOTest {
         testDto.setStorageAmountCapacity(STORAGE_AMOUNT_CAPACITY);
         testDto.setRedundancyType(REDUNDANCY_TYPE.getNumber());
         testDto.setSnapshotId(SNAPSHOT_ID);
-        testDto.setAttachmentState(AttachmentState.IN_USE.getNumber());
+        testDto.setAttachmentState(AttachmentState.ATTACHED.getNumber());
         testDto.setEncryption(true);
         VirtualVolumeInfo expected = VirtualVolumeInfo.newBuilder()
                 .setStorageAccessCapacity(STORAGE_ACCESS_CAPACITY)
                 .setStorageAmountCapacity(STORAGE_AMOUNT_CAPACITY)
                 .setRedundancyType(REDUNDANCY_TYPE)
                 .setSnapshotId(SNAPSHOT_ID)
-                .setAttachmentState(AttachmentState.IN_USE)
+                .setAttachmentState(AttachmentState.ATTACHED)
                 .setEncryption(true)
                 .build();
         // act

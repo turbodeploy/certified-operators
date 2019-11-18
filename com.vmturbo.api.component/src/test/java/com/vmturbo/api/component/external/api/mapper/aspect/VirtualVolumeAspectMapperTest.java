@@ -336,7 +336,7 @@ public class VirtualVolumeAspectMapperTest {
                             .setStorageAccessCapacity(storageAccessCapacity)
                             .setStorageAmountCapacity(storageAmountCapacityInMB)
                             .setSnapshotId(snapshotId)
-                            .setAttachmentState(AttachmentState.IN_USE)
+                            .setAttachmentState(AttachmentState.ATTACHED)
                             .setEncryption(true)
                             .build()))
             .build();
@@ -365,7 +365,7 @@ public class VirtualVolumeAspectMapperTest {
                 .setStorageAccessCapacity(storageAccessCapacity)
                 .setStorageAmountCapacity(storageAmountCapacityInMB)
                 .setSnapshotId(snapshotId)
-                .setAttachmentState(AttachmentState.IN_USE)
+                .setAttachmentState(AttachmentState.ATTACHED)
                 .setEncryption(true)
                 .build()))
         .build();
@@ -429,7 +429,7 @@ public class VirtualVolumeAspectMapperTest {
                 assertEquals(VirtualVolumeAspectMapper.CLOUD_STORAGE_AMOUNT_UNIT, statApiDTOStorageAmount.get().getUnits());
 
                 assertEquals(snapshotId, volumeAspect.getSnapshotId());
-                assertEquals(AttachmentState.IN_USE.name(), volumeAspect.getAttachmentState());
+                assertEquals(AttachmentState.ATTACHED.name(), volumeAspect.getAttachmentState());
                 assertEquals("Enabled", volumeAspect.getEncryption());
                 assertEquals(virtualVolumeDisplayName, volumeAspect.getDisplayName());
 
@@ -494,7 +494,7 @@ public class VirtualVolumeAspectMapperTest {
         assertEquals(VirtualVolumeAspectMapper.CLOUD_STORAGE_AMOUNT_UNIT, statApiDTOStorageAmount.get().getUnits());
 
         assertEquals(snapshotId, volumeAspect.getSnapshotId());
-        assertEquals(AttachmentState.IN_USE.name(), volumeAspect.getAttachmentState());
+        assertEquals(AttachmentState.ATTACHED.name(), volumeAspect.getAttachmentState());
         assertEquals("Enabled", volumeAspect.getEncryption());
         assertEquals(virtualVolumeDisplayName, volumeAspect.getDisplayName());
 
@@ -559,7 +559,7 @@ public class VirtualVolumeAspectMapperTest {
         assertEquals(VirtualVolumeAspectMapper.CLOUD_STORAGE_AMOUNT_UNIT, statApiDTOStorageAmount.get().getUnits());
 
         assertEquals(snapshotId, volumeAspect.getSnapshotId());
-        assertEquals(AttachmentState.IN_USE.name(), volumeAspect.getAttachmentState());
+        assertEquals(AttachmentState.ATTACHED.name(), volumeAspect.getAttachmentState());
         assertEquals("Enabled", volumeAspect.getEncryption());
         assertEquals(azureVolumeName, volumeAspect.getDisplayName());
 
@@ -622,7 +622,7 @@ public class VirtualVolumeAspectMapperTest {
         assertEquals(CommodityTypeUnits.STORAGE_AMOUNT.getUnits(), statApiDTOStorageAmount.get().getUnits());
 
         assertEquals(snapshotId, volumeAspect.getSnapshotId());
-        assertEquals(AttachmentState.IN_USE.name(), volumeAspect.getAttachmentState());
+        assertEquals(AttachmentState.ATTACHED.name(), volumeAspect.getAttachmentState());
         assertEquals("Enabled", volumeAspect.getEncryption());
         assertEquals(virtualVolumeDisplayName, volumeAspect.getDisplayName());
 
