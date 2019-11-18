@@ -17,6 +17,7 @@ import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
 import com.vmturbo.cost.component.reserved.instance.action.ReservedInstanceActionsSenderConfig;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
@@ -29,7 +30,8 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
         PricingConfig.class,
         RepositoryClientConfig.class,
         ReservedInstanceConfig.class,
-        ReservedInstanceActionsSenderConfig.class})
+        ReservedInstanceActionsSenderConfig.class,
+        ReservedInstanceSpecConfig.class})
 public class ReservedInstanceAnalysisConfig {
 
     @Value("${realtimeTopologyContextId}")
@@ -59,6 +61,9 @@ public class ReservedInstanceAnalysisConfig {
     @Autowired
     private ReservedInstanceActionsSenderConfig reservedInstanceActionsSenderConfig;
 
+    @Autowired
+    private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
+
     @Bean
     public SettingServiceBlockingStub settingServiceClient() {
         return SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
@@ -75,7 +80,7 @@ public class ReservedInstanceAnalysisConfig {
                 settingServiceClient(),
                 repositoryServiceClient(),
                 reservedInstanceConfig.reservedInstanceBoughtStore(),
-                reservedInstanceConfig.reservedInstanceSpecStore(),
+                reservedInstanceSpecConfig.reservedInstanceSpecStore(),
                 pricingConfig.priceTableStore(),
                 computeTierDemandStatsConfig.riDemandStatsStore(),
                 cloudTopologyFactory(),
