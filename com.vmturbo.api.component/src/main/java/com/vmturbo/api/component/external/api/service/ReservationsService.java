@@ -178,6 +178,7 @@ public class ReservationsService implements IReservationsService {
             @Nonnull Boolean apiCallBlock,
             @Nonnull ReservationAction demandAction,
             @Nonnull DemandReservationApiInputDTO demandApiInputDTO) throws Exception {
+        // We do not support deployment in XL
         switch (demandAction) {
             case PLACEMENT:
                 final List<ScenarioChange> scenarioChange =
@@ -190,8 +191,6 @@ public class ReservationsService implements IReservationsService {
                         .build();
                 final Reservation createdReservation = reservationService.createReservation(request);
                 return reservationMapper.convertReservationToApiDTO(createdReservation);
-            case DEPLOYMENT:
-                throw ApiUtils.notImplementedInXL();
             default:
                 throw new UnsupportedOperationException("Invalid action " + demandAction);
         }
