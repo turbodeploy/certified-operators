@@ -123,7 +123,9 @@ public class StorageStatsSubQuery implements StatsSubQuery {
             // search for attachment string
 
             // When requested for groupBy Virtual Volume attachment status
-            if (requestedStat.getGroupBy() != null && requestedStat.getGroupBy().contains(StringConstants.ATTACHMENT) &&
+            if (requestedStat.getName().equals(NUM_VOL) &&
+                requestedStat.getGroupBy() != null &&
+                requestedStat.getGroupBy().contains(StringConstants.ATTACHMENT) &&
                 requestedStat.getRelatedEntityType().equals(UIEntityType.VIRTUAL_VOLUME.apiStr())) {
 
                 final SearchFilter.Builder connectedToVVSearchFilter =
@@ -133,7 +135,7 @@ public class StorageStatsSubQuery implements StatsSubQuery {
                     createSearchTraversalFilter(TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_MACHINE);
 
                 // VV which are attached to VM within the scope
-                final SearchParameters searchNumOfVvAttachedToVMInScope = getSearchScopeBuilder(context, requestedStat)
+                final SearchParameters searchVvAttachedToVMInScope = getSearchScopeBuilder(context, requestedStat)
                     .addSearchFilter(connectedFromVMSearchFilter)
                     .addSearchFilter(connectedToVVSearchFilter)
                     .build();
@@ -143,21 +145,26 @@ public class StorageStatsSubQuery implements StatsSubQuery {
                     .addSearchFilter(connectedToVVSearchFilter)
                     .build();
 
-                if (requestedStat.getName().equals(NUM_VOL)) {
-                    Long numOfVvs = repositoryApi.newSearchRequest(searchNumOfVv).count();
-                    Long numOfVvAttachedToVM = repositoryApi.newSearchRequest(searchNumOfVvAttachedToVMInScope).count();
+                Long numOfVvs = repositoryApi.newSearchRequest(searchNumOfVv).count();
+                Set<Long> vvAttachedToVM = repositoryApi.newSearchRequest(searchVvAttachedToVMInScope).getOids();
+                // This step is required because vvAttachedToVM can include VVs outside the current scope-
+                // we get VMs connected from VVs in scope, then VVs connected to those VMs- this has the potential to be
+                // a superset of the VVs we started with (VMs can be connected to more than one VV simultaneously)
+                Long numOfAttachedVvInScope = Long.valueOf(Sets.intersection(context.getQueryScope().getEntities(), vvAttachedToVM).size());
 
-                    Map<String, Long> vvAttachmentCountMap = ImmutableMap.<String, Long>builder()
-                        .put(StringConstants.ATTACHED, numOfVvAttachedToVM)
-                        .put(StringConstants.UNATTACHED, numOfVvs - numOfVvAttachedToVM)
-                        .build();
+                Map<String, Long> vvAttachmentCountMap = ImmutableMap.<String, Long>builder()
+                    .put(StringConstants.ATTACHED, numOfAttachedVvInScope)
+                    .put(StringConstants.UNATTACHED, numOfVvs - numOfAttachedVvInScope)
+                    .build();
 
-                    List<StatApiDTO> stats = toCountStatApiDtos(requestedStat, StringConstants.ATTACHMENT, vvAttachmentCountMap);
+                List<StatApiDTO> stats = toCountStatApiDtos(requestedStat, StringConstants.ATTACHMENT, vvAttachmentCountMap);
 
-                    results.addAll(stats);
-                }
+                results.addAll(stats);
+
                 // when request for stat group by storage tier of Virtual volume
-            } else if (requestedStat.getGroupBy() != null && requestedStat.getGroupBy().contains(UIEntityType.STORAGE_TIER.apiStr()) &&
+            } else if (requestedStat.getName().equals(NUM_VOL) &&
+                requestedStat.getGroupBy() != null &&
+                requestedStat.getGroupBy().contains(UIEntityType.STORAGE_TIER.apiStr()) &&
                 requestedStat.getRelatedEntityType().equals(UIEntityType.VIRTUAL_VOLUME.apiStr())) {
                 // Get all the storage tier in the scope
                 // Storage tier is for Cloud only
@@ -211,17 +218,16 @@ public class StorageStatsSubQuery implements StatsSubQuery {
                     .collect(Collectors.toMap(getStorageTierDisplayName,
                                               storageEntity -> vvPartialEntityGroupedByStorageTierOid.get(storageEntity.getOid())));
 
-                if (requestedStat.getName().equals(NUM_VOL)) {
-                    Map<String, Long> storageTierCountMap = storageTierDisplayNameToDisplayNameMap.entrySet().stream()
-                        .collect(Collectors.toMap(
-                            e -> e.getKey(),
-                            e -> new Long(e.getValue().size())
-                        ));
+                Map<String, Long> storageTierCountMap = storageTierDisplayNameToDisplayNameMap.entrySet().stream()
+                    .collect(Collectors.toMap(
+                        e -> e.getKey(),
+                        e -> new Long(e.getValue().size())
+                    ));
 
-                    List<StatApiDTO> stats = toCountStatApiDtos(requestedStat, UIEntityType.STORAGE_TIER.apiStr(), storageTierCountMap);
+                List<StatApiDTO> stats = toCountStatApiDtos(requestedStat, UIEntityType.STORAGE_TIER.apiStr(), storageTierCountMap);
 
-                    results.addAll(stats);
-                }
+                results.addAll(stats);
+
             } else {
                 final SearchParameters searchParameters =
                     getSearchScopeBuilder(context, requestedStat).build();
