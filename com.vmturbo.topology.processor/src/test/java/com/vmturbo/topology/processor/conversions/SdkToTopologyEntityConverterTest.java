@@ -15,12 +15,12 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import org.junit.Test;
-
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.util.JsonFormat;
+
+import org.junit.Test;
 
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -58,8 +58,15 @@ public class SdkToTopologyEntityConverterTest {
     private static final long PM_FAILOVER_OID = 104L;
     private static final long VM_OID = 100L;
     private static final long DS_OID = 205L;
+
     private static final double DELTA = 1e-8;
 
+    /**
+     * Convert entities test.
+     *
+     * @throws IOException
+     *      reading from file exception
+     */
     @Test
     public void testConverter() throws IOException {
         CommonDTO.EntityDTO vmProbeDTO = messageFromJsonFile("protobuf/messages/vm-1.dto.json");
@@ -377,8 +384,12 @@ public class SdkToTopologyEntityConverterTest {
         final long vmOid = 2L;
         final double appVcpuUsed = 10;
         final double appVmemUsed = 1024;
+        final double appVcpuPeak = 20;
+        final double appVmemPeak = 1600;
         final double vmVcpuUsed = 30;
         final double vmVmemUsed = 1500;
+        final double vmVcpuPeak = 50;
+        final double vmVmemPeak = 1800;
         final double vmVcpuCapacity = 2000;
         final double vmVmemCapacity = 2048;
 
@@ -390,10 +401,12 @@ public class SdkToTopologyEntityConverterTest {
                 .addBought(CommodityDTO.newBuilder()
                     .setCommodityType(CommodityType.VCPU)
                     .setUsed(appVcpuUsed)
+                    .setPeak(appVcpuPeak)
                     .setIsUsedPct(true))
                 .addBought(CommodityDTO.newBuilder()
                     .setCommodityType(CommodityType.VMEM)
-                    .setUsed(appVmemUsed)));
+                    .setUsed(appVmemUsed)
+                    .setPeak(appVmemPeak)));
 
         EntityDTO.Builder vmBuilder = EntityDTO.newBuilder()
             .setEntityType(EntityType.VIRTUAL_MACHINE)
@@ -401,11 +414,13 @@ public class SdkToTopologyEntityConverterTest {
             .addCommoditiesSold(CommodityDTO.newBuilder()
                 .setCommodityType(CommodityType.VCPU)
                 .setUsed(vmVcpuUsed)
+                .setPeak(vmVcpuPeak)
                 .setCapacity(vmVcpuCapacity)
                 .setIsUsedPct(true))
             .addCommoditiesSold(CommodityDTO.newBuilder()
                 .setCommodityType(CommodityType.VMEM)
                 .setUsed(vmVmemUsed)
+                .setPeak(vmVmemPeak)
                 .setCapacity(vmVmemCapacity));
 
         TopologyStitchingEntity appStitchingEntity = new TopologyStitchingEntity(
@@ -436,9 +451,11 @@ public class SdkToTopologyEntityConverterTest {
         CommodityBoughtDTO appVMEM = commodityBoughtMap.get(CommodityType.VMEM_VALUE);
         CommodityBoughtDTO appVCPU = commodityBoughtMap.get(CommodityType.VCPU_VALUE);
 
-        // check app bought commodity used
+        // check app bought commodities
         assertEquals(appVmemUsed, appVMEM.getUsed(), DELTA);
         assertEquals(appVcpuUsed * vmVcpuCapacity / 100, appVCPU.getUsed(), DELTA);
+        assertEquals(appVmemPeak, appVMEM.getPeak(), DELTA);
+        assertEquals(appVcpuPeak * vmVcpuCapacity / 100, appVCPU.getPeak(), DELTA);
 
         final TopologyEntityDTO.Builder vmTopologyDTO =
             SdkToTopologyEntityConverter.newTopologyEntityDTO(vmStitchingEntity);
@@ -450,9 +467,11 @@ public class SdkToTopologyEntityConverterTest {
         CommoditySoldDTO vmVMEM = commoditySoldMap.get(CommodityType.VMEM_VALUE);
         CommoditySoldDTO vmVCPU = commoditySoldMap.get(CommodityType.VCPU_VALUE);
 
-        // check vm sold commodity used
+        // check vm sold commodities
         assertEquals(vmVmemUsed, vmVMEM.getUsed(), DELTA);
         assertEquals(vmVcpuUsed * vmVcpuCapacity / 100, vmVCPU.getUsed(), DELTA);
+        assertEquals(vmVmemPeak, vmVMEM.getPeak(), DELTA);
+        assertEquals(vmVcpuPeak * vmVcpuCapacity / 100, vmVCPU.getPeak(), DELTA);
 
         // create a vm provider which doesn't sell vcpu commodity
         vmStitchingEntity.getTopologyCommoditiesSold().clear();
