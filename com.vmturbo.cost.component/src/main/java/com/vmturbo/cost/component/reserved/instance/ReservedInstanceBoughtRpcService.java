@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.reserved.instance;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -219,10 +220,24 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
             GetReservedInstanceBoughtCountRequest request,
             StreamObserver<GetReservedInstanceBoughtCountByTemplateResponse> responseObserver) {
         try {
-            Map<String, Long> reservedInstanceCountMap = reservedInstanceBoughtStore.getReservedInstanceCountByRISpecIdMap();
+            final Map<Long, Long> riCountByRiSpecId = reservedInstanceBoughtStore
+                    .getReservedInstanceCountByRISpecIdMap();
+
+            final Map<Long, ReservedInstanceSpec> riSpecBySpecId = reservedInstanceSpecStore
+                    .getReservedInstanceSpecByIds(riCountByRiSpecId.keySet())
+                    .stream().collect(Collectors.toMap(ReservedInstanceSpec::getId,
+                            Function.identity()));
+
+            final Map<Long, Long> riBoughtCountByTierId =
+                    riCountByRiSpecId.entrySet().stream()
+                            .filter(e -> riSpecBySpecId.containsKey(e.getKey()))
+                            .collect(Collectors.toMap(e -> riSpecBySpecId.get(e.getKey())
+                                            .getReservedInstanceSpecInfo().getTierId(),
+                                    Entry::getValue, Long::sum));
+
             final GetReservedInstanceBoughtCountByTemplateResponse response =
                     GetReservedInstanceBoughtCountByTemplateResponse.newBuilder()
-                            .putAllReservedInstanceCountMap(reservedInstanceCountMap)
+                            .putAllReservedInstanceCountMap(riBoughtCountByTierId)
                             .build();
             responseObserver.onNext(response);
             responseObserver.onCompleted();

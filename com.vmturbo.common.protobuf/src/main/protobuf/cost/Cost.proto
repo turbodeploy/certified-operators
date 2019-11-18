@@ -658,10 +658,10 @@ message GetReservedInstanceBoughtCountResponse {
     map<int64, int64> reserved_instance_count_map = 1;
 }
 
-// Response contains ri count map by template type
+// Response contains ri bought count map by tier id
 message GetReservedInstanceBoughtCountByTemplateResponse {
-    // A map where key is template type and count is the number of the type in users RI inventory
-    map<string, int64> reserved_instance_count_map = 1;
+    // A map where key is the tier id and value is the number of the RIs bought for the tier id
+    map<int64, int64> reserved_instance_count_map = 1;
 }
 
 // A request to get reserved instance specs

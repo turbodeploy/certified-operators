@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -13,9 +14,11 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
+import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.SubQuerySupportedStats;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
@@ -45,22 +48,26 @@ public class RIStatsSubQuery implements StatsSubQuery {
     private final ReservedInstanceBoughtServiceBlockingStub riBoughtService;
 
     private final RIStatsMapper riStatsMapper;
+    private final RepositoryApi repositoryApi;
 
     private static final Set<String> SUPPORTED_STATS =
             ImmutableSet.of(StringConstants.RI_COUPON_UTILIZATION,
                     StringConstants.RI_COUPON_COVERAGE, StringConstants.NUM_RI);
 
     public RIStatsSubQuery(@Nonnull final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService,
-                           @Nonnull final ReservedInstanceBoughtServiceBlockingStub riBoughtService) {
-        this(riUtilizationCoverageService, riBoughtService, new RIStatsMapper());
+                           @Nonnull final ReservedInstanceBoughtServiceBlockingStub riBoughtService,
+                           @Nonnull final RepositoryApi repositoryApi) {
+        this(riUtilizationCoverageService, riBoughtService, new RIStatsMapper(), repositoryApi);
     }
 
     RIStatsSubQuery(@Nonnull final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService,
                     @Nonnull final ReservedInstanceBoughtServiceBlockingStub riBoughtService,
-                    @Nonnull final RIStatsMapper riStatsMapper) {
+                    @Nonnull final RIStatsMapper riStatsMapper,
+                    @Nonnull final RepositoryApi repositoryApi) {
         this.riUtilizationCoverageService = riUtilizationCoverageService;
         this.riBoughtService = riBoughtService;
         this.riStatsMapper = riStatsMapper;
+        this.repositoryApi = repositoryApi;
     }
 
     @Override
@@ -96,10 +103,21 @@ public class RIStatsSubQuery implements StatsSubQuery {
         if (containsStat(StringConstants.NUM_RI, stats) && isValidScopeForNumRIRequest(context)) {
             final GetReservedInstanceBoughtCountRequest countRequest = GetReservedInstanceBoughtCountRequest
                     .newBuilder().build();
-            GetReservedInstanceBoughtCountByTemplateResponse res =
+            GetReservedInstanceBoughtCountByTemplateResponse response =
                     riBoughtService.getReservedInstanceBoughtCountByTemplateType(countRequest).toBuilder().build();
+            final Map<Long, Long> riBoughtCountsByTierId =
+                    response.getReservedInstanceCountMapMap();
+            final Map<Long, ServiceEntityApiDTO> tierApiDTOByTierId =
+                    repositoryApi.entitiesRequest(riBoughtCountsByTierId.keySet())
+                    .getSEMap();
+            final Map<String, Long> riBoughtCountByTierName = riBoughtCountsByTierId
+                    .entrySet().stream()
+                    .filter(e -> tierApiDTOByTierId.containsKey(e.getKey()))
+                    .collect(Collectors
+                            .toMap(e -> tierApiDTOByTierId.get(e.getKey()).getDisplayName(),
+                                    Entry::getValue, Long::sum));
             snapshots.addAll(riStatsMapper
-                    .convertNumRIStatsRecordsToStatSnapshotApiDTO(res.getReservedInstanceCountMapMap()));
+                    .convertNumRIStatsRecordsToStatSnapshotApiDTO(riBoughtCountByTierName));
         }
 
         if (containsStat(StringConstants.RI_COUPON_COVERAGE, stats) && isValidScopeForCoverageRequest(context)) {

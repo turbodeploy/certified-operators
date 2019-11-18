@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -26,6 +27,8 @@ import org.junit.Test;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.stats.ImmutableTimeWindow;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
@@ -33,17 +36,20 @@ import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactor
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.StatsQueryScope;
 import com.vmturbo.api.component.external.api.util.stats.StatsTestUtil;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.RIStatsSubQuery.RIStatsMapper;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountByTemplateResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord.StatValue;
+import com.vmturbo.common.protobuf.cost.CostMoles.ReservedInstanceBoughtServiceMole;
 import com.vmturbo.common.protobuf.cost.CostMoles.ReservedInstanceUtilizationCoverageServiceMole;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
@@ -53,7 +59,8 @@ import com.vmturbo.components.common.utils.StringConstants;
 
 public class RIStatsSubQueryTest {
     private static final long MILLIS = 1_000_000;
-
+    private static final long TIER_ID = 1111L;
+    private static final String TIER_NAME = "compute_medium";
     private static final TimeWindow TIME_WINDOW = ImmutableTimeWindow.builder()
         .startTime(500_000)
         .endTime(600_000)
@@ -67,8 +74,14 @@ public class RIStatsSubQueryTest {
     private ReservedInstanceUtilizationCoverageServiceMole backend =
         spy(ReservedInstanceUtilizationCoverageServiceMole.class);
 
+    private ReservedInstanceBoughtServiceMole riBoughtBackend =
+            spy(ReservedInstanceBoughtServiceMole.class);
+
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(backend);
+
+    @Rule
+    public GrpcTestServer riBoughtServer = GrpcTestServer.newServer(riBoughtBackend);
 
     private RIStatsMapper mapper = mock(RIStatsMapper.class);
 
@@ -80,10 +93,16 @@ public class RIStatsSubQueryTest {
 
     @Before
     public void setup() {
+        final RepositoryApi repositoryApi = mock(RepositoryApi.class);
+        final MultiEntityRequest request = mock(MultiEntityRequest.class);
+        final ServiceEntityApiDTO tierApiDto = new ServiceEntityApiDTO();
+        tierApiDto.setDisplayName(TIER_NAME);
+        when(request.getSEMap()).thenReturn(Collections.singletonMap(TIER_ID, tierApiDto));
+        when(repositoryApi.entitiesRequest(any())).thenReturn(request);
         query = new RIStatsSubQuery(
                 ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(testServer.getChannel()),
-                ReservedInstanceBoughtServiceGrpc.newBlockingStub(testServer.getChannel()),
-                mapper);
+                ReservedInstanceBoughtServiceGrpc.newBlockingStub(riBoughtServer.getChannel()),
+                mapper, repositoryApi);
 
         when(context.getInputScope()).thenReturn(scope);
         Set<UIEntityType> inputScopeTypes = new HashSet<>();
@@ -171,6 +190,36 @@ public class RIStatsSubQueryTest {
         // Should be merged into one time
         assertThat(ret.keySet(), containsInAnyOrder(MILLIS));
         assertThat(ret.get(MILLIS), containsInAnyOrder(cvgMappedSnapshot.getStatistics().get(0), utilMappedSnapshot.getStatistics().get(0)));
+    }
+
+    /**
+     * Test that getAggregateStats with NUM_RI request returns response with template name by count.
+     *
+     * @throws OperationFailedException if getAggregateStats throws OperationFailedException.
+     */
+    @Test
+    public void testRiBoughtCountByTemplateType() throws OperationFailedException {
+        final long riBoughtCount = 3L;
+        final Map<Long, Long> riBoughtCountByTierId = Collections.singletonMap(TIER_ID,
+                riBoughtCount);
+        GetReservedInstanceBoughtCountByTemplateResponse response =
+                GetReservedInstanceBoughtCountByTemplateResponse.newBuilder()
+                        .putAllReservedInstanceCountMap(riBoughtCountByTierId)
+                        .build();
+        when(riBoughtBackend.getReservedInstanceBoughtCountByTemplateType(any()))
+                .thenReturn(response);
+        when(mapper.convertNumRIStatsRecordsToStatSnapshotApiDTO(any())).thenCallRealMethod();
+        final StatApiInputDTO request = new StatApiInputDTO();
+        request.setName(StringConstants.NUM_RI);
+        final Map<Long, List<StatApiDTO>> result =
+                query.getAggregateStats(Collections.singleton(request),
+                context);
+        Assert.assertFalse(result.isEmpty());
+        final List<StatApiDTO> statApiDTOS = result.values().iterator().next();
+        Assert.assertFalse(statApiDTOS.isEmpty());
+        final StatApiDTO statApiDTO = statApiDTOS.iterator().next();
+        Assert.assertEquals(TIER_NAME, statApiDTO.getFilters().iterator().next().getValue());
+        Assert.assertEquals((float)riBoughtCount, statApiDTO.getValues().getAvg(), 0);
     }
 
     @Test

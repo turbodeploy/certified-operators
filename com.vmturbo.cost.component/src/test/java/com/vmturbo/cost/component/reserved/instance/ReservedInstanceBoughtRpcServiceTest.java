@@ -28,6 +28,8 @@ import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageRe
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterResponse;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountByTemplateResponse;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
@@ -102,6 +104,7 @@ public class ReservedInstanceBoughtRpcServiceTest {
     private static final Long BAMASTER_OID = 777L;
     private static final long RI_SPEC_ID = 2222L;
     private static final long TIER_ID = 3333L;
+    private static final long RI_BOUGHT_COUNT = 4L;
     private static final double TIER_PRICE = 0.41;
     private static final double delta = 0.01;
 
@@ -114,6 +117,8 @@ public class ReservedInstanceBoughtRpcServiceTest {
                 .thenReturn(Collections.singletonList(createRiBought()));
         when(reservedInstanceSpecStore.getReservedInstanceSpecByIds(any()))
                 .thenReturn(Collections.singletonList(createRiSpec()));
+        when(reservedInstanceBoughtStore.getReservedInstanceCountByRISpecIdMap())
+                .thenReturn(Collections.singletonMap(RI_SPEC_ID, RI_BOUGHT_COUNT));
         mockPricedTableStore(priceTableStore);
     }
 
@@ -303,5 +308,22 @@ public class ReservedInstanceBoughtRpcServiceTest {
                 .getReservedInstanceBoughtCost().getOndemandCostPerHour()
                 .getAmount();
         Assert.assertEquals(TIER_PRICE, onDemandCost, delta);
+    }
+
+    /**
+     * Test that GetReservedInstanceBoughtCountByTemplate request returns correct bought count by
+     * tier id.
+     */
+    @Test
+    public void testGetReservedInstanceBoughtCountByTemplateType() {
+        final GetReservedInstanceBoughtCountRequest request =
+                GetReservedInstanceBoughtCountRequest.newBuilder().build();
+        final GetReservedInstanceBoughtCountByTemplateResponse response = client
+                .getReservedInstanceBoughtCountByTemplateType(request);
+        Assert.assertNotNull(response);
+        final Map<Long, Long> riBoughtCountByTierId = response.getReservedInstanceCountMapMap();
+        Assert.assertFalse(riBoughtCountByTierId.isEmpty());
+        Assert.assertEquals(TIER_ID, riBoughtCountByTierId.keySet().iterator().next(), delta);
+        Assert.assertEquals(RI_BOUGHT_COUNT, riBoughtCountByTierId.get(TIER_ID), delta);
     }
 }
