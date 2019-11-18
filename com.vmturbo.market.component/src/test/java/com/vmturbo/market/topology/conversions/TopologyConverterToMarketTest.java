@@ -1323,4 +1323,62 @@ public class TopologyConverterToMarketTest {
         assertTrue(constantPfComms.size() == 2);
         assertTrue(externalUfComms.size() == 3);
     }
+
+    /**
+     * Test the number of consumers of a commodity sold. Ignore inactive commodity bought.
+     * TopologyEntityDTO with an inactive commodity bought is not considered as a consumer.
+     */
+    @Test
+    public void testNumConsumers() {
+        // Seller
+        TopologyEntityDTO storage = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.STORAGE_VALUE)
+            .setOid(100)
+            .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                    .setType(CommodityDTO.CommodityType.STORAGE_LATENCY_VALUE)))
+            .build();
+
+        CommodityType commodityType = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.STORAGE_LATENCY_VALUE)
+            .build();
+
+        // PMs with inactive commodity bought.
+        List<TopologyEntityDTO> pms = new ArrayList<>(5);
+        for (int i = 0; i < 5; i++) {
+            pms.add(TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .setOid(i)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .setProviderId(10)
+                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(commodityType)
+                        .setActive(false)))
+                .build());
+        }
+
+        // VMs with inactive commodity bought.
+        List<TopologyEntityDTO> vms = new ArrayList<>(5);
+        for (int i = 0; i < 5; i++) {
+            vms.add(TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setOid(i + 5)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .setProviderId(100)
+                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(commodityType)
+                        .setActive(true)))
+                .build());
+        }
+
+        Set<TopologyEntityDTO> dtos = new HashSet<>(11);
+        dtos.add(storage);
+        dtos.addAll(pms);
+        dtos.addAll(vms);
+        Set<TraderTO> traderTOs = convertToMarketTO(dtos, REALTIME_TOPOLOGY_INFO);
+
+        TraderTO trader = traderTOs.stream().filter(traderTO -> traderTO.getOid() == 100L).findFirst().get();
+        assertEquals(1, trader.getCommoditiesSoldCount());
+        assertEquals(5, trader.getCommoditiesSold(0).getNumConsumers());
+    }
 }
