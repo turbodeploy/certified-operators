@@ -5,7 +5,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
 import java.util.List;
-import java.util.Map;
 
 import org.junit.Test;
 
@@ -13,6 +12,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.OS.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Architecture;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
@@ -107,5 +107,21 @@ public class VirtualMachineInfoMapperTest {
         assertEquals(result.getVirtualMachine().getDriverInfo().getHasNvmeDriver(), true);
         assertEquals(result.getVirtualMachine().getArchitecture(), Architecture.BIT_64);
         assertEquals(result.getVirtualMachine().getVirtualizationType(), VirtualizationType.HVM);
+    }
+
+    /**
+     * Test VirtualMachineInfoMapper::parseGuestName.
+     */
+    @Test
+    public void testParseGuestName() {
+        final Builder unknown = VirtualMachineInfoMapper.parseGuestName("ABCD");
+        assertEquals(OSType.UNKNOWN_OS, unknown.getGuestOsType());
+        final Builder linuxSqlEnterprise = VirtualMachineInfoMapper
+                .parseGuestName("LINuX_WitH_SQL_ENTErpriSE");
+        assertEquals(OSType.LINUX_WITH_SQL_ENTERPRISE, linuxSqlEnterprise.getGuestOsType());
+        final Builder windowsByol = VirtualMachineInfoMapper.parseGuestName("WINDOWS_BYOL");
+        assertEquals(OSType.WINDOWS_BYOL, windowsByol.getGuestOsType());
+        final Builder linuxOS = VirtualMachineInfoMapper.parseGuestName("LINUX");
+        assertEquals(OSType.LINUX, linuxOS.getGuestOsType());
     }
 }

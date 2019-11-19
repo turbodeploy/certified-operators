@@ -25,9 +25,9 @@ public class CloudCostUtils {
                 .put(Platform.SUSE, OSType.SUSE)
                 .put(Platform.RHEL, OSType.RHEL)
                 .put(Platform.WINDOWS, OSType.WINDOWS)
-                .put(Platform.WINDOWS_SQL_STANDARD, OSType.WINDOWS_WITH_SQL_STANDARD)
-                .put(Platform.WINDOWS_SQL_WEB, OSType.WINDOWS_WITH_SQL_WEB)
-                .put(Platform.WINDOWS_SQL_SERVER_ENTERPRISE, OSType.WINDOWS_WITH_SQL_ENTERPRISE)
+                .put(Platform.WINDOWS_WITH_SQL_STANDARD, OSType.WINDOWS_WITH_SQL_STANDARD)
+                .put(Platform.WINDOWS_WITH_SQL_WEB, OSType.WINDOWS_WITH_SQL_WEB)
+                .put(Platform.WINDOWS_WITH_SQL_SERVER_ENTERPRISE, OSType.WINDOWS_WITH_SQL_ENTERPRISE)
                 .build();
 
     /**
