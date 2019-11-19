@@ -49,7 +49,8 @@ public class GroupStitchingManager {
      */
     private static final Map<String, Integer> PROBE_PRIORITIES =
             ImmutableMap.of(SDKProbeType.AZURE_STORAGE_BROWSE.toString(), 1,
-                    SDKProbeType.APPINSIGHTS.toString(), 1);
+                    SDKProbeType.APPINSIGHTS.toString(), 1,
+                    SDKProbeType.AWS_BILLING.toString(), 1);
 
     /**
      * A metric that tracks duration of execution for group stitching.

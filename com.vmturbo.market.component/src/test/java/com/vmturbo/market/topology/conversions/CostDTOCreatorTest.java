@@ -190,7 +190,8 @@ public class CostDTOCreatorTest {
             when(marketPriceTable.getComputePriceBundle(tier, region.getOid(), accountPricingData)).thenReturn(ComputePriceBundle.newBuilder().build());
         }
         accountPricingDatabyBusinessAccountMap.put(BA_ID, accountPricingData);
-        CostDTO costDTO = costDTOCreator.createComputeTierCostDTO(tier, REGIONS, bas, accountPricingDatabyBusinessAccountMap);
+        HashSet<AccountPricingData> uniqueAccountPricingData = new HashSet<>(accountPricingDatabyBusinessAccountMap.values());
+        CostDTO costDTO = costDTOCreator.createComputeTierCostDTO(tier, REGIONS, bas,uniqueAccountPricingData);
         Assert.assertEquals(1, costDTO.getComputeTierCost().getComputeResourceDepedencyCount());
         ComputeResourceDependency dependency = costDTO.getComputeTierCost().getComputeResourceDepedency(0);
         Assert.assertNotNull(dependency.getBaseResourceType());

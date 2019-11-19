@@ -1,5 +1,6 @@
 package com.vmturbo.market.topology.conversions;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -52,15 +53,15 @@ public class CostDTOCreator {
      * @param tier is topology entity DTO representation of the tier.
      * @param regions list of region topology entity DTOs.
      * @param businessAccountDTOs all business accounts in the topology.
-     * @param accountPricingDataMapByBusinessAccountOid The mapping of the business account id to the account pricing data.
+     * @param uniqueAccountPricingData The unique set of pricing in the topology.
      *
      * @return CostDTO
      */
-    public CostDTO createCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> regions, Set<TopologyEntityDTO> businessAccountDTOs, Map<Long, AccountPricingData> accountPricingDataMapByBusinessAccountOid) {
+    public CostDTO createCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> regions, Set<TopologyEntityDTO> businessAccountDTOs, Set<AccountPricingData> uniqueAccountPricingData) {
         if (tier.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
-            return createComputeTierCostDTO(tier, regions, businessAccountDTOs, accountPricingDataMapByBusinessAccountOid );
+            return createComputeTierCostDTO(tier, regions, businessAccountDTOs, uniqueAccountPricingData );
         } else {
-            return createDatabaseTierCostDTO(tier, regions, businessAccountDTOs, accountPricingDataMapByBusinessAccountOid);
+            return createDatabaseTierCostDTO(tier, regions, businessAccountDTOs, uniqueAccountPricingData);
         }
     }
 
@@ -70,15 +71,15 @@ public class CostDTOCreator {
      * @param tier the compute tier topology entity DTO.
      * @param regions list of region topology entity DTOs.
      * @param businessAccountDTOs all business accounts in the topology.
-     * @param accountPricingDataMapByBusinessAccountOid The mapping of the business account id to the account pricing data.
+     * @param uniqueAccountPricingData The set of unique account pricing data.
      *
      * @return CostDTO
      */
     public CostDTO createComputeTierCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> regions, Set<TopologyEntityDTO> businessAccountDTOs,
-                                            Map<Long, AccountPricingData> accountPricingDataMapByBusinessAccountOid) {
+                                            Set<AccountPricingData> uniqueAccountPricingData) {
         ComputeTierCostDTO.Builder computeTierDTOBuilder = ComputeTierCostDTO.newBuilder();
         Set<Long> baOidSet = businessAccountDTOs.stream().map(TopologyEntityDTO::getOid).collect(Collectors.toSet());
-        for (AccountPricingData accountPricingData : accountPricingDataMapByBusinessAccountOid.values()) {
+        for (AccountPricingData accountPricingData : uniqueAccountPricingData) {
             for (TopologyEntityDTO region: regions) {
                 ComputePriceBundle priceBundle = marketPriceTable.getComputePriceBundle(tier, region.getOid(), accountPricingData);
                 if (priceBundle == null) {
@@ -161,16 +162,16 @@ public class CostDTOCreator {
      * @param tier the database tier topology entity DTO
      * @param regions the regions topology entity DTO
      * @param businessAccountDTOs all business accounts in the topology
-     * @param accountPricingDataMapByBusinessAccountOid The mapping of the business account id to the account pricing data.
+     * @param uniqueAccountPricingData The set of unique account pricing data.
      *
      * @return CostDTO
      */
     public CostDTO createDatabaseTierCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> regions,
                                              Set<TopologyEntityDTO> businessAccountDTOs,
-                                             Map<Long, AccountPricingData> accountPricingDataMapByBusinessAccountOid) {
+                                             Set<AccountPricingData> uniqueAccountPricingData) {
         ComputeTierCostDTO.Builder dbTierDTOBuilder = ComputeTierCostDTO.newBuilder();
         Set<Long> baOidSet = businessAccountDTOs.stream().map(TopologyEntityDTO::getOid).collect(Collectors.toSet());
-        for (AccountPricingData accountPricingData : accountPricingDataMapByBusinessAccountOid.values()) {
+        for (AccountPricingData accountPricingData : uniqueAccountPricingData) {
             for (TopologyEntityDTO region: regions) {
                 DatabasePriceBundle priceBundle = marketPriceTable.getDatabasePriceBundle(tier.getOid(),
                         region.getOid(), accountPricingData);
@@ -273,17 +274,17 @@ public class CostDTOCreator {
      * @param tier the storage tier topology entity DTO.
      * @param connectedRegions the region topology entity DTO.
      * @param businessAccountDTOs all business accounts in the topology.
-     * @param accountPricingDataMapByBusinessAccountOid The mapping of the business account id to the account pricing data.
+     * @param uniqueAccountPricingData The unique account pricing data in the system.
      *
      * @return CostDTO
      */
     public CostDTO createStorageTierCostDTO(TopologyEntityDTO tier, List<TopologyEntityDTO> connectedRegions,
-                                            Set<TopologyEntityDTO> businessAccountDTOs, Map<Long, AccountPricingData> accountPricingDataMapByBusinessAccountOid) {
+                                            Set<TopologyEntityDTO> businessAccountDTOs, Set<AccountPricingData> uniqueAccountPricingData) {
         CostDTO.StorageTierCostDTO.Builder storageDTO =  StorageTierCostDTO.newBuilder();
         StorageTierCostDTO.StorageResourceCost.Builder builder = StorageTierCostDTO.StorageResourceCost
                 .newBuilder();
         for (TopologyEntityDTO region: connectedRegions) {
-            for (AccountPricingData accountPricingData : accountPricingDataMapByBusinessAccountOid.values()) {
+            for (AccountPricingData accountPricingData : uniqueAccountPricingData) {
                 StoragePriceBundle storageCostBundle = marketPriceTable
                         .getStoragePriceBundle(tier.getOid(), region.getOid(), accountPricingData);
                 if (storageCostBundle == null) {

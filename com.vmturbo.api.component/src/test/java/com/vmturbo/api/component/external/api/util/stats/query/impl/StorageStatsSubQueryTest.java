@@ -173,14 +173,17 @@ public class StorageStatsSubQueryTest {
 
     @Test
     public void testGetAggregateStatsWhenGroupByAttachment() throws OperationFailedException {
-        final StatsQueryContext context = setupGlobalScope();
+        Long oidInScope = 1L;
+        Set<Long> oids = Sets.newHashSet(oidInScope, 2L);
+        final StatsQueryContext context = setupOidsScope(oids);
 
         ArgumentCaptor<Search.SearchParameters> searchParametersArgumentCaptor = new ArgumentCaptor<>();
 
         SearchRequest searchRequest = mock(SearchRequest.class);
         when(repositoryApi.newSearchRequest(searchParametersArgumentCaptor.capture()))
-            .thenReturn(searchRequest);
-        when(searchRequest.count()).thenReturn(10L, 6L);
+                .thenReturn(searchRequest);
+        when(searchRequest.getOids()).thenReturn(Sets.newHashSet(oidInScope));
+        when(searchRequest.count()).thenReturn(2L);
 
         Set<StatApiInputDTO> requestedStats =
             Sets.newHashSet(createStatApiInputDTO(NUM_VOLUMES, UIEntityType.VIRTUAL_VOLUME, Collections.singletonList(StringConstants.ATTACHMENT)));
@@ -224,9 +227,9 @@ public class StorageStatsSubQueryTest {
             assertThat(statFilterApiDTO.getValue(), isOneOf(StringConstants.ATTACHED, StringConstants.UNATTACHED));
 
             if (statFilterApiDTO.getValue().equals(StringConstants.ATTACHED)) {
-                assertThat(dto.getValue(), is(6f));
+                assertThat(dto.getValue(), is(1f));
             } else {
-                assertThat(dto.getValue(), is(4f));
+                assertThat(dto.getValue(), is(1f));
             }
         });
     }
@@ -665,5 +668,11 @@ public class StorageStatsSubQueryTest {
         when(context.isGlobalScope()).thenReturn(true);
         when(context.getQueryScope()).thenReturn(statsQueryScope);
         return context;
+    }
+
+    private StatsQueryContext setupOidsScope(@Nullable Set<Long> entityOids) {
+        StatsQueryContext scope = setupGlobalScope();
+        when(scope.getQueryScope().getEntities()).thenReturn(entityOids);
+        return scope;
     }
 }

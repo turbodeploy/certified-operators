@@ -1766,8 +1766,10 @@ public class TopologyConverter {
         double defaultBudgetValue = 100000000d;
         float spent = 0f;
         Optional<AccountPricingData> accountPricingData = cloudTc.getAccountPricingIdFromBusinessAccount(businessAccount.getOid());
+        // Set the account pricing data oid on the balance account. If it is not found, have the VM shop
+        // for its own business account id.
         return BalanceAccountDTO.newBuilder().setBudget(defaultBudgetValue).setSpent(spent)
-                .setId(accountPricingData.isPresent() ? accountPricingData.get().getAccountPricingDataOid() : null).build();
+                .setId(accountPricingData.isPresent() ? accountPricingData.get().getAccountPricingDataOid() : businessAccount.getOid()).build();
     }
 
     private @Nonnull List<CommoditySoldTO> createAllCommoditySoldTO(@Nonnull TopologyEntityDTO topologyDTO) {

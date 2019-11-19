@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
+import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
@@ -123,12 +124,13 @@ public class CloudTopologyConverter {
         List<TraderTO.Builder> traderTOBuilders = new ArrayList<>();
         List<TraderTO.Builder> computeMarketTierBuilders = new ArrayList<>();
         logger.info("Beginning creation of market tier trader TOs");
+        Set<AccountPricingData> uniqueAccountPricingData = ImmutableSet.copyOf(accountPricingDataByBusinessAccountOid.values());
         for (Entry<Long, TopologyEntityDTO> entry : checkNotNull(topology.entrySet())) {
             TopologyEntityDTO entity = entry.getValue();
             TierConverter converter = converterMap.get(entity.getEntityType());
             if (converter != null) {
                 Map<TraderTO.Builder, MarketTier> traderTOBuildersForEntity =
-                        converter.createMarketTierTraderTOs(entity, topology, businessAccounts, accountPricingDataByBusinessAccountOid);
+                        converter.createMarketTierTraderTOs(entity, topology, businessAccounts, uniqueAccountPricingData);
                 traderTOBuilders.addAll(traderTOBuildersForEntity.keySet());
                 if (entity.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
                     computeMarketTierBuilders.addAll(traderTOBuildersForEntity.keySet());

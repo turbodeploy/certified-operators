@@ -25,16 +25,24 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 
+import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.io.Files;
+import com.google.protobuf.util.JsonFormat;
 
+import org.hamcrest.CoreMatchers;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -42,15 +50,19 @@ import org.mockito.ArgumentCaptor;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings.UploadedGroup;
+import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceStub;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.StitchingMergeInformation;
@@ -249,7 +261,7 @@ public class DiscoveredGroupUploaderTest {
         verify(groupServiceMole, times(2)).storeDiscoveredGroupsPoliciesSettings(
                 actualRequestCaptor.capture());
         List<DiscoveredGroupsPoliciesSettings> actualRequest =
-                (List<DiscoveredGroupsPoliciesSettings>)actualRequestCaptor.getValue();
+                actualRequestCaptor.getValue();
 
         assertEquals(1, actualRequest.size());
         assertThat(actualRequest.get(0).getUploadedGroupsList(), containsInAnyOrder(
@@ -335,4 +347,57 @@ public class DiscoveredGroupUploaderTest {
         assertTrue(recorderSpy.getDiscoveredSettingPolicyInfoForTarget(TARGET_ID).get().isEmpty());
     }
 
+    /**
+     * Test method convertTemplateExclusionGroupsToPolicies.
+     *
+     * @throws Exception any test exception
+     */
+    @Test
+    public void testconvertTemplateExclusionGroupsToPolicies() throws Exception {
+        // Test the group with no excluded template policies
+        recorderSpy.setTargetDiscoveredGroups(TARGET_ID,
+                Collections.singletonList(DiscoveredGroupConstants.RESOURCE_GROUP_DTO));
+        List<DiscoveredSettingPolicyInfo> noPolicies = recorderSpy
+                .getDiscoveredSettingPolicyInfoForTarget(TARGET_ID).get();
+        Assert.assertTrue(noPolicies.isEmpty());
+
+        // Test against the Accelerated Networking group
+        GroupDTO group = loadGroupDto("AcceleratedNetworkingGroupDTO.json");
+        recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(group));
+
+        List<DiscoveredSettingPolicyInfo> policies = recorderSpy
+                .getDiscoveredSettingPolicyInfoForTarget(TARGET_ID).get();
+        Assert.assertTrue(!policies.isEmpty());
+        DiscoveredSettingPolicyInfo policy = policies.iterator().next();
+        String name = "VMs_Accelerated Networking Enabled_EA - Development";
+        Assert.assertEquals(name, policy.getName());
+        Assert.assertThat(policy.getDisplayName(), CoreMatchers.containsString(name));
+        Assert.assertThat(policy.getDiscoveredGroupNames(0), CoreMatchers.containsString(name));
+        Assert.assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, policy.getEntityType());
+        Optional<Setting> setting = policy.getSettingsList().stream()
+                .filter(s -> s.getSettingSpecName() == EntitySettingSpecs.ExcludedTemplates
+                        .getSettingSpec().getName())
+                .findFirst();
+        Assert.assertTrue(setting.isPresent());
+    }
+
+    /**
+     * Load DTO from a JSON file.
+     *
+     * @param jsonFileName file name
+     * @return action DTO
+     * @throws IOException error reading the file
+     */
+    private GroupDTO loadGroupDto(@Nonnull String jsonFileName) throws IOException {
+        String str = readResourceFileAsString(jsonFileName);
+        GroupDTO.Builder builder = GroupDTO.newBuilder();
+        JsonFormat.parser().merge(str, builder);
+
+        return builder.build();
+    }
+
+    private String readResourceFileAsString(String fileName) throws IOException {
+        String path = getClass().getClassLoader().getResource(fileName).getFile();
+        return Files.asCharSource(new File(path), Charset.defaultCharset()).read();
+    }
 }

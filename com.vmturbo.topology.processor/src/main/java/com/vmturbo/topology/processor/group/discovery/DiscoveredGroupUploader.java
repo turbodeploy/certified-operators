@@ -29,6 +29,7 @@ import io.grpc.stub.StreamObserver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
@@ -36,11 +37,16 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsPoliciesSettingsResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceStub;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -140,7 +146,47 @@ public class DiscoveredGroupUploader {
             latestPoliciesByTarget.put(targetId, discoveredPolicyInfos);
             discoveredClusterConstraintCache.storeDiscoveredClusterConstraint(targetId, groups);
             latestSettingPoliciesByTarget.get(targetId).clear();
+            latestSettingPoliciesByTarget.putAll(targetId,
+                    convertTemplateExclusionGroupsToPolicies(targetId, groups));
         }
+    }
+
+    /**
+     * Convert template exclusion GroupDTOs to DiscoveredSettingPolicyInfos.
+     *
+     * @param targetId The id of the target whose groups were discovered
+     * @param groups GroupDTOs to process
+     * @return the list of DiscoveredSettingPolicyInfos
+     */
+    @Nonnull
+    private Collection<DiscoveredSettingPolicyInfo> convertTemplateExclusionGroupsToPolicies(
+            long targetId, @Nonnull List<CommonDTO.GroupDTO> groups) {
+        Collection<DiscoveredSettingPolicyInfo> result = new HashSet<>();
+
+        for (GroupDTO group : groups) {
+            if (group.getConstraintInfo()
+                    .getConstraintType() != ConstraintType.TEMPLATE_EXCLUSION) {
+                continue;
+            }
+
+            SortedSetOfOidSettingValue.Builder oids = SortedSetOfOidSettingValue.newBuilder();
+            oids.addAllOids(discoveredGroupInterpreter.convertTemplateNamesToOids(group, targetId));
+
+            Setting.Builder setting = Setting.newBuilder();
+            setting.setSettingSpecName(EntitySettingSpecs.ExcludedTemplates.getSettingName());
+            setting.setSortedSetOfOidSettingValue(oids);
+
+            DiscoveredSettingPolicyInfo.Builder policy = DiscoveredSettingPolicyInfo.newBuilder();
+            policy.setEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
+            policy.addDiscoveredGroupNames(GroupProtoUtil.createIdentifyingKey(group));
+            policy.setDisplayName("Template Exclusion Policy for " + group.getDisplayName());
+            policy.setName(group.getDisplayName());
+            policy.addSettings(setting);
+
+            result.add(policy.build());
+        }
+
+        return result;
     }
 
     /**
@@ -455,7 +501,7 @@ public class DiscoveredGroupUploader {
             .filter(commodityBundle -> commodityBundle.getProviderEntityType() == EntityType.CHASSIS_VALUE)
             .findFirst();
     }
-    
+
     /**
      * Called when a target has been removed. Queue an empty Group list for that target.
      * This should effectively delete all previously discovered Groups and Clusters for the given
