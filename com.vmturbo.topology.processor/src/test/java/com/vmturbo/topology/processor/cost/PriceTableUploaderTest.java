@@ -1,13 +1,17 @@
 package com.vmturbo.topology.processor.cost;
 
+import static junit.framework.TestCase.assertEquals;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertNotEquals;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,7 +22,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.mockito.Mockito;
 import org.mockito.internal.util.reflection.Whitebox;
 
 import com.google.common.collect.ImmutableMap;
@@ -28,6 +31,7 @@ import io.grpc.Channel;
 
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
+import com.vmturbo.common.protobuf.cost.Pricing.PriceTableKey;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstanceSpecPrice;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceImplBase;
@@ -99,9 +103,9 @@ public class PriceTableUploaderTest {
     public GrpcTestServer server = GrpcTestServer.newServer(priceServiceSpy);
 
     // test cost component client
-    private PricingServiceStub priceServiceClient = PricingServiceGrpc.newStub(Mockito.mock(Channel.class));
+    private PricingServiceStub priceServiceClient = PricingServiceGrpc.newStub(mock(Channel.class));
 
-    private TargetStore targetStore = Mockito.mock(TargetStore.class);
+    private TargetStore targetStore = mock(TargetStore.class);
 
     Map<String,Long> cloudOidByLocalId;
 
@@ -385,6 +389,40 @@ public class PriceTableUploaderTest {
         String probeType = (String)Whitebox.getInternalState(priceTableUploader
             .buildPricesToUpload(probeTypesForTargetId, cloudEntitiesMap).get(0), PROBE_TYPE_FIELD);
         Assert.assertEquals(SDKProbeType.AZURE_COST.getProbeType(), probeType);
+    }
+
+
+    @Test
+    public void checkProbePriceDataEquals() {
+        final PricingDTO.PriceTable sourcePriceTable = PricingDTO.PriceTable.newBuilder()
+                .addOnDemandPriceTable(OnDemandPriceTableByRegionEntry.newBuilder()
+                        .setRelatedRegion(REGION_ENTITY_BUILDER)
+                        .setIpPrices(IpPriceList.newBuilder()
+                                .addIpPrice(IpConfigPrice.newBuilder().addPrices(Price.newBuilder()
+                                        .setPriceAmount(CurrencyAmount.newBuilder()
+                                                .setAmount(IP_PRICE_AMOUNT))))))
+                .build();
+        PriceTableKey.Builder priceTableKey = PriceTableKey.newBuilder().setRootProbeType("AWS")
+                .putProbeKeyMaterial("ENROLLMENT_NO", "123");
+        ProbePriceData probePriceData = new ProbePriceData();
+        probePriceData.riSpecPrices = Collections.emptyList();
+        probePriceData.probeType = "AWS";
+        probePriceData.priceTableKey = priceTableKey.build();
+        probePriceData.priceTable = priceTableUploader.priceTableToCostPriceTable(sourcePriceTable,
+                cloudOidByLocalId, SDKProbeType.AWS);
+        ProbePriceData anotherprobePriceData = new ProbePriceData();
+        anotherprobePriceData.priceTableKey = priceTableKey.build();
+        anotherprobePriceData.priceTable = priceTableUploader.priceTableToCostPriceTable(sourcePriceTable,
+                cloudOidByLocalId, SDKProbeType.AWS);
+        anotherprobePriceData.probeType = "AWS";
+        anotherprobePriceData.riSpecPrices = Collections.emptyList();
+        assertEquals("ProbePriceData are not equal", probePriceData, anotherprobePriceData);
+
+        anotherprobePriceData.priceTableKey = priceTableKey.putProbeKeyMaterial("OFFER_ID", "456")
+                .build();
+
+        assertNotEquals("ProbePriceData were not supposed to be equal",
+                probePriceData, anotherprobePriceData);
     }
 
     private PricingDTO.PriceTable createDefaultPriceTable() {

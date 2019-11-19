@@ -659,13 +659,14 @@ public class PriceTableUploader implements Diagnosable {
             ProbePriceData otherProbePriceData = (ProbePriceData)other;
 
             return this.probeType.equals(otherProbePriceData.probeType) &&
-                this.priceTable.equals(otherProbePriceData.priceTable)
-                    && this.riSpecPrices.equals(otherProbePriceData.riSpecPrices);
+                this.priceTable.equals(otherProbePriceData.priceTable) &&
+                    this.riSpecPrices.equals(otherProbePriceData.riSpecPrices) &&
+                    this.priceTableKey.equals(otherProbePriceData.priceTableKey);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(probeType, priceTable, riSpecPrices);
+            return Objects.hash(probeType, priceTable, riSpecPrices, priceTableKey);
         }
     }
 
