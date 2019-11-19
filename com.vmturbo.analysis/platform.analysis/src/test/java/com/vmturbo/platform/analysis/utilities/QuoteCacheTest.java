@@ -31,7 +31,7 @@ public class QuoteCacheTest {
     /**
      * Tests that the class constructor correctly detects erroneous input.
      */
-    @Test(expected = IllegalArgumentException.class)
+    @Test(expected = RuntimeException.class)
     @Parameters({
         // one invalid argument
         "-1,0,1", "-10,5,3",
@@ -84,7 +84,7 @@ public class QuoteCacheTest {
     /**
      * Tests that out-of-bounds requests to get a cached quote fail.
      */
-    @Test(expected = IllegalArgumentException.class)
+    @Test(expected = RuntimeException.class)
     @Parameters({
         "0,0,0,0,0", "0,0,0,-1,0", "0,0,0,0,-1", "0,0,0,-1,-1",
         "1,1,1,2,0", "1,1,1,-1,1", "1,1,1,0,2", "1,1,1,0,-1",
@@ -211,7 +211,7 @@ public class QuoteCacheTest {
      * Tests that out-of-bounds requests to put a quote to the cache fail without changing the cache
      * state.
      */
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     @Parameters({
         "0,0,0,0,0", "0,0,0,-1,0", "0,0,0,0,-1", "0,0,0,-1,-1",
         "1,1,1,2,0", "1,1,1,-1,1", "1,1,1,0,2", "1,1,1,0,-1",
@@ -226,14 +226,14 @@ public class QuoteCacheTest {
 
         try {
             cache.put(traderEconomyIndex, shoppingListIndex, new CommodityQuote(null, 42));
-        } catch (IllegalArgumentException e) {
+            fail("Expected IllegalArgumentException | ArrayIndexOutOfBoundsException!");
+        } catch (IllegalArgumentException | ArrayIndexOutOfBoundsException e) {
             // check all valid indices.
             for (int traderIndex = 0; traderIndex < nTradersInEconomy; traderIndex++) {
                 for (int slIndex = 0; slIndex < nShoppingLists; slIndex++) {
                     assertNull(cache.get(traderIndex, slIndex));
                 }
             }
-            throw e;
         }
     } // end testPut_emptyCache_negative
 
@@ -726,8 +726,8 @@ public class QuoteCacheTest {
             }
             // attempt to invalidate an out-of-bounds row
             cache.invalidate(traderIndexToInvalidate);
-            fail("Expected IllegalArgumentException!");
-        } catch (IllegalArgumentException e) {
+            fail("Expected IllegalArgumentException | ArrayIndexOutOfBoundsException!");
+        } catch (IllegalArgumentException | ArrayIndexOutOfBoundsException e) {
             // check cache contents remain unchanged.
             generator.setSeed(0); // repeat the same sequence used when populating the cache
             for (int row = 0; row < nPotentialSellers; row++) {

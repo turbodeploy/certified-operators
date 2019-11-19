@@ -3,8 +3,6 @@ package com.vmturbo.platform.analysis.utilities;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
-import java.util.Arrays;
-
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Deterministic;
@@ -53,15 +51,13 @@ import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
 public final class QuoteCache {
     // Fields
     private final int[] rowAssignments; // A mapping from economy indices to rows in the cache table
-    private int nRowAssignments; // How many economy indices in the rowAssignments array have
-                                // been assigned a row in the cache table.
+    private int nextRowAssignment; // Index of the first row in cache table that hasn't been
+                                  // assigned to a trader in rowAssignments array.
     private final MutableQuote[] cache; // Contains the cached quote for each (seller,shopping list)
         // pair. It's utilized as a 2-dimensional table with one row per seller and one column per
-        // shopping list in row-major order.
+        // shopping list in row-major order. There is an additional 'sentinel' row at the beginning.
     private final int nShoppingLists; // The number of columns in the cache table. Equivalently the
         // number of shopping lists for the buyer SNM Analysis is currently attempting to place.
-
-    // TODO: use sentinel row to optimize array initialization and get/put logic.
 
     // Methods
 
@@ -88,8 +84,6 @@ public final class QuoteCache {
      */
     @SideEffectFree
     public QuoteCache(int nTradersInEconomy, int nPotentialSellers, int nBuyerShoppingLists) {
-        checkArgument(0 <= nTradersInEconomy,
-            "nTradersInEconomy must be non-negative but was %s.", nTradersInEconomy);
         checkArgument(0 <= nPotentialSellers && nPotentialSellers <= nTradersInEconomy,
             "nPotentialSellers must be between 0 and %s but was %s.",
             nTradersInEconomy, nPotentialSellers);
@@ -97,11 +91,10 @@ public final class QuoteCache {
             "nBuyerShoppingLists must be non-negative but was %s.");
 
         rowAssignments = new int[nTradersInEconomy];
-        Arrays.fill(rowAssignments, -1); // -1 is used to represent "no assignment".
 
-        cache = new MutableQuote[nPotentialSellers * nBuyerShoppingLists];
+        cache = new MutableQuote[(nPotentialSellers + 1) * nBuyerShoppingLists];
         nShoppingLists = nBuyerShoppingLists;
-        nRowAssignments = 0;
+        nextRowAssignment = 1; // 1st trader gets row 1: row 0 is the sentinel row.
     } // end QuoteCache constructor
 
     /**
@@ -124,16 +117,11 @@ public final class QuoteCache {
      */
     @Pure
     public @Nullable MutableQuote get(int traderEconomyIndex, int shoppingListIndex) {
-        checkArgument(0 <= traderEconomyIndex && traderEconomyIndex < rowAssignments.length,
-            "traderEconomyIndex must be in the range [0, %s) but was %s.",
-            rowAssignments.length, traderEconomyIndex);
         checkArgument(0 <= shoppingListIndex && shoppingListIndex < nShoppingLists,
             "shoppingListIndex must be in the range [0, %s) but was %s.",
             nShoppingLists, shoppingListIndex);
 
-        int traderRowIndex = rowAssignments[traderEconomyIndex];
-        return traderRowIndex != -1 ? cache[traderRowIndex * nShoppingLists + shoppingListIndex]
-                                    : null;
+        return cache[rowAssignments[traderEconomyIndex] * nShoppingLists + shoppingListIndex];
     } // end method get
 
     /**
@@ -167,17 +155,14 @@ public final class QuoteCache {
     @Deterministic
     public @NonNull QuoteCache put(int traderEconomyIndex, int shoppingListIndex,
                                    @NonNull MutableQuote quote) {
-        checkArgument(0 <= traderEconomyIndex && traderEconomyIndex < rowAssignments.length,
-            "traderEconomyIndex must be in the range [0, %s) but was %s.",
-            rowAssignments.length, traderEconomyIndex);
         checkArgument(0 <= shoppingListIndex && shoppingListIndex < nShoppingLists,
             "shoppingListIndex must be in the range [0, %s) but was %s.",
             nShoppingLists, shoppingListIndex);
 
-        if (rowAssignments[traderEconomyIndex] == -1) {
-            checkState(nRowAssignments * nShoppingLists < cache.length, "This cache cannot hold " +
-                "quotes for any more distinct sellers. Up to %s are allowed!", nRowAssignments);
-            rowAssignments[traderEconomyIndex] = nRowAssignments++;
+        if (rowAssignments[traderEconomyIndex] == 0) { // 0 means "no assignment"
+            checkState(nextRowAssignment * nShoppingLists < cache.length, "This cache cannot hold " +
+                "quotes for any more distinct sellers. Up to %s are allowed!", nextRowAssignment);
+            rowAssignments[traderEconomyIndex] = nextRowAssignment++;
         }
         cache[rowAssignments[traderEconomyIndex] * nShoppingLists + shoppingListIndex] = quote;
 
@@ -209,14 +194,10 @@ public final class QuoteCache {
      */
     @Deterministic
     public @NonNull QuoteCache invalidate(int traderEconomyIndex) {
-        checkArgument(0 <= traderEconomyIndex && traderEconomyIndex < rowAssignments.length,
-            "traderEconomyIndex must be in the range [0, %s) but was %s.",
-            rowAssignments.length, traderEconomyIndex);
+        final int traderRowIndex = rowAssignments[traderEconomyIndex];
 
-        if (rowAssignments[traderEconomyIndex] != -1) {
-            for (int slIndex = 0; slIndex < nShoppingLists; slIndex++) {
-                cache[rowAssignments[traderEconomyIndex] * nShoppingLists + slIndex] = null;
-            }
+        for (int slIndex = 0; slIndex < nShoppingLists; slIndex++) {
+            cache[traderRowIndex * nShoppingLists + slIndex] = null;
         }
 
         return this;
