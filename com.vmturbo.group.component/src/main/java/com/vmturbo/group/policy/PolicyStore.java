@@ -13,6 +13,8 @@ import javax.annotation.Nonnull;
 
 import com.google.gson.reflect.TypeToken;
 
+import io.grpc.Status;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
@@ -23,6 +25,7 @@ import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.commons.Pair;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
@@ -34,7 +37,9 @@ import com.vmturbo.group.db.Tables;
 import com.vmturbo.group.db.tables.pojos.Policy;
 import com.vmturbo.group.db.tables.pojos.PolicyGroup;
 import com.vmturbo.group.db.tables.records.PolicyRecord;
+import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.identity.IdentityProvider;
+import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 
 /**
@@ -211,39 +216,71 @@ public class PolicyStore implements Diagnosable {
     }
 
     /**
-     * This method will attempt to remove all placement policies that are associated with a groups
-     * being deleted. The main problem is that there is no direct foreign key from policy table
-     * to grouping table. Instead an intermediate table policy_group is used. This method is
-     * using the table (policy_group) to remove all the placement policies associated with the
-     * group being deleted.
+     * This method will attempt to remove any user-created policies associated with a specified
+     * group that is undergoing deletion.
+     * It will also check for discovered policies related to the group. Because discovered
+     * policies are "immutable" (they are only modified during the discovered group/policy/settings
+     * upload process rather than by user activity), we cannot delete them here. Instead, if we find
+     * a discovered policy related to the group in question, we will follow these rules:
+     * <li>If the group is a user group, we'll throw an exception instead of deleting any policies.
+     * This is because the user group is being used in a discovered policy, and the group can't be
+     * deleted without creating an invalid policy.</li>
+     * <li>If the group is a discovered group, we won't do anything. Discovered groups and policies
+     * are both handled elsewhere (See {@link com.vmturbo.group.service.GroupRpcService#storeDiscoveredGroupsPoliciesSettings})
+     * and can be ignored in this method.</li>
      *
-     * @param groupIds ids of the group deleted.
+     * @param groupId id of the group deleted.
      * @param context Jooq context to execute operations with. Used for transactions
+     * @throws StoreOperationException If there is an error deleting the policies.
      */
-    public void deletePoliciesForGroupBeingRemoved(@Nonnull DSLContext context,
-            final Collection<Long> groupIds) {
+    public void deletePoliciesForGroupBeingRemoved(@Nonnull DSLContext context, final long groupId)
+            throws StoreOperationException {
         try {
-            final String userPolicies = context.select(Tables.POLICY.ID, Tables.POLICY.NAME)
-                    .from(Tables.POLICY)
-                    .join(Tables.POLICY_GROUP)
-                    .on(Tables.POLICY.ID.eq(Tables.POLICY_GROUP.POLICY_ID))
-                    .where(Tables.POLICY.DISCOVERED_BY_ID.isNull())
-                    .and(Tables.POLICY_GROUP.GROUP_ID.in(groupIds))
-                    .fetch()
-                    .stream()
-                    .map(record -> record.value1() + "(" + record.value2() + ")")
-                    .collect(Collectors.joining(","));
-            logger.info(
-                    "Removing the following user-defined placement policies because of removal" +
-                            " of groups {} they are create on top of: {}", groupIds, userPolicies);
-            final int rowsDeleeted = context.deleteFrom(Tables.POLICY)
-                    .where(Tables.POLICY.ID.in(context.select(Tables.POLICY_GROUP.POLICY_ID)
+            // Delete any user-created placement policies associated with the group.
+            // Find all placement policies associated with the group, as well as whether they were
+            // discovered by targets or not.
+            List<Pair<Long, Long>> associatedPolicies =
+                    context.select(Tables.POLICY_GROUP.POLICY_ID, Tables.POLICY.DISCOVERED_BY_ID)
                             .from(Tables.POLICY_GROUP)
-                            .where(Tables.POLICY_GROUP.GROUP_ID.in(groupIds))))
-                    .execute();
-            logger.debug("Removed {} placement policies associated with groups {}", rowsDeleeted,
-                    groupIds);
-        } catch (RuntimeException e) {
+                            .innerJoin(Tables.POLICY)
+                            .on(Tables.POLICY_GROUP.POLICY_ID.eq(Tables.POLICY.ID))
+                            .where(Tables.POLICY_GROUP.GROUP_ID.eq(groupId))
+                            .fetch()
+                            .stream()
+                            .map(r -> new Pair<>(r.get(Tables.POLICY_GROUP.POLICY_ID),
+                                    r.get(Tables.POLICY.DISCOVERED_BY_ID)))
+                            .collect(Collectors.toList());
+            for (final Pair<Long, Long> policyInfo : associatedPolicies) {
+                Long policyId = policyInfo.first;
+                boolean isDiscoveredPolicy = Objects.nonNull(policyInfo.second);
+                // if this is a discovered policy and we're removing a discovered group, do nothing.
+                // discovered data is all taken care of in the discovered group/policy upload logic.
+                if (isDiscoveredPolicy) {
+                    continue;
+                }
+                try {
+                    logger.info("Deleting user policy {} scoped to group {}", policyId, groupId);
+                    internalDelete(context, policyId, false);
+                } catch (ImmutablePolicyUpdateException e) {
+                    logger.error("Policy {} could not be deleted because it's immutable", policyId);
+                    // if we're deleting a discovered group, this isn't a blocker -- continue.
+                    // Otherwise, we were trying to delete a discovered policy scoped to a
+                    // user group -- these should not exist, but if this case ever arises, then
+                    // let's throw an exception to prevent the group from getting deleted.
+                    throw new StoreOperationException(Status.INVALID_ARGUMENT,
+                            "Could not remove policy " + policyId + " for deleted gorup " +
+                                    groupId + " because it is immutable", e);
+                } catch (PolicyNotFoundException e) {
+                    // In this case we want to continue deleting associated policies - this isn't
+                    // a fatal error.
+                    logger.warn("Policy {} not found even though it was associated with group {}!",
+                            policyId, groupId);
+                } catch (DataAccessException e) {
+                    throw new StoreOperationException(Status.INTERNAL,
+                            "Related policy " + policyId + " could not be deleted.", e);
+                }
+            }
+        } catch (Exception e) {
             POLICY_STORE_ERROR_COUNT.labels(DELETE_LABEL).increment();
             throw e;
         }

@@ -14,6 +14,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -1299,15 +1300,13 @@ public class GroupDAO implements IGroupStore, Diagnosable {
                             .setOriginFilter(
                                     OriginFilter.newBuilder().addOrigin(Origin.Type.DISCOVERED))
                             .build());
-            // We need to sort all the groups so that dependent groups will go after the groups
-            // they depend on. Otherwise, loading these groups will throw an exception.
-            final List<GroupDTO.Grouping> notDiscovered = CollectionUtils.sortWithDependencies(
-                    getGroups(GroupDTO.GroupFilter.newBuilder()
+            final List<GroupDTO.Grouping> notDiscovered = sortGroupsForCreation(getGroups(
+                    GroupDTO.GroupFilter.newBuilder()
                             .setOriginFilter(OriginFilter.newBuilder()
                                     .addOrigin(Type.USER)
                                     .addOrigin(Type.SYSTEM))
-                            .build()), GroupDTO.Grouping::getId,
-                    grouping -> getGroupStaticSubGroups(grouping.getDefinition()));
+                            .build()));
+
             logger.info("Collected diags for {} discovered groups and {} created groups.",
                     discovered.size(), notDiscovered.size());
 
@@ -1316,6 +1315,26 @@ public class GroupDAO implements IGroupStore, Diagnosable {
         } catch (DataAccessException e) {
             throw new DiagnosticsException(e);
         }
+    }
+
+    @Nonnull
+    private List<GroupDTO.Grouping> sortGroupsForCreation(@Nonnull Collection<GroupDTO.Grouping> sourceCollection) {
+        final Set<Long> addedGroups = new HashSet<>();
+        final List<GroupDTO.Grouping> source = new ArrayList<>(sourceCollection);
+        final List<GroupDTO.Grouping> dst = new ArrayList<>(sourceCollection.size());
+        while (!source.isEmpty()) {
+            final Iterator<GroupDTO.Grouping> iter = source.iterator();
+            while (iter.hasNext()) {
+                final GroupDTO.Grouping group = iter.next();
+                final Set<Long> subgroups = getGroupStaticSubGroups(group.getDefinition());
+                if (subgroups.isEmpty() || addedGroups.containsAll(subgroups)) {
+                    dst.add(group);
+                    addedGroups.add(group.getId());
+                    iter.remove();
+                }
+            }
+        }
+        return dst;
     }
 
     private Set<Long> getGroupStaticSubGroups(@Nonnull GroupDefinition group) {

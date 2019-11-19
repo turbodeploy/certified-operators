@@ -1,6 +1,5 @@
 package com.vmturbo.group.service;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -63,7 +62,7 @@ public class TransactionProviderImpl implements TransactionProvider {
                                 new GroupDAO(transactionContext, identityProvider));
                 return operation.execute(stores);
             });
-        } catch (DataAccessException | org.springframework.dao.DataAccessException e) {
+        } catch (DataAccessException e) {
             if (e.getCause() instanceof StoreOperationException) {
                 throw (StoreOperationException)e.getCause();
             } else {
@@ -154,8 +153,9 @@ public class TransactionProviderImpl implements TransactionProvider {
         }
 
         @Override
-        public void deletePoliciesForGroupBeingRemoved(@Nonnull Collection<Long> groupIds) {
-            policyStore.deletePoliciesForGroupBeingRemoved(dslContext, groupIds);
+        public void deletePoliciesForGroupBeingRemoved(long groupId)
+                throws StoreOperationException {
+            policyStore.deletePoliciesForGroupBeingRemoved(dslContext, groupId);
         }
     }
 }

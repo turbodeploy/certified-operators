@@ -3,6 +3,7 @@ package com.vmturbo.group.group;
 import javax.annotation.Nonnull;
 
 import org.jooq.DSLContext;
+import org.jooq.Schema;
 import org.junit.rules.ExternalResource;
 
 import com.vmturbo.sql.utils.TestDbConfiguration;
@@ -48,5 +49,14 @@ public class DbConfigurationRule extends ExternalResource {
     @Nonnull
     public DSLContext getDslContext() {
         return dbConfig.getDslContext();
+    }
+
+    /**
+     * Clear all the data (all the records in all the tables) of the specified DB schema.
+     *
+     * @param schema schema to clear data in
+     */
+    public void clearData(@Nonnull Schema schema) {
+        schema.getTables().forEach(table -> getDslContext().deleteFrom(table).execute());
     }
 }

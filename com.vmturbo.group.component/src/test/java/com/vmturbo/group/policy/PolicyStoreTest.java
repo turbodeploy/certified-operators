@@ -21,7 +21,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import org.jooq.DSLContext;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
@@ -237,15 +236,17 @@ public class PolicyStoreTest {
 
 
         // delete the discovered group
-        policyStore.deletePoliciesForGroupBeingRemoved(dbConfig.getDslContext(),
-                Collections.singleton(CONSUMER_GROUP_ID));
+        policyStore.deletePoliciesForGroupBeingRemoved(dbConfig.getDslContext(), CONSUMER_GROUP_ID);
 
         // the user policy should have been deleted
         assertFalse(policyStore.get(POLICY_ID).isPresent());
         // the discovered policy should still be there.
-        assertFalse(policyStore.get(discoveredPolicyId).isPresent());
+        assertTrue(policyStore.get(discoveredPolicyId).isPresent());
+        // Policy-to-group mappings should be cleared for the user policy id, but not the discovered
+        // policy id.
         Map<Long, Set<Long>> policyToGroupMap = getPolicyToGroupMapping();
-        Assert.assertEquals(Collections.emptyMap(), policyToGroupMap);
+        assertFalse(policyToGroupMap.containsKey(POLICY_ID));
+        assertTrue(policyToGroupMap.containsKey(discoveredPolicyId));
     }
 
     @Test
