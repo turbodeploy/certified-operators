@@ -146,11 +146,16 @@ public class StorageStatsSubQuery implements StatsSubQuery {
                     .build();
 
                 Long numOfVvs = repositoryApi.newSearchRequest(searchNumOfVv).count();
-                Set<Long> vvAttachedToVM = repositoryApi.newSearchRequest(searchVvAttachedToVMInScope).getOids();
-                // This step is required because vvAttachedToVM can include VVs outside the current scope-
-                // we get VMs connected from VVs in scope, then VVs connected to those VMs- this has the potential to be
-                // a superset of the VVs we started with (VMs can be connected to more than one VV simultaneously)
-                Long numOfAttachedVvInScope = Long.valueOf(Sets.intersection(context.getQueryScope().getEntities(), vvAttachedToVM).size());
+                Long numOfAttachedVvInScope;
+                if (context.isGlobalScope()) {
+                    numOfAttachedVvInScope = repositoryApi.newSearchRequest(searchVvAttachedToVMInScope).count();
+                } else {
+                    Set<Long> vvAttachedToVM = repositoryApi.newSearchRequest(searchVvAttachedToVMInScope).getOids();
+                    // This step is required because vvAttachedToVM can include VVs outside the current scope-
+                    // we get VMs connected from VVs in scope, then VVs connected to those VMs- this has the potential to be
+                    // a superset of the VVs we started with (VMs can be connected to more than one VV simultaneously)
+                    numOfAttachedVvInScope = Long.valueOf(Sets.intersection(context.getQueryScope().getEntities(), vvAttachedToVM).size());
+                }
 
                 Map<String, Long> vvAttachmentCountMap = ImmutableMap.<String, Long>builder()
                     .put(StringConstants.ATTACHED, numOfAttachedVvInScope)
