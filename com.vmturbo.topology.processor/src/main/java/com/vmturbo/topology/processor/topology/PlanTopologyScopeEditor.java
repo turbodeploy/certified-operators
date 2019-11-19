@@ -223,24 +223,35 @@ public class PlanTopologyScopeEditor {
      */
     @Nonnull
     private Set<TopologyEntity> findConnectedEntities(@Nonnull final TopologyEntity seed,
-                                                             @Nonnull final Set<Long> inputOids,
-                                                             boolean traverseUp) {
+                                                      @Nonnull final Set<Long> inputOids,
+                                                      boolean traverseUp) {
         final Set<TopologyEntity> seedConnectedSet = new HashSet<>();
-        if (SERVICE_TIERS.stream()
-                        .map(EntityType::getNumber).anyMatch(t -> t == seed.getEntityType()) ||
-            !traverseUp && seed.getConnectedToEntities().isEmpty() ||
-            traverseUp && seed.getConnectedFromEntities().isEmpty()) {
+        if (!traverseUp && seed.getConnectedToEntities().isEmpty() ||
+                traverseUp && seed.getConnectedFromEntities().isEmpty()) {
             return seedConnectedSet;
         }
-        final List<TopologyEntity> connectedEnitites = traverseUp ? seed.getConnectedFromEntities() : seed.getConnectedToEntities();
+        final List<TopologyEntity> connectedEnitites = traverseUp ? seed.getConnectedFromEntities()
+                : seed.getConnectedToEntities();
+        // Finding the cloud services connected to the service tiers.
+        if (SERVICE_TIERS.stream().map(EntityType::getNumber).anyMatch(t -> t ==
+                seed.getEntityType())) {
+            /*
+             * Service tiers can be connected to/from different entities including other service tiers.
+             * We don't need such entities as it can be out of scope but we need cloud services.
+             */
+            return connectedEnitites.stream().filter(e -> e.getEntityType() ==
+                    EntityType.CLOUD_SERVICE.getNumber()).collect(Collectors.toSet());
+        }
         for (TopologyEntity connectedEntity : connectedEnitites) {
             if (inputOids.contains(connectedEntity.getOid())) {
                 seedConnectedSet.add(connectedEntity);
-                seedConnectedSet.addAll(findConnectedEntities(connectedEntity, inputOids, traverseUp));
+                seedConnectedSet.addAll(findConnectedEntities(connectedEntity, inputOids,
+                        traverseUp));
             }
         }
         return seedConnectedSet;
     }
+
     /**
      * Filter input entities by target id.
      *
