@@ -78,8 +78,12 @@ public class SQLPriceTableStore implements PriceTableStore {
     public ReservedInstancePriceTable getMergedRiPriceTable() {
         // It may be worth it to cache the merged price table. We can calculate the
         // merged table during putProbePriceTables.
+        // Get only the price tables which are being used by business accounts in the system
+        final Set<Long> oids = dsl.selectDistinct(Tables.BUSINESS_ACCOUNT_PRICE_TABLE_KEY.PRICE_TABLE_KEY_OID)
+                .from(Tables.BUSINESS_ACCOUNT_PRICE_TABLE_KEY).fetchSet(Tables.BUSINESS_ACCOUNT_PRICE_TABLE_KEY.PRICE_TABLE_KEY_OID);
         final Set<ReservedInstancePriceTable> priceTables = dsl.select(Tables.PRICE_TABLE.RI_PRICE_TABLE_DATA)
                 .from(Tables.PRICE_TABLE)
+                .where(filterByOidsCondition(oids))
                 .fetchSet(Tables.PRICE_TABLE.RI_PRICE_TABLE_DATA);
         final PriceTableMerge merge = mergeFactory.newMerge();
         return merge.mergeRi(priceTables);
