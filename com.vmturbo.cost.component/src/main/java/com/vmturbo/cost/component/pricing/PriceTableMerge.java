@@ -9,8 +9,6 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.base.Stopwatch;
-
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.ReservedInstancePriceTable;
@@ -57,7 +55,6 @@ public class PriceTableMerge {
      */
     @Nonnull
     public ReservedInstancePriceTable mergeRi(@Nonnull final Collection<ReservedInstancePriceTable> riPriceTables) {
-        Stopwatch stopwatch = Stopwatch.createStarted();
         if (riPriceTables.isEmpty()) {
             return ReservedInstancePriceTable.getDefaultInstance();
         } else if (riPriceTables.size() == 1) {
@@ -67,9 +64,20 @@ public class PriceTableMerge {
             final ReservedInstancePriceTable.Builder mergeBuilder = riPriceTableIterator.next().toBuilder();
             while (riPriceTableIterator.hasNext()) {
                 final ReservedInstancePriceTable nextPriceTable = riPriceTableIterator.next();
+                nextPriceTable.getRiPricesBySpecIdMap().forEach((specId, riPrice) -> {
+                    if (mergeBuilder.containsRiPricesBySpecId(specId)) {
+                        // This shouldn't happen, because different price tables should be coming from
+                        // different probe categories (e.g. AWS and Azure) and shouldn't have overlapping
+                        // RI spec IDs.
+                        logger.error("RI Spec {} exists in two separate RI price tables! This means" +
+                            " RI spec ID assignment isn't working as expected. Ignoring one of them.",
+                            specId);
+                    } else {
+                        mergeBuilder.putRiPricesBySpecId(specId, riPrice);
+                    }
+                });
                 mergeBuilder.putAllRiPricesBySpecId(nextPriceTable.getRiPricesBySpecIdMap());
             }
-            logger.info("Merge RI price tables took {} ", stopwatch);
             return mergeBuilder.build();
         }
     }

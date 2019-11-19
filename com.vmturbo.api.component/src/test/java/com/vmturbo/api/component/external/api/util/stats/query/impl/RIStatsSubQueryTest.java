@@ -13,7 +13,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -86,9 +85,6 @@ public class RIStatsSubQueryTest {
                 mapper);
 
         when(context.getInputScope()).thenReturn(scope);
-        Set<UIEntityType> inputScopeTypes = new HashSet<>();
-        inputScopeTypes.add(UIEntityType.REGION);
-        when(context.getInputScope().getScopeTypes()).thenReturn(Optional.of(inputScopeTypes));
         StatsQueryScope queryScope = StatsQueryScope.some(SCOPE_ENTITIES);
         when(context.getQueryScope()).thenReturn(queryScope);
     }
