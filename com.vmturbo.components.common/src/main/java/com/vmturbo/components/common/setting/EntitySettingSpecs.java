@@ -183,7 +183,7 @@ public enum EntitySettingSpecs {
     CpuUtilization("cpuUtilization", "CPU Utilization",
             Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.STORAGE_CONTROLLER),
-            numeric(0f, 100f, 100f), true),
+            numeric(0f, 1000000f, 100f), true),
 
     /**
      * Memory utilization threshold.

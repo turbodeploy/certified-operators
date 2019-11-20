@@ -2,26 +2,28 @@ package com.vmturbo.market.topology.conversions;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.mockito.Mockito.when;
+import static org.junit.Assert.assertEquals;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.commons.analysis.AnalysisUtil;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 
 import com.google.common.collect.Table;
 
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+import junitparams.naming.TestCaseName;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
+import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.PriceFunctionTypeCase;
 import com.vmturbo.platform.analysis.utilities.BiCliquer;
 import com.vmturbo.platform.analysis.utilities.NumericIDAllocator;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -30,6 +32,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 /**
  * Test conversions from XL CommodityDTO to market CommodityTO
  **/
+@RunWith(JUnitParamsRunner.class)
 public class CommodityConverterTest {
 
     private static final long PM_OID = 1L;
@@ -61,9 +64,16 @@ public class CommodityConverterTest {
 
     /**
      * Create a CommoditySoldTO (market) from a TopologyEntityDTO (xl).
+     * effectiveCapacityPercentage values:
+     *  80 - utilizationUpperBound = 0.8. priceFunction scale = 1.0
+     * 100 - utilizationUpperBound = 1.0. priceFunction scale = 1.0
+     * 120 - utilizationUpperBound = 1.0. priceFunction scale = 1.2
+     * @param effectiveCapacityPercentage represents utilizationUpperBound and priceFunction scale
      */
     @Test
-    public void testCreateCommonCommoditySoldTO() {
+    @Parameters({"100", "80", "120"})
+    @TestCaseName("Test #{index}: (set|get)EffectiveCapacityPercentage({0})")
+    public final void testCreateCommonCommoditySoldTO(double effectiveCapacityPercentage) {
         HistoricalValues histUsed = HistoricalValues.newBuilder()
                         .setHistUtilization(RAW_USED)
                         .setPercentile(PERCENTILE_USED)
@@ -73,6 +83,7 @@ public class CommodityConverterTest {
                 .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
                 .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                         .setCapacity(RAW_CAPACITY)
+                        .setEffectiveCapacityPercentage(effectiveCapacityPercentage)
                         .setHistoricalUsed(histUsed)
                         .setCommodityType(CommodityType.newBuilder()
                                 .setType(CommodityDTO.CommodityType.CPU_VALUE)
@@ -89,6 +100,16 @@ public class CommodityConverterTest {
         assertThat(cpuCommodityTO.getQuantity(), equalTo(MARKET_USED));
         assertThat(cpuCommodityTO.getHistoricalQuantity(),
                 equalTo(PERCENTILE_USED * SCALING_FACTOR * RAW_CAPACITY));
+        assertEquals(cpuCommodityTO.getSettings().getUtilizationUpperBound(),
+                (effectiveCapacityPercentage / 100.0) > 1.0f ? 1.0f :
+                        (effectiveCapacityPercentage / 100.0), .001f);
+        assertEquals(cpuCommodityTO.getSettings().getPriceFunction().getPriceFunctionTypeCase(),
+                PriceFunctionTypeCase.SCALED_CAPACITY_STANDARD_WEIGHTED);
+        assertEquals(cpuCommodityTO.getSettings().getPriceFunction()
+                        .getScaledCapacityStandardWeighted().getScale(),
+                (effectiveCapacityPercentage / 100.0) < 1.0f ? 1.0f :
+                        (effectiveCapacityPercentage / 100.0), 0.001f);
+
     }
 
 }
