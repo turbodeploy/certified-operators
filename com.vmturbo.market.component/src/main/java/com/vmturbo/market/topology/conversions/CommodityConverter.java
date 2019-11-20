@@ -12,11 +12,11 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Table;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -163,28 +163,15 @@ public class CommodityConverter {
                              comName, dto.getDisplayName(), used, capacity);
             }
         }
-        // effective capacity percentage are overloaded with 2 functionality.
-        // when the value is less than 100 it is used as utilizationUpperBound which
-        // will reduce the effective capacity.
-        // when the value is greater than 100 it is used to scale the utilization.
-        // Even though increasing the capacity and decreasing the utilization are
-        // effectively the same we wanted to do it this way to prevent vm from
-        // resizing above the host capacity.
-        float effectiveCapacityPercentage =
-                (float)(topologyCommSold.getEffectiveCapacityPercentage() / 100.0);
-        float utilizationUpperBound = effectiveCapacityPercentage > 1.0f ?
-                1.0f : effectiveCapacityPercentage;
-        float scale = effectiveCapacityPercentage < 1.0f ?
-                1.0f : effectiveCapacityPercentage;
         final CommodityDTOs.CommoditySoldSettingsTO economyCommSoldSettings =
                 CommodityDTOs.CommoditySoldSettingsTO.newBuilder()
                         .setResizable(resizable && !MarketAnalysisUtils.PROVISIONED_COMMODITIES.contains(type)
                                 && !TopologyConversionUtils.isEntityConsumingCloud(dto))
                         .setCapacityIncrement(topologyCommSold.getCapacityIncrement())
                         .setCapacityUpperBound(capacity)
-                        .setUtilizationUpperBound(utilizationUpperBound)
-                        .setPriceFunction(priceFunction(topologyCommSold.getCommodityType(),
-                                scale))
+                        .setUtilizationUpperBound(
+                                (float)(topologyCommSold.getEffectiveCapacityPercentage() / 100.0))
+                        .setPriceFunction(priceFunction(topologyCommSold))
                         .setUpdateFunction(updateFunction(topologyCommSold))
                         .build();
 
@@ -262,7 +249,7 @@ public class CommodityConverter {
                 CommodityDTOs.CommoditySoldSettingsTO.newBuilder()
                         .setResizable(false)
                         .setCapacityUpperBound(capacity)
-                        .setPriceFunction(priceFunction(commodityType, 1.0f))
+                        .setPriceFunction(priceFunction(commodityType))
                         .setUpdateFunction(uf)
                         .build();
 
@@ -397,15 +384,26 @@ public class CommodityConverter {
     /**
      * Select the right {@link PriceFunctionTO} based on the commodity sold type.
      *
-     * @param commType a commodity type for which to add a price function
-     * @param scale    float that represents how much the utilization is scaled to.
+     * @param topologyCommSold a commodity sold for which to add a price function
      * @return a (reusable) instance of PriceFunctionTO to use in the commodity sold settings.
      */
     @Nonnull
-    private static PriceFunctionDTOs.PriceFunctionTO priceFunction(CommodityType commType,
-                                                                   float scale) {
+    private static PriceFunctionDTOs.PriceFunctionTO
+                    priceFunction(@Nonnull final TopologyDTO.CommoditySoldDTO topologyCommSold) {
+        // Call price function with commodity type
+        return priceFunction(topologyCommSold.getCommodityType());
+    }
+
+    /**
+     * Select the right {@link PriceFunctionTO} based on the commodity sold type.
+     *
+     * @param commType a commodity type for which to add a price function
+     * @return a (reusable) instance of PriceFunctionTO to use in the commodity sold settings.
+     */
+    @Nonnull
+    private static PriceFunctionDTOs.PriceFunctionTO priceFunction(CommodityType commType) {
         // logic to choose correct price function is based on commodity type
-        return MarketAnalysisUtils.priceFunction(commType, scale);
+        return MarketAnalysisUtils.priceFunction(commType);
     }
 
     /**
