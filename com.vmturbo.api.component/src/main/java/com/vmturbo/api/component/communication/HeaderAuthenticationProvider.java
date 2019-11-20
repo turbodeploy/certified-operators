@@ -1,11 +1,12 @@
 package com.vmturbo.api.component.communication;
 
-import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.CREDENTIALS;
-
+import java.security.PublicKey;
 import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.base.Preconditions;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -15,7 +16,9 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
 
-import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
+import com.vmturbo.api.component.security.HeaderMapper;
+import com.vmturbo.api.component.security.IdTokenVerifier;
+import com.vmturbo.auth.api.Pair;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
 import com.vmturbo.auth.api.authorization.kvstore.IComponentJwtStore;
 
@@ -31,22 +34,31 @@ public class HeaderAuthenticationProvider extends RestAuthenticationProvider {
      */
     private final Logger logger = LogManager.getLogger(HeaderAuthenticationProvider.class);
     private final IComponentJwtStore componentJwtStore;
+    private final IdTokenVerifier idTokenVerifier;
+    private final int clockSkewSecond;
 
     /**
      * Construct the authentication provider.
-     *  @param authHost The authentication host.
+     *
+     * @param authHost The authentication host.
      * @param authPort The authentication port.
      * @param authRoute
      * @param restTemplate The REST endpoint.
      * @param verifier The verifier.
      * @param componentJwtStore The component JWT store.
+     * @param idTokenVerifier JWT (id) token verifier
+     * @param clockSkewSecond clock skew in seconds
      */
     public HeaderAuthenticationProvider(final @Nonnull String authHost, final int authPort,
             String authRoute, final @Nonnull RestTemplate restTemplate,
             final @Nonnull JWTAuthorizationVerifier verifier,
-            final @Nonnull IComponentJwtStore componentJwtStore) {
+            final @Nonnull IComponentJwtStore componentJwtStore,
+            final @Nonnull IdTokenVerifier idTokenVerifier, final int clockSkewSecond) {
         super(authHost, authPort, authRoute, restTemplate, verifier);
         this.componentJwtStore = Objects.requireNonNull(componentJwtStore);
+        this.idTokenVerifier = Objects.requireNonNull(idTokenVerifier);
+        Preconditions.checkArgument(clockSkewSecond > 30);
+        this.clockSkewSecond = clockSkewSecond;
     }
 
     /**
@@ -76,11 +88,22 @@ public class HeaderAuthenticationProvider extends RestAuthenticationProvider {
         final String group = authorizationToken.getGroup();
         final String ipAddress = authorizationToken.getRemoteIpAddress();
         final Optional<String> jwtToken = authorizationToken.getJwtToken();
+        final Optional<PublicKey> publicKey = authorizationToken.getPublicKey();
+        final HeaderMapper headerMapper = authorizationToken.getHeaderMapper();
+
         try {
-            return jwtToken.map(jwt -> super.getAuthentication(CREDENTIALS, username,
-                    new JWTAuthorizationToken(jwt), ipAddress))
-                    .orElseGet(() -> super.authorize(username, Optional.of(group), ipAddress,
-                            componentJwtStore));
+            if (publicKey.isPresent() && jwtToken.isPresent()) {
+                final Pair<String, String> userAndRolePair =
+                        idTokenVerifier.verify(publicKey, jwtToken, clockSkewSecond);
+                final String tokenUserName = userAndRolePair.first;
+                final Optional<String> tokenGroup =
+                        Optional.ofNullable(headerMapper.getAuthGroup(userAndRolePair.second));
+                return super.authorize(tokenUserName, tokenGroup, ipAddress, componentJwtStore);
+            } else {
+                return super.authorize(username, Optional.of(group), ipAddress, componentJwtStore);
+            }
+        } catch (com.vmturbo.auth.api.authentication.AuthenticationException e) {
+            throw new BadCredentialsException("Failed to validate JWT token.");
         } catch (HttpServerErrorException e) {
             logger.error("Failed to authenticate request with user: {}", username);
             throw new BadCredentialsException("Authentication failed");

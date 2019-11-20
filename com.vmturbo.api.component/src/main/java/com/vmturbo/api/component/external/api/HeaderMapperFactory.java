@@ -27,8 +27,10 @@ public class HeaderMapperFactory {
     private static final Map<ExternalVendor, MapperGenerator<String, HeaderMapper>>
             EXTERNAL_VENDOR_TO_INTERNAL_USER_MAPPER =
             ImmutableMap.of(ExternalVendor.CISCO_INTERSIGHT,
-                    (externalAdminRoles, externalObserverRoles, externalUser, externalRole) -> getCiscoIntersightHeaderMapper(
-                            externalAdminRoles, externalObserverRoles, externalUser, externalRole));
+                    (externalAdminRoles, externalObserverRoles, externalUser, externalRole, jwtTokenPublicKeyTag, jwtToken)
+                            -> getCiscoIntersightHeaderMapper(
+                            externalAdminRoles, externalObserverRoles, externalUser, externalRole,
+                            jwtTokenPublicKeyTag, jwtToken));
 
     private HeaderMapperFactory() {}
 
@@ -40,20 +42,25 @@ public class HeaderMapperFactory {
      * @param externalObserverRoles external vendor observer roles
      * @param externalUser external user name tag from header to get user name.
      * @param externalRole external user role tag from header to get uer role.
+     * @param jwtTokenPublicKeyTag the vender's JWT token public key property name.
+     * @param jwtTokenTag the vender's JWT token property name.
      * @return {@link HeaderMapper} for the specific vendor.  Default to Cisco InterSight.
      */
     public static HeaderMapper getHeaderMapper(@Nonnull Optional<ExternalVendor> externalVendor,
             @Nonnull String externalAdminRoles, @Nonnull String externalObserverRoles,
-            @Nonnull String externalUser, @Nonnull String externalRole) {
+            @Nonnull String externalUser, @Nonnull String externalRole,
+            @Nonnull String jwtTokenPublicKeyTag, @Nonnull String jwtTokenTag) {
         return externalVendor.map(vendor -> EXTERNAL_VENDOR_TO_INTERNAL_USER_MAPPER.get(vendor)
-                .generate(externalAdminRoles, externalObserverRoles, externalUser, externalRole))
+                .generate(externalAdminRoles, externalObserverRoles, externalUser, externalRole,
+                        jwtTokenPublicKeyTag, jwtTokenTag))
                 .orElse(getCiscoIntersightHeaderMapper(externalAdminRoles, externalObserverRoles,
-                        externalUser, externalRole));
+                        externalUser, externalRole, jwtTokenPublicKeyTag, jwtTokenTag));
     }
 
     private static HeaderMapper getCiscoIntersightHeaderMapper(@Nonnull String externalAdminRoles,
             @Nonnull String externalObserverRoles, @Nonnull String externalUser,
-            @Nonnull String externalRole) {
+            @Nonnull String externalRole, @Nonnull String jwtTokenPublicKeyTag,
+            @Nonnull String jwtToken) {
         final Builder builder = ImmutableMap.<String, String>builder();
         final StringTokenizer adminTokenizer = new StringTokenizer(externalAdminRoles, ",");
         while (adminTokenizer.hasMoreTokens()) {
@@ -63,7 +70,8 @@ public class HeaderMapperFactory {
         while (readOnlyTokenizer.hasMoreTokens()) {
             builder.put(readOnlyTokenizer.nextToken(), OBSERVER);
         }
-        return new IntersightHeaderMapper(builder.build(), externalUser, externalRole);
+        return new IntersightHeaderMapper(builder.build(), externalUser, externalRole,
+                jwtTokenPublicKeyTag, jwtToken);
     }
 
     /**
@@ -81,6 +89,7 @@ public class HeaderMapperFactory {
      */
     @FunctionalInterface
     private interface MapperGenerator<R, T> {
-        T generate(R externalAdminRoles, R externalObserverRoles, R externalUser, R externalRole);
+        T generate(R externalAdminRoles, R externalObserverRoles, R externalUser, R externalRole,
+                R jwtTokenPublicKeyTag, R jwtToken);
     }
 }

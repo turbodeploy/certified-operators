@@ -43,6 +43,7 @@ import com.vmturbo.api.component.external.api.util.stats.query.impl.ScopedUserCo
 import com.vmturbo.api.component.external.api.util.stats.query.impl.StorageStatsSubQuery;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.api.component.security.HeaderAuthenticationCondition;
+import com.vmturbo.api.component.security.IntersightIdTokenVerifier;
 import com.vmturbo.api.enums.ConfigurationMode;
 import com.vmturbo.api.serviceinterfaces.ISAMLService;
 import com.vmturbo.api.serviceinterfaces.IWorkflowsService;
@@ -124,6 +125,10 @@ public class ServiceConfig {
 
     @Value("${identityGeneratorPrefix}")
     private long identityGeneratorPrefix;
+
+    // 10 minutes default skew period.
+    @Value("${clockSkewSecond:600}")
+    private String clockSkewSecond;
 
     /**
      * Configuration used to expose areas of the application front or backend.
@@ -214,7 +219,7 @@ public class ServiceConfig {
     public HeaderAuthenticationProvider headerAuthorizationProvider() {
         return new HeaderAuthenticationProvider(authConfig.getAuthHost(), authConfig.getAuthPort(),
                 authConfig.getAuthRoute(), communicationConfig.serviceRestTemplate(),
-                securityConfig.verifier(), targetStore());
+                securityConfig.verifier(), targetStore(), new IntersightIdTokenVerifier(), Integer.parseInt(clockSkewSecond));
     }
 
     /**
