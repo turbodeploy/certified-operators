@@ -39,9 +39,11 @@ import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.dto.admin.HttpProxyDTO;
 import com.vmturbo.api.dto.admin.LoggingApiDTO;
+import com.vmturbo.api.dto.admin.ProductCapabilityDTO;
 import com.vmturbo.api.dto.admin.ProductVersionDTO;
 import com.vmturbo.api.dto.admin.SystemStatusApiDTO;
 import com.vmturbo.api.dto.cluster.ClusterConfigurationDTO;
+import com.vmturbo.api.enums.ConfigurationMode;
 import com.vmturbo.api.enums.ConfigurationType;
 import com.vmturbo.api.enums.LoggingLevel;
 import com.vmturbo.api.exceptions.InvalidOperationException;
@@ -149,18 +151,22 @@ public class AdminService implements IAdminService {
 
     private final BuildProperties buildProperties;
 
+    private ConfigurationMode configurationMode;
+
     AdminService(@Nonnull final ClusterService clusterService,
                  @Nonnull final KeyValueStore keyValueStore,
                  @Nonnull final ClusterMgrRestClient clusterMgrApi,
                  @Nonnull final RestTemplate restTemplate,
                  @Nonnull final ApiWebsocketHandler apiWebsocketHandler,
-                 @Nonnull final BuildProperties buildProperties) {
+                 @Nonnull final BuildProperties buildProperties,
+                @Nonnull final ConfigurationMode configurationMode) {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.keyValueStore = Objects.requireNonNull(keyValueStore);
         this.clusterMgrApi = Objects.requireNonNull(clusterMgrApi);
         this.restTemplate = Objects.requireNonNull(restTemplate);
         this.apiWebsocketHandler = Objects.requireNonNull(apiWebsocketHandler);
         this.buildProperties = buildProperties;
+        this.configurationMode = configurationMode;
     }
 
     @Override
@@ -455,6 +461,21 @@ public class AdminService implements IAdminService {
         throw ApiUtils.notImplementedInXL();
     }
 
+    /**
+     * Get the product capabilities.
+     * <p>Return configurations control hiding or showing
+     * certain areas of the UI</p>
+     *
+     * @return the {@link ProductCapabilityDTO}.
+     */
+    @Override
+    public ProductCapabilityDTO getProductCapabilities() throws Exception {
+        ProductCapabilityDTO productCapabilityDTO = new ProductCapabilityDTO();
+        productCapabilityDTO.setConfigurationMode(this.configurationMode);
+        productCapabilityDTO.setReportingEnabled(false);
+        return productCapabilityDTO;
+    }
+
     private String getVersionInfoString() {
         String header = MessageFormat.format(VERSION_INFO_HEADER, publicVersionString, buildNumber, buildTime);
         ClusterConfigurationDTO clusterConfig = clusterService.getClusterConfiguration();
@@ -484,4 +505,6 @@ public class AdminService implements IAdminService {
         productVersion.setHasCodeChanges(buildProperties.isDirty());
         return productVersion;
     }
+
+
 }

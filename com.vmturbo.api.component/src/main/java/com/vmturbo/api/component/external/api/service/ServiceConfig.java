@@ -43,6 +43,7 @@ import com.vmturbo.api.component.external.api.util.stats.query.impl.ScopedUserCo
 import com.vmturbo.api.component.external.api.util.stats.query.impl.StorageStatsSubQuery;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.api.component.security.HeaderAuthenticationCondition;
+import com.vmturbo.api.enums.ConfigurationMode;
 import com.vmturbo.api.serviceinterfaces.ISAMLService;
 import com.vmturbo.api.serviceinterfaces.IWorkflowsService;
 import com.vmturbo.auth.api.SpringSecurityConfig;
@@ -125,6 +126,12 @@ public class ServiceConfig {
     private long identityGeneratorPrefix;
 
     /**
+     * Configuration used to expose areas of the application front or backend.
+     */
+    @Value("${configurationMode:SERVER}")
+    private ConfigurationMode configurationMode;
+
+    /**
      * We allow autowiring between different configuration objects, but not for a bean.
      */
     @Autowired
@@ -183,7 +190,7 @@ public class ServiceConfig {
     public AdminService adminService() {
         return new AdminService(clusterService(), keyValueStoreConfig.keyValueStore(),
             communicationConfig.clusterMgr(), communicationConfig.serviceRestTemplate(),
-            websocketConfig.websocketHandler(), BuildProperties.get());
+            websocketConfig.websocketHandler(), BuildProperties.get(), this.configurationMode);
     }
 
     @Bean
