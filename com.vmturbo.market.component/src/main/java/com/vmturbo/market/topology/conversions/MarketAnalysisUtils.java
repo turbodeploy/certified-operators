@@ -315,10 +315,12 @@ public final class MarketAnalysisUtils {
      * Select the right {@link PriceFunctionTO} based on the commodity sold type.
      *
      * @param commType {@link CommodityType} object that represents type and key of commodity
+     * @param scale    float that represents how much the utilization is scaled to.
+     *                 The scale has to be greater than or equal to 1.0 to be meaningful.
      * @return a (reusable) instance of PriceFunctionTO to use in the commodity sold settings.
      */
     @Nonnull
-    public static PriceFunctionTO priceFunction(CommodityType commType) {
+    public static PriceFunctionTO priceFunction(CommodityType commType, float scale) {
         int commodityType = commType.getType();
         String commodityKey = commType.getKey();
         if (CONSTANT_PRICE_TYPES.contains(commodityType)) {
@@ -335,6 +337,15 @@ public final class MarketAnalysisUtils {
             } else {
                 return CONSTANT_ZERO;
             }
+        } else if (commodityType == CommodityDTO.CommodityType.CPU_VALUE) {
+            scale = scale > 1.0f ? scale : 1.0f;
+            return PriceFunctionTO.newBuilder()
+                    .setScaledCapacityStandardWeighted(PriceFunctionTO
+                            .ScaledCapacityStandardWeighted
+                            .newBuilder().setScale(scale)
+                            .setWeight(1.0f)
+                            .build())
+                    .build();
         } else {
             return SWP;
         }
