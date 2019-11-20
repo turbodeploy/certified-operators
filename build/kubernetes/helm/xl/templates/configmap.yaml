@@ -277,9 +277,11 @@ data:
                 clustersSupported: true
             plan-orchestrator:
                 dbSchemaName: plan
-                # cron spec for running cluster rollup at 1AM daily = second (0-60) ,minute (0-59), hour(0-23),
-                #     day of month(1-31), month(1-12), day of week(0-7, 7=sun)
-                clusterRollupSchedule: "0 0 1 * * *"
+                # cron spec for running cluster rollup at 2AM daily = second (0-60) ,minute (0-59), hour(0-23),
+                #     day of month(1-31), month(1-12), day of week(0-7, 7=sun). This timestamp needs to be >=
+                #     2AM. The reason is that before this time we might not have stats for physical machines
+                #     (OM-52603).
+                clusterRollupSchedule: "0 0 2 * * *"
                 # Run plan deletion at 2AM everyday
                 planDeletionSchedule: "0 0 2 * * *"
                 # Config parameter to control the batch size for deleting old plans.
