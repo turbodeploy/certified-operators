@@ -70,8 +70,7 @@ public class PlanTopologyScopeEditor {
                                                           Collections::unmodifiableSet));
     private static final Set<EntityType> CLOUD_SCOPE_ENTITY_TYPES = Stream.of(EntityType.REGION,
                              EntityType.BUSINESS_ACCOUNT, EntityType.VIRTUAL_MACHINE,
-                             EntityType.DATABASE, EntityType.DATABASE_SERVER,
-                             EntityType.VIRTUAL_VOLUME)
+                             EntityType.DATABASE, EntityType.DATABASE_SERVER)
                     .collect(Collectors.collectingAndThen(Collectors.toSet(),
                                                           Collections::unmodifiableSet));
 

@@ -173,13 +173,13 @@ public class StringConstants {
     public static final String VIRTUAL_MACHINE_CLUSTER = "VirtualMachineCluster";
     public static final String STORAGE_CLUSTER = "StorageCluster";
     /**
+     * Group types set.
+     */
+    public static final Set<String> GROUP_TYPES = ImmutableSet.of(GROUP, CLUSTER, STORAGE_CLUSTER);
+    /**
      * The class name used in UI for resource group.
      */
     public static final String RESOURCE_GROUP = "ResourceGroup";
-    /**
-     * Group types set.
-     */
-    public static final Set<String> GROUP_TYPES = ImmutableSet.of(GROUP, CLUSTER, STORAGE_CLUSTER, RESOURCE_GROUP);
     public static final String VIRTUAL_MACHINE = "VirtualMachine";
     public static final String PHYSICAL_MACHINE = "PhysicalMachine";
     public static final String DATA_CENTER = "DataCenter";
