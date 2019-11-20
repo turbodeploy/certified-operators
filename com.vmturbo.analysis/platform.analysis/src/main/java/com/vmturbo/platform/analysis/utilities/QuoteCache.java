@@ -65,34 +65,37 @@ public final class QuoteCache {
      * Constructs a new, empty quote cache of the given size.
      *
      * <p>
-     *  The cache will consume a constant O(<b>nTradersInEconomy</b> + <b>nPotentialSellers</b> *
-     *  <b>nBuyerShoppingLists</b>) amount of memory throughout its lifetime.
+     *  The cache will consume a constant O(<b>nTradersInEconomy</b> + min(<b>nPotentialSellers</b>,
+     *  <b>nTradersInEconomy</b>) * <b>nBuyerShoppingLists</b>) amount of memory throughout its
+     *  lifetime.
      * </p>
      *
      * <p>
-     *  This is always an O(<b>nTradersInEconomy</b> + <b>nPotentialSellers</b> *
-     *  <b>nBuyerShoppingLists</b>) operation as allocating memory in Java requires time at least
-     *  linear to the amount of memory allocated.
+     *  This is always an (<b>nTradersInEconomy</b> + min(<b>nPotentialSellers</b>,
+     *  <b>nTradersInEconomy</b>) * <b>nBuyerShoppingLists</b>) operation as allocating memory in
+     *  Java requires time at least linear to the amount of memory allocated.
      * </p>
      *
      * @param nTradersInEconomy The number of traders in the {@link Economy} this cache will help
      *                          analyze. Must be non-negative.
-     * @param nPotentialSellers The maximum number of sellers this cache can hold. Must be in the
-     *                          range [0,nTradersInEconomy].
+     * @param nPotentialSellers The maximum number of unique sellers this cache can hold. Must be
+     *                          non-negative. Note that, although permitted, values greater than
+     *                          <b>nTradersInEconomy</b> won't increase the cache size as there
+     *                          can't be more than <b>nTradersInEconomy</b> unique sellers anyway.
      * @param nBuyerShoppingLists The maximum number of shopping lists this cache can hold. Must be
      *                            non-negative.
      */
     @SideEffectFree
     public QuoteCache(int nTradersInEconomy, int nPotentialSellers, int nBuyerShoppingLists) {
-        checkArgument(0 <= nPotentialSellers && nPotentialSellers <= nTradersInEconomy,
-            "nPotentialSellers must be between 0 and %s but was %s.",
-            nTradersInEconomy, nPotentialSellers);
+        checkArgument(0 <= nPotentialSellers,
+            "nPotentialSellers must be non-negative but was %s.", nPotentialSellers);
         checkArgument(0 <= nBuyerShoppingLists,
             "nBuyerShoppingLists must be non-negative but was %s.");
 
         rowAssignments = new int[nTradersInEconomy];
 
-        cache = new MutableQuote[(nPotentialSellers + 1) * nBuyerShoppingLists];
+        cache = new MutableQuote[(Math.min(nPotentialSellers, nTradersInEconomy) + 1)
+                                 * nBuyerShoppingLists];
         nShoppingLists = nBuyerShoppingLists;
         nextRowAssignment = 1; // 1st trader gets row 1: row 0 is the sentinel row.
     } // end QuoteCache constructor
@@ -129,7 +132,7 @@ public final class QuoteCache {
      * into {@code this} cache.
      *
      * <p>
-     *  It is an error to attempt to cache quotes for more sellers than was declared when
+     *  It is an error to attempt to cache quotes for more unique sellers than was declared when
      *  constructing {@code this} cache.
      * </p>
      *
