@@ -19,11 +19,9 @@ import com.vmturbo.platform.common.dto.CommonDTO.UpdateType;
 /**
  * Class for testing of parsing DRS rules into policy specs.
  */
-public class ParsePolicySpecTest {
+public class TestParsePolicySpec {
 
     private DiscoveredPolicyInfoParser discoveredPolicyInfoParser;
-
-    private static final long TARGET_ID = 111L;
 
     private final static String POLICY_ID_1 = "policy-1";
     private final static String POLICY_ID_2 = "policy-2";
@@ -65,7 +63,8 @@ public class ParsePolicySpecTest {
     public void testParsePoliciesOfGroups() {
 
         List<CommonDTO.GroupDTO> groups = initBuyerSellerGroups();
-        discoveredPolicyInfoParser = new DiscoveredPolicyInfoParser(groups, TARGET_ID);
+        long targetId = 111L;
+        discoveredPolicyInfoParser = new DiscoveredPolicyInfoParser(groups, targetId);
         List<DiscoveredPolicyInfo> policies = discoveredPolicyInfoParser.parsePoliciesOfGroups();
         // 4 sets of groups created, only 2 of them become policies.
         // Of the other two - one is not a pair and one has a deleted group.
@@ -112,7 +111,8 @@ public class ParsePolicySpecTest {
     @Test
     public void testParsePoliciesOfGroupsWithVmClusterPolicy() {
         List<CommonDTO.GroupDTO> groups = initBuyerBuyerGroups();
-        discoveredPolicyInfoParser = new DiscoveredPolicyInfoParser(groups, TARGET_ID);
+        final long targetId = 111L;
+        discoveredPolicyInfoParser = new DiscoveredPolicyInfoParser(groups, targetId);
         List<DiscoveredPolicyInfo> policies = discoveredPolicyInfoParser.parsePoliciesOfGroups();
         // 3 VM groups created with buyer/buyer constraints, only 2 of them become policies.
         // The third is a deleted group so no policy gets created.
@@ -127,32 +127,6 @@ public class ParsePolicySpecTest {
             Assert.assertEquals(policyInfo.getConstraintType(),
                             buyers.getConstraintInfo().getConstraintType().getNumber());
         }
-    }
-
-    /**
-     * Creates groups without constraints.
-     *
-     * @return list of groups without constraints
-     */
-    private List<CommonDTO.GroupDTO> initGroupsWithoutConstraints() {
-        List<CommonDTO.GroupDTO> groups = new LinkedList<>();
-        groups.add(createGroupWithoutConstraints("group_1"));
-        groups.add(createGroupWithoutConstraints("group_2"));
-
-        return groups;
-    }
-
-    /**
-     * Tests parsing groups without constraints - no policies should be created.
-     */
-    @Test
-    public void testParsePoliciesOfGroupsWithoutConstraints() {
-
-        List<CommonDTO.GroupDTO> groups = initGroupsWithoutConstraints();
-        discoveredPolicyInfoParser = new DiscoveredPolicyInfoParser(groups, TARGET_ID);
-        List<DiscoveredPolicyInfo> policies = discoveredPolicyInfoParser.parsePoliciesOfGroups();
-
-        Assert.assertTrue(policies.isEmpty());
     }
 
     // THE cluster used for buyer/buyer groups.
@@ -234,21 +208,6 @@ public class ParsePolicySpecTest {
     }
 
     /**
-     * Creates a group without constraints for testing.
-     *
-     * @param id name of created group
-     * @return created group
-     */
-    private static CommonDTO.GroupDTO createGroupWithoutConstraints(String id) {
-        CommonDTO.GroupDTO.Builder groupBuilder = CommonDTO.GroupDTO.newBuilder()
-                .setEntityType(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE)
-                .setDisplayName(id)
-                .setSourceGroupId(id);
-
-        return groupBuilder.build();
-    }
-
-    /**
      * Creates a BUYER_SELLER_AFFINITY constraint info for tested group.
      *
      * @param constraintId constraint identifier
@@ -259,7 +218,6 @@ public class ParsePolicySpecTest {
     private static CommonDTO.GroupDTO.ConstraintInfo createConstraint(String constraintId, boolean isBuyer) {
         return CommonDTO.GroupDTO.ConstraintInfo.newBuilder()
                 .setConstraintName(constraintId)
-                .setConstraintDisplayName(constraintId)
                 .setConstraintType(CommonDTO.GroupDTO.ConstraintType.BUYER_SELLER_AFFINITY)
                 .setConstraintId(constraintId)
                 .setIsBuyer(isBuyer)

@@ -502,21 +502,17 @@ public class TopologyConverter {
         dto.getCommoditiesBoughtFromProvidersList().forEach(entry ->
             // for each commodityBought, we increment the number of consumers for the
             // corresponding commSold in numConsumersOfSoldCommTable
-            entry.getCommodityBoughtList().stream()
-                // Ignore inactive commodity bought.
-                // TopologyEntityDTO with an inactive commodity bought is not considered as a consumer.
-                .filter(CommodityBoughtDTO::getActive)
-                .forEach(commDto -> {
-                    Integer consumersCount = numConsumersOfSoldCommTable.get(
+            entry.getCommodityBoughtList().forEach(commDto -> {
+                Integer consumersCount = numConsumersOfSoldCommTable.get(
                         entry.getProviderId(), commDto.getCommodityType());
-                    if (consumersCount == null) {
-                        consumersCount = 0;
-                    }
-                    consumersCount = consumersCount + 1;
-                    numConsumersOfSoldCommTable.put(entry.getProviderId(),
+                if (consumersCount == null) {
+                    consumersCount = 0;
+                }
+                consumersCount = consumersCount + 1;
+                numConsumersOfSoldCommTable.put(entry.getProviderId(),
                         commDto.getCommodityType(),
                         consumersCount);
-                })
+            })
         );
     }
 

@@ -65,7 +65,6 @@ public class DiscoveredPolicyInfoParser {
      */
     private Stream<Entry<String, List<CommonDTO.GroupDTO>>> collectPolicyGroups() {
         return allGroups.stream()
-                .filter(CommonDTO.GroupDTO::hasConstraintInfo)
                 .collect(Collectors.groupingBy(
                     group -> group.getConstraintInfo().getConstraintId()))
                 .entrySet()

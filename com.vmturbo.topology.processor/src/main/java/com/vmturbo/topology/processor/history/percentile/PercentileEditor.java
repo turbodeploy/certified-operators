@@ -35,7 +35,6 @@ import com.vmturbo.commons.forecasting.TimeInMillisConstants;
 import com.vmturbo.components.common.utils.ThrowingFunction;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.stitching.EntityCommodityReference;
@@ -72,11 +71,6 @@ public class PercentileEditor extends
                     .of(CommodityDTO.CommodityType.IMAGE_CPU,
                         CommodityDTO.CommodityType.IMAGE_MEM,
                         CommodityDTO.CommodityType.IMAGE_STORAGE);
-    /**
-     * For entities with type from set the percentile editor will not be applied.
-     */
-    private static final Set<EntityType> NOT_APPLICABLE_ENTITY_TYPES =
-            ImmutableSet.of(EntityType.DATABASE_SERVER);
     private static final DataMetricSummary SETTINGS_CHANGE_SUMMARY_METRIC =
                 DataMetricSummary.builder()
                                 .withName("tp_historical_percentile_window_change")
@@ -150,7 +144,7 @@ public class PercentileEditor extends
 
     @Override
     public boolean isEntityApplicable(TopologyEntity entity) {
-        return !NOT_APPLICABLE_ENTITY_TYPES.contains(EntityType.forNumber(entity.getEntityType()));
+        return true;
     }
 
     @Override
