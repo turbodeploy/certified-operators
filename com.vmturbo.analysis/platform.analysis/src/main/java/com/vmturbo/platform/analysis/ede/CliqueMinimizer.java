@@ -1,5 +1,7 @@
 package com.vmturbo.platform.analysis.ede;
 
+import static com.vmturbo.platform.analysis.utilities.QuoteCacheUtils.invalidate;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -228,14 +230,7 @@ final class CliqueMinimizer {
         economy_.getPlacementStats().incrementCliqueMinimizationCount();
         Lists.reverse(quoteSummer.getSimulatedActions()).forEach(move -> {
             move.rollback();
-            if (cache_ != null) {
-                if (move.getSource() != null) {
-                    cache_.invalidate(move.getSource().getEconomyIndex());
-                }
-                if (move.getDestination() != null) {
-                    cache_.invalidate(move.getDestination().getEconomyIndex());
-                }
-            }
+            invalidate(cache_, move);
         });
     }
 

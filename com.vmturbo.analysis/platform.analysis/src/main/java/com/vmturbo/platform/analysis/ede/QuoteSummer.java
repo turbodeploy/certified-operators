@@ -24,6 +24,7 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.utilities.QuoteCache;
+import com.vmturbo.platform.analysis.utilities.QuoteCacheUtils;
 import com.vmturbo.platform.analysis.utilities.QuoteTracker;
 
 /**
@@ -202,14 +203,7 @@ final class QuoteSummer {
                 // when we have a best seller for a shoppingList, we simulate the move to this seller
                 // not doing so can lead to ping-pongs as observed in OM-34056
                 Move move = new Move(economy_, entry.getKey(), minimizer.getBestSeller()).take();
-                if (cache_ != null) {
-                    if (move.getSource() != null) {
-                        cache_.invalidate(move.getSource().getEconomyIndex());
-                    }
-                    if (move.getDestination() != null) {
-                        cache_.invalidate(move.getDestination().getEconomyIndex());
-                    }
-                }
+                QuoteCacheUtils.invalidate(cache_, move);
                 simulatedMoveActions_.add(move);
             }
         } else {
