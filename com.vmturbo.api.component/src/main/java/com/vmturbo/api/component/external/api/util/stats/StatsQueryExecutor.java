@@ -166,6 +166,21 @@ public class StatsQueryExecutor {
         final boolean allowCoolingPower = scope.getDiscoveringTargetIds().stream().allMatch(targetId ->
             ProbeCategory.FABRIC.getCategory().equalsIgnoreCase(targetIdToCategory.get(targetId)));
 
+        // If the request does not contain a start or end time and the response statistics are more
+        // than one record, flatten into one record. The API expects one timestamp, the latest.
+        // todo: Roman Zimine OM-52892 Allow the ability to specify which query is required.
+        if (inputDTO.getStartDate() == null && inputDTO.getEndDate() == null && stats.size() > 1) {
+            List<StatApiDTO> statistics = new ArrayList<>();
+            for (StatSnapshotApiDTO stat: stats) {
+                statistics.addAll(stat.getStatistics());
+            }
+            stats.clear();
+            StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
+            statSnapshotApiDTO.setDate(DateTimeUtil.getNow());
+            statSnapshotApiDTO.setStatistics(statistics);
+            stats.add(statSnapshotApiDTO);
+        }
+
         return StatsUtils.filterStats(stats, allowCoolingPower ? null : Collections.emptyList());
     }
 
