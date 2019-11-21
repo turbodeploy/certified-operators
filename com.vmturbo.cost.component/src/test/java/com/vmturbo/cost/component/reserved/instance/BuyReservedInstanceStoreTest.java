@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.reserved.instance;
 
+import static com.vmturbo.cost.component.db.Tables.BUY_RESERVED_INSTANCE;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.when;
 
@@ -10,8 +11,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableList;
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
+import org.jooq.Result;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -34,6 +37,8 @@ import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.BuyReservedInstanceRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceSpecRecord;
 import com.vmturbo.cost.component.identity.IdentityProvider;
+import com.vmturbo.cost.component.reserved.instance.filter.BuyReservedInstanceCostFilter;
+import com.vmturbo.cost.component.reserved.instance.filter.BuyReservedInstanceFilter;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisRecommendation;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.OfferingClass;
@@ -83,56 +88,135 @@ public class BuyReservedInstanceStoreTest {
     }
 
     /**
-     * Gets the Buy RIs with no condition
+     * Gets the Buy RIs with no condition.
      */
     @Test
     public void testGetBuyRIs_noCondition() {
         insertOldBuyRIRecords();
-        GetBuyReservedInstancesByFilterRequest request = GetBuyReservedInstancesByFilterRequest.getDefaultInstance();
-        Collection<ReservedInstanceBought> buyRIs = buyRiStore.getBuyReservedInstances(request);
+        final BuyReservedInstanceFilter filter = BuyReservedInstanceFilter.newBuilder().build();
+        Collection<ReservedInstanceBought> buyRIs = buyRiStore.getBuyReservedInstances(filter);
         assertEquals(4, buyRIs.size());
     }
 
     /**
-     * Gets the Buy RIs in a region
+     * Get the Aggregated Amortized Cost with no conditions.
+     */
+    @Test
+    public void testAggregatedAmortizedCosts_noCondition() {
+        insertOldBuyRIRecords();
+        final BuyReservedInstanceCostFilter costFilter = BuyReservedInstanceCostFilter.newBuilder().build();
+        final Result<BuyReservedInstanceRecord> fetch =
+                        dsl.selectFrom(BUY_RESERVED_INSTANCE).where(costFilter.getConditions())
+                                        .fetch();
+        final double expectedAmortizedCost = calculateExpectedAmortizedCost(fetch);
+        double reservedInstanceAggregatedAmortizedCost =
+                        buyRiStore.getReservedInstanceAggregatedAmortizedCost(costFilter);
+        assertEquals(expectedAmortizedCost, reservedInstanceAggregatedAmortizedCost, 0D);
+    }
+
+    /**
+     * Gets the Buy RIs in a region.
      */
     @Test
     public void testGetBuyRIs_filterByRegion() {
         insertOldBuyRIRecords();
         GetBuyReservedInstancesByFilterRequest request = GetBuyReservedInstancesByFilterRequest
                 .newBuilder().setRegionFilter(RegionFilter.newBuilder().addRegionId(400L).build()).build();
-        Collection<ReservedInstanceBought> buyRIs = buyRiStore.getBuyReservedInstances(request);
+        final BuyReservedInstanceFilter filter = BuyReservedInstanceFilter.newBuilder()
+                        .addAllRegionIdList(request.getRegionFilter().getRegionIdList()).build();
+        Collection<ReservedInstanceBought> buyRIs = buyRiStore.getBuyReservedInstances(filter);
         assertEquals(1, buyRIs.size());
         assertEquals(1001L, buyRIs.iterator().next().getId());
     }
 
     /**
-     * Gets the Buy RIs in a business account
+     * Get the Aggregated Amortized Cost scoped to a region.
+     */
+    @Test
+    public void testAggregatedAmortizedCosts_filterByRegion() {
+        insertOldBuyRIRecords();
+        GetBuyReservedInstancesByFilterRequest request = GetBuyReservedInstancesByFilterRequest
+                        .newBuilder().setRegionFilter(RegionFilter.newBuilder().addRegionId(400L).build()).build();
+        final BuyReservedInstanceCostFilter costFilter = BuyReservedInstanceCostFilter.newBuilder()
+                        .addAllRegionIdList(request.getRegionFilter().getRegionIdList()).build();
+        final Result<BuyReservedInstanceRecord> fetch =
+                        dsl.selectFrom(BUY_RESERVED_INSTANCE).where(costFilter.getConditions())
+                                        .fetch();
+        final double expectedAmortizedCost = calculateExpectedAmortizedCost(fetch);
+        double reservedInstanceAggregatedAmortizedCost =
+                        buyRiStore.getReservedInstanceAggregatedAmortizedCost(costFilter);
+        assertEquals(expectedAmortizedCost, reservedInstanceAggregatedAmortizedCost, 0D);
+    }
+
+    /**
+     * Gets the Buy RIs in a business account.
      */
     @Test
     public void testGetBuyRIs_filterByAccount() {
         insertOldBuyRIRecords();
         GetBuyReservedInstancesByFilterRequest request = GetBuyReservedInstancesByFilterRequest
                 .newBuilder().setAccountFilter(AccountFilter.newBuilder().addAccountId(456L).build()).build();
-        Collection<ReservedInstanceBought> buyRIs = buyRiStore.getBuyReservedInstances(request);
+        final BuyReservedInstanceFilter filter = BuyReservedInstanceFilter.newBuilder()
+                        .addAllAccountIdList(request.getAccountFilter().getAccountIdList()).build();
+        Collection<ReservedInstanceBought> buyRIs = buyRiStore.getBuyReservedInstances(filter);
         assertEquals(1, buyRIs.size());
         assertEquals(1002L, buyRIs.iterator().next().getId());
     }
 
     /**
-     * Gets the Buy RIs in a topology context id
+     * Get the Aggregated Amortized Cost scoped to accounts.
+     */
+    @Test
+    public void testAggregatedAmortizedCosts_filterByAccount() {
+        insertOldBuyRIRecords();
+        GetBuyReservedInstancesByFilterRequest request = GetBuyReservedInstancesByFilterRequest
+                        .newBuilder().setAccountFilter(AccountFilter.newBuilder().addAccountId(456L).build()).build();
+        final BuyReservedInstanceCostFilter costFilter = BuyReservedInstanceCostFilter.newBuilder()
+                        .addAllAccountIdList(request.getAccountFilter().getAccountIdList()).build();
+        final Result<BuyReservedInstanceRecord> fetch =
+                        dsl.selectFrom(BUY_RESERVED_INSTANCE).where(costFilter.getConditions())
+                                        .fetch();
+        final double expectedAmortizedCost = calculateExpectedAmortizedCost(fetch);
+        double reservedInstanceAggregatedAmortizedCost =
+                        buyRiStore.getReservedInstanceAggregatedAmortizedCost(costFilter);
+        assertEquals(expectedAmortizedCost, reservedInstanceAggregatedAmortizedCost, 0D);
+    }
+
+    /**
+     * Gets the Buy RIs in a topology context id.
      */
     @Test
     public void testGetBuyRIs_topologyContextId() {
         insertOldBuyRIRecords();
         GetBuyReservedInstancesByFilterRequest request = GetBuyReservedInstancesByFilterRequest
                 .newBuilder().setTopologyContextId(1L).build();
-        Collection<ReservedInstanceBought> buyRIs = buyRiStore.getBuyReservedInstances(request);
+        final BuyReservedInstanceFilter filter = BuyReservedInstanceFilter.newBuilder()
+                        .addTopologyContextId(request.getTopologyContextId()).build();
+        Collection<ReservedInstanceBought> buyRIs = buyRiStore.getBuyReservedInstances(filter);
         assertEquals(3, buyRIs.size());
     }
 
     /**
-     * Gets the Buy RIs in a topology context id and region
+     * Get the Aggregated Amortized Cost scoped to a Topology Context.
+     */
+    @Test
+    public void testAggregatedAmortizedCosts_topologyContextId() {
+        insertOldBuyRIRecords();
+        GetBuyReservedInstancesByFilterRequest request = GetBuyReservedInstancesByFilterRequest
+                        .newBuilder().setTopologyContextId(1L).build();
+        final BuyReservedInstanceCostFilter costFilter = BuyReservedInstanceCostFilter.newBuilder()
+                        .addTopologyContextId(request.getTopologyContextId()).build();
+        final Result<BuyReservedInstanceRecord> fetch =
+                        dsl.selectFrom(BUY_RESERVED_INSTANCE).where(costFilter.getConditions())
+                                        .fetch();
+        final double expectedAmortizedCost = calculateExpectedAmortizedCost(fetch);
+        double reservedInstanceAggregatedAmortizedCost =
+                        buyRiStore.getReservedInstanceAggregatedAmortizedCost(costFilter);
+        assertEquals(expectedAmortizedCost, reservedInstanceAggregatedAmortizedCost, 0D);
+    }
+
+    /**
+     * Gets the Buy RIs in a topology context id and region.
      */
     @Test
     public void testGetBuyRIs_topologyContextIdAndRegion() {
@@ -141,9 +225,28 @@ public class BuyReservedInstanceStoreTest {
                 .newBuilder().setTopologyContextId(1L)
                 .setRegionFilter(RegionFilter.newBuilder().addRegionId(300L).build())
                 .build();
-        Collection<ReservedInstanceBought> buyRIs = buyRiStore.getBuyReservedInstances(request);
+        final BuyReservedInstanceFilter filter = BuyReservedInstanceFilter.newBuilder().addTopologyContextId(request.getTopologyContextId())
+                        .addAllRegionIdList(request.getRegionFilter().getRegionIdList()).build();
+        Collection<ReservedInstanceBought> buyRIs = buyRiStore.getBuyReservedInstances(filter);
         assertEquals(1, buyRIs.size());
         assertEquals(1000L, buyRIs.iterator().next().getId());
+    }
+
+    /**
+     * Get the Aggregated Amortized Cost scoped to a list of Buy RI IDs.
+     */
+    @Test
+    public void testGetBuyRIs_BuyRIId() {
+        insertOldBuyRIRecords();
+        List<Long> buyRIIdList = ImmutableList.of(1000L, 1001L);
+        final BuyReservedInstanceCostFilter costFilter = BuyReservedInstanceCostFilter.newBuilder().addBuyRIIdList(buyRIIdList).build();
+        final Result<BuyReservedInstanceRecord> fetch =
+                        dsl.selectFrom(BUY_RESERVED_INSTANCE).where(costFilter.getConditions())
+                                        .fetch();
+        final double expectedAmortizedCost = calculateExpectedAmortizedCost(fetch);
+        double reservedInstanceAggregatedAmortizedCost =
+                        buyRiStore.getReservedInstanceAggregatedAmortizedCost(costFilter);
+        assertEquals(expectedAmortizedCost, reservedInstanceAggregatedAmortizedCost, 0D);
     }
 
     /**
@@ -232,18 +335,27 @@ public class BuyReservedInstanceStoreTest {
                 .build();
 
         final BuyReservedInstanceRecord buyRIRecord1ForTopoContext1 = dsl.newRecord(Tables.BUY_RESERVED_INSTANCE,
-                new BuyReservedInstanceRecord(1000L, 1L, 123L, 300L, 99L, 8, oldRiInfoOne));
+                new BuyReservedInstanceRecord(1000L, 1L, 123L, 300L, 99L, 8, oldRiInfoOne, 15D, 0.15D, 0.1517123288D));
 
         final BuyReservedInstanceRecord buyRIRecord2ForTopoContext1 = dsl.newRecord(Tables.BUY_RESERVED_INSTANCE,
-                new BuyReservedInstanceRecord(1001L, 1L, 123L, 400L, 99L, 8, oldRiInfoOne));
+                new BuyReservedInstanceRecord(1001L, 1L, 123L, 400L, 99L, 8, oldRiInfoOne, 25D, 0.25D, 0.2528538813D));
 
         final BuyReservedInstanceRecord buyRIRecord3ForTopoContext1 = dsl.newRecord(Tables.BUY_RESERVED_INSTANCE,
-                new BuyReservedInstanceRecord(1002L, 1L, 456L, 500L, 99L, 8, oldRiInfoOne));
+                new BuyReservedInstanceRecord(1002L, 1L, 456L, 500L, 99L, 8, oldRiInfoOne, 20D, 0.10D, 0.102283105D));
 
         final BuyReservedInstanceRecord buyRIRecord1ForTopoContext2 = dsl.newRecord(Tables.BUY_RESERVED_INSTANCE,
-                new BuyReservedInstanceRecord(1003L, 2L, 123L, 300L, 99L, 9, oldRiInfoTwo));
+                new BuyReservedInstanceRecord(1003L, 2L, 123L, 300L, 99L, 9, oldRiInfoTwo, 0D, 0.75D, 0.75D));
 
         dsl.batchInsert(Arrays.asList(buyRIRecord1ForTopoContext1, buyRIRecord2ForTopoContext1,
                 buyRIRecord3ForTopoContext1, buyRIRecord1ForTopoContext2)).execute();
+    }
+
+    private static double calculateExpectedAmortizedCost(List<BuyReservedInstanceRecord> buyReservedInstanceRecords) {
+        double aggregatedAmortizedCost = 0;
+        for (BuyReservedInstanceRecord buyReservedInstanceRecord: buyReservedInstanceRecords) {
+            aggregatedAmortizedCost += buyReservedInstanceRecord.getPerInstanceAmortizedCostHourly().doubleValue()
+                            * buyReservedInstanceRecord.getCount();
+        }
+        return aggregatedAmortizedCost;
     }
 }

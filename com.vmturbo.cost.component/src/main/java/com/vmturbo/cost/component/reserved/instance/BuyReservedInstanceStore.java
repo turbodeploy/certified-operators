@@ -1,9 +1,9 @@
 package com.vmturbo.cost.component.reserved.instance;
 
 import static com.vmturbo.cost.component.db.Tables.BUY_RESERVED_INSTANCE;
-import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_BOUGHT;
+import static org.jooq.impl.DSL.sum;
 
-import java.util.ArrayList;
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -13,29 +13,30 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.immutables.value.Value;
-import org.immutables.value.Value.NaturalOrder;
-import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.Record1;
+import org.jooq.Result;
 
-import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterRequest;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
-import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.BuyReservedInstanceRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.identity.IdentityProvider;
+import com.vmturbo.cost.component.reserved.instance.filter.BuyReservedInstanceCostFilter;
+import com.vmturbo.cost.component.reserved.instance.filter.BuyReservedInstanceFilter;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisRecommendation;
 
 /**
  * This class is used to store the reserved instance to buy for plans or for real time
  */
-public class BuyReservedInstanceStore {
+public class BuyReservedInstanceStore implements BuyReservedInstanceCostStore {
 
     private final static Logger logger = LogManager.getLogger();
 
     private final IdentityProvider identityProvider;
+
+    private static final String RI_AMORTIZED_SUM = "ri_amortized_sum";
 
     private final DSLContext dsl;
 
@@ -46,12 +47,24 @@ public class BuyReservedInstanceStore {
     }
 
     public Collection<ReservedInstanceBought> getBuyReservedInstances(
-            @Nonnull final GetBuyReservedInstancesByFilterRequest request) {
+            @Nonnull final BuyReservedInstanceFilter filter) {
         List<BuyReservedInstanceRecord> buyRiRecords =  dsl.selectFrom(BUY_RESERVED_INSTANCE)
-                .where(generateConditions(request))
+                .where(filter.getConditions())
                 .fetch();
         return buyRiRecords.stream().map(this::reservedInstancesToProto)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public double getReservedInstanceAggregatedAmortizedCost(
+                    @Nonnull BuyReservedInstanceCostFilter filter) {
+        final Result<Record1<BigDecimal>> riAggregatedCostResult =
+                        dsl.select(sum(BUY_RESERVED_INSTANCE.PER_INSTANCE_AMORTIZED_COST_HOURLY.mul(BUY_RESERVED_INSTANCE.COUNT))
+                                        .as(RI_AMORTIZED_SUM)).from(BUY_RESERVED_INSTANCE)
+                                        .where(filter.getConditions()).fetch();
+        final List<Double> aggregatedRICostList =
+                        riAggregatedCostResult.getValues(RI_AMORTIZED_SUM, Double.class);
+        return aggregatedRICostList.stream().filter(s -> s != null).collect(Collectors.toList()).stream().findFirst().orElse(0D);
     }
 
     /**
@@ -112,38 +125,24 @@ public class BuyReservedInstanceStore {
         ReservedInstanceSpec riSpec = recommendation.getRiSpec();
         recommendation.setBuyRiId(identityProvider.next());
 
+        logger.debug("FixedCost: {}, Recurring Cost: {}, Term: {}, AmortizedCost: {}", () -> riBoughtInfo
+                                        .getReservedInstanceBoughtCost()
+                                        .getFixedCost()
+                                        .getAmount(),
+                        () -> riBoughtInfo.getReservedInstanceBoughtCost().getRecurringCostPerHour().getAmount(),
+                        () -> riSpec.getReservedInstanceSpecInfo().getType().getTermYears(),
+                        () -> recommendation.getRiHourlyCost());
         return dsl.newRecord(BUY_RESERVED_INSTANCE, new BuyReservedInstanceRecord(
-                recommendation.getBuyRiId(),
-                topologyContextId,
-                riBoughtInfo.getBusinessAccountId(),
-                riSpec.getReservedInstanceSpecInfo().getRegionId(),
-                riBoughtInfo.getReservedInstanceSpec(),
-                riBoughtInfo.getNumBought(),
-                riBoughtInfo));
-    }
-
-    private List<Condition> generateConditions(@Nonnull final GetBuyReservedInstancesByFilterRequest request) {
-        final List<Condition> conditions = new ArrayList<>();
-        if (request.hasTopologyContextId()) {
-            conditions.add(Tables.BUY_RESERVED_INSTANCE.TOPOLOGY_CONTEXT_ID.eq(
-                    request.getTopologyContextId()));
-        }
-
-        if (request.hasRegionFilter() && !request.getRegionFilter().getRegionIdList().isEmpty()) {
-            conditions.add(Tables.BUY_RESERVED_INSTANCE.REGION_ID.in(
-                    request.getRegionFilter().getRegionIdList()));
-        }
-
-        if (request.hasAccountFilter() && !request.getAccountFilter().getAccountIdList().isEmpty()) {
-            conditions.add(Tables.BUY_RESERVED_INSTANCE.BUSINESS_ACCOUNT_ID.in(
-                    request.getAccountFilter().getAccountIdList()));
-        }
-
-        if (request.getBuyRiIdCount() > 0) {
-            conditions.add(Tables.BUY_RESERVED_INSTANCE.ID.in(
-                    request.getBuyRiIdList()));
-        }
-        return conditions;
+                        recommendation.getBuyRiId(),
+                        topologyContextId,
+                        riBoughtInfo.getBusinessAccountId(),
+                        riSpec.getReservedInstanceSpecInfo().getRegionId(),
+                        riBoughtInfo.getReservedInstanceSpec(),
+                        riBoughtInfo.getNumBought(),
+                        riBoughtInfo,
+                        riBoughtInfo.getReservedInstanceBoughtCost().getFixedCost().getAmount(),
+                        riBoughtInfo.getReservedInstanceBoughtCost().getRecurringCostPerHour().getAmount(),
+                        recommendation.getRiHourlyCost()));
     }
 
     /**
