@@ -1,5 +1,6 @@
 package com.vmturbo.plan.orchestrator.templates;
 
+import static junit.framework.TestCase.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
@@ -326,6 +327,49 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
             template.getTemplateInfo().getName().equals("first-template")));
         assertTrue(allTemplates.stream().anyMatch(template ->
             template.getTemplateInfo().getName().equals("second-template")));
+    }
+
+    /**
+     * Test duplicate name filtering.
+     */
+    @Test
+    public void testUploadDiscoveredTemplatesDuplicateName() {
+        final long targetId = 123;
+        final Map<Long, TemplateInfoToDeploymentProfileMap> uploadMap = new HashMap<>();
+        final Map<Long, List<DeploymentProfileInfo>> noReferenceMap = new HashMap<>();
+
+        TemplateInfoToDeploymentProfileMap testMap = new TemplateInfoToDeploymentProfileMap();
+
+        TemplateInfo template1 = TemplateInfo.newBuilder()
+            .setProbeTemplateId("probe-template-1")
+            .setName("template1")
+            .build();
+        TemplateInfo template2 = TemplateInfo.newBuilder()
+            .setProbeTemplateId("probe-template-1")
+            .setName("template2")
+            .build();
+
+        TemplateInfo template3DupName = TemplateInfo.newBuilder()
+            .setProbeTemplateId("probe-template-2")
+            .setName("template1")
+            .build();
+
+        testMap.put(template1, Collections.emptyList());
+        testMap.put(template2, Collections.emptyList());
+        testMap.put(template3DupName, Collections.emptyList());
+
+        uploadMap.put(targetId, testMap);
+        noReferenceMap.put(targetId, new ArrayList<>());
+
+        discoveredTemplateDeploymentProfileDao.setDiscoveredTemplateDeploymentProfile(uploadMap, noReferenceMap);
+
+        Set<Template> allTemplates = templatesDao.getFilteredTemplates(TemplatesFilter.getDefaultInstance());
+
+        assertEquals(2, allTemplates.size());
+        assertTrue(allTemplates.stream().anyMatch(template ->
+            template.getTemplateInfo().getName().equals("template1")));
+        assertTrue(allTemplates.stream().anyMatch(template ->
+            template.getTemplateInfo().getName().equals("template2")));
     }
 
     @Test
