@@ -10,7 +10,6 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceBoughtServiceController;
-import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceSpecServiceController;
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceUtilizationCoverageServiceController;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
@@ -27,6 +26,7 @@ import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.MarketListenerConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
 import com.vmturbo.cost.component.notification.CostNotificationConfig;
+import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalRICoverageAnalysisFactory;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.market.component.api.MarketComponent;
@@ -73,12 +73,6 @@ public class ReservedInstanceConfig {
     @Value("${concurrentSupplementalRICoverageAllocation:true}")
     private boolean concurrentSupplementalRICoverageAllocation;
 
-    /**
-     * Max size of a batch to insert into 'reserved_instance_spec'.
-     */
-    @Value("${riSpecStoreInsertBatch:10000}")
-    private int riBatchSize;
-
     @Autowired
     private GroupClientConfig groupClientConfig;
 
@@ -106,6 +100,12 @@ public class ReservedInstanceConfig {
     @Autowired
     private TopologyProcessorListenerConfig topologyProcessorListenerConfig;
 
+    @Autowired
+    private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
+
+    @Autowired
+    private PricingConfig pricingConfig;
+
     @Bean
     public ReservedInstanceBoughtStore reservedInstanceBoughtStore() {
         return new ReservedInstanceBoughtStore(databaseConfig.dsl(),
@@ -119,12 +119,6 @@ public class ReservedInstanceConfig {
     }
 
     @Bean
-    public ReservedInstanceSpecStore reservedInstanceSpecStore() {
-        return new ReservedInstanceSpecStore(databaseConfig.dsl(),
-                identityProviderConfig.identityProvider(), riBatchSize);
-    }
-
-    @Bean
     public EntityReservedInstanceMappingStore entityReservedInstanceMappingStore() {
         return new EntityReservedInstanceMappingStore(databaseConfig.dsl());
     }
@@ -132,7 +126,8 @@ public class ReservedInstanceConfig {
     @Bean
     public ReservedInstanceUtilizationStore reservedInstanceUtilizationStore() {
         return new ReservedInstanceUtilizationStore(databaseConfig.dsl(),
-                reservedInstanceBoughtStore(), reservedInstanceSpecStore(),
+                reservedInstanceBoughtStore(),
+                reservedInstanceSpecConfig.reservedInstanceSpecStore(),
                 entityReservedInstanceMappingStore());
     }
 
@@ -161,12 +156,8 @@ public class ReservedInstanceConfig {
         return new ReservedInstanceBoughtRpcService(reservedInstanceBoughtStore(),
                 entityReservedInstanceMappingStore(), repositoryClientConfig.repositoryClient(),
                 supplyChainRpcService(),
-                realtimeTopologyContextId);
-    }
-
-    @Bean
-    public ReservedInstanceSpecRpcService reservedInstanceSpecRpcService() {
-        return new ReservedInstanceSpecRpcService(reservedInstanceSpecStore(), databaseConfig.dsl());
+                realtimeTopologyContextId, pricingConfig.priceTableStore(),
+                reservedInstanceSpecConfig.reservedInstanceSpecStore());
     }
 
     @Bean
@@ -198,11 +189,6 @@ public class ReservedInstanceConfig {
     @Bean
     public ReservedInstanceBoughtServiceController reservedInstanceBoughtServiceController() {
         return new ReservedInstanceBoughtServiceController(reservedInstanceBoughtRpcService());
-    }
-
-    @Bean
-    public ReservedInstanceSpecServiceController reservedInstanceSpecServiceController() {
-        return new ReservedInstanceSpecServiceController(reservedInstanceSpecRpcService());
     }
 
     @Bean
@@ -268,7 +254,8 @@ public class ReservedInstanceConfig {
                                                    repositoryServiceClient(),
                                                    repositoryClientConfig.repositoryClient(),
                                                    reservedInstanceBoughtStore(),
-                                                   reservedInstanceSpecStore(),
+                                                   reservedInstanceSpecConfig
+                                                           .reservedInstanceSpecStore(),
                                                    supplyChainRpcService(),
                                                    persistEntityCostChunkSize,
                                                    realtimeTopologyContextId);
@@ -285,7 +272,7 @@ public class ReservedInstanceConfig {
     public ReservedInstanceCoverageValidatorFactory reservedInstanceCoverageValidatorFactory() {
         return new ReservedInstanceCoverageValidatorFactory(
                 reservedInstanceBoughtStore(),
-                reservedInstanceSpecStore());
+                reservedInstanceSpecConfig.reservedInstanceSpecStore());
     }
 
     @Bean
@@ -303,7 +290,7 @@ public class ReservedInstanceConfig {
         return new SupplementalRICoverageAnalysisFactory(
                 coverageTopologyFactory(),
                 reservedInstanceBoughtStore(),
-                reservedInstanceSpecStore(),
+                reservedInstanceSpecConfig.reservedInstanceSpecStore(),
                 supplementalRICoverageValidation,
                 concurrentSupplementalRICoverageAllocation);
     }
@@ -325,6 +312,7 @@ public class ReservedInstanceConfig {
      */
     @Bean
     public ReservedInstanceCostCalculator repositoryInstanceCostCalculator() {
-        return new ReservedInstanceCostCalculator(reservedInstanceSpecStore());
+        return new ReservedInstanceCostCalculator(reservedInstanceSpecConfig
+                .reservedInstanceSpecStore());
     }
 }

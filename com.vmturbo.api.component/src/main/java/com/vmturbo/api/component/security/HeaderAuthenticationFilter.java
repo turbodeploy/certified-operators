@@ -1,9 +1,9 @@
 package com.vmturbo.api.component.security;
 
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.X_TURBO_ROLE;
-import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.X_TURBO_TOKEN;
 
 import java.io.IOException;
+import java.security.PublicKey;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -38,31 +38,40 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String UNKNOWN = "unknown";
     private final HeaderMapper headerMapper;
+    private final Optional<PublicKey> jwtTokenPublicKey;
 
     /**
      * Constructor for Spring filter.
      *
      * @param headerMapper Vendor specific header mapper.
+     * @param jwtTokenPublicKey public key for JWT token.
      */
-    public HeaderAuthenticationFilter(@Nonnull HeaderMapper headerMapper) {
+    public HeaderAuthenticationFilter(@Nonnull final HeaderMapper headerMapper,
+            @Nonnull final Optional<String> jwtTokenPublicKey) {
         this.headerMapper = Objects.requireNonNull(headerMapper);
+        this.jwtTokenPublicKey = headerMapper.buildPublicKey(jwtTokenPublicKey);
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
 
-        final Optional<String> userName = Optional.ofNullable(
-                request.getHeader(headerMapper.getUserName()));
-        final Optional<String> group = Optional.ofNullable(headerMapper.getAuthRole(
-                request.getHeader(headerMapper.getRole())));
+        final Optional<String> userName =
+                Optional.ofNullable(request.getHeader(headerMapper.getUserName()));
+        final Optional<String> group = Optional.ofNullable(
+                headerMapper.getAuthGroup(request.getHeader(headerMapper.getRole())));
         final String remoteIpAddress = ApiUtils.getClientIp(request).orElse(UNKNOWN);
 
         final Optional<String> role = Optional.ofNullable(request.getHeader(X_TURBO_ROLE));
-        final Optional<String> jwtToken = Optional.ofNullable(request.getHeader(X_TURBO_TOKEN));
+        final Optional<String> jwtToken =
+                Optional.ofNullable(request.getHeader(headerMapper.getJwtTokenTag()));
+        final Optional<PublicKey> jwtTokenPassedInPublicKey = headerMapper.buildPublicKey(
+                Optional.ofNullable(request.getHeader(headerMapper.getJwtTokenPublicKeyTag())));
 
-        jwtToken.map(jwt -> Optional.of(
-                HeaderAuthenticationToken.newBuilder(jwt, remoteIpAddress).build()))
+        (jwtTokenPublicKey.isPresent() ? jwtTokenPublicKey : jwtTokenPassedInPublicKey).map(
+                key -> jwtToken.map(
+                        jwt -> HeaderAuthenticationToken.newBuilder(key, jwt, remoteIpAddress,
+                                headerMapper).build()))
                 .orElseGet(() -> userName.flatMap(u -> group.flatMap(g -> Optional.of(
                         HeaderAuthenticationToken.newBuilder(u, g, remoteIpAddress)
                                 .setRole(role)

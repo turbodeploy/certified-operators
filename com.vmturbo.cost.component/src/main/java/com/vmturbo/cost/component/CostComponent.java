@@ -29,6 +29,7 @@ import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
 import com.vmturbo.cost.component.rpc.CostDebugConfig;
 import com.vmturbo.cost.component.topology.TopologyListenerConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
@@ -50,7 +51,8 @@ import com.vmturbo.trax.TraxThrottlingLimit;
     SQLDatabaseConfig.class,
     SpringSecurityConfig.class,
     TopologyListenerConfig.class,
-    CostDebugConfig.class})
+    CostDebugConfig.class,
+    ReservedInstanceSpecConfig.class})
 public class CostComponent extends BaseVmtComponent {
     /**
      * The logger.
@@ -90,6 +92,9 @@ public class CostComponent extends BaseVmtComponent {
     @Autowired
     private CostDebugConfig costDebugConfig;
 
+    @Autowired
+    private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
+
     /**
      * Starts the component.
      *
@@ -124,7 +129,7 @@ public class CostComponent extends BaseVmtComponent {
         return Arrays.asList(pricingConfig.pricingRpcService(),
             buyRIAnalysisConfig.buyReservedInstanceScheduleRpcService(),
             reservedInstanceConfig.reservedInstanceBoughtRpcService(),
-            reservedInstanceConfig.reservedInstanceSpecRpcService(),
+            reservedInstanceSpecConfig.reservedInstanceSpecRpcService(),
             costConfig.costRpcService(),
             reservedInstanceConfig.reservedInstanceUtilizationCoverageRpcService(),
             costServiceConfig.riAndExpenseUploadRpcService(),

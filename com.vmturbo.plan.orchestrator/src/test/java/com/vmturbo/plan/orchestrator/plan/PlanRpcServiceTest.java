@@ -19,6 +19,8 @@ import org.junit.Test;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostMoles.BuyRIAnalysisServiceMole;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
@@ -26,6 +28,8 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.RISetting;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
+import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.AnalysisDTOMoles.AnalysisServiceMole;
@@ -38,13 +42,15 @@ public class PlanRpcServiceTest {
 
     private final AnalysisServiceMole testAnalysisRpcService = spy(new AnalysisServiceMole());
     private final BuyRIAnalysisServiceMole testBuyRiRpcService = spy(new BuyRIAnalysisServiceMole());
+    private final GroupServiceMole testGroupRpcService = spy(new GroupServiceMole());
+    private final RepositoryServiceMole testRepositoryRpcService = spy(new RepositoryServiceMole());
 
     //Runs tasks on same thread that's invoking execute/submit
     private ExecutorService sameThreadExecutor = MoreExecutors.newDirectExecutorService();
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(testAnalysisRpcService,
-                     testBuyRiRpcService);
+                     testBuyRiRpcService, testGroupRpcService, testRepositoryRpcService);
 
     private PlanRpcService planService;
     @SuppressWarnings("unchecked")
@@ -57,7 +63,9 @@ public class PlanRpcServiceTest {
                                          mock(PlanNotificationSender.class),
                                          sameThreadExecutor,
                                          mock(UserSessionContext.class),
-                                         BuyRIAnalysisServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+                                         BuyRIAnalysisServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                                         GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                                         RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()));
     }
 
     /**

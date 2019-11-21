@@ -179,8 +179,9 @@ public class DiscoveredGroupUploader {
             DiscoveredSettingPolicyInfo.Builder policy = DiscoveredSettingPolicyInfo.newBuilder();
             policy.setEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
             policy.addDiscoveredGroupNames(GroupProtoUtil.createIdentifyingKey(group));
-            policy.setDisplayName("Template Exclusion Policy for " + group.getDisplayName());
-            policy.setName(group.getDisplayName());
+            String name = "Template Exclusion Policy for " + group.getDisplayName();
+            policy.setDisplayName(name);
+            policy.setName(name + ", target: " + targetId);
             policy.addSettings(setting);
 
             result.add(policy.build());

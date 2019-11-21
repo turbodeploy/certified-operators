@@ -17,11 +17,11 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
@@ -30,6 +30,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Archite
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo.DriverInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualizationType;
+import com.vmturbo.mediation.hybrid.cloud.common.OsDetailParser;
+import com.vmturbo.mediation.hybrid.cloud.common.OsDetailParser.OsDetails;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -142,11 +144,13 @@ public class VirtualMachineInfoMapper extends TypeSpecificInfoMapper {
     }
 
     @Nonnull
-    private static OS.Builder parseGuestName(@Nonnull final String guestName) {
+    protected static OS.Builder parseGuestName(@Nonnull final String guestName) {
+        final OsDetails osDetails = OsDetailParser.parseOsDetails(guestName);
+        final String osType = osDetails.getOsType().toString();
+        final String osName = osDetails.getOsName();
         final OS.Builder os = OS.newBuilder();
-        final String upperCaseOsName = guestName.toUpperCase();
         try {
-            return os.setGuestOsType(OSType.valueOf(upperCaseOsName)).setGuestOsName(guestName);
+            return os.setGuestOsType(OSType.valueOf(osType)).setGuestOsName(osName);
         } catch (IllegalArgumentException e) {
             // for On-prem OS type, we pass the OS name with UNKNOWN Cloud type
             return os.setGuestOsType(OSType.UNKNOWN_OS).setGuestOsName(guestName);

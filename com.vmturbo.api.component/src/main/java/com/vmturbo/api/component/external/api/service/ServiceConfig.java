@@ -43,6 +43,8 @@ import com.vmturbo.api.component.external.api.util.stats.query.impl.ScopedUserCo
 import com.vmturbo.api.component.external.api.util.stats.query.impl.StorageStatsSubQuery;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.api.component.security.HeaderAuthenticationCondition;
+import com.vmturbo.api.component.security.IntersightIdTokenVerifier;
+import com.vmturbo.api.enums.ConfigurationMode;
 import com.vmturbo.api.serviceinterfaces.ISAMLService;
 import com.vmturbo.api.serviceinterfaces.IWorkflowsService;
 import com.vmturbo.auth.api.SpringSecurityConfig;
@@ -124,6 +126,16 @@ public class ServiceConfig {
     @Value("${identityGeneratorPrefix}")
     private long identityGeneratorPrefix;
 
+    // 10 minutes default skew period.
+    @Value("${clockSkewSecond:600}")
+    private String clockSkewSecond;
+
+    /**
+     * Configuration used to expose areas of the application front or backend.
+     */
+    @Value("${configurationMode:SERVER}")
+    private ConfigurationMode configurationMode;
+
     /**
      * We allow autowiring between different configuration objects, but not for a bean.
      */
@@ -183,7 +195,7 @@ public class ServiceConfig {
     public AdminService adminService() {
         return new AdminService(clusterService(), keyValueStoreConfig.keyValueStore(),
             communicationConfig.clusterMgr(), communicationConfig.serviceRestTemplate(),
-            websocketConfig.websocketHandler(), BuildProperties.get());
+            websocketConfig.websocketHandler(), BuildProperties.get(), this.configurationMode);
     }
 
     @Bean
@@ -207,7 +219,7 @@ public class ServiceConfig {
     public HeaderAuthenticationProvider headerAuthorizationProvider() {
         return new HeaderAuthenticationProvider(authConfig.getAuthHost(), authConfig.getAuthPort(),
                 authConfig.getAuthRoute(), communicationConfig.serviceRestTemplate(),
-                securityConfig.verifier(), targetStore());
+                securityConfig.verifier(), targetStore(), new IntersightIdTokenVerifier(), Integer.parseInt(clockSkewSecond));
     }
 
     /**
@@ -652,7 +664,8 @@ public class ServiceConfig {
         final RIStatsSubQuery riStatsQuery =
                 new RIStatsSubQuery(
                         communicationConfig.reservedInstanceUtilizationCoverageServiceBlockingStub(),
-                        communicationConfig.reservedInstanceBoughtServiceBlockingStub());
+                        communicationConfig.reservedInstanceBoughtServiceBlockingStub(),
+                        communicationConfig.repositoryApi());
         statsQueryExecutor().addSubquery(riStatsQuery);
         return riStatsQuery;
     }

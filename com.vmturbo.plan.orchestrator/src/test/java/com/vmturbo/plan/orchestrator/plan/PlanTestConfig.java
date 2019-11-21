@@ -28,6 +28,9 @@ import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc.BuyRIAnalysisServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
@@ -103,6 +106,18 @@ public class PlanTestConfig {
     }
 
     @Bean
+    public GroupServiceBlockingStub groupServiceBlockingStub() throws IOException {
+        return GroupServiceGrpc.newBlockingStub(groupGrpcServer().getChannel());
+    }
+
+    @Bean
+    protected GrpcTestServer groupGrpcServer() throws IOException {
+        final GrpcTestServer server = GrpcTestServer.newServer( Mockito.spy(new GroupServiceMole()));
+        server.start();
+        return server;
+    }
+
+    @Bean
     protected GrpcTestServer planGrpcServer() throws IOException {
         final GrpcTestServer server = GrpcTestServer.newServer(planServer());
         server.start();
@@ -129,7 +144,7 @@ public class PlanTestConfig {
     public PlanRpcService planServer() throws IOException {
         return new PlanRpcService(planDao(),
                 analysisClient(), planNotificationSender(), startAnalysisThreadPool(),
-                userSessionContext(), buyRIService());
+                userSessionContext(), buyRIService(), groupServiceBlockingStub(), repositoryServiceBlockingStub());
     }
 
     @Bean

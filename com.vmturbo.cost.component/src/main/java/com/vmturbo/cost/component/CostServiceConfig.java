@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
 import com.vmturbo.cost.component.rpc.RIAndExpenseUploadRpcService;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
@@ -14,6 +15,7 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
 @Import({CostConfig.class,
     ReservedInstanceConfig.class,
     SQLDatabaseConfig.class,
+    ReservedInstanceSpecConfig.class
 })
 public class CostServiceConfig {
     @Autowired
@@ -25,11 +27,14 @@ public class CostServiceConfig {
     @Autowired
     private CostConfig costConfig;
 
+    @Autowired
+    private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
+
     @Bean
     public RIAndExpenseUploadRpcService riAndExpenseUploadRpcService() {
         return new RIAndExpenseUploadRpcService(databaseConfig.dsl(),
                 costConfig.accountExpensesStore(),
-                reservedInstanceConfig.reservedInstanceSpecStore(),
+                reservedInstanceSpecConfig.reservedInstanceSpecStore(),
                 reservedInstanceConfig.reservedInstanceBoughtStore(),
                 reservedInstanceConfig.reservedInstanceCoverageUpload());
     }

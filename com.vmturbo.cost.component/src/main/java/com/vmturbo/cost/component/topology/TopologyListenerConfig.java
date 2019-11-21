@@ -31,6 +31,7 @@ import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
@@ -48,7 +49,8 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
         ReservedInstanceConfig.class,
         CostConfig.class,
         RepositoryClientConfig.class,
-        BuyRIAnalysisConfig.class})
+        BuyRIAnalysisConfig.class,
+        ReservedInstanceSpecConfig.class})
 public class TopologyListenerConfig {
     private static final Logger logger = LogManager.getLogger();
 
@@ -84,6 +86,9 @@ public class TopologyListenerConfig {
 
     @Autowired
     private BuyRIAnalysisConfig buyRIAnalysisConfig;
+
+    @Autowired
+    private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -176,7 +181,8 @@ public class TopologyListenerConfig {
         return new LocalCostDataProvider(pricingConfig.priceTableStore(),
                 discountConfig.discountStore(),
                 reservedInstanceConfig.reservedInstanceBoughtStore(),
-                businessAccountPriceTableKeyStore(), reservedInstanceConfig.reservedInstanceSpecStore(),
+                businessAccountPriceTableKeyStore(),
+                reservedInstanceSpecConfig.reservedInstanceSpecStore(),
                 reservedInstanceConfig.entityReservedInstanceMappingStore(),
                 repositoryClientConfig.repositoryClient(),
                 reservedInstanceConfig.supplyChainRpcService(),

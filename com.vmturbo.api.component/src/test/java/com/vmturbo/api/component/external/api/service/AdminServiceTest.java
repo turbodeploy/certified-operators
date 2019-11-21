@@ -48,9 +48,11 @@ import com.vmturbo.api.component.external.api.mapper.LoggingMapper;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.dto.admin.HttpProxyDTO;
 import com.vmturbo.api.dto.admin.LoggingApiDTO;
+import com.vmturbo.api.dto.admin.ProductCapabilityDTO;
 import com.vmturbo.api.dto.admin.ProductVersionDTO;
 import com.vmturbo.api.dto.cluster.ClusterConfigurationDTO;
 import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
+import com.vmturbo.api.enums.ConfigurationMode;
 import com.vmturbo.api.enums.LoggingLevel;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
@@ -145,6 +147,45 @@ public class AdminServiceTest {
         assertThat(answer.getCommit(), is(GIT_SHORT_COMMIT_ID));
         assertThat(answer.hasCodeChanges(), is(GIT_DIRTY));
         assertThat(answer.getGitDescription(), is(GIT_COMMIT_ID + " dirty"));
+    }
+
+    /**
+     * Test {@link AdminService#getVersionInfo(boolean)} with default {@link ConfigurationMode}.
+     *
+     * <p>Server congfiguration sets reporting to true</p>
+     * @throws Exception if an error occurs
+     */
+    @Test
+    public void testGetProductCapabilities() throws Exception {
+        //WHEN
+        ProductCapabilityDTO dto = serviceUnderTest.getProductCapabilities();
+
+        //THEN
+        assertEquals(ConfigurationMode.SERVER, dto.getConfigurationMode());
+        assertFalse(dto.isReportingEnabled());
+    }
+
+    /**
+     * Test {@link AdminService#getVersionInfo(boolean)} with default {@link ConfigurationMode}.
+     *
+     * @throws Exception if an error occurs
+     */
+    @Test
+    public void testGetProductCapabilitiesWithSaasSetProductType() throws Exception {
+        //GIVEN
+        AdminService adminService = new AdminService(Mockito.mock(ClusterService.class),
+                Mockito.mock(KeyValueStore.class),
+                Mockito.mock(ClusterMgrRestClient.class),
+                Mockito.mock(RestTemplate.class),
+                Mockito.mock(ApiWebsocketHandler.class),
+                Mockito.mock(BuildProperties.class),
+                ConfigurationMode.SAAS);
+        //WHEN
+        ProductCapabilityDTO dto = adminService.getProductCapabilities();
+
+        //THEN
+        assertEquals(ConfigurationMode.SAAS, dto.getConfigurationMode());
+        assertFalse(dto.isReportingEnabled());
     }
 
     /**
@@ -416,7 +457,7 @@ public class AdminServiceTest {
         @Bean
         public AdminService adminService() {
             return new AdminService(clusterService, keyValueStore(),
-                clusterMgrClient(), restTemplate, apiWebsocketHandler(), buildProperties());
+                clusterMgrClient(), restTemplate, apiWebsocketHandler(), buildProperties(), ConfigurationMode.SERVER);
         }
 
         /**

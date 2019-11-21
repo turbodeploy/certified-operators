@@ -22,6 +22,8 @@ import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc.BuyRIAnalysisServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTOREST.PlanServiceController;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
@@ -115,7 +117,9 @@ public class PlanConfig {
                 planNotificationSender(),
                 startAnalysisThreadPool(),
                 userSessionConfig.userSessionContext(),
-                buyRIService());
+                buyRIService(),
+                groupServiceBlockingStub(),
+                repositoryServiceBlockingStub());
     }
 
     @Bean
@@ -147,6 +151,16 @@ public class PlanConfig {
     @Bean
     public RepositoryServiceBlockingStub repositoryServiceBlockingStub() {
         return RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel());
+    }
+
+    /**
+     * Blocking Group Service client creator.
+     *
+     * @return Blocking Group Service client.
+     */
+    @Bean
+    public GroupServiceBlockingStub groupServiceBlockingStub() {
+        return GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
     }
 
     @Bean

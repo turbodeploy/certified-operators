@@ -101,6 +101,9 @@ public class PlanTopologyScopeEditorTest {
     private static final TopologyEntity.Builder VIRTUAL_VOLUME_IN_CANADA = createCloud2ConnectedTopologyEntity(6005L, "Virtual Volume in Canada", EntityType.VIRTUAL_VOLUME, REGION_CANADA.getOid(), STORAGE_TIER_2.getOid());
     private static final TopologyEntity.Builder VM_IN_CANADA = createCloud2ConnectedTopologyEntity(4006L, "VM in Canada", EntityType.VIRTUAL_MACHINE, REGION_CANADA.getOid(), VIRTUAL_VOLUME_IN_CANADA.getOid());
     private static final TopologyEntity.Builder BUSINESS_ACC4 = createCloud2ConnectedTopologyEntity(5004L, "Business account 4", EntityType.BUSINESS_ACCOUNT, VM_IN_CANADA.getOid());
+    private static final TopologyEntity.Builder CLOUD_SERVICE =
+            createCloud2ConnectedTopologyEntity(10000L, "Cloud service 1",
+                    EntityType.CLOUD_SERVICE, COMPUTE_TIER_2.getOid());
 
     /* Creating an on prem topology.
 
@@ -132,7 +135,7 @@ public class PlanTopologyScopeEditorTest {
             VIRTUAL_VOLUME_IN_OHIO, VIRTUAL_VOLUME_IN_LONDON, VIRTUAL_VOLUME_IN_HONG_KONG,
             STORAGE_TIER, REGION_CENTRAL_US, REGION_CANADA, DB_CENTRAL_US, DBS_CENTRAL_US,
             COMPUTE_TIER_2, STORAGE_TIER_2, VIRTUAL_VOLUME_IN_CENTRAL_US,
-            VM_IN_CENTRAL_US, VIRTUAL_VOLUME_IN_CANADA, VM_IN_CANADA, BUSINESS_ACC4);
+            VM_IN_CENTRAL_US, VIRTUAL_VOLUME_IN_CANADA, VM_IN_CANADA, BUSINESS_ACC4, CLOUD_SERVICE);
 
     private static final Set<TopologyEntity.Builder> EXPECTED_ENTITIES_FOR_AWS_REGION = Stream
         .of(AZ1_LONDON, AZ2_LONDON, REGION_LONDON, COMPUTE_TIER,
@@ -143,7 +146,7 @@ public class PlanTopologyScopeEditorTest {
 
     private static final Set<TopologyEntity.Builder> EXPECTED_ENTITIES_FOR_AZURE_REGION = Stream
                     .of(REGION_CENTRAL_US, DB_CENTRAL_US, DBS_CENTRAL_US, COMPUTE_TIER_2,
-                        STORAGE_TIER_2, VIRTUAL_VOLUME_IN_CENTRAL_US, VM_IN_CENTRAL_US)
+                        STORAGE_TIER_2, VIRTUAL_VOLUME_IN_CENTRAL_US, VM_IN_CENTRAL_US, CLOUD_SERVICE)
                     .collect(Collectors.collectingAndThen(Collectors.toSet(),
                         Collections::unmodifiableSet));
 
@@ -182,13 +185,20 @@ public class PlanTopologyScopeEditorTest {
                                                           Collections::unmodifiableSet));
 
     private static final Set<TopologyEntity.Builder> EXPECTED_ENTITIES_FOR_AZURE_DB = Stream
-                    .of(DB_CENTRAL_US, REGION_CENTRAL_US, COMPUTE_TIER_2, STORAGE_TIER_2)
+                    .of(DB_CENTRAL_US, REGION_CENTRAL_US, COMPUTE_TIER_2, STORAGE_TIER_2, CLOUD_SERVICE)
                     .collect(Collectors.collectingAndThen(Collectors.toSet(),
                                                           Collections::unmodifiableSet));
 
     private static final Set<TopologyEntity.Builder> EXPECTED_ENTITIES_FOR_AWS_DBS_GROUP = Stream
                     .of(AZ1_LONDON, REGION_LONDON, DBS_LONDON, COMPUTE_TIER, STORAGE_TIER,
                         DBS_HONG_KONG, AZ2_HONG_KONG, REGION_HONG_KONG)
+                    .collect(Collectors.collectingAndThen(Collectors.toSet(),
+                                                          Collections::unmodifiableSet));
+
+    private static final Set<TopologyEntity.Builder> EXPECTED_ENTITIES_FOR_RESOURCE_GROUP = Stream
+                    .of(DB_CENTRAL_US, REGION_CENTRAL_US, COMPUTE_TIER_2, STORAGE_TIER_2,
+                        VIRTUAL_VOLUME_IN_CANADA, REGION_CANADA, VM_IN_CANADA, BUSINESS_ACC4,
+                        CLOUD_SERVICE)
                     .collect(Collectors.collectingAndThen(Collectors.toSet(),
                                                           Collections::unmodifiableSet));
 
@@ -313,6 +323,18 @@ public class PlanTopologyScopeEditorTest {
         // DBS in London and DBS in Hong Kong
         final List<Long> oidsList = Arrays.asList(9001L, 9002L);
         testScopeCloudTopology(oidsList, EXPECTED_ENTITIES_FOR_AWS_DBS_GROUP);
+    }
+
+    /**
+     * Tests scope cloud topology for the plan scope with resource group of DB and virtual volume.
+     * Topology graph contains entities for 3 targets: hypervisor and 2 clouds.
+     * EXPECTED_ENTITIES_FOR_RESOURCE_GROUP - set of cloud entities expected as result of applying plan scope to the topology.
+     */
+    @Test
+    public void testScopeCloudTopologyForResourceGroup() {
+        // DB in Central US and Virtual Volume in Canada
+        final List<Long> oidsList = Arrays.asList(8002L, 6005L);
+        testScopeCloudTopology(oidsList, EXPECTED_ENTITIES_FOR_RESOURCE_GROUP);
     }
 
     private void testScopeCloudTopology(List<Long> oidsList, Set<TopologyEntity.Builder> expectedEntities) {

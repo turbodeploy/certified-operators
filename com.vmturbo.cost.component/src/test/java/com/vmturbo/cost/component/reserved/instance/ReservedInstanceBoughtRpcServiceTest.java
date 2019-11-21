@@ -1,24 +1,24 @@
 package com.vmturbo.cost.component.reserved.instance;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-
-import io.grpc.Channel;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -26,6 +26,16 @@ import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageResponse;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterResponse;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountByTemplateResponse;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountRequest;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
+import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
@@ -33,12 +43,16 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRes
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
-import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
+import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTierConfigPrice;
+import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.repository.api.RepositoryClient;
 
 public class ReservedInstanceBoughtRpcServiceTest {
@@ -55,10 +69,15 @@ public class ReservedInstanceBoughtRpcServiceTest {
 
     private final Long realtimeTopologyContextId = 777777L;
 
+    private ReservedInstanceSpecStore reservedInstanceSpecStore =
+            mock(ReservedInstanceSpecStore.class);
+
+    private PriceTableStore priceTableStore = mock(PriceTableStore.class);
+
     private ReservedInstanceBoughtRpcService service = new ReservedInstanceBoughtRpcService(
                 reservedInstanceBoughtStore,
                reservedInstanceMappingStore, repositoryClient, supplyChainService,
-               realtimeTopologyContextId);
+               realtimeTopologyContextId, priceTableStore, reservedInstanceSpecStore);
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(service);
@@ -83,12 +102,59 @@ public class ReservedInstanceBoughtRpcServiceTest {
     private static final Long BA1_OID = 7L;
     private static final Long BA2_OID = 77L;
     private static final Long BAMASTER_OID = 777L;
+    private static final long RI_SPEC_ID = 2222L;
+    private static final long TIER_ID = 3333L;
+    private static final long RI_BOUGHT_COUNT = 4L;
+    private static final double TIER_PRICE = 0.41;
+    private static final double delta = 0.01;
 
     @Before
     public void setup() {
         client = ReservedInstanceBoughtServiceGrpc.newBlockingStub(grpcServer.getChannel());
         supplyChainService = SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel());
         repositoryClient = new RepositoryClient(grpcServer.getChannel());
+        when(reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(any()))
+                .thenReturn(Collections.singletonList(createRiBought()));
+        when(reservedInstanceSpecStore.getReservedInstanceSpecByIds(any()))
+                .thenReturn(Collections.singletonList(createRiSpec()));
+        when(reservedInstanceBoughtStore.getReservedInstanceCountByRISpecIdMap())
+                .thenReturn(Collections.singletonMap(RI_SPEC_ID, RI_BOUGHT_COUNT));
+        mockPricedTableStore(priceTableStore);
+    }
+
+    private void mockPricedTableStore(final PriceTableStore priceTableStore) {
+        final PriceTable priceTable = PriceTable.newBuilder()
+                .putOnDemandPriceByRegionId(REGION1_OID,
+                        OnDemandPriceTable.newBuilder().putComputePricesByTierId(TIER_ID,
+                                ComputeTierPriceList.newBuilder()
+                                        .setBasePrice(ComputeTierConfigPrice.newBuilder()
+                                                .addPrices(Price.newBuilder()
+                                                        .setPriceAmount(CurrencyAmount.newBuilder()
+                                                                .setAmount(TIER_PRICE)
+                                                                .build()))
+                                                .build())
+                                        .build())
+                                .build())
+                .build();
+        when(priceTableStore.getMergedPriceTable()).thenReturn(priceTable);
+    }
+
+    private ReservedInstanceSpec createRiSpec() {
+        return ReservedInstanceSpec.newBuilder()
+                .setId(RI_SPEC_ID)
+                .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder()
+                        .setRegionId(REGION1_OID)
+                        .setTierId(TIER_ID)
+                        .build())
+                .build();
+    }
+
+    private ReservedInstanceBought createRiBought() {
+        return ReservedInstanceBought.newBuilder()
+                .setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
+                        .setReservedInstanceSpec(RI_SPEC_ID)
+                        .build())
+                .build();
     }
 
     @Test
@@ -220,5 +286,44 @@ public class ReservedInstanceBoughtRpcServiceTest {
         assertEquals(2, topologyMap.get(EntityType.AVAILABILITY_ZONE).size());
         assertEquals(3, topologyMap.get(EntityType.BUSINESS_ACCOUNT).size());
 
+    }
+
+    /**
+     * Test that ReservedInstanceBought instance has onDemandCost set.
+     */
+    @Test
+    public void testOnDemandCostSetRIBought() {
+        final GetReservedInstanceBoughtByFilterRequest request =
+                GetReservedInstanceBoughtByFilterRequest.newBuilder().build();
+        final GetReservedInstanceBoughtByFilterResponse response =
+                client.getReservedInstanceBoughtByFilter(request);
+        Assert.assertNotNull(response);
+        final List<ReservedInstanceBought> reservedInstancesBought =
+                response.getReservedInstanceBoughtsList();
+        Assert.assertFalse(reservedInstancesBought.isEmpty());
+        final ReservedInstanceBought riBought = reservedInstancesBought.iterator().next();
+        Assert.assertTrue(riBought.getReservedInstanceBoughtInfo().getReservedInstanceBoughtCost()
+        .hasOndemandCostPerHour());
+        final double onDemandCost = riBought.getReservedInstanceBoughtInfo()
+                .getReservedInstanceBoughtCost().getOndemandCostPerHour()
+                .getAmount();
+        Assert.assertEquals(TIER_PRICE, onDemandCost, delta);
+    }
+
+    /**
+     * Test that GetReservedInstanceBoughtCountByTemplate request returns correct bought count by
+     * tier id.
+     */
+    @Test
+    public void testGetReservedInstanceBoughtCountByTemplateType() {
+        final GetReservedInstanceBoughtCountRequest request =
+                GetReservedInstanceBoughtCountRequest.newBuilder().build();
+        final GetReservedInstanceBoughtCountByTemplateResponse response = client
+                .getReservedInstanceBoughtCountByTemplateType(request);
+        Assert.assertNotNull(response);
+        final Map<Long, Long> riBoughtCountByTierId = response.getReservedInstanceCountMapMap();
+        Assert.assertFalse(riBoughtCountByTierId.isEmpty());
+        Assert.assertEquals(TIER_ID, riBoughtCountByTierId.keySet().iterator().next(), delta);
+        Assert.assertEquals(RI_BOUGHT_COUNT, riBoughtCountByTierId.get(TIER_ID), delta);
     }
 }

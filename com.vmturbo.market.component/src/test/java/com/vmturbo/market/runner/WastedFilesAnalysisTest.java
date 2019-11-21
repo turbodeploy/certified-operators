@@ -168,13 +168,13 @@ public class WastedFilesAnalysisTest {
         final long storageTierOid = 6L;
         final TopologyEntityDTO.Builder vm = createCloudEntity(vmOid, EntityType.VIRTUAL_MACHINE, null);
         final TopologyEntityDTO.Builder wastedFileVolume1 = createCloudEntity(wastedFileVolume1Oid,
-            EntityType.VIRTUAL_VOLUME, AttachmentState.AVAILABLE);
+            EntityType.VIRTUAL_VOLUME, AttachmentState.UNATTACHED);
         final TopologyEntityDTO.Builder wastedFileVolume2 = createCloudEntity(wastedFileVolume2Oid,
-            EntityType.VIRTUAL_VOLUME, AttachmentState.AVAILABLE);
+            EntityType.VIRTUAL_VOLUME, AttachmentState.UNATTACHED);
         final TopologyEntityDTO.Builder connectedVolume = createCloudEntity(connectedVolumeOid,
-            EntityType.VIRTUAL_VOLUME, AttachmentState.IN_USE);
+            EntityType.VIRTUAL_VOLUME, AttachmentState.ATTACHED);
         final TopologyEntityDTO.Builder unConnectedVolumeInUse = createCloudEntity(unConnectedVolumeInUseOid,
-                EntityType.VIRTUAL_VOLUME, AttachmentState.IN_USE);
+                EntityType.VIRTUAL_VOLUME, AttachmentState.ATTACHED);
         final TopologyEntityDTO.Builder storageTier = createCloudEntity(storageTierOid,
                 EntityType.STORAGE_TIER, null);
 

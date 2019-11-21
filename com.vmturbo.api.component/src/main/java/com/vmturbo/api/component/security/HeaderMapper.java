@@ -1,5 +1,8 @@
 package com.vmturbo.api.component.security;
 
+import java.security.PublicKey;
+import java.util.Optional;
+
 import javax.annotation.Nullable;
 
 /**
@@ -7,10 +10,17 @@ import javax.annotation.Nullable;
  * <ul>
  * <li> barracuda_account -> user name
  * <li> barracuda_roles -> user role -> external user group
- * e.g. Service Administrator -> Administrator -> CWOM_Administrator (group)
+ * e.g. Service Administrator -> Administrator -> administrator (group)
  * </ul>
  */
 public interface HeaderMapper {
+    /**
+     * Retrieve the property name that will have JWT token public key as value.
+     *
+     * @return the vender's JWT token public key property name.
+     */
+    String getJwtTokenPublicKeyTag();
+
     /**
      * Get external vendor username.
      *
@@ -31,5 +41,20 @@ public interface HeaderMapper {
      * @param externalRole external vendor role
      * @return get xl role.
      */
-    String getAuthRole(@Nullable String externalRole);
+    String getAuthGroup(@Nullable String externalRole);
+
+    /**
+     * Vender dependent implementation to build {@link PublicKey} to verify vendor's JWT token.
+     *
+     * @param jwtTokenPublicKey the vendor's public key in text format.
+     * @return the public key in {@link PublicKey} format.
+     */
+    Optional<PublicKey> buildPublicKey(Optional<String> jwtTokenPublicKey);
+
+    /**
+     * Retrieve the property name that will have JWT token as value.
+     *
+     * @return the vender's JWT token property name.
+     */
+    String getJwtTokenTag();
 }

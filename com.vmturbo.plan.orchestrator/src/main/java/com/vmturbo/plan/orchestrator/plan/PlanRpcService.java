@@ -24,6 +24,7 @@ import com.vmturbo.auth.api.authorization.UserContextUtils;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc.BuyRIAnalysisServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.GetPlansOptions;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
@@ -35,6 +36,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceImplBase;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisRequest;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisResponse;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceBlockingStub;
@@ -52,6 +54,10 @@ public class PlanRpcService extends PlanServiceImplBase {
 
     private final BuyRIAnalysisServiceBlockingStub buyRIService;
 
+    private final RepositoryServiceBlockingStub repositoryServiceClient;
+
+    private final GroupServiceBlockingStub groupServiceClient;
+
     private final Logger logger = LogManager.getLogger();
 
     private final PlanNotificationSender planNotificationSender;
@@ -65,13 +71,17 @@ public class PlanRpcService extends PlanServiceImplBase {
                           @Nonnull final PlanNotificationSender planNotificationSender,
                           @Nonnull final ExecutorService analysisExecutor,
                           @Nonnull final UserSessionContext userSessionContext,
-                          @Nonnull final BuyRIAnalysisServiceBlockingStub buyRIService) {
+                          @Nonnull final BuyRIAnalysisServiceBlockingStub buyRIService,
+                          @Nonnull final GroupServiceBlockingStub groupServiceClient,
+                          @Nonnull final RepositoryServiceBlockingStub repositoryServiceClient) {
         this.planDao = Objects.requireNonNull(planDao);
         this.analysisService = Objects.requireNonNull(analysisService);
         this.planNotificationSender = Objects.requireNonNull(planNotificationSender);
         this.analysisExecutor = analysisExecutor;
         this.userSessionContext = userSessionContext;
         this.buyRIService = buyRIService;
+        this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
+        this.repositoryServiceClient = Objects.requireNonNull(repositoryServiceClient);
     }
 
     @Override
@@ -244,7 +254,7 @@ public class PlanRpcService extends PlanServiceImplBase {
         analysisExecutor.submit(() -> {
             try {
                 StartBuyRIAnalysisRequest request = PlanRpcServiceUtil.createBuyRIRequest(scenarioInfo,
-                        riScenario, planId);
+                        riScenario, planId, groupServiceClient, repositoryServiceClient);
                 buyRIService.startBuyRIAnalysis(request);
                 planDao.updatePlanInstance(planId, oldInstance ->
                         oldInstance.setStatus(PlanStatus.STARTING_BUY_RI));

@@ -33,7 +33,7 @@ public class ScenarioScopeAccessChecker {
     // the set of group class types that may appear in a scenario scope.
     static private final Set<String> GROUP_SCOPE_ENTRY_TYPES = ImmutableSet.of(StringConstants.GROUP,
             StringConstants.CLUSTER, StringConstants.STORAGE_CLUSTER,
-            StringConstants.VIRTUAL_MACHINE_CLUSTER);
+            StringConstants.VIRTUAL_MACHINE_CLUSTER, StringConstants.RESOURCE_GROUP);
 
     private final UserSessionContext userSessionContext;
     private final GroupServiceBlockingStub groupServiceClient;

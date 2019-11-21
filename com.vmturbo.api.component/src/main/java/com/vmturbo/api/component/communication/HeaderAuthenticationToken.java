@@ -1,11 +1,14 @@
 package com.vmturbo.api.component.communication;
 
+import java.security.PublicKey;
 import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
 import org.springframework.security.authentication.AbstractAuthenticationToken;
+
+import com.vmturbo.api.component.security.HeaderMapper;
 
 /**
  * Custom Spring authentication/authorization token to carry request headers.
@@ -14,10 +17,12 @@ public class HeaderAuthenticationToken extends AbstractAuthenticationToken {
 
     private static final long serialVersionUID = -1949976839306453198L;
     private final String remoteIpAddress;
-    private String userName;
-    private String group;
-    private Optional<String> role;
-    private String jwtToken;
+    private final HeaderMapper headerMapper;
+    private final String userName;
+    private final String group;
+    private final Optional<String> role;
+    private final String jwtToken;
+    private final Optional<PublicKey> publicKey;
 
     private HeaderAuthenticationToken(Builder builder) {
         // not passing in any permission
@@ -27,6 +32,8 @@ public class HeaderAuthenticationToken extends AbstractAuthenticationToken {
         this.remoteIpAddress = builder.remoteIpAddress;
         this.role = builder.role;
         this.jwtToken = builder.jwtToken;
+        this.publicKey = builder.publicKey;
+        this.headerMapper = builder.headerMapper;
     }
 
     /**
@@ -46,13 +53,16 @@ public class HeaderAuthenticationToken extends AbstractAuthenticationToken {
     /**
      * Builder for {@link HeaderAuthenticationToken}.
      *
+     * @param publicKey public key for JWT token.
      * @param jwtToken JWT token.
-     * @param remoteIpAddress remote IP address
+     * @param remoteIpAddress remote IP address.
+     * @param headerMapper header mapper.
      * @return the builder for {@link HeaderAuthenticationToken}.
      */
-    public static Builder newBuilder(@Nonnull String jwtToken, @Nonnull String remoteIpAddress) {
-        return new Builder(Objects.requireNonNull(jwtToken),
-                Objects.requireNonNull(remoteIpAddress));
+    public static Builder newBuilder(@Nonnull PublicKey publicKey, @Nonnull String jwtToken,
+            @Nonnull String remoteIpAddress, @Nonnull HeaderMapper headerMapper) {
+        return new Builder(Objects.requireNonNull(publicKey), Objects.requireNonNull(jwtToken),
+                Objects.requireNonNull(remoteIpAddress), Objects.requireNonNull(headerMapper));
     }
 
     @Override
@@ -102,6 +112,15 @@ public class HeaderAuthenticationToken extends AbstractAuthenticationToken {
     }
 
     /**
+     * Getter for public key.
+     *
+     * @return public key if available in the header.
+     */
+    public Optional<PublicKey> getPublicKey() {
+        return publicKey;
+    }
+
+    /**
      * Getter for authenticated JWT token.
      *
      * @return user JWT token if available in the header.
@@ -111,9 +130,20 @@ public class HeaderAuthenticationToken extends AbstractAuthenticationToken {
     }
 
     /**
+     * Getter for {@link HeaderMapper}.
+     *
+     * @return {@link HeaderMapper}.
+     */
+    public HeaderMapper getHeaderMapper() {
+        return headerMapper;
+    }
+
+    /**
      * Builder.
      */
     public static class Builder {
+        private final Optional<PublicKey> publicKey;
+        private HeaderMapper headerMapper;
         private String user;
         private String group;
         private String remoteIpAddress;
@@ -125,12 +155,16 @@ public class HeaderAuthenticationToken extends AbstractAuthenticationToken {
             this.user = user;
             this.group = group;
             this.remoteIpAddress = remoteIpAddress;
+            this.publicKey = Optional.empty();
         }
 
-        private Builder(@Nonnull String jwtToken, @Nonnull String remoteIpAddress) {
+        private Builder(@Nonnull PublicKey key, @Nonnull String jwtToken,
+                @Nonnull String remoteIpAddress, @Nonnull HeaderMapper headerMapper) {
             this.user = "anonymous";
+            this.publicKey = Optional.of(key);
             this.jwtToken = jwtToken;
             this.remoteIpAddress = remoteIpAddress;
+            this.headerMapper = headerMapper;
         }
 
         /**

@@ -11,18 +11,19 @@ import com.vmturbo.common.protobuf.cost.PricingREST.PricingServiceController;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.identity.PriceTableKeyIdentityStore;
 import com.vmturbo.cost.component.pricing.PriceTableMerge.PriceTableMergeFactory;
-import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
-@Import({SQLDatabaseConfig.class, ReservedInstanceConfig.class})
+@Import({SQLDatabaseConfig.class,
+        ReservedInstanceSpecConfig.class})
 public class PricingConfig {
 
     @Autowired
     private SQLDatabaseConfig databaseConfig;
 
     @Autowired
-    private ReservedInstanceConfig reservedInstanceConfig;
+    private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
 
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
@@ -65,7 +66,8 @@ public class PricingConfig {
      */
     @Bean
     public PricingRpcService pricingRpcService() {
-        return new PricingRpcService(priceTableStore(), reservedInstanceConfig.reservedInstanceSpecStore(),
+        return new PricingRpcService(priceTableStore(), reservedInstanceSpecConfig
+                .reservedInstanceSpecStore(),
                 businessAccountPriceTableKeyStore());
     }
 

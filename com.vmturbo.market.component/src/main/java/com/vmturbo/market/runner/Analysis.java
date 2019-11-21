@@ -32,9 +32,12 @@ import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.Status;
@@ -448,8 +451,10 @@ public class Analysis {
                     results.getPriceIndexMsg(), topologyCostCalculator.getCloudCostData(),
                     reservedCapacityAnalysis,
                     wastedFilesAnalysis);
-
-                copySkippedEntitiesToProjectedTopology();
+                final Set<Long> wastedStorageActionsVolumeIds = wastedFileActions.stream()
+                        .map(Action::getInfo).map(ActionInfo::getDelete).map(Delete::getTarget)
+                        .map(ActionEntity::getId).collect(Collectors.toSet());
+                copySkippedEntitiesToProjectedTopology(wastedStorageActionsVolumeIds);
 
                     // Calculate the projected entity costs.
                     final CloudTopology<TopologyEntityDTO> projectedCloudTopology =
@@ -457,7 +462,8 @@ public class Analysis {
                                     .filter(ProjectedTopologyEntity::hasEntity)
                                     .map(ProjectedTopologyEntity::getEntity));
                     // Projected RI coverage has been calculated by convertFromMarket
-                    // Get it from TopologyCoverter and pass it along to use for calculation of savings
+                    // Get it from TopologyConverter and pass it along to use for calculation of
+                    // savings
                     projectedEntityCosts = topologyCostCalculator.calculateCosts(projectedCloudTopology,
                             converter.getProjectedReservedInstanceCoverage());
                 }
@@ -510,10 +516,7 @@ public class Analysis {
     public void cancelAnalysis() {
         // set the forceStop boolean to true on the economy
         stopAnalysis = true;
-        Economy e = getEconomy().getValue().get();
-        if (e != null) {
-            e.setForceStop(true);
-        }
+        getEconomy().getValue().ifPresent(e -> e.setForceStop(true));
     }
 
     /**
@@ -526,9 +529,13 @@ public class Analysis {
 
     /**
      * Copy relevant entities (entities which did not go through market conversion) from the
-     * original topology to the projected topology.
+     * original topology to the projected topology. Skips virtual volumes from being added to
+     * projected topology if they have associated wasted storage actions.
+     *
+     * @param wastedStorageActionsVolumeIds volumes id associated with wasted storage actions.
      */
-    private void copySkippedEntitiesToProjectedTopology() {
+    private void copySkippedEntitiesToProjectedTopology(
+            final Set<Long> wastedStorageActionsVolumeIds) {
         Set<ProjectedTopologyEntity> projectedEntitiesFromOriginalTopo =
             originalCloudTopology.getAllEntitiesOfType(
                 TopologyConversionConstants.ENTITY_TYPES_TO_SKIP_TRADER_CREATION).stream()
@@ -537,10 +544,13 @@ public class Analysis {
                 .collect(Collectors.toSet());
         Set<ProjectedTopologyEntity> projectedEntitiesFromSkippedEntities =
             converter.getSkippedEntitiesInScope(scopeEntities.keySet()).stream()
-                .map(entityDTO ->  ProjectedTopologyEntity.newBuilder()
-                    .setEntity(entityDTO).build())
-                .collect(Collectors.toSet());
-        Sets.union(projectedEntitiesFromOriginalTopo, projectedEntitiesFromSkippedEntities)
+                    .map(entityDTO ->  ProjectedTopologyEntity.newBuilder()
+                            .setEntity(entityDTO).build())
+                    .collect(Collectors.toSet());
+        Sets.union(projectedEntitiesFromOriginalTopo, projectedEntitiesFromSkippedEntities).stream()
+                .filter(entity -> entity.getEntity().getEntityType()
+                        != EntityType.VIRTUAL_VOLUME_VALUE
+                        || !wastedStorageActionsVolumeIds.contains(entity.getEntity().getOid()))
             .forEach(projectedEntity -> {
                 final ProjectedTopologyEntity existing =
                     projectedEntities.put(projectedEntity.getEntity().getOid(), projectedEntity);
@@ -549,6 +559,9 @@ public class Analysis {
                             "original topology. Existing (converted from market): {}\nOriginal: {}",
                         existing, projectedEntity);
                 }
+                logger.trace("Added entity with [name: {}, oid: {}] to projected entities.",
+                        projectedEntity.getEntity().getDisplayName(),
+                        projectedEntity.getEntity().getOid());
             });
     }
 

@@ -227,9 +227,9 @@ public class StorageStatsSubQueryTest {
             assertThat(statFilterApiDTO.getValue(), isOneOf(StringConstants.ATTACHED, StringConstants.UNATTACHED));
 
             if (statFilterApiDTO.getValue().equals(StringConstants.ATTACHED)) {
-                assertThat(dto.getValue(), is(1f));
+                assertThat(dto.getValue(), is(2f));
             } else {
-                assertThat(dto.getValue(), is(1f));
+                assertThat(dto.getValue(), is(0f));
             }
         });
     }

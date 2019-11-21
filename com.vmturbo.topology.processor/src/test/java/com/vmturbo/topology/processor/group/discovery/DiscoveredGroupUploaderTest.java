@@ -370,7 +370,7 @@ public class DiscoveredGroupUploaderTest {
         Assert.assertTrue(!policies.isEmpty());
         DiscoveredSettingPolicyInfo policy = policies.iterator().next();
         String name = "VMs_Accelerated Networking Enabled_EA - Development";
-        Assert.assertEquals(name, policy.getName());
+        Assert.assertThat(policy.getName(), CoreMatchers.containsString(name));
         Assert.assertThat(policy.getDisplayName(), CoreMatchers.containsString(name));
         Assert.assertThat(policy.getDiscoveredGroupNames(0), CoreMatchers.containsString(name));
         Assert.assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, policy.getEntityType());

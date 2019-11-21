@@ -154,17 +154,17 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
      * @return a Map which key is reservedInstance spec ID and value is the sum count of reserved instance bought
      * which belong to this spec.
      */
-    public Map<String, Long> getReservedInstanceCountByRISpecIdMap() {
+    public Map<Long, Long> getReservedInstanceCountByRISpecIdMap() {
         final Result<Record2<ReservedInstanceBoughtInfo, BigDecimal>> riCountMap =
                 dsl.select(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_BOUGHT_INFO,
                         (sum(RESERVED_INSTANCE_BOUGHT.COUNT)).as(RI_SUM_COUNT))
             .from(RESERVED_INSTANCE_BOUGHT).groupBy(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID).fetch();
-        Map<ReservedInstanceBoughtInfo, Long> riSpecMap = new HashMap<>();
+        final Map<ReservedInstanceBoughtInfo, Long> riSpecMap = new HashMap<>();
         riCountMap.forEach(record -> riSpecMap.put(record.value1(), record.value2().longValue()));
-        Map<String, Long> countsByTemplate = new HashMap<>();
+        final Map<Long, Long> countsByTemplate = new HashMap<>();
         for (ReservedInstanceBoughtInfo riInfo: riSpecMap.keySet()) {
-            String key = riInfo.getDisplayName();
-            if (countsByTemplate.containsKey(riInfo.getDisplayName())) {
+            final long key = riInfo.getReservedInstanceSpec();
+            if (countsByTemplate.containsKey(key)) {
                 countsByTemplate.put(key, countsByTemplate.get(key) + riSpecMap.get(riInfo));
             } else {
                 countsByTemplate.put(key, riSpecMap.get(riInfo));

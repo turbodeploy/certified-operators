@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -13,9 +14,11 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
+import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.SubQuerySupportedStats;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
@@ -45,28 +48,45 @@ public class RIStatsSubQuery implements StatsSubQuery {
     private final ReservedInstanceBoughtServiceBlockingStub riBoughtService;
 
     private final RIStatsMapper riStatsMapper;
+    private final RepositoryApi repositoryApi;
 
     private static final Set<String> SUPPORTED_STATS =
             ImmutableSet.of(StringConstants.RI_COUPON_UTILIZATION,
                     StringConstants.RI_COUPON_COVERAGE, StringConstants.NUM_RI);
 
     public RIStatsSubQuery(@Nonnull final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService,
-                           @Nonnull final ReservedInstanceBoughtServiceBlockingStub riBoughtService) {
-        this(riUtilizationCoverageService, riBoughtService, new RIStatsMapper());
+                           @Nonnull final ReservedInstanceBoughtServiceBlockingStub riBoughtService,
+                           @Nonnull final RepositoryApi repositoryApi) {
+        this(riUtilizationCoverageService, riBoughtService, new RIStatsMapper(), repositoryApi);
     }
 
     RIStatsSubQuery(@Nonnull final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService,
                     @Nonnull final ReservedInstanceBoughtServiceBlockingStub riBoughtService,
-                    @Nonnull final RIStatsMapper riStatsMapper) {
+                    @Nonnull final RIStatsMapper riStatsMapper,
+                    @Nonnull final RepositoryApi repositoryApi) {
         this.riUtilizationCoverageService = riUtilizationCoverageService;
         this.riBoughtService = riBoughtService;
         this.riStatsMapper = riStatsMapper;
+        this.repositoryApi = repositoryApi;
     }
 
     @Override
     public boolean applicableInContext(@Nonnull final StatsQueryContext context) {
+        // related entity types that we support RI stats for
+        List<UIEntityType> validEntityTypesForRIStats = new ArrayList<>();
+        validEntityTypesForRIStats.add(UIEntityType.REGION);
+        validEntityTypesForRIStats.add(UIEntityType.AVAILABILITY_ZONE);
+        validEntityTypesForRIStats.add(UIEntityType.BUSINESS_ACCOUNT);
+        validEntityTypesForRIStats.add(UIEntityType.VIRTUAL_MACHINE);
         // Doesn't seem like it should support plan, because the backend doesn't allow specifying
         // the plan ID.
+        UIEntityType relatedEntityType;
+        if (context.getQueryScope().getGlobalScope().isPresent()
+                && !context.getQueryScope().getGlobalScope().get().entityTypes().isEmpty()) {
+            // if related entity type doesn't support RI stats, we don't go through the query
+            relatedEntityType = context.getQueryScope().getGlobalScope().get().entityTypes().iterator().next();
+            return !context.getInputScope().isPlan() && !validEntityTypesForRIStats.contains(relatedEntityType);
+        }
         return !context.getInputScope().isPlan();
     }
 
@@ -81,16 +101,27 @@ public class RIStatsSubQuery implements StatsSubQuery {
                                                          @Nonnull final StatsQueryContext context)
             throws OperationFailedException {
         final List<StatSnapshotApiDTO> snapshots = new ArrayList<>();
-        if (containsStat(StringConstants.NUM_RI, stats)) {
+        if (containsStat(StringConstants.NUM_RI, stats) && isValidScopeForNumRIRequest(context)) {
             final GetReservedInstanceBoughtCountRequest countRequest = GetReservedInstanceBoughtCountRequest
                     .newBuilder().build();
-            GetReservedInstanceBoughtCountByTemplateResponse res =
+            GetReservedInstanceBoughtCountByTemplateResponse response =
                     riBoughtService.getReservedInstanceBoughtCountByTemplateType(countRequest).toBuilder().build();
+            final Map<Long, Long> riBoughtCountsByTierId =
+                    response.getReservedInstanceCountMapMap();
+            final Map<Long, ServiceEntityApiDTO> tierApiDTOByTierId =
+                    repositoryApi.entitiesRequest(riBoughtCountsByTierId.keySet())
+                    .getSEMap();
+            final Map<String, Long> riBoughtCountByTierName = riBoughtCountsByTierId
+                    .entrySet().stream()
+                    .filter(e -> tierApiDTOByTierId.containsKey(e.getKey()))
+                    .collect(Collectors
+                            .toMap(e -> tierApiDTOByTierId.get(e.getKey()).getDisplayName(),
+                                    Entry::getValue, Long::sum));
             snapshots.addAll(riStatsMapper
-                    .convertNumRIStatsRecordsToStatSnapshotApiDTO(res.getReservedInstanceCountMapMap()));
+                    .convertNumRIStatsRecordsToStatSnapshotApiDTO(riBoughtCountByTierName));
         }
 
-        if (containsStat(StringConstants.RI_COUPON_COVERAGE, stats)) {
+        if (containsStat(StringConstants.RI_COUPON_COVERAGE, stats) && isValidScopeForCoverageRequest(context)) {
             final GetReservedInstanceCoverageStatsRequest coverageRequest =
                 riStatsMapper.createCoverageRequest(context);
             snapshots.addAll(riStatsMapper.convertRIStatsRecordsToStatSnapshotApiDTO(
@@ -98,7 +129,7 @@ public class RIStatsSubQuery implements StatsSubQuery {
                     .getReservedInstanceStatsRecordsList(), true));
         }
 
-        if (containsStat(StringConstants.RI_COUPON_UTILIZATION, stats)) {
+        if (containsStat(StringConstants.RI_COUPON_UTILIZATION, stats) && isValidScopeForUtilizationRequest(context)) {
             final GetReservedInstanceUtilizationStatsRequest utilizationRequest =
                 riStatsMapper.createUtilizationRequest(context);
             snapshots.addAll(riStatsMapper.convertRIStatsRecordsToStatSnapshotApiDTO(
@@ -116,6 +147,63 @@ public class RIStatsSubQuery implements StatsSubQuery {
                     combinedList.addAll(v2);
                     return combinedList;
                 }));
+    }
+
+    /**
+     * Check if valid scope for RI Utilization request.
+     * @param context - query context
+     * @return boolean
+     */
+    private boolean isValidScopeForUtilizationRequest(@Nonnull final StatsQueryContext context) {
+        if (context.getInputScope().getScopeTypes().isPresent()) {
+            final UIEntityType type = context.getInputScope().getScopeTypes().get()
+                    .iterator().next();
+            if (type == UIEntityType.REGION || type == UIEntityType.AVAILABILITY_ZONE ||
+            type == UIEntityType.BUSINESS_ACCOUNT) {
+                return true;
+            }
+        } else if (context.isGlobalScope()) {
+           return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if valid scope for numRI request.
+     * @param context - query context
+     * @return boolean
+     */
+    private boolean isValidScopeForNumRIRequest(@Nonnull final StatsQueryContext context) {
+        if (context.getInputScope().getScopeTypes().isPresent()) {
+            final UIEntityType type = context.getInputScope().getScopeTypes().get()
+                    .iterator().next();
+            if (type == UIEntityType.REGION || type == UIEntityType.AVAILABILITY_ZONE ||
+                    type == UIEntityType.BUSINESS_ACCOUNT) {
+                return true;
+            }
+        } else if (context.isGlobalScope()) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if valid scope for RI Coverage request.
+     * @param context - query context
+     * @return boolean
+     */
+    private boolean isValidScopeForCoverageRequest(@Nonnull final StatsQueryContext context) {
+        if (context.getInputScope().getScopeTypes().isPresent()
+                && !context.getInputScope().getScopeTypes().get().isEmpty()) {
+            if (context.getInputScope().getScopeTypes().get().size() == 1) {
+                return true;
+            }
+        } else if (context.isGlobalScope()) {
+            return true;
+        }
+        return false;
     }
 
     @VisibleForTesting
