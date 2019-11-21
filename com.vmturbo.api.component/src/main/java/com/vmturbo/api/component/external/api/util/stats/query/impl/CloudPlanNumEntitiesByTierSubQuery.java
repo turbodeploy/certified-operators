@@ -15,10 +15,11 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.collections4.CollectionUtils;
-
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+
+import org.apache.commons.collections4.CollectionUtils;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
@@ -55,28 +56,29 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
 
     // the function of how to get the tier id from a given TopologyEntityDTO, this is used
     // for the stats of the number of entities by tier type
-    private static final Map<String, Function<ApiPartialEntity, Long>> ENTITY_TYPE_TO_GET_TIER_FUNCTION = ImmutableMap.of(
-        UIEntityType.VIRTUAL_MACHINE.apiStr(), topologyEntityDTO ->
-            topologyEntityDTO.getProvidersList().stream()
-                .filter(provider -> provider.getEntityType() == EntityType.COMPUTE_TIER_VALUE)
-                .map(RelatedEntity::getOid)
-                .findAny().get(),
-        UIEntityType.DATABASE.apiStr(), topologyEntityDTO ->
-            topologyEntityDTO.getProvidersList().stream()
-                .filter(provider -> provider.getEntityType() == EntityType.DATABASE_TIER_VALUE)
-                .map(RelatedEntity::getOid)
-                .findAny().get(),
-        UIEntityType.DATABASE_SERVER.apiStr(), topologyEntityDTO ->
-            topologyEntityDTO.getProvidersList().stream()
-                .filter(provider -> provider.getEntityType() == EntityType.DATABASE_SERVER_TIER_VALUE)
-                .map(RelatedEntity::getOid)
-                .findAny().get(),
-        UIEntityType.VIRTUAL_VOLUME.apiStr(), topologyEntityDTO ->
-            topologyEntityDTO.getProvidersList().stream()
-                .filter(provider -> provider.getEntityType() == EntityType.STORAGE_TIER_VALUE)
-                .map(RelatedEntity::getOid)
-                .findFirst().get()
-    );
+    @VisibleForTesting
+    static final Map<String, Function<ApiPartialEntity, Optional<Long>>> ENTITY_TYPE_TO_GET_TIER_FUNCTION = ImmutableMap.of(
+          UIEntityType.VIRTUAL_MACHINE.apiStr(), topologyEntityDTO ->
+              topologyEntityDTO.getProvidersList().stream()
+              .filter(provider -> provider.getEntityType() == EntityType.COMPUTE_TIER_VALUE)
+              .map(RelatedEntity::getOid)
+              .findAny(),
+          UIEntityType.DATABASE.apiStr(), topologyEntityDTO ->
+              topologyEntityDTO.getProvidersList().stream()
+              .filter(provider -> provider.getEntityType() == EntityType.DATABASE_TIER_VALUE)
+              .map(RelatedEntity::getOid)
+              .findAny(),
+          UIEntityType.DATABASE_SERVER.apiStr(), topologyEntityDTO ->
+              topologyEntityDTO.getProvidersList().stream()
+              .filter(provider -> provider.getEntityType() == EntityType.DATABASE_SERVER_TIER_VALUE)
+              .map(RelatedEntity::getOid)
+              .findAny(),
+          UIEntityType.VIRTUAL_VOLUME.apiStr(), topologyEntityDTO ->
+              topologyEntityDTO.getProvidersList().stream()
+              .filter(provider -> provider.getEntityType() == EntityType.STORAGE_TIER_VALUE)
+              .map(RelatedEntity::getOid)
+              .findFirst()
+      );
 
     private final RepositoryApi repositoryApi;
     private final SupplyChainFetcherFactory supplyChainFetcherFactory;
@@ -90,6 +92,7 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
+    @Override
     public boolean applicableInContext(@Nonnull final StatsQueryContext context) {
         // Check if it's not a cloud plan type.
         Optional<PlanInstance> planInstanceOpt = context.getPlanInstance();
@@ -189,22 +192,24 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
                                                          long contextId,
                                                          @Nonnull String statName,
                                                          @Nonnull String filterType,
-                                                         @Nonnull Function<ApiPartialEntity, Long> getTierId) {
+                                                         @Nonnull Function<ApiPartialEntity, Optional<Long>> getTierId) {
         // fetch entities
         Map<Long, ApiPartialEntity> entities = repositoryApi.entitiesRequest(entityIds)
             .contextId(contextId)
             .getEntities()
             .collect(Collectors.toMap(ApiPartialEntity::getOid, Function.identity()));
         // tier id --> number of entities using the tier
-        Map<Long, Long> tierIdToNumEntities = entities.values().stream()
+        Map<Optional<Long>, Long> tierIdToNumEntities = entities.values().stream()
             .collect(Collectors.groupingBy(getTierId, Collectors.counting()));
         // tier id --> tier name
-        Map<Long, String> tierIdToName = repositoryApi.entitiesRequest(tierIdToNumEntities.keySet())
+        Map<Long, String> tierIdToName = repositoryApi.entitiesRequest(tierIdToNumEntities.keySet()
+           .stream().map(Optional::get).collect(Collectors.toSet()))
             .contextId(contextId)
             .getMinimalEntities()
             .collect(Collectors.toMap(MinimalEntity::getOid, MinimalEntity::getDisplayName));
 
         return tierIdToNumEntities.entrySet().stream()
+                        .filter(entry -> entry.getKey().isPresent())
             .map(entry -> createStatApiDTOForPlan(statName, entry.getValue(),
                 filterType, tierIdToName.get(entry.getKey()), contextId))
             .collect(Collectors.toList());
