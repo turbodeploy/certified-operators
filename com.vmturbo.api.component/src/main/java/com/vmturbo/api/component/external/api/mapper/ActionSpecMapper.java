@@ -100,11 +100,8 @@ import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
-import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
-import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageRequest;
-import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageResponse;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
@@ -148,9 +145,16 @@ public class ActionSpecMapper {
     private static final String API_CATEGORY_UNKNOWN = "Unknown";
     // END - Strings representing action categories in the API.
 
-    private static final Set<String> TIER_VALUES = ImmutableSet.of(
+    private static final Set<String> SCALE_TIER_VALUES = ImmutableSet.of(
             UIEntityType.COMPUTE_TIER.apiStr(), UIEntityType.DATABASE_SERVER_TIER.apiStr(),
-            UIEntityType.DATABASE_TIER.apiStr(), UIEntityType.STORAGE_TIER.apiStr());
+            UIEntityType.DATABASE_TIER.apiStr());
+
+    /**
+     * Map of entity types to shortened versions for action descriptions.
+     */
+    private static final Map<String, String> SHORTENED_ENTITY_TYPES = ImmutableMap.of(
+        UIEntityType.VIRTUAL_VOLUME.apiStr(), "Volume"
+    );
 
     // Commodities in actions mapped to their default units.
     // For example, vMem commodity has its default capacity unit as KB.
@@ -484,7 +488,7 @@ public class ActionSpecMapper {
      *
      * @param actionApiDTO the plan ActionApiDTO to add more info to
      * @param context the ActionSpecMappingContext
-     * @throws UnknownObjectException
+     * @throws UnknownObjectException if target entity is not found
      */
     private void addMoreInfoToActionApiDTOForPlan(@Nonnull ActionApiDTO actionApiDTO,
                                                   @Nonnull ActionSpecMappingContext context)
@@ -502,7 +506,7 @@ public class ActionSpecMapper {
         targetEntity.setAspects(aspects);
 
         // add more info for cloud actions
-        if (newEntity != null && TIER_VALUES.contains(newEntity.getClassName())) {
+        if (newEntity != null && SCALE_TIER_VALUES.contains(newEntity.getClassName())) {
             // set template for cloud actions, which is the new tier the entity is using
             TemplateApiDTO templateApiDTO = new TemplateApiDTO();
             templateApiDTO.setUuid(newEntity.getUuid());
@@ -511,13 +515,11 @@ public class ActionSpecMapper {
             actionApiDTO.setTemplate(templateApiDTO);
 
             // set location, which is the region
-            ApiPartialEntity region = context.getRegionForVM(targetEntityId);
-            if (region != null) {
-                BaseApiDTO regionDTO = serviceEntityMapper.toServiceEntityApiDTO(region);
-                // todo: set current and new location to be different if region could be changed
-                actionApiDTO.setCurrentLocation(regionDTO);
-                actionApiDTO.setNewLocation(regionDTO);
-            }
+            final ApiPartialEntity region = context.getRegionForVM(targetEntityId);
+            final BaseApiDTO regionDTO = serviceEntityMapper.toServiceEntityApiDTO(region);
+            // todo: set current and new location to be different if region could be changed
+            actionApiDTO.setCurrentLocation(regionDTO);
+            actionApiDTO.setNewLocation(regionDTO);
 
             // set virtualDisks on ActionApiDTO
             actionApiDTO.setVirtualDisks(context.getVolumeAspects(targetEntityId));
@@ -823,13 +825,13 @@ public class ActionSpecMapper {
      * @param actionType {@link ActionType} that will be assigned to wrapperDto param
      * @throws UnknownObjectException when the actions involve an unrecognized (out of
      * context) oid
+     * @throws UnsupportedActionException if the action is an unsupported type.
      */
     private void addMoveInfo(@Nonnull final ActionApiDTO wrapperDto,
                              @Nonnull final ActionDTO.Action action,
                              @Nonnull final ActionSpecMappingContext context,
                              @Nonnull final ActionType actionType)
-            throws UnknownObjectException, ExecutionException, InterruptedException,
-            UnsupportedActionException {
+            throws UnknownObjectException, UnsupportedActionException {
 
         // If any part of the compound move is an initial placement, the whole move is an initial
         // placement.
@@ -850,7 +852,7 @@ public class ActionSpecMapper {
 
         wrapperDto.setActionType(actionType);
         // Set entity DTO fields for target, source (if needed) and destination entities
-        final ActionEntity target = ActionDTOUtil.getPrimaryEntity(action, false);
+        final ActionEntity target = ActionDTOUtil.getPrimaryEntity(action, true);
         wrapperDto.setTarget(
             ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(target.getId())));
 
@@ -877,6 +879,9 @@ public class ActionSpecMapper {
         List<ActionApiDTO> actions = Lists.newArrayList();
         for (ChangeProvider change : ActionDTOUtil.getChangeProviderList(action)) {
             actions.add(singleMove(actionType, wrapperDto, target.getId(), change, context));
+        }
+        if (actions.size() == 1) {
+            wrapperDto.setDetails(actions.get(0).getDetails());
         }
         wrapperDto.addCompoundActions(actions);
 
@@ -919,7 +924,7 @@ public class ActionSpecMapper {
                     final long targetId,
                     @Nonnull final ChangeProvider change,
                     @Nonnull final ActionSpecMappingContext context)
-                    throws UnknownObjectException, ExecutionException, InterruptedException {
+                    throws UnknownObjectException {
         ActionApiDTO actionApiDTO = new ActionApiDTO();
         actionApiDTO.setTarget(new ServiceEntityApiDTO());
         actionApiDTO.setCurrentEntity(new ServiceEntityApiDTO());
@@ -947,13 +952,12 @@ public class ActionSpecMapper {
             ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(destinationId)));
 
         // Set action details
-        actionApiDTO.setDetails(actionDetails(hasSource, actionApiDTO, change, context));
+        actionApiDTO.setDetails(actionDetails(hasSource, actionApiDTO, targetId, change, context));
         return actionApiDTO;
     }
 
-    private String actionDetails(boolean hasSource, ActionApiDTO actionApiDTO,
-                                 ChangeProvider change, ActionSpecMappingContext context)
-            throws ExecutionException, InterruptedException {
+    private String actionDetails(boolean hasSource, ActionApiDTO actionApiDTO, long targetId,
+                                 ChangeProvider change, ActionSpecMappingContext context) {
         // If there is no source,
         // "Start Consumer type x on Supplier type y".
         // When there is a source, there are a few cases:
@@ -972,13 +976,16 @@ public class ActionSpecMapper {
             long sourceId = change.getSource().getId();
             Optional<ServiceEntityApiDTO> destination = context.getOptionalEntity(destinationId);
             Optional<ServiceEntityApiDTO> source = context.getOptionalEntity(sourceId);
-            String verb = TIER_VALUES.contains(destination.get().getClassName())
-                    && TIER_VALUES.contains(source.get().getClassName()) ? "Scale" : "Move";
+            final String verb =
+                SCALE_TIER_VALUES.contains(destination.map(BaseApiDTO::getClassName).orElse("")) &&
+                    SCALE_TIER_VALUES.contains(source.map(BaseApiDTO::getClassName).orElse("")) ?
+                "Scale" : "Move";
             String resource = "";
             if (change.hasResource()) {
-                Optional<ServiceEntityApiDTO> resourceEntity = context.getOptionalEntity(
-                        change.getResource().getId());
-                if (resourceEntity.isPresent()) {
+                final long resourceId = change.getResource().getId();
+                final Optional<ServiceEntityApiDTO> resourceEntity =
+                    context.getOptionalEntity(resourceId);
+                if (resourceEntity.isPresent() && resourceId != targetId) {
                     resource = readableEntityTypeAndName(resourceEntity.get()) + " of ";
                 }
             }
@@ -1269,8 +1276,10 @@ public class ActionSpecMapper {
      * single quotes
      */
     private String readableEntityTypeAndName(BaseApiDTO entityDTO) {
+        final String fullType = entityDTO.getClassName();
+        final String shortenedIfNecessary = SHORTENED_ENTITY_TYPES.getOrDefault(fullType, fullType);
         return String.format("%s %s",
-            StringUtil.getSpaceSeparatedWordsFromCamelCaseString(entityDTO.getClassName()),
+            StringUtil.getSpaceSeparatedWordsFromCamelCaseString(shortenedIfNecessary),
             entityDTO.getDisplayName()
         );
     }

@@ -256,8 +256,7 @@ public class ActionDescriptionBuilder {
         final ChangeProvider primaryChange = ActionDTOUtil.getPrimaryChangeProvider(recommendation);
         final boolean hasSource = !initialPlacement && primaryChange.hasSource();
         final long destinationEntityId = primaryChange.getDestination().getId();
-        final long targetEntityId = ActionDTOUtil.getPrimaryEntity(recommendation, false).getId();
-
+        final long targetEntityId = ActionDTOUtil.getPrimaryEntity(recommendation, true).getId();
         Optional<ActionPartialEntity> optTargetEntity = entitiesSnapshot.getEntityFromOid(targetEntityId);
         if( !optTargetEntity.isPresent()) {
             logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getMoveActionDescription", "targetEntityId", targetEntityId);
@@ -283,10 +282,11 @@ public class ActionDescriptionBuilder {
                 sourceEntityId).get();
             int sourceType = currentEntityDTO.getEntityType();
             int destinationType = newEntityDTO.getEntityType();
-            String verb = TopologyDTOUtil.isTierEntityType(destinationType)
-                && TopologyDTOUtil.isTierEntityType(sourceType) ? SCALE : MOVE;
+            String verb = TopologyDTOUtil.isPrimaryTierEntityType(destinationType)
+                && TopologyDTOUtil.isPrimaryTierEntityType(sourceType) ? SCALE : MOVE;
             String resource = "";
-            if (primaryChange.hasResource()) {
+            if (primaryChange.hasResource() &&
+                    targetEntityId != primaryChange.getResource().getId()) {
                 Optional<ActionPartialEntity> resourceEntity = entitiesSnapshot.getEntityFromOid(
                     primaryChange.getResource().getId());
                 if (resourceEntity.isPresent()) {

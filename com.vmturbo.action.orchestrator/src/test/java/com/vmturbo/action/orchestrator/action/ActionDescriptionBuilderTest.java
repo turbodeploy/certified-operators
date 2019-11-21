@@ -53,6 +53,7 @@ public class ActionDescriptionBuilderTest {
 
     private ActionDTO.Action moveRecommendation;
     private ActionDTO.Action scaleRecommendation;
+    private ActionDTO.Action cloudStorageMoveRecommendation;
     private ActionDTO.Action resizeRecommendation;
     private ActionDTO.Action resizeMemRecommendation;
     private ActionDTO.Action resizeMemReservationRecommendation;
@@ -88,8 +89,10 @@ public class ActionDescriptionBuilderTest {
     private final String ST_DESTINATION_DISPLAY_NAME = "storage_destination_test";
     private final Long VV_ID = 66L;
     private final String VV_DISPLAY_NAME = "volume_display_name";
-    private final Long COMPUTE_TIER_ID = 100L;
-    private final String COMPUTE_TIER_DISPLAY_NAME = "tier_t1";
+    private static final Long COMPUTE_TIER_SOURCE_ID = 100L;
+    private static final String COMPUTE_TIER_SOURCE_DISPLAY_NAME = "tier_t1";
+    private static final Long COMPUTE_TIER_DESTINATION_ID = 200L;
+    private static final String COMPUTE_TIER_DESTINATION_DISPLAY_NAME = "tier_t2";
     private final Long MASTER_ACCOUNT_ID = 101L;
     private final String MASTER_ACCOUNT_DISPLAY_NAME = "my.super.account";
     private final Long REGION_ID = 102L;
@@ -107,9 +110,14 @@ public class ActionDescriptionBuilderTest {
                     PM_DESTINATION_ID, EntityType.PHYSICAL_MACHINE.getNumber()),
                             SupportLevel.SUPPORTED).build();
 
+        cloudStorageMoveRecommendation =
+                makeRec(makeMoveInfo(VM1_ID, VV_ID, EntityType.VIRTUAL_VOLUME.getNumber(),
+                    ST_SOURCE_ID, EntityType.STORAGE_TIER.getNumber(), ST_DESTINATION_ID,
+                    EntityType.STORAGE_TIER.getNumber()),
+                        SupportLevel.SUPPORTED).build();
         scaleRecommendation =
-                makeRec(makeMoveInfo(VM1_ID, ST_SOURCE_ID, EntityType.STORAGE_TIER.getNumber(),
-                        ST_DESTINATION_ID, EntityType.STORAGE_TIER.getNumber()),
+                makeRec(makeMoveInfo(VM1_ID, COMPUTE_TIER_SOURCE_ID, EntityType.COMPUTE_TIER.getNumber(),
+                    COMPUTE_TIER_DESTINATION_ID, EntityType.COMPUTE_TIER.getNumber()),
                         SupportLevel.SUPPORTED).build();
         resizeRecommendation = makeRec(makeResizeInfo(VM1_ID), SupportLevel.SUPPORTED).build();
         resizeMemRecommendation = makeRec(makeResizeMemInfo(VM1_ID), SupportLevel.SUPPORTED).build();
@@ -153,8 +161,9 @@ public class ActionDescriptionBuilderTest {
         deleteCloudStorageRecommendationWithNoSourceEntity = makeRec(makeDeleteCloudStorageInfo(VV_ID, Optional.empty()),
             SupportLevel.SUPPORTED).build();
 
-        buyRIRecommendation = makeRec(makeBuyRIInfo(COMPUTE_TIER_ID,MASTER_ACCOUNT_ID,REGION_ID),
-            SupportLevel.SUPPORTED).build();
+        buyRIRecommendation =
+            makeRec(makeBuyRIInfo(COMPUTE_TIER_SOURCE_ID, MASTER_ACCOUNT_ID, REGION_ID),
+                SupportLevel.SUPPORTED).build();
     }
 
     /**
@@ -347,19 +356,36 @@ public class ActionDescriptionBuilderTest {
         int sourceType,
         long destinationId,
         int destinationType) {
+        return makeMoveInfo(targetId, 0, 0, sourceId, sourceType, destinationId, destinationType);
+    }
 
+    private ActionInfo.Builder makeMoveInfo(
+        long targetId,
+        long resourceId,
+        int resourceType,
+        long sourceId,
+        int sourceType,
+        long destinationId,
+        int destinationType) {
+
+        final ChangeProvider.Builder changeBuilder = ChangeProvider.newBuilder()
+            .setSource(ActionEntity.newBuilder()
+                .setId(sourceId)
+                .setType(sourceType)
+                .build())
+            .setDestination(ActionEntity.newBuilder()
+                .setId(destinationId)
+                .setType(destinationType)
+                .build());
+        if (resourceId != 0 && resourceType != 0) {
+            changeBuilder.setResource(ActionEntity.newBuilder()
+                .setType(resourceType)
+                .setId(resourceId)
+                .build());
+        }
         return ActionInfo.newBuilder().setMove(Move.newBuilder()
             .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId))
-            .addChanges(ChangeProvider.newBuilder()
-                .setSource(ActionEntity.newBuilder()
-                    .setId(sourceId)
-                    .setType(sourceType)
-                    .build())
-                .setDestination(ActionEntity.newBuilder()
-                    .setId(destinationId)
-                    .setType(destinationType)
-                    .build())
-                .build())
+            .addChanges(changeBuilder.build())
             .build());
     }
 
@@ -450,11 +476,17 @@ public class ActionDescriptionBuilderTest {
         Assert.assertEquals(description, "Move Virtual Machine vm1_test from pm_source_test to pm_destination_test");
     }
 
+    /**
+     * Test that for an action involving a volume moving from one storage tier to another, the
+     * description is accurate.
+     *
+     * @throws UnsupportedActionException if something is extraordinarily wrong.
+     */
     @Test
-    public void testBuildScaleActionDescription() throws UnsupportedActionException {
-        when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
-                .thenReturn((createEntity(VM1_ID,
-                        EntityType.VIRTUAL_MACHINE.getNumber(),
+    public void testBuildCloudStorageMoveActionDescription() throws UnsupportedActionException {
+        when(entitySettingsCache.getEntityFromOid(eq(VV_ID)))
+                .thenReturn((createEntity(VV_ID,
+                        EntityType.VIRTUAL_VOLUME.getNumber(),
                         VM1_DISPLAY_NAME)));
 
         when(entitySettingsCache.getEntityFromOid(eq(ST_SOURCE_ID)))
@@ -468,9 +500,35 @@ public class ActionDescriptionBuilderTest {
                         ST_DESTINATION_DISPLAY_NAME)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
-                entitySettingsCache, scaleRecommendation);
-        Assert.assertEquals(description,
-            "Scale Virtual Machine vm1_test from storage_source_test to storage_destination_test");
+                entitySettingsCache, cloudStorageMoveRecommendation);
+        Assert.assertEquals("Move Virtual Volume vm1_test from storage_source_test to storage_destination_test", description);
+    }
+
+    /**
+     * Test that an action moving a VM from one compute tier to another is described as scaling it.
+     *
+     * @throws UnsupportedActionException if something is extraordinarily wrong.
+     */
+    @Test
+    public void testBuildScaleActionDescription() throws UnsupportedActionException {
+        when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
+            .thenReturn((createEntity(VM1_ID,
+                EntityType.VIRTUAL_MACHINE.getNumber(),
+                VM1_DISPLAY_NAME)));
+
+        when(entitySettingsCache.getEntityFromOid(eq(COMPUTE_TIER_SOURCE_ID)))
+            .thenReturn((createEntity(COMPUTE_TIER_SOURCE_ID,
+                EntityType.COMPUTE_TIER.getNumber(),
+                COMPUTE_TIER_SOURCE_DISPLAY_NAME)));
+
+        when(entitySettingsCache.getEntityFromOid(eq(COMPUTE_TIER_DESTINATION_ID)))
+            .thenReturn((createEntity(COMPUTE_TIER_DESTINATION_ID,
+                EntityType.COMPUTE_TIER.getNumber(),
+                COMPUTE_TIER_DESTINATION_DISPLAY_NAME)));
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+            entitySettingsCache, scaleRecommendation);
+        Assert.assertEquals("Scale Virtual Machine vm1_test from tier_t1 to tier_t2", description);
     }
 
     /**
@@ -842,10 +900,10 @@ public class ActionDescriptionBuilderTest {
 
     @Test
     public void testBuildBuyRIActionDescription() throws UnsupportedActionException {
-        when(entitySettingsCache.getEntityFromOid(eq(COMPUTE_TIER_ID)))
-            .thenReturn((createEntity(COMPUTE_TIER_ID,
+        when(entitySettingsCache.getEntityFromOid(eq(COMPUTE_TIER_SOURCE_ID)))
+            .thenReturn((createEntity(COMPUTE_TIER_SOURCE_ID,
                 EntityType.COMPUTE_TIER.getNumber(),
-                COMPUTE_TIER_DISPLAY_NAME)));
+                COMPUTE_TIER_SOURCE_DISPLAY_NAME)));
         when(entitySettingsCache.getEntityFromOid(eq(MASTER_ACCOUNT_ID)))
             .thenReturn((createEntity(MASTER_ACCOUNT_ID,
                 EntityType.BUSINESS_ACCOUNT.getNumber(),
