@@ -81,6 +81,7 @@ import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
+import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
 import com.vmturbo.api.controller.MarketsController;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -527,7 +528,8 @@ public class MarketsServiceTest {
                     uiNotificationChannel(), actionStatsQueryExecutor(), thinTargetCache(),
                     entitySeverityRpcService(), statsHistoryRpcService(),
                     statsService(), repositoryApi(), serviceEntityMapper(),
-                    severityPopulator(), priceIndexPopulator(),actionsRpcService(), REALTIME_CONTEXT_ID);
+                    severityPopulator(), priceIndexPopulator(), actionsRpcService(),
+                    planEntityStatsFetcher(), REALTIME_CONTEXT_ID);
         }
 
         @Bean
@@ -693,6 +695,16 @@ public class MarketsServiceTest {
         @Bean
         public ActionsServiceBlockingStub actionsRpcService() {
             return ActionsServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
+        }
+
+        /**
+         * A mock of {@link PlanEntityStatsFetcher}, used to retrieve plan entity stats.
+         *
+         * @return a mock {@link PlanEntityStatsFetcher}, used to retrieve plan entity stats
+         */
+        @Bean
+        public PlanEntityStatsFetcher planEntityStatsFetcher() {
+            return Mockito.mock(PlanEntityStatsFetcher.class);
         }
 
         @Bean

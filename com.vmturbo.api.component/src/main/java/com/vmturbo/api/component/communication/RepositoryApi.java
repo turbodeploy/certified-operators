@@ -509,10 +509,6 @@ public class RepositoryApi {
                     final TopologyType topologyType;
                     if (projectedTopology) {
                         topologyType = TopologyType.PROJECTED;
-                    } else if (topoContextId != realtimeContextId) {
-                        // In plans we don't store source entities, so requesting them will return
-                        // nothing. Look for everything in the projected topology.
-                        topologyType = TopologyType.PROJECTED;
                     } else {
                         topologyType = TopologyType.SOURCE;
                     }

@@ -70,7 +70,15 @@ public class TopologyLifecycleManager implements Diagnosable {
 
     private static final Logger LOGGER = LogManager.getLogger();
 
+    /**
+     * Maps from topologyContextId + topologyType to a {@link TopologyID}.
+     */
     private Map<Long, Map<TopologyType, TopologyID>> topologyIdByContextAndType = new HashMap<>();
+
+    /**
+     * Maps from a primitive topologyId field to a {@link TopologyID}.
+     */
+    private Map<Long, TopologyID> topologyIdByPrimitiveId = new HashMap<>();
 
     private final GraphDatabaseDriverBuilder graphDatabaseDriverBuilder;
 
@@ -396,6 +404,7 @@ public class TopologyLifecycleManager implements Diagnosable {
         if (overwrite) {
             // Replace the previous one.
             TopologyID topologyID = idByTypeInContext.put(tid.getType(), tid);
+            topologyIdByPrimitiveId.put(tid.getTopologyId(), tid);
             if (topologyID != null) {
                 Runnable dropTask = () -> {
                         deleteObsoletedRealtimeDB(topologyID, graphDatabaseDriverBuilder,
@@ -421,7 +430,9 @@ public class TopologyLifecycleManager implements Diagnosable {
                 LOGGER.warn("Not registering topology {} because it would overwrite " +
                     "the existing topology {}.", tid, existing);
             } else {
+                // Update the lookup maps
                 idByTypeInContext.put(tid.getType(), tid);
+                topologyIdByPrimitiveId.put(tid.getTopologyId(), tid);
             }
             return existing == null;
         }
@@ -466,15 +477,16 @@ public class TopologyLifecycleManager implements Diagnosable {
         // reported after both attempts.
         final List<String> errors = new LinkedList<>();
         // First delete the raw protobufs stored for the supplied topology
+        final long topologyId = tid.getTopologyId();
         try {
             topologyProtobufsManager
-                .createTopologyProtobufReader(tid.getTopologyId(), Optional.empty())
+                .createTopologyProtobufReader(topologyId, Optional.empty())
                 .delete();
         } catch (NoSuchElementException e) {
             // This is not considered an error, since the requested topology is "deleted" now :)
             // In other words, topology deletion is an idempotent operation, which results in the
             // same outcome no matter how many consecutive times it is executed.
-            LOGGER.warn("No topology protobufs to delete for topology {}", tid.getTopologyId());
+            LOGGER.warn("No topology protobufs to delete for topology {}", topologyId);
         } catch (ArangoDBException e) {
             errors.add(e.getErrorMessage());
         }
@@ -491,6 +503,8 @@ public class TopologyLifecycleManager implements Diagnosable {
                     idByTypeInContext.remove(tid.getType());
                 }
             }
+            // Cleanup the other lookup map
+            topologyIdByPrimitiveId.remove(topologyId);
         } catch (ArangoDBException e) {
             if (e.getErrorNum() == ERROR_ARANGO_DATABASE_NOT_FOUND) {
                 // This is not considered an error, since the requested db is "deleted" now :)
@@ -536,6 +550,17 @@ public class TopologyLifecycleManager implements Diagnosable {
      */
     public Optional<TopologyDatabase> getRealtimeDatabase() {
         return getRealtimeTopologyId().map(TopologyID::database);
+    }
+
+    /**
+     * Get the {@link TopologyID} representing the topology with a particular topology ID.
+     *
+     * @param topologyId the primitive ID of the topology
+     * @return The {@link TopologyID} of the latest topology for the desired topology ID,
+     *         or an empty optional if there has been no broadcast of a matching topology.
+     */
+    public Optional<TopologyID> getTopologyId(final long topologyId) {
+        return Optional.ofNullable(topologyIdByPrimitiveId.get(topologyId));
     }
 
     /**

@@ -187,6 +187,9 @@ message StatSnapshot {
     // the individual stat_records collected; if the input was a group, these values will be averaged over the group
     repeated StatRecord stat_records = 4;
 
+    // the type of time period that this snapshot represents
+    optional StatEpoch stat_epoch = 5;
+
     // an individual stats value - e.g. commodies, etc. - from the xx_stats_zz tables.
     message StatRecord {
 
@@ -248,6 +251,20 @@ message StatSnapshot {
 
         }
     }
+}
+
+// Describes a type of time period
+enum StatEpoch {
+    // Real time historical
+    HISTORICAL = 1;
+    // Latest real time
+    CURRENT = 2;
+    // Real time projected
+    PROJECTED = 3;
+    // Plan source topology.
+    PLAN_SOURCE = 4;
+    // Plan projected topology.
+    PLAN_PROJECTED = 5;
 }
 
 message EntityStats {

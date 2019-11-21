@@ -42,6 +42,7 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -163,6 +164,11 @@ public class StatsService implements IStatsService {
 
     private final StatsQueryExecutor statsQueryExecutor;
 
+    /**
+     * For fetching plan entities and their related stats.
+     */
+    private final PlanEntityStatsFetcher planEntityStatsFetcher;
+
     // CLUSTER_STATS is a collection of the cluster-headroom stats calculated from nightly plans.
     // TODO: we should share the enum instead of keeping a separate copy.
     private static final Set<String> CLUSTER_EXCLUSIVE_STATS = ImmutableSet.of(
@@ -210,7 +216,8 @@ public class StatsService implements IStatsService {
                  @Nonnull final UserSessionContext userSessionContext,
                  @Nonnull final ServiceEntityMapper serviceEntityMapper,
                  @Nonnull final UuidMapper uuidMapper,
-                 @Nonnull final StatsQueryExecutor statsQueryExecutor) {
+                 @Nonnull final StatsQueryExecutor statsQueryExecutor,
+                 @Nonnull final PlanEntityStatsFetcher planEntityStatsFetcher) {
         this.statsServiceRpc = Objects.requireNonNull(statsServiceRpc);
         this.planRpcService = planRpcService;
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
@@ -225,6 +232,7 @@ public class StatsService implements IStatsService {
         this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
         this.statsQueryExecutor = Objects.requireNonNull(statsQueryExecutor);
+        this.planEntityStatsFetcher = Objects.requireNonNull(planEntityStatsFetcher);
     }
 
     /**
@@ -408,51 +416,7 @@ public class StatsService implements IStatsService {
         // topology stats request.
         inputDto.getScopes().clear();
 
-        // definitely a plan instance; fetch the plan stats from the Repository client.
-        final PlanTopologyStatsRequest planStatsRequest = statsMapper.toPlanTopologyStatsRequest(
-                planInstance, inputDto, paginationRequest);
-        final Iterable<PlanTopologyStatsResponse> response = () ->
-                repositoryRpcService.getPlanTopologyStats(planStatsRequest);
-
-        // It's important to respect the order of entities in the returned stats, because
-        // they're arranged according to the pagination request.
-        final List<EntityStatsApiDTO> entityStatsList = new ArrayList<>();
-        final AtomicReference<Optional<PaginationResponse>> paginationResponseReference =
-            new AtomicReference<>(Optional.ofNullable(null));
-
-        StreamSupport.stream(response.spliterator(), false)
-                .forEach(chunk -> {
-                    if (chunk.getTypeCase() == TypeCase.PAGINATIONRESPONSE) {
-                        paginationResponseReference.set(Optional.of(chunk.getPaginationResponse()));
-                    } else {
-                        chunk.getEntityStats().getEntityStatsList().stream()
-                            .forEach(entityStats -> {
-                                final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
-                                final TopologyDTO.TopologyEntityDTO planEntity = entityStats.getPlanEntity();
-                                final ServiceEntityApiDTO serviceEntityApiDTO =
-                                    serviceEntityMapper.toServiceEntityApiDTO(planEntity);
-                                entityStatsApiDTO.setUuid(Long.toString(planEntity.getOid()));
-                                entityStatsApiDTO.setDisplayName(planEntity.getDisplayName());
-                                entityStatsApiDTO.setClassName(UIEntityType.fromType(planEntity.getEntityType()).apiStr());
-                                entityStatsApiDTO.setRealtimeMarketReference(serviceEntityApiDTO);
-                                final List<StatSnapshotApiDTO> statSnapshotsList = entityStats.getPlanEntityStats()
-                                    .getStatSnapshotsList()
-                                    .stream()
-                                    .map(statsMapper::toStatSnapshotApiDTO)
-                                    .collect(Collectors.toList());
-                                entityStatsApiDTO.setStats(statSnapshotsList);
-                                entityStatsList.add( entityStatsApiDTO);
-                            });
-                    }
-                });
-        if (paginationResponseReference.get().isPresent()) {
-            return PaginationProtoUtil.getNextCursor(paginationResponseReference.get().get())
-                .map(nextCursor -> paginationRequest.nextPageResponse(entityStatsList, nextCursor))
-                .orElseGet(() -> paginationRequest.finalPageResponse(entityStatsList));
-        } else {
-            return paginationRequest.allResultsResponse(entityStatsList);
-        }
-
+        return planEntityStatsFetcher.getPlanEntityStats(planInstance, inputDto, paginationRequest);
     }
 
     /**

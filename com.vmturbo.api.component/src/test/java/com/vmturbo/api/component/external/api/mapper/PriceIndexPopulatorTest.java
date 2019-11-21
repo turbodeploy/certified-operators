@@ -36,6 +36,8 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -148,9 +150,10 @@ public class PriceIndexPopulatorTest {
             @Nonnull Map<Long, Float> priceIndexByEntity) {
         final List<PlanEntityStats> stats = priceIndexByEntity.entrySet().stream()
                 .map(entry -> PlanEntityStats.newBuilder()
-                        .setPlanEntity(TopologyEntityDTO.newBuilder()
+                        .setPlanEntity(PartialEntity.newBuilder()
+                            .setMinimal(MinimalEntity.newBuilder()
                                 .setOid(entry.getKey())
-                                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE))
+                                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)))
                         .setPlanEntityStats(EntityStats.newBuilder()
                                 .addStatSnapshots(StatSnapshot.newBuilder()
                                         .addStatRecords(StatRecord.newBuilder()
@@ -160,7 +163,7 @@ public class PriceIndexPopulatorTest {
                 .collect(Collectors.toList());
 
         return PlanTopologyStatsResponse.newBuilder()
-                .setEntityStats(PlanEntityStatsChunk.newBuilder()
+                .setEntityStatsWrapper(PlanEntityStatsChunk.newBuilder()
                         .addAllEntityStats(stats))
                 .build();
     }

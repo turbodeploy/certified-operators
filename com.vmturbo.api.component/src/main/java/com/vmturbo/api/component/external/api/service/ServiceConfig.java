@@ -28,6 +28,7 @@ import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
+import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander;
@@ -362,6 +363,7 @@ public class ServiceConfig {
                 communicationConfig.severityPopulator(),
                 communicationConfig.priceIndexPopulator(),
                 communicationConfig.actionsRpcService(),
+                planEntityStatsFetcher(),
                 communicationConfig.getRealtimeTopologyContextId());
     }
 
@@ -504,7 +506,8 @@ public class ServiceConfig {
             userSessionContext(),
             communicationConfig.serviceEntityMapper(),
             mapperConfig.uuidMapper(),
-            statsQueryExecutor());
+            statsQueryExecutor(),
+            planEntityStatsFetcher());
         groupsService().setStatsService(statsService);
         return statsService;
     }
@@ -712,6 +715,18 @@ public class ServiceConfig {
     public StatsQueryContextFactory statsQueryContextFactory() {
         return new StatsQueryContextFactory(Duration.ofSeconds(liveStatsRetrievalWindowSeconds),
             userSessionContext(), Clock.systemUTC(), communicationConfig.thinTargetCache());
+    }
+
+    /**
+     * A utility class to retrieve plan stats.
+     *
+     * @return a utility class to retrieve plan stats
+     */
+    @Bean
+    public PlanEntityStatsFetcher planEntityStatsFetcher() {
+        return new PlanEntityStatsFetcher(mapperConfig.statsMapper(),
+            communicationConfig.serviceEntityMapper(),
+            communicationConfig.repositoryRpcService());
     }
 
     @Bean

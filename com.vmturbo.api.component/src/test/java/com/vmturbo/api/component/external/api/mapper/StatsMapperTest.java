@@ -349,9 +349,11 @@ public class StatsMapperTest {
         assertThat(filter.getCommodityAttributesCount(), equalTo(0));
     }
 
+    private static final long planId = 7L;
+    private static final long projectedTopologyId = 77L;
     private static final PlanInstance PLAN_INSTANCE = PlanInstance.newBuilder()
-            .setPlanId(7L)
-            .setProjectedTopologyId(77L)
+            .setPlanId(planId)
+            .setProjectedTopologyId(projectedTopologyId)
             .setStatus(PlanStatus.SUCCEEDED)
             .build();
 
@@ -377,33 +379,33 @@ public class StatsMapperTest {
     public void testToPlanTopologyStatsRequestTopologyIdSet() {
         final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
 
-        final PlanTopologyStatsRequest request =
-                statsMapper.toPlanTopologyStatsRequest(PLAN_INSTANCE, inputDto, ENTITY_PAGINATION_REQUEST);
-        assertThat(request.getTopologyId(), is(PLAN_INSTANCE.getProjectedTopologyId()));
+        final PlanTopologyStatsRequest request = statsMapper
+            .toPlanTopologyStatsRequest(projectedTopologyId, inputDto, ENTITY_PAGINATION_REQUEST);
+        assertThat(request.getTopologyId(), is(projectedTopologyId));
     }
 
     @Test
     public void testToPlanTopologyStatsRequestPeriodStartDate() {
         final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
         final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
-        period.setStartDate("7");
+        period.setStartDate("117");
         inputDto.setPeriod(period);
 
-        final PlanTopologyStatsRequest request =
-                statsMapper.toPlanTopologyStatsRequest(PLAN_INSTANCE, inputDto, ENTITY_PAGINATION_REQUEST);
-        assertThat(request.getFilter().getStartDate(), is(7L));
+        final PlanTopologyStatsRequest request = statsMapper
+            .toPlanTopologyStatsRequest(projectedTopologyId, inputDto, ENTITY_PAGINATION_REQUEST);
+        assertThat(request.getRequestDetails().getFilter().getStartDate(), is(117L));
     }
 
     @Test
     public void testToPlanTopologyStatsRequestPeriodEndDate() {
         final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
         final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
-        period.setEndDate("7");
+        period.setEndDate("118");
         inputDto.setPeriod(period);
 
-        final PlanTopologyStatsRequest request =
-                statsMapper.toPlanTopologyStatsRequest(PLAN_INSTANCE, inputDto, ENTITY_PAGINATION_REQUEST);
-        assertThat(request.getFilter().getEndDate(), is(7L));
+        final PlanTopologyStatsRequest request = statsMapper
+            .toPlanTopologyStatsRequest(projectedTopologyId, inputDto, ENTITY_PAGINATION_REQUEST);
+        assertThat(request.getRequestDetails().getFilter().getEndDate(), is(118L));
     }
 
     @Test
@@ -415,9 +417,9 @@ public class StatsMapperTest {
         period.setStatistics(Collections.singletonList(statDto));
         inputDto.setPeriod(period);
 
-        final PlanTopologyStatsRequest request =
-                statsMapper.toPlanTopologyStatsRequest(PLAN_INSTANCE, inputDto, ENTITY_PAGINATION_REQUEST);
-        assertThat(request.getFilter().getCommodityRequestsList(), containsInAnyOrder(
+        final PlanTopologyStatsRequest request = statsMapper
+            .toPlanTopologyStatsRequest(projectedTopologyId, inputDto, ENTITY_PAGINATION_REQUEST);
+        assertThat(request.getRequestDetails().getFilter().getCommodityRequestsList(), containsInAnyOrder(
             CommodityRequest.newBuilder()
                 .setCommodityName(statDto.getName())
                 .build()));
@@ -428,18 +430,18 @@ public class StatsMapperTest {
         final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
         inputDto.setRelatedType("Cousin");
 
-        final PlanTopologyStatsRequest request =
-                statsMapper.toPlanTopologyStatsRequest(PLAN_INSTANCE, inputDto, ENTITY_PAGINATION_REQUEST);
-        assertThat(request.getRelatedEntityType(), is(inputDto.getRelatedType()));
+        final PlanTopologyStatsRequest request = statsMapper
+            .toPlanTopologyStatsRequest(projectedTopologyId, inputDto, ENTITY_PAGINATION_REQUEST);
+        assertThat(request.getRequestDetails().getRelatedEntityType(), is(inputDto.getRelatedType()));
     }
 
     @Test
     public void testToPlanTopologyStatsRequestPaginationParams() {
         final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
 
-        final PlanTopologyStatsRequest request =
-                statsMapper.toPlanTopologyStatsRequest(PLAN_INSTANCE, inputDto, ENTITY_PAGINATION_REQUEST);
-        assertThat(request.getPaginationParams(), is(MAPPED_PAGINATION_PARAMS));
+        final PlanTopologyStatsRequest request = statsMapper
+            .toPlanTopologyStatsRequest(projectedTopologyId, inputDto, ENTITY_PAGINATION_REQUEST);
+        assertThat(request.getRequestDetails().getPaginationParams(), is(MAPPED_PAGINATION_PARAMS));
     }
 
     @Test
@@ -447,9 +449,9 @@ public class StatsMapperTest {
         final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
         inputDto.setScopes(Lists.newArrayList("1", "2"));
 
-        final PlanTopologyStatsRequest request =
-                statsMapper.toPlanTopologyStatsRequest(PLAN_INSTANCE, inputDto, ENTITY_PAGINATION_REQUEST);
-        assertThat(request.getEntityFilter().getEntityIdsList(), containsInAnyOrder(1L, 2L));
+        final PlanTopologyStatsRequest request = statsMapper
+            .toPlanTopologyStatsRequest(projectedTopologyId, inputDto, ENTITY_PAGINATION_REQUEST);
+        assertThat(request.getRequestDetails().getEntityFilter().getEntityIdsList(), containsInAnyOrder(1L, 2L));
     }
 
     @Test
@@ -457,11 +459,11 @@ public class StatsMapperTest {
         final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
         inputDto.setScopes(Collections.emptyList());
 
-        final PlanTopologyStatsRequest request =
-                statsMapper.toPlanTopologyStatsRequest(PLAN_INSTANCE, inputDto, ENTITY_PAGINATION_REQUEST);
+        final PlanTopologyStatsRequest request = statsMapper
+            .toPlanTopologyStatsRequest(projectedTopologyId, inputDto, ENTITY_PAGINATION_REQUEST);
         // Request shouldn't have an entity filter at all, instead of having an entity filter
         // with no entity IDS.
-        assertFalse(request.hasEntityFilter());
+        assertFalse(request.getRequestDetails().hasEntityFilter());
     }
 
     private static final StatsFilter STATS_FILTER = StatsFilter.newBuilder()
@@ -474,7 +476,7 @@ public class StatsMapperTest {
         when(statsMapper.newPeriodStatsFilter(period)).thenReturn(STATS_FILTER);
         final ClusterStatsRequest clusterStatsRequest =
                 statsMapper.toClusterStatsRequest("7", period);
-        assertThat(clusterStatsRequest.getClusterId(), is(7L));
+        assertThat(clusterStatsRequest.getClusterId(), is(planId));
         assertThat(clusterStatsRequest.getStats(), is(STATS_FILTER));
     }
 
@@ -484,7 +486,7 @@ public class StatsMapperTest {
         when(statsMapper.newPeriodStatsFilter(period)).thenReturn(STATS_FILTER);
         final ClusterStatsRequest clusterStatsRequest =
                 statsMapper.toClusterStatsRequest("7", period);
-        assertThat(clusterStatsRequest.getClusterId(), is(7L));
+        assertThat(clusterStatsRequest.getClusterId(), is(planId));
         assertThat(clusterStatsRequest.getStats(), is(STATS_FILTER));
     }
 

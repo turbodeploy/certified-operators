@@ -19,6 +19,8 @@ import io.grpc.stub.StreamObserver;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.DeleteTopologyRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanCombinedStatsRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanCombinedStatsResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
@@ -144,7 +146,13 @@ public class TopologyGraphRepositoryRpcService extends RepositoryServiceImplBase
 
     @Override
     public void getPlanTopologyStats(@Nonnull final PlanTopologyStatsRequest request,
-                      @Nonnull final StreamObserver<PlanTopologyStatsResponse> responseObserver) {
+                                     @Nonnull final StreamObserver<PlanTopologyStatsResponse> responseObserver) {
         arangoRepoRpcService.getPlanTopologyStats(request, responseObserver);
+    }
+
+    @Override
+    public void getPlanCombinedStats(@Nonnull final PlanCombinedStatsRequest request,
+                                     @Nonnull final StreamObserver<PlanCombinedStatsResponse> responseObserver) {
+        arangoRepoRpcService.getPlanCombinedStats(request, responseObserver);
     }
 }

@@ -121,13 +121,19 @@ public class RepositoryApiTest {
 
     @Test
     public void testGetEntity() {
+        // arrange
         final ApiPartialEntity ret = entity(7L);
 
         doReturn(Collections.singletonList(PartialEntityBatch.newBuilder()
             .addEntities(PartialEntity.newBuilder()
                 .setApi(ret))
             .build())).when(repoBackend).retrieveTopologyEntities(any());
-        assertThat(repositoryApi.entityRequest(7L).getEntity().get(), is(ret));
+
+        // act
+        final ApiPartialEntity response = repositoryApi.entityRequest(7L).getEntity().get();
+
+        // assert
+        assertThat(response, is(ret));
 
         final ArgumentCaptor<RetrieveTopologyEntitiesRequest> captor =
             ArgumentCaptor.forClass(RetrieveTopologyEntitiesRequest.class);
@@ -140,15 +146,22 @@ public class RepositoryApiTest {
 
     @Test
     public void testGetEntityProjected() {
+        // arrange
         final ApiPartialEntity ret = entity(7L);
 
         doReturn(Collections.singletonList(PartialEntityBatch.newBuilder()
             .addEntities(PartialEntity.newBuilder()
                 .setApi(ret))
             .build())).when(repoBackend).retrieveTopologyEntities(any());
-        assertThat(repositoryApi.entityRequest(7L)
+
+        // act
+        final ApiPartialEntity response = repositoryApi.entityRequest(7L)
             .projectedTopology()
-            .getEntity().get(), is(ret));
+            .getEntity()
+            .get();
+
+        // assert
+        assertThat(response, is(ret));
 
         final ArgumentCaptor<RetrieveTopologyEntitiesRequest> captor =
             ArgumentCaptor.forClass(RetrieveTopologyEntitiesRequest.class);
@@ -162,29 +175,66 @@ public class RepositoryApiTest {
 
     @Test
     public void testGetEntityPlanTargetsProjected() {
+        // arrange
         final ApiPartialEntity ret = entity(7L);
+        final long planContextId = realtimeContextId + 1;
 
         doReturn(Collections.singletonList(PartialEntityBatch.newBuilder()
             .addEntities(PartialEntity.newBuilder()
                 .setApi(ret))
             .build())).when(repoBackend).retrieveTopologyEntities(any());
-        assertThat(repositoryApi.entityRequest(7L)
-            // Non-realtime context, but not explicitly specifying that we want to look in the
-            // projected topology.
-            .contextId(realtimeContextId + 1)
-            .getEntity().get(), is(ret));
+
+        // act
+        final ApiPartialEntity response = repositoryApi.entityRequest(7L)
+            .projectedTopology()
+            .contextId(planContextId)
+            .getEntity()
+            .get();
+
+        // assert
+        assertThat(response, is(ret));
 
         final ArgumentCaptor<RetrieveTopologyEntitiesRequest> captor =
             ArgumentCaptor.forClass(RetrieveTopologyEntitiesRequest.class);
         verify(repoBackend).retrieveTopologyEntities(captor.capture());
         RetrieveTopologyEntitiesRequest req = captor.getValue();
         assertThat(req.getEntityOidsList(), contains(7L));
-        assertThat(req.getTopologyContextId(), is(realtimeContextId + 1));
+        assertThat(req.getTopologyContextId(), is(planContextId));
         // Should still look in the projected topology!
         assertThat(req.getTopologyType(), is(TopologyType.PROJECTED));
         assertThat(req.getReturnType(), is(Type.API));
     }
 
+    @Test
+    public void testGetEntityPlanTargetsSource() {
+        // arrange
+        final ApiPartialEntity ret = entity(7L);
+        final long planContextId = realtimeContextId + 1;
+
+        doReturn(Collections.singletonList(PartialEntityBatch.newBuilder()
+            .addEntities(PartialEntity.newBuilder()
+                .setApi(ret))
+            .build())).when(repoBackend).retrieveTopologyEntities(any());
+
+        // act
+        final ApiPartialEntity response = repositoryApi.entityRequest(7L)
+            .contextId(planContextId)
+            .getEntity()
+            .get();
+
+        // assert
+        assertThat(response, is(ret));
+
+        final ArgumentCaptor<RetrieveTopologyEntitiesRequest> captor =
+            ArgumentCaptor.forClass(RetrieveTopologyEntitiesRequest.class);
+        verify(repoBackend).retrieveTopologyEntities(captor.capture());
+        RetrieveTopologyEntitiesRequest req = captor.getValue();
+        assertThat(req.getEntityOidsList(), contains(7L));
+        assertThat(req.getTopologyContextId(), is(planContextId));
+        // Should still look in the projected topology!
+        assertThat(req.getTopologyType(), is(TopologyType.SOURCE));
+        assertThat(req.getReturnType(), is(Type.API));
+    }
 
     @Test
     public void testGetFullEntity() {
