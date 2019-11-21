@@ -1568,7 +1568,8 @@ public class TopologyConverter {
                     float currentUsage = getOriginalUsedValue(commBoughtTO, traderOid,
                             supplierOid, commType, volumeId, originalEntity);
                     final Builder builder = CommodityBoughtDTO.newBuilder();
-                    builder.setUsed(reverseScaleCommBought(currentUsage, originalCommodityBoughtDTO))
+                    builder.setUsed(reverseScaleComm(currentUsage, originalCommodityBoughtDTO,
+                                    CommodityBoughtDTO::getScalingFactor))
                     .setReservedCapacity(reservedCapacityAnalysis.getReservedCapacity(traderOid, commType))
                     .setCommodityType(commType)
                     .setPeak(peakQuantity);
@@ -2193,10 +2194,7 @@ public class TopologyConverter {
             }
             usedQuantity = 0;
         }
-        // if a scalingFactor is specified, scale this commodity up on the way into the market
-        if (topologyCommBought.hasScalingFactor()) {
-            usedQuantity *= topologyCommBought.getScalingFactor();
-        }
+        usedQuantity *= topologyCommBought.getScalingFactor();
 
         if (peakQuantity < 0) {
             // We don't want to log every time we get peak = -1 because mediation
@@ -2306,10 +2304,10 @@ public class TopologyConverter {
                 commodityIndex.getCommSold(traderOid, commType);
         float usage = commSoldTO.getQuantity();
         float capacity = getCapacityForCommodity(commSoldTO, marketTier, commType, traderOid);
-        double newCapacity = reverseScaleCommSold(capacity, originalCommoditySold);
+        double newCapacity = reverseScaleComm(capacity, originalCommoditySold, CommoditySoldDTO::getScalingFactor);
         CommoditySoldDTO.Builder commoditySoldBuilder = CommoditySoldDTO.newBuilder()
             .setCapacity(newCapacity)
-            .setUsed(reverseScaleCommSold(usage, originalCommoditySold))
+            .setUsed(reverseScaleComm(usage, originalCommoditySold, CommoditySoldDTO::getScalingFactor))
             .setPeak(peak)
             .setIsResizeable(commSoldTO.getSettings().getResizable())
             .setEffectiveCapacityPercentage(
@@ -2452,7 +2450,7 @@ public class TopologyConverter {
     }
 
     /**
-     * If this commodity-sold in the original {@link TopologyEntityDTO} in the input topology
+     * If this commodity in the original {@link TopologyEntityDTO} in the input topology
      * had a scale factor, then reverse the scaling on the way out. In other words, since
      * we multiplied by the scale factor on the way in to the market analysis, here we
      * divide by the scale factor on the way back out.
@@ -2460,57 +2458,21 @@ public class TopologyConverter {
      * Note that if there is a scale factor but that scale factor is zero, which should never happen,
      * we simply return the originalValue, i.e. we do _not_ return Inf or NaN.
      *
+     * @param <T> type of the commodity which value will be scaled.
      * @param valueToReverseScale the commodity value output from the market to
      *                            scale down (if there is a scaleFactor)
+     * @param commodity commodity which might have unusual scaling factor
+     * @param scalingFactorExtractor function to extract scaling factor from commodity.
      * @return either the valueToReverseScale divided by the scaleFactor if the original
      * commodity had defined a scaleFactor, else the valueToReverseScale unmodified
      */
-    private double reverseScaleCommSold(final float valueToReverseScale,
-                                        @Nonnull final Optional<CommoditySoldDTO> originalCommSold) {
-        if (originalCommSold.isPresent()) {
-            // If it's unset, it will be 0.
-            double scalingFactor = originalCommSold.get().getScalingFactor();
+    private <T> double reverseScaleComm(final double valueToReverseScale,
+                    @Nonnull final Optional<T> commodity,
+                    @Nonnull Function<T, Double> scalingFactorExtractor) {
+        return commodity.map(scalingFactorExtractor).filter(sf -> {
             // Scaling factor should be positive, and not an infinitely small value.
-            if (scalingFactor == 1.0 || (scalingFactor - EPSILON) <= 0) {
-                return valueToReverseScale;
-            } else {
-                return valueToReverseScale / scalingFactor;
-            }
-        } else {
-            return valueToReverseScale;
-        }
-    }
-
-    /**
-     * If this commodity-bought in the original {@link TopologyEntityDTO} in the input topology
-     * had a scale factor, then reverse the scaling on the way out. In other words, since
-     * we multiplied by the scale factor on the way in to the market analysis, here we
-     * divide by the scale factor on the way back out.
-     * <p/>
-     * Note that if there is a scale factor but that scale factor is zero, which should never happen,
-     * we simply return the originalValue, i.e. we do _not_ return Inf or NaN.
-     *
-     * @param valueToReverseScale the commodity value output from the market to
-     *                            scale down (if there is a scaleFactor)
-     * @param originalCommBought The original {@link CommodityBoughtDTO} if any.
-     * @return either the valueToReverseScale divided by the scaleFactor if the original
-     * commodity had defined a scaleFactor, else the valueToReverseScale unmodified
-     */
-    private double reverseScaleCommBought(final float valueToReverseScale,
-                                          @Nonnull final Optional<CommodityBoughtDTO> originalCommBought) {
-        // Using if/else instead of .map() to avoid auto-boxing.
-        if (originalCommBought.isPresent()) {
-            // If unset, it will be 0.
-            double scalingFactor = originalCommBought.get().getScalingFactor();
-            // Scaling factor should be positive, and not an infinitely small value.
-            if (scalingFactor == 1.0 || (scalingFactor - EPSILON) <= 0) {
-                return valueToReverseScale;
-            } else {
-                return valueToReverseScale / scalingFactor;
-            }
-        } else {
-            return valueToReverseScale;
-        }
+            return (sf - EPSILON) > 0;
+        }).map(sf -> valueToReverseScale / sf).orElse(valueToReverseScale);
     }
 
     @VisibleForTesting
