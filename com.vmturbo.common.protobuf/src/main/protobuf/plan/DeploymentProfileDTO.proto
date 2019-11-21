@@ -113,7 +113,7 @@ service DeploymentProfileService {
 }
 
 // Response for set target's templates and deployment profiles RPC call.
-message UpdateDiscoveredTemplateDeploymentProfileResponse {
+message SetDiscoveredTemplateDeploymentProfileResponse {
 }
 
 // Contains A dsicovered entity profile(template) and a list of deployment profile attached to it.
@@ -126,7 +126,7 @@ message EntityProfileToDeploymentProfile {
 }
 
 // Request for set target's templates and deployment profiles RPC call.
-message UpdateTargetDiscoveredTemplateDeploymentProfileRequest {
+message SetTargetDiscoveredTemplateDeploymentProfileRequest {
     // Target id the discovered templates deployment profiles are reported for.
     required int64 target_id = 1;
 
@@ -138,12 +138,18 @@ message UpdateTargetDiscoveredTemplateDeploymentProfileRequest {
     repeated DeploymentProfileInfo deployment_profile_without_templates = 3;
 }
 
+// Request for set discovered templates and deployment profiles within one discover.
+message SetDiscoveredTemplateDeploymentProfileRequest {
+    // list of set templates and deployment profiles request by different target id.
+    repeated SetTargetDiscoveredTemplateDeploymentProfileRequest target_request = 1;
+}
+
 // Template to deployment profile relationship is many to many. In order to represent relationship,
 // it needs to cover three case, templates have no deployment profile, template have deployment profile
 // and deployment profile have no templates.
 service DiscoveredTemplateDeploymentProfileService {
-    // Updates the specified discovered templates and deployment profiles for the specified target.
+    // Sets the specified discovered templates and deployment profiles for the specified target.
     // Target-related templates and deployment profiles, not specified in this request will be removed.
-    rpc UpdateDiscoveredTemplateDeploymentProfile (stream UpdateTargetDiscoveredTemplateDeploymentProfileRequest)
-    returns (UpdateDiscoveredTemplateDeploymentProfileResponse);
+    rpc SetDiscoveredTemplateDeploymentProfile (SetDiscoveredTemplateDeploymentProfileRequest)
+    returns (SetDiscoveredTemplateDeploymentProfileResponse);
 }

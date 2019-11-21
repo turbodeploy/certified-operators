@@ -709,7 +709,7 @@ public class SdkToTopologyEntityConverter {
      * @param providerSoldCommodities stream of sold commodities on provider side
      */
     private static void setUsedAndPeakForBoughtCommodity(
-            @Nonnull final TopologyDTO.CommodityBoughtDTO.Builder builder,
+            @Nonnull TopologyDTO.CommodityBoughtDTO.Builder builder,
             @Nonnull final CommonDTO.CommodityDTOOrBuilder commDTO,
             @Nonnull Stream<CommodityDTO.Builder> providerSoldCommodities) {
         // if used and peak are not percentage based, return the values immediately
