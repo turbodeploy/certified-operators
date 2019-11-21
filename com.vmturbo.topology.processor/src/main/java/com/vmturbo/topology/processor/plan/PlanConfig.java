@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Configuration;
 
 import com.vmturbo.common.protobuf.plan.DiscoveredTemplateDeploymentProfileServiceGrpc;
 import com.vmturbo.common.protobuf.plan.DiscoveredTemplateDeploymentProfileServiceGrpc.DiscoveredTemplateDeploymentProfileServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.DiscoveredTemplateDeploymentProfileServiceGrpc.DiscoveredTemplateDeploymentProfileServiceStub;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
@@ -45,10 +46,20 @@ public class PlanConfig {
         return DiscoveredTemplateDeploymentProfileServiceGrpc.newBlockingStub(planOrchestratorChannel());
     }
 
+    /**
+     * Non blocking service stub for streaming messages.
+     *
+     * @return New non blocking service stub
+     */
+    @Bean
+    public DiscoveredTemplateDeploymentProfileServiceStub nonBlockingtemplateDeploymentProfileRpcService() {
+        return DiscoveredTemplateDeploymentProfileServiceGrpc.newStub(planOrchestratorChannel());
+    }
+
     @Bean
     public DiscoveredTemplateDeploymentProfileUploader discoveredTemplatesUploader() {
         return new DiscoveredTemplateDeploymentProfileUploader(entityConfig.entityStore(),
-                                                               templateDeploymentProfileRpcService());
+            nonBlockingtemplateDeploymentProfileRpcService());
     }
 
     @Bean

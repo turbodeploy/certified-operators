@@ -24,16 +24,16 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import io.grpc.stub.StreamObserver;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import io.grpc.StatusRuntimeException;
-
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.EntityProfileToDeploymentProfile;
-import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.SetDiscoveredTemplateDeploymentProfileRequest;
-import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.SetTargetDiscoveredTemplateDeploymentProfileRequest;
-import com.vmturbo.common.protobuf.plan.DiscoveredTemplateDeploymentProfileServiceGrpc.DiscoveredTemplateDeploymentProfileServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.UpdateDiscoveredTemplateDeploymentProfileResponse;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.UpdateTargetDiscoveredTemplateDeploymentProfileRequest;
+import com.vmturbo.common.protobuf.plan.DiscoveredTemplateDeploymentProfileServiceGrpc.DiscoveredTemplateDeploymentProfileServiceStub;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -60,7 +60,7 @@ import com.vmturbo.topology.processor.entity.EntityStore;
 @ThreadSafe
 public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTemplateDeploymentProfileNotifier {
 
-    private final DiscoveredTemplateDeploymentProfileServiceBlockingStub templateDeploymentProfileService;
+    private final DiscoveredTemplateDeploymentProfileServiceStub nonBlockingTemplateDeploymentProfileService;
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -90,11 +90,11 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
      * @param templatesDeploymentProfileService rpc service to use for upload template and deployment profile
      */
     public DiscoveredTemplateDeploymentProfileUploader(
-            @Nonnull EntityStore entityStore,
-            DiscoveredTemplateDeploymentProfileServiceBlockingStub templatesDeploymentProfileService) {
+        @Nonnull EntityStore entityStore,
+        DiscoveredTemplateDeploymentProfileServiceStub templatesDeploymentProfileService) {
         Objects.requireNonNull(entityStore);
         this.entityStore = entityStore;
-        this.templateDeploymentProfileService = Objects.requireNonNull(templatesDeploymentProfileService);
+        this.nonBlockingTemplateDeploymentProfileService = Objects.requireNonNull(templatesDeploymentProfileService);
         this.loggedMissingTemplateCache = CacheBuilder.newBuilder()
             .expireAfterAccess(6, TimeUnit.HOURS).build();
     }
@@ -238,29 +238,44 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
      */
     @Override
     public void sendTemplateDeploymentProfileData() throws CommunicationException {
-        final SetDiscoveredTemplateDeploymentProfileRequest.Builder request =
-            SetDiscoveredTemplateDeploymentProfileRequest.newBuilder();
+
+        StreamObserver<UpdateDiscoveredTemplateDeploymentProfileResponse> responseObserver =
+            new StreamObserver<UpdateDiscoveredTemplateDeploymentProfileResponse>() {
+                @Override
+                public void onNext(final UpdateDiscoveredTemplateDeploymentProfileResponse response) {
+                }
+
+                @Override
+                public void onError(final Throwable throwable) {
+                    logger.error("Error uploading discovered templates and deployment profile {}.",
+                        throwable.getMessage());
+                }
+
+                @Override
+                public void onCompleted() {
+                    logger.info("Uploaded discovered templates and deployment profile.");
+                }
+            };
+
+        StreamObserver<UpdateTargetDiscoveredTemplateDeploymentProfileRequest> requestObserver =
+            nonBlockingTemplateDeploymentProfileService.updateDiscoveredTemplateDeploymentProfile(responseObserver);
         // Synchronized map iterate operation in order to prevent other thread modify map in same time.
         synchronized (storeLock) {
             DiscoveredTemplateToDeploymentProfile.entrySet().stream()
                 .forEach(entry -> {
-                    final SetTargetDiscoveredTemplateDeploymentProfileRequest.Builder targetRequest =
-                        SetTargetDiscoveredTemplateDeploymentProfileRequest.newBuilder()
+                    final UpdateTargetDiscoveredTemplateDeploymentProfileRequest.Builder targetRequest =
+                        UpdateTargetDiscoveredTemplateDeploymentProfileRequest.newBuilder()
                             .setTargetId(entry.getKey());
                     addEntityProfileToDeploymentProfile(entry.getValue(), targetRequest);
                     Optional.ofNullable(orphanedDeploymentProfile.get(entry.getKey()))
                         .ifPresent(targetRequest::addAllDeploymentProfileWithoutTemplates);
                     targetRequest.build();
-                    request.addTargetRequest(targetRequest);
+                    // Sending the template
+                    requestObserver.onNext(targetRequest.build());
                 });
         }
-        try {
-            templateDeploymentProfileService.setDiscoveredTemplateDeploymentProfile(request.build());
-            logger.info("Uploaded discovered templates and deployment profile.");
-        } catch (StatusRuntimeException e) {
-            throw new CommunicationException("Unable to upload templates and deployment profile.", e);
-        }
-
+        // After sending all the templates continue the logic in Plan Orchestrator
+        requestObserver.onCompleted();
     }
 
     /**
@@ -399,7 +414,7 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
 
     private void addEntityProfileToDeploymentProfile(
         @Nonnull EntityProfileToDeploymentProfileMap profileMap,
-        @Nonnull SetTargetDiscoveredTemplateDeploymentProfileRequest.Builder requestBuilder) {
+        @Nonnull UpdateTargetDiscoveredTemplateDeploymentProfileRequest.Builder requestBuilder) {
         profileMap.getEntrySet().stream()
             .forEach(entry -> {
                 final EntityProfileToDeploymentProfile profile = EntityProfileToDeploymentProfile.newBuilder()
