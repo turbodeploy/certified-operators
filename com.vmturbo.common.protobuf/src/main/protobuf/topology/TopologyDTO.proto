@@ -959,7 +959,7 @@ message CommodityBoughtDTO {
     optional bool active = 4 [default = true];
 
     // A scale factor to multiply this commodity by before analysis, if present
-    optional double scaling_factor = 5;
+    optional double scaling_factor = 5 [default = 1];
 
     // A collection of aggregated in different ways history values.
     optional HistoricalValues historical_used = 6;
@@ -1018,7 +1018,7 @@ message CommoditySoldDTO {
     optional float capacity_increment = 11 [default = 1.0];
 
     // A scale factor to multiply this commodity by before analysis, if present
-    optional double scaling_factor = 13;
+    optional double scaling_factor = 13 [default = 1];
 
     // The min amount resource can be provided to consumer
     optional double min_amount_for_consumer = 14;

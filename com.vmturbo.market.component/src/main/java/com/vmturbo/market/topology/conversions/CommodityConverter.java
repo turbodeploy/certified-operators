@@ -108,18 +108,16 @@ public class CommodityConverter {
                                                   : null);
         // if this commodity has a scaling factor set, then scale up the
         // USED and CAPACITY by scalingFactor for use in the new CommoditySoldTO
-        if (topologyCommSold.hasScalingFactor()) {
-            final float scalingFactor = (float)topologyCommSold.getScalingFactor();
-            if (logger.isDebugEnabled()) {
-                logger.debug("Scaling up comm {}, factor {}, for topology entity {},"
-                             + " prev used {}, new {}, prev capacity {}, new {}",
-                        commodityType.getType(), scalingFactor, dto.getDisplayName(),
-                        used, used * scalingFactor, capacity, capacity * scalingFactor
-                );
-            }
-            capacity *= scalingFactor;
-            used *= scalingFactor;
+        final float scalingFactor = (float)topologyCommSold.getScalingFactor();
+        if (topologyCommSold.hasScalingFactor() && logger.isDebugEnabled()) {
+            logger.debug("Scaling comm {}, factor {}, for topology entity {},"
+                         + " prev used {}, new {}, prev capacity {}, new {}",
+                    commodityType.getType(), scalingFactor, dto.getDisplayName(),
+                    used, used * scalingFactor, capacity, capacity * scalingFactor
+            );
         }
+        capacity *= scalingFactor;
+        used *= scalingFactor;
         final int type = commodityType.getType();
         final CommodityDTO.CommodityType sdkCommType = CommodityDTO.CommodityType.forNumber(type);
         final String comName = sdkCommType == null ? "UNKNOWN" : sdkCommType.name();
