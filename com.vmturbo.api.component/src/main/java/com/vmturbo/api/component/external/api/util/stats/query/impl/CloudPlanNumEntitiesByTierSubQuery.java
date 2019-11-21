@@ -203,10 +203,12 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
             .collect(Collectors.groupingBy(getTierId, Collectors.counting()));
         // tier id --> tier name
         Map<Long, String> tierIdToName = repositoryApi.entitiesRequest(tierIdToNumEntities.keySet()
-           .stream().map(Optional::get).collect(Collectors.toSet()))
-            .contextId(contextId)
-            .getMinimalEntities()
-            .collect(Collectors.toMap(MinimalEntity::getOid, MinimalEntity::getDisplayName));
+                        .stream().filter(key -> key.isPresent())
+                        .map(Optional::get).collect(Collectors.toSet()))
+                        .contextId(contextId)
+                        .getMinimalEntities()
+                        .collect(Collectors.toMap(MinimalEntity::getOid,
+                                                  MinimalEntity::getDisplayName));
 
         return tierIdToNumEntities.entrySet().stream()
                         .filter(entry -> entry.getKey().isPresent())
