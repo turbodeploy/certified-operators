@@ -35,8 +35,11 @@ public class AwsConversionProbe extends AwsProbe {
     private final Logger logger = LogManager.getLogger();
 
     /**
-     * List of new cloud entity types to create supply chain nodes for, which don't exist in
-     * original AWS probe supply chain definition.
+     * List of new cloud entity types to create supply chain node for, which don't exist in
+     * original AWS probe discovery response.
+     * Shared entity is an entity that is stitched with entities discovered by other targets of
+     * {@code this} probe type. e.g. a region discovered by AWS target A is stitched with a region
+     * discovered by AWS target B.
      */
     @VisibleForTesting
     protected static Set<EntityType> NEW_SHARED_ENTITY_TYPES = ImmutableSet.of(
@@ -48,9 +51,15 @@ public class AwsConversionProbe extends AwsProbe {
             EntityType.REGION
     );
 
+
     /**
      * List of new non-shared cloud entity types to create supply chain nodes for, which don't
      * exist in original AWS probe supply chain definition.
+     * Non-shared entity is an entity that can only stitch with entities discovered by targets of
+     * another probe type. e.g. in Azure, virtual volumes discovered by Azure volume probe stitch
+     * with virtual volumes discovered by Azure conversion probe. Non-shared entity types don't
+     * necessarily stitch. e.g. in AWS, virtual volumes are only discovered by a single probe: AWS
+     * conversion probe.
      */
     @VisibleForTesting
     protected static Set<EntityType> NEW_NON_SHARED_ENTITY_TYPES = ImmutableSet.of(

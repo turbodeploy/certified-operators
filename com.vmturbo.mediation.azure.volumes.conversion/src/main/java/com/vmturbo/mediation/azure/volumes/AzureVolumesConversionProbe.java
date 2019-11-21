@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
@@ -19,6 +20,7 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.ReturnType;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO;
+import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO.TemplateType;
 import com.vmturbo.platform.sdk.common.supplychain.MergedEntityMetadataBuilder;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainNodeBuilder;
@@ -35,15 +37,18 @@ public class AzureVolumesConversionProbe extends AzureVolumesProbe {
 
     private final Logger logger = LogManager.getLogger();
 
-
     /**
      * List of new non-shared cloud entity types to create supply chain nodes for, which don't
      * exist in original Azure probe supply chain definition.
+     * Non-shared entity is an entity that an entity that is only stitched with entities discovered
+     * by targets of other probe types. e.g. a region discovered by Azure volumes target is stitched
+     * with a region discovered by an Azure target.
      */
-    private static Set<EntityType> NEW_NON_SHARED_ENTITY_TYPES = ImmutableSet.of(
-        EntityType.VIRTUAL_VOLUME,
-        EntityType.REGION,
-        EntityType.STORAGE_TIER
+    @VisibleForTesting
+    protected static final Set<EntityType> NEW_NON_SHARED_ENTITY_TYPES = ImmutableSet.of(
+            EntityType.STORAGE_TIER,
+            EntityType.REGION,
+            EntityType.VIRTUAL_VOLUME
     );
 
     @Nonnull
@@ -80,9 +85,9 @@ public class AzureVolumesConversionProbe extends AzureVolumesProbe {
         // create supply chain nodes for new non-shared entities
         for (EntityType entityType : NEW_NON_SHARED_ENTITY_TYPES) {
             sc.add(new SupplyChainNodeBuilder()
-                .entity(entityType)
-                .mergedBy(createMergedEntityMetadata())
-                .buildEntity());
+                    .entity(entityType, TemplateType.BASE, -1)
+                    .mergedBy(createMergedEntityMetadata())
+                    .buildEntity());
         }
 
         return sc;
