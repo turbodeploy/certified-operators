@@ -20,16 +20,13 @@ import org.flywaydb.core.api.migration.jdbc.JdbcMigration;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
- * Migration to go over the policy settings and remove all the resize settings for vms.
+ * Migration to go over the policy settings and remove all the ignoreHa settings.
  */
-public class V1_19__RemoveVmResizeSetting implements JdbcMigration, MigrationChecksumProvider {
+public class V1_12__RemoveIgnoreHaSettings implements JdbcMigration, MigrationChecksumProvider {
 
     private final Logger logger = LogManager.getLogger(getClass());
-    // OM-49469 Removing resize from the EntitySettingSpecs for VM
-    private static final String virtualMachineDefaults = "'Virtual Machine Defaults'";
 
     @Override
     public void migrate(Connection connection) throws Exception {
@@ -37,28 +34,24 @@ public class V1_19__RemoveVmResizeSetting implements JdbcMigration, MigrationChe
         try {
             connection.setAutoCommit(false);
             final ResultSet rs = connection.createStatement()
-                .executeQuery("SELECT id, setting_policy_data " +
-                    "FROM setting_policy WHERE policy_type = 'user' or name = " + virtualMachineDefaults);
+                .executeQuery("SELECT id, setting_policy_data FROM group_component.setting_policy");
             while (rs.next()) {
                 final long oid = rs.getLong("id");
                 final byte[] settingPolicyDataBin = rs.getBytes("setting_policy_data");
                 SettingPolicyInfo settingPolicyInfo =
                     SettingPolicyInfo.parseFrom(settingPolicyDataBin);
-                if (settingPolicyInfo.hasEntityType() && settingPolicyInfo.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-                    List<Setting> filteredSettings = settingPolicyInfo.getSettingsList()
-                        .stream()
-                        .filter(setting -> !setting.getSettingSpecName().equals("resize"))
-                        .collect(Collectors.toList());
-                    SettingPolicyInfo updatedSettingPolicyInfo =
-                        settingPolicyInfo.toBuilder().clearSettings().addAllSettings(filteredSettings).build();
-
-                    final PreparedStatement stmt = connection.prepareStatement(
-                        "UPDATE setting_policy SET setting_policy_data=? WHERE id=?");
-                    stmt.setBytes(1, updatedSettingPolicyInfo.toByteArray());
-                    stmt.setLong(2, oid);
-                    stmt.addBatch();
-                    stmt.executeBatch();
-                }
+                List<Setting> filteredSettings = settingPolicyInfo.getSettingsList()
+                    .stream()
+                    .filter(setting -> !setting.getSettingSpecName().equals("ignoreHa")
+                    ).collect(Collectors.toList());
+                settingPolicyInfo =
+                    settingPolicyInfo.toBuilder().clearSettings().addAllSettings(filteredSettings).build();
+                final PreparedStatement stmt = connection.prepareStatement(
+                    "UPDATE group_component.setting_policy SET setting_policy_data=? WHERE id=?");
+                stmt.setBytes(1, settingPolicyInfo.toByteArray());
+                stmt.setLong(2, oid);
+                stmt.addBatch();
+                stmt.executeBatch();
             }
         } catch (InvalidProtocolBufferException | SQLException e) {
             logger.warn("Failed performing migration", e);

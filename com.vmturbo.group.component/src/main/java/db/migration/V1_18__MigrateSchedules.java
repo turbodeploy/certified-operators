@@ -33,7 +33,7 @@ import com.vmturbo.group.identity.IdentityProvider;
  * Class for migrating schedule info in setting policies. Extracts schedule info from setting policy
  * records and creates schedule records.
  */
-public class V1_17__MigrateSchedules implements JdbcMigration {
+public class V1_18__MigrateSchedules implements JdbcMigration {
     private static final String INSERT_SCHEDULE_SQL =
         "INSERT INTO schedule (id, display_name, start_time, end_time, last_date, recur_rule, time_zone_id) " +
             "VALUES (?,?,?,?,?,?,?)";

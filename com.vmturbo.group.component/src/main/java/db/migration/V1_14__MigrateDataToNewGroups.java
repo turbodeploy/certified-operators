@@ -55,7 +55,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
  * - it may be empty yet.
  */
 @SuppressWarnings("deprecation")
-public class V1_13__MigrateDataToNewGroups implements JdbcMigration {
+public class V1_14__MigrateDataToNewGroups implements JdbcMigration {
 
     private final Logger logger = LogManager.getLogger(getClass());
     /**
