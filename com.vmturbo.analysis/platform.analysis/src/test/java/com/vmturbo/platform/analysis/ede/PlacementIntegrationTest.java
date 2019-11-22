@@ -70,9 +70,11 @@ public class PlacementIntegrationTest {
         CommoditySpecificationTO.newBuilder().setBaseType(0).setType(1)
             .setDebugInfoNeverUseInCode("CPU|").build();
     private final CommoditySpecificationTO bicliqueSpecTO =
-        CommoditySpecificationTO.newBuilder().setType(2).setBaseType(3).build();
+        CommoditySpecificationTO.newBuilder().setType(2).setBaseType(3)
+                .setDebugInfoNeverUseInCode("Biclique|2").build();
     private final CommoditySpecificationTO storageProvisionSpecTO =
-        CommoditySpecificationTO.newBuilder().setBaseType(4).setType(5).build();
+        CommoditySpecificationTO.newBuilder().setBaseType(4).setType(5)
+                .setDebugInfoNeverUseInCode("ST_PROVISIONED").build();
     private final CommoditySpecificationTO memSpecTO =
         CommoditySpecificationTO.newBuilder().setBaseType(6).setType(7)
             .setDebugInfoNeverUseInCode("MEM|").build();

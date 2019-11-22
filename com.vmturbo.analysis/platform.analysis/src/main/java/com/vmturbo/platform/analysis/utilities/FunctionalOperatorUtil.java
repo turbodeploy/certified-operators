@@ -2,6 +2,9 @@ package com.vmturbo.platform.analysis.utilities;
 
 import java.util.Optional;
 
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
+import com.vmturbo.platform.analysis.economy.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -9,7 +12,6 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
-import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CbtpCostDTO;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
@@ -20,9 +22,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.Map.Entry;
 
-import com.vmturbo.platform.analysis.economy.Market;
-import com.vmturbo.platform.analysis.economy.ShoppingList;
-import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.QuoteMinimizer;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
 
@@ -113,120 +112,132 @@ public class FunctionalOperatorUtil {
                                                                     UpdatingFunctionTO updateFunctionTO) {
         FunctionalOperator UPDATE_COUPON_COMM = (buyer, boughtIndex, commSold, seller, economy, take, overhead)
                         -> {
-                            CbtpCostDTO cbtpResourceBundle = costDTO.getCbtpResourceBundle();
-                            // Find the template matched with the buyer
-                            final Set<Entry<ShoppingList, Market>>
-                            shoppingListsInMarket = economy.getMarketsAsBuyer(seller).entrySet();
-                            Market market = shoppingListsInMarket.iterator().next().getValue();
-                            List<Trader> sellers = market.getActiveSellers();
-                            List<Trader> mutableSellers = new ArrayList<Trader>();
-                            mutableSellers.addAll(sellers);
-                            mutableSellers.retainAll(economy.getMarket(buyer).getActiveSellers());
-                            // Get cheapest quote, that will be provided by the matching template
-                            final QuoteMinimizer minimizer = mutableSellers.stream().collect(
-                                            () -> new QuoteMinimizer(economy, buyer), QuoteMinimizer::accept,
-                                            QuoteMinimizer::combine);
-                            Trader matchingTP = minimizer.getBestSeller();
+            Context c = buyer.getBuyer().getSettings().getContext();
+            if (!seller.getCustomers().contains(buyer)) {
+                // consumer moving out of CBTP. Relinquish coupons and update the coupon bought
+                // and the usage of sold coupon
+                double couponsBought = buyer.getQuantity(boughtIndex);
+                buyer.setQuantity(boughtIndex, 0);
+                // unplacing the buyer completely. Clearing up the context that contains complete
+                // coverage information for the scalingGroup/individualVM
+                c.setTotalAllocatedCoupons((long)(c.getTotalAllocatedCoupons() - couponsBought));
+                return new double[] {Math.max(0, commSold.getQuantity()) - couponsBought, 0.0};
+            } else {
+                // consumer moving into CBTP. Use coupons and update the coupon bought
+                // and the usage of sold coupon
+                CbtpCostDTO cbtpResourceBundle = costDTO.getCbtpResourceBundle();
+                // Find the template matched with the buyer
+                final Set<Entry<ShoppingList, Market>>
+                        shoppingListsInMarket = economy.getMarketsAsBuyer(seller).entrySet();
+                Market market = shoppingListsInMarket.iterator().next().getValue();
+                List<Trader> sellers = market.getActiveSellers();
+                List<Trader> mutableSellers = new ArrayList<Trader>();
+                mutableSellers.addAll(sellers);
+                mutableSellers.retainAll(economy.getMarket(buyer).getActiveSellers());
+                // Get cheapest quote, that will be provided by the matching template
+                final QuoteMinimizer minimizer = mutableSellers.stream().collect(
+                        () -> new QuoteMinimizer(economy, buyer), QuoteMinimizer::accept,
+                        QuoteMinimizer::combine);
+                Trader matchingTP = minimizer.getBestSeller();
 
-                            if (matchingTP == null) {
-                                logger.error("UPDATE_COUPON_COMM cannot find a best seller for:"
-                                                + buyer.getBuyer().getDebugInfoNeverUseInCode()
-                                                + " which moved to: "
-                                                + seller.getDebugInfoNeverUseInCode()
-                                                + " mutable sellers: "
-                                                + mutableSellers.stream()
-                                                                .map(Trader::getDebugInfoNeverUseInCode)
-                                                                .collect(Collectors.toList()));
-                                return new double[] {commSold.getQuantity(), 0};
-                            }
-                            // if we plan on simulating moves for every CSG member, maybe we dont have to consider the
-                            // groupFactor here. Especially since all the VMs are going to scale
-                            if (overhead < 0) {
-                                logger.error("The overhead for CouponComm on CBTP " + seller.getDebugInfoNeverUseInCode()
-                                + " containing " + seller.getCustomers().size() + " is " + overhead);
-                                overhead = 0;
-                            }
-                            // copy the sold commodity's old used into the quantity attribute when
-                            // the attribute was reset while using explicit combinator
-                            if (commSold.getQuantity() == 0) {
-                                commSold.setQuantity(overhead);
-                            }
+                if (matchingTP == null) {
+                    logger.error("UPDATE_COUPON_COMM cannot find a best seller for:"
+                            + buyer.getBuyer().getDebugInfoNeverUseInCode()
+                            + " which moved to: "
+                            + seller.getDebugInfoNeverUseInCode()
+                            + " mutable sellers: "
+                            + mutableSellers.stream()
+                            .map(Trader::getDebugInfoNeverUseInCode)
+                            .collect(Collectors.toList()));
+                    return new double[]{commSold.getQuantity(), 0};
+                }
+                // if we plan on simulating moves for every CSG member, maybe we dont have to consider the
+                // groupFactor here. Especially since all the VMs are going to scale
+                if (overhead < 0) {
+                    logger.error("The overhead for CouponComm on CBTP " + seller.getDebugInfoNeverUseInCode()
+                            + " containing " + seller.getCustomers().size() + " is " + overhead);
+                    overhead = 0;
+                }
+                // copy the sold commodity's old used into the quantity attribute when
+                // the attribute was reset while using explicit combinator
+                if (commSold.getQuantity() == 0) {
+                    commSold.setQuantity(overhead);
+                }
 
-                            // The capacity of coupon commodity sold by the matching tp holds the
-                            // number of coupons associated with the template. This is the number of
-                            // coupons consumed by a vm that got placed on a cbtp.
+                // The capacity of coupon commodity sold by the matching tp holds the
+                // number of coupons associated with the template. This is the number of
+                // coupons consumed by a vm that got placed on a cbtp.
 
-                            // Determining the coupon quantity for buyers in consistent scaling
-                            // groups requires special handling when there is partial RI coverage.
-                            //
-                            // For example, if a m4.large needs 16 coupons and there are three VMs
-                            // in the scaling group. There is an m4.large CBTP that has 16 coupons.
-                            //
-                            // Since scaling actions are synthesized from a master buyer, we need to
-                            // spread the available coupons over all VMs in the scaling group in
-                            // order to be able to provide a consistent discounted cost for all
-                            // actions.  So, instead of one VM having 100% RI coverage and the other
-                            // two having 0% coverage, all VMs will have 33% coverage.
-                            int couponCommBaseType = buyer.getBasket().get(boughtIndex).getBaseType();
-                            int indexOfCouponCommByTp = matchingTP.getBasketSold()
-                                            .indexOfBaseType(couponCommBaseType);
-                            CommoditySold couponCommSoldByTp =
-                                            matchingTP.getCommoditiesSold().get(indexOfCouponCommByTp);
-                            double requestedCoupons = couponCommSoldByTp.getCapacity();
-                            // QuoteFunctionFactory.computeCost() already returns a cost that is
-                            // scaled by the group factor, so adjust for a single buyer.
-                            double templateCost = QuoteFunctionFactory.computeCost(buyer, matchingTP, false, economy)
-                                .getQuoteValue();
-                            double availableCoupons = commSold.getCapacity() - commSold.getQuantity();
-                            // because we replay moves of every single VM into this CBTP, we dont have to worry about
-                            // existing coverage. If a VM already has a coverage of say 16 coupons and is scaling UP,
-                            // when we come here for that VM, the soldCommUsed is still 0 (NOT 16) because of that VM.
-                            // we then find out the right usage for that VM (HIGHER or LOWER) and add that as the VMs
-                            // contribution to the usage.
-                            double discountedCost = 0;
-                            double discountCoefficient = 0;
-                            double totalAllocatedCoupons = 0;
-                            if (availableCoupons > 0) {
-                                totalAllocatedCoupons = Math.min(requestedCoupons, availableCoupons);
-                                discountCoefficient = totalAllocatedCoupons / requestedCoupons;
-                                // normalize total allocated coupons for a single buyer
-                                buyer.setQuantity(boughtIndex, totalAllocatedCoupons);
-                                // TODO SS: consider updating tier in context
-                                // tier information is updated here indirectly through TotalRequestedCoupons update
-                                buyer.getBuyer().getSettings().getContext().setTotalAllocatedCoupons((long)totalAllocatedCoupons)
-                                                                           .setTotalRequestedCoupons((long)requestedCoupons);
-                                // buyer.getBuyer().getSettings().getContext().setTier();
-                                discountedCost = ((1 - discountCoefficient) * templateCost) + (discountCoefficient
-                                                * ((1 - cbtpResourceBundle.getDiscountPercentage()) * templateCost));
-                            }
-                            // The cost of vm placed on a cbtp is the discounted cost
-                            buyer.setCost(discountedCost);
-                            if (logger.isDebugEnabled() || buyer.getBuyer().isDebugEnabled()) {
-                                logger.info(buyer.getBuyer().getDebugInfoNeverUseInCode()
-                                             + " migrated to CBTP "
-                                             + seller.getDebugInfoNeverUseInCode()
-                                             + " offering a discount of "
-                                             + cbtpResourceBundle.getDiscountPercentage()
-                                             + " on TP " + matchingTP.getDebugInfoNeverUseInCode()
-                                             + " with a templateCost of " + templateCost
-                                             + " at a discountCoeff of " + discountCoefficient
-                                             + " with a final discount of " + discountedCost
-                                             + " requests " + requestedCoupons
-                                             + " coupons, allowed " + totalAllocatedCoupons
-                                             + " coupons");
-                            }
-                            /** Increase the used value of coupon commodity sold by cbtp accordingly.
-                             * Increase the value by what was allocated to the buyer and not
-                             * how much the buyer requested. This is important when we rollback the action.
-                             * During rollback, we are only subtracting what buyer is buying (quantity).
-                             * This was changed few lines above to what is allocated and not to what was
-                             * requested by buyer.
-                             */
-                            return new double[]
-                                    // the couponCovered is included in totalAllocatedCoupons so to avoid double counting,
-                                    // subtract couponCovered from the used on the commSold
-                                    {commSold.getQuantity() + totalAllocatedCoupons, 0};
-                        };
+                // Determining the coupon quantity for buyers in consistent scaling
+                // groups requires special handling when there is partial RI coverage.
+                //
+                // For example, if a m4.large needs 16 coupons and there are three VMs
+                // in the scaling group. There is an m4.large CBTP that has 16 coupons.
+                //
+                // Since scaling actions are synthesized from a master buyer, we need to
+                // spread the available coupons over all VMs in the scaling group in
+                // order to be able to provide a consistent discounted cost for all
+                // actions.  So, instead of one VM having 100% RI coverage and the other
+                // two having 0% coverage, all VMs will have 33% coverage.
+                int couponCommBaseType = buyer.getBasket().get(boughtIndex).getBaseType();
+                int indexOfCouponCommByTp = matchingTP.getBasketSold().indexOfBaseType(couponCommBaseType);
+                CommoditySold couponCommSoldByTp = matchingTP.getCommoditiesSold().get(indexOfCouponCommByTp);
+                double requestedCoupons = couponCommSoldByTp.getCapacity();
+                // QuoteFunctionFactory.computeCost() already returns a cost that is
+                // scaled by the group factor, so adjust for a single buyer.
+                double templateCost = QuoteFunctionFactory.computeCost(buyer, matchingTP, false, economy)
+                        .getQuoteValue();
+                double availableCoupons = commSold.getCapacity() - commSold.getQuantity();
+                // because we replay moves of every single VM into this CBTP, we dont have to worry about
+                // existing coverage. If a VM already has a coverage of say 16 coupons and is scaling UP,
+                // when we come here for that VM, the soldCommUsed is still 0 (NOT 16) because of that VM.
+                // we then find out the right usage for that VM (HIGHER or LOWER) and add that as the VMs
+                // contribution to the usage.
+                double discountedCost = 0;
+                double discountCoefficient = 0;
+                double totalAllocatedCoupons = 0;
+                if (availableCoupons > 0) {
+                    totalAllocatedCoupons = Math.min(requestedCoupons, availableCoupons);
+                    discountCoefficient = totalAllocatedCoupons / requestedCoupons;
+                    // normalize total allocated coupons for a single buyer
+                    buyer.setQuantity(boughtIndex, totalAllocatedCoupons);
+                    // TODO SS: consider updating tier in context
+                    // tier information is updated here indirectly through TotalRequestedCoupons update
+                    c.setTotalAllocatedCoupons((long) (c.getTotalAllocatedCoupons() + totalAllocatedCoupons))
+                            .setTotalRequestedCoupons((long) requestedCoupons);
+                    // buyer.getBuyer().getSettings().getContext().setTier();
+                    discountedCost = ((1 - discountCoefficient) * templateCost) + (discountCoefficient
+                            * ((1 - cbtpResourceBundle.getDiscountPercentage()) * templateCost));
+                }
+                // The cost of vm placed on a cbtp is the discounted cost
+                buyer.setCost(discountedCost);
+                if (logger.isDebugEnabled() || buyer.getBuyer().isDebugEnabled()) {
+                    logger.info(buyer.getBuyer().getDebugInfoNeverUseInCode()
+                            + " migrated to CBTP "
+                            + seller.getDebugInfoNeverUseInCode()
+                            + " offering a discount of "
+                            + cbtpResourceBundle.getDiscountPercentage()
+                            + " on TP " + matchingTP.getDebugInfoNeverUseInCode()
+                            + " with a templateCost of " + templateCost
+                            + " at a discountCoeff of " + discountCoefficient
+                            + " with a final discount of " + discountedCost
+                            + " requests " + requestedCoupons
+                            + " coupons, allowed " + totalAllocatedCoupons
+                            + " coupons");
+                }
+                /** Increase the used value of coupon commodity sold by cbtp accordingly.
+                 * Increase the value by what was allocated to the buyer and not
+                 * how much the buyer requested. This is important when we rollback the action.
+                 * During rollback, we are only subtracting what buyer is buying (quantity).
+                 * This was changed few lines above to what is allocated and not to what was
+                 * requested by buyer.
+                 */
+                return new double[]
+                        // the couponCovered is included in totalAllocatedCoupons so to avoid double counting,
+                        // subtract couponCovered from the used on the commSold
+                        {commSold.getQuantity() + totalAllocatedCoupons, 0};
+            }
+        };
                         return UPDATE_COUPON_COMM;
     }
 
@@ -349,4 +360,12 @@ public class FunctionalOperatorUtil {
                         return new double[] {0, 0};
                     };
 
+    // when a user by mistake sets addComm as the updatingFn, we iterate over all the consumers and sum up the
+    // usage for the comm across customers and set that as the usage on the soldComm. This is when consumers move in or out
+    private static Set<FunctionalOperator> explicitCombinators = ImmutableSet.of(AVG_COMMS, MAX_COMM, MIN_COMM, ADD_COMM);
+
+    public static Set<FunctionalOperator> getExplicitCombinatorsSet() {
+        return explicitCombinators;
+    }
 }
+

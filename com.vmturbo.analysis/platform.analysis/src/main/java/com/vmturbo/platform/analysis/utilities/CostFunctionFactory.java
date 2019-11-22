@@ -549,7 +549,7 @@ public class CostFunctionFactory {
         long currentCoverage = (seller == buyer.getSupplier()) ?
                 buyer.getBuyer().getSettings().getContext().getTotalAllocatedCoupons() : 0;
         // if the currentCouponCoverage satisfies the requestedAmount for the new template, request 0 coupons
-        double requestedCoupons = Math.max(0, couponCommSoldByTp.getCapacity() * groupFactor - currentCoverage);
+        double requestedCoupons = Math.max(0, couponCommSoldByTp.getCapacity() * (groupFactor > 0 ? groupFactor : 1));
 
         // Calculate the number of available coupons from cbtp
         int indexOfCouponCommByCbtp = seller.getBasketSold()
@@ -557,7 +557,7 @@ public class CostFunctionFactory {
         CommoditySold couponCommSoldByCbtp =
                         seller.getCommoditiesSold().get(indexOfCouponCommByCbtp);
         double availableCoupons =
-                        couponCommSoldByCbtp.getCapacity() - couponCommSoldByCbtp.getQuantity();
+                        couponCommSoldByCbtp.getCapacity() - couponCommSoldByCbtp.getQuantity() + currentCoverage;
 
         double singleVmTemplateCost = templateCostForBuyer / (groupFactor > 0 ? groupFactor : 1);
 
@@ -661,7 +661,7 @@ public class CostFunctionFactory {
         // NOTE: CostTable.NO_VALUE (-1) is the no license commodity type
         return Double.isInfinite(cost) && licenseCommBoughtIndex != CostTable.NO_VALUE ?
                 new LicenseUnavailableQuote(seller, sl.getBasket().get(licenseCommBoughtIndex)) :
-                new CommodityCloudQuote(seller, cost * groupFactor, regionId, accountId);
+                new CommodityCloudQuote(seller, cost * (groupFactor > 0 ? groupFactor : 1), regionId, accountId);
     }
 
     /**

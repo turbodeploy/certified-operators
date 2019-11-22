@@ -120,8 +120,11 @@ public class Move extends MoveBase implements Action { // inheritance for code r
         super.take();
         if (getSource() != getDestination() ||
                 isContextChangeValid(getTarget().getBuyer())) {
-            getTarget().move(destination_);
+            // unplacing the sl
+            getTarget().move(null);
             updateQuantities(getEconomy(), getTarget(), getSource(), FunctionalOperatorUtil.SUB_COMM);
+            // moving sl to destination
+            getTarget().move(destination_);
             updateQuantities(getEconomy(), getTarget(), getDestination(), FunctionalOperatorUtil.ADD_COMM);
             getTarget().setContext(getContext().orElse(null));
         }
@@ -337,7 +340,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
         FunctionalOperator explicitCombinator = commoditySold.getSettings().getUpdatingFunction();
         if (explicitCombinator == null) { // if there is no explicit combinator, use default one.
             return defaultCombinator.operate(sl, boughtIndex, commoditySold, traderToUpdate, economy, take, 0);
-        } if (incoming) {
+        } if (incoming || !FunctionalOperatorUtil.getExplicitCombinatorsSet().contains(explicitCombinator)) {
             // include quantityBought to the current used of the corresponding commodity
             return explicitCombinator.operate(sl, boughtIndex, commoditySold, traderToUpdate, economy, take, 0);
         } else {

@@ -1,5 +1,6 @@
 package com.vmturbo.platform.analysis.ede;
 
+import static com.vmturbo.platform.analysis.testUtilities.TestUtils.PM_TYPE;
 import static com.vmturbo.platform.analysis.testUtilities.TestUtils.VM_TYPE;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertFalse;
@@ -57,7 +58,7 @@ public class ConsistentPlacementTest {
 
         // Add sellers to economy
         for (int i = 1; i <= numSellers; i++) {
-            Trader seller = economy.addTrader(VM_TYPE, TraderState.ACTIVE, PM_SMALL);
+            Trader seller = economy.addTrader(PM_TYPE, TraderState.ACTIVE, PM_SMALL);
             seller.setDebugInfoNeverUseInCode("seller-" + i);
             seller.getSettings().setCanAcceptNewCustomers(true);
 
