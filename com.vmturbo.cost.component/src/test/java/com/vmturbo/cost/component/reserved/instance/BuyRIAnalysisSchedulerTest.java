@@ -19,6 +19,7 @@ import org.apache.commons.lang3.concurrent.BasicThreadFactory;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisInvoker;
 
 public class BuyRIAnalysisSchedulerTest {
@@ -44,7 +45,8 @@ public class BuyRIAnalysisSchedulerTest {
         final BuyRIAnalysisScheduler buyRIAnalysisScheduler = new BuyRIAnalysisScheduler(
                 scheduledExecutorSpy, invoker, normalIntervalHours);
         buyRIAnalysisScheduler.normalTriggerBuyRIAnalysis();
-        verify(invoker).invokeBuyRIAnalysis();
+        final StartBuyRIAnalysisRequest startBuyRIAnalysisRequest = invoker.getStartBuyRIAnalysisRequest();
+        verify(invoker).invokeBuyRIAnalysis(startBuyRIAnalysisRequest);
     }
 
     /**
