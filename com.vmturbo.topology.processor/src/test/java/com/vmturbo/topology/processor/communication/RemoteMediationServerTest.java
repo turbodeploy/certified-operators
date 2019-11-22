@@ -28,6 +28,7 @@ import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.discovery.DiscoveryMessageHandler;
+import com.vmturbo.topology.processor.probeproperties.ProbePropertyStore;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
 import com.vmturbo.topology.processor.probes.ProbeStore;
@@ -48,7 +49,9 @@ public class RemoteMediationServerTest {
 
     private final ProbeStore probeStore = new TestProbeStore(identityProvider);
 
-    private final RemoteMediationServer remoteMediationServer = new RemoteMediationServer(probeStore);
+    private final RemoteMediationServer remoteMediationServer =
+        new RemoteMediationServer(probeStore,
+                                  Mockito.mock(ProbePropertyStore.class));
 
     private final DiscoveryMessageHandler mockOperationMessageHandler = mock(DiscoveryMessageHandler.class);
 
