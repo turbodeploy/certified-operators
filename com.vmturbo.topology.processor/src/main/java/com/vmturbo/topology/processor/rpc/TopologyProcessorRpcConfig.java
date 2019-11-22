@@ -120,10 +120,7 @@ public class TopologyProcessorRpcConfig {
 
     @Bean
     public ProbeRpcService probeService() {
-        return new ProbeRpcService(
-            probeConfig.probeStore(),
-            targetConfig.targetStore(),
-            keyValueStoreConfig.keyValueStore(),
+        return new ProbeRpcService(targetConfig.probePropertyStore(),
             sdkServerConfig.remoteMediation());
     }
 

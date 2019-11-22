@@ -1206,7 +1206,7 @@ public class TopologyFilterFactoryTest {
                 .setObjectFilter(ObjectFilter.newBuilder()
                     .addFilters(Search.PropertyFilter.newBuilder()
                         .setPropertyName(SearchableProperties.VOLUME_ATTACHMENT_STATE)
-                        .setStringFilter(StringFilter.newBuilder().addOptions("Available").build())
+                        .setStringFilter(StringFilter.newBuilder().addOptions(AttachmentState.UNATTACHED.name()).build())
                     )
                 )
             ).build();
@@ -1219,21 +1219,14 @@ public class TopologyFilterFactoryTest {
             TestGraphEntity.newBuilder(3L, UIEntityType.VIRTUAL_VOLUME)
                 .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                     .setVirtualVolume(VirtualVolumeInfo.newBuilder()
-                        .setAttachmentState(AttachmentState.AVAILABLE))
+                        .setAttachmentState(AttachmentState.UNATTACHED))
                     .build())
                 .build();
         final TestGraphEntity volumeEntityNotMatching =
             TestGraphEntity.newBuilder(4L, UIEntityType.VIRTUAL_VOLUME)
                 .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                     .setVirtualVolume(VirtualVolumeInfo.newBuilder()
-                        .setAttachmentState(AttachmentState.IN_USE))
-                    .build())
-                .build();
-
-        final TestGraphEntity volumeEntityNoAttachmentState =
-            TestGraphEntity.newBuilder(5L, UIEntityType.VIRTUAL_VOLUME)
-                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-                    .setVirtualVolume(VirtualVolumeInfo.newBuilder())
+                        .setAttachmentState(AttachmentState.ATTACHED))
                     .build())
                 .build();
 
@@ -1245,8 +1238,6 @@ public class TopologyFilterFactoryTest {
         assertFalse(propertyFilter.test(pmEntity));
         assertTrue(propertyFilter.test(volumeEntityMatching));
         assertFalse(propertyFilter.test(volumeEntityNotMatching));
-        // no attachment state -> default (Available) is used
-        assertTrue(propertyFilter.test(volumeEntityNoAttachmentState));
     }
 
     private TestGraphEntity makeVmWithConnectedNetworks(long id, String... connectedNetworks) {

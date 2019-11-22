@@ -10,11 +10,11 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import io.grpc.StatusRuntimeException;
-
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
@@ -22,6 +22,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanEntityStats;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse.TypeCase;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RequestDetails;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
@@ -31,6 +32,7 @@ import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.stats.StatsUtils;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -68,13 +70,13 @@ public class PriceIndexPopulator {
     /**
      * Populate priceIndex for plan entities.
      *
-     * @param planTopologyContextId id of the plan topology
+     * @param planTopologyId id of the plan topology
      * @param entities list of plan entities
      */
-    public void populatePlanEntities(final long planTopologyContextId,
+    public void populatePlanEntities(final long planTopologyId,
             @Nonnull final List<ServiceEntityApiDTO> entities) {
         final Map<Long, Float> priceIndexEntityId =
-                fetchPriceIndexForPlanEntities(planTopologyContextId);
+                fetchPriceIndexForPlanEntities(planTopologyId);
         populatePriceIndex(entities, priceIndexEntityId);
     }
 
@@ -162,31 +164,37 @@ public class PriceIndexPopulator {
      * doesn't have priceIndex or error when fetching stats in history component, it will not be
      * included in the result.
      *
-     * @param planTopologyContextId id of the plan topology
+     * @param planTopologyId id of the plan topology
      * @return mapping from entity oid to priceIndex value
      */
-    private Map<Long, Float> fetchPriceIndexForPlanEntities(final long planTopologyContextId) {
+    private Map<Long, Float> fetchPriceIndexForPlanEntities(final long planTopologyId) {
         // Reading the price index for the entities of plans
         List<PlanEntityStats> entityStats = new ArrayList<>();
         Iterator<PlanTopologyStatsResponse> resp =
-                repositoryRpcService.getPlanTopologyStats(PlanTopologyStatsRequest.newBuilder()
-                        .setTopologyId(planTopologyContextId)
-                        .setFilter(StatsFilter.newBuilder()
-                                .setStartDate(System.currentTimeMillis() + 10000)
-                                .addCommodityRequests(CommodityRequest.newBuilder()
-                                        .setCommodityName(StringConstants.PRICE_INDEX)))
-                        .build());
+            repositoryRpcService.getPlanTopologyStats(PlanTopologyStatsRequest.newBuilder()
+                .setTopologyId(planTopologyId)
+                .setRequestDetails(RequestDetails.newBuilder()
+                    // Request no pagination on this response, since we want everything and
+                    // streaming a single page is more efficient than retrieving multiple pages
+                    .setPaginationParams(PaginationParameters.newBuilder().setEnforceLimit(false))
+                    .setReturnType(Type.MINIMAL)
+                    .setFilter(StatsFilter.newBuilder()
+                        .setStartDate(System.currentTimeMillis())
+                        .addCommodityRequests(CommodityRequest.newBuilder()
+                            .setCommodityName(StringConstants.PRICE_INDEX))))
+                .build());
+        // This response processing assumes that the entire response will be a single page
         while (resp.hasNext()) {
             PlanTopologyStatsResponse chunk = resp.next();
-            if (chunk.getTypeCase() != TypeCase.PAGINATIONRESPONSE) {
-                entityStats.addAll(chunk.getEntityStats().getEntityStatsList());
+            if (chunk.getTypeCase() != TypeCase.PAGINATION_RESPONSE) {
+                entityStats.addAll(chunk.getEntityStatsWrapper().getEntityStatsList());
             }
         }
 
         return entityStats.stream()
                 .filter(stat -> stat.getPlanEntityStats().getStatSnapshotsCount() > 0)
                 .filter(stat -> stat.getPlanEntityStats().getStatSnapshots(0).getStatRecordsCount() > 0)
-                .collect(Collectors.toMap(stat -> stat.getPlanEntity().getOid(),
+                .collect(Collectors.toMap(stat -> stat.getPlanEntity().getMinimal().getOid(),
                         stat -> stat.getPlanEntityStats().getStatSnapshots(0).getStatRecords(0)
                                 .getUsed().getMax()));
     }

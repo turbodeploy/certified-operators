@@ -181,7 +181,7 @@ public class DiscoveredGroupUploader {
             policy.addDiscoveredGroupNames(GroupProtoUtil.createIdentifyingKey(group));
             String name = "Template Exclusion Policy for " + group.getDisplayName();
             policy.setDisplayName(name);
-            policy.setName(name);
+            policy.setName(name + ", target: " + targetId);
             policy.addSettings(setting);
 
             result.add(policy.build());

@@ -33,19 +33,31 @@ import com.vmturbo.auth.api.auditing.AuditLog;
 @EnableGlobalMethodSecurity(prePostEnabled = true)
 public class HeaderApiSecurityConfig extends ApiSecurityConfig {
 
+    private static final String PUBLIC_KEY = "PublicKey";
+
     private static final Logger logger = LogManager.getLogger();
 
-    @Value("${vendor_supported_admin_role:Server Administrator,Account Administrator,Device Administrator}")
+    @Value("${vendor_supported_admin_role:Server Administrator,Account Administrator,Device Administrator,System Administrator}")
     private String externalAdminRoles;
 
     @Value("${vendor_supported_observer_role:Read-Only}")
     private String externalObserverRoles;
 
-    @Value("${vendor_requested_username:x-barracuda-account}")
-    private String externalUser;
+    @Value("${vendor_request_username_header:x-barracuda-account}")
+    private String externalUserTag;
 
-    @Value("${vendor_requested_role:x-barracuda-roles}")
-    private String externalRole;
+    @Value("${vendor_request_role_header:x-barracuda-roles}")
+    private String externalRoleTag;
+
+    @Value("${vendor_public_key_header:X-Starship-Auth-Token-PublicKey}")
+    private String jwtTokenPublicKeyTag;
+
+    // the public key should use property name "vendor_public_key"
+    @Value("${vendor_public_key:PublicKey}")
+    private String jwtTokenPublicKey;
+
+    @Value("${vendor_request_jwt_token:X-Starship-Auth-Token}")
+    private String jwtTokenTag;
 
     @Autowired(required = false)
     private HeaderAuthenticationProvider headerAuthenticationProvider;
@@ -77,14 +89,20 @@ public class HeaderApiSecurityConfig extends ApiSecurityConfig {
     public HeaderAuthenticationFilter headerAuthenticationFilter() {
         final HeaderMapper headerMapper =
                 HeaderMapperFactory.getHeaderMapper(Optional.empty(), externalAdminRoles,
-                        externalObserverRoles, externalUser, externalRole);
+                        externalObserverRoles, externalUserTag, externalRoleTag, jwtTokenPublicKeyTag, jwtTokenTag);
 
         logger.info("System is in header authentication and authorization.");
         AuditLog.newEntry(AuditAction.SET_HEADER_AUTH,
                 "Enabled header authentication and authorization.", true)
                 .targetName(LOGIN_MANAGER)
                 .audit();
-        return new HeaderAuthenticationFilter(headerMapper);
+        return new HeaderAuthenticationFilter(headerMapper, getPublicKey());
+    }
+
+    // If the public key is not default value, use it, otherwise just Optional.empty().
+    private Optional<String> getPublicKey() {
+        return jwtTokenPublicKey.equalsIgnoreCase(PUBLIC_KEY) ? Optional.empty() :
+                Optional.of(jwtTokenPublicKey);
     }
 }
 

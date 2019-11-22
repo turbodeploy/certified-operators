@@ -1,13 +1,16 @@
 package com.vmturbo.mediation.azure.volumes;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Sets;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -16,14 +19,30 @@ import com.vmturbo.mediation.conversion.util.TestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
+import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO;
 
-public class AzureVolumesConversionProbeTest {
+/**
+ * A class to test {@link AzureVolumesConversionProbe}.
+ */
+public class AzureVolumesConversionProbeTest extends AzureVolumesConversionProbe {
 
     private AzureAccount azureAccount = Mockito.mock(AzureAccount.class);
 
     private static final String AZURE_ENGINEERING_WASTED_VOLUMES_FILE_PATH =
         AzureVolumesConversionProbeTest.class.getClassLoader().getResource(
         "data/azure_wasted_volumes_engineering.management.core.windows.net.txt").getPath();
+
+    private static final AzureVolumesProbe AZURE_VOLUMES_PROBE = new AzureVolumesProbe();
+
+    private static final Set<TemplateDTO> AZURE_VOLUMES_PROBE_SUPPLY_CHAIN_DEFINITION =
+            AZURE_VOLUMES_PROBE.getSupplyChainDefinition();
+
+    // List of cloud entity types, which don't exist in original Azure volumes probe discovery
+    // response, including the original Azure volumes probe entity types.
+    private static final Set<EntityType> AZURE_VOLUMES_CONVERSION_PROBE_ENTITY_TYPES =
+            TestUtils.getCloudEntityTypes(
+                    AZURE_VOLUMES_PROBE_SUPPLY_CHAIN_DEFINITION, NEW_NON_SHARED_ENTITY_TYPES
+            );
 
     @Test
     public void testEngineering() throws Exception {
@@ -61,5 +80,32 @@ public class AzureVolumesConversionProbeTest {
         assertEquals(oldResponse.getNonMarketEntityDTOList(), newResponse.getNonMarketEntityDTOList());
         assertEquals(oldResponse.getCostDTOList(), newResponse.getCostDTOList());
         assertEquals(oldResponse.getDiscoveryContext(), newResponse.getDiscoveryContext());
+    }
+
+    @Test
+    public void testGetSupplyChainDefinition() {
+        AzureVolumesConversionProbe volumesConversionProbe = new AzureVolumesConversionProbe();
+        AzureVolumesProbe volumesProbe = new AzureVolumesProbe();
+
+        Set<TemplateDTO> entitiesInSupplyChain = volumesConversionProbe.getSupplyChainDefinition();
+        Set<EntityType> entitiesWithMergeData =
+                getEntityTypesWithMergedEntityMetaData(entitiesInSupplyChain);
+
+        // Verify that merged entity meta data are created correctly to entity types who require it.
+        assertEquals(Sets.union(NEW_NON_SHARED_ENTITY_TYPES,
+                getEntityTypesWithMergedEntityMetaData(volumesProbe.getSupplyChainDefinition())),
+                entitiesWithMergeData);
+
+        assertTrue(
+                TestUtils.verifyEntityTypes(entitiesInSupplyChain,
+                        AZURE_VOLUMES_CONVERSION_PROBE_ENTITY_TYPES)
+        );
+    }
+
+    private Set<EntityType> getEntityTypesWithMergedEntityMetaData(Set<TemplateDTO> supplyChain) {
+        return supplyChain.stream()
+                .filter(TemplateDTO::hasMergedEntityMetaData)
+                .map(TemplateDTO::getTemplateClass)
+                .collect(Collectors.toSet());
     }
 }

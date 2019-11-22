@@ -46,6 +46,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
 import com.vmturbo.api.component.external.api.util.ImmutableGroupAndMembers;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
@@ -56,6 +57,7 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
+import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
@@ -1257,6 +1259,63 @@ public class GroupMapperTest {
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
 
         assertEquals(groupMapper.getEnvironmentTypeForGroup(groupExpander.getMembersForGroup(group)), EnvironmentType.HYBRID);
+    }
+
+    /**
+     * Test getEnvironmentTypeForGroup returns proper type for a group of resource groups. When
+     * all entities from both group have the same {@link EnvironmentType} then group also has that
+     * {@link EnvironmentType}.
+     */
+    @Test
+    public void testGetEnvironmentTypeForGroupOfResourceGroups() {
+        final long rg1Oid = 1L;
+        final long rg2Oid = 2L;
+        final long groupOid = 3L;
+        final long rgMember1Oid = 4L;
+        final long rgMember2Oid = 5L;
+
+        final GroupDefinition groupDefinition = GroupDefinition.newBuilder()
+                .setType(GroupType.REGULAR)
+                .setStaticGroupMembers(GroupDTO.StaticMembers.newBuilder()
+                        .addMembersByType(GroupDTO.StaticMembers.StaticMembersByType.newBuilder()
+                                .setType(GroupDTO.MemberType.newBuilder()
+                                        .setGroup(GroupType.RESOURCE)
+                                        .build())
+                                .addAllMembers(Arrays.asList(rg1Oid, rg2Oid))
+                                .build())
+                        .build())
+                .build();
+
+        final Grouping group =
+                Grouping.newBuilder().setDefinition(groupDefinition).setId(groupOid).build();
+
+        final GroupAndMembers groupAndMembers = ImmutableGroupAndMembers.builder()
+                .group(group)
+                .members(Arrays.asList(rg1Oid, rg2Oid))
+                .entities(Arrays.asList(rgMember1Oid, rgMember2Oid))
+                .build();
+
+        when(groupExpander.getMembersForGroup(group)).thenReturn(groupAndMembers);
+
+        final MinimalEntity entVM1 = MinimalEntity.newBuilder()
+                .setOid(rgMember1Oid)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
+                .build();
+        final MinimalEntity entVM2 = MinimalEntity.newBuilder()
+                .setOid(rgMember2Oid)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
+                .build();
+
+        final List<MinimalEntity> listVMs = Arrays.asList(entVM1, entVM2);
+
+        final MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(listVMs);
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
+
+        assertEquals(
+                groupMapper.getEnvironmentTypeForGroup(groupExpander.getMembersForGroup(group)),
+                EnvironmentType.CLOUD);
     }
 
     /**

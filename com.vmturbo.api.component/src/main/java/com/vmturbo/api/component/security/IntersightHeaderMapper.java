@@ -1,9 +1,17 @@
 package com.vmturbo.api.component.security;
 
+import java.security.KeyFactory;
+import java.security.NoSuchAlgorithmException;
+import java.security.PublicKey;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.Map;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
+import com.vmturbo.auth.api.Base64CodecUtils;
 
 /**
  * A class to map between Cisco Intersight and XL:
@@ -15,9 +23,14 @@ import javax.annotation.Nullable;
  */
 public class IntersightHeaderMapper implements HeaderMapper {
 
+    private static final String RSA_PUBLIC_KEY_PREFIX = "-----BEGIN RSA PUBLIC KEY----- ";
+    private static final String RSA_PUBLIC_KEY_SUFFIX = " -----END RSA PUBLIC KEY-----";
+
     private final String userName;
     private final String role;
     private final Map<String, String> intersightToCwomRoleMap;
+    private final String jwtTokenTag;
+   private final String jwtTokenPublicKeyTag;
 
     /**
      * Constructor for the mapper.
@@ -25,12 +38,17 @@ public class IntersightHeaderMapper implements HeaderMapper {
      * @param intersightToCwomGroupMap map Cisco intersight role to CWOM group.
      * @param xBarracudaAccount Cisco intersight user account header.
      * @param xBarracudaRoles Cisco intersight user role header.
+     * @param jwtTokenPublicKeyTag Cisco intersight public key property name (tag)
+     * @param jwtTokenTag Cisco inetsight JWT token property name (tag)
      */
     public IntersightHeaderMapper(@Nonnull Map<String, String> intersightToCwomGroupMap,
-            @Nonnull String xBarracudaAccount, @Nonnull String xBarracudaRoles) {
+            @Nonnull String xBarracudaAccount, @Nonnull String xBarracudaRoles,
+            @Nonnull String jwtTokenPublicKeyTag, @Nonnull String jwtTokenTag) {
         this.userName = xBarracudaAccount;
         this.role = xBarracudaRoles;
         this.intersightToCwomRoleMap = intersightToCwomGroupMap;
+        this.jwtTokenPublicKeyTag = jwtTokenPublicKeyTag;
+        this.jwtTokenTag = jwtTokenTag;
     }
 
     /**
@@ -60,7 +78,35 @@ public class IntersightHeaderMapper implements HeaderMapper {
      * @return CWOM role if exists.
      */
     @Override
-    public String getAuthRole(@Nullable String intersigtRole) {
+    public String getAuthGroup(@Nullable String intersigtRole) {
         return intersightToCwomRoleMap.get(intersigtRole);
+    }
+
+    @Override
+    public Optional<PublicKey> buildPublicKey(Optional<String> jwtTokenPublicKey) {
+        try {
+            byte[] bytes = Base64CodecUtils.decode(getRsaPublicKey(jwtTokenPublicKey));
+            X509EncodedKeySpec ks = new X509EncodedKeySpec(bytes);
+            KeyFactory kf = KeyFactory.getInstance("RSA");
+            return Optional.of(kf.generatePublic(ks));
+        } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
+            return Optional.empty();
+        }
+    }
+
+    @Override
+    public String getJwtTokenTag() {
+        return jwtTokenTag;
+    }
+
+    @Override
+    public String getJwtTokenPublicKeyTag() {
+        return jwtTokenPublicKeyTag;
+    }
+
+    private String getRsaPublicKey(Optional<String> rsaPublicKeyString) {
+        return rsaPublicKeyString.map(s -> s.replaceAll(RSA_PUBLIC_KEY_PREFIX, ""))
+                .map(s -> s.replaceAll(RSA_PUBLIC_KEY_SUFFIX, ""))
+                .orElse("");
     }
 }

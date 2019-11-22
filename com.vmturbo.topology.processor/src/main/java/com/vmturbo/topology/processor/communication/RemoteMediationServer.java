@@ -15,10 +15,10 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.ITransport;
@@ -38,9 +38,10 @@ import com.vmturbo.topology.processor.operation.Operation;
 import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
+import com.vmturbo.topology.processor.probeproperties.ProbePropertyStore;
 import com.vmturbo.topology.processor.probes.ProbeException;
-import com.vmturbo.topology.processor.probes.ProbeRpcService;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.targets.TargetStoreException;
 
 /**
  * Remote mediation (SDK) server. This class provides routines to interact with remote probes.
@@ -50,16 +51,7 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
     private final Logger logger = LogManager.getLogger();
 
     private final ProbeContainerChooser containerChooser = new RoundRobinProbeContainerChooser();
-
-    public RemoteMediationServer(@Nonnull final ProbeStore probeStore) {
-        Objects.requireNonNull(probeStore);
-        this.probeStore = probeStore;
-        logger.info("Remote mediation server started");
-        PassiveAdjustableExpiringMap<Integer, MessageAnticipator> expiringHandlerMap =
-                        new PassiveAdjustableExpiringMap<>();
-        messageHandlers = Collections.synchronizedMap(expiringHandlerMap);
-        messageHandlerExpirationClock = expiringHandlerMap.getExpirationClock();
-    }
+    private final ProbePropertyStore probePropertyStore;
 
     private final ProbeStore probeStore;
 
@@ -82,6 +74,23 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
      * The clock used by the map of messageHandlers to expire its entries.
      */
     private final Clock messageHandlerExpirationClock;
+
+    /**
+     * Construct the instance.
+     *
+     * @param probeStore probes registry
+     * @param probePropertyStore probe and target-specific properties registry
+     */
+    public RemoteMediationServer(@Nonnull final ProbeStore probeStore, @Nonnull ProbePropertyStore probePropertyStore) {
+        Objects.requireNonNull(probeStore);
+        this.probeStore = probeStore;
+        this.probePropertyStore = probePropertyStore;
+        logger.info("Remote mediation server started");
+        PassiveAdjustableExpiringMap<Integer, MessageAnticipator> expiringHandlerMap =
+                        new PassiveAdjustableExpiringMap<>();
+        messageHandlers = Collections.synchronizedMap(expiringHandlerMap);
+        messageHandlerExpirationClock = expiringHandlerMap.getExpirationClock();
+    }
 
     /**
      * Get the next message id to be used. Message ID can be a negative value.
@@ -115,20 +124,22 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
         }
     }
 
-    /**
-     * This method is implemented only for backward-compatibility with OpsManager.
-     * Initialization of probe properties on a newly-registered mediation client is not done
-     * using an initialization message anymore.  Instead, it is done by listener coded which
-     * is found in {@link ProbeRpcService#ProbeRpcService}.
-     *
-     * @return empty {@link InitializationContent} message.
-     */
     @Override
-    public InitializationContent getInitializationContent() {
-        return
-            InitializationContent.newBuilder()
-                .setProbeProperties(SetProperties.getDefaultInstance())
-                .build();
+    @Nonnull
+    public InitializationContent getInitializationContent(@Nonnull ContainerInfo containerInfo) {
+        // a good deal of TP logic already relies on no more than 1 registered probe per type
+        Set<Long> probeIds = containerInfo.getProbesList().stream().map(ProbeInfo::getProbeType)
+                        .map(type -> probeStore.getProbeIdForType(type))
+                        .filter(Optional::isPresent).map(Optional::get).collect(Collectors.toSet());
+        try {
+            SetProperties initContent = probePropertyStore.buildSetPropertiesMessageForProbe(probeIds);
+            logger.debug("Initializing probes {} with properties:\n{}", probeIds::toString,
+                         initContent::toString);
+            return InitializationContent.newBuilder().setProbeProperties(initContent).build();
+        } catch (ProbeException | TargetStoreException e) {
+            logger.warn("Failed to construct probe properties for " + probeIds, e);
+            return InitializationContent.getDefaultInstance();
+        }
     }
 
     private void registerTransportHandlers(
@@ -338,6 +349,10 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
     @Override
     public Clock getMessageHandlerExpirationClock() {
         return messageHandlerExpirationClock;
+    }
+
+    public InitializationContent getInitializationContent() {
+        return InitializationContent.getDefaultInstance();
     }
 
     public Logger getLogger() {

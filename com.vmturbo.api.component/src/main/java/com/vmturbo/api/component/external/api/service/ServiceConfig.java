@@ -28,6 +28,7 @@ import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
+import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander;
@@ -43,6 +44,7 @@ import com.vmturbo.api.component.external.api.util.stats.query.impl.ScopedUserCo
 import com.vmturbo.api.component.external.api.util.stats.query.impl.StorageStatsSubQuery;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.api.component.security.HeaderAuthenticationCondition;
+import com.vmturbo.api.component.security.IntersightIdTokenVerifier;
 import com.vmturbo.api.enums.ConfigurationMode;
 import com.vmturbo.api.serviceinterfaces.ISAMLService;
 import com.vmturbo.api.serviceinterfaces.IWorkflowsService;
@@ -124,6 +126,10 @@ public class ServiceConfig {
 
     @Value("${identityGeneratorPrefix}")
     private long identityGeneratorPrefix;
+
+    // 10 minutes default skew period.
+    @Value("${clockSkewSecond:600}")
+    private String clockSkewSecond;
 
     /**
      * Configuration used to expose areas of the application front or backend.
@@ -214,7 +220,7 @@ public class ServiceConfig {
     public HeaderAuthenticationProvider headerAuthorizationProvider() {
         return new HeaderAuthenticationProvider(authConfig.getAuthHost(), authConfig.getAuthPort(),
                 authConfig.getAuthRoute(), communicationConfig.serviceRestTemplate(),
-                securityConfig.verifier(), targetStore());
+                securityConfig.verifier(), targetStore(), new IntersightIdTokenVerifier(), Integer.parseInt(clockSkewSecond));
     }
 
     /**
@@ -357,6 +363,7 @@ public class ServiceConfig {
                 communicationConfig.severityPopulator(),
                 communicationConfig.priceIndexPopulator(),
                 communicationConfig.actionsRpcService(),
+                planEntityStatsFetcher(),
                 communicationConfig.getRealtimeTopologyContextId());
     }
 
@@ -499,7 +506,8 @@ public class ServiceConfig {
             userSessionContext(),
             communicationConfig.serviceEntityMapper(),
             mapperConfig.uuidMapper(),
-            statsQueryExecutor());
+            statsQueryExecutor(),
+            planEntityStatsFetcher());
         groupsService().setStatsService(statsService);
         return statsService;
     }
@@ -707,6 +715,18 @@ public class ServiceConfig {
     public StatsQueryContextFactory statsQueryContextFactory() {
         return new StatsQueryContextFactory(Duration.ofSeconds(liveStatsRetrievalWindowSeconds),
             userSessionContext(), Clock.systemUTC(), communicationConfig.thinTargetCache());
+    }
+
+    /**
+     * A utility class to retrieve plan stats.
+     *
+     * @return a utility class to retrieve plan stats
+     */
+    @Bean
+    public PlanEntityStatsFetcher planEntityStatsFetcher() {
+        return new PlanEntityStatsFetcher(mapperConfig.statsMapper(),
+            communicationConfig.serviceEntityMapper(),
+            communicationConfig.repositoryRpcService());
     }
 
     @Bean

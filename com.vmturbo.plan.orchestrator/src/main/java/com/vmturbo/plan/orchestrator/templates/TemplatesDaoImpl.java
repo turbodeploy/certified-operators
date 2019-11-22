@@ -92,7 +92,12 @@ public class TemplatesDaoImpl implements TemplatesDao {
         // up to the UI) to retrieve large sets of templates in chunks.
         final List<Template> allTemplates = dsl.selectFrom(TEMPLATE)
             .where(filterToConditions(filter))
-            .fetch().into(Template.class);
+            //TODO OM-52188 - temporarily hard-coding filtering results by name to avoid duplicate
+            // templates being returned for cloud targets.
+            // This should be removed when proper solution OM-52827 is implemented.
+            .groupBy(TEMPLATE.NAME)
+            .fetch()
+            .into(Template.class);
         return templatesToProto(allTemplates);
     }
 

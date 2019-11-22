@@ -14,6 +14,7 @@ import static org.mockito.Mockito.when;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
@@ -21,7 +22,9 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import org.junit.Assert;
@@ -31,6 +34,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
@@ -50,6 +54,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -95,6 +100,7 @@ public class AnalysisTest {
             .addAnalysisType(AnalysisType.WASTED_FILES)
             .build();
 
+    private TopologyEntityCloudTopology cloudTopology;
     private final GroupServiceMole testGroupService = spy(new GroupServiceMole());
     private final SettingPolicyServiceMole testSettingPolicyService =
             spy(new SettingPolicyServiceMole());
@@ -105,16 +111,18 @@ public class AnalysisTest {
 
     private static final float QUOTE_FACTOR = 0.77f;
     private static final float MOVE_COST_FACTOR = 0.05f;
-
+    private static final long VOLUME_ID_DELETE_ACTION = 1111L;
     private final Clock mockClock = mock(Clock.class);
 
     private final Action wastedFileAction = Action.newBuilder()
         .setInfo(ActionInfo.newBuilder()
-            .setDelete(Delete.getDefaultInstance()))
+                    .setDelete(Delete.newBuilder()
+                            .setTarget(ActionEntity.newBuilder().setId(VOLUME_ID_DELETE_ACTION)
+                                    .setType(EntityType.VIRTUAL_VOLUME_VALUE))))
         .setExplanation(Explanation.newBuilder()
             .setDelete(DeleteExplanation.getDefaultInstance()))
         .setDeprecatedImportance(0.0d)
-        .setId(1234l).build();
+        .setId(1234L).build();
 
     private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
 
@@ -131,6 +139,7 @@ public class AnalysisTest {
         groupServiceClient = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
         listener = mock(AnalysisRICoverageListener.class);
+        cloudTopology = mock(TopologyEntityCloudTopology.class);
     }
 
     private Map<String, Setting> getRateOfResizeSettingMap(float resizeValue) {
@@ -157,7 +166,6 @@ public class AnalysisTest {
         final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
         final MarketPriceTableFactory priceTableFactory = mock(MarketPriceTableFactory.class);
         when(priceTableFactory.newPriceTable(any(), eq(CloudCostData.empty()))).thenReturn(mock(MarketPriceTable.class));
-        final TopologyEntityCloudTopology cloudTopology = mock(TopologyEntityCloudTopology.class);
         when(cloudCostCalculatorFactory.newCalculator(topoInfo, cloudTopology)).thenReturn(cloudCostCalculator);
         final long vmOid = 123L;
         final TopologyEntityDTO cloudVm = TopologyEntityDTO.newBuilder()
@@ -170,11 +178,10 @@ public class AnalysisTest {
             mock(WastedFilesAnalysisFactory.class);
         final WastedFilesAnalysis wastedFilesAnalysis = mock(WastedFilesAnalysis.class);
         when(wastedFilesAnalysisFactory.newWastedFilesAnalysis(any(),any(), any(), any(), any()))
-            .thenReturn(wastedFilesAnalysis);
+                .thenReturn(wastedFilesAnalysis);
         when(wastedFilesAnalysis.getState()).thenReturn(AnalysisState.SUCCEEDED);
         when(wastedFilesAnalysis.getActions())
-            .thenReturn(Collections.singletonList(wastedFileAction));
-
+                .thenReturn(Collections.singletonList(wastedFileAction));
         return new Analysis(topoInfo, topologySet,
             groupServiceClient, mockClock, analysisConfig,
             cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
@@ -293,6 +300,48 @@ public class AnalysisTest {
 
         assertFalse(analysis.getActionPlan().isPresent());
         assertFalse(analysis.getProjectedTopology().isPresent());
+    }
+
+    /**
+     * Test that Virtual volume with a corresponding Delete action is not present in the
+     * projected entities list.
+     */
+    @Test
+    public void testProjectedVolumeEntities() {
+        // 2 Volumes in the topology, one with Delete action and another without
+        final long volumeWithoutAction = 99999L;
+        final TopologyEntityDTO deleteActionVolume = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .setOid(VOLUME_ID_DELETE_ACTION)
+                .build();
+        final TopologyEntityDTO noDeleteActionVolume = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .setOid(volumeWithoutAction)
+                .build();
+        final Set<TopologyEntityDTO> topologySet = ImmutableSet.of(deleteActionVolume,
+                noDeleteActionVolume);
+
+        // On Analysis execution, projected entities are populated
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR,
+                MOVE_COST_FACTOR, SuspensionsThrottlingConfig.DEFAULT,
+                getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
+                .setIncludeVDC(true)
+                .build();
+        when(cloudTopology.getAllEntitiesOfType(any())).thenReturn(ImmutableList
+                .of(deleteActionVolume, noDeleteActionVolume));
+        final Analysis analysis = getAnalysis(analysisConfig, topologySet);
+        analysis.execute();
+
+        // Assert that only 1 volume exists in the projected entities list, the one with no
+        // corresponding Delete volume action
+        Assert.assertTrue(analysis.getProjectedTopology().isPresent());
+        final Collection<ProjectedTopologyEntity> projectedEntities =
+                analysis.getProjectedTopology().get();
+        Assert.assertFalse(projectedEntities.isEmpty());
+        Assert.assertEquals(1, projectedEntities.size());
+        Assert.assertEquals(noDeleteActionVolume, projectedEntities.iterator().next().getEntity());
     }
 
     /**

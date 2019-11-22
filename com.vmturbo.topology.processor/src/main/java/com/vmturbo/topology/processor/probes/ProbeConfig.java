@@ -9,7 +9,6 @@ import com.vmturbo.common.protobuf.topology.ProbeREST.ProbeActionCapabilitiesSer
 import com.vmturbo.kvstore.KeyValueStoreConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.stitching.StitchingConfig;
-import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
  * Spring configuration for the Probe package.

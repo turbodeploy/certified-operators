@@ -33,10 +33,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -46,6 +42,10 @@ import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -60,6 +60,7 @@ import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
+import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.stats.StatsTestUtil;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -116,8 +117,9 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.identity.ArrayOidSet;
@@ -151,6 +153,8 @@ public class StatsServiceTest {
     private RepositoryServiceMole repositoryServiceSpy = spy(new RepositoryServiceMole());
 
     private StatsQueryExecutor statsQueryExecutor = mock(StatsQueryExecutor.class);
+
+    private PlanEntityStatsFetcher planEntityStatsFetcher = mock(PlanEntityStatsFetcher.class);
 
     private SupplyChainFetcherFactory supplyChainFetcherFactory =
             Mockito.mock(SupplyChainFetcherFactory.class);
@@ -216,7 +220,7 @@ public class StatsServiceTest {
             repositoryRpcService, supplyChainFetcherFactory, statsMapper,
             groupExpander, mockClock, groupService,
             magicScopeGateway, userSessionContext,
-            serviceEntityMapper, uuidMapper, statsQueryExecutor));
+            serviceEntityMapper, uuidMapper, statsQueryExecutor, planEntityStatsFetcher));
         when(uuidMapper.fromUuid(oid1)).thenReturn(apiId1);
         when(apiId1.uuid()).thenReturn(oid1);
         when(apiId1.oid()).thenReturn(Long.parseLong(oid1));
@@ -597,40 +601,45 @@ public class StatsServiceTest {
                         .setPlanInstance(planInstance)
                         .build());
 
-        final PlanTopologyStatsRequest request = PlanTopologyStatsRequest.getDefaultInstance();
-        when(statsMapper.toPlanTopologyStatsRequest(eq(planInstance), eq(inputDto), any()))
-                .thenReturn(request);
+        final PlanTopologyStatsRequest repositoryRequest = PlanTopologyStatsRequest.getDefaultInstance();
+        when(statsMapper.toPlanTopologyStatsRequest(anyLong(), eq(inputDto), any()))
+                .thenReturn(repositoryRequest);
 
         final PlanEntityStats retStats = PlanEntityStats.newBuilder()
-                .setPlanEntity(TopologyEntityDTO.newBuilder()
-                        .setEntityType(10)
-                        .setDisplayName("foo")
-                        .setOid(7L))
-                .setPlanEntityStats(EntityStats.newBuilder()
-                    .addStatSnapshots(STAT_SNAPSHOT))
-                .build();
+            .setPlanEntity(PartialEntity.newBuilder()
+                .setApi(ApiPartialEntity.newBuilder()
+                    .setEntityType(10)
+                    .setDisplayName("foo")
+                    .setOid(7L)))
+            .setPlanEntityStats(EntityStats.newBuilder()
+                .addStatSnapshots(STAT_SNAPSHOT))
+            .build();
 
         when(repositoryServiceSpy.getPlanTopologyStats(any()))
                 .thenReturn(Collections.singletonList(PlanTopologyStatsResponse.newBuilder()
-                    .setEntityStats(PlanEntityStatsChunk.newBuilder().addEntityStats(retStats).build())
+                    .setEntityStatsWrapper(PlanEntityStatsChunk.newBuilder().addEntityStats(retStats).build())
                     .build()));
+
+        final EntityStatsPaginationRequest paginationRequest =
+            new EntityStatsPaginationRequest(null, null, false, null);
+
+        final EntityStatsPaginationResponse paginationResponse =
+            Mockito.mock(EntityStatsPaginationResponse.class);
+
+        when(planEntityStatsFetcher.getPlanEntityStats(planInstance, inputDto, paginationRequest))
+            .thenReturn(paginationResponse);
 
         final StatSnapshotApiDTO retDto = new StatSnapshotApiDTO();
         retDto.setStatistics(Collections.emptyList());
         when(statsMapper.toStatSnapshotApiDTO(STAT_SNAPSHOT)).thenReturn(retDto);
 
         // Act
-        final List<EntityStatsApiDTO> result = getStatsByUuidsQuery(statsService, inputDto);
+        final EntityStatsPaginationResponse result =
+            statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
 
         // Assert
         verify(planServiceSpy).getPlan(planIdProto);
-        verify(repositoryServiceSpy).getPlanTopologyStats(request);
-        verify(statsMapper).toStatSnapshotApiDTO(STAT_SNAPSHOT);
-
-        assertThat(result.size(), equalTo(1));
-        final EntityStatsApiDTO resultForEntity = result.get(0);
-        assertThat(resultForEntity.getDisplayName(), is("foo"));
-        assertThat(resultForEntity.getStats(), containsInAnyOrder(retDto));
+        verify(planEntityStatsFetcher).getPlanEntityStats(planInstance, inputDto, paginationRequest);
     }
 
     @Test

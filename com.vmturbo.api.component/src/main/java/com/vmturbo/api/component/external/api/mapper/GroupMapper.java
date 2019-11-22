@@ -203,7 +203,7 @@ public class GroupMapper {
     public EnvironmentType getEnvironmentTypeForGroup(@Nonnull final GroupAndMembers groupAndMembers) {
         // parse the entities members of groupDto
         EnvironmentTypeEnum.EnvironmentType envType = null;
-        Set<Long> targetSet = new HashSet<>(groupAndMembers.members());
+        Set<Long> targetSet = new HashSet<>(groupAndMembers.entities());
         for (MinimalEntity entity : repositoryApi.entitiesRequest(targetSet).getMinimalEntities().collect(Collectors.toList())) {
             if (envType != entity.getEnvironmentType()) {
                     envType = (envType == null) ? entity.getEnvironmentType() : EnvironmentTypeEnum.EnvironmentType.HYBRID;

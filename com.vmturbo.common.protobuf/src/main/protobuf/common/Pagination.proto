@@ -78,6 +78,17 @@ message PaginationParameters {
 
     // Whether to return the results in ascending order
     optional bool ascending = 4 [default = true];
+
+    // Whether to enforce the limit, including the default and maximum limits of a service.
+    // This should almost always be set to 'true', and should not be exposed as an external API
+    // parameter.
+    // The rare cases where we would want to set this to 'false' is when:
+    //   * An internal call is being made between components
+    //   * The entire result of that call will need to be immediately processed
+    //   * The call is streamed (i.e. the gRPC messages are chunked)
+    // In such cases, it is more efficient to stream the entire result than to retrieve the
+    // results page by page. See PriceIndexPopulator.java for an example of where this may be used.
+    optional bool enforce_limit = 5 [default = true];
 }
 
 // The pagination response, which should be included in the response message.

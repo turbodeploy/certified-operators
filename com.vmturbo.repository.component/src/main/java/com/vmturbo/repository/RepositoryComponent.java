@@ -94,6 +94,7 @@ import com.vmturbo.repository.service.ArangoSupplyChainRpcService;
 import com.vmturbo.repository.service.GraphDBService;
 import com.vmturbo.repository.service.LiveTopologyPaginator;
 import com.vmturbo.repository.service.PartialEntityConverter;
+import com.vmturbo.repository.service.PlanStatsService;
 import com.vmturbo.repository.service.SupplyChainService;
 import com.vmturbo.repository.service.SupplyChainStatistician;
 import com.vmturbo.repository.service.TopologyGraphRepositoryRpcService;
@@ -438,13 +439,25 @@ public class RepositoryComponent extends BaseVmtComponent {
         return new PartialEntityConverter();
     }
 
+    /**
+     * Create a service for retrieving plan entity stats.
+     *
+     * @return a service for retrieving plan entity stats.
+     */
+    @Bean
+    public PlanStatsService planStatsService() {
+        return new PlanStatsService(paginationParamsFactory(),
+            entityStatsPaginator(),
+            partialEntityConverter(),
+            maxEntitiesPerChunk);
+    }
+
     @Bean
     public RepositoryServiceImplBase repositoryRpcService() {
         final ArangoRepositoryRpcService arangoRpcService = new ArangoRepositoryRpcService(topologyManager(),
             topologyProtobufsManager(),
             graphDBService(),
-            paginationParamsFactory(),
-            entityStatsPaginator(),
+            planStatsService(),
             partialEntityConverter(),
             maxEntitiesPerChunk);
 

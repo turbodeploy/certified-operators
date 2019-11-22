@@ -262,7 +262,7 @@ public class WastedFilesAnalysis {
         if (volume.hasTypeSpecificInfo() && volume.getTypeSpecificInfo().hasVirtualVolume() &&
                 volume.getTypeSpecificInfo().getVirtualVolume().hasAttachmentState() &&
                 volume.getTypeSpecificInfo().getVirtualVolume().getAttachmentState()
-                        == AttachmentState.IN_USE) {
+                        == AttachmentState.ATTACHED) {
             logger.trace("Cannot generate delete action on volume {} since it is in use.",
                     volume.getDisplayName());
             return Collections.emptyList();

@@ -38,14 +38,17 @@ import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.EntityFilter;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanCombinedStatsRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RequestDetails;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
@@ -53,11 +56,13 @@ import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.StatEpoch;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -154,12 +159,28 @@ public class StatsMapper {
         if (statSnapshot.hasSnapshotDate()) {
             dto.setDate(DateTimeUtil.toString(statSnapshot.getSnapshotDate()));
         }
+        if (statSnapshot.hasStatEpoch()) {
+            dto.setEpoch(toApiEpoch(statSnapshot.getStatEpoch()));
+        }
         dto.setStatistics(statSnapshot.getStatRecordsList().stream()
                 .map(this::toStatApiDto)
                 .collect(Collectors.toList()));
         return dto;
     }
 
+    private Epoch toApiEpoch(@Nonnull final StatEpoch statEpoch) {
+        switch (statEpoch) {
+            case HISTORICAL: return Epoch.HISTORICAL;
+            case CURRENT: return Epoch.CURRENT;
+            case PROJECTED: return Epoch.PROJECTED;
+            case PLAN_SOURCE: return Epoch.PLAN_SOURCE;
+            case PLAN_PROJECTED: return Epoch.PLAN_PROJECTED;
+            default:
+                final String errorMessage = "Unable to map unknown StatEpoch: " + statEpoch;
+                logger.error(errorMessage);
+                throw new IllegalArgumentException(errorMessage);
+        }
+    }
 
     /**
      * Convert a protobuf Stats.StatSnapshot to an API DTO StatSnapshotApiDTO.
@@ -629,31 +650,24 @@ public class StatsMapper {
      * We also pass along a 'relatedEntityType', if specified, which will be used to limit
      * the results to the given type.
      *
-     * @param planInstance the plan instance to request the stats from
+     * @param topologyId the id of a single (source or projected) plan topology for which to
+     *                   retrieve stats
      * @param inputDto a description of what stats to request from this plan, including time range,
      *                 stats types, etc
+     * @param paginationRequest controls the pagination of the response
      * @return a request to fetch the plan stats from the Repository
      */
     @Nonnull
-    public PlanTopologyStatsRequest toPlanTopologyStatsRequest(
-            @Nonnull final PlanInstance planInstance,
+    public PlanTopologyStatsRequest toPlanTopologyStatsRequest(final long topologyId,
             @Nonnull final StatScopesApiInputDTO inputDto,
             @Nonnull final EntityStatsPaginationRequest paginationRequest) {
-
-        long topologyId = planInstance.getProjectedTopologyId();
         final Stats.StatsFilter.Builder planStatsFilter = Stats.StatsFilter.newBuilder();
         if (inputDto.getPeriod() != null) {
             if (inputDto.getPeriod().getStartDate() != null) {
-                final Long startDate = Long.valueOf(inputDto.getPeriod().getStartDate());
-                planStatsFilter.setStartDate(startDate);
-                // Temporary measure until OM-47881 is done
-                if (startDate.equals(0L)) {
-                    // Temporary way to signal source stats request
-                    topologyId = planInstance.getSourceTopologyId();
-                }
+                planStatsFilter.setStartDate(DateTimeUtil.parseTime(inputDto.getPeriod().getStartDate()));
             }
             if (inputDto.getPeriod().getEndDate() != null) {
-                planStatsFilter.setEndDate(Long.valueOf(inputDto.getPeriod().getEndDate()));
+                planStatsFilter.setEndDate(DateTimeUtil.parseTime(inputDto.getPeriod().getEndDate()));
             }
             if (inputDto.getPeriod().getStatistics() != null) {
                 inputDto.getPeriod().getStatistics().forEach(statApiInputDTO -> {
@@ -668,25 +682,74 @@ public class StatsMapper {
             }
         }
 
-        // TODO: OM-47880 update this to also handle the source topology
         final PlanTopologyStatsRequest.Builder requestBuilder = PlanTopologyStatsRequest.newBuilder()
-                .setTopologyId(topologyId)
+                .setTopologyId(topologyId);
+        final RequestDetails.Builder detailsBuilder = RequestDetails.newBuilder()
                 .setFilter(planStatsFilter);
 
         final String relatedType = inputDto.getRelatedType();
         if (relatedType != null) {
-            requestBuilder.setRelatedEntityType(normalizeRelatedType(relatedType));
+            detailsBuilder.setRelatedEntityType(normalizeRelatedType(relatedType));
         }
 
         // If there are scopes, set the entity filter.
         // Note - right now if you set an entity filter but do not add any entity ids, there will
         // be no results.
         if (!CollectionUtils.isEmpty(inputDto.getScopes())) {
-            requestBuilder.setEntityFilter(EntityFilter.newBuilder()
+            detailsBuilder.setEntityFilter(EntityFilter.newBuilder()
                 .addAllEntityIds(Collections2.transform(inputDto.getScopes(), Long::parseLong)));
         }
 
-        requestBuilder.setPaginationParams(paginationMapper.toProtoParams(paginationRequest));
+        detailsBuilder.setReturnType(PartialEntity.Type.API);
+        detailsBuilder.setPaginationParams(paginationMapper.toProtoParams(paginationRequest));
+
+        requestBuilder.setRequestDetails(detailsBuilder);
+
+        return requestBuilder.build();
+    }
+
+    /**
+     * Format a {@link PlanCombinedStatsRequest} used to fetch combined stats for a Plan.
+     *
+     * @param topologyContextId the id of the contextId (plan ID) for which to retrieve combined stats
+     * @param topologyTypeToSortOn the topology type to use for sorting the response
+     * @param inputDto a description of what stats to request from this plan, including time range,
+     *                 stats types, etc
+     * @param paginationRequest controls the pagination of the response
+     * @return a request to fetch the plan combined stats from the Repository
+     */
+    @Nonnull
+    public PlanCombinedStatsRequest toPlanCombinedStatsRequest(final long topologyContextId,
+                                                                @Nonnull final TopologyType topologyTypeToSortOn,
+                                                                @Nonnull final StatScopesApiInputDTO inputDto,
+                                                                @Nonnull final EntityStatsPaginationRequest paginationRequest) {
+        final PlanCombinedStatsRequest.Builder requestBuilder = PlanCombinedStatsRequest.newBuilder()
+            .setTopologyContextId(topologyContextId)
+            .setTopologyToSortOn(topologyTypeToSortOn);
+        final RequestDetails.Builder detailsBuilder = RequestDetails.newBuilder();
+
+        if (inputDto.getPeriod() != null) {
+            final Stats.StatsFilter planStatsFilter = newPeriodStatsFilter(inputDto.getPeriod());
+            detailsBuilder.setFilter(planStatsFilter);
+        }
+
+        final String relatedType = inputDto.getRelatedType();
+        if (relatedType != null) {
+            detailsBuilder.setRelatedEntityType(normalizeRelatedType(relatedType));
+        }
+
+        // If there are scopes, set the entity filter.
+        // Note - right now if you set an entity filter but do not add any entity ids, there will
+        // be no results.
+        if (!CollectionUtils.isEmpty(inputDto.getScopes())) {
+            detailsBuilder.setEntityFilter(EntityFilter.newBuilder()
+                .addAllEntityIds(Collections2.transform(inputDto.getScopes(), Long::parseLong)));
+        }
+
+        detailsBuilder.setReturnType(PartialEntity.Type.API);
+        detailsBuilder.setPaginationParams(paginationMapper.toProtoParams(paginationRequest));
+
+        requestBuilder.setRequestDetails(detailsBuilder);
 
         return requestBuilder.build();
     }

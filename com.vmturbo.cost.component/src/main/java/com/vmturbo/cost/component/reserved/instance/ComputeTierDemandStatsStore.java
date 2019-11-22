@@ -142,6 +142,7 @@ public class ComputeTierDemandStatsStore {
                     .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.AVAILABILITY_ZONE.eq(context.getAvailabilityZoneId()))
                     .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.PLATFORM.eq((byte)context.getPlatform().getNumber()))
                     .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.TENANCY.eq((byte)context.getTenancy().getNumber()))
+                .orderBy(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.DAY, COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.HOUR)
                 .fetch();
     }
 
