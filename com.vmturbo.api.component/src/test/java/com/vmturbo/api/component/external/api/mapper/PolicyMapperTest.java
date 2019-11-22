@@ -1,12 +1,12 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
-
-import static org.hamcrest.Matchers.is;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -618,6 +618,43 @@ public class PolicyMapperTest {
                 result.getBindToGroupAndGeoRedundancy();
         assertEquals(policy.getConsumerGroupId(), testConsumerId);
         assertEquals(policy.getProviderGroupId(), testProviderId);
+    }
+
+    /**
+     * Test that if group can not be found, basic info for PolicyApiDTO is still populated, and
+     * GroupApiDTO is returned with only one uuid field.
+     */
+    @Test
+    public void testPolicyToApiDtoGroupNotFound() {
+        rawPolicyBuilder.getPolicyInfoBuilder()
+                .setBindToGroup(PolicyInfo.BindToGroupPolicy.newBuilder()
+                        .setConsumerGroupId(testConsumerId)
+                        .setProviderGroupId(testProviderId)
+                        .build())
+                .build();
+        final Policy policy = rawPolicyBuilder.build();
+
+        // clear the groups map so they are not found
+        policyGroupingMap.clear();
+        PolicyApiDTO result = policyMapper.policyToApiDto(policy, policyGroupingMap);
+
+        // check that policy info is still populated in PolicyApiDTO
+        assertEquals(result.getName(), result.getDisplayName());
+        assertEquals(result.getName(), testPolicyName);
+        assertEquals(result.getUuid(), Long.toString(testPolicyID));
+        assertFalse(result.isEnabled());
+        assertEquals(result.getCommodityType(), testPolicyCommodityType);
+        assertEquals(result.getType(), PolicyType.BIND_TO_GROUP);
+
+        // check that default GroupApiDTO with only one field uuid is set
+        final GroupApiDTO consumerGroup = (GroupApiDTO)result.getConsumerGroup();
+        assertEquals(String.valueOf(testConsumerId), consumerGroup.getUuid());
+        assertNull(consumerGroup.getIsStatic());
+        assertNull(consumerGroup.getLogicalOperator());
+        final GroupApiDTO providerGroup = (GroupApiDTO)result.getProviderGroup();
+        assertEquals(String.valueOf(testProviderId), providerGroup.getUuid());
+        assertNull(providerGroup.getIsStatic());
+        assertNull(providerGroup.getLogicalOperator());
     }
 
     private PolicyApiInputDTO makeTestPolicyApiInputDTO() {
