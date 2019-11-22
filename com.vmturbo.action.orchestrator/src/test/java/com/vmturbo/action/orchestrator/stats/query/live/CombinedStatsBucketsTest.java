@@ -178,10 +178,10 @@ public class CombinedStatsBucketsTest {
         final SingleActionInfo reason1 = actionInfo(
             bldr -> {
                 bldr.setInfo(ActionInfo.newBuilder()
-                    .setActivate(Activate.newBuilder()
-                        .setTarget(CLOUD_VM)
-                        .addTriggeringCommodities(CommodityType.newBuilder()
-                            .setType(1))));
+                        .setActivate(Activate.newBuilder()
+                                .setTarget(CLOUD_VM)
+                                .addTriggeringCommodities(CommodityType.newBuilder().setType(1))
+                                .addTriggeringCommodities(CommodityType.newBuilder().setType(3))));
             },
             view -> {},
             Sets.newHashSet(CLOUD_VM));
@@ -198,23 +198,18 @@ public class CombinedStatsBucketsTest {
         buckets.addActionInfo(reason1);
         buckets.addActionInfo(reason2);
         final List<CurrentActionStat> stats = buckets.toActionStats().collect(Collectors.toList());
-        assertThat(stats, containsInAnyOrder(
-            CurrentActionStat.newBuilder()
-                .setStatGroup(StatGroup.newBuilder()
-                    .setReasonCommodityBaseType(1))
+        assertThat(stats, containsInAnyOrder(getTestBuild(1), getTestBuild(2), getTestBuild(3)));
+    }
+
+    private CurrentActionStat getTestBuild(int reasonCommodityType) {
+        return CurrentActionStat.newBuilder()
+                .setStatGroup(
+                        StatGroup.newBuilder().setReasonCommodityBaseType(reasonCommodityType))
                 .setActionCount(1)
                 .setEntityCount(1)
                 .setSavings(0.0)
                 .setInvestments(0.0)
-                .build(),
-            CurrentActionStat.newBuilder()
-                .setStatGroup(StatGroup.newBuilder()
-                    .setReasonCommodityBaseType(2))
-                .setActionCount(1)
-                .setEntityCount(1)
-                .setSavings(0.0)
-                .setInvestments(0.0)
-                .build()));
+                .build();
     }
 
     @Test
