@@ -32,7 +32,7 @@ import com.vmturbo.api.serviceinterfaces.ISAMLService;
 @Controller
 @RequestMapping(
     value = "/saml",
-    consumes = {MediaType.ALL_VALUE},
+    consumes = {MediaType.APPLICATION_JSON_VALUE},
     produces = {MediaType.APPLICATION_JSON_VALUE})
 @Api(tags = "Admin")
 public class SAMLController {
