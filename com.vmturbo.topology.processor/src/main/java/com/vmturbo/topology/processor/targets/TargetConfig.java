@@ -1,7 +1,5 @@
 package com.vmturbo.topology.processor.targets;
 
-import java.util.Objects;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -18,8 +16,6 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
 import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.entity.EntityConfig;
-import com.vmturbo.topology.processor.probeproperties.KVBackedProbePropertyStore;
-import com.vmturbo.topology.processor.probeproperties.ProbePropertyStore;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 
 /**
@@ -87,18 +83,5 @@ public class TargetConfig {
                 repositoryClientConfig.repositoryChannel(),
                 targetStore(),
                 entityConfig.entityStore());
-    }
-
-    /**
-     * Per-probe and per-target properties to deliver to probe instasnces.
-     *
-     * @return property store
-     */
-    @Bean
-    public ProbePropertyStore probePropertyStore() {
-        return new KVBackedProbePropertyStore(
-                Objects.requireNonNull(probeConfig.probeStore()),
-                Objects.requireNonNull(targetStore()),
-                Objects.requireNonNull(kvConfig.keyValueStore()));
     }
 }

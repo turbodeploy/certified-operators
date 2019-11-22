@@ -4,8 +4,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -13,18 +11,20 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.web.socket.server.standard.ServerEndpointRegistration;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import com.vmturbo.communication.WebsocketServerTransportManager;
 import com.vmturbo.communication.WebsocketServerTransportManager.TransportHandler;
 import com.vmturbo.sdk.server.common.SdkWebsocketServerTransportHandler;
+import com.vmturbo.topology.processor.GlobalConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
-import com.vmturbo.topology.processor.targets.TargetConfig;
 
 /**
  * Configuration for the part of the server that communicates
  * with the probes over websocket.
  */
 @Configuration
-@Import({ProbeConfig.class, TargetConfig.class})
+@Import({ProbeConfig.class, GlobalConfig.class})
 public class SdkServerConfig {
 
     public static final String REMOTE_MEDIATION_PATH = "/remoteMediation";
@@ -37,13 +37,12 @@ public class SdkServerConfig {
 
     @Autowired
     private ProbeConfig probeConfig;
-
     @Autowired
-    private TargetConfig targetConfig;
+    private GlobalConfig globalConfig;
 
     @Bean
     public RemoteMediationServer remoteMediation() {
-        return new RemoteMediationServer(probeConfig.probeStore(), targetConfig.probePropertyStore());
+        return new RemoteMediationServer(probeConfig.probeStore());
     }
 
     /**

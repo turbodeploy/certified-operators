@@ -36,7 +36,7 @@ import com.vmturbo.topology.processor.probeproperties.ProbePropertiesTestBase;
 public class ProbeRpcServiceProbePropertiesTest extends ProbePropertiesTestBase {
     // construct service
     private final ProbeRpcService service =
-        new ProbeRpcService(probePropertyStore, mediationServer);
+        new ProbeRpcService(probeStore, targetStore, keyValueStore, mediationServer);
 
     /**
      * Set up mock probes and targets.
