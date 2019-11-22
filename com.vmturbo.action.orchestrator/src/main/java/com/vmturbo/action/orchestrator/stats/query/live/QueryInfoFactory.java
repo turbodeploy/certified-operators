@@ -137,6 +137,11 @@ public class QueryInfoFactory {
                     actionInfo.action().getMode());
             });
         }
+        final Boolean visible = actionGroupFilter.hasVisible()
+                ? actionGroupFilter.getVisible()
+                : null;
+        actionGroupPredicate = actionGroupPredicate.and(actionInfo ->
+                actionInfo.action().getVisibilityLevel().checkVisibility(visible));
         return actionGroupPredicate;
     }
 }

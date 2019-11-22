@@ -403,6 +403,20 @@ public class Action implements ActionView {
     }
 
     /**
+     * {@inheritDoc}
+     */
+    @Nonnull
+    @Override
+    public VisibilityLevel getVisibilityLevel() {
+        if (getMode() == ActionMode.DISABLED) {
+            // Disabled actions are hidden by default.
+            return VisibilityLevel.HIDDEN_BY_DEFAULT;
+        }
+        // TODO: Return VisibilityLevel.HIDDEN_BY_DEFAULT for accounting actions
+        return VisibilityLevel.ALWAYS_VISIBLE;
+    }
+
+    /**
      * Gets the action description.
      *
      * @return The action description string.

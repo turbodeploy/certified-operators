@@ -14,10 +14,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
-
-import com.google.common.collect.ImmutableMap;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -362,6 +361,33 @@ public class ActionTest {
         assertEquals(moveAction.getMode(), ActionMode.AUTOMATIC);
         assertEquals(storageMoveAction.getMode(), ActionMode.AUTOMATIC);
         assertEquals(reconfigureAction.getMode(), ActionMode.RECOMMEND);
+    }
+
+    /**
+     * Test for {@link Action#getVisibilityLevel()} method.
+     * @throws UnsupportedActionException in case of unsupported action type.
+     */
+    @Test
+    public void testGetVisibilityLevel() throws UnsupportedActionException {
+        final ActionDTO.Action supportedRecommendation =
+                makeRec(TestActionBuilder.makeMoveInfo(11L, 22L, 1, 33L, 1),
+                        SupportLevel.SUPPORTED).build();
+        final Action supportedAction = new Action(supportedRecommendation, actionPlanId,
+                actionModeCalculator);
+        final ActionDTO.Action unsupportedRecommendation =
+                makeRec(TestActionBuilder.makeMoveInfo(11L, 22L, 1, 33L, 1),
+                        SupportLevel.UNSUPPORTED).build();
+        final Action unsupportedAction = new Action(unsupportedRecommendation, actionPlanId,
+                actionModeCalculator);
+
+        when(entitySettingsCache.getSettingsForEntity(eq(11L)))
+                .thenReturn(Collections.emptyMap());
+
+        supportedAction.refreshAction(entitySettingsCache);
+        unsupportedAction.refreshAction(entitySettingsCache);
+
+        assertEquals(VisibilityLevel.ALWAYS_VISIBLE, supportedAction.getVisibilityLevel());
+        assertEquals(VisibilityLevel.HIDDEN_BY_DEFAULT, unsupportedAction.getVisibilityLevel());
     }
 
     private static ActionDTO.Action.Builder makeRec(ActionInfo.Builder infoBuilder,

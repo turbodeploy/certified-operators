@@ -128,7 +128,8 @@ public class PlanActionStore implements ActionStore {
      * @param actionView The {@link ActionView} to test for visibility.
      * @return Always true.
      */
-    public static final Predicate<ActionView> VISIBILITY_PREDICATE = actionView -> true;
+    public static final Predicate<ActionView> VISIBILITY_PREDICATE = actionView ->
+            actionView.getVisibilityLevel().checkVisibility(null);
 
     public static final String STORE_TYPE_NAME = "Plan";
 

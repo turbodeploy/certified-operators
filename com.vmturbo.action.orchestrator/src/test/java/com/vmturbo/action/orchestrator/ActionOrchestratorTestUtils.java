@@ -22,6 +22,7 @@ import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.ExecutableStep;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
+import com.vmturbo.action.orchestrator.action.VisibilityLevel;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator.TranslationExecutor;
@@ -249,6 +250,7 @@ public class ActionOrchestratorTestUtils {
 
         when(actionView.getRecommendation()).thenReturn(action);
         when(actionView.getTranslationResultOrOriginal()).thenReturn(action);
+        when(actionView.getVisibilityLevel()).thenReturn(VisibilityLevel.ALWAYS_VISIBLE);
 
         return actionView;
     }

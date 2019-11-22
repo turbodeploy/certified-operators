@@ -75,6 +75,15 @@ public interface ActionView {
     ActionMode getMode();
 
     /**
+     * Get visibility level of the action. Visibility level defines whether action is visible for
+     * other components.
+     *
+     * @return {@link VisibilityLevel} of the action.
+     */
+    @Nonnull
+    VisibilityLevel getVisibilityLevel();
+
+    /**
      * Get the ID of the action. This ID is the same as the one provided by the market in its
      * recommendation.
      *

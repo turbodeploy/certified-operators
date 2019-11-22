@@ -1187,6 +1187,11 @@ message CurrentActionStatsQuery {
         // Match action groups with any of these action states.
         // An empty list means match all action states.
         repeated ActionState action_state = 4;
+
+        // If true, include only externally visible actions in the response.
+        // If false, include only non-externally visible actions.
+        // If not present, the field is not used to filter.
+        optional bool visible = 5;
     }
 
     // The entities involved in an action must match this filter in order for the action to be

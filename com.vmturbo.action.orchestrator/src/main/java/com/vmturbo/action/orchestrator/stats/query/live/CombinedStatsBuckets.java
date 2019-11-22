@@ -188,7 +188,7 @@ class CombinedStatsBuckets {
         }
 
         if (groupBy.contains(GroupBy.BUSINESS_ACCOUNT_ID)) {
-            keyBuilder.businessAccountId(actionInfo.action().getAssociatedAccount()
+            keyBuilder.businessAccountId(actionView.getAssociatedAccount()
                 // Use an explicit 0 for actions not associated with accounts.
                 .orElse(0L));
         }

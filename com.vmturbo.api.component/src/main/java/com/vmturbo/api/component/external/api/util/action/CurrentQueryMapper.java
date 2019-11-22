@@ -14,12 +14,12 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Sets;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionTypeMapper;
@@ -116,7 +116,8 @@ class CurrentQueryMapper {
         @Nonnull
         CurrentActionStatsQuery.ActionGroupFilter extractActionGroupFilter(@Nonnull final ActionStatsQuery query) {
             final CurrentActionStatsQuery.ActionGroupFilter.Builder agFilterBldr =
-                CurrentActionStatsQuery.ActionGroupFilter.newBuilder();
+                CurrentActionStatsQuery.ActionGroupFilter.newBuilder()
+                    .setVisible(true);
 
             CollectionUtils.emptyIfNull(query.actionInput().getActionModeList()).stream()
                 .map(actionSpecMapper::mapApiModeToXl)
