@@ -25,6 +25,8 @@ public class ProbePropertiesTestBase {
     protected final ProbeStore probeStore = Mockito.mock(ProbeStore.class);
     protected final TargetStore targetStore = Mockito.mock(TargetStore.class);
     protected final KeyValueStore keyValueStore = new MapKeyValueStore();
+    protected final KVBackedProbePropertyStore
+        probePropertyStore = new KVBackedProbePropertyStore(probeStore, targetStore, keyValueStore);
 
     @Spy
     protected final RemoteMediationServer mediationServer = Mockito.mock(RemoteMediationServer.class);

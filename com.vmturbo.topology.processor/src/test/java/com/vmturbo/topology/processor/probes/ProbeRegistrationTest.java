@@ -25,6 +25,7 @@ import com.vmturbo.topology.processor.identity.IdentityService;
 import com.vmturbo.topology.processor.identity.services.HeuristicsMatcher;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore;
+import com.vmturbo.topology.processor.probeproperties.ProbePropertyStore;
 import com.vmturbo.topology.processor.probes.FakeTransport.TransportPair;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
 import com.vmturbo.topology.processor.util.Probes;
@@ -59,7 +60,7 @@ public class ProbeRegistrationTest {
                         new HeuristicsMatcher()),
                 new MapKeyValueStore(), new ProbeInfoCompatibilityChecker(), 0L);
         remoteMediation = new RemoteMediationServer(new RemoteProbeStore(keyValueStore,
-                identityProvider, stitchingOperationStore));
+                identityProvider, stitchingOperationStore), Mockito.mock(ProbePropertyStore.class));
         probeInfoBuilder = ProbeInfo.newBuilder(Probes.defaultProbe);
     }
 

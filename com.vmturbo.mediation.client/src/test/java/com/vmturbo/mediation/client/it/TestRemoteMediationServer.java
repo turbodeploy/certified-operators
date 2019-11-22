@@ -3,10 +3,13 @@ package com.vmturbo.mediation.client.it;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
+import javax.annotation.Nonnull;
+
 import org.junit.Assert;
 
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
+import com.vmturbo.platform.sdk.common.MediationMessage.InitializationContent;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
@@ -21,7 +24,7 @@ public class TestRemoteMediationServer extends RemoteMediationServer {
     private final Semaphore transportSemaphore = new Semaphore(0);
 
     public TestRemoteMediationServer(ProbeStore probeStore) {
-        super(probeStore);
+        super(probeStore, null);
     }
 
     @Override
@@ -49,6 +52,11 @@ public class TestRemoteMediationServer extends RemoteMediationServer {
                     ITransport<MediationServerMessage, MediationClientMessage> serverEndpoint) {
         super.registerTransport(containerInfo, serverEndpoint);
         transportSemaphore.release();
+    }
+
+    @Override
+    public InitializationContent getInitializationContent(@Nonnull ContainerInfo containerInfo) {
+        return InitializationContent.getDefaultInstance();
     }
 
     public void awaitTransportRegistered() throws InterruptedException {
