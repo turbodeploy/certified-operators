@@ -120,6 +120,11 @@ public class MapperConfig {
         return new GroupFilterMapper();
     }
 
+    /**
+     * Gets a group mapper that uses the default dependencies.
+     *
+     * @return a group mapper that uses the default dependencies.
+     */
     @Bean
     public GroupMapper groupMapper() {
         return new GroupMapper(
@@ -130,7 +135,9 @@ public class MapperConfig {
             entityFilterMapper(),
             groupFilterMapper(),
             communicationConfig.severityPopulator(),
-            communicationConfig.getRealtimeTopologyContextId());
+            serviceConfig.businessAccountRetriever(),
+            communicationConfig.getRealtimeTopologyContextId()
+            );
     }
 
     @Bean

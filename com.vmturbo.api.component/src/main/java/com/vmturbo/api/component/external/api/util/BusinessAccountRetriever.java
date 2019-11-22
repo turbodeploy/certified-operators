@@ -188,7 +188,13 @@ public class BusinessAccountRetriever {
             .collect(Collectors.toSet()));
     }
 
-    private List<BusinessUnitApiDTO> getBusinessAccounts(@Nonnull final Set<Long> ids) {
+    /**
+     * Returns the BusinessUnitApiDTOs for the business units that have the provided oids.
+     *
+     * @param ids the oids of the business units to retrieve.
+     * @return the business units with the oids provided.
+     */
+    public List<BusinessUnitApiDTO> getBusinessAccounts(@Nonnull final Set<Long> ids) {
         if (ids.isEmpty()) {
             return Collections.emptyList();
         }

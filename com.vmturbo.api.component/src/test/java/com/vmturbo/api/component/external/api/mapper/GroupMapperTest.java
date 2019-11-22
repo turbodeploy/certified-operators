@@ -20,6 +20,7 @@ import static org.mockito.Mockito.when;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -45,11 +46,14 @@ import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
+import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
 import com.vmturbo.api.component.external.api.util.ImmutableGroupAndMembers;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
+import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
+import com.vmturbo.api.dto.group.BillingFamilyApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
@@ -127,9 +131,11 @@ public class GroupMapperTest {
 
     private SeverityPopulator severityPopulator = mock(SeverityPopulator.class);
 
+    private final BusinessAccountRetriever businessAccountRetriever = mock(BusinessAccountRetriever.class);
+
     private GroupMapper groupMapper = new GroupMapper(supplyChainFetcherFactory,
                     groupExpander, topologyProcessor, repositoryApi, entityFilterMapper,
-                    groupFilterMapper, severityPopulator, CONTEXT_ID);
+                    groupFilterMapper, severityPopulator, businessAccountRetriever, CONTEXT_ID);
 
     private static String AND = "AND";
     private static String FOO = "foo";
@@ -1366,5 +1372,55 @@ public class GroupMapperTest {
         mappedDto = groupMapper.toGroupApiDto(group, true);
         assertNull(mappedDto.getSeverity());
         verifyZeroInteractions(severityPopulator);
+    }
+
+    /**
+     * GroupApiDto should fill in BillingFamilyApiDTO when BillingFamily request.
+     */
+    @Test
+    public void testToGroupApiDtoBillingFamily() {
+        BusinessUnitApiDTO masterAccountDevelopment = new BusinessUnitApiDTO();
+        masterAccountDevelopment.setMaster(true);
+        masterAccountDevelopment.setUuid("2");
+        masterAccountDevelopment.setDisplayName("Development");
+        masterAccountDevelopment.setCostPrice(2.5F);
+
+        BusinessUnitApiDTO productTrustSubAccount = new BusinessUnitApiDTO();
+        productTrustSubAccount.setMaster(false);
+        productTrustSubAccount.setUuid("1");
+        productTrustSubAccount.setDisplayName("Product Trust");
+        productTrustSubAccount.setCostPrice(3.25F);
+
+        Set<Long> oidsInBillingFamily = new HashSet<>(Arrays.asList(1L, 2L));
+        when(businessAccountRetriever.getBusinessAccounts(oidsInBillingFamily))
+            .thenReturn(Arrays.asList(
+                masterAccountDevelopment, productTrustSubAccount));
+
+        Grouping group = Grouping.newBuilder().setId(8L)
+            .setOrigin(Origin.newBuilder().setUser(Origin.User.newBuilder()))
+            .setDefinition(GroupDefinition.newBuilder().setType(GroupType.BILLING_FAMILY)
+                .setDisplayName("Development"))
+            .build();
+        GroupAndMembers groupAndMembers = ImmutableGroupAndMembers.builder()
+            .group(group)
+            .members(oidsInBillingFamily)
+            .entities(Collections.emptyList())
+            .build();
+        GroupApiDTO mappedDto = groupMapper.toGroupApiDto(
+            groupAndMembers,
+            EnvironmentType.CLOUD,
+            false);
+
+        Assert.assertTrue(mappedDto instanceof BillingFamilyApiDTO);
+        BillingFamilyApiDTO billingFamilyApiDTO = (BillingFamilyApiDTO)mappedDto;
+
+        Assert.assertEquals("2", billingFamilyApiDTO.getMasterAccountUuid());
+        Assert.assertEquals("Development", billingFamilyApiDTO.getDisplayName());
+
+        Assert.assertEquals(
+            ImmutableMap.of("2", "Development", "1", "Product Trust"),
+            billingFamilyApiDTO.getUuidToNameMap());
+
+        Assert.assertEquals(3.25F + 2.5F, billingFamilyApiDTO.getCostPrice(), 0.0000001F);
     }
 }

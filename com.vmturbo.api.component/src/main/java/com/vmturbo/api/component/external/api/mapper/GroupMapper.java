@@ -15,6 +15,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
@@ -25,10 +26,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
+import com.vmturbo.api.dto.group.BillingFamilyApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
@@ -78,16 +82,30 @@ public class GroupMapper {
 
     /**
      * This bimap maps from the class name that use in API level for groups to the
-     * group type that we use internally to represent that goup.
+     * group type that we use internally to represent that group.
      */
     public static final BiMap<String, GroupType> API_GROUP_TYPE_TO_GROUP_TYPE =
-        ImmutableBiMap.of(
-            StringConstants.GROUP, GroupType.REGULAR,
-            StringConstants.CLUSTER, GroupType.COMPUTE_HOST_CLUSTER,
-            StringConstants.STORAGE_CLUSTER, GroupType.STORAGE_CLUSTER,
-            StringConstants.VIRTUAL_MACHINE_CLUSTER, GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER,
-            StringConstants.RESOURCE_GROUP, GroupType.RESOURCE
-        );
+        ImmutableBiMap.<String, GroupType>builder()
+            .put(StringConstants.GROUP, GroupType.REGULAR)
+            .put(StringConstants.CLUSTER, GroupType.COMPUTE_HOST_CLUSTER)
+            .put(StringConstants.STORAGE_CLUSTER, GroupType.STORAGE_CLUSTER)
+            .put(StringConstants.VIRTUAL_MACHINE_CLUSTER, GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER)
+            .put(StringConstants.RESOURCE_GROUP, GroupType.RESOURCE)
+            .put(StringConstants.BILLING_FAMILY, GroupType.BILLING_FAMILY)
+            .build();
+
+    /**
+     * This maps className used by external API to default filter type.
+     */
+    public static final Map<String, String> API_GROUP_TYPE_TO_FILTER_GROUP_TYPE =
+        ImmutableMap.<String, String>builder()
+            .put(StringConstants.GROUP, GroupFilterMapper.GROUPS_FILTER_TYPE)
+            .put(StringConstants.CLUSTER, GroupFilterMapper.CLUSTERS_FILTER_TYPE)
+            .put(StringConstants.STORAGE_CLUSTER, GroupFilterMapper.STORAGE_CLUSTERS_FILTER_TYPE)
+            .put(StringConstants.VIRTUAL_MACHINE_CLUSTER, GroupFilterMapper.VIRTUALMACHINE_CLUSTERS_FILTER_TYPE)
+            .put(StringConstants.RESOURCE_GROUP, GroupFilterMapper.RESOURCE_GROUP_BY_NAME_FILTER_TYPE)
+            .put(StringConstants.BILLING_FAMILY, GroupFilterMapper.BILLING_FAMILY_FILTER_TYPE)
+            .build();
 
     /**
      * The API "class types" (as returned by {@link BaseApiDTO#getClassName()}
@@ -109,8 +127,23 @@ public class GroupMapper {
 
     private final SeverityPopulator severityPopulator;
 
+    private final BusinessAccountRetriever businessAccountRetriever;
+
     private final long realtimeTopologyContextId;
 
+    /**
+     * Creates an instance of GroupMapper using all the provided dependencies.
+     *
+     * @param supplyChainFetcherFactory for getting supply chain info.
+     * @param groupExpander for getting members of groups.
+     * @param topologyProcessor for communicating with topology processor.
+     * @param repositoryApi for communicating with the api.
+     * @param entityFilterMapper for converting between internal and api filter representation.
+     * @param groupFilterMapper for converting between internal and api filter representation.
+     * @param severityPopulator for get severity information.
+     * @param businessAccountRetriever for getting business account information for billing families.
+     * @param realtimeTopologyContextId the topology context id, used for getting severity.
+     */
     public GroupMapper(@Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                        @Nonnull final GroupExpander groupExpander,
                        @Nonnull final TopologyProcessor topologyProcessor,
@@ -118,6 +151,7 @@ public class GroupMapper {
                        @Nonnull final EntityFilterMapper entityFilterMapper,
                        @Nonnull final GroupFilterMapper groupFilterMapper,
                        @Nonnull final SeverityPopulator severityPopulator,
+                       @Nonnull final BusinessAccountRetriever businessAccountRetriever,
                        long realtimeTopologyContextId) {
         this.supplyChainFetcherFactory = Objects.requireNonNull(supplyChainFetcherFactory);
         this.groupExpander = Objects.requireNonNull(groupExpander);
@@ -126,6 +160,7 @@ public class GroupMapper {
         this.entityFilterMapper = entityFilterMapper;
         this.groupFilterMapper = groupFilterMapper;
         this.severityPopulator = Objects.requireNonNull(severityPopulator);
+        this.businessAccountRetriever = Objects.requireNonNull(businessAccountRetriever);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
@@ -267,15 +302,11 @@ public class GroupMapper {
                                      boolean populateSeverity) {
         final GroupApiDTO outputDTO;
         final Grouping group = groupAndMembers.group();
-        outputDTO = convertToGroupApiDto(groupAndMembers.group(), environmentType);
+        outputDTO = convertToGroupApiDto(groupAndMembers, environmentType);
 
         outputDTO.setDisplayName(group.getDefinition().getDisplayName());
         outputDTO.setUuid(Long.toString(group.getId()));
 
-        outputDTO.setMembersCount(getMembersCount(groupAndMembers));
-        outputDTO.setMemberUuidList(groupAndMembers.members().stream()
-            .map(oid -> Long.toString(oid))
-            .collect(Collectors.toList()));
         outputDTO.setEnvironmentType(getEnvironmentTypeForTempGroup(environmentType));
         outputDTO.setEntitiesCount(groupAndMembers.entities().size());
         outputDTO.setActiveEntitiesCount(getActiveEntitiesCount(groupAndMembers));
@@ -312,13 +343,19 @@ public class GroupMapper {
      * Converts an internal representation of a group represented as a {@Grouping} object
      * to API representation of the object.
      *
-     * @param group The internal representation of the object.
+     * @param groupAndMembers The internal representation of the object.
      * @param environmentType The environment type to set on the converted object.
-     * @return the converted object.
+     * @return the converted object with some of the details filled in.
      */
-     private GroupApiDTO convertToGroupApiDto(@Nonnull final Grouping group, EnvironmentType environmentType) {
+    private GroupApiDTO convertToGroupApiDto(@Nonnull final GroupAndMembers groupAndMembers, EnvironmentType environmentType) {
+        Grouping group = groupAndMembers.group();
         GroupDefinition groupDefinition = group.getDefinition();
-        final GroupApiDTO outputDTO = new GroupApiDTO();
+        final GroupApiDTO outputDTO;
+        if (GroupType.BILLING_FAMILY.equals(group.getDefinition().getType())) {
+            outputDTO = extractBillingFamilyInfo(groupAndMembers);
+        } else {
+            outputDTO = new GroupApiDTO();
+        }
         outputDTO.setUuid(String.valueOf(group.getId()));
 
         outputDTO.setClassName(convertGroupTypeToApiType(groupDefinition.getType()));
@@ -394,7 +431,41 @@ public class GroupMapper {
                 break;
         }
 
+        outputDTO.setMembersCount(getMembersCount(groupAndMembers));
+        outputDTO.setMemberUuidList(groupAndMembers.members().stream()
+            .map(oid -> Long.toString(oid))
+            .collect(Collectors.toList()));
+
         return outputDTO;
+    }
+
+    private BillingFamilyApiDTO extractBillingFamilyInfo(GroupAndMembers groupAndMembers) {
+        BillingFamilyApiDTO billingFamilyApiDTO = new BillingFamilyApiDTO();
+
+        Set<Long> oidsToQuery = new HashSet<>(groupAndMembers.members());
+        final List<BusinessUnitApiDTO> billingFamilyMembers =
+            businessAccountRetriever.getBusinessAccounts(oidsToQuery);
+
+        // costPrice is the sum of the costPrice of the business accounts
+        billingFamilyApiDTO.setCostPrice(billingFamilyMembers.stream()
+            .map(BusinessUnitApiDTO::getCostPrice)
+            .filter(businessAccountPrice -> businessAccountPrice != null)
+            .reduce(0F, Float::sum)); // mapToFloat doesn't exist, so we have to sum it ourselves
+
+        // if there's a master account, set masterAccountUuid of BillingFamilyApiDTO
+        billingFamilyMembers.stream()
+            .filter(BusinessUnitApiDTO::isMaster)
+            .findAny()
+            .ifPresent(masterAccount -> {
+                billingFamilyApiDTO.setMasterAccountUuid(masterAccount.getUuid());
+            });
+
+        // create a map of uuid to displayName using the business accounts
+        billingFamilyApiDTO.setUuidToNameMap(billingFamilyMembers.stream().collect(Collectors.toMap(
+            BusinessUnitApiDTO::getUuid,
+            BusinessUnitApiDTO::getDisplayName)));
+
+        return billingFamilyApiDTO;
     }
 
     @Nonnull

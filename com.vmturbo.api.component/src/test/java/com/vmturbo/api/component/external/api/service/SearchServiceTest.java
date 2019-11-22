@@ -200,7 +200,7 @@ public class SearchServiceTest {
         when(userSessionContext.isUserScoped()).thenReturn(false);
         groupMapper = new GroupMapper(supplyChainFetcherFactory, groupExpander, topologyProcessor,
                 repositoryApi, entityFilterMapper, groupFilterMapper, severityPopulator,
-                realTimeContextId);
+                businessAccountRetriever, realTimeContextId);
 
         searchService = spy(new SearchService(
                 repositoryApi,

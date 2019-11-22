@@ -79,6 +79,11 @@ public class GroupFilterMapper {
     public static final String RESOURCE_GROUP_BY_TAG_FILTER_TYPE = "resourceGroupByTag";
 
     /**
+     * The filter used in API when filtering based on BillingFamily display name.
+     */
+    public static final String BILLING_FAMILY_FILTER_TYPE = "billingFamilyByName";
+
+    /**
      * A map between group type and property to UI filter that we use for that property. We use
      * different filter for same property of different entity types. For example, for filter based
      * on display name of host cluster we use clustersByName while we use storageClustersByName for

@@ -6,17 +6,14 @@ import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.R
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.STATE;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.VOLUME_ATTACHMENT_STATE_FILTER_PATH;
 import static com.vmturbo.components.common.utils.StringConstants.BUSINESS_ACCOUNT;
-import static com.vmturbo.components.common.utils.StringConstants.CLUSTER;
 import static com.vmturbo.components.common.utils.StringConstants.GROUP;
-import static com.vmturbo.components.common.utils.StringConstants.RESOURCE_GROUP;
-import static com.vmturbo.components.common.utils.StringConstants.STORAGE_CLUSTER;
-import static com.vmturbo.components.common.utils.StringConstants.VIRTUAL_MACHINE_CLUSTER;
 import static com.vmturbo.components.common.utils.StringConstants.WORKLOAD;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -217,7 +214,7 @@ public class SearchService implements ISearchService {
             // not a group or cluster...fall through
         }
 
-        /**
+        /*
          * Search for business units next. We cannot use Repository API entity request call
          * because BusinessUnitApiDTO doesn't inherit from ServiceEntityApiDTO class.
          */
@@ -308,44 +305,38 @@ public class SearchService implements ISearchService {
                 addNameMatcher(query, Collections.emptyList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
                 paginationRequest, groupType);
         } else if (types != null) {
+            final Set<String> typesHashSet = new HashSet(types);
             // Check for a type that requires a query to a specific service, vs. Repository search.
-            if (types.contains(GROUP)) {
+            if (typesHashSet.contains(GROUP)) {
                 // IN Classic, this returns all Groups + Clusters. So we call getGroups which gets
                 // all Groups(supertype).
                 return groupsService.getPaginatedGroupApiDTOS(
                     addNameMatcher(query, Collections.emptyList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
                     paginationRequest, null);
-            } else if (types.contains(CLUSTER)) {
-                final Collection<GroupApiDTO> groups =
-                    groupsService.getGroupsByType(GroupType.COMPUTE_HOST_CLUSTER,
-                                    scopes, Collections.emptyList());
-                return paginationRequest.allResultsResponse(Lists.newArrayList(groups));
-            } else if (types.contains(STORAGE_CLUSTER)) {
-                final Collection<GroupApiDTO> groups =
-                    groupsService.getGroupsByType(GroupType.STORAGE_CLUSTER, scopes, Collections.emptyList());
-                return paginationRequest.allResultsResponse(Lists.newArrayList(groups));
-            } else if (types.contains(VIRTUAL_MACHINE_CLUSTER)) {
-                final Collection<GroupApiDTO> groups =
-                    groupsService.getGroupsByType(GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER,
-                                    scopes, Collections.emptyList());
-                return paginationRequest.allResultsResponse(Lists.newArrayList(groups));
-            } else if (types.contains(RESOURCE_GROUP)) {
-                final Collection<GroupApiDTO> groups =
-                                groupsService.getGroupsByType(GroupType.RESOURCE,
-                                                scopes, Collections.emptyList());
-                            return paginationRequest.allResultsResponse(Lists.newArrayList(groups));
-            } else if (types.contains(MarketMapper.MARKET)) {
+            } else if (Sets.intersection(typesHashSet,
+                    GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.keySet()).size() > 0) {
+                // TODO(OM-49616): return the proper search filters and handle the query string properly
+                for (Map.Entry<String, GroupType> entry : GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.entrySet()) {
+                    if (types.contains(entry.getKey())) {
+                        final Collection<GroupApiDTO> groups =
+                            groupsService.getGroupsByType(entry.getValue(),
+                                scopes, Collections.emptyList());
+                        return paginationRequest.allResultsResponse(Lists.newArrayList(groups));
+                    }
+                }
+                throw new IllegalStateException("This can never happen because intersect(types, groupTypes) > 0 if and only if there is at least one groupType in types.");
+            } else if (typesHashSet.contains(MarketMapper.MARKET)) {
                 final Collection<MarketApiDTO> markets = marketsService.getMarkets(scopes);
                 return paginationRequest.allResultsResponse(Lists.newArrayList(markets));
-            } else if (types.contains(TargetsService.TARGET)) {
+            } else if (typesHashSet.contains(TargetsService.TARGET)) {
                 final Collection<TargetApiDTO> targets = targetsService.getTargets(null);
                 return paginationRequest.allResultsResponse(Lists.newArrayList(targets));
-            } else if (types.contains(UIEntityType.BUSINESS_ACCOUNT.apiStr())) {
+            } else if (typesHashSet.contains(UIEntityType.BUSINESS_ACCOUNT.apiStr())) {
                 // TODO handle different scopes (not just target scope)
                 final Collection<BusinessUnitApiDTO> businessAccounts =
                         businessAccountRetriever.getBusinessAccountsInScope(scopes);
                 return paginationRequest.allResultsResponse(Lists.newArrayList(businessAccounts));
-            } else if (types.contains(StringConstants.BILLING_FAMILY)) {
+            } else if (typesHashSet.contains(StringConstants.BILLING_FAMILY)) {
                 return paginationRequest.allResultsResponse(
                     Lists.newArrayList(businessAccountRetriever.getBillingFamilies()));
             }
@@ -420,90 +411,64 @@ public class SearchService implements ISearchService {
         // the query input is called a GroupApiDTO even though this search can apply to any type
         // if this is a group search, we need to know the right "name filter type" that can be used
         // to search for a group by name. These come from the groupBuilderUsecases.json file.
-        switch (StringUtils.defaultIfEmpty(inputDTO.getClassName(),"")) {
-            case GROUP:
-                return groupsService.getPaginatedGroupApiDTOS(
-                        addNameMatcher(query, inputDTO.getCriteriaList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
-                        paginationRequest, null);
-            case CLUSTER:
-                // this is a search for a compute Cluster of physical machines
-                return paginationRequest.allResultsResponse(
-                        Collections.unmodifiableList(
-                            groupsService.getGroupsByType(GroupType.COMPUTE_HOST_CLUSTER,
-                                inputDTO.getScope(),
-                                addNameMatcher(query,
-                                        inputDTO.getCriteriaList(),
-                                        GroupFilterMapper.CLUSTERS_FILTER_TYPE))));
-            case STORAGE_CLUSTER:
-                // this is a search for a storage Cluster
-                return paginationRequest.allResultsResponse(
-                        Collections.unmodifiableList(
-                            groupsService.getGroupsByType(GroupType.STORAGE_CLUSTER,
-                                inputDTO.getScope(),
-                                addNameMatcher(query,
-                                        inputDTO.getCriteriaList(),
-                                        GroupFilterMapper.STORAGE_CLUSTERS_FILTER_TYPE))));
-            case VIRTUAL_MACHINE_CLUSTER:
-                // this is a search for a compute cluster of virtual machines
-                return paginationRequest.allResultsResponse(
-                        Collections.unmodifiableList(
-                                groupsService.getGroupsByType(GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER,
-                                        inputDTO.getScope(),
-                                        addNameMatcher(query,
-                                                inputDTO.getCriteriaList(),
-                                                GroupFilterMapper.VIRTUALMACHINE_CLUSTERS_FILTER_TYPE))));
-            case RESOURCE_GROUP:
-                // this is a search for a compute cluster of virtual machines
-                return paginationRequest.allResultsResponse(
-                        Collections.unmodifiableList(
-                                groupsService.getGroupsByType(GroupType.RESOURCE,
-                                        inputDTO.getScope(),
-                                        addNameMatcher(query,
-                                                inputDTO.getCriteriaList(),
-                                                GroupFilterMapper.RESOURCE_GROUP_BY_NAME_FILTER_TYPE))));
-            case BUSINESS_ACCOUNT:
-                return paginationRequest.allResultsResponse(Lists.newArrayList(
-                    businessAccountRetriever.getBusinessAccountsInScope(inputDTO.getScope())));
-            case WORKLOAD:
-                List<String> scope = inputDTO.getScope();
+        final String className = StringUtils.defaultIfEmpty(inputDTO.getClassName(), "");
+        if (GROUP.equals(className)) {
+            return groupsService.getPaginatedGroupApiDTOS(
+                addNameMatcher(query, inputDTO.getCriteriaList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
+                paginationRequest, null);
+        } else if (GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.containsKey(className)) {
+            // TODO(OM-49616): return the proper search filters and handle the query string properly
+            GroupType groupType = GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.get(className);
+            String filter = GroupMapper.API_GROUP_TYPE_TO_FILTER_GROUP_TYPE.get(className);
+            return paginationRequest.allResultsResponse(
+                Collections.unmodifiableList(
+                    groupsService.getGroupsByType(groupType,
+                        inputDTO.getScope(),
+                        addNameMatcher(query,
+                            inputDTO.getCriteriaList(),
+                            filter))));
+        } else if (BUSINESS_ACCOUNT.equals(className)) {
+            return paginationRequest.allResultsResponse(Lists.newArrayList(
+                businessAccountRetriever.getBusinessAccountsInScope(inputDTO.getScope())));
+        } else if (WORKLOAD.equals(className)) {
+            List<String> scope = inputDTO.getScope();
 
-                if (scope == null || scope.size() == 0) {
-                    throw new UnsupportedOperationException("Invalid workload scope");
-                }
+            if (scope == null || scope.size() == 0) {
+                throw new UnsupportedOperationException("Invalid workload scope");
+            }
 
-                String scopeId = inputDTO.getScope().get(0);
-                long businessAccountId;
-                try {
-                    businessAccountId = Long.valueOf(scopeId);
-                } catch (NumberFormatException ex) {
-                    throw new UnsupportedOperationException("Invalid workload scope ID: " + scopeId);
-                }
+            String scopeId = inputDTO.getScope().get(0);
+            long businessAccountId;
+            try {
+                businessAccountId = Long.valueOf(scopeId);
+            } catch (NumberFormatException ex) {
+                throw new UnsupportedOperationException("Invalid workload scope ID: " + scopeId);
+            }
 
-                SingleEntityRequest entityRequest = repositoryApi.entityRequest(businessAccountId);
-                Optional<TopologyEntityDTO> topologyEntityDTO = entityRequest
-                                .getFullEntity();
-                if (!topologyEntityDTO.isPresent()) {
-                    // if this is not business account try regular search
-                    return searchEntitiesByParameters(inputDTO, query, paginationRequest);
-                }
-
-                Set<Long> entitiesOid = topologyEntityDTO.get().getConnectedEntityListList()
-                                .stream()
-                                .map(entity -> entity.getConnectedEntityId())
-                                .collect(Collectors.toSet());
-
-                List<BaseApiDTO> results = repositoryApi.entitiesRequest(entitiesOid)
-                        .getSEMap()
-                        .values()
-                        .stream()
-                        .filter(se -> UIEntityType.WORKLOAD_ENTITY_TYPES.contains(UIEntityType.fromString(se.getClassName())))
-                        .collect(Collectors.toList());
-
-                return paginationRequest.allResultsResponse(results);
-
-            default:
-                // this isn't a group search after all -- use a generic search method instead.
+            SingleEntityRequest entityRequest = repositoryApi.entityRequest(businessAccountId);
+            Optional<TopologyEntityDTO> topologyEntityDTO = entityRequest
+                .getFullEntity();
+            if (!topologyEntityDTO.isPresent()) {
+                // if this is not business account try regular search
                 return searchEntitiesByParameters(inputDTO, query, paginationRequest);
+            }
+
+            Set<Long> entitiesOid = topologyEntityDTO.get().getConnectedEntityListList()
+                .stream()
+                .map(entity -> entity.getConnectedEntityId())
+                .collect(Collectors.toSet());
+
+            List<BaseApiDTO> results = repositoryApi.entitiesRequest(entitiesOid)
+                .getSEMap()
+                .values()
+                .stream()
+                .filter(se -> UIEntityType.WORKLOAD_ENTITY_TYPES.contains(UIEntityType.fromString(se.getClassName())))
+                .collect(Collectors.toList());
+
+            return paginationRequest.allResultsResponse(results);
+        } else {
+            // this isn't a group search after all -- use a generic search method instead.
+            return searchEntitiesByParameters(inputDTO, query, paginationRequest);
         }
     }
 
