@@ -6,12 +6,8 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import io.grpc.stub.StreamObserver;
 
-import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
 import com.vmturbo.common.protobuf.cost.CostDebug;
 import com.vmturbo.common.protobuf.cost.CostDebug.DisableCostRecordingRequest;
 import com.vmturbo.common.protobuf.cost.CostDebug.DisableCostRecordingResponse;
@@ -30,8 +26,6 @@ import com.vmturbo.cost.component.topology.CostJournalRecorder;
  * See cost/CostDebug.proto
  */
 public class CostDebugRpcService extends CostDebugServiceImplBase {
-
-    private final Logger logger = LogManager.getLogger();
 
     private final CostJournalRecorder costJournalRecording;
 
@@ -105,12 +99,7 @@ public class CostDebugRpcService extends CostDebugServiceImplBase {
     @Override
     public void triggerBuyRIAlgorithm(TriggerBuyRIAlgorithmRequest request,
                                       StreamObserver<TriggerBuyRIAlgorithmResponse> responseObserver) {
-        final StartBuyRIAnalysisRequest startBuyRIAnalysisRequest = invoker.getStartBuyRIAnalysisRequest();
-        if (startBuyRIAnalysisRequest.getAccountsList().isEmpty()) {
-            logger.info("No BA's found. RI Buy analysis will not be triggered.");
-            return;
-        }
-        invoker.invokeBuyRIAnalysis(startBuyRIAnalysisRequest);
+        invoker.invokeBuyRIAnalysis();
         responseObserver.onNext(TriggerBuyRIAlgorithmResponse.getDefaultInstance());
         responseObserver.onCompleted();
     }

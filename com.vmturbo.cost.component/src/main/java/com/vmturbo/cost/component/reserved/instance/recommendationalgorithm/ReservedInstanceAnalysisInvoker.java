@@ -36,6 +36,7 @@ import com.vmturbo.components.common.setting.CategoryPathConstants;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.RISettingsEnum.PreferredTerm;
 import com.vmturbo.cost.component.pricing.BusinessAccountPriceTableKeyStore;
+import com.vmturbo.cost.component.reserved.instance.ActionContextRIBuyStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore.ReservedInstanceBoughtChangeType;
 import com.vmturbo.group.api.SettingMessages.SettingNotification;
@@ -69,6 +70,8 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
     // The inventory of RIs that have already been purchased
     private final ReservedInstanceBoughtStore riBoughtStore;
 
+    private final ActionContextRIBuyStore actionContextRIBuyStore;
+
     private final BusinessAccountPriceTableKeyStore keyStore;
 
     private static List<String> riSettingNames = new ArrayList<>();
@@ -87,6 +90,7 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
                                            @Nonnull RepositoryServiceBlockingStub repositoryClient,
                                            @Nonnull SettingServiceBlockingStub settingsServiceClient,
                                            @Nonnull ReservedInstanceBoughtStore riBoughtStore,
+                                           @Nonnull ActionContextRIBuyStore actionContextRIBuyStore,
                                            @Nonnull BusinessAccountPriceTableKeyStore keyStore,
                                            long realtimeTopologyContextId) {
         this.reservedInstanceAnalyzer = reservedInstanceAnalyzer;
@@ -94,6 +98,7 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
         this.settingsServiceClient = settingsServiceClient;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.riBoughtStore = riBoughtStore;
+        this.actionContextRIBuyStore = actionContextRIBuyStore;
         this.keyStore = keyStore;
         this.riBoughtStore.getUpdateEventStream()
                 .filter(event -> event == ReservedInstanceBoughtChangeType.UPDATED)
@@ -102,10 +107,9 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
 
     /**
      * Invoke the Buy RI Algorithm.
-     *
-     * @param buyRiRequest StartBuyRIAnalysisRequest.
      */
-    public synchronized void invokeBuyRIAnalysis(StartBuyRIAnalysisRequest buyRiRequest) {
+    public synchronized void invokeBuyRIAnalysis() {
+        StartBuyRIAnalysisRequest buyRiRequest = getStartBuyRIAnalysisRequest();
         ReservedInstanceAnalysisScope reservedInstanceAnalysisScope =
                 new ReservedInstanceAnalysisScope(buyRiRequest);
         try {
@@ -124,16 +128,9 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
      */
     @Override
     public void onSettingsUpdated(SettingNotification notification) {
-        StartBuyRIAnalysisRequest buyRiRequest = getStartBuyRIAnalysisRequest();
-        if (buyRiRequest.getAccountsList().isEmpty()) {
-            logger.warn("ReservedInstanceAnalysisInvoker::onSettingsUpdated." +
-                    "No BA's found in repository. Reattempt to trigger RI Buy Analysis will be " +
-                    "done during next settings update.");
-            return;
-        }
         if (riSettingNames.contains(notification.getGlobal().getSetting().getSettingSpecName())) {
             logger.info("RI Buy Settings were updated. Triggering RI Buy Analysis.");
-            invokeBuyRIAnalysis(buyRiRequest);
+            invokeBuyRIAnalysis();
         }
      }
 
@@ -142,17 +139,9 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
      *
      * @param type ReservedInstanceBoughtChangeType
      */
-    @VisibleForTesting
-    protected void onRIInventoryUpdated(final ReservedInstanceBoughtChangeType type) {
-        StartBuyRIAnalysisRequest buyRiRequest = getStartBuyRIAnalysisRequest();
-        if (buyRiRequest.getAccountsList().isEmpty()) {
-            logger.warn("ReservedInstanceAnalysisInvoker::onRIInventoryUpdated." +
-                    "No BA's found in repository. Reattempt to trigger RI Buy Analysis will be " +
-                    "done during next RI Inventory update.");
-            return;
-        }
+    private void onRIInventoryUpdated(final ReservedInstanceBoughtChangeType type) {
         logger.info("RI Inventory has been changed. Triggering RI Buy Analysis.");
-        invokeBuyRIAnalysis(buyRiRequest);
+        invokeBuyRIAnalysis();
     }
 
     /**
@@ -161,17 +150,10 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
      * @param allBusinessAccounts OID's of all BA's present.
      */
     public void invokeRIBuyIfBusinessAccountsUpdated(Set<Long> allBusinessAccounts) {
-        StartBuyRIAnalysisRequest buyRiRequest = getStartBuyRIAnalysisRequest();
-        if (buyRiRequest.getAccountsList().isEmpty()) {
-            logger.warn("ReservedInstanceAnalysisInvoker::invokeRIBuyIfBusinessAccountsUpdated." +
-                    "No BA's found in repository. Reattempt to trigger RI Buy Analysis will be " +
-                    "done during next live topology broadcast.");
-            return;
-        }
         if (isNewBusinessAccountWithCostFound(allBusinessAccounts) || isBusinessAccountDeleted(allBusinessAccounts)) {
             logger.info("Invoking RI Buy Analysis because either a new BA with Cost was found" +
                     " or a BA was deleted.");
-            invokeBuyRIAnalysis(buyRiRequest);
+            invokeBuyRIAnalysis();
         }
     }
 

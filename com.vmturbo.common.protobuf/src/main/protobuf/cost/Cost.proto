@@ -200,12 +200,13 @@ message EntityReservedInstanceCoverage {
 
     // A map of:
     // RI ID -> # coupons covered by the RI.
+    //
+    // The total amount of coupons the entity requires is stored on the compute tier the
+    // entity is buying from. For example, if VM #1 is buying from m4.nano, and m4.nano has
+    // 1 coupon, VM #1 will require a total of 1 coupon.
+    //
     // For an explanation of coupons see: TypeSpecificInfo.ComputeTierInfo.
     map<int64, double> coupons_covered_by_ri = 10;
-
-    // The number of coupons of the compute tier on which this entity is residing or it is going to
-    // reside on (in case of projected).
-    optional int32 entity_coupon_capacity = 11;
 }
 
 // Actual message that gets sent across the wire from market component
