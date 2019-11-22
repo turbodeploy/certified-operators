@@ -170,7 +170,7 @@ public class QuoteCacheTest {
 
         // put 1st value
         MutableQuote quoteObject1 = new CommodityQuote(null, quoteValue1);
-        cache.put(traderIndex1, shoppingListIndex1, quoteObject1);
+        assertSame(cache, cache.put(traderIndex1, shoppingListIndex1, quoteObject1));
         // 1st position should now have the 1st value
         assertSame(quoteObject1, cache.get(traderIndex1, shoppingListIndex1));
         assertEquals(quoteValue1, quoteObject1.getQuoteValue(), 0.0);
@@ -184,7 +184,7 @@ public class QuoteCacheTest {
 
         // put 2nd value
         MutableQuote quoteObject2 = new CommodityQuote(null, quoteValue2);
-        cache.put(traderIndex2, shoppingListIndex2, quoteObject2);
+        assertSame(cache, cache.put(traderIndex2, shoppingListIndex2, quoteObject2));
         // 2nd position should now have the 2nd value
         assertSame(quoteObject2, cache.get(traderIndex2, shoppingListIndex2));
         assertEquals(quoteValue2, quoteObject2.getQuoteValue(), 0.0);
@@ -201,7 +201,7 @@ public class QuoteCacheTest {
 
         // put 3rd value
         MutableQuote quoteObject3 = new CommodityQuote(null, quoteValue3);
-        cache.put(traderIndex3, shoppingListIndex3, quoteObject3);
+        assertSame(cache, cache.put(traderIndex3, shoppingListIndex3, quoteObject3));
         // 3rd position should now have the 3rd value
         assertSame(quoteObject3, cache.get(traderIndex3, shoppingListIndex3));
         assertEquals(quoteValue3, quoteObject3.getQuoteValue(), 0.0);
@@ -281,10 +281,10 @@ public class QuoteCacheTest {
 
         try {
             MutableQuote quote1 = new CommodityQuote(null, 0.42);
-            cache.put(traderIndex1, shoppingListIndex1, quote1);
+            assertSame(cache, cache.put(traderIndex1, shoppingListIndex1, quote1));
             try {
                 MutableQuote quote2 = new CommodityQuote(null, 4.2);
-                cache.put(traderIndex2, shoppingListIndex2, quote2);
+                assertSame(cache, cache.put(traderIndex2, shoppingListIndex2, quote2));
                 try {
                     MutableQuote quote3 = new CommodityQuote(null, 42);
                     cache.put(traderIndex3, shoppingListIndex3, quote3);
@@ -326,12 +326,12 @@ public class QuoteCacheTest {
 
         for (Number[] putArgTriplet : putArgTriplets) {
             checkArgument(putArgTriplet.length == 3);
-            cache.put((int)putArgTriplet[0], (int)putArgTriplet[1],
-                        new CommodityQuote(null, (double)putArgTriplet[2]));
+            assertSame(cache, cache.put((int)putArgTriplet[0], (int)putArgTriplet[1],
+                                        new CommodityQuote(null, (double)putArgTriplet[2])));
         }
 
         for (int invalidateArg : invalidateArgs) {
-            cache.invalidate(invalidateArg);
+            assertSame(cache, cache.invalidate(invalidateArg));
         }
 
         checkArgument(expectedCacheState.length == nTradersInEconomy);
@@ -731,8 +731,8 @@ public class QuoteCacheTest {
             // populate the cache with some random quotes
             for (int row = 0; row < nPotentialSellers; row++) {
                 for (int slIndex = 0; slIndex < nShoppingLists; slIndex++) {
-                    cache.put(traderIndices[row], slIndex,
-                              new CommodityQuote(null, generator.nextDouble()));
+                    assertSame(cache, cache.put(traderIndices[row], slIndex,
+                                                new CommodityQuote(null, generator.nextDouble())));
                 }
             }
             // attempt to invalidate an out-of-bounds row
