@@ -107,7 +107,7 @@ public class BuyRIAnalysisConfig {
         ReservedInstanceAnalysisInvoker reservedInstanceAnalysisInvoker =
         new ReservedInstanceAnalysisInvoker(reservedInstanceAnalysisConfig.reservedInstanceAnalyzer(),
                 repositoryServiceClient(), settingServiceClient(),
-                reservedInstanceAnalysisConfig.reservedInstanceBoughtStore(), actionContextRIBuyStore(),
+                reservedInstanceAnalysisConfig.reservedInstanceBoughtStore(),
                 pricingConfig.businessAccountPriceTableKeyStore(), realtimeTopologyContextId);
         groupClientConfig.settingsClient().addSettingsListener(reservedInstanceAnalysisInvoker);
         return reservedInstanceAnalysisInvoker;
