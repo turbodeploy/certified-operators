@@ -14,6 +14,9 @@ import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterResponse;
+import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc;
+import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc.BuyReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
@@ -22,10 +25,12 @@ import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceSpecByIdsRequest
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceSpecByIdsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterResponse;
 import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc.BuyReservedInstanceServiceBlockingStub;
-import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
@@ -38,6 +43,8 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
 
 /**
  * An implementation of {@link CloudCostDataProvider} that gets the relevant
@@ -53,6 +60,8 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
 
     private final MarketPricingResolver marketPricingResolver;
 
+    private final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationServiceClient;
+
     /**
      * Constructor for the market cloud cost data provider.
      *
@@ -67,6 +76,9 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
         this.buyRIServiceClient = Objects.requireNonNull(BuyReservedInstanceServiceGrpc.newBlockingStub(costChannel));
         this.marketPricingResolver = Objects.requireNonNull(new MarketPricingResolver(PricingServiceGrpc.newBlockingStub(costChannel),
                 Objects.requireNonNull(CostServiceGrpc.newBlockingStub(costChannel)), discountApplicatorFactory, topologyEntityInfoExtractor));
+        this.riUtilizationServiceClient =
+                Objects.requireNonNull(ReservedInstanceUtilizationCoverageServiceGrpc
+                        .newBlockingStub(costChannel));
     }
 
     /**
@@ -128,7 +140,7 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
 
             // Get the entity RI coverage.
             final GetEntityReservedInstanceCoverageResponse coverageResponse =
-                riBoughtServiceClient.getEntityReservedInstanceCoverage(
+                            riUtilizationServiceClient.getEntityReservedInstanceCoverage(
                     GetEntityReservedInstanceCoverageRequest.getDefaultInstance());
 
             return new CloudCostData(coverageResponse.getCoverageByEntityIdMap(),

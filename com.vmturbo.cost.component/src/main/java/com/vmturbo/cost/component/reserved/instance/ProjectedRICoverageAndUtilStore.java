@@ -38,7 +38,8 @@ public class ProjectedRICoverageAndUtilStore {
 
     private final SupplyChainServiceBlockingStub supplyChainServiceBlockingStub;
 
-    // The realtimeTopologyContextId.
+    // This should be the same as realtimeTopologyContextId.
+    private long topologyContextId;
     private long realtimeTopologyContextId;
 
     // so we update all the information before any other access to the information
@@ -68,7 +69,7 @@ public class ProjectedRICoverageAndUtilStore {
      * Update the real time projected entity RI coverage in the store.
      *
      * @param originalTopologyInfo
-     *     The information about the topology used to generate the Coverage
+     *     The information about the topology used to generate the Coverage, currently unused.
      * @param entityRICoverage
      *     A stream of the new {@link EntityReservedInstanceCoverage}. These will completely replace
      *     the existing entity RI coverage info.
@@ -78,10 +79,17 @@ public class ProjectedRICoverageAndUtilStore {
                     @Nonnull final List<EntityReservedInstanceCoverage> entityRICoverage) {
         synchronized (lockObject) {
             Objects.requireNonNull(originalTopologyInfo, "topology info must not be null");
+            topologyContextId = originalTopologyInfo.getTopologyContextId();
             final Map<Long, Map<Long, Double>> newCostsByEntity = entityRICoverage.stream()
                             .collect(Collectors.toMap(EntityReservedInstanceCoverage::getEntityId,
                                             EntityReservedInstanceCoverage::getCouponsCoveredByRiMap));
             projectedEntityRICoverageMap = Collections.unmodifiableMap(newCostsByEntity);
+            //TODO: remove this logger or convert to debug
+            logger.info("updateProjectedRICoverage topology ID {}, context {} , type {}, size {}",
+                            originalTopologyInfo.getTopologyId(),
+                            originalTopologyInfo.getTopologyContextId(),
+                            originalTopologyInfo.getTopologyType(),
+                            projectedEntityRICoverageMap.size());
         }
     }
 
@@ -114,9 +122,9 @@ public class ProjectedRICoverageAndUtilStore {
         List<Long> scopeIds = filter.getScopeIds();
         // getEntityOidsByType gets all entities in the real time topology if scopeIds is empty.
         Map<EntityType, Set<Long>> scopeMap = repositoryClient.getEntityOidsByType(scopeIds,
-                        realtimeTopologyContextId, supplyChainServiceBlockingStub);
+                        topologyContextId, supplyChainServiceBlockingStub);
         // this may return null if there are no VMs in scope, check below.
-        Set<Long> scopedOids = scopeMap.get(EntityType.VIRTUAL_MACHINE);
+        Set<Long> scopedOids = scopeMap.getOrDefault(EntityType.VIRTUAL_MACHINE, Collections.emptySet());
         //TODO: add support for database VMs, make sure DATABASE is correct EntityType for them
         //scopedOids.addAll(scopeMap.get(EntityType.DATABASE));
         Map<Long, Map<Long, Double>> filteredMap = new HashMap<>();
@@ -134,6 +142,9 @@ public class ProjectedRICoverageAndUtilStore {
                 Map<Long, Double> value = projectedEntityRICoverageMap.get(anOid);
                 if (value != null) {
                     filteredMap.put(anOid, value);
+                    logger.info("For VM OID {} found projected coverage {}", anOid, value);
+                } else {
+                    logger.info("For VM OID {} no projected coverage found", anOid);
                 }
             }
             return filteredMap;

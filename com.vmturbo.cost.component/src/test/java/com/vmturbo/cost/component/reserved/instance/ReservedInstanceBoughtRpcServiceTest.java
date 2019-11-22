@@ -7,6 +7,11 @@ import static org.mockito.Mockito.when;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+
+import io.grpc.Channel;
+
+import com.google.common.collect.ImmutableMap;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -26,6 +31,11 @@ import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageResponse;
+import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageResponse;
+import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountByTemplateResponse;
@@ -34,11 +44,12 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
@@ -55,6 +66,9 @@ import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTi
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.repository.api.RepositoryClient;
 
+/**
+ * Test the ReservedInstanceBoughtRpcService.
+ */
 public class ReservedInstanceBoughtRpcServiceTest {
 
     private ReservedInstanceBoughtStore reservedInstanceBoughtStore =
@@ -79,6 +93,9 @@ public class ReservedInstanceBoughtRpcServiceTest {
                reservedInstanceMappingStore, repositoryClient, supplyChainService,
                realtimeTopologyContextId, priceTableStore, reservedInstanceSpecStore);
 
+    /**
+     * Set up a test GRPC server.
+     */
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(service);
 
@@ -108,6 +125,9 @@ public class ReservedInstanceBoughtRpcServiceTest {
     private static final double TIER_PRICE = 0.41;
     private static final double delta = 0.01;
 
+    /**
+     * Initialize instances for each test.
+     */
     @Before
     public void setup() {
         client = ReservedInstanceBoughtServiceGrpc.newBlockingStub(grpcServer.getChannel());
@@ -157,18 +177,6 @@ public class ReservedInstanceBoughtRpcServiceTest {
                 .build();
     }
 
-    @Test
-    public void testGetRiCoverage() {
-        final Map<Long, EntityReservedInstanceCoverage> coverageMap =
-                ImmutableMap.of(7L, EntityReservedInstanceCoverage.getDefaultInstance());
-        when(reservedInstanceMappingStore.getEntityRiCoverage())
-                .thenReturn(coverageMap);
-        final GetEntityReservedInstanceCoverageResponse response =
-            client.getEntityReservedInstanceCoverage(GetEntityReservedInstanceCoverageRequest.getDefaultInstance());
-
-        assertThat(response.getCoverageByEntityIdMap(), is(coverageMap));
-    }
-
     /**
      * Test getting all business account/subscription OIDs belonging to a Billing Family.
      */
@@ -176,9 +184,9 @@ public class ReservedInstanceBoughtRpcServiceTest {
     public void testGetRelatedBusinessAccountAccountOrSubscriptionOids() {
          List<ConnectedEntity> connectedEntities = new ArrayList<>();
          final ConnectedEntity connectedEntityAccount1 =  ConnectedEntity.newBuilder()
-                                             .setConnectedEntityId(7L)
-                                             .setConnectedEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
-                                             .build();
+                         .setConnectedEntityId(7L)
+                         .setConnectedEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                         .build();
          final ConnectedEntity connectedEntityAccount2 = ConnectedEntity.newBuilder()
                          .setConnectedEntityId(77L)
                          .setConnectedEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
@@ -224,7 +232,6 @@ public class ReservedInstanceBoughtRpcServiceTest {
     /**
      * Test retrieval of a VM's relationship to cloud scopes such as Availability Zone,
      * Region and Billing Family Business Accounts / Subscriptions.
-     *
      * VM --> AZ.
      * AZ --> REgion.
      * BA --> Billing Family accounts including master and sub-accounts.
@@ -238,9 +245,9 @@ public class ReservedInstanceBoughtRpcServiceTest {
         Set<Long> azSet = new HashSet<>();
         azSet.add(AZ1_OID);
         azSet.add(AZ2_OID);
-        Set<Long> RegionSet = new HashSet<>();
-        RegionSet.add(REGION1_OID);
-        RegionSet.add(REGION2_OID);
+        Set<Long> regionSet = new HashSet<>();
+        regionSet.add(REGION1_OID);
+        regionSet.add(REGION2_OID);
 
         // Mocked up GetSupplyChainResponse
         final List<SupplyChainNode> supplyChainNodes = new ArrayList<>();
@@ -261,7 +268,7 @@ public class ReservedInstanceBoughtRpcServiceTest {
         supplyChainNodes.add(scnAZ);
 
         MemberList membersRegion = MemberList.newBuilder()
-                        .addAllMemberOids(RegionSet).build();
+                        .addAllMemberOids(regionSet).build();
         SupplyChainNode scnRegion = SupplyChainNode.newBuilder()
                         .setEntityType("Region")
                         .putMembersByState(EntityState.ACTIVE.ordinal(), membersRegion)
@@ -276,8 +283,8 @@ public class ReservedInstanceBoughtRpcServiceTest {
                         .setSupplyChain(supplyChain)
                         .build();
 
-        final Map<EntityType, Set<Long>> topologyMap = repositoryClient.parseSupplyChainResponseToEntityOidsMap(response,
-                                                                                              777777L);
+        final Map<EntityType, Set<Long>> topologyMap =
+            repositoryClient.parseSupplyChainResponseToEntityOidsMap(response, 777777L);
 
         assertTrue(topologyMap.size() > 0);
         // There should be 2 AZ's, 2 Regions and 3 Business Accounts associated with

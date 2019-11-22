@@ -183,6 +183,7 @@ public class ReservedInstanceConfig {
     public ReservedInstanceUtilizationCoverageRpcService reservedInstanceUtilizationCoverageRpcService() {
         return new ReservedInstanceUtilizationCoverageRpcService(reservedInstanceUtilizationStore(),
             reservedInstanceCoverageStore(), projectedEntityRICoverageAndUtilStore(),
+                        entityReservedInstanceMappingStore(),
             timeFrameCalculator(), costComponentGlobalConfig.clock());
     }
 

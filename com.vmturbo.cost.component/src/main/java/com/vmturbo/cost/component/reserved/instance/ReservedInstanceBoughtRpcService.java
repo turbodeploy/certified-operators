@@ -248,25 +248,6 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
         }
     }
 
-    @Override
-    public void getEntityReservedInstanceCoverage(GetEntityReservedInstanceCoverageRequest request,
-              StreamObserver<GetEntityReservedInstanceCoverageResponse> responseObserver) {
-        try {
-            logger.debug("Request for Entity RI coverage: {}", request);
-            final Map<Long, EntityReservedInstanceCoverage> retCoverage =
-                    entityReservedInstanceMappingStore.getEntityRiCoverage();
-            logger.debug("Retrieved and returning RI coverage for {} entities.", retCoverage.size());
-            responseObserver.onNext(GetEntityReservedInstanceCoverageResponse.newBuilder()
-                .putAllCoverageByEntityId(retCoverage)
-                .build());
-            responseObserver.onCompleted();
-        } catch (DataAccessException e) {
-            responseObserver.onError(Status.INTERNAL
-                .withDescription("Failed to retrieve RI coverage from DB: " + e.getLocalizedMessage())
-                .asException());
-        }
-    }
-
     private ReservedInstanceBoughtFilter createReservedInstanceBoughtFilter(
             @Nonnull final Optional<RegionFilter> regionFilter,
             @Nonnull final Optional<AvailabilityZoneFilter> azFilter,

@@ -2,10 +2,15 @@ package com.vmturbo.cost.component.reserved.instance;
 
 import java.time.Clock;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.cost.Cost;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
@@ -13,6 +18,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 
+import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageResponse;
+//import com.vmturbo.common.protobuf.cost.Cost.GetProjectedEntityReservedInstanceCoverageRequest;
+//import com.vmturbo.common.protobuf.cost.Cost.GetProjectedEntityReservedInstanceCoverageResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStatsRequest;
@@ -27,7 +37,7 @@ import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtili
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
- * A rpc service for get reserved instance utilization and coverage stats.
+ * A RPC service for getting reserved instance utilization and coverage statistics.
  */
 public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInstanceUtilizationCoverageServiceImplBase {
 
@@ -39,21 +49,43 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
 
     private final ProjectedRICoverageAndUtilStore projectedRICoverageStore;
 
+    private final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore;
+
     private final TimeFrameCalculator timeFrameCalculator;
 
     private final Clock clock;
 
     private static final int PROJECTED_STATS_TIME_IN_FUTURE_HOURS = 1;
 
+    /**
+     * Constructor for ReservedInstanceUtilizationCoverageRpcService. The parameters are the shared
+     * data structures or unique instances created at startup.
+     *
+     * @param reservedInstanceUtilizationStore
+     *     The instance of ReservedInstanceUtilizationStore
+     * @param reservedInstanceCoverageStore
+     *     The instance of ReservedInstanceCoverageStore
+     * @param projectedRICoverageStore
+     *     The instance of ProjectedRICoverageStore
+     * @param entityReservedInstanceMappingStore
+     *     The instance of EntityReservedInstanceMappingStore
+     * @param timeFrameCalculator
+     *     The instance of TimeFrameCalculator
+     * @param clock
+     *     The instance of Clock
+     */
     public ReservedInstanceUtilizationCoverageRpcService(
             @Nonnull final ReservedInstanceUtilizationStore reservedInstanceUtilizationStore,
             @Nonnull final ReservedInstanceCoverageStore reservedInstanceCoverageStore,
             @Nonnull final ProjectedRICoverageAndUtilStore projectedRICoverageStore,
+                    @Nonnull final EntityReservedInstanceMappingStore entityReservedInstanceMappingStore,
             @Nonnull final TimeFrameCalculator timeFrameCalculator,
             @Nonnull final Clock clock) {
         this.reservedInstanceUtilizationStore = reservedInstanceUtilizationStore;
         this.reservedInstanceCoverageStore = reservedInstanceCoverageStore;
         this.projectedRICoverageStore = projectedRICoverageStore;
+        this.entityReservedInstanceMappingStore =
+                        Objects.requireNonNull(entityReservedInstanceMappingStore);
         this.timeFrameCalculator = timeFrameCalculator;
         this.clock = clock;
     }
@@ -121,6 +153,25 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
             responseObserver.onError(Status.INTERNAL
                     .withDescription("Failed to get reserved instance coverage stats.")
                     .asException());
+        }
+    }
+
+    @Override
+    public void getEntityReservedInstanceCoverage(GetEntityReservedInstanceCoverageRequest request,
+                    StreamObserver<GetEntityReservedInstanceCoverageResponse> responseObserver) {
+        try {
+            logger.debug("Request for Entity RI coverage: {}", request);
+            final Map<Long, EntityReservedInstanceCoverage> retCoverage =
+                            entityReservedInstanceMappingStore.getEntityRiCoverage();
+            logger.debug("Retrieved and returning RI coverage for {} entities.",
+                            retCoverage.size());
+            responseObserver.onNext(GetEntityReservedInstanceCoverageResponse.newBuilder()
+                            .putAllCoverageByEntityId(retCoverage).build());
+            responseObserver.onCompleted();
+        } catch (DataAccessException e) {
+            responseObserver.onError(Status.INTERNAL.withDescription(
+                            "Failed to retrieve RI coverage from DB: " + e.getLocalizedMessage())
+                            .asException());
         }
     }
 
@@ -207,12 +258,57 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
         return ReservedInstanceUtil.createRIStatsRecord(capacity, usedCouponsTotal, projectedTime);
     }
 
-    private float getProjectedRICoverageCouponTotal(
-                    @Nonnull final ReservedInstanceFilter filter) {
+    private float getProjectedRICoverageCouponTotal(@Nonnull final ReservedInstanceFilter filter) {
         return (float)projectedRICoverageStore.getScopedProjectedEntitiesRICoverages(filter)
             .values().stream()
             .flatMap(map -> map.values().stream())
             .mapToDouble(i -> i)
             .sum();
     }
+
+    @Override
+    public void getProjectedEntityReservedInstanceCoverageStats(
+                    Cost.GetProjectedEntityReservedInstanceCoverageRequest request,
+                    StreamObserver<Cost.GetProjectedEntityReservedInstanceCoverageResponse> responseObserver) {
+        final ReservedInstanceCoverageFilter filter = createProjectedEntityFilter(request);
+        final Map<Long, EntityReservedInstanceCoverage> retCoverage =
+                        createProjectedEntityRICoverageMap(filter);
+        final Cost.GetProjectedEntityReservedInstanceCoverageResponse response =
+                        Cost.GetProjectedEntityReservedInstanceCoverageResponse.newBuilder()
+                                        .putAllCoverageByEntityId(retCoverage).build();
+        responseObserver.onNext(response);
+        responseObserver.onCompleted();
+    }
+
+    @Nonnull
+    private ReservedInstanceCoverageFilter createProjectedEntityFilter(
+                    @Nonnull Cost.GetProjectedEntityReservedInstanceCoverageRequest request) {
+        final ReservedInstanceCoverageFilter.Builder filterBuilder =
+                        ReservedInstanceCoverageFilter.newBuilder();
+        if (request.hasEntityFilter()) {
+            filterBuilder.addAllScopeId(request.getEntityFilter().getEntityIdList());
+            // No entity type.
+        }
+        return filterBuilder.build();
+    }
+
+    @Nonnull
+    private Map<Long, EntityReservedInstanceCoverage>
+                    createProjectedEntityRICoverageMap(
+                                    @Nonnull ReservedInstanceCoverageFilter filter) {
+        Map<Long, EntityReservedInstanceCoverage> coverage = new HashMap<>();
+        Map<Long, Map<Long, Double>> projectedCoverage =
+                        projectedRICoverageStore.getScopedProjectedEntitiesRICoverages(filter);
+        // TODO: fix commented line when we actually have the # coupons required by the template
+        for (Entry<Long, Map<Long, Double>> entry : projectedCoverage.entrySet()) {
+            coverage.put(entry.getKey(),
+                            EntityReservedInstanceCoverage.newBuilder().setEntityId(entry.getKey())
+                                            .putAllCouponsCoveredByRi(entry.getValue())
+                                            //.setCouponsUsedByEntity(the coupons required to
+                                            // completely cover the template);
+                                            .build());
+        }
+        return coverage;
+    }
+
 }

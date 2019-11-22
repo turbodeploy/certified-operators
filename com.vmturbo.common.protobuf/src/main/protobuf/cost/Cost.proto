@@ -199,14 +199,15 @@ message EntityReservedInstanceCoverage {
     optional int64 entity_id = 1;
 
     // A map of:
-    // RI ID -> # coupons covered by the RI.
-    //
-    // The total amount of coupons the entity requires is stored on the compute tier the
-    // entity is buying from. For example, if VM #1 is buying from m4.nano, and m4.nano has
-    // 1 coupon, VM #1 will require a total of 1 coupon.
+    // RI ID -> # coupons covered by the RI for the entity. It is possible for
+    // an RI to provide coupons to more than one entity or for an entity to
+    // consume coupons from more than one RI.
     //
     // For an explanation of coupons see: TypeSpecificInfo.ComputeTierInfo.
     map<int64, double> coupons_covered_by_ri = 10;
+
+    // The total amount of coupons the entity requires.
+    optional double coupons_used_by_entity = 11;
 }
 
 // Actual message that gets sent across the wire from market component
@@ -880,6 +881,16 @@ message GetEntityReservedInstanceCoverageResponse {
     map<int64, EntityReservedInstanceCoverage> coverage_by_entity_id = 1;
 }
 
+message GetProjectedEntityReservedInstanceCoverageRequest {
+    // Filter by a list of Entities.
+    optional EntityFilter entity_filter = 1;
+}
+
+message GetProjectedEntityReservedInstanceCoverageResponse {
+    // A map from entity ID to the reserved instance coverage for that entity.
+    map<int64, EntityReservedInstanceCoverage> coverage_by_entity_id = 1;
+}
+
 message StartBuyRIAnalysisRequest {
     // the topology info
     optional .topology.TopologyInfo topologyInfo = 1;
@@ -941,10 +952,6 @@ service ReservedInstanceBoughtService {
     // reserved instance bought.
     rpc GetReservedInstanceBoughtCount(GetReservedInstanceBoughtCountRequest) returns
     (GetReservedInstanceBoughtCountResponse);
-
-    // Get the per-entity RI coverage information - how much of an entity is covered by which RIs.
-    rpc GetEntityReservedInstanceCoverage(GetEntityReservedInstanceCoverageRequest) returns
-    (GetEntityReservedInstanceCoverageResponse);
 }
 
 // A service for getting reserved instance spec.
@@ -969,6 +976,14 @@ service ReservedInstanceUtilizationCoverageService {
     // Get the reserved instance coverage stats.
     rpc GetReservedInstanceCoverageStats(GetReservedInstanceCoverageStatsRequest)
     returns(GetReservedInstanceCoverageStatsResponse);
+
+    // Get the per-entity RI coverage information - how much of an entity is covered by which RIs.
+    rpc GetEntityReservedInstanceCoverage(GetEntityReservedInstanceCoverageRequest) returns
+    (GetEntityReservedInstanceCoverageResponse);
+
+    // Get the projected reserved instance coverage stats.
+    rpc GetProjectedEntityReservedInstanceCoverageStats(GetProjectedEntityReservedInstanceCoverageRequest)
+    returns(GetProjectedEntityReservedInstanceCoverageResponse);
 }
 
 // A service for buy reserved instance analysis.
