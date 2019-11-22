@@ -495,10 +495,10 @@ public class UuidMapper {
                         .setId(oid)
                         .build());
                     if (resp.hasGroup()) {
-                        final Collection<Long> members =
-                            groupExpander.getMembersForGroup(resp.getGroup()).members();
+                        final Collection<Long> entities =
+                            groupExpander.getMembersForGroup(resp.getGroup()).entities();
                         final Set<MinimalEntity> minimalMembers =
-                            repositoryApi.entitiesRequest(Sets.newHashSet(members)).getMinimalEntities()
+                            repositoryApi.entitiesRequest(Sets.newHashSet(entities)).getMinimalEntities()
                                 .collect(Collectors.toSet());
 
                         final EnvironmentType envTypeFromMember = minimalMembers.isEmpty() ?
