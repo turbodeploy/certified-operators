@@ -108,8 +108,10 @@ final class CliqueMinimizer {
      *
      * @param economy See {@link #getEconomy()}.
      * @param entries See {@link #getEntries()}.
+     * @param cache A cache where to store quotes to avoid recomputing them in case where the same
+     *              sellers are members of multiple cliques.
      */
-    public CliqueMinimizer(@NonNull Economy economy, @NonNull @ReadOnly
+    CliqueMinimizer(@NonNull Economy economy, @NonNull @ReadOnly
             Collection<@NonNull Entry<@NonNull ShoppingList, @NonNull Market>> entries,
             @Nullable QuoteCache cache) {
         economy_ = economy;

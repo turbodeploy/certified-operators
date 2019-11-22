@@ -19,34 +19,25 @@ import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
 /**
  * A caching mechanism for {@link MutableQuote} objects.
  *
- * <p>
- *  The indention is to cache the results of {@link EdeCommon#quote(UnmodifiableEconomy,
- *  ShoppingList, Trader, double, boolean)} during the execution of the SNM-enabled variant of the
- *  Placement algorithm to avoid the (costly) recalculation of them.
- * </p>
+ * <p>The indention is to cache the results of {@link EdeCommon#quote(UnmodifiableEconomy,
+ * ShoppingList, Trader, double, boolean)} during the execution of the SNM-enabled variant of the
+ * Placement algorithm to avoid the (costly) recalculation of them.</p>
  *
- * <p>
- *  This class operates under the assumption that the {@link Economy} argument will be the same each
- *  time (which is plausible given that the cache will be used during a single placement analysis)
- *  and that the <b>bestQuoteSoFar</b> and <b>forTraderIncomeStmt</b> arguments will be fixed to
- *  {@link Double#POSITIVE_INFINITY} and {@code false} respectively. Thus, the <b>seller</b> and
- *  <b>shoppingList</b> arguments are the only ones used to index the cache.
- * </p>
+ * <p>This class operates under the assumption that the {@link Economy} argument will be the same
+ * each time (which is plausible given that the cache will be used during a single placement
+ * analysis) and that the <b>bestQuoteSoFar</b> and <b>forTraderIncomeStmt</b> arguments will be
+ * fixed to {@link Double#POSITIVE_INFINITY} and {@code false} respectively. Thus, the <b>seller</b>
+ * and <b>shoppingList</b> arguments are the only ones used to index the cache.</p>
  *
- * <p>
- *  Manual invalidation will be needed when the customers of a seller change as that effects the
- *  quantities sold and ultimately the quote and is not captured by the index arguments below.
- * </p>
+ * <p>Manual invalidation will be needed when the customers of a seller change as that effects the
+ * quantities sold and ultimately the quote and is not captured by the index arguments below.</p>
  *
- * <p>
- *  This version of the cache is optimized for minimal quote store/retrieval overhead at the expense
- *  of slightly more work for invalidating quotes of traders whose list of customers has changed.
- * </p>
+ * <p>This version of the cache is optimized for minimal quote store/retrieval overhead at the
+ * expense of slightly more work for invalidating quotes of traders whose list of customers has
+ * changed.</p>
  *
- * <p>
- *  Currently there is no need to include utility methods to get the cache size after construction,
- *  but such methods can be added if the need arises.
- * </p>
+ * <p>Currently there is no need to include utility methods to get the cache size after
+ * construction, but such methods can be added if the need arises.</p>
  */
 public final class QuoteCache {
     // Fields
@@ -64,17 +55,13 @@ public final class QuoteCache {
     /**
      * Constructs a new, empty quote cache of the given size.
      *
-     * <p>
-     *  The cache will consume a constant O(<b>nTradersInEconomy</b> + min(<b>nPotentialSellers</b>,
-     *  <b>nTradersInEconomy</b>) * <b>nBuyerShoppingLists</b>) amount of memory throughout its
-     *  lifetime.
-     * </p>
+     * <p>The cache will consume a constant O(<b>nTradersInEconomy</b> +
+     * min(<b>nPotentialSellers</b>, <b>nTradersInEconomy</b>) * <b>nBuyerShoppingLists</b>) amount
+     * of memory throughout its lifetime.</p>
      *
-     * <p>
-     *  This is always an (<b>nTradersInEconomy</b> + min(<b>nPotentialSellers</b>,
-     *  <b>nTradersInEconomy</b>) * <b>nBuyerShoppingLists</b>) operation as allocating memory in
-     *  Java requires time at least linear to the amount of memory allocated.
-     * </p>
+     * <p>This is always an (<b>nTradersInEconomy</b> + min(<b>nPotentialSellers</b>,
+     * <b>nTradersInEconomy</b>) * <b>nBuyerShoppingLists</b>) operation as allocating memory in
+     * Java requires time at least linear to the amount of memory allocated.</p>
      *
      * @param nTradersInEconomy The number of traders in the {@link Economy} this cache will help
      *                          analyze. Must be non-negative.
@@ -103,9 +90,7 @@ public final class QuoteCache {
     /**
      * Returns the cached quote for a given combination of trader and shopping list index if exists.
      *
-     * <p>
-     *  This is always an O(1) operation.
-     * </p>
+     * <p>This is always an O(1) operation.</p>
      *
      * @param traderEconomyIndex The economy index of the trader for which to return the quote.
      *                           Must be in the range [0, nTradersInEconomy).
@@ -131,19 +116,13 @@ public final class QuoteCache {
      * Puts a new or updated quote value for a given combination of trader and shopping list index
      * into {@code this} cache.
      *
-     * <p>
-     *  It is an error to attempt to cache quotes for more unique sellers than was declared when
-     *  constructing {@code this} cache.
-     * </p>
+     * <p>It is an error to attempt to cache quotes for more unique sellers than was declared when
+     * constructing {@code this} cache.</p>
      *
-     * <p>
-     *  This method offers the strong exception safety guarantee. i.e. it will either succeed or
-     *  leave {@code this} cache in its original state.
-     * </p>
+     * <p>This method offers the strong exception safety guarantee. i.e. it will either succeed or
+     * leave {@code this} cache in its original state.</p>
      *
-     * <p>
-     *  This is always an O(1) operation.
-     * </p>
+     * <p>This is always an O(1) operation.</p>
      *
      * @param traderEconomyIndex The economy index of the trader for which to cache the quote.
      *                           Must be in the range [0, nTradersInEconomy).
@@ -175,21 +154,15 @@ public final class QuoteCache {
     /**
      * Invalidates all cached entries for the given {@link Trader}.
      *
-     * <p>
-     *  After this call, and until new quotes are cached, calls to {@link #get(int, int)} involving
-     *  the given trader will return {@code null} regardless of the shopping list index given.
-     *  Invalidating a cache row that was previously in use by some seller doesn't free up the row
-     *  for use by other sellers -- ownership remains to the initial seller.
-     * </p>
+     * <p>After this call, and until new quotes are cached, calls to {@link #get(int, int)}
+     * involving the given trader will return {@code null} regardless of the shopping list index
+     * given. Invalidating a cache row that was previously in use by some seller doesn't free up the
+     * row for use by other sellers -- ownership remains to the initial seller.</p>
      *
-     * <p>
-     *  Attempting to invalidate a cache row for a seller for which no quotes have ever been cached,
-     *  is permitted and has no effect.
-     * </p>
+     * <p>Attempting to invalidate a cache row for a seller for which no quotes have ever been
+     * cached, is permitted and has no effect.</p>
      *
-     * <p>
-     *  This is an O(<b>nShoppingLists</b>) operation in the worst case.
-     * </p>
+     * <p>This is an O(<b>nShoppingLists</b>) operation in the worst case.</p>
      *
      * @param traderEconomyIndex Seller for which to invalidate the quotes.
      *                           Must be in the range [0, nTradersInEconomy).

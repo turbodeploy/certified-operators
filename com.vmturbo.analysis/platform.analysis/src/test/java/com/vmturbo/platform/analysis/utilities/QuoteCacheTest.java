@@ -12,12 +12,12 @@ import java.util.stream.IntStream;
 
 import com.google.common.primitives.Ints;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
+
+import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
@@ -164,9 +164,9 @@ public class QuoteCacheTest {
         QuoteCache cache = new QuoteCache(nTradersInEconomy, nPotentialSellers, nShoppingLists);
 
         // Initial state should be empty.
-        assertNull(cache.get(traderIndex1,shoppingListIndex1));
-        assertNull(cache.get(traderIndex2,shoppingListIndex2));
-        assertNull(cache.get(traderIndex3,shoppingListIndex3));
+        assertNull(cache.get(traderIndex1, shoppingListIndex1));
+        assertNull(cache.get(traderIndex2, shoppingListIndex2));
+        assertNull(cache.get(traderIndex3, shoppingListIndex3));
 
         // put 1st value
         MutableQuote quoteObject1 = new CommodityQuote(null, quoteValue1);
@@ -176,10 +176,10 @@ public class QuoteCacheTest {
         assertEquals(quoteValue1, quoteObject1.getQuoteValue(), 0.0);
         // other positions should be unaffected unless they happen to be the same as 1st position
         if (traderIndex1 != traderIndex2 || shoppingListIndex1 != shoppingListIndex2) {
-            assertNull(cache.get(traderIndex2,shoppingListIndex2));
+            assertNull(cache.get(traderIndex2, shoppingListIndex2));
         }
         if (traderIndex1 != traderIndex3 || shoppingListIndex1 != shoppingListIndex3) {
-            assertNull(cache.get(traderIndex3,shoppingListIndex3));
+            assertNull(cache.get(traderIndex3, shoppingListIndex3));
         }
 
         // put 2nd value
@@ -196,7 +196,7 @@ public class QuoteCacheTest {
         }
         if ((traderIndex1 != traderIndex3 || shoppingListIndex1 != shoppingListIndex3)
                 && (traderIndex2 != traderIndex3 || shoppingListIndex2 != shoppingListIndex3)) {
-            assertNull(cache.get(traderIndex3,shoppingListIndex3));
+            assertNull(cache.get(traderIndex3, shoppingListIndex3));
         }
 
         // put 3rd value
@@ -335,9 +335,9 @@ public class QuoteCacheTest {
         }
 
         checkArgument(expectedCacheState.length == nTradersInEconomy);
-        for (int rowIndex = 0 ; rowIndex < expectedCacheState.length ; ++rowIndex) {
+        for (int rowIndex = 0; rowIndex < expectedCacheState.length; ++rowIndex) {
             checkArgument(expectedCacheState[rowIndex].length == nShoppingLists);
-            for (int colIndex = 0 ; colIndex < expectedCacheState[rowIndex].length ; ++colIndex) {
+            for (int colIndex = 0; colIndex < expectedCacheState[rowIndex].length; ++colIndex) {
                 assertEquals(expectedCacheState[rowIndex][colIndex],
                     cache.get(rowIndex, colIndex) == null
                         ? null : cache.get(rowIndex, colIndex).getQuoteValue());
