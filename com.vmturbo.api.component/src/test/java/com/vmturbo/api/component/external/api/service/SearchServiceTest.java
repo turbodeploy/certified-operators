@@ -276,7 +276,7 @@ public class SearchServiceTest {
         getSearchResults(searchService, null, Lists.newArrayList("BusinessAccount"), null, null, null, EnvironmentType.CLOUD, null, null);
         verify(businessAccountRetriever).getBusinessAccountsInScope(null);
 
-        when(groupsService.getPaginatedGroupApiDTOS(any(), any(), any())).thenReturn(paginationResponse);
+        when(groupsService.getPaginatedGroupApiDTOS(any(), any(), any(), eq(EnvironmentType.ONPREM))).thenReturn(paginationResponse);
         assertEquals(paginationResponse, searchService.getSearchResults(
             null,
             Lists.newArrayList("Group"),
@@ -289,17 +289,20 @@ public class SearchServiceTest {
             null,
             null,
             true));
-        verify(groupsService).getPaginatedGroupApiDTOS(any(), any(), any());
+        verify(groupsService).getPaginatedGroupApiDTOS(any(), any(), any(), eq(EnvironmentType.ONPREM));
     }
 
     @Test
     public void testGetSearchEntitiesByProbeTypes() throws Exception {
         ServiceEntityApiDTO se1 = supplyChainTestUtils.createServiceEntityApiDTO(1L, targetId1);
         se1.getDiscoveredBy().setType(probeType1);
+        se1.setEnvironmentType(EnvironmentType.CLOUD);
         ServiceEntityApiDTO se2 = supplyChainTestUtils.createServiceEntityApiDTO(2L, targetId1);
         se2.getDiscoveredBy().setType(probeType1);
+        se2.setEnvironmentType(EnvironmentType.CLOUD);
         ServiceEntityApiDTO se3 = supplyChainTestUtils.createServiceEntityApiDTO(3L, targetId2);
         se3.getDiscoveredBy().setType(probeType2);
+        se3.setEnvironmentType(EnvironmentType.CLOUD);
         List<ServiceEntityApiDTO> regions = Lists.newArrayList(se1, se2, se3);
         List<String> types = Lists.newArrayList("Region");
         SearchRequest req = ApiTestUtils.mockSearchSEReq(regions);
@@ -347,7 +350,7 @@ public class SearchServiceTest {
     public void testGetSearchGroup() throws Exception {
         final SearchPaginationResponse paginationResponse =
             Mockito.mock(SearchPaginationResponse.class);
-        when(groupsService.getPaginatedGroupApiDTOS(any(), any(), any())).thenReturn(paginationResponse);
+        when(groupsService.getPaginatedGroupApiDTOS(any(), any(), any(), eq(EnvironmentType.ONPREM))).thenReturn(paginationResponse);
         assertEquals(paginationResponse, searchService.getSearchResults(
             "myGroup",
             Lists.newArrayList("Group"),
@@ -362,7 +365,7 @@ public class SearchServiceTest {
             true));
         verify(targetsService, Mockito.never()).getTargets(null);
         verify(marketsService, Mockito.never()).getMarkets(Mockito.anyListOf(String.class));
-        verify(groupsService).getPaginatedGroupApiDTOS(any(), any(), any());
+        verify(groupsService).getPaginatedGroupApiDTOS(any(), any(), any(), eq(EnvironmentType.ONPREM));
         verify(searchService).addNameMatcher(any(), any(), any());
 
     }
@@ -452,7 +455,7 @@ public class SearchServiceTest {
         List<String> types = Lists.newArrayList("Cluster");
 
         when(groupsService.getGroupsByType(GroupType.COMPUTE_HOST_CLUSTER,
-                        Collections.singletonList(PM_OID), Collections.emptyList()))
+                        Collections.singletonList(PM_OID), Collections.emptyList(), null))
             .thenReturn(Collections.singletonList(groupApiDTO));
 
         // Act

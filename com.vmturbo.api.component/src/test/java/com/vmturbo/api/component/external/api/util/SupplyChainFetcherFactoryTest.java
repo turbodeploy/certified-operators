@@ -63,6 +63,7 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
@@ -81,6 +82,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainS
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -413,6 +415,77 @@ public class SupplyChainFetcherFactoryTest {
             .fetch();
         assertThat(nodes.size(), is(0));
     }
+
+    /**
+     * Tests fetching the supply chain and filter by environment type, the members in supply chain
+     * node should only contain entities matching the requested environment type.
+     *
+     * @throws Exception exception thrown in test, should not happen
+     */
+    @Test
+    public void testFilterByEnvironmentType() throws Exception {
+        final String groupId = "1";
+        final long vmId1 = 111L;
+        final long vmId2 = 112L;
+        GroupAndMembers groupAndMembers = mock(GroupAndMembers.class);
+        when(groupAndMembers.group()).thenReturn(Grouping.newBuilder()
+                .setId(1)
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType
+                                        .newBuilder()
+                                        .setType(MemberType.newBuilder()
+                                                .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+                                        .addMembers(vmId1)
+                                        .addMembers(vmId2))))
+                .addExpectedTypes(MemberType.newBuilder()
+                        .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+                .build());
+        when(groupAndMembers.members()).thenReturn(Arrays.asList(vmId1, vmId2));
+        when(groupExpander.getGroupWithMembers(groupId)).thenReturn(Optional.of(groupAndMembers));
+        when(groupExpander.expandUuid(eq(groupId))).thenReturn(ImmutableSet.of(vmId1, vmId2));
+
+        RepositoryApi.MultiEntityRequest req1and2 = ApiTestUtils.mockMultiMinEntityReq(
+                Lists.newArrayList(
+                        MinimalEntity.newBuilder()
+                                .setOid(vmId1)
+                                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
+                                .build(),
+                        MinimalEntity.newBuilder()
+                                .setOid(vmId2)
+                                .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
+                                .build()));
+        when(repositoryApiBackend.entitiesRequest(ImmutableSet.of(vmId1, vmId2))).thenReturn(req1and2);
+        // test filter by environment type: cloud
+        Map<String, SupplyChainNode> nodes = supplyChainFetcherFactory.newNodeFetcher()
+                .addSeedUuids(Collections.singletonList(groupId))
+                .entityTypes(Collections.singletonList(VM))
+                .apiEnvironmentType(com.vmturbo.api.enums.EnvironmentType.CLOUD)
+                .fetch();
+        assertThat(nodes.size(), is(1));
+        assertThat(RepositoryDTOUtil.getAllMemberOids(nodes.values().iterator().next()),
+                containsInAnyOrder(vmId1));
+        // test filter by environment type: onprem
+        nodes = supplyChainFetcherFactory.newNodeFetcher()
+                .addSeedUuids(Collections.singletonList(groupId))
+                .entityTypes(Collections.singletonList(VM))
+                .apiEnvironmentType(com.vmturbo.api.enums.EnvironmentType.ONPREM)
+                .fetch();
+        assertThat(nodes.size(), is(1));
+        assertThat(RepositoryDTOUtil.getAllMemberOids(nodes.values().iterator().next()),
+                containsInAnyOrder(vmId2));
+        // test filter by environment type: hybrid
+        nodes = supplyChainFetcherFactory.newNodeFetcher()
+                .addSeedUuids(Collections.singletonList(groupId))
+                .entityTypes(Collections.singletonList(VM))
+                .apiEnvironmentType(com.vmturbo.api.enums.EnvironmentType.HYBRID)
+                .fetch();
+        assertThat(nodes.size(), is(1));
+        assertThat(RepositoryDTOUtil.getAllMemberOids(nodes.values().iterator().next()),
+                containsInAnyOrder(vmId1, vmId2));
+    }
+
     /**
      * Tests that, when {@link SupplyChainNodeFetcherBuilder#expandScope} is called,
      * a supply chain fetcher will be created, that the two requirements will be passed

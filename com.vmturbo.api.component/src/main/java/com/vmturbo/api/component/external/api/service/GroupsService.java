@@ -21,11 +21,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.lang.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.validation.Errors;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -36,8 +31,14 @@ import com.google.common.collect.Sets;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
+import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.validation.Errors;
+
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
+import com.vmturbo.api.component.external.api.mapper.EnvironmentTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
@@ -953,19 +954,39 @@ public class GroupsService implements IGroupsService {
      * @param populateSeverity Whether or not to populate the severity in the response. Populating
      *                         severity requires another relatively expensive RPC call, so use this
      *                         only when necessary.
+     * @param environmentType type of the environment to include in response, if null, all are included
+     * @return The list of {@link GroupApiDTO} objects.
+     */
+    @Nonnull
+    public List<GroupApiDTO> getGroupApiDTOS(final GetGroupsRequest groupsRequest,
+            final boolean populateSeverity,
+            @Nullable final EnvironmentType environmentType) {
+        final Stream<GroupAndMembers> groupsWithMembers =
+                groupExpander.getGroupsWithMembers(groupsRequest);
+        final List<GroupApiDTO> retList = groupsWithMembers
+                .filter(groupAndMembers -> !isHiddenGroup(groupAndMembers.group()))
+                .map(groupAndMembers -> groupMapper.toGroupApiDto(groupAndMembers,
+                        groupMapper.getEnvironmentTypeForGroup(groupAndMembers), populateSeverity))
+                .filter(groupApiDTO -> EnvironmentTypeMapper.matches(environmentType,
+                        groupApiDTO.getEnvironmentType()))
+                .collect(Collectors.toList());
+        return retList;
+    }
+
+    /**
+     * Get the groups matching a {@link GetGroupsRequest} from the group component, and convert
+     * them to the associated {@link GroupApiDTO} format.
+     *
+     * @param groupsRequest The request.
+     * @param populateSeverity Whether or not to populate the severity in the response. Populating
+     *                         severity requires another relatively expensive RPC call, so use this
+     *                         only when necessary.
      * @return The list of {@link GroupApiDTO} objects.
      */
     @Nonnull
     public List<GroupApiDTO> getGroupApiDTOS(final GetGroupsRequest groupsRequest,
                                              final boolean populateSeverity) {
-        final Stream<GroupAndMembers> groupsWithMembers =
-            groupExpander.getGroupsWithMembers(groupsRequest);
-        final List<GroupApiDTO> retList = groupsWithMembers
-            .filter(groupAndMembers -> !isHiddenGroup(groupAndMembers.group()))
-            .map(groupAndMembers -> groupMapper.toGroupApiDto(groupAndMembers,
-                    groupMapper.getEnvironmentTypeForGroup(groupAndMembers), populateSeverity))
-            .collect(Collectors.toList());
-        return retList;
+        return getGroupApiDTOS(groupsRequest, populateSeverity, null);
     }
 
     /**
@@ -975,6 +996,7 @@ public class GroupsService implements IGroupsService {
      * @param filterList the list of filter criteria to apply.
      * @param paginationRequest Contains the limit, the order and a potential cursor
      * @param groupType Contains the type of the group members
+     * @param environmentType type of the environment to include in response, if null, all are included
      *
      * @return The list of {@link GroupApiDTO} objects.
      * @throws InvalidOperationException When the cursor is invalid.
@@ -983,7 +1005,8 @@ public class GroupsService implements IGroupsService {
     @Nonnull
     public SearchPaginationResponse getPaginatedGroupApiDTOS(final List<FilterApiDTO> filterList,
                                                              final SearchPaginationRequest paginationRequest,
-                                                             final String groupType)
+                                                             final String groupType,
+                                                             @Nullable EnvironmentType environmentType)
         throws InvalidOperationException, OperationFailedException {
 
         final GetGroupsRequest groupsRequest = getGroupsRequestForFilters(GroupType.REGULAR, filterList)
@@ -1009,7 +1032,7 @@ public class GroupsService implements IGroupsService {
         groupsWithMembers.stream()
             .forEach((group) -> idToGroupAndMembers.put(Long.toString(group.group().getId()), group));
 
-        return nextGroupPage(groupsWithMembers, idToGroupAndMembers, paginationRequest);
+        return nextGroupPage(groupsWithMembers, idToGroupAndMembers, paginationRequest, environmentType);
     }
 
     /**
@@ -1060,10 +1083,13 @@ public class GroupsService implements IGroupsService {
      *
      * @param groupsWithMembers The groups to populate with information.
      * @param searchOrderBy Contains the parameters for the ordering.
+     * @param environmentType type of the environment to include in response, if null, all are included
      * @return An ordered list of {@link GroupApiDTO}.
      */
-    private List<GroupApiDTO> setPrePaginationGroupsInformation(List<GroupAndMembers> groupsWithMembers,
-                                                           SearchOrderBy searchOrderBy) {
+    private List<GroupApiDTO> setPrePaginationGroupsInformation(
+            @Nonnull List<GroupAndMembers> groupsWithMembers,
+            @Nonnull SearchOrderBy searchOrderBy,
+            @Nullable EnvironmentType environmentType) {
         final boolean populateSeverity = searchOrderBy == SearchOrderBy.SEVERITY;
         // We only populate severity BEFORE pagination if we are ordering by severity for
         // pagination.
@@ -1080,7 +1106,10 @@ public class GroupsService implements IGroupsService {
                     groupApiDTO.setSeverity(groupSeverities.get(groupAndMembers.group().getId()).name());
                 }
                 return groupApiDTO;
-        }).collect(Collectors.toList());
+            })
+            .filter(groupApiDTO -> EnvironmentTypeMapper.matches(environmentType,
+                    groupApiDTO.getEnvironmentType()))
+            .collect(Collectors.toList());
     }
 
     /**
@@ -1120,12 +1149,14 @@ public class GroupsService implements IGroupsService {
      * @param groupsWithMembers The groups to populate and order.
      * @param idToGroupAndMembers A mapping from a group id to the group with its members.
      * @param paginationRequest Contains the parameters for the pagination.
+     * @param environmentType type of the environment to include in response, if null, all are included
      * @return The {@link SearchPaginationResponse} containing the groups.
      * @throws InvalidOperationException When the cursor is invalid.
      */
     private SearchPaginationResponse nextGroupPage(final List<GroupAndMembers> groupsWithMembers,
-                                                         final Map<String, GroupAndMembers> idToGroupAndMembers,
-                                                         final SearchPaginationRequest paginationRequest) throws InvalidOperationException {
+            final Map<String, GroupAndMembers> idToGroupAndMembers,
+            final SearchPaginationRequest paginationRequest,
+            @Nullable final EnvironmentType environmentType) throws InvalidOperationException {
         // In this function get information about groups and order them. Since it's an expensive
         // call we need to make sure to retrieve information for all of groups only if they are
         // needed for the sorting. For example, if we sort by severity, we need to fetch and set
@@ -1152,7 +1183,7 @@ public class GroupsService implements IGroupsService {
         }
 
         final List<GroupApiDTO> groupApiDTOs =
-            setPrePaginationGroupsInformation(groupsWithMembers, paginationRequest.getOrderBy());
+            setPrePaginationGroupsInformation(groupsWithMembers, paginationRequest.getOrderBy(), environmentType);
 
         final List<GroupApiDTO> paginatedGroupApiDTOs =
             groupApiDTOs.stream()
@@ -1165,7 +1196,7 @@ public class GroupsService implements IGroupsService {
         final List<BaseApiDTO> retList = setPostPaginationGroupsInformation(paginatedGroupApiDTOs,
             paginationRequest.getOrderBy(), idToGroupAndMembers);
 
-        Long nextCursor = skipCount + paginatedGroupApiDTOs.size();
+        long nextCursor = skipCount + paginatedGroupApiDTOs.size();
         if (nextCursor == idToGroupAndMembers.values().size()) {
             return paginationRequest.finalPageResponse(retList);
         }
@@ -1182,6 +1213,7 @@ public class GroupsService implements IGroupsService {
      * @param groupType The type of groups to return.
      * @param scopes The scopes.
      * @param filterList The filters to apply to the returned groups.
+     * @param environmentType type of the environment to include in response, if null, all are included
      * @return The {@link GroupApiDTO}s returning the groups matching the criteria inside the
      *         provided scopes.
      * @throws OperationFailedException if the filters do not apply to the group type.
@@ -1190,7 +1222,8 @@ public class GroupsService implements IGroupsService {
     private List<GroupApiDTO> getNestedGroupsInGroups(
             @Nonnull GroupType groupType,
             @Nonnull final List<String> scopes,
-            @Nonnull final List<FilterApiDTO> filterList) throws OperationFailedException {
+            @Nonnull final List<FilterApiDTO> filterList,
+            @Nullable final EnvironmentType environmentType) throws OperationFailedException {
         final GetGroupsRequest.Builder reqBuilder = getGroupsRequestForFilters(groupType,
                         filterList);
 
@@ -1203,7 +1236,7 @@ public class GroupsService implements IGroupsService {
             .filter(groupAndMembers -> isNestedGroupOfType(groupAndMembers, groupType))
             .forEach(clusterAndMembers -> clusterAndMembers.members().forEach(builder::addId));
         reqBuilder.setGroupFilter(builder);
-        return getGroupApiDTOS(reqBuilder.build(), true);
+        return getGroupApiDTOS(reqBuilder.build(), true, environmentType);
     }
 
     private boolean isNestedGroupOfType(GroupAndMembers groupAndMembers, GroupType groupType) {
@@ -1229,12 +1262,14 @@ public class GroupsService implements IGroupsService {
      *
      * @param clusterType The type of clusters to return.
      * @param scopes The scopes - assumed to be entities.
+     * @param environmentType type of the environment to include in response, if null, all are included
      * @return The {@link GroupApiDTO}s returning the clusters of the provided entities.
      */
     @Nonnull
     private List<GroupApiDTO> getClustersOfEntities(
             @Nonnull GroupType clusterType,
-            @Nullable final List<String> scopes) {
+            @Nullable final List<String> scopes,
+            @Nullable EnvironmentType environmentType) {
         // As of today (Feb 2019), the scopes object could only have one id (PM oid).
         // If there is PM oid, we want to retrieve the Cluster that the PM belonged to.
         // TODO (Gary, Feb 4, 2019), add a new gRPC service for multiple PM oids when needed.
@@ -1255,9 +1290,52 @@ public class GroupsService implements IGroupsService {
 
         return clustersById.values().stream()
             .map(groupExpander::getMembersForGroup)
-            .map(clusterAndMembers ->
-                    groupMapper.toGroupApiDto(clusterAndMembers, EnvironmentType.ONPREM, true))
+            .map(clusterAndMembers -> groupMapper.toGroupApiDto(clusterAndMembers,
+                    groupMapper.getEnvironmentTypeForGroup(clusterAndMembers), true))
+            .filter(groupApiDTO -> EnvironmentTypeMapper.matches(environmentType,
+                    groupApiDTO.getEnvironmentType()))
             .collect(Collectors.toList());
+    }
+
+    /**
+     * Get {@link GroupApiDTO} describing groups in the system that match certain criteria.
+     *
+     * @param groupType The type of the group.
+     * @param scopes The scopes to look for groups in. Could be entities (in which case we look
+     *               for the groups of the entities) or groups-of-groups (in which case we
+     *               look for groups in the group).
+     * @param filterList The list of filters to apply to the groups.
+     * @param environmentType type of the environment to include in response, if null, all are included
+     * @return the list of groups.
+     * @throws OperationFailedException when the filters don't match the group type.
+     */
+    @Nonnull
+    List<GroupApiDTO> getGroupsByType(@Nonnull GroupType groupType,
+            @Nullable final List<String> scopes,
+            @Nonnull final List<FilterApiDTO> filterList,
+            @Nullable EnvironmentType environmentType) throws OperationFailedException {
+        // If we're looking for clusters with a scope there are two possibilities:
+        //   - The scope is a group of clusters, in which case we want the clusters in the group.
+        //   - The scope is a list of entities, in which case we want the clusters the entities are in.
+        // We assume it's either-or - i.e. either all scopes are groups, or all scopes are entities.
+        if (UuidMapper.hasLimitedScope(scopes)) {
+            if (scopes.stream().anyMatch(uuid -> {
+                try {
+                    return uuidMapper.fromUuid(uuid).isGroup();
+                } catch (OperationFailedException e) {
+                    return false;
+                }
+            })) {
+                return getNestedGroupsInGroups(groupType, scopes, filterList, environmentType);
+            } else {
+                // Note - for now (March 29 2019) we don't have cases where we need to apply the
+                // filter list. But in the future we may need to.
+                return getClustersOfEntities(groupType, scopes, environmentType);
+            }
+        } else {
+            return getGroupApiDTOS(getGroupsRequestForFilters(groupType, filterList).build(),
+                    true, environmentType);
+        }
     }
 
     /**
@@ -1275,28 +1353,7 @@ public class GroupsService implements IGroupsService {
     List<GroupApiDTO> getGroupsByType(@Nonnull GroupType groupType,
                                   @Nullable final List<String> scopes,
                                   @Nonnull final List<FilterApiDTO> filterList) throws OperationFailedException {
-        // If we're looking for clusters with a scope there are two possibilities:
-        //   - The scope is a group of clusters, in which case we want the clusters in the group.
-        //   - The scope is a list of entities, in which case we want the clusters the entities are in.
-        // We assume it's either-or - i.e. either all scopes are groups, or all scopes are entities.
-        if (UuidMapper.hasLimitedScope(scopes)) {
-            if (scopes.stream().anyMatch(uuid -> {
-                try {
-                    return uuidMapper.fromUuid(uuid).isGroup();
-                } catch (OperationFailedException e) {
-                    return false;
-                }
-            })) {
-                return getNestedGroupsInGroups(groupType, scopes, filterList);
-            } else {
-                // Note - for now (March 29 2019) we don't have cases where we need to apply the
-                // filter list. But in the future we may need to.
-                return getClustersOfEntities(groupType, scopes);
-            }
-        } else {
-            return getGroupApiDTOS(
-                            getGroupsRequestForFilters(groupType, filterList).build(), true);
-        }
+        return getGroupsByType(groupType, scopes, filterList, null);
     }
 
     /**

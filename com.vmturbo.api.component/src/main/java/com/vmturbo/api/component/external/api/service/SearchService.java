@@ -45,6 +45,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
+import com.vmturbo.api.component.external.api.mapper.EnvironmentTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
@@ -110,6 +111,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -281,7 +283,7 @@ public class SearchService implements ISearchService {
                                                      List<String> scopes,
                                                      String state,
                                                      List<String> groupTypes,
-                                                     EnvironmentType environmentType,
+                                                     @Nullable EnvironmentType environmentType,
                                                      // Ignored for now.
                                                      @Nullable EntityDetailType entityDetailType,
                                                      SearchPaginationRequest paginationRequest,
@@ -303,7 +305,7 @@ public class SearchService implements ISearchService {
             // if 'groupType' is specified, this MUST be a search over GROUPs
             return groupsService.getPaginatedGroupApiDTOS(
                 addNameMatcher(query, Collections.emptyList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
-                paginationRequest, groupType);
+                paginationRequest, groupType, environmentType);
         } else if (types != null) {
             final Set<String> typesHashSet = new HashSet(types);
             // Check for a type that requires a query to a specific service, vs. Repository search.
@@ -312,7 +314,7 @@ public class SearchService implements ISearchService {
                 // all Groups(supertype).
                 return groupsService.getPaginatedGroupApiDTOS(
                     addNameMatcher(query, Collections.emptyList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
-                    paginationRequest, null);
+                    paginationRequest, null, environmentType);
             } else if (Sets.intersection(typesHashSet,
                     GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.keySet()).size() > 0) {
                 // TODO(OM-49616): return the proper search filters and handle the query string properly
@@ -320,7 +322,7 @@ public class SearchService implements ISearchService {
                     if (types.contains(entry.getKey())) {
                         final Collection<GroupApiDTO> groups =
                             groupsService.getGroupsByType(entry.getValue(),
-                                scopes, Collections.emptyList());
+                                scopes, Collections.emptyList(), environmentType);
                         return paginationRequest.allResultsResponse(Lists.newArrayList(groups));
                     }
                 }
@@ -372,11 +374,13 @@ public class SearchService implements ISearchService {
                 .filter(se -> scopeServiceEntityIds.contains(se.getUuid()));
         }
 
-        // set discoveredBy and filter by probe types
+        // set discoveredBy, filter by probe types and environment type
         List<BaseApiDTO> result = entitiesResult
-            .filter(se -> CollectionUtils.isEmpty(probeTypes) ||
-                probeTypes.contains(se.getDiscoveredBy().getType()))
-            .collect(Collectors.toList());
+                .filter(se -> CollectionUtils.isEmpty(probeTypes) ||
+                        probeTypes.contains(se.getDiscoveredBy().getType()))
+                .filter(entity -> EnvironmentTypeMapper.matches(environmentType,
+                        entity.getEnvironmentType()))
+                .collect(Collectors.toList());
         return paginationRequest.allResultsResponse(result);
     }
 
@@ -407,7 +411,7 @@ public class SearchService implements ISearchService {
     public SearchPaginationResponse getMembersBasedOnFilter(String query,
                                                             GroupApiDTO inputDTO,
                                                             SearchPaginationRequest paginationRequest)
-        throws OperationFailedException, InvalidOperationException {
+            throws OperationFailedException, InvalidOperationException {
         // the query input is called a GroupApiDTO even though this search can apply to any type
         // if this is a group search, we need to know the right "name filter type" that can be used
         // to search for a group by name. These come from the groupBuilderUsecases.json file.
@@ -415,18 +419,15 @@ public class SearchService implements ISearchService {
         if (GROUP.equals(className)) {
             return groupsService.getPaginatedGroupApiDTOS(
                 addNameMatcher(query, inputDTO.getCriteriaList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
-                paginationRequest, null);
+                paginationRequest, null, inputDTO.getEnvironmentType());
         } else if (GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.containsKey(className)) {
             // TODO(OM-49616): return the proper search filters and handle the query string properly
             GroupType groupType = GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.get(className);
             String filter = GroupMapper.API_GROUP_TYPE_TO_FILTER_GROUP_TYPE.get(className);
-            return paginationRequest.allResultsResponse(
-                Collections.unmodifiableList(
-                    groupsService.getGroupsByType(groupType,
-                        inputDTO.getScope(),
-                        addNameMatcher(query,
-                            inputDTO.getCriteriaList(),
-                            filter))));
+            return paginationRequest.allResultsResponse(Collections.unmodifiableList(
+                    groupsService.getGroupsByType(groupType, inputDTO.getScope(),
+                            addNameMatcher(query, inputDTO.getCriteriaList(), filter),
+                            inputDTO.getEnvironmentType())));
         } else if (BUSINESS_ACCOUNT.equals(className)) {
             return paginationRequest.allResultsResponse(Lists.newArrayList(
                 businessAccountRetriever.getBusinessAccountsInScope(inputDTO.getScope())));
@@ -516,10 +517,8 @@ public class SearchService implements ISearchService {
                 throws OperationFailedException {
         final String updatedQuery = escapeSpecialCharactersInSearchQueryPattern(nameQuery);
         final List<String> entityTypes = getEntityTypes(inputDTO.getClassName());
-        final List<SearchParameters> searchParameters =
-                entityFilterMapper.convertToSearchParameters(
-                                inputDTO.getCriteriaList(), entityTypes, updatedQuery)
-                .stream()
+        List<SearchParameters> searchParameters = entityFilterMapper.convertToSearchParameters(
+                inputDTO.getCriteriaList(), entityTypes, updatedQuery).stream()
                 // Convert any cluster membership filters to property filters.
                 .map(this::resolveClusterFilters)
                 .map(this::resolveCloudProviderFilters)
@@ -531,31 +530,41 @@ public class SearchService implements ISearchService {
                 .map(ImmutableSet::copyOf)
                 .orElse(ImmutableSet.of());
         final boolean isGlobalScope = containsGlobalScope(scopeList);
-
-        EnvironmentType envType = inputDTO.getEnvironmentType();
-        final Set<Long> expandedIds = groupsService.expandUuids(scopeList, entityTypes, envType);
-
-        if (!isGlobalScope && expandedIds.isEmpty()) {
-            // return empty response since there is no related entities in given scope
-            return paginationRequest.allResultsResponse(Collections.emptyList());
+        // collect the superset of entities that should be used in search rpc service
+        final Set<Long> allEntityOids;
+        if (scopeList.isEmpty() || isGlobalScope) {
+            // if no scope provided, or it's global scope, then use empty set so it tries all
+            allEntityOids = Collections.emptySet();
+            // add environment filter to all search parameters if requested
+            if (inputDTO.getEnvironmentType() != null) {
+                searchParameters = addEnvironmentTypeFilter(inputDTO.getEnvironmentType(), searchParameters);
+            }
+        } else {
+            final Set<Long> expandedIds = groupsService.expandUuids(scopeList, entityTypes,
+                    inputDTO.getEnvironmentType());
+            if (expandedIds.isEmpty()) {
+                // return empty response since there is no related entities in given scope
+                return paginationRequest.allResultsResponse(Collections.emptyList());
+            }
+            // if scope is specified, result entities should be chosen from related entities in scope
+            // note: environment type has already been filtered above in expandUuids
+            allEntityOids = expandedIds;
         }
 
-        // use empty set for global scope so it fetches all
-        final Set<Long> allEntityOids = (envType == null && isGlobalScope) ? Collections.emptySet() : expandedIds;
         if (paginationRequest.getOrderBy().equals(SearchOrderBy.SEVERITY)) {
             final SearchEntityOidsRequest searchOidsRequest = SearchEntityOidsRequest.newBuilder()
                     .addAllSearchParameters(searchParameters)
                     .addAllEntityOid(allEntityOids)
                     .build();
             return getServiceEntityPaginatedWithSeverity(inputDTO, updatedQuery, paginationRequest,
-                    expandedIds, searchOidsRequest);
+                    allEntityOids, searchOidsRequest);
         } else if (paginationRequest.getOrderBy().equals(SearchOrderBy.UTILIZATION)) {
             final SearchEntityOidsRequest searchOidsRequest = SearchEntityOidsRequest.newBuilder()
                     .addAllSearchParameters(searchParameters)
                     .addAllEntityOid(allEntityOids)
                     .build();
             return getServiceEntityPaginatedWithUtilization(inputDTO, updatedQuery, paginationRequest,
-                    expandedIds, searchOidsRequest, isGlobalScope);
+                    allEntityOids, searchOidsRequest, isGlobalScope);
         } else {
             // We don't use the RepositoryAPI utility because we do pagination,
             // and want to handle the pagination parameters.
@@ -567,13 +576,42 @@ public class SearchService implements ISearchService {
                 .build();
             final SearchEntitiesResponse response = searchServiceRpc.searchEntities(searchEntitiesRequest);
             List<ServiceEntityApiDTO> entities = response.getEntitiesList().stream()
-                .map(PartialEntity::getApi)
-                .map(serviceEntityMapper::toServiceEntityApiDTO)
-                .collect(Collectors.toList());
+                    .map(PartialEntity::getApi)
+                    .map(serviceEntityMapper::toServiceEntityApiDTO)
+                    .collect(Collectors.toList());
             severityPopulator.populate(realtimeContextId, entities);
             return buildPaginationResponse(entities,
                     response.getPaginationResponse(), paginationRequest);
         }
+    }
+
+    /**
+     * Add environment type property filter to the given list of search parameters. It's applied
+     * to all the parameters in the list.
+     *
+     * @param environmentType the environment type to check
+     * @param searchParameters the list of SearchParameters to add environment type filter to
+     * @return list of SearchParameters with environment type filter
+     */
+    private List<SearchParameters> addEnvironmentTypeFilter(
+            @Nonnull EnvironmentType environmentType,
+            @Nonnull List<SearchParameters> searchParameters) {
+        final UIEnvironmentType uiEnvironmentType = UIEnvironmentType.fromString(
+                environmentType.name());
+        if (uiEnvironmentType != UIEnvironmentType.HYBRID) {
+            final SearchFilter envTypeFilter = SearchFilter.newBuilder()
+                    .setPropertyFilter(SearchProtoUtil.stringPropertyFilterExact(
+                            SearchableProperties.ENVIRONMENT_TYPE,
+                            Collections.singletonList(
+                                    uiEnvironmentType.getApiEnumStringValue())))
+                    .build();
+            searchParameters = searchParameters.stream()
+                    .map(searchParameter -> searchParameter.toBuilder()
+                            .addSearchFilter(envTypeFilter)
+                            .build())
+                    .collect(Collectors.toList());
+        }
+        return searchParameters;
     }
 
     private List<String> getEntityTypes(String className) {

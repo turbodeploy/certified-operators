@@ -238,7 +238,8 @@ public class SupplyChainFetcherFactory {
                         environmentType,
                         supplyChainRpcService,
                         groupExpander,
-                        enforceUserScope).fetch();
+                        enforceUserScope,
+                        repositoryApi).fetch();
             } catch (InterruptedException|ExecutionException|TimeoutException e) {
                 throw new OperationFailedException("Failed to fetch supply chain! Error: "
                         + e.getMessage());
@@ -251,7 +252,7 @@ public class SupplyChainFetcherFactory {
                 return
                     new SupplychainNodeFetcher(
                             topologyContextId, seedUuids, entityTypes, environmentType,
-                            supplyChainRpcService, groupExpander, enforceUserScope)
+                            supplyChainRpcService, groupExpander, enforceUserScope, repositoryApi)
                         .fetchEntityIds();
             } catch (InterruptedException|ExecutionException|TimeoutException e) {
                 throw new OperationFailedException("Failed to fetch supply chain! Error: "
@@ -266,7 +267,7 @@ public class SupplyChainFetcherFactory {
             try {
                 return new SupplychainNodeFetcher(
                     topologyContextId, seedUuids, entityTypes, environmentType,
-                    supplyChainRpcService, groupExpander, enforceUserScope)
+                    supplyChainRpcService, groupExpander, enforceUserScope, repositoryApi)
                     .fetchStats(groupBy);
             } catch (StatusRuntimeException e) {
                 throw new OperationFailedException("Failed to fetch supply chain stats! Error: " +
@@ -562,13 +563,16 @@ public class SupplyChainFetcherFactory {
 
         protected final boolean enforceUserScope;
 
+        private final RepositoryApi repositoryApi;
+
         private SupplychainFetcher(final long topologyContextId,
                                    @Nullable final Set<String> seedUuids,
                                    @Nullable final Set<String> entityTypes,
                                    @Nonnull final Optional<EnvironmentTypeEnum.EnvironmentType> environmentType,
                                    @Nonnull SupplyChainServiceBlockingStub supplyChainRpcService,
                                    @Nonnull GroupExpander groupExpander,
-                                   final boolean enforceUserScope) {
+                                   final boolean enforceUserScope,
+                                   @Nonnull final RepositoryApi repositoryApi) {
             this.topologyContextId = topologyContextId;
             this.seedUuids = seedUuids;
             this.entityTypes = entityTypes;
@@ -576,7 +580,7 @@ public class SupplyChainFetcherFactory {
             this.supplyChainRpcService = supplyChainRpcService;
             this.groupExpander = groupExpander;
             this.enforceUserScope = enforceUserScope;
-
+            this.repositoryApi = repositoryApi;
         }
 
         public abstract T processSupplyChain(final List<SupplyChainNode> supplyChainNodes);
@@ -681,21 +685,46 @@ public class SupplyChainFetcherFactory {
                         .map(UIEntityType::apiStr)
                         .collect(Collectors.toList());
 
-                    if (groupTypes.contains(desiredEntityType)) {
-                        if (groupWithMembers.get().members().isEmpty()) {
-                            return Collections.emptyList();
+                        if (groupTypes.contains(desiredEntityType)) {
+                            if (groupWithMembers.get().members().isEmpty()) {
+                                return Collections.emptyList();
+                            }
+                            final Set<Long> allMembers = groupExpander.expandUuid(groupUuid);
+                            final Set<Long> filteredMembers;
+                            // if environment type is not specified, no need to filter
+                            if (!environmentType.isPresent()) {
+                                filteredMembers = allMembers;
+                            } else {
+                                // if global scope group, then check the environment directly,
+                                // no need to filter if it matches
+                                if (group.getDefinition().getOptimizationMetadata().getIsGlobalScope() &&
+                                        UIEnvironmentType.fromEnvType(environmentType.get())
+                                                .matchesEnvType(group.getDefinition()
+                                                        .getOptimizationMetadata().getEnvironmentType())) {
+                                    filteredMembers = allMembers;
+                                } else {
+                                    // normal cases, fetch all members and filter by environment type
+                                    filteredMembers = repositoryApi.entitiesRequest(allMembers)
+                                            .getMinimalEntities()
+                                            .filter(minimalEntity -> UIEnvironmentType.fromEnvType(
+                                                    environmentType.get()).matchesEnvType(
+                                                            minimalEntity.getEnvironmentType()))
+                                            .map(MinimalEntity::getOid)
+                                            .collect(Collectors.toSet());
+                                }
+                            }
+
+                            return Collections.singletonList(SupplyChainNode.newBuilder()
+                                .setEntityType(desiredEntityType)
+                                .putMembersByState(EntityState.POWERED_ON_VALUE,
+                                    MemberList.newBuilder()
+                                        .addAllMemberOids(filteredMembers)
+                                        .build())
+                                .build());
                         }
-                        return Collections.singletonList(SupplyChainNode.newBuilder()
-                            .setEntityType(desiredEntityType)
-                            .putMembersByState(EntityState.POWERED_ON_VALUE,
-                                MemberList.newBuilder()
-                                    .addAllMemberOids(groupExpander.expandUuid(groupUuid))
-                                    .build())
-                            .build());
                     }
                 }
-            }
-            // END Mad(ish) Hax.
+                // END Mad(ish) Hax.
 
             Optional<SupplyChainScope> scope = createSupplyChainScope();
             if (!scope.isPresent()) {
@@ -749,9 +778,10 @@ public class SupplyChainFetcherFactory {
                                        @Nonnull final Optional<EnvironmentType> environmentType,
                                        @Nonnull final SupplyChainServiceBlockingStub supplyChainRpcService,
                                        @Nonnull final GroupExpander groupExpander,
-                                       final boolean enforceUserScope) {
-            super(topologyContextId, seedUuids, entityTypes,
-                    environmentType, supplyChainRpcService, groupExpander, enforceUserScope);
+                                       final boolean enforceUserScope,
+                                       @Nonnull final RepositoryApi repositoryApi) {
+            super(topologyContextId, seedUuids, entityTypes, environmentType,
+                    supplyChainRpcService, groupExpander, enforceUserScope, repositoryApi);
         }
 
         @Override
@@ -802,7 +832,7 @@ public class SupplyChainFetcherFactory {
                                          @Nullable final EntityAspectMapper entityAspectMapper,
                                          final boolean enforceUserScope) {
             super(topologyContextId, seedUuids, entityTypes, environmentType, supplyChainRpcService,
-                    groupExpander, enforceUserScope);
+                    groupExpander, enforceUserScope, repositoryApi);
             this.entityDetailType = entityDetailType;
             this.includeHealthSummary = includeHealthSummary;
             this.severityRpcService = Objects.requireNonNull(severityRpcService);

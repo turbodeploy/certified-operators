@@ -21,6 +21,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
@@ -114,7 +115,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEnt
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
@@ -672,6 +672,7 @@ public class GroupsServiceTest {
         groupApiDtoMock.setDisplayName(name);
         groupApiDtoMock.setClassName(StringConstants.CLUSTER);
         groupApiDtoMock.setSeverity(Severity.NORMAL.toString());
+        groupApiDtoMock.setEnvironmentType(EnvironmentType.ONPREM);
 
         final Grouping cluster = Grouping.newBuilder()
             .setId(2L)
@@ -702,8 +703,9 @@ public class GroupsServiceTest {
 
         // Act
         final List<GroupApiDTO> groupApiDTOs =
-                        groupsService.getGroupsByType(GroupType.COMPUTE_HOST_CLUSTER,
-                                        Collections.singletonList("1"), Collections.emptyList());
+                groupsService.getGroupsByType(GroupType.COMPUTE_HOST_CLUSTER,
+                        Collections.singletonList("1"), Collections.emptyList(),
+                        EnvironmentType.ONPREM);
 
         // Assert
         assertThat(groupApiDTOs.size(), is(1));
@@ -932,5 +934,88 @@ public class GroupsServiceTest {
             .setId(Long.valueOf(groupUuid))
             .build());
         assertEquals(template, templateServiceSpy.getTemplates(any()).get(0).getTemplates(0).getTemplate());
+    }
+
+    /**
+     * Test getting groups and filter by environment type. Only groups matching requested
+     * environment type should be returned.
+     *
+     * @throws Exception any error happens
+     */
+    @Test
+    public void testGetGroupsFilterByEnvironmentType() throws Exception {
+        final String name = "group_name";
+        final GroupApiDTO groupApiDto1 = new GroupApiDTO();
+        groupApiDto1.setUuid("1");
+        groupApiDto1.setEnvironmentType(EnvironmentType.ONPREM);
+        final GroupApiDTO groupApiDto2 = new GroupApiDTO();
+        groupApiDto2.setUuid("2");
+        groupApiDto2.setEnvironmentType(EnvironmentType.CLOUD);
+
+        // onprem group
+        final Grouping group1 = Grouping.newBuilder()
+                .setId(1L)
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setDisplayName(name)
+                        .setType(GroupType.REGULAR))
+                .build();
+        final GroupAndMembers groupAndMembers1 = ImmutableGroupAndMembers.builder()
+                .group(group1)
+                .members(Collections.emptyList())
+                .entities(Collections.emptyList())
+                .build();
+        when(groupExpander.getMembersForGroup(group1)).thenReturn(groupAndMembers1);
+        when(groupMapper.getEnvironmentTypeForGroup(groupAndMembers1)).thenReturn(EnvironmentType.ONPREM);
+        when(groupMapper.toGroupApiDto(groupAndMembers1, EnvironmentType.ONPREM, true)).thenReturn(groupApiDto1);
+        // cloud group
+        final Grouping group2 = Grouping.newBuilder()
+                .setId(2L)
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setDisplayName(name)
+                        .setType(GroupType.REGULAR))
+                .build();
+        final GroupAndMembers groupAndMembers2 = ImmutableGroupAndMembers.builder()
+                .group(group2)
+                .members(Collections.emptyList())
+                .entities(Collections.emptyList())
+                .build();
+        when(groupExpander.getMembersForGroup(group2)).thenReturn(groupAndMembers2);
+        when(groupMapper.getEnvironmentTypeForGroup(groupAndMembers2)).thenReturn(EnvironmentType.CLOUD);
+        when(groupMapper.toGroupApiDto(groupAndMembers2, EnvironmentType.CLOUD, true)).thenReturn(groupApiDto2);
+
+        when(groupServiceSpy.getGroupForEntity(GetGroupForEntityRequest.newBuilder()
+                .setEntityId(111L)
+                .build()))
+                .thenReturn(GetGroupForEntityResponse.newBuilder()
+                        .addGroup(group1)
+                        .addGroup(group2)
+                        .build());
+        final ApiId entityApiId = mock(ApiId.class);
+        when(entityApiId.isGroup()).thenReturn(false);
+        when(uuidMapper.fromUuid("111")).thenReturn(entityApiId);
+
+        // check filter by onprem
+        List<GroupApiDTO> groupApiDTOs = groupsService.getGroupsByType(GroupType.REGULAR,
+                Collections.singletonList("111"), Collections.emptyList(),
+                EnvironmentType.ONPREM);
+        assertThat(groupApiDTOs.stream().map(GroupApiDTO::getUuid).collect(Collectors.toList()),
+                containsInAnyOrder("1"));
+        // check filter by cloud
+        groupApiDTOs = groupsService.getGroupsByType(GroupType.REGULAR,
+                Collections.singletonList("111"), Collections.emptyList(),
+                EnvironmentType.CLOUD);
+        assertThat(groupApiDTOs.stream().map(GroupApiDTO::getUuid).collect(Collectors.toList()),
+                containsInAnyOrder("2"));
+        // check filter by hybrid
+        groupApiDTOs = groupsService.getGroupsByType(GroupType.REGULAR,
+                Collections.singletonList("111"), Collections.emptyList(),
+                EnvironmentType.HYBRID);
+        assertThat(groupApiDTOs.stream().map(GroupApiDTO::getUuid).collect(Collectors.toList()),
+                containsInAnyOrder("1", "2"));
+        // check filter by unknown
+        groupApiDTOs = groupsService.getGroupsByType(GroupType.REGULAR,
+                Collections.singletonList("111"), Collections.emptyList(),
+                EnvironmentType.UNKNOWN);
+        assertThat(groupApiDTOs, empty());
     }
 }
