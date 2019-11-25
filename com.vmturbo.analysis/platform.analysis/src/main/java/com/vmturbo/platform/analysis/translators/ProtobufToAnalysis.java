@@ -7,8 +7,8 @@ import java.util.Map;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 
-import com.vmturbo.platform.analysis.economy.*;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
+import javax.annotation.Nonnull;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -22,12 +22,12 @@ import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.Context;
-import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
+import com.vmturbo.platform.analysis.economy.Context;
+import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -37,23 +37,24 @@ import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunction;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityRawMaterialEntry;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityResizeDependency;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.CommodityResizeDependencyEntry;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology.ResizeDependencySkipEntry;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
-import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
-import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
-import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
-import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
-import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO;
+import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
@@ -194,12 +195,15 @@ public final class ProtobufToAnalysis {
      * {@link Topology} given a {@link ShoppingListTO}.
      *
      * @param topology The {@link Topology} which contains the {@link Trader}.
+     * @param scalingGroupId scaling group ID of associated buyer. Empty string if no scaling group.
      * @param buyer The {@link Trader} to add the {@link ShoppingList} to.
      * @param input The {@link ShoppingListTO} describing the {@link ShoppingList}.
      * @return The resulting {@link ShoppingList}.
      */
-    public static @NonNull ShoppingList addShoppingList(@NonNull Topology topology, @NonNull Trader buyer,
-                                                  @NonNull ShoppingListTO input) {
+    static @NonNull ShoppingList addShoppingList(@NonNull Topology topology,
+                                                 @Nonnull String scalingGroupId,
+                                                 @NonNull Trader buyer,
+                                                 @NonNull ShoppingListTO input) {
         @NonNull Basket basketBought = basket(input);
         @NonNull ShoppingList shoppingList = input.hasSupplier()
             ? topology.addBasketBought(input.getOid(), buyer, basketBought, input.getSupplier())
@@ -207,7 +211,11 @@ public final class ProtobufToAnalysis {
 
         shoppingList.setMovable(input.getMovable());
         shoppingList.setMoveCost(input.getStorageMoveCost());
-        shoppingList.setGroupFactor(input.getGroupFactor());
+        if (input.hasGroupFactor()) {
+            shoppingList.setGroupFactor(input.getGroupFactor());
+            Economy economy = (Economy)topology.getEconomy();
+            economy.registerShoppingListWithScalingGroup(scalingGroupId, shoppingList);
+        }
         shoppingList.getUnquotedCommoditiesBaseTypeList().addAll(input.getUnquotedCommoditiesBaseTypeListList());
 
         for (CommodityBoughtTO commodityBought : input.getCommoditiesBoughtList()) {
@@ -370,16 +378,18 @@ public final class ProtobufToAnalysis {
                                   input);
         }
 
+        final String scalingGroupId = input.getScalingGroupId();
+        output.setScalingGroupId(scalingGroupId);
         if (input.getState() == TraderStateTO.IDLE || input.getPreferentialPlacement()) {
             for (ShoppingListTO sl : input.getShoppingListsList()) {
                 if (!sl.getCommoditiesBoughtList().isEmpty()) {
-                    topology.addPreferentialSl(addShoppingList(topology, output, sl));
+                    topology.addPreferentialSl(addShoppingList(topology, scalingGroupId, output, sl));
                 }
             }
         } else {
             for (ShoppingListTO sl : input.getShoppingListsList()) {
                 if (!sl.getCommoditiesBoughtList().isEmpty()) {
-                    addShoppingList(topology, output, sl);
+                    addShoppingList(topology, scalingGroupId, output, sl);
                 }
             }
         }
@@ -393,7 +403,6 @@ public final class ProtobufToAnalysis {
             topology.getEconomy().getPlacementEntities().add(output);
         }
         output.setTemplateProvider(input.getTemplateProvider());
-        output.setScalingGroupId(input.getScalingGroupId());
 
         return output;
     }

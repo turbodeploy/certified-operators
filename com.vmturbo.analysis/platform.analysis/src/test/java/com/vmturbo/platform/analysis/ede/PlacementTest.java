@@ -1,7 +1,6 @@
 package com.vmturbo.platform.analysis.ede;
 
 import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
@@ -14,6 +13,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import com.google.common.collect.Sets;
+
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Test;
 import org.junit.experimental.runners.Enclosed;
@@ -21,8 +22,6 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameter;
 import org.junit.runners.Parameterized.Parameters;
-
-import com.google.common.collect.Sets;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.CompoundMove;
@@ -34,8 +33,8 @@ import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.economy.TraderSettings;
+import com.vmturbo.platform.analysis.economy.TraderState;
 
 /**
  * A test case for the {@link Placement} class.

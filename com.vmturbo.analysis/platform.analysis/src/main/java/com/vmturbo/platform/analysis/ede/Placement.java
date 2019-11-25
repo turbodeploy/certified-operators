@@ -3,7 +3,7 @@ package com.vmturbo.platform.analysis.ede;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map.Entry;
@@ -13,12 +13,12 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import com.google.common.collect.Sets;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
-
-import com.google.common.collect.Sets;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.CompoundMove;
@@ -215,12 +215,12 @@ public class Placement {
             return results;
         }
 
-        final QuoteMinimizer minimizer = initiateQuoteMinimizer(economy, sellers, shoppingList, null);
+        QuoteMinimizer minimizer = initiateQuoteMinimizer(economy, sellers, shoppingList, null);
 
-        final double cheapestQuote = minimizer.getTotalBestQuote();
-        final Trader cheapestSeller = minimizer.getBestSeller();
+        double cheapestQuote = minimizer.getTotalBestQuote();
+        Trader cheapestSeller = minimizer.getBestSeller();
         Trader buyer = shoppingList.getBuyer();
-        final double currentQuote = minimizer.getCurrentQuote().getQuoteValue();
+        double currentQuote = minimizer.getCurrentQuote().getQuoteValue();
 
         boolean isDebugTrader = buyer.isDebugEnabled() || logger.isTraceEnabled();
         boolean isSellersInfoPrinted = buyer.isSellersInfoPrinted();
@@ -277,26 +277,69 @@ public class Placement {
             }
             // create recommendation, add it to the result list and  update the economy to
             // reflect the decision
-            Move move = new Move(economy, shoppingList, shoppingList.getSupplier(),
+            Iterator<ShoppingList> peers = economy
+                .getPeerShoppingLists(shoppingList.getShoppingListId()).iterator();
+            while (true) {
+                // The first Move is the group leader, so the quote and savings are already computed.
+                Move move = new Move(economy, shoppingList, shoppingList.getSupplier(),
                     cheapestSeller, minimizer.getBestQuote().getContext());
-            placementResults = PlacementResults.forSingleAction(move.take().setImportance(savings));
-            if (economy.getSettings().isUseExpenseMetricForTermination()) {
-                Market myMarket = economy.getMarket(shoppingList);
-                double placementSavings = myMarket.getPlacementSavings() + savings;
-                if (Double.isInfinite(placementSavings)) {
-                    placementSavings = Double.MAX_VALUE;
+                placementResults.addAction(move.take().setImportance(savings));
+                if (economy.getSettings().isUseExpenseMetricForTermination()) {
+                    Market myMarket = economy.getMarket(shoppingList);
+                    double placementSavings = myMarket.getPlacementSavings() + savings;
+                    if (Double.isInfinite(placementSavings)) {
+                        placementSavings = Double.MAX_VALUE;
+                    }
+                    myMarket.setPlacementSavings(placementSavings);
+                    if (logger.isDebugEnabled()
+                        && myMarket.getExpenseBaseline() < myMarket.getPlacementSavings()) {
+                        logger.debug("Total savings exceeds base expenses for buyer while shopping " +
+                            buyer.getDebugInfoNeverUseInCode()
+                            + " Basket " + shoppingList.getBasket());
+                    }
                 }
-                myMarket.setPlacementSavings(placementSavings);
-                if (logger.isDebugEnabled()
-                             && myMarket.getExpenseBaseline() < myMarket.getPlacementSavings()) {
-                    logger.debug("Total savings exceeds base expenses for buyer while shopping " +
-                                    buyer.getDebugInfoNeverUseInCode()
-                                    + " Basket " + shoppingList.getBasket());
+                // Prepare for next Move in peers list
+                if (peers.hasNext()) {
+                    shoppingList = peers.next();
+                    logger.info("Synthesizing Move for {} in scaling group {}",
+                        shoppingList.getBuyer(), shoppingList.getBuyer().getScalingGroupId());
+                    minimizer = getQuote(economy, shoppingList);
+                    cheapestQuote = minimizer.getTotalBestQuote();
+                    cheapestSeller = minimizer.getBestSeller();
+                    buyer = shoppingList.getBuyer();
+                    currentQuote = minimizer.getCurrentQuote().getQuoteValue();
+                    savings = currentQuote - cheapestQuote;
+                } else {
+                    break;
                 }
             }
         }
-
         return placementResults;
+    }
+
+    /**
+     * XLTODO javadoc.  The purpose of this method is to get the savings for non-leader scaling
+     * group members.
+     * @param economy
+     * @param shoppingList
+     * @return
+     */
+    private static QuoteMinimizer getQuote(Economy economy, ShoppingList shoppingList) {
+        // If there are no sellers in the market, the buyer is misconfigured, but this method
+        // will not be called in that case.
+        final @NonNull List<@NonNull Trader> sellers =
+            economy.getMarket(shoppingList).getActiveSellersAvailableForPlacement();
+
+        if (logger.isTraceEnabled()) {
+            logger.trace("PSL Sellers for shoppingList: " + shoppingList.toString());
+            for(Trader trader : sellers){
+                if(AnalysisToProtobuf.replaceNewSupplier(shoppingList, economy, trader) != null) {
+                    logger.trace("PSL Seller: " +
+                        trader.toString());
+                }
+            }
+        }
+        return initiateQuoteMinimizer(economy, sellers, shoppingList, null);
     }
 
     /**

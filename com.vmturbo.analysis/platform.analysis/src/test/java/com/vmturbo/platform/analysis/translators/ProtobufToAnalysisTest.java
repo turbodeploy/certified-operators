@@ -1,6 +1,8 @@
 package com.vmturbo.platform.analysis.translators;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -25,8 +27,6 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
-
-import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
@@ -42,6 +42,7 @@ import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.
 import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO;
 import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO.RiskBased;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
+import com.vmturbo.platform.analysis.topology.Topology;
 /**
  * A test case for the {@link ProtobufToAnalysis} class.
  */
@@ -157,7 +158,7 @@ public class ProtobufToAnalysisTest {
         CommodityBoughtTO commBoughtTO2 = CommodityBoughtTO.newBuilder().setSpecification(commSpecTO2)
                         .setQuantity(100).setPeakQuantity(100).build();
         ShoppingListTO shopTO = ShoppingListTO.newBuilder().setOid(0).addCommoditiesBought(commBoughtTO1).addCommoditiesBought(commBoughtTO2).build();
-        ShoppingList shopList = ProtobufToAnalysis.addShoppingList(topo, buyer, shopTO);
+        ShoppingList shopList = ProtobufToAnalysis.addShoppingList(topo, "", buyer, shopTO);
         assertEquals(buyer, shopList.getBuyer());
         assertEquals(50, shopList.getPeakQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
         assertEquals(100, shopList.getPeakQuantities()[1], TestUtils.FLOATING_POINT_DELTA);

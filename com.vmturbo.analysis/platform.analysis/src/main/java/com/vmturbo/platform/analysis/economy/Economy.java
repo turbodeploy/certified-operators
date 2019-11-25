@@ -15,12 +15,15 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Longs;
 
@@ -85,6 +88,10 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     private Topology topology_;
     // the map for user to  its balance account
     private Map<Long, BalanceAccount> balanceAccountMap = new HashMap<>();
+    // Map from shopping list ID to associated scaling group
+    private Map<UUID, String> shoppingListToScalingGroup = new HashMap<UUID, String>();
+    // Map from shopping list ID to peer shopping lists in scaling group
+    private Multimap<String, ShoppingList> scalingGroupToPeers = ArrayListMultimap.create();
     // Cached data
 
     // Cached unmodifiable view of the markets_.values() collection.
@@ -918,7 +925,9 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         for (ShoppingList sl : shoppingListsOfTrader) {
             Basket cloneBasketBought = sl.getBasket(); // reuse baskets in original and clone
             ShoppingList cloneShoppingList = addBasketBought(cloneTrader, cloneBasketBought);
+            cloneShoppingList.setGroupFactor(sl.getGroupFactor());
             cloneShoppingList.setShoppingListId(sl.getShoppingListId());
+            registerShoppingListWithScalingGroup(trader.getScalingGroupId(), cloneShoppingList);
             for (Integer base_type : sl.getUnquotedCommoditiesBaseTypeList()) {
                 cloneShoppingList.addUnquotedCommodityBaseType(base_type);
             }
@@ -1107,5 +1116,43 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     @Override
     public List<Trader> getPlacementEntities() {
         return placementEntities_;
+    }
+
+    /**
+     * Associate a shopping list with a scaling group.
+     * @param scalingGroupId scaling group
+     * @param shoppingList shopping list to register
+     */
+    public void registerShoppingListWithScalingGroup(final String scalingGroupId,
+                                                     final ShoppingList shoppingList) {
+        if (scalingGroupId == null || scalingGroupId.isEmpty()) {
+            // Invalid ID or not in a scaling group, so skip
+            return;
+        }
+        // Map from shopping list ID to associated scaling group
+        shoppingListToScalingGroup.put(shoppingList.getShoppingListId(), scalingGroupId);
+        // Map from scaling group to peer shopping lists
+        scalingGroupToPeers.put(scalingGroupId, shoppingList);
+    }
+
+    /**
+     * Return the peer shopping lists in a scaling group
+     * @param shoppingListId UUID of a shopping list in scaling group.  This must always be the
+     *                       group leader.
+     * @return List of all peer ShoppingLists in the scaling group.  Return an empty list if the
+     * shopping list is not in a scaling group or the shopping list UUID is invalid.  This returns
+     * only the peers of the group leader, which means the group leader's ShoppingList itself
+     * will not be in the returned collection.
+     */
+    public List<ShoppingList> getPeerShoppingLists(UUID shoppingListId) {
+        if (shoppingListId == null) {
+            return Collections.emptyList();
+        }
+        Collection<ShoppingList> allPeers = scalingGroupToPeers
+            .get(shoppingListToScalingGroup.getOrDefault(shoppingListId, ""));
+        // Return all peers other than the one passed in.
+        return allPeers.stream()
+            .filter(sl -> sl.getShoppingListId() != shoppingListId)
+            .collect(Collectors.toList());
     }
 } // end class Economy
