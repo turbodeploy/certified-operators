@@ -162,6 +162,7 @@ public class DiscoveredGroupUploader {
     private Collection<DiscoveredSettingPolicyInfo> convertTemplateExclusionGroupsToPolicies(
             long targetId, @Nonnull List<CommonDTO.GroupDTO> groups) {
         Collection<DiscoveredSettingPolicyInfo> result = new HashSet<>();
+        String targetName = getTargetDisplayName(targetId);
 
         for (GroupDTO group : groups) {
             if (group.getConstraintInfo()
@@ -170,7 +171,8 @@ public class DiscoveredGroupUploader {
             }
 
             SortedSetOfOidSettingValue.Builder oids = SortedSetOfOidSettingValue.newBuilder();
-            oids.addAllOids(discoveredGroupInterpreter.convertTemplateNamesToOids(group, targetId));
+            oids.addAllOids(discoveredGroupInterpreter.convertTemplateNamesToOids(group, targetId,
+                    targetName));
 
             Setting.Builder setting = Setting.newBuilder();
             setting.setSettingSpecName(EntitySettingSpecs.ExcludedTemplates.getSettingName());
@@ -179,15 +181,22 @@ public class DiscoveredGroupUploader {
             DiscoveredSettingPolicyInfo.Builder policy = DiscoveredSettingPolicyInfo.newBuilder();
             policy.setEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
             policy.addDiscoveredGroupNames(GroupProtoUtil.createIdentifyingKey(group));
-            String name = "Template Exclusion Policy for " + group.getDisplayName();
+            String name = targetName + " - " + "Cloud Tier Exclusion Policy for "
+                    + group.getDisplayName();
             policy.setDisplayName(name);
-            policy.setName(name + ", target: " + targetId);
+            policy.setName(name);
             policy.addSettings(setting);
 
             result.add(policy.build());
         }
 
         return result;
+    }
+
+    @Nonnull
+    private String getTargetDisplayName(long targetId) {
+        Optional<String> name = targetStore.getTargetDisplayName(targetId);
+        return name.isPresent() ? name.get() + " (" + targetId + ")" : "" + targetId;
     }
 
     /**
