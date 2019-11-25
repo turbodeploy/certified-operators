@@ -13,7 +13,7 @@ import org.junit.Test;
 
 import com.google.common.collect.Lists;
 
-import com.vmturbo.mediation.cloud.util.TestUtils;
+import com.vmturbo.mediation.conversion.util.TestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;

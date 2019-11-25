@@ -29,12 +29,6 @@
     <dependencies>
         <dependency>
             <groupId>com.vmturbo</groupId>
-            <artifactId>com.vmturbo.mediation.cloud.conversion</artifactId>
-            <version>${project.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.mediation.aws.billing</artifactId>
             <version>${vmturbo.mt.branch.version}</version>
         </dependency>
@@ -57,6 +51,12 @@
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-api</artifactId>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.mediation.conversion</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
