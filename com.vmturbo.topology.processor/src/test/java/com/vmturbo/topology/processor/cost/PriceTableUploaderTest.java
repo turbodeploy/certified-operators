@@ -321,6 +321,7 @@ public class PriceTableUploaderTest {
 
     @Test
     public void testDiags() throws DiagnosticsException {
+        final long anotherTargetId  = 1L;
         PricingDTO.PriceTable sourcePriceTable = PricingDTO.PriceTable.newBuilder()
             .addOnDemandPriceTable(OnDemandPriceTableByRegionEntry.newBuilder()
                 .setRelatedRegion(REGION_ENTITY_BUILDER)
@@ -330,9 +331,10 @@ public class PriceTableUploaderTest {
                             .setAmount(IP_PRICE_AMOUNT))))))
             .build();
         priceTableUploader.recordPriceTable(TARGET_ID, SDKProbeType.AZURE_COST, sourcePriceTable);
+        priceTableUploader.recordPriceTable(anotherTargetId, SDKProbeType.AWS_COST, sourcePriceTable);
 
         final Map<Long, PricingDTO.PriceTable> originalSrcTables = priceTableUploader.getSourcePriceTables();
-        assertThat(originalSrcTables.keySet(), containsInAnyOrder(TARGET_ID));
+        assertThat(originalSrcTables.keySet(), containsInAnyOrder(TARGET_ID, anotherTargetId ));
         assertThat(originalSrcTables.get(TARGET_ID), is(sourcePriceTable));
 
         // ACT

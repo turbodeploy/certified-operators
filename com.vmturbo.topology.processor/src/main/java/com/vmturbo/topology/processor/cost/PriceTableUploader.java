@@ -7,6 +7,7 @@ import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.UP
 
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -26,17 +27,21 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
 import io.grpc.stub.StreamObserver;
-
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.Pricing.GetPriceTableChecksumRequest;
@@ -55,6 +60,7 @@ import com.vmturbo.common.protobuf.cost.Pricing.UploadPriceTablesResponse;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceStub;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.PricingDTO;
 import com.vmturbo.platform.sdk.common.PricingDTO.PriceTable.OnDemandPriceTableByRegionEntry;
@@ -80,6 +86,7 @@ import com.vmturbo.topology.processor.targets.TargetStore;
 public class PriceTableUploader implements Diagnosable {
 
     private static final Logger logger = LogManager.getLogger();
+    private static final String END_OF_TARGET_ID_MAPPINGS = "END_OF_TARGET_ID_TO_PRICETABLE_MAPPING";
 
     private static final DataMetricSummary PRICE_TABLE_HASH_CALCULATION_TIME = DataMetricSummary.builder()
             .withName("tp_price_table_hash_calculation_seconds")
@@ -581,20 +588,40 @@ public class PriceTableUploader implements Diagnosable {
     public Stream<String> collectDiagsStream() throws DiagnosticsException {
         synchronized (sourcePriceTableByTargetId) {
             final JsonFormat.Printer printer = JsonFormat.printer().omittingInsignificantWhitespace();
+            Map<Collection<PricingIdentifier>, PricingDTO.PriceTable> priceTableToKeyMap = new HashMap<>();
+            sourcePriceTableByTargetId.values()
+            .forEach(priceTable -> priceTableToKeyMap .putIfAbsent(priceTable.getPriceTableKeysList(), priceTable));
+
+            ObjectMapper mapper = new ObjectMapper();
             try {
-                return sourcePriceTableByTargetId.entrySet().stream()
-                    .map(probeTypePriceTableEntry -> {
-                        final long targetId = probeTypePriceTableEntry.getKey();
-                        final PricingDTO.PriceTable priceTable = probeTypePriceTableEntry.getValue();
-                        try {
-                            return Stream.of(String.valueOf(targetId),
-                                printer.print(priceTable));
-                        } catch (InvalidProtocolBufferException ex) {
-                            throw new ProtoDtoPrintError("Error mapping targetId " + targetId +
+                Stream<String> streamOfPriceTableKeyToData = priceTableToKeyMap.entrySet().stream().map(pricingData -> {
+                    final Collection<PricingIdentifier> pricingIdentifiers = pricingData.getKey();
+                    final PricingDTO.PriceTable priceTable = pricingData.getValue();
+                    try {
+                        return Stream.of(mapper.writeValueAsString(pricingIdentifiers), printer.print(priceTable));
+                    } catch (InvalidProtocolBufferException ex) {
+                        throw new ProtoDtoPrintError("Error mapping targetId " + pricingIdentifiers +
                                 " priceTable " + priceTable, ex);
-                        }
-                    })
-                    .flatMap(Function.identity());
+                    } catch (JsonProcessingException e) {
+                        throw new ProtoDtoPrintError("Error while creating Json priceTableKeys.", e);
+                    }
+                }).flatMap(Function.identity());
+                final Stream<String> streamOfTargetIdToPriceKey = sourcePriceTableByTargetId.entrySet().stream()
+                        .map(probeTypePriceTableEntry -> {
+                            final long targetId = probeTypePriceTableEntry.getKey();
+                            final PricingDTO.PriceTable priceTable = probeTypePriceTableEntry.getValue();
+                            try {
+                                return Stream.of(String.valueOf(targetId),
+                                        mapper.writeValueAsString(priceTable.getPriceTableKeysList()));
+
+                            } catch (JsonProcessingException ex) {
+                                throw new ProtoDtoPrintError("Error while creating Json priceTableKeys." +
+                                        " priceTable " + priceTable, ex);
+                            }
+                        })
+                        .flatMap(Function.identity());
+                return Stream.concat(Stream.concat(streamOfTargetIdToPriceKey,
+                        Stream.of(END_OF_TARGET_ID_MAPPINGS)), streamOfPriceTableKeyToData);
             } catch (ProtoDtoPrintError e) {
                 throw new DiagnosticsException(e);
             }
@@ -615,25 +642,52 @@ public class PriceTableUploader implements Diagnosable {
      */
     @Override
     public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
-        if (collectedDiags.size() % 2 != 0) {
-            throw new DiagnosticsException("Unexpected diags - should be even length.");
+        if (collectedDiags.size() % 2 != 1) {
+            //odd length because of one extra line for END_OF_TARGET_ID_MAPPINGS.
+            throw new DiagnosticsException("Unexpected diags - should be odd length.");
         }
 
         synchronized (sourcePriceTableByTargetId) {
             final JsonFormat.Parser parser = JsonFormat.parser().ignoringUnknownFields();
+            Map<Long, Collection<String>> targetIdToPriceTableKey = Maps.newHashMap();
+            Map<Collection<String>, PricingDTO.PriceTable.Builder> priceTableKeyToData = Maps.newHashMap();
+
+            final TypeReference<Collection<String>> typeRef
+                    = new TypeReference<Collection<String>>() {};
+            boolean endOfTargetMappingSeen = false;
+            ObjectMapper mapper = new ObjectMapper();
             for (int i = 0; i + 2 <= collectedDiags.size(); i += 2) {
-                    try {
-                    Long targetId = Long.valueOf(collectedDiags.get(i));
-                    String priceTableStr = collectedDiags.get(i + 1);
-                    PricingDTO.PriceTable.Builder priceTableBldr = PricingDTO.PriceTable.newBuilder();
-                        parser.merge(priceTableStr, priceTableBldr);
-                        sourcePriceTableByTargetId.put(targetId, priceTableBldr.build());
-                    } catch (InvalidProtocolBufferException e) {
-                        logger.error("Failed to deserialize price table. Error: {}", e.getMessage());
-                    } catch (NumberFormatException e) {
-                        logger.error("Failed to find targetId for : {}", collectedDiags.get(i));
+                if (collectedDiags.get(i).equals(END_OF_TARGET_ID_MAPPINGS)) {
+                    i--; // to align the offset of the counter which reads the list.
+                    endOfTargetMappingSeen = true;
+                    continue;
+                }
+                try {
+                    if (endOfTargetMappingSeen) {
+                        String priceTableKeys = collectedDiags.get(i);
+                        Collection<String> pricingIdentifier = mapper.readValue(priceTableKeys, typeRef);
+                        String priceTable = collectedDiags.get(i + 1);
+                        PricingDTO.PriceTable.Builder priceTableBldr = PricingDTO.PriceTable.newBuilder();
+                        parser.merge(priceTable, priceTableBldr);
+                        priceTableKeyToData.put(pricingIdentifier, priceTableBldr);
+                    } else {
+                        Long targetId = Long.valueOf(collectedDiags.get(i));
+                        String priceTableKeys = collectedDiags.get(i + 1);
+                        Collection<String> pricingIdentifier = mapper.readValue(priceTableKeys, typeRef);
+                        targetIdToPriceTableKey.put(targetId, pricingIdentifier);
                     }
+                } catch (NumberFormatException e) {
+                    logger.error("Failed to find targetId for : {}", collectedDiags.get(i));
+                } catch (JsonProcessingException e) {
+                    logger.error("Error while creating list of string from priceTableKeyList. {}",
+                            collectedDiags.get(i));
+                } catch (InvalidProtocolBufferException e) {
+                    logger.error("Failed to deserialize price table. Error: {}", e.getMessage());
+                }
             }
+            targetIdToPriceTableKey.forEach((key, priceTableKey) -> sourcePriceTableByTargetId.put(key,
+                    priceTableKeyToData.getOrDefault(priceTableKey,
+                            PricingDTO.PriceTable.newBuilder()).build()));
         }
     }
 
