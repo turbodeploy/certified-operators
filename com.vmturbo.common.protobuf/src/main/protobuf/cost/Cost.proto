@@ -467,7 +467,7 @@ enum CostCategory {
 
     // Represents the licensing related costs associated with an entity.
     // For example OS pricing, application licensing, DB licenses and so on.
-    LICENSE = 3;
+    ON_DEMAND_LICENSE = 3;
 
     // Represents the RI compute cost associated with an entity.
     // i.e. how much of the total entity compute cost is being contributed by RI.

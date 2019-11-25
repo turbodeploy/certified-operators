@@ -27,6 +27,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
+import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.trax.Trax.TraxTopicConfiguration.Verbosity;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
@@ -35,6 +36,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.cost.calculation.CloudCostCalculator.DependentCostLookup;
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
@@ -53,12 +55,18 @@ public class ReservedInstanceApplicatorTest {
 
     private EntityInfoExtractor<TestEntityClass> infoExtractor = mock(EntityInfoExtractor.class);
 
+    private DiscountApplicator<TestEntityClass> discountApplicator = mock(DiscountApplicator.class);
+
+    private DependentCostLookup<TestEntityClass> dependentCostLookup = mock(DependentCostLookup.class);
+
     private CostJournal.Builder<TestEntityClass> costJournal = mock(CostJournal.Builder.class);
 
     private ReservedInstanceApplicatorFactory<TestEntityClass> applicatorFactory =
             ReservedInstanceApplicator.newFactory();
 
     private static final int ENTITY_ID = 7;
+
+    private static final int REGION_ID = 8;
 
     private static final int COMPUTE_TIER_ID = 17;
 
@@ -249,13 +257,42 @@ public class ReservedInstanceApplicatorTest {
         final TestEntityClass computeTier = TestEntityClass.newBuilder(COMPUTE_TIER_ID)
                 .setComputeTierConfig(new ComputeTierConfig(TOTAL_COUPONS_REQUIRED, DEFAULT_CORE_NUM))
                 .build(infoExtractor);
-
         when(costJournal.getEntity()).thenReturn(entity);
         when(cloudCostData.getExistingRiBoughtData(RI_ID)).thenReturn(Optional.empty());
-
         TraxNumber coveredPercentage = applicator.recordRICoverage(computeTier);
         assertThat(coveredPercentage.getValue(), is(NO_COVERAGE_PERCENTAGE));
         verify(costJournal, never()).recordRiCost(any(), any(), any());
+    }
+
+    @Test
+    public void testRiJournal() {
+        Map<Long, EntityReservedInstanceCoverage> topologyRiCoverage = new HashMap<>();
+        final TestEntityClass entity = TestEntityClass.newBuilder(ENTITY_ID)
+                .build(infoExtractor);
+        topologyRiCoverage.put(entity.getId(), EntityReservedInstanceCoverage.newBuilder()
+                .putCouponsCoveredByRi(RI_ID, 2.5)
+                .build());
+        final TestEntityClass region = TestEntityClass.newBuilder(REGION_ID).build(infoExtractor);
+        CostJournal.Builder<TestEntityClass> journalBuilder = CostJournal.newBuilder(entity, infoExtractor, region,
+                discountApplicator, dependentCostLookup );
+        final ReservedInstanceApplicator<TestEntityClass> applicator =
+                applicatorFactory.newReservedInstanceApplicator(journalBuilder, infoExtractor,
+                        cloudCostData, topologyRiCoverage);
+        final TestEntityClass computeTier = TestEntityClass.newBuilder(COMPUTE_TIER_ID)
+                .setComputeTierConfig(new ComputeTierConfig(TOTAL_COUPONS_REQUIRED, DEFAULT_CORE_NUM))
+                .build(infoExtractor);
+
+        final ReservedInstanceData riData = new ReservedInstanceData(RI_BOUGHT, RI_SPEC);
+
+        when(cloudCostData.getExistingRiBoughtData(RI_ID)).thenReturn(Optional.of(riData));
+
+        when(discountApplicator.getDiscountPercentage(0L)).thenReturn(trax(0));
+
+        applicator.recordRICoverage(computeTier);
+        CostJournal<TestEntityClass> journal = journalBuilder.build();
+        journal.getCategories();
+        TraxNumber totalCostIncludingRI = journal.getHourlyCostForCategory(CostCategory.RI_COMPUTE);
+        assert (totalCostIncludingRI.getValue() == 7.5);
     }
 
     /**

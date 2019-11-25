@@ -624,7 +624,7 @@ public class CostRpcService extends CostServiceImplBase {
     // aggregate all the value per cost type, e.g. IP, Compute, License
     private Set<AggregatedEntityCost> aggregateEntityCostByCostType(final Collection<EntityCost> values) {
         final AggregatedEntityCost costIP = new AggregatedEntityCost(CostCategory.IP);
-        final AggregatedEntityCost costLicense = new AggregatedEntityCost(CostCategory.LICENSE);
+        final AggregatedEntityCost costLicense = new AggregatedEntityCost(CostCategory.ON_DEMAND_LICENSE);
         final AggregatedEntityCost costOnDemandCompute = new AggregatedEntityCost(CostCategory.ON_DEMAND_COMPUTE);
         final AggregatedEntityCost costStorage = new AggregatedEntityCost(CostCategory.STORAGE);
         final AggregatedEntityCost costRICompute = new AggregatedEntityCost(CostCategory.RI_COMPUTE);
@@ -637,7 +637,7 @@ public class CostRpcService extends CostServiceImplBase {
                     case IP:
                         costIP.addCost(componentCost.getAmount().getAmount());
                         break;
-                    case LICENSE:
+                    case ON_DEMAND_LICENSE:
                         costLicense.addCost(componentCost.getAmount().getAmount());
                         break;
                     case STORAGE:

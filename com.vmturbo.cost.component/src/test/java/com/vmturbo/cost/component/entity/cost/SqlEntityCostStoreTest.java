@@ -362,7 +362,7 @@ public class SqlEntityCostStoreTest {
     @Test
     public void testStoreCostJournal() throws DbException {
         final CostJournal<TopologyEntityDTO> journal1 = mockCostJournal(ID1, ASSOCIATED_ENTITY_TYPE1,
-                ImmutableMap.of(CostCategory.ON_DEMAND_COMPUTE, 7.0, CostCategory.LICENSE, 3.0));
+                ImmutableMap.of(CostCategory.ON_DEMAND_COMPUTE, 7.0, CostCategory.ON_DEMAND_LICENSE, 3.0));
         store.persistEntityCost(ImmutableMap.of(ID1, journal1));
 
         final Map<Long, Map<Long, EntityCost>> costs =
@@ -382,7 +382,7 @@ public class SqlEntityCostStoreTest {
                                 .setAmount(7.0))
                         .build(),
                 ComponentCost.newBuilder()
-                        .setCategory(CostCategory.LICENSE)
+                        .setCategory(CostCategory.ON_DEMAND_LICENSE)
                         .setAmount(CurrencyAmount.newBuilder()
                                 .setCurrency(CurrencyAmount.getDefaultInstance().getCurrency())
                                 .setAmount(3.0))

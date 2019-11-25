@@ -20,9 +20,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
-import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.trax.TraxNumber;
 
 /**
@@ -100,10 +98,11 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
                         // contribute to the RI coverage of the entity.
                         totalCovered = totalCovered.plus(coveredCoupons).compute();
                         final ReservedInstanceData riData = riDataOpt.get();
-
                         final TraxNumber riBoughtPercentage = calculateRiBoughtPercentage(entityId,
                                 coveredCoupons, riData);
                         journal.recordRiCost(riData, coveredCoupons, calculateEffectiveHourlyCost(riBoughtPercentage, riData));
+                        journal.recordRIDiscountedCost(CostCategory.ON_DEMAND_LICENSE, riData, riBoughtPercentage);
+                        journal.recordRIDiscountedCost(CostCategory.ON_DEMAND_COMPUTE, riData, riBoughtPercentage);
                     } else {
                         // If we don't know about this reserved instance, we can't calculate a cost for
                         // it and we shouldn't include it in the cost calculation.

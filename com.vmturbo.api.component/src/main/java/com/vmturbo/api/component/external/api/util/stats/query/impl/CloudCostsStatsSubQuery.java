@@ -783,8 +783,8 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                         case IP:
                             resultsTypeFilter.setValue(CostCategory.IP.name());
                             break;
-                        case LICENSE:
-                            resultsTypeFilter.setValue(CostCategory.LICENSE.name());
+                        case ON_DEMAND_LICENSE:
+                            resultsTypeFilter.setValue(CostCategory.ON_DEMAND_LICENSE.name());
                             break;
                         case STORAGE:
                             resultsTypeFilter.setValue(CostCategory.STORAGE.name());
@@ -867,7 +867,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                                 if (filters.contains(StringConstants.ON_DEMAND_COMPUTE_LICENSE_COST)) {
                                     // add license cost
                                     statRecordsList.addAll(statRecordsMap.getOrDefault(
-                                        CostCategory.LICENSE, Collections.emptyMap()).values().stream()
+                                        CostCategory.ON_DEMAND_LICENSE, Collections.emptyMap()).values().stream()
                                         .flatMap(List::stream).collect(Collectors.toList()));
                                 }
                             }
@@ -890,7 +890,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                                 if (filters.contains(StringConstants.ON_DEMAND_COMPUTE_LICENSE_COST)) {
                                     // add license cost
                                     statRecordsList.addAll(ListUtils.emptyIfNull(statRecordsMap.getOrDefault(
-                                        CostCategory.LICENSE, Collections.emptyMap()).get(entityType)));
+                                        CostCategory.ON_DEMAND_LICENSE, Collections.emptyMap()).get(entityType)));
                                 }
                             }
                             if (!statRecordsList.isEmpty()) {

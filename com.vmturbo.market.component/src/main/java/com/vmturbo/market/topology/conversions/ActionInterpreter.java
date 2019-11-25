@@ -336,7 +336,7 @@ public class ActionInterpreter {
         final TraxNumber totalOnDemandCost;
         if (TopologyDTOUtil.isPrimaryTierEntityType(marketTier.getTier().getEntityType())) {
             TraxNumber onDemandComputeCost = journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE);
-            TraxNumber licenseCost = journal.getHourlyCostForCategory(CostCategory.LICENSE);
+            TraxNumber licenseCost = journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE);
             TraxNumber ipCost = journal.getHourlyCostForCategory(CostCategory.IP);
             totalOnDemandCost = Stream.of(onDemandComputeCost, licenseCost, ipCost)
                 .collect(TraxCollectors.sum(marketTier.getTier().getDisplayName() + " total cost"));

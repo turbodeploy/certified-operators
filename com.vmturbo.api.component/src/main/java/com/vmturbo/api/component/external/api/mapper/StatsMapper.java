@@ -812,8 +812,8 @@ public class StatsMapper {
                             case IP:
                                 resultsTypeFilter.setValue(CostCategory.IP.name());
                                 break;
-                            case LICENSE:
-                                resultsTypeFilter.setValue(CostCategory.LICENSE.name());
+                            case ON_DEMAND_LICENSE:
+                                resultsTypeFilter.setValue(CostCategory.ON_DEMAND_LICENSE.name());
                                 break;
                             case STORAGE:
                                 resultsTypeFilter.setValue(CostCategory.STORAGE.name());
