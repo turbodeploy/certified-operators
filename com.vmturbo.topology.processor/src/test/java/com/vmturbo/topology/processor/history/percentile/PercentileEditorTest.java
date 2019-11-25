@@ -60,6 +60,7 @@ import com.vmturbo.topology.processor.history.HistoryCalculationException;
 import com.vmturbo.topology.processor.history.ICommodityFieldAccessor;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts;
 import com.vmturbo.topology.processor.history.percentile.PercentileDto.PercentileCounts.PercentileRecord;
+import com.vmturbo.topology.processor.history.percentile.PercentileEditor.CacheBackup;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
 /**
@@ -299,7 +300,6 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
 
         // Check observation periods changed.
         percentileEditor.initContext(graphWithSettings, commodityFieldAccessor, false);
-
         // Check full utilization count array for virtual machine VCPU commodity.
         // 36 37 38 39 40 [x] 28 Aug 2019 12:00:00 GMT.
         // 31 32 33 34 35 [x] 29 Aug 2019 00:00:00 GMT.
@@ -311,15 +311,8 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         //  1  2  3  4  5 [x]  1 Sep 2019 00:00:00 GMT.
         // -----------------------------------------
         // 148, 156, 164, 172, 180 - full for 4 days of observation.
-        final PercentileRecord vCpuPercentileRecord =
-                percentileEditor.getCacheEntry(VCPU_COMMODITY_REFERENCE)
-                        .getUtilizationCountStore()
-                        .checkpoint(Collections.emptySet())
-                        .build();
-        Assert.assertEquals(vmUtilizations, vCpuPercentileRecord.getUtilizationList());
-        Assert.assertEquals(NEW_VIRTUAL_MACHINE_OBSERVATION_PERIOD,
-                vCpuPercentileRecord.getPeriod());
-
+        checkEntityUtilization(vmUtilizations, VCPU_COMMODITY_REFERENCE,
+                        NEW_VIRTUAL_MACHINE_OBSERVATION_PERIOD);
         // Check full utilization count array for business user ImageCPU commodity.
         // 81 82 83 84 85 [ ] 28 Aug 2019 12:00:00 GMT.
         // 76 77 78 79 80 [ ] 29 Aug 2019 00:00:00 GMT.
@@ -331,17 +324,21 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         // 46 47 48 49 50 [x]  1 Sep 2019 00:00:00 GMT.
         // -----------------------------------------
         // 214 218 222 226 230 - full for 2 days of observation.
-        final PercentileRecord imageCpuPercentileRecord =
-                percentileEditor.getCacheEntry(IMAGE_CPU_COMMODITY_REFERENCE)
-                        .getUtilizationCountStore()
-                        .checkpoint(Collections.emptySet())
-                        .build();
-        Assert.assertEquals(buUtilizations, imageCpuPercentileRecord.getUtilizationList());
-        Assert.assertEquals(NEW_BUSINESS_USER_OBSERVATION_PERIOD,
-                imageCpuPercentileRecord.getPeriod());
+        checkEntityUtilization(buUtilizations, IMAGE_CPU_COMMODITY_REFERENCE,
+                        NEW_BUSINESS_USER_OBSERVATION_PERIOD);
         // Check that maintenance will be called
         Mockito.when(clock.millis()).thenReturn(broadcastTimeAfterWindowChanged);
-        percentileEditor.completeBroadcast();
+        final CacheBackup cacheBackup = Mockito.mock(CacheBackup.class);
+        final PercentileEditorCacheAccess spiedEditor = Mockito.spy(percentileEditor);
+        Mockito.when(spiedEditor.createCacheBackup()).thenReturn(cacheBackup);
+        spiedEditor.completeBroadcast();
+        checkEnforcedMaintenance(periodMsForTotalBlob, expectedTotalUtilizations);
+        Mockito.verify(cacheBackup, Mockito.times(1)).keepCacheOnClose();
+    }
+
+    private void checkEnforcedMaintenance(long periodMsForTotalBlob,
+                    List<List<Integer>> expectedTotalUtilizations)
+                    throws HistoryCalculationException, InterruptedException {
         final ArgumentCaptor<PercentileCounts> percentileCountsCaptor =
                         ArgumentCaptor.forClass(PercentileCounts.class);
         final ArgumentCaptor<Long> periodCaptor = ArgumentCaptor.forClass(Long.class);
@@ -362,6 +359,15 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         Assert.assertThat(periods.size(), CoreMatchers.is(2));
         Assert.assertThat(periods, Matchers.containsInAnyOrder(NEW_BUSINESS_USER_OBSERVATION_PERIOD,
                         NEW_VIRTUAL_MACHINE_OBSERVATION_PERIOD));
+    }
+
+    private void checkEntityUtilization(List<Integer> utilizations,
+                    EntityCommodityFieldReference commodityReference, long newObservationPeriod)
+                    throws HistoryCalculationException {
+        final PercentileRecord percentileRecord = percentileEditor.getCacheEntry(commodityReference)
+                        .getUtilizationCountStore().checkpoint(Collections.emptySet()).build();
+        Assert.assertEquals(utilizations, percentileRecord.getUtilizationList());
+        Assert.assertEquals(newObservationPeriod, percentileRecord.getPeriod());
     }
 
     /**

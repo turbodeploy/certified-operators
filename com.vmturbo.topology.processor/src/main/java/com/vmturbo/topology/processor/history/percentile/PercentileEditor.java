@@ -342,7 +342,7 @@ public class PercentileEditor extends
         }
 
         try (DataMetricTimer timer = SETTINGS_CHANGE_SUMMARY_METRIC.startTimer();
-             CacheBackup backup = new CacheBackup(getCache());) {
+             CacheBackup backup = createCacheBackup()) {
             final Stopwatch sw = Stopwatch.createStarted();
             // Read as many page blobs from persistence as constitute the max of new periods
             // and accumulate them into percentile cache, respect per-entity observation window settings
@@ -409,12 +409,13 @@ public class PercentileEditor extends
 
         final Stopwatch sw = Stopwatch.createStarted();
         try (DataMetricTimer timer = MAINTENANCE_SUMMARY_METRIC.startTimer();
-                        CacheBackup backup = new CacheBackup(getCache())) {
+                        CacheBackup backup = createCacheBackup()) {
             logger.debug("Performing percentile cache maintenance {} for {}", ++checkpoints, checkpointMs);
             if (enforceMaintenance
                             && lastCheckpointMs + getMaintenanceWindowInMs() > checkpointMs) {
                 persistBlob(PercentilePersistenceTask.TOTAL_TIMESTAMP, lastCheckpointMs,
                                 store -> store.checkpoint(Collections.emptyList()));
+                backup.keepCacheOnClose();
                 return;
             }
             final Map<Long, Integer> entity2period = getEntityToPeriod(graph);
@@ -473,6 +474,19 @@ public class PercentileEditor extends
             logger.info("Percentile cache {}maintenance {} took {}",
                             enforceMaintenance ? "enforced " : "", checkpoints, sw);
         }
+    }
+
+    /**
+     * Creates {@link CacheBackup} instance which is wrapping the original cache and will be
+     * responsible for restoring original cache in case of a failure while cache updating
+     * operation.
+     *
+     * @return instance of the {@link CacheBackup}
+     * @throws HistoryCalculationException in case {@link CacheBackup} cannot be created.
+     */
+    @Nonnull
+    protected CacheBackup createCacheBackup() throws HistoryCalculationException {
+        return new CacheBackup(getCache());
     }
 
     private void writeBlob(PercentileCounts.Builder blob, long periodMs, long startTimestamp)
