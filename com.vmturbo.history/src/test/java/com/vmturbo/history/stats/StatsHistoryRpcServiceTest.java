@@ -206,12 +206,12 @@ public class StatsHistoryRpcServiceTest {
 
         if (propType.equals(statRecord.getName())) {
             // statRecord is for c1 and statRecord2 is for c2
-            checkStatRecord(propType, c1Avg, statRecord);
-            checkStatRecord(propType2, c2Value, statRecord2);
+            checkStatRecord(propType, c1Avg, Math.min(c1Value1, c1Value2), Math.max(c1Value1, c1Value2), statRecord);
+            checkStatRecord(propType2, c2Value,c2Value, c2Value, statRecord2);
         } else if (propType.equals(statRecord2.getName())) {
             // statRecord is for c2 and statRecord2 is for c1
-            checkStatRecord(propType2, c2Value, statRecord);
-            checkStatRecord(propType, c1Avg, statRecord2);
+            checkStatRecord(propType2, c2Value, c2Value, c2Value, statRecord);
+            checkStatRecord(propType, c1Avg, Math.min(c1Value1, c1Value2), Math.max(c1Value1, c1Value2), statRecord2);
         } else {
             fail("Wrong stat records: " + snapshot.getStatRecordsList());
         }
@@ -222,14 +222,16 @@ public class StatsHistoryRpcServiceTest {
      *
      * @param propType the property type string
      * @param c1Value the value to test
+     * @param c1Min the min value to test
+     * @param c1Max the max value to test
      * @param statRecord the record to check
      */
-    private void checkStatRecord(String propType, float c1Value,
+    private void checkStatRecord(String propType, float c1Value, float c1Min, float c1Max,
                                  StatRecord statRecord) {
         assertThat(statRecord.getName(), is(propType));
         assertThat(statRecord.getValues().getAvg(), is(c1Value));
-        assertThat(statRecord.getValues().getMin(), is(c1Value / 2));
-        assertThat(statRecord.getValues().getMax(), is(c1Value * 2));
+        assertThat(statRecord.getValues().getMin(), is(c1Min / 2));
+        assertThat(statRecord.getValues().getMax(), is(c1Max * 2));
     }
 
     /**
@@ -411,12 +413,12 @@ public class StatsHistoryRpcServiceTest {
         // values are 1, 2, 3;
         //      avgValue = 2.0;
         assertThat(statRecord.getValues().getAvg(), equalTo(2f));
-        //      max = 2 x value = 2, 4, 6; avgMax = 4;
-        assertThat(statRecord.getValues().getMax(), equalTo(4f));
-        //      min = 0.5 x value = 0.5, 1.0, 1.5; avgMin = 1.0;
-        assertThat(statRecord.getValues().getMin(), equalTo(1f));
-        // in this case current := avgMax since subtype != type
-        assertThat(statRecord.getCurrentValue(), equalTo(4f));
+        //      max = 2 x value = 2, 4, 6; Max = 6;
+        assertThat(statRecord.getValues().getMax(), equalTo(6f));
+        //      min = 0.5 x value = 0.5, 1.0, 1.5; min = 0.5;
+        assertThat(statRecord.getValues().getMin(), equalTo(0.5f));
+        // in this case current := Max since subtype != type
+        assertThat(statRecord.getCurrentValue(), equalTo(6f));
         assertThat(statRecord.getUsed().getTotal(), equalTo(6f));
         //      capacity = sum(3 x value) = 3, 6, 9; total 18
         assertThat(statRecord.getCapacity().getMin(), equalTo(3f));

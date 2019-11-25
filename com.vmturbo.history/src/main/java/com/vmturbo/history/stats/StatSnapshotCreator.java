@@ -133,8 +133,8 @@ public interface StatSnapshotCreator {
                             producerId = Long.valueOf(producerIdString);
                         }
                         float avgTotal = 0.0f;
-                        float minTotal = 0.0f;
-                        float maxTotal = 0.0f;
+                        float globalMin = Float.MAX_VALUE;
+                        float globalMax = 0.0f;
                         final StatsAccumulator effectiveCapacityValue = new StatsAccumulator();
 
                         // calculate totals
@@ -145,11 +145,11 @@ public interface StatSnapshotCreator {
                             }
                             Float oneMinValue = dbStatRecord.getValue(MIN_VALUE, Float.class);
                             if (oneMinValue != null) {
-                                minTotal += oneMinValue;
+                                globalMin = Math.min(oneMinValue, globalMin);
                             }
                             Float oneMaxValue = dbStatRecord.getValue(MAX_VALUE, Float.class);
                             if (oneMaxValue != null) {
-                                maxTotal += oneMaxValue;
+                                globalMax = Math.max(oneMaxValue, globalMax);
                             }
                             Float oneCapacityValue = dbStatRecord.getValue(CAPACITY, Float.class);
                             if (oneCapacityValue != null) {
@@ -193,15 +193,12 @@ public interface StatSnapshotCreator {
                                 - effectiveCapacityValue.getTotal());
                             statRecord = statRecordBuilder.buildStatRecord(propertyType,
                                 propertySubtype, capacityValue.toStatValue(), reserved,
-                                relatedEntityType, producerId, avgTotal, minTotal, maxTotal,
+                                relatedEntityType, producerId, avgTotal, globalMin, globalMax,
                                 commodityKey, avgTotal, relation, null);
                         } else {
                             // calculate the averages
                             final int numStatRecords = dbStatRecordList.size();
                             float avgValueAvg = avgTotal / numStatRecords;
-                            float minValueAvg = minTotal / numStatRecords;
-                            float maxValueAvg = maxTotal / numStatRecords;
-
                             // calculate the "reserved" amount. This is the gap between capacity and
                             // "effective capacity".
                             float reserved = (float) (capacityValue.getAvg()
@@ -210,8 +207,8 @@ public interface StatSnapshotCreator {
                             // build the record for this stat (commodity type)
                             statRecord = statRecordBuilder.buildStatRecord(propertyType,
                                 propertySubtype, capacityValue.toStatValue(), reserved,
-                                relatedEntityType, producerId, avgValueAvg, minValueAvg,
-                                maxValueAvg, commodityKey, avgTotal, relation,
+                                relatedEntityType, producerId, avgValueAvg, globalMin,
+                                globalMax, commodityKey, avgTotal, relation,
                                 percentileUtilization.getCount() > 0 ?
                                         percentileUtilization.toStatValue() : null);
                         }
