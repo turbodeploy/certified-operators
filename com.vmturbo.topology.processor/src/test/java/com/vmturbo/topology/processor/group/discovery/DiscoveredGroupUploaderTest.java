@@ -103,8 +103,6 @@ public class DiscoveredGroupUploaderTest {
                 discoveredClusterConstraintCache, targetStore));
         when(interpretedGroup.getGroupDefinition()).thenReturn(Optional.empty());
         when(targetStore.getProbeTypeForTarget(TARGET_ID)).thenReturn(Optional.of(PROBE_TYPE));
-        when(targetStore.getTargetDisplayName(TARGET_ID))
-                .thenReturn(Optional.of("Test target " + TARGET_ID));
     }
 
     @Test
