@@ -43,8 +43,6 @@ public class ProvisionBySupply extends ProvisionBase implements Action {
     private static final Logger logger = LogManager.getLogger();
     private @NonNull Map<CommoditySpecification, CommoditySpecification> commSoldToReplaceMap_;
     private @NonNull CommoditySpecification reasonCommodity;
-    // a list of actions triggered by taking provisionBySupply action
-    private List<@NonNull Action> subsequentActions_ = new ArrayList<>();
     // TODO: may need to add a 'triggering buyer' for debugReason...
 
     // Constructors
@@ -84,15 +82,6 @@ public class ProvisionBySupply extends ProvisionBase implements Action {
         reasonCommodity = mostProfitableCommoditySpecification;
     }
     // Methods
-
-    /**
-     * Returns the actions that was triggered after taking {@code this} action
-     * @return a list of actions followed by {@code this}
-     */
-    @Pure
-    public @NonNull List<Action> getSubsequentActions() {
-       return subsequentActions_;
-    }
 
     @Override
     public @NonNull String serialize(@NonNull Function<@NonNull Trader, @NonNull String> oid) {
@@ -164,8 +153,8 @@ public class ProvisionBySupply extends ProvisionBase implements Action {
                 ProvisionBySupply provisionedSupplier = new ProvisionBySupply(getEconomy(),
                                 currentSupplier, commToReplaceMap,
                                 getReason());
-                subsequentActions_.add(provisionedSupplier.take());
-                subsequentActions_.addAll(provisionedSupplier.getSubsequentActions());
+                getSubsequentActions().add(provisionedSupplier.take());
+                getSubsequentActions().addAll(provisionedSupplier.getSubsequentActions());
                 // move the sl of the provisionedSeller directly to the newly cloned mandatorySeller
                 Trader clonedMandatorySupplier = provisionedSupplier.getProvisionedSeller();
                 provisionedSellerSl.move(clonedMandatorySupplier);
@@ -298,7 +287,7 @@ public class ProvisionBySupply extends ProvisionBase implements Action {
                 });
             }
         }
-        subsequentActions_.addAll(actions);
+        getSubsequentActions().addAll(actions);
     }
 
     @Override
@@ -315,7 +304,7 @@ public class ProvisionBySupply extends ProvisionBase implements Action {
             }
         });
         commSoldToReplaceMap_.clear();
-        subsequentActions_.clear();
+        getSubsequentActions().clear();
         setProvisionedSeller(null);
         return this;
     }

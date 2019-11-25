@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -64,12 +65,19 @@ public class PlacementResults {
     }
 
     /**
-     * Get the {@link Action}s that resulted from the round of placement.
+     * Get the {@link Action}s that resulted from the round of placement.  This includes the top
+     * level actions as well as any subsequent actions present in those actions. WARNING: when
+     * using this call, all top level and subsequent actions are returned, but the subsequent
+     * actions list still contains actions.  Users of this method should ignore the subsequent
+     * actions list.
      *
      * @return The {@link Action}s that resulted from the round of placement.
      */
     public List<Action> getActions() {
-        return actions;
+        return actions.stream()
+            .flatMap(action -> Stream.concat(Stream.of(action),
+                action.getSubsequentActions().stream()))
+            .collect(Collectors.toList());
     }
 
     /**

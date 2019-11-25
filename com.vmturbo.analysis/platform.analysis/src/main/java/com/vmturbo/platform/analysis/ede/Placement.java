@@ -277,69 +277,25 @@ public class Placement {
             }
             // create recommendation, add it to the result list and  update the economy to
             // reflect the decision
-            Iterator<ShoppingList> peers = economy
-                .getPeerShoppingLists(shoppingList.getShoppingListId()).iterator();
-            while (true) {
-                // The first Move is the group leader, so the quote and savings are already computed.
-                Move move = new Move(economy, shoppingList, shoppingList.getSupplier(),
-                    cheapestSeller, minimizer.getBestQuote().getContext());
-                placementResults.addAction(move.take().setImportance(savings));
-                if (economy.getSettings().isUseExpenseMetricForTermination()) {
-                    Market myMarket = economy.getMarket(shoppingList);
-                    double placementSavings = myMarket.getPlacementSavings() + savings;
-                    if (Double.isInfinite(placementSavings)) {
-                        placementSavings = Double.MAX_VALUE;
-                    }
-                    myMarket.setPlacementSavings(placementSavings);
-                    if (logger.isDebugEnabled()
-                        && myMarket.getExpenseBaseline() < myMarket.getPlacementSavings()) {
-                        logger.debug("Total savings exceeds base expenses for buyer while shopping " +
-                            buyer.getDebugInfoNeverUseInCode()
-                            + " Basket " + shoppingList.getBasket());
-                    }
+            Move move = new Move(economy, shoppingList, shoppingList.getSupplier(),
+                cheapestSeller, minimizer.getBestQuote().getContext());
+            placementResults.addAction(move.take().setImportance(savings));
+            if (economy.getSettings().isUseExpenseMetricForTermination()) {
+                Market myMarket = economy.getMarket(shoppingList);
+                double placementSavings = myMarket.getPlacementSavings() + savings;
+                if (Double.isInfinite(placementSavings)) {
+                    placementSavings = Double.MAX_VALUE;
                 }
-                // Prepare for next Move in peers list
-                if (peers.hasNext()) {
-                    shoppingList = peers.next();
-                    logger.info("Synthesizing Move for {} in scaling group {}",
-                        shoppingList.getBuyer(), shoppingList.getBuyer().getScalingGroupId());
-                    minimizer = getQuote(economy, shoppingList);
-                    cheapestQuote = minimizer.getTotalBestQuote();
-                    cheapestSeller = minimizer.getBestSeller();
-                    buyer = shoppingList.getBuyer();
-                    currentQuote = minimizer.getCurrentQuote().getQuoteValue();
-                    savings = currentQuote - cheapestQuote;
-                } else {
-                    break;
+                myMarket.setPlacementSavings(placementSavings);
+                if (logger.isDebugEnabled()
+                    && myMarket.getExpenseBaseline() < myMarket.getPlacementSavings()) {
+                    logger.debug("Total savings exceeds base expenses for buyer while shopping " +
+                        buyer.getDebugInfoNeverUseInCode()
+                        + " Basket " + shoppingList.getBasket());
                 }
             }
         }
         return placementResults;
-    }
-
-    /**
-     * XLTODO javadoc.  The purpose of this method is to get the savings for non-leader scaling
-     * group members.
-     * @param economy
-     * @param shoppingList
-     * @return
-     */
-    private static QuoteMinimizer getQuote(Economy economy, ShoppingList shoppingList) {
-        // If there are no sellers in the market, the buyer is misconfigured, but this method
-        // will not be called in that case.
-        final @NonNull List<@NonNull Trader> sellers =
-            economy.getMarket(shoppingList).getActiveSellersAvailableForPlacement();
-
-        if (logger.isTraceEnabled()) {
-            logger.trace("PSL Sellers for shoppingList: " + shoppingList.toString());
-            for(Trader trader : sellers){
-                if(AnalysisToProtobuf.replaceNewSupplier(shoppingList, economy, trader) != null) {
-                    logger.trace("PSL Seller: " +
-                        trader.toString());
-                }
-            }
-        }
-        return initiateQuoteMinimizer(economy, sellers, shoppingList, null);
     }
 
     /**

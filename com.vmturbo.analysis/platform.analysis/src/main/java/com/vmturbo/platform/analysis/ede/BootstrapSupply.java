@@ -25,8 +25,6 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.Activate;
-import com.vmturbo.platform.analysis.actions.CompoundMove;
-import com.vmturbo.platform.analysis.actions.GuaranteedBuyerHelper;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
@@ -39,7 +37,6 @@ import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
-import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 import com.vmturbo.platform.analysis.utilities.ProvisionUtils;
 
 /*

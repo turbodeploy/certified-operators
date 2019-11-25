@@ -41,8 +41,6 @@ public class ProvisionByDemand extends ProvisionBase implements Action {
     // a map from commodity base type to its new capacity which will satisfy the demand
     private @NonNull Map<@NonNull Integer, @NonNull Double> commodityNewCapacityMap_ =
                     new HashMap<>();
-    // a list of actions triggered by taking provisionByDemand action
-    private List<@NonNull Action> subsequentActions_ = new ArrayList<>();
     // Constructors
 
     /**
@@ -70,16 +68,6 @@ public class ProvisionByDemand extends ProvisionBase implements Action {
     public @NonNull ShoppingList getModelBuyer(@ReadOnly ProvisionByDemand this) {
         return modelBuyer_;
     }
-
-    /**
-     * Returns the actions that was triggered after taking {@code this} action
-     * @return a list of actions followed by {@code this}
-     */
-    @Pure
-    public @NonNull List<Action> getSubsequentActions() {
-       return subsequentActions_;
-    }
-
 
     /**
      * Returns the modifiable map from the commodity base type to its new capacity after generating

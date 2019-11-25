@@ -2,6 +2,7 @@ package com.vmturbo.platform.analysis.actions;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
+import java.util.List;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -149,4 +150,5 @@ public interface Action {
         return null;
     }
 
+    @NonNull List<Action> getSubsequentActions();
 } // end Action interface

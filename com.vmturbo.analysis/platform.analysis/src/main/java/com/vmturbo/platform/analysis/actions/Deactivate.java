@@ -132,15 +132,6 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
         return this;
     }
 
-    /**
-     * Returns the actions that were triggered after taking {@code this} action
-     * @return a list of actions followed by {@code this}
-     */
-    @Pure
-    public @NonNull List<Action> getSubsequentActions() {
-        return subsequentActions_;
-    }
-
     // TODO: update description and reason when we create the corresponding matrix.
     @Override
     public @NonNull String debugDescription(@NonNull Function<@NonNull Trader, @NonNull String> uuid,

@@ -1,9 +1,12 @@
 package com.vmturbo.platform.analysis.actions;
 
+import java.util.LinkedList;
+import java.util.List;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.platform.analysis.economy.Trader;
 
@@ -27,6 +30,8 @@ public class ActionImpl implements Action {
     private boolean extractAction_ = false;
 
     private ActionType type_;
+
+    private @NonNull List<Action> subsequentActions_ = new LinkedList<>();
 
     @Override
     public ActionType getType() {
@@ -149,5 +154,14 @@ public class ActionImpl implements Action {
     @Override
     public void enableExtractAction() {
         extractAction_ = true;
+    }
+
+    /**
+     * Returns the actions that were triggered after taking {@code this} action
+     * @return a list of actions followed by {@code this}
+     */
+    @Pure
+    public @NonNull List<Action> getSubsequentActions() {
+        return subsequentActions_;
     }
 }

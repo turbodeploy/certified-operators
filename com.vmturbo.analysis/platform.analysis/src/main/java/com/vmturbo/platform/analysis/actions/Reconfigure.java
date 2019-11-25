@@ -2,23 +2,30 @@ package com.vmturbo.platform.analysis.actions;
 
 import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
+import java.util.List;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
+import com.google.common.collect.Lists;
 import com.google.common.hash.Hashing;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.ede.Placement;
+import com.vmturbo.platform.analysis.ede.QuoteMinimizer;
 
 /**
  * An action to reconfigure a {@link ShoppingList}.
  */
 public class Reconfigure extends MoveBase implements Action { // inheritance for code reuse
     // Fields
+    static final Logger logger = LogManager.getLogger(Placement.class);
 
     // Constructors
 
@@ -46,8 +53,30 @@ public class Reconfigure extends MoveBase implements Action { // inheritance for
             .toString();
     }
 
+    /**
+     * Take this action, then for all scaling group peers, generate and take Reconfigure actions.
+     * Place those Reconfigures onto the subsequent actions list inside this Reconfigure.
+     * @return This reconfigure action.  Any subsequent Reconfigure actions will be placed in
+     * subsequentActions_.
+     */
     @Override
     public @NonNull Reconfigure take() {
+        internalTake();
+        Economy economy = getEconomy();
+        List<ShoppingList> peers = economy.getPeerShoppingLists(getTarget().getShoppingListId());
+        for (ShoppingList shoppingList : peers) {
+            logger.info("Synthesizing Reconfigure for {} in scaling group {}",
+                shoppingList.getBuyer(), shoppingList.getBuyer().getScalingGroupId());
+            // Insert Reconfigure at front of subsequent actions list so that they can be rolled back
+            // in reverse order.
+            Reconfigure reconfigure = new Reconfigure(economy, shoppingList);
+            getSubsequentActions().add(0, reconfigure.internalTake()
+                .setImportance(Double.POSITIVE_INFINITY));
+        }
+        return this;
+    }
+
+    private @NonNull Reconfigure internalTake() {
         super.take();
         // Nothing can be done automatically
         return this;
@@ -55,6 +84,14 @@ public class Reconfigure extends MoveBase implements Action { // inheritance for
 
     @Override
     public @NonNull Reconfigure rollback() {
+        Lists.reverse(getSubsequentActions())
+            .forEach(reconfigure -> ((Reconfigure)reconfigure).internalRollback());
+        internalRollback();
+        getSubsequentActions().clear();
+        return this;
+    }
+
+    private @NonNull Reconfigure internalRollback() {
         super.rollback();
         // Nothing to roll back!
         return this;
