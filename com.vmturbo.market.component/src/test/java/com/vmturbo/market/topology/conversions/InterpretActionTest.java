@@ -606,7 +606,7 @@ public class InterpretActionTest {
         // Source compute cost = 10 + 2 +3 = 15 (compute + ip + license)
         when(sourceCostJournal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE)).thenReturn(trax(10d));
         when(sourceCostJournal.getHourlyCostForCategory(CostCategory.IP)).thenReturn(trax(2d));
-        when(sourceCostJournal.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE)).thenReturn(trax(3d));
+        when(sourceCostJournal.getHourlyCostForCategory(CostCategory.LICENSE)).thenReturn(trax(3d));
         // Total Source cost = 20
         when(sourceCostJournal.getTotalHourlyCostExcluding(anySet())).thenReturn(trax(20d));
         when(mockTopologyCostCalculator.calculateCostForEntity(any(), eq(vm))).thenReturn(Optional.of(sourceCostJournal));
@@ -616,7 +616,7 @@ public class InterpretActionTest {
         // Destination compute cost = 9 + 1 + 2 = 12
         when(projectedCostJournal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE)).thenReturn(trax(9d));
         when(projectedCostJournal.getHourlyCostForCategory(CostCategory.IP)).thenReturn(trax(1d));
-        when(projectedCostJournal.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE)).thenReturn(trax(2d));
+        when(projectedCostJournal.getHourlyCostForCategory(CostCategory.LICENSE)).thenReturn(trax(2d));
         // Total destination cost = 15
         when(projectedCostJournal.getTotalHourlyCostExcluding(anySet())).thenReturn(trax(15d));
         projectedCosts.put(vm.getOid(), projectedCostJournal);

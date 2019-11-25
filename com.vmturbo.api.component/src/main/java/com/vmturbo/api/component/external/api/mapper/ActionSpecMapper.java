@@ -99,7 +99,6 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
-import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
@@ -1491,12 +1490,12 @@ public class ActionSpecMapper {
             // get real-time
             final List<Cost.CloudCostStatRecord.StatRecord> realTimeCostRecords = response.getCloudStatRecordList().get(statRecordListSize - 2).getStatRecordsList()
                     .stream()
-                    .filter(s -> s.getCategory() == Cost.CostCategory.ON_DEMAND_COMPUTE || s.getCategory() == CostCategory.ON_DEMAND_LICENSE)
+                    .filter(s -> s.getCategory() == Cost.CostCategory.ON_DEMAND_COMPUTE || s.getCategory() == Cost.CostCategory.LICENSE)
                     .collect(Collectors.toList());
             // get projected
             final List<Cost.CloudCostStatRecord.StatRecord> projectedTimeCostRecords = response.getCloudStatRecordList().get(statRecordListSize - 1).getStatRecordsList()
                     .stream()
-                    .filter(s -> s.getCategory() == Cost.CostCategory.ON_DEMAND_COMPUTE || s.getCategory() == CostCategory.ON_DEMAND_LICENSE)
+                    .filter(s -> s.getCategory() == Cost.CostCategory.ON_DEMAND_COMPUTE || s.getCategory() == Cost.CostCategory.LICENSE)
                     .collect(Collectors.toList());
             Double onDemandCostBefore = realTimeCostRecords.stream().mapToDouble(s -> s.getValues().getAvg()).sum();
             Double onDemandCostAfter = projectedTimeCostRecords.stream().mapToDouble(s -> s.getValues().getAvg()).sum();

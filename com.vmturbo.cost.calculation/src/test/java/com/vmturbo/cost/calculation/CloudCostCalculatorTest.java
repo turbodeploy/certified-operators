@@ -160,13 +160,7 @@ public class CloudCostCalculatorTest {
         when(topology.getConnectedService(COMPUTE_TIER_ID)).thenReturn(Optional.of(service));
         when(topology.getComputeTier(DEFAULT_VM_ID)).thenReturn(Optional.of(computeTier));
 
-        // Configure ReservedInstanceApplicator
-        final ReservedInstanceApplicator<TestEntityClass> riApplicator =
-            mock(ReservedInstanceApplicator.class);
-        when(riApplicator.recordRICoverage(computeTier)).thenReturn(trax(DEFAULT_RI_COVERAGE));
-        when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(
-            any(), eq(infoExtractor), eq(CLOUD_COST_DATA), eq(topologyRiCoverage)))
-            .thenReturn(riApplicator);
+
     }
 
     private TestEntityClass createVmTestEntity(long id, int entityType, OSType osType, Tenancy tenancy,
@@ -212,12 +206,12 @@ public class CloudCostCalculatorTest {
 
         // The cost of the RI isn't factored in because we mocked out the RI Applicator.
         assertThat(journal1.getTotalHourlyCost().getValue(),
-            is((BASE_PRICE + WSQL_ADJUSTMENT) * 1 + expectedIpAdjustment
-                    + WSQL_ENTERPRISE_8));
+            is((BASE_PRICE + WSQL_ADJUSTMENT) * (1 - DEFAULT_RI_COVERAGE) + expectedIpAdjustment
+                + WSQL_ENTERPRISE_8));
         assertThat(journal1.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(),
-            is(BASE_PRICE * 1));
-        assertThat(journal1.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE).getValue(),
-            is(WSQL_ADJUSTMENT * 1 + WSQL_ENTERPRISE_8));
+            is(BASE_PRICE * (1 - DEFAULT_RI_COVERAGE)));
+        assertThat(journal1.getHourlyCostForCategory(CostCategory.LICENSE).getValue(),
+            is(WSQL_ADJUSTMENT * (1 - DEFAULT_RI_COVERAGE) + WSQL_ENTERPRISE_8));
         assertThat(journal1.getHourlyCostForCategory(CostCategory.IP).getValue(), is(expectedIpAdjustment));
 
         // Once for the compute, once for the adjustment, once for the license, because all costs
@@ -232,8 +226,8 @@ public class CloudCostCalculatorTest {
             OSType.WINDOWS_WITH_SQL_ENTERPRISE, Tenancy.DEFAULT, VMBillingType.ONDEMAND, 2,
                 EntityDTO.LicenseModel.LICENSE_INCLUDED);
         final CostJournal<TestEntityClass> journal2 = cloudCostCalculator.calculateCost(wsqlVm2Cores);
-        assertThat(journal2.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE).getValue(),
-            is(WSQL_ADJUSTMENT * 1 + WSQL_ENTERPRISE_2));
+        assertThat(journal2.getHourlyCostForCategory(CostCategory.LICENSE).getValue(),
+            is(WSQL_ADJUSTMENT * (1 - DEFAULT_RI_COVERAGE) + WSQL_ENTERPRISE_2));
 
         final TestEntityClass spotVm = createVmTestEntity(DEFAULT_VM_ID, EntityType.VIRTUAL_MACHINE_VALUE,
             OSType.SUSE, Tenancy.DEFAULT, VMBillingType.BIDDING, 2,
@@ -242,15 +236,15 @@ public class CloudCostCalculatorTest {
         assertThat(spotJournal.getHourlyCostForCategory(CostCategory.SPOT).getValue(),
             is(BASE_PRICE * (1 - DEFAULT_RI_COVERAGE)));
         // No adjustment and license costs for spot instances
-        assertThat(spotJournal.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE).getValue(), is(0.0));
+        assertThat(spotJournal.getHourlyCostForCategory(CostCategory.LICENSE).getValue(), is(0.0));
 
         final TestEntityClass suseVm =  createVmTestEntity(DEFAULT_VM_ID, EntityType.VIRTUAL_MACHINE_VALUE,
             OSType.SUSE, Tenancy.DEFAULT, VMBillingType.ONDEMAND, 2,
                 EntityDTO.LicenseModel.LICENSE_INCLUDED);
 
         final CostJournal<TestEntityClass> journal3 = cloudCostCalculator.calculateCost(suseVm);
-        assertThat(journal3.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE).getValue(),
-            is(SUSE_ADJUSTMENT * 1));
+        assertThat(journal3.getHourlyCostForCategory(CostCategory.LICENSE).getValue(),
+            is(SUSE_ADJUSTMENT * (1 - DEFAULT_RI_COVERAGE)));
     }
 
     /**
@@ -280,12 +274,12 @@ public class CloudCostCalculatorTest {
         final CostJournal<TestEntityClass> journal1 = cloudCostCalculator.calculateCost(windowsVm4CoresBYOL);
 
         // The cost of the RI isn't factored in because we mocked out the RI Applicator.
-        assertThat(journal1.getTotalHourlyCost().getValue(), is(BASE_PRICE * 1
+        assertThat(journal1.getTotalHourlyCost().getValue(), is(BASE_PRICE * (1 - DEFAULT_RI_COVERAGE)
                 + expectedIpAdjustment));
         assertThat(journal1.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(),
-                is(BASE_PRICE * 1));
+                is(BASE_PRICE * (1 - DEFAULT_RI_COVERAGE)));
         // assert no license price
-        assertThat(journal1.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE).getValue(), is(0.0));
+        assertThat(journal1.getHourlyCostForCategory(CostCategory.LICENSE).getValue(), is(0.0));
     }
 
     /**
@@ -434,7 +428,7 @@ public class CloudCostCalculatorTest {
         // assert
         assertThat(journal.getTotalHourlyCost().getValue(), is(BASE_PRICE + MYSQL_ADJUSTMENT));
         assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(), is(BASE_PRICE));
-        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE).getValue(), is(MYSQL_ADJUSTMENT));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.LICENSE).getValue(), is(MYSQL_ADJUSTMENT));
 
         // Once for the compute, once for the license, because both costs are "paid to" the
         // database tier.
@@ -470,7 +464,7 @@ public class CloudCostCalculatorTest {
         // assert
         assertThat(journal.getTotalHourlyCost().getValue(), is(BASE_PRICE + MYSQL_ADJUSTMENT));
         assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE).getValue(), is(BASE_PRICE));
-        assertThat(journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE).getValue(), is(MYSQL_ADJUSTMENT));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.LICENSE).getValue(), is(MYSQL_ADJUSTMENT));
 
         // Once for the compute, once for the license, because both costs are "paid to" the
         // database server tier.

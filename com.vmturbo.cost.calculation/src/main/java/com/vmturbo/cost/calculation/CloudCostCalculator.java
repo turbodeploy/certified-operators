@@ -415,12 +415,14 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                         if (computePriceList != null) {
                             final ComputeTierConfigPrice basePrice = computePriceList.getBasePrice();
                             // For compute tiers, we're working with "hourly" costs, and the amount
-                            // of "compute" bought from the tier is 1 unit. Note: This cost is purely
-                            // on demand and does not include any RI related costs.
-                            TraxNumber traxNumber = trax(1, "full on demand");
-                            recordOnDemandVmCost(journal, traxNumber, basePrice, computeTier);
+                            // of "compute" bought from the tier is the percentage of the hour filled
+                            // by on-demand coverage (i.e. 1 - % RI coverage).
+                            final TraxNumber unitsBought = riComputeCoveragePercent
+                                .subtractFrom(1.0, "full on demand")
+                                .compute("% bought on demand");
+                            recordOnDemandVmCost(journal, unitsBought, basePrice, computeTier);
                             recordVMLicenseCost(journal, computeTier, computeConfig,
-                                computePriceList, traxNumber, accountPricingData);
+                                computePriceList, unitsBought, accountPricingData);
                         }
                     }
                     recordVMIpCost(entity, computeTier, onDemandPriceTable.get(), journal);
@@ -453,7 +455,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
 
             // Recording any price adjustments from the license base price.
             if (licensePrice.getImplicitLicensePrice() != LicensePriceTuple.NO_LICENSE_PRICE) {
-                journal.recordOnDemandCost(CostCategory.ON_DEMAND_LICENSE, computeTier,
+                journal.recordOnDemandCost(CostCategory.LICENSE, computeTier,
                         Price.newBuilder().setPriceAmount(CurrencyAmount.newBuilder()
                                 .setAmount(licensePrice.getImplicitLicensePrice()).build())
                                 .build(), unitsBought);
@@ -462,14 +464,14 @@ public class CloudCostCalculator<ENTITY_CLASS> {
             // Recording the license price according to os and number of cores (used for explicit cases).
             // Here the "unitsBought" is 1.0 since the RI discount does not apply on explicit price.
             if (licensePrice.getExplicitLicensePrice() != LicensePriceTuple.NO_LICENSE_PRICE) {
-                journal.recordOnDemandCost(CostCategory.ON_DEMAND_LICENSE, computeTier,
+                journal.recordOnDemandCost(CostCategory.LICENSE, computeTier,
                         Price.newBuilder().setPriceAmount(CurrencyAmount.newBuilder()
                                 .setAmount(licensePrice.getExplicitLicensePrice()).build())
                                 .build(), trax(1.0, "explicit license"));
             }
         } else {
             // The VM is "Bring Your Own License" - set the license price to 0.
-            journal.recordOnDemandCost(CostCategory.ON_DEMAND_LICENSE, computeTier,
+            journal.recordOnDemandCost(CostCategory.LICENSE, computeTier,
                     Price.newBuilder().setPriceAmount(CurrencyAmount.newBuilder()
                             .setAmount(0).build()).build(), trax(0, "bring-your-own-license price"));
         }
@@ -591,7 +593,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
             .filter(databaseConfig::matchesPriceTableConfig)
             .findAny()
             .ifPresent(priceAdjustmentConfig -> journal.recordOnDemandCost(
-                CostCategory.ON_DEMAND_LICENSE,
+                CostCategory.LICENSE,
                 databaseTier,
                 priceAdjustmentConfig.getPricesList().get(0), FULL));
     }
