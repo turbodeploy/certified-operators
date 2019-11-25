@@ -465,16 +465,15 @@ class DiscoveredGroupInterpreter {
      *
      * @param templateExclusionGroup template exclusion group
      * @param targetId The target that discovered the groups
-     * @param targetName The target name
      * @return the set of template OIDs
      */
     @Nonnull
     public Set<Long> convertTemplateNamesToOids(@Nonnull CommonDTO.GroupDTO templateExclusionGroup,
-            long targetId, @Nonnull String targetName) {
+            long targetId) {
         Optional<Map<String, Long>> entityMap = entityStore.getTargetEntityIdMap(targetId);
 
         if (!entityMap.isPresent()) {
-            logger.warn("No entity ID map available for target {}", targetName);
+            logger.warn("No entity ID map available for target {}", targetId);
             return Collections.emptySet();
         }
 
@@ -482,13 +481,12 @@ class DiscoveredGroupInterpreter {
 
         if (constraint == null) {
             logger.warn("Constraint is null for group '{}', target {}", templateExclusionGroup,
-                    targetName);
+                    targetId);
             return Collections.emptySet();
         }
 
         if (constraint.getExcludedTemplatesCount() <= 0) {
-            logger.warn("No cloud tiers for group '{}', target {}", templateExclusionGroup,
-                    targetName);
+            logger.warn("No templates for group '{}', target {}", templateExclusionGroup, targetId);
             return Collections.emptySet();
         }
 
@@ -499,8 +497,7 @@ class DiscoveredGroupInterpreter {
             Long oid = entityMap.get().get(templateName);
 
             if (oid == null) {
-                logger.error("No OID found for cloud tier '{}', target {}", templateName,
-                        targetName);
+                logger.error("No OID found for template '{}', target {}", templateName, targetId);
             } else {
                 result.add(oid);
             }
