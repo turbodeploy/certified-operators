@@ -97,7 +97,7 @@ public class CostComponentProjectedEntityCostListener implements ProjectedEntity
     private void sendProjectedCostNotification(
             @Nonnull final CostNotification projectedCostNotification) {
         try {
-            costNotificationSender.sendNotification(projectedCostNotification);
+            costNotificationSender.sendStatusNotification(projectedCostNotification);
             final StatusUpdate projectedCostUpdate =
                     projectedCostNotification.getStatusUpdate();
             logger.debug("The projected cost notification has been sent successfully. topology " +

@@ -35,6 +35,8 @@ import com.vmturbo.cost.component.notification.CostNotificationSender;
 import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalRICoverageAnalysis;
 import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalRICoverageAnalysisFactory;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.proactivesupport.DataMetricSummary;
+import com.vmturbo.proactivesupport.DataMetricTimer;
 
 /**
  * This class used to handle reserved instance coverage update. Because for reserved instance
@@ -44,6 +46,23 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * into the database.
  */
 public class ReservedInstanceCoverageUpdate {
+
+    /**
+     * A summary metric for duration of a RI coverage update. The update will include RI coverage
+     * validation and supplemental RI coverage analysis.
+     */
+    private static final DataMetricSummary COVERAGE_UPDATE_METRIC_SUMMARY =
+            DataMetricSummary.builder()
+                    .withName("cost_ri_coverage_update_duration_seconds")
+                    .withHelp("Time for an RI coverage update. Includes coverage validation, supplemental analysis, and DB update.")
+                    .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
+                    .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
+                    .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
+                    .withMaxAgeSeconds(60 * 60) // 60 mins.
+                    .withAgeBuckets(10) // 10 buckets, so buckets get switched every 6 minutes.
+                    .build()
+                    .register();
+
     private final Logger logger = LogManager.getLogger();
 
     private final DSLContext dsl;
@@ -110,7 +129,7 @@ public class ReservedInstanceCoverageUpdate {
             @Nonnull TopologyInfo topologyInfo,
             @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology) {
 
-        try {
+        try (DataMetricTimer timer = COVERAGE_UPDATE_METRIC_SUMMARY.startTimer()) {
             final long topologyId = topologyInfo.getTopologyId();
             final List<EntityRICoverageUpload> entityRICoverageUploads =
                     getCoverageUploadsForTopology(topologyId, cloudTopology);
@@ -338,7 +357,7 @@ public class ReservedInstanceCoverageUpdate {
                                                         @Nonnull Status status) {
         // send notification on projected topology
         try {
-            costNotificationSender.sendNotification(
+            costNotificationSender.sendStatusNotification(
                     CostNotification.newBuilder()
                             .setStatusUpdate(StatusUpdate.newBuilder()
                                     .setType(StatusUpdateType.SOURCE_RI_COVERAGE_UPDATE)

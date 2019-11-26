@@ -103,7 +103,7 @@ public class ProjectedRICoverageListener implements ProjectedReservedInstanceCov
     private void sendProjectedRiCoverageNotification(
             @Nonnull final CostNotification projectedRiCoverageNotification) {
         try {
-            costNotificationSender.sendNotification(projectedRiCoverageNotification);
+            costNotificationSender.sendStatusNotification(projectedRiCoverageNotification);
             final StatusUpdate projectedRiCoverageUpdate = projectedRiCoverageNotification.getStatusUpdate();
             logger.debug("The projected RI coverage notification has been sent successfully. " +
                             "topology ID: {} topology context ID: {} status: {}",

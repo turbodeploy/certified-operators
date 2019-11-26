@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -13,6 +14,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -32,6 +34,8 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.proactivesupport.DataMetricSummary;
+import com.vmturbo.proactivesupport.DataMetricTimer;
 
 /**
  * This class is used to validate RI coverage assignments. Validation is necessary in pulling
@@ -41,6 +45,19 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
  * be applied to supplemental allocations and market output as a sanity check.
  */
 public class ReservedInstanceCoverageValidator {
+
+    private static final DataMetricSummary VALIDATION_DURATION_METRIC_SUMMARY =
+            DataMetricSummary.builder()
+                    .withName("cost_ri_coverage_validation_duration_seconds")
+                    .withHelp("Time taken to validate RI coverage, based on the current cloud topology.")
+                    .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
+                    .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
+                    .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
+                    .withMaxAgeSeconds(60 * 60) // 60 mins.
+                    .withAgeBuckets(10) // 10 buckets, so buckets get switched every 6 minutes.
+                    .build()
+                    .register();
+
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -67,8 +84,17 @@ public class ReservedInstanceCoverageValidator {
                         .stream()
                         .collect(ImmutableMap.toImmutableMap(
                             ReservedInstanceBought::getId, Function.identity()));
+
+        // Query only for RI specs referenced from reservedInstancesBoughtById
+        final Set<Long> riSpecIds = reservedInstancesBoughtById.values()
+                .stream()
+                .filter(ReservedInstanceBought::hasReservedInstanceBoughtInfo)
+                .map(ReservedInstanceBought::getReservedInstanceBoughtInfo)
+                .filter(ReservedInstanceBoughtInfo::hasReservedInstanceSpec)
+                .map(ReservedInstanceBoughtInfo::getReservedInstanceSpec)
+                .collect(ImmutableSet.toImmutableSet());
         this.reservedInstanceSpecById =
-                reservedInstanceSpecStore.getAllReservedInstanceSpec()
+                reservedInstanceSpecStore.getReservedInstanceSpecByIds(riSpecIds)
                     .stream()
                     .collect(ImmutableMap.toImmutableMap(
                             ReservedInstanceSpec::getId, Function.identity()));
@@ -104,11 +130,13 @@ public class ReservedInstanceCoverageValidator {
     public List<EntityRICoverageUpload> validateCoverageUploads(
             @Nonnull Collection<EntityRICoverageUpload> entityRICoverageEntries) {
 
-        return entityRICoverageEntries.stream()
-                .map(this::validateCoverageUpload)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .collect(ImmutableList.toImmutableList());
+        try (DataMetricTimer timer = VALIDATION_DURATION_METRIC_SUMMARY.startTimer()) {
+            return entityRICoverageEntries.stream()
+                    .map(this::validateCoverageUpload)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .collect(ImmutableList.toImmutableList());
+        }
     }
 
     /**

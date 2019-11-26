@@ -39,7 +39,7 @@ public class CostNotificationSender extends
     }
 
     /**
-     * Sends the cost notification.
+     * Sends the cost status notification.
      *
      * @param costNotification The cost notification
      * @throws InterruptedException   if sending thread has been interrupted. This does not
@@ -47,7 +47,7 @@ public class CostNotificationSender extends
      * @throws CommunicationException if persistent communication error occurred (message could
      *                                not be sent in future).
      */
-    public void sendNotification(@Nonnull final CostNotification costNotification)
+    public void sendStatusNotification(@Nonnull final CostNotification costNotification)
             throws CommunicationException, InterruptedException {
         sendMessage(notificationSender, costNotification);
     }

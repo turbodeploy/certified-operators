@@ -62,6 +62,7 @@ public class SupplementalRICoverageAnalysisTest {
         // The version of mockito we use currently doesn't support RETURNS_SELF
         when(riCoverageAllocatorBuilder.coverageProvider(any())).thenReturn(riCoverageAllocatorBuilder);
         when(riCoverageAllocatorBuilder.coverageTopology(any())).thenReturn(riCoverageAllocatorBuilder);
+        when(riCoverageAllocatorBuilder.metricsProvider(any())).thenReturn(riCoverageAllocatorBuilder);
         when(riCoverageAllocatorBuilder.concurrentProcessing(anyBoolean()))
                 .thenReturn(riCoverageAllocatorBuilder);
         when(riCoverageAllocatorBuilder.validateCoverages(anyBoolean()))
@@ -140,7 +141,7 @@ public class SupplementalRICoverageAnalysisTest {
         when(reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(
                 eq(ReservedInstanceBoughtFilter.SELECT_ALL_FILTER)))
                 .thenReturn(reservedInstances);
-        when(reservedInstanceSpecStore.getAllReservedInstanceSpec())
+        when(reservedInstanceSpecStore.getReservedInstanceSpecByIds(any()))
                 .thenReturn(riSpecs);
         when(coverageTopologyFactory.createCoverageTopology(
                 eq(cloudTopology),

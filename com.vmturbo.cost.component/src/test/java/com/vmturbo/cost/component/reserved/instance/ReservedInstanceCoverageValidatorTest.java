@@ -162,7 +162,7 @@ public class ReservedInstanceCoverageValidatorTest {
         // setup mocks
         when(mockReservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(any()))
                 .thenReturn(Lists.newArrayList(reservedInstanceBought));
-        when(mockReservedInstanceSpecStore.getAllReservedInstanceSpec())
+        when(mockReservedInstanceSpecStore.getReservedInstanceSpecByIds(any()))
                 .thenReturn(Lists.newArrayList(reservedInstanceSpec));
 
         // generate CloudTopology
@@ -216,7 +216,7 @@ public class ReservedInstanceCoverageValidatorTest {
         // setup mocks
         when(mockReservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(any()))
                 .thenReturn(Lists.newArrayList(reservedInstanceBought));
-        when(mockReservedInstanceSpecStore.getAllReservedInstanceSpec())
+        when(mockReservedInstanceSpecStore.getReservedInstanceSpecByIds(any()))
                 .thenReturn(Lists.newArrayList(reservedInstanceSpec));
 
         // generate CloudTopology
@@ -250,7 +250,7 @@ public class ReservedInstanceCoverageValidatorTest {
         // setup mocks
         when(mockReservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(any()))
                 .thenReturn(Lists.newArrayList(reservedInstanceBought));
-        when(mockReservedInstanceSpecStore.getAllReservedInstanceSpec())
+        when(mockReservedInstanceSpecStore.getReservedInstanceSpecByIds(any()))
                 .thenReturn(Lists.newArrayList(reservedInstanceSpec));
 
         // generate CloudTopology
@@ -286,7 +286,7 @@ public class ReservedInstanceCoverageValidatorTest {
         // setup mocks
         when(mockReservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(any()))
                 .thenReturn(Lists.newArrayList(reservedInstanceBought));
-        when(mockReservedInstanceSpecStore.getAllReservedInstanceSpec())
+        when(mockReservedInstanceSpecStore.getReservedInstanceSpecByIds(any()))
                 .thenReturn(Lists.newArrayList(reservedInstanceSpec));
 
         // generate CloudTopology
@@ -319,7 +319,7 @@ public class ReservedInstanceCoverageValidatorTest {
         // setup mocks
         when(mockReservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(any()))
                 .thenReturn(Lists.newArrayList(reservedInstanceBought));
-        when(mockReservedInstanceSpecStore.getAllReservedInstanceSpec())
+        when(mockReservedInstanceSpecStore.getReservedInstanceSpecByIds(any()))
                 .thenReturn(Lists.newArrayList(reservedInstanceSpec));
 
         // generate CloudTopology
@@ -354,7 +354,7 @@ public class ReservedInstanceCoverageValidatorTest {
         // setup mocks
         when(mockReservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(any()))
                 .thenReturn(Lists.newArrayList(reservedInstanceBought));
-        when(mockReservedInstanceSpecStore.getAllReservedInstanceSpec())
+        when(mockReservedInstanceSpecStore.getReservedInstanceSpecByIds(any()))
                 .thenReturn(Lists.newArrayList(reservedInstanceSpec));
 
         // generate CloudTopology
@@ -385,7 +385,7 @@ public class ReservedInstanceCoverageValidatorTest {
         // setup mocks
         when(mockReservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(any()))
                 .thenReturn(Lists.newArrayList(reservedInstanceBought));
-        when(mockReservedInstanceSpecStore.getAllReservedInstanceSpec())
+        when(mockReservedInstanceSpecStore.getReservedInstanceSpecByIds(any()))
                 .thenReturn(Lists.newArrayList(reservedInstanceSpec));
 
         // generate CloudTopology
@@ -430,7 +430,7 @@ public class ReservedInstanceCoverageValidatorTest {
         // setup mocks
         when(mockReservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(any()))
                 .thenReturn(Lists.newArrayList(reservedInstanceBought));
-        when(mockReservedInstanceSpecStore.getAllReservedInstanceSpec())
+        when(mockReservedInstanceSpecStore.getReservedInstanceSpecByIds(any()))
                 .thenReturn(Lists.newArrayList(reservedInstanceSpec));
 
         // generate CloudTopology

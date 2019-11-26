@@ -2,10 +2,14 @@ package com.vmturbo.cost.component.reserved.instance.coverage.analysis;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSet;
+
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -13,6 +17,8 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
+import com.vmturbo.proactivesupport.DataMetricSummary;
+import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopologyFactory;
 
@@ -20,6 +26,31 @@ import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopolog
  * A factory class for creating instances of {@link SupplementalRICoverageAnalysis}
  */
 public class SupplementalRICoverageAnalysisFactory {
+
+    private static final DataMetricSummary RI_SPEC_DURATION_SUMMARY_METRIC =
+            DataMetricSummary.builder()
+                    .withName("cost_ri_cov_ri_spec_duration_seconds")
+                    .withHelp("Total time for supplemental RI coverage analysis.")
+                    .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
+                    .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
+                    .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
+                    .withMaxAgeSeconds(60 * 60) // 60 mins.
+                    .withAgeBuckets(10) // 10 buckets, so buckets get switched every 6 minutes.
+                    .build()
+                    .register();
+
+    private static final DataMetricSummary RI_BOUGHT_DURATION_SUMMARY_METRIC =
+            DataMetricSummary.builder()
+                    .withName("cost_ri_cov_ri_bought_duration_seconds")
+                    .withHelp("Total time for supplemental RI coverage analysis.")
+                    .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
+                    .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
+                    .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
+                    .withMaxAgeSeconds(60 * 60) // 60 mins.
+                    .withAgeBuckets(10) // 10 buckets, so buckets get switched every 6 minutes.
+                    .build()
+                    .register();
+
 
     private final CoverageTopologyFactory coverageTopologyFactory;
 
@@ -70,9 +101,20 @@ public class SupplementalRICoverageAnalysisFactory {
             @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
             @Nonnull List<EntityRICoverageUpload> entityRICoverageUploads) {
 
-        final List<ReservedInstanceBought> reservedInstances = reservedInstanceBoughtStore
-                .getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter.SELECT_ALL_FILTER);
-        final List<ReservedInstanceSpec> riSpecs = reservedInstanceSpecStore.getAllReservedInstanceSpec();
+        final List<ReservedInstanceBought> reservedInstances =
+                reservedInstanceBoughtStore
+                    .getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter.SELECT_ALL_FILTER);
+
+        // Query only for RI specs referenced from reservedInstances
+        final Set<Long> riSpecIds = reservedInstances.stream()
+                .filter(ReservedInstanceBought::hasReservedInstanceBoughtInfo)
+                .map(ReservedInstanceBought::getReservedInstanceBoughtInfo)
+                .filter(ReservedInstanceBoughtInfo::hasReservedInstanceSpec)
+                .map(ReservedInstanceBoughtInfo::getReservedInstanceSpec)
+                .collect(ImmutableSet.toImmutableSet());
+        final List<ReservedInstanceSpec> riSpecs =
+                reservedInstanceSpecStore.getReservedInstanceSpecByIds(riSpecIds);
+
         final CoverageTopology coverageTopology = coverageTopologyFactory.createCoverageTopology(
                 cloudTopology,
                 riSpecs,

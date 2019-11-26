@@ -349,7 +349,7 @@ public class ReservedInstanceCoverageJournal {
          * represented in this coverage entry
          */
         @Nonnull
-        public CloudServiceProvider cloudServiceProvier() {
+        public CloudServiceProvider cloudServiceProvider() {
             return cloudServiceProvider;
         }
 

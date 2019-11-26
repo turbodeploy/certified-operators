@@ -28,6 +28,8 @@ import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverage
 import com.vmturbo.reserved.instance.coverage.allocator.context.CloudProviderCoverageContext;
 import com.vmturbo.reserved.instance.coverage.allocator.filter.FirstPassCoverageFilter;
 import com.vmturbo.reserved.instance.coverage.allocator.key.HashableCoverageKeyCreator;
+import com.vmturbo.reserved.instance.coverage.allocator.metrics.RICoverageAllocationMetricsCollector;
+import com.vmturbo.reserved.instance.coverage.allocator.metrics.RICoverageAllocationMetricsProvider;
 import com.vmturbo.reserved.instance.coverage.allocator.rules.ReservedInstanceCoverageGroup;
 import com.vmturbo.reserved.instance.coverage.allocator.rules.ReservedInstanceCoverageRule;
 import com.vmturbo.reserved.instance.coverage.allocator.rules.ReservedInstanceCoverageRulesFactory;
@@ -59,6 +61,8 @@ public class ReservedInstanceCoverageAllocator {
 
     private final CoverageTopology coverageTopology;
 
+    private final RICoverageAllocationMetricsCollector metricsCollector;
+
     private final boolean validateCoverages;
 
     private final ReservedInstanceCoverageJournal coverageJournal;
@@ -74,6 +78,7 @@ public class ReservedInstanceCoverageAllocator {
 
 
         this.coverageTopology = Objects.requireNonNull(builder.coverageTopology);
+        this.metricsCollector = new RICoverageAllocationMetricsCollector(builder.metricsProvider);
         this.validateCoverages = builder.validateCoverages;
 
         final ReservedInstanceCoverageProvider coverageProvider =
@@ -147,45 +152,54 @@ public class ReservedInstanceCoverageAllocator {
      * if the {@link ExecutorService} of this allocator is single threaded.
      */
     private void allocateCoverageInternal() {
-        Set<CloudProviderCoverageContext> cloudProviderCoverageContexts =
-                CloudProviderCoverageContext.createContexts(
-                        coverageTopology,
-                        firstPassFilter.getReservedInstances(),
-                        firstPassFilter.getCoverableEntities(),
-                        true);
+
+        metricsCollector.onCoverageAnalysis().observe(() -> {
+            Set<CloudProviderCoverageContext> cloudProviderCoverageContexts =
+                    metricsCollector.onContextCreation().observe(() ->
+                            CloudProviderCoverageContext.createContexts(
+                                    coverageTopology,
+                                    metricsCollector.onFirstPassRIFilter()
+                                            .observe(() -> firstPassFilter.getReservedInstances()),
+                                    metricsCollector.onFirstPassEntityFilter()
+                                            .observe(() -> firstPassFilter.getCoverableEntities()),
+                                    true));
 
 
-        cloudProviderCoverageContexts.stream()
-                .map(coverageContext ->
-                        executorService.submit(() -> processCoverageContext(coverageContext)))
-                .collect(Collectors.toSet())
-                .forEach(this::waitForFuture);
+            cloudProviderCoverageContexts.stream()
+                    .map(coverageContext ->
+                            executorService.submit(() -> processCoverageContext(coverageContext)))
+                    .collect(Collectors.toSet())
+                    .forEach(this::waitForFuture);
+        });
     }
 
     private void processCoverageContext(@Nonnull CloudProviderCoverageContext coverageContext) {
 
-        final List<ReservedInstanceCoverageRule> coverageRules =
-                ReservedInstanceCoverageRulesFactory.createRules(
-                        coverageContext,
-                        coverageJournal,
-                        HashableCoverageKeyCreator.newFactory());
+        metricsCollector.onCoverageAnalysisForCSP(coverageContext, coverageJournal)
+                .observe(() -> {
+                    final List<ReservedInstanceCoverageRule> coverageRules =
+                            ReservedInstanceCoverageRulesFactory.createRules(
+                                    coverageContext,
+                                    coverageJournal,
+                                    HashableCoverageKeyCreator.newFactory());
 
-        coverageRules.forEach(rule -> {
+                    coverageRules.forEach(rule -> {
 
-            if (rule.createsDisjointGroups()) {
-                // If a rule is disjoint, it indicates each RI and topology entity within the
-                // coverageContext is included (at most) in one coverage group and is therefore safe
-                // to process concurrently
-                rule.coverageGroups()
-                        .map(group -> executorService.submit(() -> processGroup(group)))
-                        // first collect in a terminal stage to allow all submissions
-                        // to the executor service to complete
-                        .collect(Collectors.toSet())
-                        .forEach(this::waitForFuture);
-            } else {
-                rule.coverageGroups().forEach(this::processGroup);
-            }
-        });
+                        if (rule.createsDisjointGroups()) {
+                            // If a rule is disjoint, it indicates each RI and topology entity within the
+                            // coverageContext is included (at most) in one coverage group and is therefore safe
+                            // to process concurrently
+                            rule.coverageGroups()
+                                    .map(group -> executorService.submit(() -> processGroup(group)))
+                                    // first collect in a terminal stage to allow all submissions
+                                    // to the executor service to complete
+                                    .collect(Collectors.toSet())
+                                    .forEach(this::waitForFuture);
+                        } else {
+                            rule.coverageGroups().forEach(this::processGroup);
+                        }
+                    });
+                });
     }
 
     /**
@@ -232,6 +246,7 @@ public class ReservedInstanceCoverageAllocator {
                                     availableCoverage,
                                     allocatedCoverage);
                             coverageJournal.addCoverageEntry(coverageEntry);
+                            metricsCollector.onCoverageAssignment(coverageEntry);
 
                         } else {
                             entityQueue.poll();
@@ -268,6 +283,10 @@ public class ReservedInstanceCoverageAllocator {
         @Nonnull
         private CoverageTopology coverageTopology;
 
+        @Nonnull
+        private RICoverageAllocationMetricsProvider metricsProvider =
+                RICoverageAllocationMetricsProvider.EMPTY_PROVIDER;
+
         private boolean validateCoverages = false;
 
         private boolean concurrentProcessing = true;
@@ -302,6 +321,21 @@ public class ReservedInstanceCoverageAllocator {
         @Nonnull
         public Builder coverageTopology(@Nonnull CoverageTopology coverageTopology) {
             this.coverageTopology = Objects.requireNonNull(coverageTopology);
+            return this;
+        }
+
+        /**
+         * Set an (optional) metrics provider for collecting metrics on runtime duration and allocated
+         * coverage.
+         * @param metricsProvider The metrics provider. If specific metrics are not present in the provider,
+         *                        metrics for those stages will not be collected
+         * @return The instance of {@link Builder} for method chaining
+         */
+        @Nonnull
+        public Builder metricsProvider(@Nullable RICoverageAllocationMetricsProvider metricsProvider) {
+            this.metricsProvider = metricsProvider == null ?
+                    RICoverageAllocationMetricsProvider.EMPTY_PROVIDER :
+                    metricsProvider;
             return this;
         }
 
