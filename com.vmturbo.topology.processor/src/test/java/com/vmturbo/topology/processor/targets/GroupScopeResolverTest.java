@@ -43,6 +43,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
@@ -231,7 +232,8 @@ public class GroupScopeResolverTest {
                     .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                     .setOrigin(Origin.newBuilder()
                             .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                                    .addDiscoveringTargetIds(targetId[index])))
+                                    .putDiscoveredTargetData(targetId[index],
+                                        PerTargetEntityInformation.getDefaultInstance())))
                     .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                             .setCommodityType(TopologyDTO.CommodityType.newBuilder()
                                     .setType(CommodityType.VCPU_VALUE))
@@ -267,7 +269,8 @@ public class GroupScopeResolverTest {
                         .setEntityType(EntityType.APPLICATION_VALUE)
                         .setOrigin(Origin.newBuilder()
                                 .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                                        .addDiscoveringTargetIds(targetId[index])))
+                                        .putDiscoveredTargetData(targetId[index],
+                                            PerTargetEntityInformation.getDefaultInstance())))
                         .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider
                                 .newBuilder().setProviderId(memberId[index]))))
                 .build();
@@ -280,7 +283,8 @@ public class GroupScopeResolverTest {
                 .setFullEntity(TopologyEntityDTO.newBuilder()
                     .setOrigin(Origin.newBuilder()
                         .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                            .addDiscoveringTargetIds(targetId[0])))
+                            .putDiscoveredTargetData(targetId[0],
+                                PerTargetEntityInformation.getDefaultInstance())))
                     .setOid(BUSINESS_ACCOUNT_OID[1])
                     .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
                     .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
@@ -291,7 +295,8 @@ public class GroupScopeResolverTest {
                 .setFullEntity(TopologyEntityDTO.newBuilder()
                     .setOrigin(Origin.newBuilder()
                         .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                            .addDiscoveringTargetIds(targetId[0])))
+                            .putDiscoveredTargetData(targetId[0],
+                                PerTargetEntityInformation.getDefaultInstance())))
                     .setOid(BUSINESS_ACCOUNT_OID[0])
                     .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
                     .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()

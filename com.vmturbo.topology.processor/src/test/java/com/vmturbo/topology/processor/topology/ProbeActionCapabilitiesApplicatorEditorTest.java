@@ -21,6 +21,7 @@ import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
@@ -323,14 +324,15 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
     @Nonnull
     private TopologyEntity.Builder buildTopologyEntity(long oid, int type, int entityType,
                                                        long providerId, final Collection<Long> targetIds) {
+        DiscoveryOrigin.Builder origin = DiscoveryOrigin.newBuilder();
+        targetIds.forEach(id -> origin.putDiscoveredTargetData(id,
+                          PerTargetEntityInformation.getDefaultInstance()));
         return TopologyEntityUtils.topologyEntityBuilder(
                 TopologyEntityDTO.newBuilder()
                         .setAnalysisSettings(AnalysisSettings.newBuilder().build())
                         .setEntityType(entityType)
                         .setOrigin(Origin.newBuilder()
-                                .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                                        .addAllDiscoveringTargetIds(targetIds)
-                                        .build())
+                                .setDiscoveryOrigin(origin)
                                 .build())
                         .setOid(oid).addCommoditiesBoughtFromProviders(
                         CommoditiesBoughtFromProvider.newBuilder()
@@ -351,7 +353,8 @@ public class ProbeActionCapabilitiesApplicatorEditorTest {
                         .setEntityType(entityType)
                         .setOrigin(Origin.newBuilder()
                                 .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                                        .addAllDiscoveringTargetIds(Collections.singleton(DEFAULT_TARGET_ID))
+                                        .putDiscoveredTargetData(DEFAULT_TARGET_ID,
+                                            PerTargetEntityInformation.getDefaultInstance())
                                         .build())
                                 .build())
                         .setAnalysisSettings(AnalysisSettings.newBuilder()

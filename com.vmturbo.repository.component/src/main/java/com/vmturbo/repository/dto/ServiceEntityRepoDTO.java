@@ -49,7 +49,7 @@ public class ServiceEntityRepoDTO {
     private List<ConnectedEntityRepoDTO> connectedEntityList;
 
     // see ScopedEntity.targetIds for why we use string for targetIds here
-    private List<String> targetIds;
+    private Map<String, String> targetVendorIds;
 
     private EntityPipelineErrorsRepoDTO entityPipelineErrorsRepoDTO;
 
@@ -180,12 +180,12 @@ public class ServiceEntityRepoDTO {
         this.connectedEntityList = connectedEntityList;
     }
 
-    public List<String> getTargetIds() {
-        return targetIds;
+    public Map<String, String> getTargetVendorIds() {
+        return targetVendorIds;
     }
 
-    public void setTargetIds(List<String> targetIds) {
-        this.targetIds = targetIds;
+    public void setTargetVendorIds(Map<String, String> targetVendorIds) {
+        this.targetVendorIds = targetVendorIds;
     }
 
     public ApplicationInfoRepoDTO getApplicationInfoRepoDTO() {
@@ -320,7 +320,7 @@ public class ServiceEntityRepoDTO {
                     that.commoditiesBoughtRepoFromProviderDTOList) &&
                 Objects.equals(commoditySoldList, that.commoditySoldList) &&
                 Objects.equals(connectedEntityList, that.connectedEntityList) &&
-                Objects.equals(targetIds, that.targetIds) &&
+                Objects.equals(targetVendorIds, that.targetVendorIds) &&
                 Objects.equals(applicationInfoRepoDTO, that.applicationInfoRepoDTO) &&
                 Objects.equals(databaseInfoRepoDTO, that.databaseInfoRepoDTO) &&
                 Objects.equals(computeTierInfoRepoDTO, that.computeTierInfoRepoDTO) &&
@@ -341,7 +341,7 @@ public class ServiceEntityRepoDTO {
         return Objects.hash(uuid, displayName, entityType, environmentType, priceIndex,
             priceIndexProjected, state, severity, oid, tags, providers,
             commoditiesBoughtRepoFromProviderDTOList, commoditySoldList, connectedEntityList,
-            targetIds, applicationInfoRepoDTO, databaseInfoRepoDTO, computeTierInfoRepoDTO,
+            targetVendorIds, applicationInfoRepoDTO, databaseInfoRepoDTO, computeTierInfoRepoDTO,
             physicalMachineInfoRepoDTO, storageInfoRepoDTO, diskArrayInfoRepoDTO,
             logicalPoolInfoRepoDTO, storageControllerInfoRepoDTO, virtualMachineInfoRepoDTO,
             virtualVolumeInfoRepoDTO, businessAccountInfoRepoDTO, desktopPoolInfoRepoDTO,
@@ -365,7 +365,7 @@ public class ServiceEntityRepoDTO {
                 ", commoditiesBoughtRepoFromProviderDTOList=" + commoditiesBoughtRepoFromProviderDTOList +
                 ", commoditySoldList=" + commoditySoldList +
                 ", connectedEntityList=" + connectedEntityList +
-                ", targetIds=" + targetIds +
+                ", targetVendorIds=" + targetVendorIds +
                 ", applicationInfoRepoDTO=" + applicationInfoRepoDTO +
                 ", databaseInfoRepoDTO=" + databaseInfoRepoDTO +
                 ", computeTierInfoRepoDTO=" + computeTierInfoRepoDTO +

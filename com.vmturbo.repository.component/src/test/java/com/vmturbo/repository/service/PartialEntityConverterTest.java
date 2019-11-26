@@ -20,6 +20,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWith
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.TypeSpecificPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
@@ -69,7 +70,7 @@ public class PartialEntityConverterTest {
         .setEnvironmentType(EnvironmentType.CLOUD)
         .setOrigin(Origin.newBuilder()
             .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                .addDiscoveringTargetIds(TARGET_ID)))
+                .putDiscoveredTargetData(TARGET_ID, PerTargetEntityInformation.getDefaultInstance())))
         .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
             .setVirtualMachine(VirtualMachineInfo.newBuilder()
                 .setNumCpus(10)))
@@ -139,7 +140,7 @@ public class PartialEntityConverterTest {
         assertThat(apiEntity.getDisplayName(), is(ENTITY.getDisplayName()));
         assertThat(apiEntity.getEntityType(), is(ENTITY.getEntityType()));
         assertThat(apiEntity.getEntityState(), is(ENTITY.getEntityState()));
-        assertThat(apiEntity.getDiscoveringTargetIdsList(), contains(TARGET_ID));
+        assertThat(apiEntity.getDiscoveredTargetDataMap().keySet(), contains(TARGET_ID));
         assertThat(apiEntity.getTags(), is(ENTITY.getTags()));
         assertThat(apiEntity.getProvidersList(), contains(RelatedEntity.newBuilder()
             .setEntityType(PROVIDER.getEntityType())
@@ -210,7 +211,7 @@ public class PartialEntityConverterTest {
         assertThat(apiEntity.getDisplayName(), is(ENTITY.getDisplayName()));
         assertThat(apiEntity.getEntityType(), is(ENTITY.getEntityType()));
         assertThat(apiEntity.getEntityState(), is(ENTITY.getEntityState()));
-        assertThat(apiEntity.getDiscoveringTargetIdsList(), contains(TARGET_ID));
+        assertThat(apiEntity.getDiscoveredTargetDataMap().keySet(), contains(TARGET_ID));
         assertThat(apiEntity.getTags(), is(ENTITY.getTags()));
         assertThat(apiEntity.getProvidersList(), contains(RelatedEntity.newBuilder()
             .setEntityType(PROVIDER.getEntityType())

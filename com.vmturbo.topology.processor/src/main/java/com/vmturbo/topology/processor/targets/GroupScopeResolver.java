@@ -67,8 +67,6 @@ public class GroupScopeResolver {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private static final String ENTITY_TYPE_PROPERTY = "entityType";
-
     /**
      * Group service stub for getting group membership from Group Service.
      */
@@ -390,7 +388,7 @@ public class GroupScopeResolver {
                     Optional.of(String.valueOf(providerToGuestLoad.get(scopedEntityDTO).getOid())) :
                     Optional.empty();
             final Optional<String> targetAddress = scopedEntityDTO.getOrigin().getDiscoveryOrigin()
-                .getDiscoveringTargetIdsList().stream()
+                .getDiscoveredTargetDataMap().keySet().stream()
                 .findAny()
                 .flatMap(targetStore::getTargetDisplayName);
             final Optional<String> localName = entityStore.chooseEntityDTO(scopedEntityDTO.getOid())
@@ -442,9 +440,9 @@ public class GroupScopeResolver {
                         provider.getOrigin().hasDiscoveryOrigin();
                 if (guestLoadHasOrigin && providerHasOrigin) {
                     Set<Long> guestLoadTargetIds = guestLoadEntityDTO.getOrigin().getDiscoveryOrigin()
-                            .getDiscoveringTargetIdsList().stream().collect(Collectors.toSet());
+                            .getDiscoveredTargetDataMap().keySet();
                     Set<Long> providerTargetIds = provider.getOrigin().getDiscoveryOrigin()
-                            .getDiscoveringTargetIdsList().stream().collect(Collectors.toSet());
+                            .getDiscoveredTargetDataMap().keySet();
                     Set<Long> targetsForBoth = Sets.intersection(guestLoadTargetIds, providerTargetIds);
                     if (!targetsForBoth.isEmpty() && hasValidGuestLoadTarget(targetsForBoth)) {
                         logger.debug("Paired group scope entity {} with the guest load entity {}.",

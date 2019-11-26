@@ -104,7 +104,7 @@ public class SupplyChainDefinitions {
         logger.trace("Retrieving supply chain templates for {}", entity::getDisplayName);
 
         final Collection<Long> discoveringTargetIds =
-            entityDTOOrBuilder.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList();
+            entityDTOOrBuilder.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap().keySet();
         logger.trace(
             "Entity {} has {} origins", entity::getDisplayName, discoveringTargetIds::size);
 
