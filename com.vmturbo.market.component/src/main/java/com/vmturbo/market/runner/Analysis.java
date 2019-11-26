@@ -17,11 +17,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
@@ -29,6 +27,9 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -53,6 +54,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
@@ -536,33 +538,47 @@ public class Analysis {
      */
     private void copySkippedEntitiesToProjectedTopology(
             final Set<Long> wastedStorageActionsVolumeIds) {
-        Set<ProjectedTopologyEntity> projectedEntitiesFromOriginalTopo =
-            originalCloudTopology.getAllEntitiesOfType(
-                TopologyConversionConstants.ENTITY_TYPES_TO_SKIP_TRADER_CREATION).stream()
-                .map(p -> ProjectedTopologyEntity.newBuilder()
-                    .setEntity(p).build())
+        // Calculate set of Volumes that have been already added to projected entities. They are:
+        // 1. Volumes attached to VMs
+        // 2. Detached volumes that have Delete action
+        final Set<Long> attachedVolumeIds = originalCloudTopology
+                .getAllEntitiesOfType(EntityType.VIRTUAL_MACHINE_VALUE).stream()
+                .flatMap(vm -> vm.getConnectedEntityListList().stream())
+                .filter(connectedEntity -> connectedEntity.getConnectedEntityType() ==
+                        EntityType.VIRTUAL_VOLUME_VALUE)
+                .map(ConnectedEntity::getConnectedEntityId)
                 .collect(Collectors.toSet());
-        Set<ProjectedTopologyEntity> projectedEntitiesFromSkippedEntities =
-            converter.getSkippedEntitiesInScope(scopeEntities.keySet()).stream()
-                    .map(entityDTO ->  ProjectedTopologyEntity.newBuilder()
-                            .setEntity(entityDTO).build())
-                    .collect(Collectors.toSet());
-        Sets.union(projectedEntitiesFromOriginalTopo, projectedEntitiesFromSkippedEntities).stream()
-                .filter(entity -> entity.getEntity().getEntityType()
-                        != EntityType.VIRTUAL_VOLUME_VALUE
-                        || !wastedStorageActionsVolumeIds.contains(entity.getEntity().getOid()))
-            .forEach(projectedEntity -> {
-                final ProjectedTopologyEntity existing =
-                    projectedEntities.put(projectedEntity.getEntity().getOid(), projectedEntity);
-                if (existing != null && !projectedEntity.equals(existing)) {
-                    logger.error("Existing projected entity overwritten by entity from " +
-                            "original topology. Existing (converted from market): {}\nOriginal: {}",
-                        existing, projectedEntity);
-                }
-                logger.trace("Added entity with [name: {}, oid: {}] to projected entities.",
-                        projectedEntity.getEntity().getDisplayName(),
-                        projectedEntity.getEntity().getOid());
-            });
+        final Set<Long> alreadyAddedVolumeIds = Sets.union(attachedVolumeIds, wastedStorageActionsVolumeIds);
+
+        final Stream<TopologyEntityDTO> projectedEntitiesFromOriginalTopo =
+                originalCloudTopology.getAllEntitiesOfType(
+                        TopologyConversionConstants.ENTITY_TYPES_TO_SKIP_TRADER_CREATION).stream();
+        final Stream<TopologyEntityDTO> projectedEntitiesFromSkippedEntities =
+                converter.getSkippedEntitiesInScope(scopeEntities.keySet()).stream();
+        final Set<ProjectedTopologyEntity> entitiesToAdd = Stream
+                .concat(projectedEntitiesFromOriginalTopo, projectedEntitiesFromSkippedEntities)
+                // Exclude Volumes that have been already added to projected entities
+                .filter(entity -> !alreadyAddedVolumeIds.contains(entity.getOid()))
+                .map(Analysis::toProjectedTopologyEntity)
+                .collect(Collectors.toSet());
+
+        entitiesToAdd.forEach(projectedEntity -> {
+            final ProjectedTopologyEntity existing =
+                projectedEntities.put(projectedEntity.getEntity().getOid(), projectedEntity);
+            if (existing != null && !projectedEntity.equals(existing)) {
+                logger.error("Existing projected entity overwritten by entity from " +
+                        "original topology. Existing (converted from market): {}\nOriginal: {}",
+                    existing, projectedEntity);
+            }
+            logger.trace("Added entity with [name: {}, oid: {}] to projected entities.",
+                    projectedEntity.getEntity().getDisplayName(),
+                    projectedEntity.getEntity().getOid());
+        });
+    }
+
+    private static ProjectedTopologyEntity toProjectedTopologyEntity(
+            @Nonnull final TopologyEntityDTO topologyEntityDTO) {
+        return ProjectedTopologyEntity.newBuilder().setEntity(topologyEntityDTO).build();
     }
 
     /**
