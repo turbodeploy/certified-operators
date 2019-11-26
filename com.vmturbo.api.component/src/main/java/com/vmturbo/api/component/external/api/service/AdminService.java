@@ -257,8 +257,8 @@ public class AdminService implements IAdminService {
             }
             return Optional.of(LoggingMapper.protoLogLevelToApiLogLevel(turboLogLevel));
         } catch (ResourceAccessException e) {
-            // component may be down
-            logger.warn("Unable to get logging levels for component {}", component, e);
+            // component may be down; warn but don't flood the log with stack traces
+            logger.warn("Unable to get logging levels for component {}", component);
             return Optional.empty();
         } catch (UnsupportedOperationException e) {
             logger.error("Proto logging level for component {} is not supported by API", component, e);
