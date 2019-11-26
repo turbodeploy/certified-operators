@@ -44,9 +44,8 @@ if [ ! -f "/etc/nginx/certs/tls.crt" ] | [ ! -f "/etc/nginx/certs/tls.key" ]; th
     rm -f /tmp/certs/*
     mkdir -p /tmp/certs
     pushd /tmp/certs
-    openssl genrsa -out tls.key 2048
-    openssl req -new -sha256 -key tls.key -out csr.csr -subj '/CN=turbonomic'
-    openssl req -x509 -sha256 -days 3650 -key tls.key -in csr.csr -out tls.crt
+    openssl req -newkey rsa:2048 -x509 -sha256 -days 365 -nodes -keyout tls.key -new -out tls.crt -subj /CN=localhost -reqexts SAN -extensions SAN \
+      -config <(printf '[ req ]\ndistinguished_name	= req_distinguished_name\n[ req_distinguished_name ]\ncountryName = US\n[SAN]\nsubjectAltName=DNS:localhost,IP:127.0.0.1\n extendedKeyUsage = serverAuth, clientAuth, emailProtection\n keyUsage=nonRepudiation, digitalSignature, keyEncipherment')
     popd
     sed -i "s/etc\/nginx\/certs/tmp\/certs/" /tmp/nginx.conf
 fi
