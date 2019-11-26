@@ -152,17 +152,16 @@ public class ReservedInstanceAggregate {
      *
      * @param entityId The entity id which wants to use the coupons
      * @param totalNumberOfCouponsToUse the number of coupons which the entity wants to use
-     * @return the entity reserved instance coverage for this
+     * @return mapping from RI ID -> Number of coupons used of that RI.
      */
-    public Optional<EntityReservedInstanceCoverage> useCoupons(
-            long entityId, double totalNumberOfCouponsToUse) {
+    public Map<Long, Double> useCoupons(long entityId, double totalNumberOfCouponsToUse) {
         double origTotalNumberOfCouponsToUse = totalNumberOfCouponsToUse;
         List<ReservedInstanceData> sortedRis =  getConstituentRIs().stream().sorted(
                 Comparator.comparing(riData ->
                         RIPriority.get(riData.getReservedInstanceSpec()
                                 .getReservedInstanceSpecInfo().getType().getPaymentOption())))
                 .collect(Collectors.toList());
-        EntityReservedInstanceCoverage.Builder riCoverageBuilder = null;
+        Map<Long, Double> riIdtoCouponsOfRIUsed  = new HashMap<>();
         for(ReservedInstanceData riData : sortedRis) {
             if (totalNumberOfCouponsToUse < 0) {
                 logger.error("Total number of coupons to use is {} in {} for entityId {}",
@@ -175,21 +174,19 @@ public class ReservedInstanceAggregate {
             RICouponInfo couponInfo = riCouponInfoMap.get(riBought.getId());
             double couponsOfRiUsed = couponInfo.useCoupons(totalNumberOfCouponsToUse);
             if (couponsOfRiUsed > 0) {
-                if (riCoverageBuilder == null) {
-                    riCoverageBuilder = EntityReservedInstanceCoverage.newBuilder();
-                    riCoverageBuilder.setEntityId(entityId);
-                }
                 totalNumberOfCouponsToUse -= couponsOfRiUsed;
-                riCoverageBuilder.putCouponsCoveredByRi(riBought.getId(), couponsOfRiUsed);
+                riIdtoCouponsOfRIUsed.put(riBought.getId(), couponsOfRiUsed);
             }
         }
+
         if (totalNumberOfCouponsToUse > 0) {
             logger.error("Attempted to use {} coupons but could only use {} in {} for entityId {}",
                     origTotalNumberOfCouponsToUse,
                     origTotalNumberOfCouponsToUse - totalNumberOfCouponsToUse,
                     getDisplayName(), entityId);
         }
-        return riCoverageBuilder == null ? Optional.empty() : Optional.of(riCoverageBuilder.build());
+
+        return riIdtoCouponsOfRIUsed;
     }
 
     /**

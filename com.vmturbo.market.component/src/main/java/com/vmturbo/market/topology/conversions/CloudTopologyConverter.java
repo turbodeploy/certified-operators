@@ -309,6 +309,26 @@ public class CloudTopologyConverter {
     }
 
     /**
+     * Gets the primary market tier(compute tier) which is a supplier
+     * for the trader.
+     *
+     * @param trader TraderTO.
+     * @return Optional of the primary market tier
+     */
+    @Nullable
+    Optional<MarketTier> getComputeTier(TraderTO trader) {
+        List<MarketTier> primaryMarketTiers =  trader.getShoppingListsList().stream()
+                .map(sl -> traderTOOidToMarketTier.get(sl.getSupplier()))
+                .filter(Objects::nonNull)
+                .filter(mTier -> EntityType.COMPUTE_TIER_VALUE == mTier.getTier().getEntityType())
+                .collect(Collectors.toList());
+        if (primaryMarketTiers.size() != 1) {
+            return Optional.empty();
+        }
+        return Optional.of(primaryMarketTiers.get(0));
+    }
+
+    /**
      * Given a trader, get the region comm type from it shopping list.
      *
      * @param trader the trader

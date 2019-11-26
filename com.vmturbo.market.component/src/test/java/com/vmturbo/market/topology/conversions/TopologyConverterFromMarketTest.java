@@ -1312,6 +1312,7 @@ public class TopologyConverterFromMarketTest {
         Mockito.doReturn(Collections.singleton(oldTierDTO)).when(mockCloudTc)
                 .getTopologyEntityDTOProvidersOfType(any(), Mockito.anyInt());
         Mockito.doReturn(oldVMTO).when(converter).topologyDTOtoTraderTO(Mockito.eq(originalEntityDTO));
+        Mockito.doReturn(Optional.empty()).when(mockCloudTc).getComputeTier(any());
 
         Map<Long, ProjectedTopologyEntity> projectedTOs =
                 converter.convertFromMarket(Collections.singletonList(vmTO),

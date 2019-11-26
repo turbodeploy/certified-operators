@@ -206,8 +206,9 @@ message EntityReservedInstanceCoverage {
     // For an explanation of coupons see: TypeSpecificInfo.ComputeTierInfo.
     map<int64, double> coupons_covered_by_ri = 10;
 
-    // The total amount of coupons the entity requires.
-    optional double coupons_used_by_entity = 11;
+    // The number of coupons of the compute tier on which this entity is residing or it is going to
+    // reside on (in case of projected).
+    optional int32 entity_coupon_capacity = 11;
 }
 
 // Actual message that gets sent across the wire from market component

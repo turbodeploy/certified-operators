@@ -1,5 +1,6 @@
 package com.vmturbo.market.topology;
 
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -124,9 +125,9 @@ public class RiDiscountedMarketTier implements SingleRegionMarketTier {
      *
      * @param entityId The entity id which wants to use the coupons
      * @param totalNumberOfCouponsToUse the number of coupons which the entity wants to use
-     * @return the entity reserved instance coverage for this
+     * @return mapping from RI ID -> Number of coupons used of that RI.
      */
-    public Optional<EntityReservedInstanceCoverage> useCoupons(long entityId, double totalNumberOfCouponsToUse) {
+    public Map<Long, Double> useCoupons(long entityId, double totalNumberOfCouponsToUse) {
         return riAggregate.useCoupons(entityId, totalNumberOfCouponsToUse);
     }
 

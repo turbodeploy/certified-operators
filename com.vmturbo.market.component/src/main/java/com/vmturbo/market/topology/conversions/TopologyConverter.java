@@ -626,10 +626,16 @@ public class TopologyConverter {
                                               @Nonnull Optional<EntityReservedInstanceCoverage> originalRiCoverage) {
         // Are any of the shopping lists of the projected trader placed on discounted tier?
         Optional<ShoppingListTO> projectedRiTierSl = getShoppingListSuppliedByRiTier(projectedTraderTO);
+
         if (projectedRiTierSl.isPresent()) {
             // Destination is RI. Get the projected RI Tier and the projected coupon comm bought.
             RiDiscountedMarketTier projectedRiTierDestination = (RiDiscountedMarketTier)
                     cloudTc.getMarketTier(projectedRiTierSl.get().getCouponId());
+            // Find the destination compute tier to which this VM is going to move.
+            final int destinationCouponCap = cloudTc.getMarketTier(projectedRiTierSl.get().getSupplier())
+                    .getTier().getTypeSpecificInfo()
+                    .getComputeTier().getNumCoupons();
+
             Optional<CommodityBoughtTO> projectedCouponCommBought = getCouponCommBought(
                     projectedRiTierSl.get());
             if (!projectedCouponCommBought.isPresent()) {
@@ -657,12 +663,14 @@ public class TopologyConverter {
                 // So, in all these cases, create a new RICoverage object.
                 // The information of the number of coupons to use is present in the coupon
                 // commodity bought of the trader
-                Optional<EntityReservedInstanceCoverage> riCoverage =
-                        projectedRiTierDestination.useCoupons(projectedTraderTO.getOid(),
-                                projectedCouponCommBought.get().getQuantity());
-                riCoverage.ifPresent(coverage -> projectedReservedInstanceCoverage.put(
-                        projectedTraderTO.getOid(), coverage));
-
+                final Map<Long, Double> riIdtoCouponsOfRIUsed = projectedRiTierDestination
+                        .useCoupons(projectedTraderTO.getOid(), projectedCouponCommBought.get().getQuantity());
+                if (!riIdtoCouponsOfRIUsed.isEmpty()) {
+                    EntityReservedInstanceCoverage riCoverage = EntityReservedInstanceCoverage.newBuilder()
+                            .putAllCouponsCoveredByRi(riIdtoCouponsOfRIUsed)
+                            .setEntityCouponCapacity(destinationCouponCap).build();
+                    projectedReservedInstanceCoverage.put(projectedTraderTO.getOid(), riCoverage);
+                }
             } else {
                 // Entity stayed on the same RI Tier. Check if the coverage changed.
                 // If we are in this block, originalTraderTO cannot be null.
@@ -676,13 +684,27 @@ public class TopologyConverter {
                         projectedCouponCommBought.get().getQuantity(),
                         originalNumberOfCouponsBought)) {
                     // Coverage changed. Create a new RICoverage object
-                    Optional<EntityReservedInstanceCoverage> riCoverage =
-                            projectedRiTierDestination.useCoupons(projectedTraderTO.getOid(), projectedNumberOfCouponsBought);
-                    riCoverage.ifPresent(coverage -> projectedReservedInstanceCoverage.put(projectedTraderTO.getOid(), coverage));
+                    final Map<Long, Double> riIdtoCouponsOfRIUsed = projectedRiTierDestination
+                            .useCoupons(projectedTraderTO.getOid(), projectedNumberOfCouponsBought);
+                    if (!riIdtoCouponsOfRIUsed.isEmpty()) {
+                        EntityReservedInstanceCoverage riCoverage = EntityReservedInstanceCoverage.newBuilder()
+                                .putAllCouponsCoveredByRi(riIdtoCouponsOfRIUsed)
+                                .setEntityCouponCapacity(destinationCouponCap).build();
+                        projectedReservedInstanceCoverage.put(projectedTraderTO.getOid(), riCoverage);
+                    }
                 } else {
                     // Coverage did not change. Use the original ri coverage.
                     projectedReservedInstanceCoverage.put(projectedTraderTO.getOid(), originalRiCoverage.get());
                 }
+            }
+        } else {
+            Optional<MarketTier> primaryMarketTier = cloudTc.getComputeTier(projectedTraderTO);
+            if (primaryMarketTier.isPresent()) {
+                Integer destinationCouponCap = primaryMarketTier.get().getTier().getTypeSpecificInfo()
+                                                .getComputeTier().getNumCoupons();
+                EntityReservedInstanceCoverage riCoverage = EntityReservedInstanceCoverage.newBuilder()
+                        .setEntityCouponCapacity(destinationCouponCap).build();
+                projectedReservedInstanceCoverage.put(projectedTraderTO.getOid(), riCoverage);
             }
         }
     }
