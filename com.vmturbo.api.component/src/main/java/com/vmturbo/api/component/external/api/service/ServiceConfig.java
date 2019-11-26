@@ -630,8 +630,7 @@ public class ServiceConfig {
     public CloudPlanNumEntitiesByTierSubQuery cloudPlanNumEntitiesByTierSubQuery() {
         final CloudPlanNumEntitiesByTierSubQuery cloudPlanNumEntitiesByTierQuery =
             new CloudPlanNumEntitiesByTierSubQuery(communicationConfig.repositoryApi(),
-                communicationConfig.supplyChainFetcher(),
-                communicationConfig.getRealtimeTopologyContextId());
+                communicationConfig.supplyChainFetcher());
         statsQueryExecutor().addSubquery(cloudPlanNumEntitiesByTierQuery);
         return cloudPlanNumEntitiesByTierQuery;
     }

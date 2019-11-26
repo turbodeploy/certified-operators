@@ -20,6 +20,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
@@ -390,7 +391,8 @@ public class SupplyChainFetcherFactory {
      *            the operation asynchronously while the calling code does other things we should
      *            return the operation itself, and this parameter would be different.
      */
-    private abstract class SupplyChainFetcherBuilder<B extends SupplyChainFetcherBuilder<B, T>, T> {
+    @VisibleForTesting
+    public abstract class SupplyChainFetcherBuilder<B extends SupplyChainFetcherBuilder<B, T>, T> {
 
         // all fields are optional; see the setter for each field for a description
         protected long topologyContextId = realtimeTopologyContextId;
