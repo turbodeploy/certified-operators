@@ -419,6 +419,14 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
                         .map(PerTargetEntityInformation::getVendorId).orElse(null);
     }
 
+    @Nonnull
+    @Override
+    public Stream<String> getAllVendorIds() {
+        return discoveredTargetData.values().stream()
+            .filter(PerTargetEntityInformation::hasVendorId)
+            .map(PerTargetEntityInformation::getVendorId);
+    }
+
     /**
      * Builder for {@link RepoGraphEntity}.
      */

@@ -8,6 +8,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -37,14 +38,19 @@ import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
 import com.vmturbo.mediation.conversion.util.CloudService;
 import com.vmturbo.mediation.conversion.util.ConverterUtils;
 import com.vmturbo.mediation.conversion.util.TestUtils;
+import com.vmturbo.platform.common.builders.EntityBuilders;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.SubDivisionData;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
+import com.vmturbo.platform.sdk.common.util.SDKUtil;
 
 public class AzureCloudDiscoveryConverterTest {
 
@@ -417,6 +423,34 @@ public class AzureCloudDiscoveryConverterTest {
         newEntitiesByType.get(EntityType.DISK_ARRAY).forEach(entity ->
                 assertFalse(converter.convert(entity, azureConverter)));
     }
+
+    /**
+     * Test that appropriate EntityProperties are used to set appropriate fields of
+     * VirtualVolumeData and that all other EntityProperties are handled gracefully (i.e. ignored).
+     */
+    @Test
+    public void testVolumePropertyUpdates() {
+        final EntityProperty tagEntityProperty = EntityBuilders.entityProperty()
+            .withNamespace(SDKUtil.VC_TAGS_NAMESPACE)
+            .named("tag-name").withValue("tag-value").build();
+        final EntityProperty unknownEntityProperty = EntityBuilders.entityProperty()
+            .named("some-unrecognized-name").withValue("some-value").build();
+        final EntityProperty attachmentEntityProperty = EntityBuilders.entityProperty()
+            .named(AzureConstants.VOLUME_IS_ATTACHED_PROPERTY).withValue("true").build();
+        final VirtualVolumeData preexisting = VirtualVolumeData.newBuilder().build();
+
+        final AzureStorageConverter converter = new AzureStorageConverter();
+        final VirtualVolumeData resultWithAttachment = converter.updateVirtualVolumeData(preexisting,
+            Arrays.asList(tagEntityProperty, attachmentEntityProperty, unknownEntityProperty));
+
+        assertEquals(AttachmentState.ATTACHED, resultWithAttachment.getAttachmentState());
+
+        final VirtualVolumeData resultNoState = converter.updateVirtualVolumeData(preexisting,
+            Arrays.asList(tagEntityProperty, unknownEntityProperty));
+
+        assertFalse(resultNoState.hasAttachmentState());
+    }
+
 
     /**
      * Verify that the commodity providers are changed to new types.

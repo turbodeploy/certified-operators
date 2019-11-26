@@ -144,6 +144,7 @@ public class EntityFilterMapper {
         filterTypesToProcessors.put(StringConstants.TAGS_ATTR, EntityFilterMapper::getTagProcessor);
         filterTypesToProcessors.put(StringConstants.CLUSTER, EntityFilterMapper::getClusterProcessor);
         filterTypesToProcessors.put(NETWORKS, EntityFilterMapper::getNetworkProcessor);
+        filterTypesToProcessors.put(SearchableProperties.VENDOR_ID, EntityFilterMapper::getVendorIdProcessor);
         filterTypesToProcessors.put(CONSUMES, traversalFilterProcessor);
         filterTypesToProcessors.put(PRODUCES, traversalFilterProcessor);
         filterTypesToProcessors.put(CONNECTED_FROM, traversalFilterProcessor);
@@ -221,6 +222,21 @@ public class EntityFilterMapper {
                                     ListFilter.newBuilder()
                                         .setStringFilter(stringFilter))
                                 .build()));
+    }
+
+    private static List<SearchFilter> getVendorIdProcessor(SearchFilterContext context) {
+        final StringFilter stringFilter =
+            SearchProtoUtil.stringFilterRegex(
+                context.getFilter().getExpVal(),
+                context.getFilter().getExpType().equals(REGEX_MATCH),
+                context.getFilter().getCaseSensitive());
+        return Collections.singletonList(SearchProtoUtil.searchFilterProperty(
+            PropertyFilter.newBuilder()
+                .setPropertyName(SearchableProperties.VENDOR_ID)
+                .setListFilter(
+                    ListFilter.newBuilder()
+                        .setStringFilter(stringFilter))
+                .build()));
     }
 
     /**

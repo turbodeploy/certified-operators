@@ -520,6 +520,30 @@ public class EntityFilterMapperTest {
     }
 
     /**
+     * Test that the vendor ID criterion is properly converted into a list filter.
+     */
+    @Test
+    public void testVendorIdSearch() {
+        final List<SearchParameters> sp = entityFilterMapper.convertToSearchParameters(
+            Collections.singletonList(
+                filterDTO(EntityFilterMapper.REGEX_MATCH, "id-1.*", "volumeById")),
+            "VirtualVolume", null);
+        assertEquals(1, sp.size());
+        final SearchParameters params = sp.get(0);
+        assertEquals(SearchProtoUtil.entityTypeFilter(UIEntityType.VIRTUAL_VOLUME),
+            params.getStartingFilter());
+        assertEquals(1, params.getSearchFilterCount());
+        final SearchFilter searchFilter = params.getSearchFilter(0);
+        assertTrue(searchFilter.hasPropertyFilter());
+        final PropertyFilter propFilter = searchFilter.getPropertyFilter();
+        assertEquals("vendorId", propFilter.getPropertyName());
+        assertTrue(propFilter.hasListFilter());
+        assertTrue(propFilter.getListFilter().hasStringFilter());
+        assertEquals("^id-1.*$",
+            propFilter.getListFilter().getStringFilter().getStringPropertyRegex());
+    }
+
+    /**
      * Verify that a extact string match by-tags criterion is converted properly.
      */
     @Test

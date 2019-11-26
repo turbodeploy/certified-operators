@@ -102,6 +102,14 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
     String getVendorId(long targetId);
 
     /**
+     * Get this entity's external vendor identifiers from all targets.
+     *
+     * @return stream of vendor IDs from all discovering targets
+     */
+    @Nonnull
+    Stream<String> getAllVendorIds();
+
+    /**
      * Get the commodities sold by this entity, organized by type.
      * This may not return the full list of sold commodities. Implementations are only
      * required to return commodities that are supported in the filters

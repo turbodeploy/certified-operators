@@ -425,6 +425,15 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                                 == positiveMatch;
                     });
             }
+        } else if (propertyName.equals(SearchableProperties.VENDOR_ID)) {
+            if (listCriteria.hasStringFilter() && listCriteria.getStringFilter().hasStringPropertyRegex()) {
+                final String regex = listCriteria.getStringFilter().getStringPropertyRegex();
+                final boolean positiveMatch = listCriteria.getStringFilter().getPositiveMatch();
+                final boolean caseSensitive = listCriteria.getStringFilter().getCaseSensitive();
+                final Pattern pattern = Pattern.compile(regex, caseSensitive ? 0 : Pattern.CASE_INSENSITIVE);
+                return new PropertyFilter<E>(entity -> entity.getAllVendorIds()
+                    .anyMatch(vendorId -> pattern.matcher(vendorId).find()) == positiveMatch);
+            }
         }
 
         throw new IllegalArgumentException("Unknown property: " + propertyName + " for ListFilter "

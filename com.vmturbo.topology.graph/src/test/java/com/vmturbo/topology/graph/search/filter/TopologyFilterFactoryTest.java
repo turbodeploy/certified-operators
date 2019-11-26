@@ -33,6 +33,7 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -1238,6 +1239,44 @@ public class TopologyFilterFactoryTest {
         assertFalse(propertyFilter.test(pmEntity));
         assertTrue(propertyFilter.test(volumeEntityMatching));
         assertFalse(propertyFilter.test(volumeEntityNotMatching));
+    }
+
+    /**
+     * Test the filter for an entity's vendor ID.
+     */
+    @Test
+    public void testSearchFilterVendorID() {
+        final SearchFilter vendorIdFilter = SearchProtoUtil.searchFilterProperty(
+            Search.PropertyFilter.newBuilder()
+                .setPropertyName(SearchableProperties.VENDOR_ID)
+                .setListFilter(ListFilter.newBuilder()
+                    .setStringFilter(StringFilter.newBuilder().setStringPropertyRegex("id-1.*"))
+                ).build());
+
+        final TestGraphEntity entityWithMatchingId =
+            TestGraphEntity.newBuilder(1L, UIEntityType.VIRTUAL_VOLUME)
+                .addTargetIdentity(333L, "id-123")
+                .build();
+        final TestGraphEntity entityNotMatching =
+            TestGraphEntity.newBuilder(2L, UIEntityType.VIRTUAL_VOLUME)
+                .addTargetIdentity(333L, "id-456")
+                .build();
+        final TestGraphEntity entityWithOneMatchingOneUnmatching =
+            TestGraphEntity.newBuilder(1L, UIEntityType.VIRTUAL_VOLUME)
+                .addTargetIdentity(333L, "id-789")
+                .addTargetIdentity(444L, "id-100")
+                .build();
+        final TestGraphEntity entityNoVendorId =
+            TestGraphEntity.newBuilder(3L, UIEntityType.VIRTUAL_VOLUME).build();
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(vendorIdFilter);
+        assertTrue(filter instanceof PropertyFilter);
+        PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        assertTrue(propertyFilter.test(entityWithMatchingId));
+        assertTrue(propertyFilter.test(entityWithOneMatchingOneUnmatching));
+        assertFalse(propertyFilter.test(entityNotMatching));
+        assertFalse(propertyFilter.test(entityNoVendorId));
     }
 
     private TestGraphEntity makeVmWithConnectedNetworks(long id, String... connectedNetworks) {

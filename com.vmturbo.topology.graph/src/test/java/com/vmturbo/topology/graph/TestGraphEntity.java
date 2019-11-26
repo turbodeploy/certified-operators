@@ -104,6 +104,12 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
 
     @Nonnull
     @Override
+    public Stream<String> getAllVendorIds() {
+        return discoveringTargetIds.values().stream();
+    }
+
+    @Nonnull
+    @Override
     public Map<Integer, CommoditySoldDTO> soldCommoditiesByType() {
         return commsSoldByType;
     }

@@ -164,7 +164,8 @@
         {"inputType": "s", "elements": "virtualVolumeInfoRepoDTO.attachmentState", "filterCategory": "property", "filterType": "volumeByAttachmentState"},
         {"inputType": "s", "elements": "StorageTier:oid:CONNECTED_FROM:1", "filterCategory": "entity", "filterType": "volumeByTier"},
         {"inputType": "s", "elements": "Region:oid:CONNECTED_TO:1:AvailabilityZone:CONNECTED_FROM:1", "filterCategory": "entity", "filterType": "volumeByRegion"},
-        {"inputType": "s", "elements": "cloudProvider", "filterCategory": "property", "filterType": "volumeByCloudProvider"}
+        {"inputType": "s", "elements": "cloudProvider", "filterCategory": "property", "filterType": "volumeByCloudProvider"},
+        {"inputType": "*", "elements": "vendorId", "filterCategory": "property", "filterType": "volumeById"}
       ]
     },
 

@@ -60,6 +60,11 @@ public class SearchableProperties {
     public static final String CLOUD_PROVIDER = "cloudProvider";
 
     /**
+     * ID of an entity, local to the vendor associated with a target that discovered the entity.
+     */
+    public static final String VENDOR_ID = "vendorId";
+
+    /**
      * BusinessAccountInfo class in the repository.
      */
     public static final String BUSINESS_ACCOUNT_INFO_REPO_DTO_PROPERTY_NAME =
