@@ -3,6 +3,8 @@ package com.vmturbo.platform.analysis.utilities;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
+import java.util.Arrays;
+
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Deterministic;
@@ -19,7 +21,7 @@ import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
 /**
  * A caching mechanism for {@link MutableQuote} objects.
  *
- * <p>The indention is to cache the results of {@link EdeCommon#quote(UnmodifiableEconomy,
+ * <p>The intention is to cache the results of {@link EdeCommon#quote(UnmodifiableEconomy,
  * ShoppingList, Trader, double, boolean)} during the execution of the SNM-enabled variant of the
  * Placement algorithm to avoid the (costly) recalculation of them.</p>
  *
@@ -77,7 +79,7 @@ public final class QuoteCache {
         checkArgument(0 <= nPotentialSellers,
             "nPotentialSellers must be non-negative but was %s.", nPotentialSellers);
         checkArgument(0 <= nBuyerShoppingLists,
-            "nBuyerShoppingLists must be non-negative but was %s.");
+            "nBuyerShoppingLists must be non-negative but was %s.", nBuyerShoppingLists);
 
         rowAssignments = new int[nTradersInEconomy];
 
@@ -142,8 +144,8 @@ public final class QuoteCache {
             nShoppingLists, shoppingListIndex);
 
         if (rowAssignments[traderEconomyIndex] == 0) { // 0 means "no assignment"
-            checkState(nextRowAssignment * nShoppingLists < cache.length, "This cache cannot hold " +
-                "quotes for any more distinct sellers. Up to %s are allowed!", nextRowAssignment);
+            checkState(nextRowAssignment * nShoppingLists < cache.length, "This cache cannot hold "
+                + "quotes for any more distinct sellers. Up to %s are allowed!", nextRowAssignment);
             rowAssignments[traderEconomyIndex] = nextRowAssignment++;
         }
         cache[rowAssignments[traderEconomyIndex] * nShoppingLists + shoppingListIndex] = quote;
@@ -170,11 +172,9 @@ public final class QuoteCache {
      */
     @Deterministic
     public @NonNull QuoteCache invalidate(int traderEconomyIndex) {
-        final int traderRowIndex = rowAssignments[traderEconomyIndex];
+        final int firstIndexInRow = rowAssignments[traderEconomyIndex] * nShoppingLists;
 
-        for (int slIndex = 0; slIndex < nShoppingLists; slIndex++) {
-            cache[traderRowIndex * nShoppingLists + slIndex] = null;
-        }
+        Arrays.fill(cache, firstIndexInRow, firstIndexInRow + nShoppingLists, null);
 
         return this;
     } // end method invalidate

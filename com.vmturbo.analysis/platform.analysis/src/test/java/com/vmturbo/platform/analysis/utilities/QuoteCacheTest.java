@@ -288,7 +288,7 @@ public class QuoteCacheTest {
                 try {
                     MutableQuote quote3 = new CommodityQuote(null, 42);
                     cache.put(traderIndex3, shoppingListIndex3, quote3);
-                    fail("At least one of the put operations should have failed with an" +
+                    fail("At least one of the put operations should have failed with an " +
                         "IllegalStateException!");
                 } catch (IllegalStateException e) {
                     if (traderIndex1 != traderIndex2 || shoppingListIndex1 != shoppingListIndex2) {
