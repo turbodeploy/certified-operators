@@ -9,7 +9,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -91,15 +90,6 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
 
     @Nonnull
     Stream<Long> getDiscoveringTargetIds();
-
-    /**
-     * Get the external vendor identity for the given target identifier, if present.
-     *
-     * @param targetId target oid
-     * @return null if not present (not mandatory in the probes, absent for not discovered origin)
-     */
-    @Nullable
-    String getVendorId(long targetId);
 
     /**
      * Get the commodities sold by this entity, organized by type.

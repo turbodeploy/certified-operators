@@ -72,7 +72,6 @@ import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -136,9 +135,6 @@ public class EntitiesServiceTest {
     private static final String ST_DISPLAY_NAME = "ST";
     private static final EntityState ST_STATE = EntityState.POWERED_ON;
     private static final long NON_EXISTENT_ID = 999L;
-    private static final String LOCAL_NAME = "qqq";
-    private static final PerTargetEntityInformation PER_TARGET_INFO = PerTargetEntityInformation
-                    .newBuilder().setVendorId(LOCAL_NAME).build();
 
     private static final ApiPartialEntity VM =
         ApiPartialEntity.newBuilder()
@@ -146,7 +142,7 @@ public class EntitiesServiceTest {
             .setDisplayName(VM_DISPLAY_NAME)
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
             .setEntityState(VM_STATE)
-            .putDiscoveredTargetData(TARGET_ID, PER_TARGET_INFO)
+            .addDiscoveringTargetIds(TARGET_ID)
             .setTags(
                     Tags.newBuilder()
                             .putTags(
@@ -160,7 +156,7 @@ public class EntitiesServiceTest {
             .setDisplayName(PM_DISPLAY_NAME)
             .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
             .setEntityState(PM_STATE)
-            .putDiscoveredTargetData(TARGET_ID, PER_TARGET_INFO)
+            .addDiscoveringTargetIds(TARGET_ID)
             .build();
 
     private static final ApiPartialEntity ST =
@@ -169,7 +165,7 @@ public class EntitiesServiceTest {
             .setDisplayName(ST_DISPLAY_NAME)
             .setEntityType(EntityType.STORAGE_VALUE)
             .setEntityState(ST_STATE)
-            .putDiscoveredTargetData(TARGET_ID, PER_TARGET_INFO)
+            .addDiscoveringTargetIds(TARGET_ID)
             .build();
 
     /**

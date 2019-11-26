@@ -33,7 +33,7 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
 
     private EnvironmentType envType = EnvironmentType.ON_PREM;
 
-    private final Map<Long, String> discoveringTargetIds = new HashMap<>();
+    private final Set<Long> discoveringTargetIds = new HashSet<>();
 
     private final Map<Integer, CommoditySoldDTO> commsSoldByType = new HashMap<>();
 
@@ -94,12 +94,7 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
     @Nonnull
     @Override
     public Stream<Long> getDiscoveringTargetIds() {
-        return discoveringTargetIds.keySet().stream();
-    }
-
-    @Override
-    public String getVendorId(long targetId) {
-        return discoveringTargetIds.get(targetId);
+        return discoveringTargetIds.stream();
     }
 
     @Nonnull
@@ -259,14 +254,13 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
         }
 
         /**
-         * Add an identity on a discovering target.
+         * Add a discovering target.
          *
          * @param target the id of the discovering target
-         * @param localName vendor identity
          * @return {@code this} for chaining
          */
-        public Builder addTargetIdentity(final long target, String localName) {
-            entity.discoveringTargetIds.put(target, localName);
+        public Builder addTarget(final long target) {
+            entity.discoveringTargetIds.add(target);
             return this;
         }
 
@@ -348,5 +342,4 @@ public class TestGraphEntity implements TopologyGraphEntity<TestGraphEntity> {
             return entity;
         }
     }
-
 }

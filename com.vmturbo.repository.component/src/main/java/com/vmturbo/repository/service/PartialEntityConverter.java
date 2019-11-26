@@ -14,7 +14,6 @@ import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
@@ -119,14 +118,7 @@ public class PartialEntityConverter {
                     .setEntityType(repoGraphEntity.getEntityType())
                     .setEnvironmentType(repoGraphEntity.getEnvironmentType())
                     .setTags(tagsBldr);
-                repoGraphEntity.getDiscoveringTargetIds().forEach(id -> {
-                    String vendorId = repoGraphEntity.getVendorId(id);
-                    PerTargetEntityInformation.Builder info = PerTargetEntityInformation.newBuilder();
-                    if (vendorId != null) {
-                        info.setVendorId(vendorId);
-                    }
-                    apiBldr.putDiscoveredTargetData(id, info.build());
-                });
+                repoGraphEntity.getDiscoveringTargetIds().forEach(apiBldr::addDiscoveringTargetIds);
                 repoGraphEntity.getConnectedToEntities().forEach(connectedTo -> {
                     apiBldr.addConnectedTo(relatedEntity(connectedTo));
                 });
@@ -168,7 +160,7 @@ public class PartialEntityConverter {
                     .setEntityType(topoEntity.getEntityType())
                     .setEnvironmentType(topoEntity.getEnvironmentType())
                     .addAllDiscoveringTargetIds(
-                        topoEntity.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap().keySet()));
+                        topoEntity.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList()));
                 break;
             case TYPE_SPECIFIC:
                 final TypeSpecificPartialEntity.Builder typeSpecificBuilder =
@@ -194,7 +186,7 @@ public class PartialEntityConverter {
                     .setEntityType(topoEntity.getEntityType())
                     .setDisplayName(topoEntity.getDisplayName())
                     .addAllDiscoveringTargetIds(
-                        topoEntity.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap().keySet());
+                        topoEntity.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList());
                 topoEntity.getCommoditySoldListList().stream()
                     .filter(comm -> ActionDTOUtil.NON_DISRUPTIVE_SETTING_COMMODITIES.contains(
                         comm.getCommodityType().getType()))
@@ -219,9 +211,9 @@ public class PartialEntityConverter {
                     .setEntityState(topoEntity.getEntityState())
                     .setEntityType(topoEntity.getEntityType())
                     .setEnvironmentType(topoEntity.getEnvironmentType())
-                    .setTags(topoEntity.getTags())
-                    .putAllDiscoveredTargetData(topoEntity.getOrigin()
-                                    .getDiscoveryOrigin().getDiscoveredTargetDataMap());
+                    .setTags(topoEntity.getTags());
+                topoEntity.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList()
+                    .forEach(apiBldr::addDiscoveringTargetIds);
 
                 topoEntity.getConnectedEntityListList().forEach(connectedEntity -> {
                     apiBldr.addConnectedTo(RelatedEntity.newBuilder()

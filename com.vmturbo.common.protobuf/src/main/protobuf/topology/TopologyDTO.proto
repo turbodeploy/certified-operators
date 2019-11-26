@@ -114,6 +114,8 @@ message TypeSpecificInfo {
         optional bool obsolete_has_associated_target = 1 [deprecated = true];
 
         // The OID of the target that discovered the entities in this BusinessAccount if one exists.
+        // This is filled in by the topology processor as the probe does not know the target
+        // information.
         optional int64 associated_target_id = 5;
 
         // The account id used by the third party provider.  For example, for Azure this would be
@@ -411,6 +413,8 @@ message PartialEntity {
 
         optional .topology.EntityState entity_state = 5 [default = POWERED_ON];
 
+        repeated int64 discovering_target_ids = 6;
+
         optional .tag.Tags tags = 10;
 
         // Note - we don't serve consumer and connected_from related entities, because in the
@@ -419,8 +423,6 @@ message PartialEntity {
         repeated RelatedEntity providers = 20;
 
         repeated RelatedEntity connected_to = 22;
-
-        map<int64, PerTargetEntityInformation> discovered_target_data = 23;
 
         message RelatedEntity {
 
@@ -610,10 +612,7 @@ message TopologyEntityDTO {
         //
         // The id of at least one target will always be in this list.
         // No guarantees are made about the order of the targets in the list.
-        // deprecated in favor of discovered_target_data
-        // please note that this deprecation/extension does not affect discovering_target_ids in
-        // MinimalEntity/ActionPartialEntity/Group.DiscoveredOrigin, but does affect ApiPartialEntity
-        repeated int64 discovering_target_ids = 1 [deprecated = true];
+        repeated int64 discovering_target_ids = 1;
 
         // The time that the data for this entity was last updated.
         //
@@ -627,10 +626,6 @@ message TopologyEntityDTO {
         // The time is in "computer time" and not necessarily UTC, however, times on TopologyEntityDTOs
         // are comparable. See documentation in Java's System#currentTimeMillis() for further details.
         optional int64 last_updated_time = 2;
-
-        // non-empty map of target oid to related discovery information,
-        // for all targets that contribute into entity (send the information)
-        map<int64, PerTargetEntityInformation> discovered_target_data = 3;
     }
 
     // an entity that was created via a Placement reservation. Has a reference to it's reservation
@@ -772,13 +767,6 @@ message TopologyEntityDTO {
             INCONSISTENT_KEY = 5;
         }
     }
-}
-
-// related information for the target that discovers the entity
-message PerTargetEntityInformation {
-    // identifier for the entity as vendor sees it ("local name")
-    // to be retained and passed to action execution, needs not be set
-    optional string vendor_id = 1;
 }
 
 // Message to hold original topology broadcast message.

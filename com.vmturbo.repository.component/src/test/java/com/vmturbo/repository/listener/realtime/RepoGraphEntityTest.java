@@ -10,12 +10,10 @@ import java.util.stream.Collectors;
 
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.DiscoveryOriginBuilder;
-import com.vmturbo.stitching.StitchingMergeInformation;
 
 /**
  * Unit tests for {@link RepoGraphEntity}.
@@ -72,17 +70,13 @@ public class RepoGraphEntityTest {
     @Test
     public void testBuildDiscoveryInformationWithMergeFromTargetIds() {
         final long discoveryTargetId = 111L;
-        final StitchingMergeInformation mergedTarget1 =
-                    new StitchingMergeInformation(1L, 333L,
-                                                  StitchingErrors.none());
-        final StitchingMergeInformation mergedTarget2 =
-                    new StitchingMergeInformation(1L, 444L,
-                                                  StitchingErrors.none());
+        final long mergedTarget1Id = 333L;
+        final long mergedTarget2Id = 444L;
         final Origin origin =
             Origin.newBuilder()
                 .setDiscoveryOrigin(DiscoveryOriginBuilder
                                         .discoveredBy(discoveryTargetId)
-                                        .withMerge(mergedTarget1, mergedTarget2)
+                                        .withMergeFromTargetIds(mergedTarget1Id, mergedTarget2Id)
                                         .lastUpdatedAt(0L))
                 .build();
         final RepoGraphEntity entity = RepoGraphEntity.newBuilder(dtoBuilder.setOrigin(origin).build())
@@ -90,8 +84,7 @@ public class RepoGraphEntityTest {
         final List<Long> originIds = entity.getDiscoveringTargetIds().collect(Collectors.toList());
 
         assertEquals(3, originIds.size());
-        assertThat(originIds, containsInAnyOrder(discoveryTargetId, mergedTarget1.getTargetId(),
-                                                 mergedTarget2.getTargetId()));
+        assertThat(originIds, containsInAnyOrder(discoveryTargetId, mergedTarget1Id, mergedTarget2Id));
     }
 
     /**

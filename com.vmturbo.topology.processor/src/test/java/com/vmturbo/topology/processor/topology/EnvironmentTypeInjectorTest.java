@@ -24,7 +24,6 @@ import org.junit.Test;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
@@ -71,8 +70,7 @@ public class EnvironmentTypeInjectorTest {
     public void testDiscoveredCloudEntity() {
         final TopologyGraph<TopologyEntity> graph = oneEntityGraph(builder -> builder.setOrigin(Origin.newBuilder()
             .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                .putDiscoveredTargetData(AWS_TARGET_ID,
-                    PerTargetEntityInformation.getDefaultInstance()))));
+                .addDiscoveringTargetIds(AWS_TARGET_ID))));
 
         final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
 
@@ -89,7 +87,7 @@ public class EnvironmentTypeInjectorTest {
     public void testDiscoveredOnPremEntity() {
         final TopologyGraph<TopologyEntity> graph = oneEntityGraph(builder -> builder.setOrigin(Origin.newBuilder()
             .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                .putDiscoveredTargetData(VC_TARGET_ID, PerTargetEntityInformation.getDefaultInstance()))));
+                .addDiscoveringTargetIds(VC_TARGET_ID))));
 
         final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
 
@@ -109,8 +107,7 @@ public class EnvironmentTypeInjectorTest {
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setOid(ENTITY_OID)
                 .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin
-                    .newBuilder().putDiscoveredTargetData(AWS_TARGET_ID,
-                        PerTargetEntityInformation.getDefaultInstance()))));
+                    .newBuilder().addDiscoveringTargetIds(AWS_TARGET_ID))));
         TopologyEntity.Builder container1 = TopologyEntity
             .newBuilder(TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.CONTAINER_VALUE)
@@ -118,8 +115,7 @@ public class EnvironmentTypeInjectorTest {
                 .addCommoditiesBoughtFromProviders(TopologyEntityDTO.CommoditiesBoughtFromProvider
                     .newBuilder().setProviderId(vm1.getOid()))
                 .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin
-                    .newBuilder().putDiscoveredTargetData(K8S_TARGET_ID,
-                        PerTargetEntityInformation.getDefaultInstance()))));
+                    .newBuilder().addDiscoveringTargetIds(K8S_TARGET_ID))));
         topologyEntitiesMap.put(vm1.getOid(), vm1);
         topologyEntitiesMap.put(container1.getOid(), container1);
         TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topologyEntitiesMap);
@@ -145,8 +141,7 @@ public class EnvironmentTypeInjectorTest {
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setOid(ENTITY_OID)
                 .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin
-                    .newBuilder().putDiscoveredTargetData(VC_TARGET_ID,
-                        PerTargetEntityInformation.getDefaultInstance()))));
+                    .newBuilder().addDiscoveringTargetIds(VC_TARGET_ID))));
         TopologyEntity.Builder container1 = TopologyEntity
             .newBuilder(TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.CONTAINER_VALUE)
@@ -155,8 +150,7 @@ public class EnvironmentTypeInjectorTest {
                     .setConnectedEntityId(ENTITY_OID)
                     .setConnectedEntityType(EntityType.VIRTUAL_MACHINE_VALUE))
                 .setOrigin(Origin.newBuilder().setDiscoveryOrigin(DiscoveryOrigin
-                    .newBuilder().putDiscoveredTargetData(K8S_TARGET_ID,
-                        PerTargetEntityInformation.getDefaultInstance()))));
+                    .newBuilder().addDiscoveringTargetIds(K8S_TARGET_ID))));
         topologyEntitiesMap.put(vm1.getOid(), vm1);
         topologyEntitiesMap.put(container1.getOid(), container1);
         TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topologyEntitiesMap);
@@ -227,8 +221,7 @@ public class EnvironmentTypeInjectorTest {
             builder.setEnvironmentType(EnvironmentType.UNKNOWN_ENV);
             builder.setOrigin(Origin.newBuilder()
                 .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                    .putDiscoveredTargetData(AWS_TARGET_ID,
-                        PerTargetEntityInformation.getDefaultInstance())));
+                    .addDiscoveringTargetIds(AWS_TARGET_ID)));
         });
 
         final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);
@@ -249,8 +242,7 @@ public class EnvironmentTypeInjectorTest {
             builder.setEnvironmentType(EnvironmentType.ON_PREM);
             builder.setOrigin(Origin.newBuilder()
                 .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                    .putDiscoveredTargetData(targetId,
-                        PerTargetEntityInformation.getDefaultInstance())));
+                    .addDiscoveringTargetIds(targetId)));
         });
 
         final InjectionSummary injectionSummary = environmentTypeInjector.injectEnvironmentType(graph);

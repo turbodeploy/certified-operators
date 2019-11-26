@@ -1010,7 +1010,7 @@ public class TopologyFilterFactoryTest {
     @Test
     public void testDiscoveringTargetFilter() {
         final TestGraphEntity entity = TestGraphEntity.newBuilder(1L, UIEntityType.APPLICATION)
-                                           .addTargetIdentity(1L, "")
+                                           .addTarget(1L)
                                            .build();
         final PropertyFilter<TestGraphEntity> filter1 =
             makeDiscoveringTargetFilter(StringFilter.newBuilder()

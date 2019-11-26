@@ -48,7 +48,6 @@ import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
@@ -448,7 +447,7 @@ public class BusinessAccountRetrieverTest {
             .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
             .setOrigin(Origin.newBuilder().setDiscoveryOrigin(
                 DiscoveryOrigin.newBuilder()
-                    .putDiscoveredTargetData(discoveringTarget, PerTargetEntityInformation.getDefaultInstance())))
+                    .addDiscoveringTargetIds(discoveringTarget)))
             // Add an owned VM
             .addConnectedEntityList(ConnectedEntity.newBuilder()
                 .setConnectedEntityId(123123)
@@ -487,7 +486,6 @@ public class BusinessAccountRetrieverTest {
                 .oid(11111)
                 .type(SDKProbeType.AWS.getProbeType())
                 .build())
-            .isHidden(false)
             .build();
         when(thinTargetCache.getTargetInfo(discoveringTarget))
             .thenReturn(Optional.of(discoveringTargetInfo));

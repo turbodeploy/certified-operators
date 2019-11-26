@@ -141,7 +141,7 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
         return entityDTO
                 .getOrigin()
                 .getDiscoveryOrigin()
-                .getDiscoveredTargetDataMap().keySet();
+                .getDiscoveringTargetIdsList();
     }
 }
 

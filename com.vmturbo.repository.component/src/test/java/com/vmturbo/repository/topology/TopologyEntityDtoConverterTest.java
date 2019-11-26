@@ -15,13 +15,12 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-
 import org.assertj.core.util.Lists;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+
+import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -35,6 +34,7 @@ import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTOREST.CommodityDTO.CommodityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.repository.dto.BusinessUserInfoRepoDTO;
 import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
@@ -151,7 +151,7 @@ public class TopologyEntityDtoConverterTest {
         connectedEntityRepoDTO.setConnectedEntityType(EntityType.PHYSICAL_MACHINE.getNumber());
         connectedEntityRepoDTO.setConnectedEntityId(pmTopoDTO.getOid());
         vmServiceEntity.setConnectedEntityList(Lists.newArrayList(connectedEntityRepoDTO));
-        vmServiceEntity.setTargetVendorIds(ImmutableMap.of("12512", "qqq"));
+        vmServiceEntity.setTargetIds(Lists.newArrayList("1111"));
     }
 
     @Test
@@ -340,11 +340,11 @@ public class TopologyEntityDtoConverterTest {
                                         connectedEntityRepoDTO.getConnectedEntityId())));
 
         // check target ids
-        if (seRepoDTO.getTargetVendorIds() != null) {
-            assertTrue(seRepoDTO.getTargetVendorIds().keySet().stream()
+        if (seRepoDTO.getTargetIds() != null) {
+            assertTrue(seRepoDTO.getTargetIds().stream()
                 .map(Long::valueOf)
                 .collect(Collectors.toList()).containsAll(
-                    seTopoDTO.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap().keySet()));
+                    seTopoDTO.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList()));
         }
     }
 

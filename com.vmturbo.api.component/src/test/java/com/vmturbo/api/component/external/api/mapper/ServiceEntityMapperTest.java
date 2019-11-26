@@ -5,7 +5,6 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -24,7 +23,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
@@ -41,6 +39,7 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
  * Tests the methods of {@link ServiceEntityMapper}.
  */
 public class ServiceEntityMapperTest {
+    private final TopologyProcessor topologyProcessor = mock(TopologyProcessor.class);
     private final ThinTargetCache targetCache = mock(ThinTargetCache.class);
     private final static long TARGET_ID = 10L;
     private final static String TARGET_DISPLAY_NAME = "display name";
@@ -61,7 +60,6 @@ public class ServiceEntityMapperTest {
                 .build())
             .displayName(TARGET_DISPLAY_NAME)
             .oid(TARGET_ID)
-            .isHidden(false)
             .build();
         when(targetCache.getTargetInfo(TARGET_ID)).thenReturn(Optional.of(thinTargetInfo));
     }
@@ -77,7 +75,6 @@ public class ServiceEntityMapperTest {
         final EnvironmentType environmentType = EnvironmentType.ON_PREM;
         final String tagKey = "tag";
         final String tagValue = "value";
-        final String localName = "qqq";
 
         final ApiPartialEntity apiEntity =
             ApiPartialEntity.newBuilder()
@@ -86,11 +83,7 @@ public class ServiceEntityMapperTest {
                 .setEntityType(entityType.getNumber())
                 .setEntityState(entityState)
                 .setEnvironmentType(environmentType)
-                .putDiscoveredTargetData(TARGET_ID,
-                                         PerTargetEntityInformation
-                                                          .newBuilder()
-                                                          .setVendorId(localName)
-                                                          .build())
+                .addDiscoveringTargetIds(TARGET_ID)
                 .setTags(
                     Tags.newBuilder()
                         .putTags(
@@ -117,10 +110,6 @@ public class ServiceEntityMapperTest {
         Assert.assertEquals(1, serviceEntityApiDTO.getTags().get(tagKey).size());
         Assert.assertEquals(tagValue, serviceEntityApiDTO.getTags().get(tagKey).get(0));
         Assert.assertEquals(PROVIDER_DISPLAY_NAME, serviceEntityApiDTO.getTemplate().getDisplayName());
-
-        Map<String, String> target2id = serviceEntityApiDTO.getVendorIds();
-        Assert.assertNotNull(target2id);
-        Assert.assertEquals(localName, target2id.get(String.valueOf(TARGET_ID)));
 
         checkDiscoveredBy(serviceEntityApiDTO.getDiscoveredBy());
     }
@@ -180,8 +169,7 @@ public class ServiceEntityMapperTest {
                 .setOrigin(
                     Origin.newBuilder()
                         .setDiscoveryOrigin(
-                            DiscoveryOrigin.newBuilder().putDiscoveredTargetData(TARGET_ID,
-                                PerTargetEntityInformation.getDefaultInstance())))
+                            DiscoveryOrigin.newBuilder().addDiscoveringTargetIds(TARGET_ID)))
                 .setTags(
                     Tags.newBuilder()
                         .putTags(

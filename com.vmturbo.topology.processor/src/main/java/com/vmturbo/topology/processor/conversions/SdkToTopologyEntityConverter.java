@@ -52,7 +52,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
-import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 import com.vmturbo.topology.processor.conversions.typespecific.ApplicationInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.BusinessAccountInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.BusinessUserMapper;
@@ -231,7 +230,6 @@ public class SdkToTopologyEntityConverter {
         // TODO: Support for namespaces and proper handling of duplicate properties (see
         // OM-20545 for description of probe expectations related to duplicate properties).
         Map<String, String> entityPropertyMap = dto.getEntityPropertiesList().stream()
-            .filter(property -> !SupplyChainConstants.LOCAL_NAME.equals(property.getName()))
             .collect(Collectors.toMap(EntityProperty::getName, EntityProperty::getValue,
                 (valueA, valueB) -> {
                     logger.warn("Duplicate entity property with values \"{}\", \"{}" +
@@ -265,9 +263,6 @@ public class SdkToTopologyEntityConverter {
         ).forEach(
             data -> data.getAllFields().forEach(
                 // TODO: Lists, such as VirtualDatacenterData.VmUuidList are also converted to String
-                // TODO and this in particular why we need to get rid of these entity properties altogether,
-                // stop pretending these data structures do not exist cause they are hidden in an untyped
-                // string map, and use strongly typed fields
                 (f, v) -> entityPropertyMap.put(f.getFullName(), v.toString())
             )
         );
@@ -416,7 +411,6 @@ public class SdkToTopologyEntityConverter {
                         valueA, valueB, oid, displayName);
                     return valueA;
                 }));
-        entityPropertyMap.remove(SupplyChainConstants.LOCAL_NAME);
 
         // Add properties of related data to the entity property map - using reflection
         Lists.newArrayList(

@@ -19,7 +19,6 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
@@ -186,20 +185,8 @@ public class TopologyEntity implements TopologyGraphEntity<TopologyEntity>, Jour
     @Override
     public Stream<Long> getDiscoveringTargetIds() {
         return hasDiscoveryOrigin()
-            ? entityBuilder.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap().keySet().stream()
+            ? entityBuilder.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList().stream()
             : Stream.empty();
-    }
-
-    @Override
-    public String getVendorId(long targetId) {
-        if (hasDiscoveryOrigin()) {
-            PerTargetEntityInformation info = entityBuilder.getOrigin().getDiscoveryOrigin()
-                            .getDiscoveredTargetDataMap().get(targetId);
-            if (info != null && info.hasVendorId()) {
-                return info.getVendorId();
-            }
-        }
-        return null;
     }
 
     @Nonnull

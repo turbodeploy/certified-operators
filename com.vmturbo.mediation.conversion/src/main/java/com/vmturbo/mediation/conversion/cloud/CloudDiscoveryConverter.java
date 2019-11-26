@@ -11,11 +11,11 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.mediation.conversion.cloud.converter.DefaultConverter;
 import com.vmturbo.mediation.conversion.util.CloudService;
@@ -28,6 +28,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.RedundancyType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
+import com.vmturbo.platform.sdk.common.util.SDKUtil;
 
 /**
  * Convert cloud discovery response (entities, profiles...) to new cloud model for use by XL.
@@ -279,7 +280,9 @@ public class CloudDiscoveryConverter {
                             vvData.setCreationTime(file.getModificationTimeMs());
                         }
                         for (final EntityProperty volumeProperty : file.getVolumePropertiesList()) {
-                            volume.addEntityProperties(volumeProperty);
+                            if (SDKUtil.VC_TAGS_NAMESPACE.equals(volumeProperty.getNamespace())) {
+                                volume.addEntityProperties(volumeProperty);
+                            }
                         }
                         volume.setVirtualVolumeData(vvData.build());
                         return volume;

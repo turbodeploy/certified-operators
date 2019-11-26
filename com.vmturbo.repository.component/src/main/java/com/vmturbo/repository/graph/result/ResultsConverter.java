@@ -61,7 +61,7 @@ public class ResultsConverter {
         }
 
         // set discoveredBy
-        serviceEntityApiDTO.setDiscoveredBy(createDiscoveredBy(repoDTO.getTargetVendorIds()));
+        serviceEntityApiDTO.setDiscoveredBy(createDiscoveredBy(repoDTO.getTargetIds()));
 
         return serviceEntityApiDTO;
     }
@@ -73,12 +73,12 @@ public class ResultsConverter {
      * @param targetIds associated target ids for the entity
      * @return TargetApiDTO representing the discoveredBy field of serviceEntityApiDTO
      */
-    private static TargetApiDTO createDiscoveredBy(@Nullable Map<String, String> targetIds) {
+    public static TargetApiDTO createDiscoveredBy(@Nullable List<String> targetIds) {
         TargetApiDTO targetApiDTO = new TargetApiDTO();
         if (targetIds != null && targetIds.size() > 0) {
             // an entity may be discovered by multiple targets, just pick one of them.
             // if the entity is discovered by different probe types, it will be a random one
-            targetApiDTO.setUuid(targetIds.keySet().iterator().next());
+            targetApiDTO.setUuid(targetIds.get(0));
         }
         return targetApiDTO;
     }

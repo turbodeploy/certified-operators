@@ -124,7 +124,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartial
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -1150,19 +1149,19 @@ public class SearchServiceTest {
                 .setOid(1)
                 .setDisplayName("afoobar")
                 .setEntityType(0)
-                .putDiscoveredTargetData(targetId1, PerTargetEntityInformation.getDefaultInstance())
+                .addDiscoveringTargetIds(targetId1)
                 .build();
         final ApiPartialEntity e2 = ApiPartialEntity.newBuilder()
                 .setOid(4)
                 .setDisplayName("Foo")
                 .setEntityType(0)
-                .putDiscoveredTargetData(targetId2, PerTargetEntityInformation.getDefaultInstance())
+                .addDiscoveringTargetIds(targetId2)
                 .build();
         final ApiPartialEntity e3 = ApiPartialEntity.newBuilder()
                 .setOid(5)
                 .setDisplayName("Foo [bar]")
                 .setEntityType(0)
-                .putDiscoveredTargetData(targetId2, PerTargetEntityInformation.getDefaultInstance())
+                .addDiscoveringTargetIds(targetId2)
                 .build();
         final ServiceEntityApiDTO mappedE1 = new ServiceEntityApiDTO();
         mappedE1.setUuid("1");

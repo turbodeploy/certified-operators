@@ -7,14 +7,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
@@ -33,7 +28,6 @@ import com.vmturbo.repository.dto.TypeSpecificInfoRepoDTO;
  * {@link TopologyEntityDTO} will also contains partial fields.
  */
 public class ServiceEntityRepoDTOConverter {
-    private static final Logger logger = LogManager.getLogger();
 
     public static Set<TopologyEntityDTO> convertToTopologyEntityDTOs(
         Collection<ServiceEntityRepoDTO> serviceEntities) {
@@ -135,28 +129,18 @@ public class ServiceEntityRepoDTOConverter {
         }
 
         // set DiscoveryOrigin if any
-        try {
-            Optional.ofNullable(serviceEntityRepoDTO.getTargetVendorIds()).ifPresent(targetIds ->
+        Optional.ofNullable(serviceEntityRepoDTO.getTargetIds()).ifPresent(targetIds ->
             topologyEntityBuilder.setOrigin(Origin.newBuilder()
                 .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                    .putAllDiscoveredTargetData(
-                        serviceEntityRepoDTO.getTargetVendorIds().entrySet().stream()
-                            .collect(Collectors.toMap(target2id -> Long.valueOf(target2id.getKey()),
-                                                      target2id -> createPerTargetInfo(target2id.getValue()))))
+                    .addAllDiscoveringTargetIds(
+                        serviceEntityRepoDTO.getTargetIds().stream()
+                            .map(Long::valueOf)
+                            .collect(Collectors.toList()))
                     .build())
-                .build()));
-        } catch (NumberFormatException e) {
-            logger.error("Failed to convert discovery origin from " + serviceEntityRepoDTO, e);
-        }
+                .build())
+        );
 
         return topologyEntityBuilder.build();
     }
 
-    private static PerTargetEntityInformation createPerTargetInfo(String vendorId) {
-        PerTargetEntityInformation.Builder info = PerTargetEntityInformation.newBuilder();
-        if (!StringUtils.isEmpty(vendorId)) {
-            info.setVendorId(vendorId);
-        }
-        return info.build();
-    }
 }

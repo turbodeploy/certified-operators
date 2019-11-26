@@ -27,13 +27,11 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -54,13 +52,8 @@ public class PostStitchingOperationScopeFactoryTest {
         discoveredBy(2L).lastUpdatedAt(22L), Collections.emptyList());
     private final TopologyEntity.Builder vm3 = topologyEntityBuilder(3L, EntityType.VIRTUAL_MACHINE,
         discoveredBy(3L).lastUpdatedAt(33L), Collections.emptyList());
-    private final TopologyEntity.Builder pm =
-        topologyEntityBuilder(4L, EntityType.PHYSICAL_MACHINE,
-                              discoveredBy(1L, null).withMerge(new StitchingMergeInformation(4L,
-                                                                                       4L,
-                                                                                       StitchingErrors.none()))
-                                              .lastUpdatedAt(11L),
-                              Collections.emptyList());
+    private final TopologyEntity.Builder pm = topologyEntityBuilder(4L, EntityType.PHYSICAL_MACHINE,
+        discoveredBy(1L).withMergeFromTargetIds(4L).lastUpdatedAt(11L), Collections.emptyList());
     private final TopologyEntity.Builder vm4 = topologyEntityBuilder(5L, EntityType.VIRTUAL_MACHINE,
             discoveredBy(4L).lastUpdatedAt(44L), Collections.emptyList());
 
@@ -245,17 +238,12 @@ public class PostStitchingOperationScopeFactoryTest {
         // Then we create Storages with different
         // combinations of targets and make sure we get the correct matches for this scope
         // stor1 has one VC target and its corresponding storage browsing target
-        long oid1 = 1L;
-        StitchingMergeInformation smi1 = new StitchingMergeInformation(oid1, 3L, StitchingErrors.none());
-        final TopologyEntity.Builder stor1 = topologyEntityBuilder(oid1, EntityType.STORAGE,
-            discoveredBy(1L).withMerge(smi1).lastUpdatedAt(11L),
+        final TopologyEntity.Builder stor1 = topologyEntityBuilder(1L, EntityType.STORAGE,
+            discoveredBy(1L).withMergeFromTargetIds(3L).lastUpdatedAt(11L),
             Collections.emptyList());
         // Shared Storage discovered by 2 VCs but only one storage browsing target
-        long oid2 = 2L;
-        StitchingMergeInformation smi2 = new StitchingMergeInformation(oid2, 2L, StitchingErrors.none());
-        StitchingMergeInformation smi3 = new StitchingMergeInformation(oid2, 3L, StitchingErrors.none());
-        final TopologyEntity.Builder stor2 = topologyEntityBuilder(oid2, EntityType.STORAGE,
-            discoveredBy(1L).withMerge(Arrays.asList(smi2, smi3))
+        final TopologyEntity.Builder stor2 = topologyEntityBuilder(2L, EntityType.STORAGE,
+            discoveredBy(1L).withMergeFromTargetIds(Arrays.asList(2L, 3L))
                 .lastUpdatedAt(33L), Collections.emptyList());
         // Storage discovered by VC target 2 only
         final TopologyEntity.Builder stor3 = topologyEntityBuilder(3L, EntityType.STORAGE,

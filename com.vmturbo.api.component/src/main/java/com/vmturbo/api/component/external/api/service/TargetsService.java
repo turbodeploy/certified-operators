@@ -1110,7 +1110,7 @@ public class TargetsService implements ITargetsService {
                         SearchProtoUtil.makeSearchParameters(SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT))
                             .build())
                         .getFullEntities()
-                        .filter(entity -> entity.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap().keySet()
+                        .filter(entity -> entity.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList()
                                         .stream()
                                         .anyMatch(id -> id == Long.parseLong(targetApiDTO.getUuid())))
                         .collect(Collectors.toList());

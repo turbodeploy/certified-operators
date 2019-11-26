@@ -1,22 +1,18 @@
 package com.vmturbo.topology.processor.conversions;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.builders.SDKConstants;
@@ -28,15 +24,12 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.Discovery.AccountValue;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
 import com.vmturbo.topology.processor.entity.EntityNotFoundException;
 import com.vmturbo.topology.processor.entity.EntityStore;
-import com.vmturbo.topology.processor.targets.GroupScopeResolver;
-import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
@@ -70,14 +63,10 @@ public class TopologyToSdkEntityConverter {
      */
     private final TargetStore targetStore;
 
-    private final GroupScopeResolver groupScopeResolver;
-
     public TopologyToSdkEntityConverter(@Nonnull final EntityStore entityStore,
-                                        @Nonnull final TargetStore targetStore,
-                                        @Nonnull GroupScopeResolver groupScopeResolver) {
+                                        @Nonnull final TargetStore targetStore) {
         this.entityStore = Objects.requireNonNull(entityStore);
         this.targetStore = Objects.requireNonNull(targetStore);
-        this.groupScopeResolver = Objects.requireNonNull(groupScopeResolver);
     }
 
     /**
@@ -127,7 +116,7 @@ public class TopologyToSdkEntityConverter {
         builder.addAllCommoditiesBought(getCommoditiesBought(topologyEntityDTO));
 
         // Add additional entity properties based on the stitched data
-        builder.addAllEntityProperties(getAllTargetSpecificEntityProperties(topologyEntityDTO, rawEntity));
+        builder.addAllEntityProperties(getAllTargetSpecificEntityProperties(rawEntity));
 
         return builder.build();
     }
@@ -327,17 +316,14 @@ public class TopologyToSdkEntityConverter {
      * properties from the raw entity data, compiling them into a list and differentiating them
      * using a namespace that is based on the target that discovered them.
      *
-     * @param topologyEntityDTO original topology dto
      * @param entity the entity to use to find entity properties
      * @return a list of all target-specific {@link EntityProperty}s related to the provided entity
      */
-    private List<EntityProperty> getAllTargetSpecificEntityProperties(TopologyEntityDTO topologyEntityDTO,
-                                                                      Entity entity) {
+    private List<EntityProperty> getAllTargetSpecificEntityProperties(Entity entity) {
         return entity.getPerTargetInfo().stream()
                 // Extract the list of entity properties for each target that discovered this entity
                 .map(longPerTargetInfoEntry ->
                         getTargetSpecificEntityProperties(
-                                topologyEntityDTO,
                                 longPerTargetInfoEntry.getKey(),
                                 longPerTargetInfoEntry.getValue()))
                 // Combine all the resulting lists into a single flattened list
@@ -346,36 +332,21 @@ public class TopologyToSdkEntityConverter {
     }
 
     /**
-     * Construct a namespace for the target from the target identifying fields.
-     * Please note that platform target identities are of no use for the probes
-     * and should not be passed there.
+     * Construct a unique namespace for the target from the target display name and target ID.
+     * If there is no display name, use only the target ID.
      *
      * @param targetId the target ID
-     * @return a namespace for the target
+     * @return a unique namespace for the target
      */
     @Nonnull
     private String constructNamespace(long targetId) {
-        final Optional<Target> target = targetStore.getTarget(targetId);
-        if (!target.isPresent()) {
-            logger.warn("Target name could not be found " + targetId
+        final Optional<String> targetDisplayName = targetStore.getTargetDisplayName(targetId);
+        if (!targetDisplayName.isPresent()) {
+            logger.warn("Target display name could not be determined for target " + targetId
                     + ". Using only the target ID to populate the namespace of entity properties.");
             return String.valueOf(targetId);
         }
-        Set<String> idFields = new HashSet<>(target.get().getProbeInfo().getTargetIdentifierFieldList());
-        String namespace = target.get().getMediationAccountVals(groupScopeResolver).stream()
-                        .filter(accountValue -> idFields.contains(accountValue.getKey()))
-                        .map(AccountValue::getStringValue)
-                        .sorted()
-                        .collect(Collectors.joining("-"));
-        if (StringUtils.isEmpty(namespace)) {
-            logger.warn("No identifying fields present in target, using target id as entity properties namespace "
-                        + targetId);
-            return String.valueOf(targetId);
-        } else {
-            logger.trace("Namespace for entity properties of target {}: {}", () -> targetId,
-                         () -> namespace);
-        }
-        return namespace;
+        return targetDisplayName.get() + "_" + targetId;
     }
 
     /**
@@ -395,13 +366,11 @@ public class TopologyToSdkEntityConverter {
      * target. A probe simply has to search for a property with key of "TARGET_TYPE" and value
      * matching its own ProbeType, and then it will know in which namespace its properties are stored.
      *
-     * @param topologyEntityDTO original topology dto
      * @param targetId the ID of the target to fetch entity properties for
      * @param perTargetInfo the raw entity info originally discovered by this target
      * @return a list of {@link EntityProperty}s related to the provided target
      */
-    private List<EntityProperty> getTargetSpecificEntityProperties(TopologyEntityDTO topologyEntityDTO,
-                                                                   final Long targetId,
+    private List<EntityProperty> getTargetSpecificEntityProperties(final Long targetId,
                                                                    final PerTargetInfo perTargetInfo) {
         // The namespace to use for all the entity properties gathered for this target.
         // Use the target display name (if it is available) and the OID, else use only the target OID.
@@ -415,15 +384,18 @@ public class TopologyToSdkEntityConverter {
                         .map(entityProperty -> newEntityProperty(namespace, entityProperty))
                         .collect(Collectors.toCollection(ArrayList::new));
 
-        // Add the special LocalName entity property
-        // which describes the identity of the entity as discovered by the target
-        String localName = perTargetInfo.getEntityInfo().getId();
-        PerTargetEntityInformation infoFromDto = topologyEntityDTO.getOrigin().getDiscoveryOrigin()
-                        .getDiscoveredTargetDataMap().get(targetId);
-        if (infoFromDto != null && infoFromDto.hasVendorId()) {
-            localName = infoFromDto.getVendorId();
+        // Add the special LocalName entity property (if it wasn't already converted from the raw
+        // data), which describes the name of the entity as discovered by the target that populated
+        // this namespace
+        final boolean propertiesContainLocalName = entityProperties.stream()
+                .anyMatch(entityProperty ->
+                        SupplyChainConstants.LOCAL_NAME.equals(entityProperty.getName()));
+        if ( ! propertiesContainLocalName) {
+            entityProperties.add(newEntityProperty(SupplyChainConstants.LOCAL_NAME,
+                    // ID is used in cases where a local name wasn't provided in the entity props
+                    perTargetInfo.getEntityInfo().getId(),
+                    namespace));
         }
-        entityProperties.add(newEntityProperty(SupplyChainConstants.LOCAL_NAME, localName, namespace));
 
         // Add the special TargetType entity property, which describes the name of the target that
         // populated this namespace
@@ -431,7 +403,7 @@ public class TopologyToSdkEntityConverter {
         entityProperties.add(newEntityProperty(SupplyChainConstants.TARGET_TYPE,
                 targetType,
                 namespace));
-        return entityProperties;
+        return  entityProperties;
     }
 
     private String getTargetType(final Long targetId) {

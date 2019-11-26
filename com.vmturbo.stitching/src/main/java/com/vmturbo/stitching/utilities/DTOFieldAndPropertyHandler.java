@@ -16,7 +16,6 @@ import com.google.protobuf.MessageOrBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
-import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.stitching.DTOFieldSpec;
 
@@ -200,23 +199,6 @@ public class DTOFieldAndPropertyHandler {
         }
         return onto;
     }
-
-    /**
-     * Extract the vendor identifier (legacy 'local name') from entity properties.
-     *
-     * @param entity the entity for which the local name is to be extracted
-     * @return external identity, may be null as probes are only required to provide them
-     *         if they have action execution
-     */
-    @Nullable
-    public static String getVendorId(@Nonnull final EntityDTOOrBuilder entity) {
-        return entity.getEntityPropertiesList().stream()
-            .filter(property -> SDKUtil.DEFAULT_NAMESPACE.equals(property.getNamespace()))
-            .filter(property -> SupplyChainConstants.LOCAL_NAME.equals(property.getName()))
-            .map(EntityProperty::getValue)
-            .findAny().orElse(null);
-    }
-
 }
 
 

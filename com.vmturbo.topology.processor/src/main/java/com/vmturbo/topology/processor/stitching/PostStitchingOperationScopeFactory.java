@@ -212,9 +212,8 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
                 .collect(Collectors.toSet());
             return getTopologyGraph().entities()
                 .filter(TopologyEntity::hasDiscoveryOrigin)
-                .filter(entity -> entity.getDiscoveryOrigin().get()
-                                .getDiscoveredTargetDataMap().keySet().stream()
-                                .anyMatch(probeTargetIds::contains));
+                .filter(entity -> entity.getDiscoveryOrigin().get().getDiscoveringTargetIdsList().stream()
+                    .anyMatch(probeTargetIds::contains));
 
         }
     }
@@ -327,9 +326,8 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
                 .collect(Collectors.toSet());
             return getTopologyGraph().entitiesOfType(entityType)
                 .filter(TopologyEntity::hasDiscoveryOrigin)
-                .filter(entity -> entity.getDiscoveryOrigin().get()
-                                .getDiscoveredTargetDataMap().keySet().stream()
-                                .anyMatch(probeTargetIds::contains));
+                .filter(entity -> entity.getDiscoveryOrigin().get().getDiscoveringTargetIdsList().stream()
+                    .anyMatch(probeTargetIds::contains));
         }
     }
 
@@ -391,9 +389,8 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
                 // note: optimize it in future, if it's starting to be a bottleneck
                 return getTopologyGraph().entitiesOfType(entityType)
                         .filter(TopologyEntity::hasDiscoveryOrigin)
-                        .filter(entity -> entity.getDiscoveryOrigin().get()
-                                        .getDiscoveredTargetDataMap().keySet().stream()
-                                        .anyMatch(probeTargetIds::contains));
+                        .filter(entity -> entity.getDiscoveryOrigin().get().getDiscoveringTargetIdsList().stream()
+                                .anyMatch(probeTargetIds::contains));
             }
         }
 
@@ -432,9 +429,8 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
 
             return getTopologyGraph().entitiesOfType(entityType)
                 .filter(TopologyEntity::hasDiscoveryOrigin)
-                .filter(entity -> entity.getDiscoveryOrigin().get()
-                                .getDiscoveredTargetDataMap().keySet().stream()
-                                .anyMatch(probeCategoryTargetIds::contains));
+                .filter(entity -> entity.getDiscoveryOrigin().get().getDiscoveringTargetIdsList().stream()
+                    .anyMatch(probeCategoryTargetIds::contains));
         }
     }
 
@@ -472,9 +468,8 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
 
             return getTopologyGraph().entitiesOfType(entityType)
                     .filter(TopologyEntity::hasDiscoveryOrigin)
-                    .filter(entity -> entity.getDiscoveryOrigin().get()
-                                    .getDiscoveredTargetDataMap().keySet().stream()
-                                    .anyMatch(probeCategoryTargetIds::contains));
+                    .filter(entity -> entity.getDiscoveryOrigin().get().getDiscoveringTargetIdsList().stream()
+                            .anyMatch(probeCategoryTargetIds::contains));
         }
     }
 
@@ -527,9 +522,9 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
 
             return getTopologyGraph().entitiesOfType(entityType)
                 .filter(TopologyEntity::hasDiscoveryOrigin)
-                .filter(entity -> entity.getDiscoveryOrigin().get()
-                                .getDiscoveredTargetDataMap().keySet().stream()
-                                .anyMatch(targetIdsMissingDerivedTarget::contains));
+                .filter(entity -> entity.getDiscoveryOrigin().get().getDiscoveringTargetIdsList()
+                    .stream()
+                    .anyMatch(targetIdsMissingDerivedTarget::contains));
         }
     }
 }

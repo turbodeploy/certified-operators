@@ -10,7 +10,6 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.topology.Stitching.Verbosity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
@@ -69,7 +68,7 @@ public class TopologyEntitySemanticDifferTest {
             .setOrigin(Origin.newBuilder()
                     .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
                         .setLastUpdatedTime(123456789L)
-                        .putDiscoveredTargetData(targetId, PerTargetEntityInformation.getDefaultInstance()))
+                        .addDiscoveringTargetIds(targetId))
             );
 
         return TopologyEntity.newBuilder(entityBuilder);

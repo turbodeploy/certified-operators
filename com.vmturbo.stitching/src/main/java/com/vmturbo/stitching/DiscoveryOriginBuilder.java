@@ -6,11 +6,7 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
-import org.apache.commons.lang3.StringUtils;
-
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 
 /**
@@ -19,54 +15,50 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Discov
  */
 public class DiscoveryOriginBuilder {
     private final long targetId;
-    private Stream<StitchingMergeInformation> mergeFromTargets;
-    private String vendorId;
+    private Stream<Long> mergeFromTargetIds;
 
     /**
      * Builder for information describing when the entity was last updated and by which target(s)
      * this entity was discovered.
      *
      * @param targetId The id of the target that originally discovered the entity.
-     * @param vendorId external identity as seen by the target
      */
-    private DiscoveryOriginBuilder(final long targetId, @Nullable String vendorId) {
+    private DiscoveryOriginBuilder(final long targetId) {
         this.targetId = targetId;
-        this.mergeFromTargets = Stream.empty();
-        this.vendorId = vendorId;
+        this.mergeFromTargetIds = Stream.empty();
     }
 
     /**
-     * Set the targets information for targets that discovered entities that were merged onto
+     * Set the targetIds for targets that discovered entities that were merged onto
      * this entity during stitching.
      *
-     * @param mergeFromTargets targets being merged
      * @return a reference to {@link this} for method chaining.
      */
-    public DiscoveryOriginBuilder withMerge(@Nonnull final Stream<StitchingMergeInformation> mergeFromTargets) {
-        this.mergeFromTargets = Objects.requireNonNull(mergeFromTargets);
+    public DiscoveryOriginBuilder withMergeFromTargetIds(@Nonnull final Stream<Long> mergeFromTargetIds) {
+        this.mergeFromTargetIds = Objects.requireNonNull(mergeFromTargetIds);
+
         return this;
     }
 
     /**
-     * Set the targets information for targets that discovered entities that were merged onto
+     * Set the targetIds for targets that discovered entities that were merged onto
      * this entity during stitching.
      *
-     * @param mergeFromTargets targets being merged
      * @return a reference to {@link this} for method chaining.
      */
-    public DiscoveryOriginBuilder withMerge(@Nonnull final List<StitchingMergeInformation> mergeFromTargets) {
-        return withMerge(mergeFromTargets.stream());
+    public DiscoveryOriginBuilder withMergeFromTargetIds(@Nonnull final List<Long> mergeFromTargetIds) {
+        return withMergeFromTargetIds(mergeFromTargetIds.stream());
     }
 
     /**
-     * Set the targets information for targets that discovered entities that were merged onto
+     * Set the targetIds for targets that discovered entities that were merged onto
      * this entity during stitching.
      *
-     * @param mergeFromTargets targets being merged
      * @return a reference to {@link this} for method chaining.
      */
-    public DiscoveryOriginBuilder withMerge(@Nonnull final StitchingMergeInformation... mergeFromTargets) {
-        return withMerge(Arrays.asList(mergeFromTargets));
+    public DiscoveryOriginBuilder withMergeFromTargetIds(
+        @Nonnull final Long... mergeFromTargetIds) {
+        return withMergeFromTargetIds(Arrays.asList(mergeFromTargetIds));
     }
 
     /**
@@ -88,38 +80,14 @@ public class DiscoveryOriginBuilder {
         final DiscoveryOrigin.Builder builder = DiscoveryOrigin.newBuilder()
             .setLastUpdatedTime(lastUpdateTime);
 
-        mergeFromTargets.forEach(smi -> addPerTargetInformation(builder, smi.getTargetId(), smi.getVendorId()));
-        addPerTargetInformation(builder, targetId, vendorId);
+        Stream.concat(Stream.of(targetId), mergeFromTargetIds)
+            .distinct()
+            .forEach(builder::addDiscoveringTargetIds);
 
         return builder.build();
     }
 
-    private static void addPerTargetInformation(DiscoveryOrigin.Builder builder, long targetId, String vendorId) {
-        PerTargetEntityInformation info = StringUtils.isEmpty(vendorId)
-                        ? PerTargetEntityInformation.getDefaultInstance()
-                        : PerTargetEntityInformation.newBuilder().setVendorId(vendorId).build();
-        builder.putDiscoveredTargetData(targetId, info);
-    }
-
-    /**
-     * Add the information about target discovering this entity.
-     *
-     * @param targetId target identifier
-     * @param localName vendor id
-     * @return this for chaining
-     */
-    public static DiscoveryOriginBuilder discoveredBy(final long targetId, String localName) {
-        return new DiscoveryOriginBuilder(targetId, localName);
-    }
-
-    /**
-     * Add the information about target discovering this entity.
-     * With unset local name for the target.
-     *
-     * @param targetId target identifier
-     * @return this for chaining
-     */
     public static DiscoveryOriginBuilder discoveredBy(final long targetId) {
-        return discoveredBy(targetId, null);
+        return new DiscoveryOriginBuilder(targetId);
     }
 }

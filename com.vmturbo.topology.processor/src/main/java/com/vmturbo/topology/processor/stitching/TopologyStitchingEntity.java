@@ -161,11 +161,8 @@ public class TopologyStitchingEntity implements StitchingEntity {
         copy.connectedFrom.putAll(connectedFrom);
 
         // Copy merge information
-        getMergeInformation().forEach(mergeInfo -> copy
-                .addMergeInformation(new StitchingMergeInformation(mergeInfo.getOid(),
-                                                                   mergeInfo.getTargetId(),
-                                                                   mergeInfo.getError(),
-                                                                   mergeInfo.getVendorId())));
+        getMergeInformation().forEach(mergeInfo -> copy.addMergeInformation(
+            new StitchingMergeInformation(mergeInfo.getOid(), mergeInfo.getTargetId(), mergeInfo.getError())));
 
         return copy;
     }

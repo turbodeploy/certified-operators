@@ -6,7 +6,6 @@ import javax.annotation.Nullable;
 import com.google.common.base.Objects;
 
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
-import com.vmturbo.stitching.utilities.DTOFieldAndPropertyHandler;
 
 /**
  * Information about an entity that was merged onto an entity.
@@ -20,7 +19,6 @@ public class StitchingMergeInformation {
     private final long oid;
     private final long targetId;
     private final StitchingErrors error;
-    private final String vendorId;
 
     /**
      * Create {@link StitchingMergeInformation} associated with a particular entity.
@@ -28,8 +26,7 @@ public class StitchingMergeInformation {
      * @param entity The entity whose {@link StitchingMergeInformation} should be tracked.
      */
     public StitchingMergeInformation(@Nonnull final StitchingEntity entity) {
-        this(entity.getOid(), entity.getTargetId(), entity.getStitchingErrors(),
-             DTOFieldAndPropertyHandler.getVendorId(entity.getEntityBuilder()));
+        this(entity.getOid(), entity.getTargetId(), entity.getStitchingErrors());
     }
 
     /**
@@ -38,28 +35,11 @@ public class StitchingMergeInformation {
      *
      * @param oid The oid of the entity.
      * @param targetId The id of the target that discvoered the entity with the given oid.
-     * @param errorCode collection of errors applicable to an entity
      */
-    public StitchingMergeInformation(final long oid, final long targetId,
-                                     final StitchingErrors errorCode) {
-        this(oid, targetId, errorCode, null);
-    }
-
-    /**
-     * Create a {@Link StitchingMergeInformation} describing a particular entity discovered
-     * by a particular target.
-     *
-     * @param oid The oid of the entity.
-     * @param targetId The id of the target that discvoered the entity with the given oid.
-     * @param errorCode collection of errors applicable to an entity
-     * @param vendorId external identifier on a target
-     */
-    public StitchingMergeInformation(final long oid, final long targetId,
-                                     final StitchingErrors errorCode, String vendorId) {
+    public StitchingMergeInformation(final long oid, final long targetId, final StitchingErrors errorCode) {
         this.oid = oid;
         this.targetId = targetId;
         this.error = errorCode;
-        this.vendorId = vendorId;
     }
 
     /**
@@ -78,11 +58,6 @@ public class StitchingMergeInformation {
     @Nonnull
     public StitchingErrors getError() {
         return error;
-    }
-
-    @Nullable
-    public String getVendorId() {
-        return vendorId;
     }
 
     @Override
@@ -111,5 +86,4 @@ public class StitchingMergeInformation {
     public static String formatOidAndTarget(final long oid, final long targetId) {
         return "(oid-" + oid + " " + "tgt-" + targetId +")";
     }
-
 }

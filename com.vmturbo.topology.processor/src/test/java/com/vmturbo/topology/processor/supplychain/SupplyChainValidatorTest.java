@@ -16,7 +16,6 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
@@ -609,12 +608,9 @@ public class SupplyChainValidatorTest extends AbstractSupplyChainTest {
             TopologyEntityDTO.Builder prototype, Collection<Long> targetIds,
             Collection<? extends CommoditySoldDTO> commoditySoldDTOs,
             Collection<? extends CommoditiesBoughtFromProvider> commodityBoughtDTOs) {
-        DiscoveryOrigin.Builder origin = DiscoveryOrigin.newBuilder();
-        targetIds.forEach(id -> origin
-                        .putDiscoveredTargetData(id,
-                                                 PerTargetEntityInformation.getDefaultInstance()));
         return TopologyEntityDTO.newBuilder(prototype.build())
-                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(origin))
+                .setOrigin(Origin.newBuilder()
+                        .setDiscoveryOrigin(DiscoveryOrigin.newBuilder().addAllDiscoveringTargetIds(targetIds)))
                 .addAllCommoditySoldList(commoditySoldDTOs).addAllCommoditiesBoughtFromProviders(commodityBoughtDTOs);
     }
 }

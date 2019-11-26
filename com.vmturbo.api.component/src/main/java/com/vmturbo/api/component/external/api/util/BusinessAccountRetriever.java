@@ -403,7 +403,7 @@ public class BusinessAccountRetriever {
             final List<ThinTargetInfo> discoveringTargets = businessAccount
                 .getOrigin()
                 .getDiscoveryOrigin()
-                .getDiscoveredTargetDataMap().keySet()
+                .getDiscoveringTargetIdsList()
                 .stream()
                 .map(thinTargetCache::getTargetInfo)
                 .filter(Optional::isPresent)

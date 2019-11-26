@@ -309,8 +309,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
 
     @Bean
     public TopologyToSdkEntityConverter topologyToSdkEntityConverter() {
-        return new TopologyToSdkEntityConverter(entityRepository(), targetStore(),
-                                                Mockito.mock(GroupScopeResolver.class));
+        return new TopologyToSdkEntityConverter(entityRepository(), targetStore());
     }
 
     @Bean
