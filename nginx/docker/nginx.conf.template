@@ -123,16 +123,42 @@ http {
         # CSP Headers
         add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' app.pendo.io pendo-io-static.storage.googleapis.com cdn.pendo.io pendo-static-5342313377955840.storage.googleapis.com data.pendo.io https://cdn.heapanalytics.com https://heapanalytics.com https://cdn.quantummetric.com https://turbonomic-app.quantummetric.com *.aptrinsic.com; style-src 'self' 'unsafe-inline' app.pendo.io cdn.pendo.io pendo-static-5342313377955840.storage.googleapis.com https://heapanalytics.com *.aptrinsic.com; img-src 'self' cdn.pendo.io app.pendo.io pendo-static-5342313377955840.storage.googleapis.com data.pendo.io https://heapanalytics.com *.aptrinsic.com storage.googleapis.com; connect-src app.pendo.io data.pendo.io https://heapanalytics.com https://turbonomic-app.quantummetric.com https://cdn.quantummetric.com *.aptrinsic.com; font-src https://heapanalytics.com; frame-ancestors app.pendo.io; child-src app.pendo.io;" always;
 
+        #### Following rules are intended to support the following URLS:
+        #### * API methods:
+        ####     /api/v2/<method>  (PREFERRED)
+        ####     /api/<method>
+        #### * Swagger-UI:
+        ####     /apidoc/v2/index.html, /apidoc/v2/, /apidoc/v2  (PREFERRED)
+        ####     /apidoc/index.html, /apidoc/, /apidoc
+        ####     /swagger/external/index.html, /swagger/external/, /swagger/external
+        ####     /swagger/index.html, /swagger/, /swagger
+        #### * Swagger File as JSON (replace ".json" with ".yaml" to get YAML version)
+        ####     /apidoc/v2/swagger.json  (PREFERRED)
+        ####     /apidoc/swagger.json, /swagger/external/swagger.json, /swagger/swagger.json
+        ####
+        #### Note: the preferred paths lay a foundation for an evolving, versioned API, with
+        #### the ability to support multiple versions simultaneously. Non-preferred paths
+        #### may be dropped without notice and should not be communicated to customers.
+        ####
+        #### Internal API component paths to which the above should be mapped:
+        #### * Swagge-UI URLs: /swagger/external/{index.html, swagger.json, swagger.yaml}
+        #### * API URLs: /api/v2/<method> or /api/<method> (no rewrites required)
 
-	# swagger-ui paths without trailing slash do 302 redirect to add the slash
-	rewrite ^(/apidoc.*)$ $scheme://$host/swagger/index.html redirect;
-	rewrite ^(/swagger(/|/external)?)$ $scheme://$host/swagger/index.html redirect;
+        # swagger-ui paths without trailing slash do 302 redirect to add the slash
+        rewrite ^/(apidoc(/v2)?)$ $scheme://$host/$1/ redirect;
+        rewrite ^/(swagger(/external)?)$ $scheme://$host/$1/ redirect;
 
-	# swagger-ui paths without index.html get it added on (internal, no redirect)
-	rewrite ^/swagger(/external)?(.+)$ /swagger/external$2;
+        # swagger-ui paths without index.html get it added on (internal, no redirect)
+        rewrite ^(/apidoc(/v2)?)/$ $1/index.html;
+        rewrite ^(/swagger(/external)?)/$ $1/index.html;
 
-	# proxying default paths
-        location ~ (/$|/api|/app|/vmturbo/rest|/vmturbo/saml|/swagger/external) {
+        # all swagger-ui paths (including requests for swagger.json or swagger.yaml)
+        # are routed to /swagger/external
+        rewrite ^/apidoc(/v2)?(.+)$ /swagger/external$2;
+        rewrite ^/swagger(/external)?(.+)$ /swagger/external$2;
+
+        # proxying default paths
+        location ~ ^(/$|/api|/app|/vmturbo/rest|/vmturbo/saml|/swagger/external) {
             # we are using variables for the upstream servers instead of an upstream entry because
             # of the DNS caching problem -- only nginx plus will dynamically resolve the upstream
             # servers
