@@ -160,9 +160,6 @@ public class Target {
         final TargetSpec.Builder targetSpec = TargetSpec.newBuilder().setProbeId(probeId)
                 .addAllAccountValue(inputSpec.getAccountValueList())
                 .addAllDerivedTargetIds(inputSpec.getDerivedTargetIdsList());
-        if (inputSpec.hasParentId()) {
-            targetSpec.setParentId(inputSpec.getParentId());
-        }
         targetSpec.setIsHidden(inputSpec.getIsHidden());
         targetSpec.setReadOnly(inputSpec.getReadOnly());
 
@@ -191,18 +188,15 @@ public class Target {
      * @return A {@link TargetSpec} builder.
      */
     private static TargetSpec.Builder createTargetSpecBuilder(
-                                        TargetInfo targetInfo,
-                                        Collection<TopologyProcessorDTO.AccountValue> values,
-                                        Collection<String> derivedTargetsIds) {
+                                        @Nonnull TargetInfo targetInfo,
+                                        @Nonnull Collection<TopologyProcessorDTO.AccountValue> values,
+                                        @Nonnull Collection<Long> derivedTargetsIds) {
         final TargetSpec.Builder targetSpec = TargetSpec.newBuilder()
-                .setProbeId(targetInfo.getSpec().getProbeId())
-                .addAllAccountValue(values)
-                .setIsHidden(targetInfo.getSpec().getIsHidden())
-                .setReadOnly(targetInfo.getSpec().getReadOnly())
-                .addAllDerivedTargetIds(derivedTargetsIds);
-        if (targetInfo.getSpec().hasParentId()) {
-            targetSpec.setParentId(targetInfo.getSpec().getParentId());
-        }
+            .setProbeId(targetInfo.getSpec().getProbeId())
+            .addAllAccountValue(values)
+            .setIsHidden(targetInfo.getSpec().getIsHidden())
+            .setReadOnly(targetInfo.getSpec().getReadOnly())
+            .addAllDerivedTargetIds(derivedTargetsIds);
         return targetSpec;
     }
 
@@ -242,7 +236,6 @@ public class Target {
         throws InvalidTargetException {
         TargetInfo targetInfo = info.targetInfo;
 
-
         final TargetSpec.Builder newSpec = createTargetSpecBuilder(targetInfo,
                 mergeUpdatedAccountValues(
                     targetInfo.getSpec().getAccountValueList(), updatedFields),
@@ -259,7 +252,7 @@ public class Target {
      * @return A new target with its updated derived Target's IDs.
      * @throws InvalidTargetException When the updated target is invalid.
      */
-    public Target withUpdatedDerivedTargetIds(@Nonnull final List<String> derivedTargetsIds,
+    public Target withUpdatedDerivedTargetIds(@Nonnull final List<Long> derivedTargetsIds,
                                               @Nonnull final ProbeStore probeStore)
         throws InvalidTargetException {
         TargetInfo targetInfo = info.targetInfo;
@@ -529,6 +522,7 @@ public class Target {
 
         InternalTargetInfo(@Nonnull final TargetInfo targetInfo,
                            @Nonnull final Set<String> secretFields) {
+            TargetInfo.Builder builder = targetInfo.toBuilder();
             this.targetInfo = targetInfo;
             this.secretFields = secretFields;
         }
@@ -645,7 +639,6 @@ public class Target {
             final TargetInfo.Builder builder = TargetInfo.newBuilder();
             JsonFormat.parser().merge(serializedTarget, builder);
             in.endObject();
-            final TargetInfo info = builder.build();
             final Set<String> sf = secretFieldBuilder.build();
             final InternalTargetInfo itf = new InternalTargetInfo(builder.build(), secretFieldBuilder.build());
 

@@ -395,7 +395,7 @@ public class TargetsServiceTest {
         final TargetInfo parentTargetInfo = createMockTargetInfo(probe.getId(), 2);
         final TargetInfo childTargetInfo1 = createMockTargetInfo(probe.getId(), 3);
         final TargetInfo childTargetInfo2 = createMockTargetInfo(probe.getId(), 4);
-        when(parentTargetInfo.getDerivedTargetIds()).thenReturn(Lists.newArrayList("3", "4"));
+        when(parentTargetInfo.getDerivedTargetIds()).thenReturn(Lists.newArrayList(3L, 4L));
 
         final MvcResult result = mockMvc
                 .perform(get("/targets").accept(MediaType.APPLICATION_JSON_UTF8_VALUE))

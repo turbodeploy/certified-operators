@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
+import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.stitching.StitchingConfig;
@@ -15,7 +16,8 @@ import com.vmturbo.topology.processor.stitching.StitchingConfig;
         IdentityProviderConfig.class,
         ProbeConfig.class,
         StitchingConfig.class,
-        SQLDatabaseConfig.class})
+        SQLDatabaseConfig.class,
+        KVConfig.class})
 public class MigrationsConfig {
 
     @Autowired
@@ -30,11 +32,15 @@ public class MigrationsConfig {
     @Autowired
     StitchingConfig stitchingConfig;
 
+    @Autowired
+    KVConfig kvConfig;
+
     @Bean
     public MigrationsLibrary migrationsList() {
         return new MigrationsLibrary(sqlDatabaseConfig.dsl(),
                 probeConfig.probeStore(), stitchingConfig.historyClient(),
                 identityProviderConfig.underlyingStore(),
-                identityProviderConfig.identityProvider());
+                identityProviderConfig.identityProvider(),
+                kvConfig.keyValueStore());
     }
 }

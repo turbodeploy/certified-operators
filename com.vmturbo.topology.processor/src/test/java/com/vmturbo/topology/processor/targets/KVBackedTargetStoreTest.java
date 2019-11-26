@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.targets;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.verify;
@@ -16,14 +17,7 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
-import org.junit.rules.TemporaryFolder;
-import org.mockito.AdditionalAnswers;
-import org.mockito.Mockito;
+import com.google.common.collect.ImmutableList;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
@@ -33,6 +27,15 @@ import com.google.gson.TypeAdapter;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
 import com.google.protobuf.util.JsonFormat;
+
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.ExpectedException;
+import org.junit.rules.TemporaryFolder;
+import org.mockito.AdditionalAnswers;
+import org.mockito.Mockito;
 
 import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
@@ -65,6 +68,36 @@ public class KVBackedTargetStoreTest {
     private static final String FIELD_NAME = "targetIdentifier";
 
     private static final long DERIVED_PROBE_ID = 1L;
+
+    private static final AccountDefEntry PLAIN_ACCT_DEF = AccountDefEntry.newBuilder()
+        .setCustomDefinition(
+            CustomAccountDefEntry.newBuilder()
+                .setName(PredefinedAccountDefinition.Address.name().toLowerCase())
+                .setDisplayName("this is my address")
+                .setDescription("The address")
+                .setIsSecret(false))
+        .setMandatory(true)
+        .build();
+
+    private static final AccountDefEntry NAME_ACCT_DEF = AccountDefEntry.newBuilder()
+        .setCustomDefinition(
+            CustomAccountDefEntry.newBuilder()
+                .setName("name")
+                .setDisplayName("this is my name")
+                .setDescription("Display Name")
+                .setIsSecret(false))
+        .setMandatory(true)
+        .setIsTargetDisplayName(true)
+        .build();
+
+    private static final ProbeInfo parentProbeInfo = createProbeInfo(ProbeCategory.HYPERVISOR.getCategory(),
+        SDKProbeType.VCENTER.toString(),
+        PredefinedAccountDefinition.Address.name().toLowerCase(),
+        Collections.singletonList(PLAIN_ACCT_DEF));
+
+    private static final ProbeInfo derivedProbeInfo = createProbeInfo(ProbeCategory.COST.getCategory(), "vc_cost",
+        NAME_ACCT_DEF.getCustomDefinition().getName(),
+        ImmutableList.of(NAME_ACCT_DEF, PLAIN_ACCT_DEF));
 
     private KeyValueStore keyValueStore;
 
@@ -127,11 +160,9 @@ public class KVBackedTargetStoreTest {
      */
     @Test
     public void testCreateTargetWrongAccountValues() throws Exception {
-        ProbeInfo pi = ProbeInfo.newBuilder()
-            .setProbeCategory("test")
-            .setProbeType("vc")
-            .addTargetIdentifierField(PredefinedAccountDefinition.Address.name().toLowerCase())
-            .build();
+        ProbeInfo pi = createProbeInfo("test", "vc",
+            PredefinedAccountDefinition.Address.name().toLowerCase(),
+            Collections.emptyList());
         Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(pi));
 
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L,
@@ -151,24 +182,22 @@ public class KVBackedTargetStoreTest {
         assertTrue(identityStoreUpdate.getOldItems().isEmpty());
     }
 
+    private static ProbeInfo createProbeInfo(@Nonnull String category,
+                                      @Nonnull String type,
+                                      @Nonnull String targetIdentifyingFieldName,
+                                      @Nonnull List<AccountDefEntry> accountDefs) {
+        return ProbeInfo.newBuilder()
+            .setProbeCategory(category)
+            .setProbeType(type)
+            .addTargetIdentifierField(targetIdentifyingFieldName)
+            .addAllAccountDefinition(accountDefs)
+            .build();
+    }
     @Test
     public void testGetProbeName() throws Exception {
-        AccountDefEntry plain = AccountDefEntry.newBuilder()
-            .setCustomDefinition(
-                CustomAccountDefEntry.newBuilder()
-                    .setName(PredefinedAccountDefinition.Address.name().toLowerCase())
-                    .setDisplayName("this is my address")
-                    .setDescription("The address")
-                    .setIsSecret(false))
-            .setMandatory(true)
-            .build();
-
-        ProbeInfo pi = ProbeInfo.newBuilder()
-            .setProbeCategory("test")
-            .setProbeType("vc")
-            .addTargetIdentifierField(PredefinedAccountDefinition.Address.name().toLowerCase())
-            .addAccountDefinition(plain)
-            .build();
+        ProbeInfo pi = createProbeInfo("test", "vc",
+            PredefinedAccountDefinition.Address.name().toLowerCase(),
+            Collections.singletonList(PLAIN_ACCT_DEF));
 
         Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(pi));
 
@@ -181,40 +210,15 @@ public class KVBackedTargetStoreTest {
 
     @Test
     public void testGetProbeNameWithIsTargetDisplayNameAttr() throws Exception {
-        AccountDefEntry addr = AccountDefEntry.newBuilder()
-                .setCustomDefinition(
-                        CustomAccountDefEntry.newBuilder()
-                                .setName(PredefinedAccountDefinition.Address.name().toLowerCase())
-                                .setDisplayName("this is my address")
-                                .setDescription("The address")
-                                .setIsSecret(false))
-                .setMandatory(true)
-                .build();
-
-        AccountDefEntry name = AccountDefEntry.newBuilder()
-                .setCustomDefinition(
-                        CustomAccountDefEntry.newBuilder()
-                                .setName("name")
-                                .setDisplayName("this is my name")
-                                .setDescription("Display Name")
-                                .setIsSecret(false))
-                .setMandatory(true)
-                .setIsTargetDisplayName(true)
-                .build();
-
-        ProbeInfo pi = ProbeInfo.newBuilder()
-                .setProbeCategory("test")
-                .setProbeType("vc")
-                .addTargetIdentifierField(PredefinedAccountDefinition.Address.name().toLowerCase())
-                .addAccountDefinition(addr)
-                .addAccountDefinition(name)
-                .build();
+        ProbeInfo pi = createProbeInfo("test", "vc",
+            PredefinedAccountDefinition.Address.name().toLowerCase(),
+            ImmutableList.of(PLAIN_ACCT_DEF, NAME_ACCT_DEF));
 
         Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(pi));
 
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Arrays.asList(
                 new InputField(PredefinedAccountDefinition.Address.name().toLowerCase(), "foo", Optional.empty()),
-                new InputField("name", "my name", Optional.empty())));
+                new InputField(NAME_ACCT_DEF.getCustomDefinition().getName(), "my name", Optional.empty())));
         final Target target = targetStore.createTarget(spec.toDto());
 
         Assert.assertEquals("my name", target.getDisplayName());
@@ -285,13 +289,8 @@ public class KVBackedTargetStoreTest {
                                                                             .setIsSecret(false))
                                                .setMandatory(true)
                                                .build();
-        ProbeInfo pi = ProbeInfo.newBuilder()
-                                .setProbeCategory("test")
-                                .setProbeType("vc")
-                                .addTargetIdentifierField("name")
-                                .addAccountDefinition(secret)
-                                .addAccountDefinition(plain)
-                                .build();
+        ProbeInfo pi = createProbeInfo("test", "vc",
+            "name", ImmutableList.of(secret, plain));
 
         Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(pi));
 
@@ -461,9 +460,25 @@ public class KVBackedTargetStoreTest {
         return builder.build();
     }
 
+    private TargetSpec createTargetSpec(long probeId,
+                                        @Nonnull String fieldName,
+                                        @Nonnull String fieldValue) {
+        return TargetSpec.newBuilder()
+            .setProbeId(probeId)
+            .addAccountValue(createAccountValue(fieldName, fieldValue))
+            .build();
+    }
+
     private Collection<TopologyProcessorDTO.AccountValue> createAccountValue(int fieldValue) {
         return Collections.singleton(TopologyProcessorDTO.AccountValue.newBuilder().setKey(FIELD_NAME)
                         .setStringValue(Integer.toString(fieldValue)).build());
+    }
+
+    private TopologyProcessorDTO.AccountValue createAccountValue(String name, String value) {
+        return TopologyProcessorDTO.AccountValue.newBuilder()
+            .setKey(name)
+            .setStringValue(value)
+            .build();
     }
 
     /**
@@ -501,7 +516,6 @@ public class KVBackedTargetStoreTest {
         final Target parent = targetStore.createTarget(createTargetSpec(0L, 666));
         final TargetSpec derivedTargetSpec1 = TargetSpec.newBuilder()
                 .setProbeId(DERIVED_PROBE_ID)
-                .setParentId(parent.getId())
                 .setIsHidden(true)
                 .addAllAccountValue(createAccountValue(100))
                 .build();
@@ -509,7 +523,6 @@ public class KVBackedTargetStoreTest {
         final TargetSpec derivedTargetSpec2 = TargetSpec.newBuilder()
                 .setProbeId(DERIVED_PROBE_ID)
                 .addAllAccountValue(createAccountValue(200))
-                .setParentId(parent.getId())
                 .setIsHidden(true)
                 .build();
         final Target derived2 = targetStore.createTarget(derivedTargetSpec2);
@@ -519,13 +532,12 @@ public class KVBackedTargetStoreTest {
 
         // "derived1" and "derived2" are derived targets of "parent".
         verifyDerivedTargetIdsList(
-                Lists.newArrayList(String.valueOf(derived1.getId()), String.valueOf(derived2.getId())),
+                Lists.newArrayList(derived1.getId(), derived2.getId()),
                 getDerivedTargetIds(parent));
 
         final TargetSpec derivedTargetSpec3 = TargetSpec.newBuilder()
                 .setProbeId(DERIVED_PROBE_ID)
                 .addAllAccountValue(createAccountValue(300))
-                .setParentId(derived1.getId())
                 .setIsHidden(true)
                 .build();
         final Target derived3 = targetStore.createTarget(derivedTargetSpec3);
@@ -535,7 +547,7 @@ public class KVBackedTargetStoreTest {
 
         // "derived3" is a derived target of "derived1" (similar to cost targets in Azure).
         verifyDerivedTargetIdsList(
-                Lists.newArrayList(String.valueOf(derived3.getId())),
+                Lists.newArrayList(derived3.getId()),
                 getDerivedTargetIds(derived1));
         assertEquals(parent.getId(), (long)targetStore.findRootTarget(derived3.getId()).get());
         assertEquals(parent.getId(), (long)targetStore.findRootTarget(derived2.getId()).get());
@@ -548,8 +560,8 @@ public class KVBackedTargetStoreTest {
      * @param derivedTargetIds List of derivedTargetIds of a {@link Target} from the target store.
      *
      */
-    private void verifyDerivedTargetIdsList(final List<String> expectedDerivedTargetIds,
-                                            final List<String> derivedTargetIds) {
+    private void verifyDerivedTargetIdsList(final List<Long> expectedDerivedTargetIds,
+                                            final List<Long> derivedTargetIds) {
         Assert.assertTrue(
                 derivedTargetIds.size() == expectedDerivedTargetIds.size() &&
                 expectedDerivedTargetIds.containsAll(derivedTargetIds));
@@ -561,7 +573,7 @@ public class KVBackedTargetStoreTest {
      * @param target A {@link Target} from the target store.
      * @return derivedTargetIds of a given {@link Target}.
      */
-    private List<String> getDerivedTargetIds(Target target) {
+    private List<Long> getDerivedTargetIds(Target target) {
         return targetStore.getTarget(target.getId()).get().getSpec().getDerivedTargetIdsList();
     }
 
@@ -577,7 +589,6 @@ public class KVBackedTargetStoreTest {
         final Target parent = targetStore.createTarget(createTargetSpec(0L, 666));
         final TargetSpec derivedTargetSpec1 = TargetSpec.newBuilder()
             .setProbeId(DERIVED_PROBE_ID)
-            .setParentId(parent.getId())
             .setIsHidden(true)
             .addAllAccountValue(Collections.singleton(TopologyProcessorDTO.AccountValue.newBuilder()
                 .setKey("badfield")
@@ -715,19 +726,21 @@ public class KVBackedTargetStoreTest {
         final TargetSpec derivedTargetSpec2 = TargetSpec.newBuilder()
                 .setProbeId(DERIVED_PROBE_ID)
                 .addAllAccountValue(createAccountValue(2333))
-                .setParentId(parent.getId())
                 .setIsHidden(true)
                 .build();
 
         // Derived target 1 is not dependent on parent target.
         final Target derived1 = targetStore.createTarget(derivedTargetSpec1);
         // Derived target 2 is dependent on parent target.
-        final Target derived2 = targetStore.createTarget(derivedTargetSpec2);
+        targetStore.createOrUpdateDerivedTargets(Collections.singletonList(derivedTargetSpec2),
+            parent.getId());
+        final Long derivedTarget2Id = verifyDerivedTargetCreation(derivedTargetSpec2);
+        assertNotNull(derivedTarget2Id);
         Assert.assertEquals(3, targetStore.getAll().size());
 
         targetStore.removeTargetAndBroadcastTopology(parent.getId(), topologyHandler, scheduler);
         Assert.assertTrue(targetStore.getTarget(derived1.getId()).isPresent());
-        Assert.assertFalse(targetStore.getTarget(derived2.getId()).isPresent());
+        Assert.assertFalse(targetStore.getTarget(derivedTarget2Id).isPresent());
         Assert.assertEquals(1, targetStore.getAll().size());
     }
 
@@ -743,31 +756,23 @@ public class KVBackedTargetStoreTest {
         final long derivedProbeId = 1L;
         final TargetSpec derivedTargetSpec = TargetSpec.newBuilder()
                 .setProbeId(derivedProbeId)
-                .setParentId(parent.getId())
                 .addAllAccountValue(createAccountValue(555))
                 .build();
-        final Target derived = targetStore.createTarget(derivedTargetSpec);
+        targetStore.createOrUpdateDerivedTargets(Collections.singletonList(derivedTargetSpec),
+            parent.getId());
+        final Long derivedTargetId = verifyDerivedTargetCreation(derivedTargetSpec);
+        assertNotNull(derivedTargetId);
         targetStore.updateTarget(parent.getId(), parent.getSpec().getAccountValueList());
-        Assert.assertTrue(targetStore.getTarget(derived.getId()).isPresent());
+        Assert.assertTrue(targetStore.getTarget(derivedTargetId).isPresent());
     }
 
     @Test
     public void testGetProbeCategoryForTarget() throws Exception {
-        AccountDefEntry plain = AccountDefEntry.newBuilder()
-            .setCustomDefinition(
-                CustomAccountDefEntry.newBuilder()
-                    .setName(PredefinedAccountDefinition.Address.name().toLowerCase())
-                    .setDisplayName("this is my address")
-                    .setDescription("The address")
-                    .setIsSecret(false))
-            .setMandatory(true)
-            .build();
-        ProbeInfo probeInfo = ProbeInfo.newBuilder()
-            .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
-            .setProbeType(SDKProbeType.VCENTER.toString())
-            .addTargetIdentifierField(PredefinedAccountDefinition.Address.name().toLowerCase())
-            .addAccountDefinition(plain)
-            .build();
+        ProbeInfo probeInfo = createProbeInfo(ProbeCategory.HYPERVISOR.getCategory(),
+            SDKProbeType.VCENTER.toString(),
+            PredefinedAccountDefinition.Address.name().toLowerCase(),
+            Collections.singletonList(PLAIN_ACCT_DEF));
+
         Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
 
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Collections.singletonList(
@@ -777,6 +782,206 @@ public class KVBackedTargetStoreTest {
 
     }
 
+    /**
+     * Verify that a target matching the passed in TargetSpec exists and that there is only one
+     * match for it.
+     *
+     * @param derivedTargetSpec spec for the derived target.
+     * @return targetId of the derived target.
+     * @throws IdentityStoreException if the identity store throws an exception while processing
+     * the target spec.
+     */
+    private Long verifyDerivedTargetCreation(TargetSpec derivedTargetSpec)
+        throws IdentityStoreException {
+        final IdentityStoreUpdate<TargetSpec> identityStoreUpdate = targetIdentityStore
+            .fetchOrAssignItemOids(Arrays.asList(derivedTargetSpec));
+        assertTrue(identityStoreUpdate.getNewItems().isEmpty());
+        assertTrue(identityStoreUpdate.getOldItems().size() == 1);
+        final Long derivedTargetId1 = identityStoreUpdate.getOldItems().get(derivedTargetSpec);
+        return derivedTargetId1;
+    }
+
+    /**
+     * Verify that the address passed in matches the address account value of the target.
+     *
+     * @param targetAddress String giving the expected account value for the address field.
+     * @param target the target pulled from the target store.
+     */
+    private void verifyAddressAccountValue(String targetAddress, Target target) {
+        assertEquals(targetAddress,
+            target.getSpec().getAccountValueList().stream()
+                .filter(acctVal ->
+                    PredefinedAccountDefinition.Address.name().toLowerCase()
+                        .equals(acctVal.getKey()))
+                .findFirst()
+                .map(acctValue -> acctValue.getStringValue())
+                .get());
+    }
+
+    /**
+     * Test that we correctly handle derived targets that are shared between two parents.
+     *
+     * @throws Exception if the targetStore throws one.
+     */
+    @Test
+    public void testMultipleParentDerivedTarget() throws Exception {
+        final long parentProbeId = 1L;
+        final long derivedProbeId = 2L;
+        final String commonNameValue = "foo";
+        final String derivedTargetAddress1 = "Address1";
+        final String derivedTargetAddress2 = "Address2";
+
+        Mockito.when(probeStore.getProbe(parentProbeId)).thenReturn(Optional.of(parentProbeInfo));
+        Mockito.when(probeStore.getProbe(derivedProbeId)).thenReturn(Optional.of(derivedProbeInfo));
+
+        final Target parentTarget1 = targetStore.createTarget(createTargetSpec(parentProbeId,
+            PredefinedAccountDefinition.Address.name().toLowerCase(),
+            "Parent1"));
+        final Target parentTarget2 = targetStore.createTarget(createTargetSpec(parentProbeId,
+            PredefinedAccountDefinition.Address.name().toLowerCase(),
+            "Parent2"));
+        // Create 2 derived targets specs that should resolve to the same target since they have
+        // the same value in the target identifying field
+        final TargetSpec derivedTargetSpec1 = TargetSpec.newBuilder()
+            .setProbeId(derivedProbeId)
+            .setIsHidden(true)
+            .addAllAccountValue(ImmutableList.of(
+                createAccountValue(NAME_ACCT_DEF.getCustomDefinition().getName(), commonNameValue),
+                createAccountValue(PredefinedAccountDefinition.Address.name().toLowerCase(),
+                    derivedTargetAddress1)))
+            .build();
+        final TargetSpec derivedTargetSpec2 = TargetSpec.newBuilder()
+            .setProbeId(derivedProbeId)
+            .setIsHidden(true)
+            .addAllAccountValue(ImmutableList.of(
+                createAccountValue(NAME_ACCT_DEF.getCustomDefinition().getName(), commonNameValue),
+                createAccountValue(PredefinedAccountDefinition.Address.name().toLowerCase(),
+                    derivedTargetAddress2)))
+            .build();
+        targetStore.createOrUpdateDerivedTargets(Lists.newArrayList(derivedTargetSpec1),
+            parentTarget1.getId());
+
+        final Long derivedTargetId1 = verifyDerivedTargetCreation(derivedTargetSpec1);
+        targetStore.createOrUpdateDerivedTargets(Lists.newArrayList(derivedTargetSpec2),
+            parentTarget2.getId());
+        final Long derivedTargetId2 = verifyDerivedTargetCreation(derivedTargetSpec2);
+        assertNotNull(derivedTargetId1);
+        assertEquals(derivedTargetId1, derivedTargetId2);
+        final Target parentTarget1Updated = targetStore.getTarget(parentTarget1.getId()).get();
+        final Target parentTarget2Updated = targetStore.getTarget(parentTarget2.getId()).get();
+        assertEquals(1, parentTarget1Updated.getSpec().getDerivedTargetIdsCount());
+        assertEquals(1, parentTarget2Updated.getSpec().getDerivedTargetIdsCount());
+        // test that derived target shows up under both parents
+        assertEquals(
+            (Long)parentTarget1Updated.getSpec().getDerivedTargetIdsList().iterator().next(),
+            derivedTargetId1);
+        assertEquals(
+            (Long)parentTarget2Updated.getSpec().getDerivedTargetIdsList().iterator().next(),
+            derivedTargetId1);
+        // Reprocess the derived target from Parent1 to force it to use the account values from
+        // Parent1's target spec and check that the derived target is using the address specified
+        // its target spec
+        targetStore.createOrUpdateDerivedTargets(Lists.newArrayList(derivedTargetSpec1),
+            parentTarget1.getId());
+        final Target derivedTargetUpdate1 = targetStore.getTarget(derivedTargetId1).get();
+        verifyAddressAccountValue(derivedTargetAddress1, derivedTargetUpdate1);
+        // now remove one parent of the derived target and ensure that parent fields are
+        // updated properly
+        targetStore.createOrUpdateDerivedTargets(Collections.emptyList(),
+            parentTarget1.getId());
+        final Target derivedTargetUpdate2 = targetStore.getTarget(derivedTargetId1).get();
+        final Target parentTarget1Update2 = targetStore.getTarget(parentTarget1.getId()).get();
+        final Target parentTarget2Update2 = targetStore.getTarget(parentTarget2.getId()).get();
+        assertEquals(0, parentTarget1Update2.getSpec().getDerivedTargetIdsCount());
+        assertEquals(1, parentTarget2Update2.getSpec().getDerivedTargetIdsCount());
+        assertEquals((Long)derivedTargetId1,
+            parentTarget2Update2.getSpec().getDerivedTargetIdsList().iterator().next());
+        // confirm that we are now using the account values from the derived target spec that came
+        // from parentTarget2
+        verifyAddressAccountValue(derivedTargetAddress2, derivedTargetUpdate2);
+        // now delete the derived target for the only remaining parent and make sure it gets deleted
+        targetStore.createOrUpdateDerivedTargets(Collections.emptyList(),
+            parentTarget2.getId());
+        assertFalse(targetStore.getTarget(derivedTargetId1).isPresent());
+
+        // Test that Parent target deletion affects shared derived targets properly
+        // Create derived target with 2 parent targets
+        targetStore.createOrUpdateDerivedTargets(Lists.newArrayList(derivedTargetSpec1),
+            parentTarget1.getId());
+        targetStore.createOrUpdateDerivedTargets(Lists.newArrayList(derivedTargetSpec2),
+            parentTarget2.getId());
+        // delete first parent target
+        targetStore.removeTargetAndBroadcastTopology(parentTarget1.getId(), topologyHandler,
+            scheduler);
+        // confirm that derived target is still in the target store
+        final Long derivedTargetId3 = verifyDerivedTargetCreation(derivedTargetSpec2);
+        final Target parentTarget2Update3 = targetStore.getTarget(parentTarget2.getId()).get();
+        assertEquals(1, parentTarget2Update3.getSpec().getDerivedTargetIdsCount());
+        assertEquals((Long)derivedTargetId3,
+            parentTarget2Update3.getSpec().getDerivedTargetIdsList().iterator().next());
+        assertTrue(targetStore.getTarget(derivedTargetId3).isPresent());
+        // Delete only remaining parent of derived target
+        targetStore.removeTargetAndBroadcastTopology(parentTarget2.getId(), topologyHandler,
+            scheduler);
+        // confirm that derived target is deleted
+        assertFalse(targetStore.getTarget(derivedTargetId3).isPresent());
+    }
+
+    /**
+     * Tests that when we update a parent target with a new derived target that differs from the old
+     * one in a target identifying field, we get a new derived target and the old one is removed.
+     *
+     * @throws IdentityStoreException if the targetStore throws one.
+     * @throws DuplicateTargetException if the targetStore throws one.
+     * @throws InvalidTargetException if the targetStore throws one.
+     */
+    @Test
+    public void testDerivedTargetChangesIdentifyingFieldValue()
+        throws IdentityStoreException, DuplicateTargetException, InvalidTargetException {
+        final long parentProbeId = 1L;
+        final long derivedProbeId = 2L;
+        final String firstNameValue = "foo";
+        final String secondNameValue = "bar";
+        final String derivedTargetAddress = "Address1";
+
+        Mockito.when(probeStore.getProbe(parentProbeId)).thenReturn(Optional.of(parentProbeInfo));
+        Mockito.when(probeStore.getProbe(derivedProbeId)).thenReturn(Optional.of(derivedProbeInfo));
+
+        final Target parentTarget = targetStore.createTarget(createTargetSpec(parentProbeId,
+            PredefinedAccountDefinition.Address.name().toLowerCase(),
+            "Parent1"));
+        // Create 2 derived targets specs that should resolve to different derived targets
+        final TargetSpec derivedTargetSpec1 = TargetSpec.newBuilder()
+            .setProbeId(derivedProbeId)
+            .setIsHidden(true)
+            .addAllAccountValue(ImmutableList.of(
+                createAccountValue(NAME_ACCT_DEF.getCustomDefinition().getName(), firstNameValue),
+                createAccountValue(PredefinedAccountDefinition.Address.name().toLowerCase(),
+                    derivedTargetAddress)))
+            .build();
+        final TargetSpec derivedTargetSpec2 = TargetSpec.newBuilder()
+            .setProbeId(derivedProbeId)
+            .setIsHidden(true)
+            .addAllAccountValue(ImmutableList.of(
+                createAccountValue(NAME_ACCT_DEF.getCustomDefinition().getName(), secondNameValue),
+                createAccountValue(PredefinedAccountDefinition.Address.name().toLowerCase(),
+                    derivedTargetAddress)))
+            .build();
+        targetStore.createOrUpdateDerivedTargets(Lists.newArrayList(derivedTargetSpec1),
+            parentTarget.getId());
+
+        final Long derivedTargetId1 = verifyDerivedTargetCreation(derivedTargetSpec1);
+        targetStore.createOrUpdateDerivedTargets(Lists.newArrayList(derivedTargetSpec2),
+            parentTarget.getId());
+        final Long derivedTargetId2 = verifyDerivedTargetCreation(derivedTargetSpec2);
+        assertTrue(derivedTargetId1 != derivedTargetId2);
+        assertFalse(targetStore.getTarget(derivedTargetId1).isPresent());
+        final Optional<Target> updatedParentTarget = targetStore.getTarget(parentTarget.getId());
+        assertTrue(updatedParentTarget.isPresent());
+        assertEquals(1, updatedParentTarget.get().getSpec().getDerivedTargetIdsCount());
+        assertEquals(derivedTargetId2,
+            updatedParentTarget.get().getSpec().getDerivedTargetIdsList().iterator().next());
+    }
 
     @Test
     public void testInvalidTargetAndRootTarget() throws DuplicateTargetException, InvalidTargetException, IdentityStoreException {
@@ -784,12 +989,13 @@ public class KVBackedTargetStoreTest {
         final Target parent = targetStore.createTarget(createTargetSpec(0L, 666));
         final TargetSpec derivedTargetSpec1 = TargetSpec.newBuilder()
                 .setProbeId(DERIVED_PROBE_ID)
-                .setParentId(parent.getId())
                 .setIsHidden(true)
                 .addAllAccountValue(createAccountValue(100))
                 .build();
-        final Target derived1 = targetStore.createTarget(derivedTargetSpec1);
-        assertEquals(Optional.of(parent.getId()), targetStore.findRootTarget(derived1.getId()));
+        targetStore.createOrUpdateDerivedTargets(Collections.singletonList(derivedTargetSpec1),
+            parent.getId());
+        final Long derived1 = verifyDerivedTargetCreation(derivedTargetSpec1);
+        assertEquals(Optional.of(parent.getId()), targetStore.findRootTarget(derived1));
         assertEquals(Optional.empty(), targetStore.findRootTarget(100L));
     }
 }

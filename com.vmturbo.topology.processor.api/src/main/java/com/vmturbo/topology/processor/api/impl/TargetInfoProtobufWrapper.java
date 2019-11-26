@@ -53,12 +53,6 @@ public class TargetInfoProtobufWrapper implements TargetInfo {
     }
 
     @Override
-    public Optional<Long> getParentId() {
-        return targetInfo.getSpec().hasParentId() ? Optional.of(targetInfo.getSpec().getParentId())
-                : Optional.empty();
-    }
-
-    @Override
     public boolean isHidden() {
         return targetInfo.getSpec().getIsHidden();
     }
@@ -69,8 +63,8 @@ public class TargetInfoProtobufWrapper implements TargetInfo {
     }
 
     @Override
-    public List<String> getDerivedTargetIds() {
-        return targetInfo.getSpec().getDerivedTargetIdsList().stream().map(String::valueOf).collect(Collectors.toList());
+    public List<Long> getDerivedTargetIds() {
+        return targetInfo.getSpec().getDerivedTargetIdsList().stream().collect(Collectors.toList());
     }
 
     @Override

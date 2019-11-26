@@ -150,11 +150,6 @@ public class TargetRESTApi {
         }
 
         @Override
-        public Optional<Long> getParentId() {
-            return spec.getParentId();
-        }
-
-        @Override
         public boolean isHidden() {
             return spec.getIsHidden();
         }
@@ -164,7 +159,7 @@ public class TargetRESTApi {
         }
 
         @Override
-        public List<String> getDerivedTargetIds() {
+        public List<Long> getDerivedTargetIds() {
             return spec.getDerivedTargetIds();
         }
     }
@@ -181,18 +176,15 @@ public class TargetRESTApi {
 
         @ApiModelProperty(value = "Probe to which the target belongs.")
         private final Long probeId;
-        @ApiModelProperty(value = "Parent target id of the target.")
-        private final Optional<Long> parentId;
         @ApiModelProperty(value = "Is the target hidden from users.")
         private final boolean isHidden;
         @ApiModelProperty(value = "Whether the target cannot be changed through public APIs")
         private final boolean readOnly;
         @ApiModelProperty(value = "The derived target IDs associated with this target")
-        private final List<String> derivedTargetIds;
+        private final List<Long> derivedTargetIds;
 
         protected TargetSpec() {
             probeId = null;
-            parentId = Optional.empty();
             isHidden = false;
             readOnly = false;
             derivedTargetIds = Lists.newArrayList();
@@ -202,7 +194,6 @@ public class TargetRESTApi {
                         @Nonnull final List<InputField> accountFields) {
             super(accountFields);
             this.probeId = Objects.requireNonNull(probeId);
-            this.parentId = Optional.empty();
             this.isHidden = false;
             this.readOnly = false;
             this.derivedTargetIds = Lists.newArrayList();
@@ -213,8 +204,6 @@ public class TargetRESTApi {
                             .map(accountValue -> new InputField(accountValue))
                             .collect(Collectors.toList()));
             this.probeId = targetSpec.getProbeId();
-            this.parentId = targetSpec.hasParentId() ? Optional.of(targetSpec.getParentId())
-                    : Optional.empty();
             this.isHidden = targetSpec.getIsHidden();
             this.readOnly = targetSpec.getReadOnly();
             this.derivedTargetIds = targetSpec.getDerivedTargetIdsList();
@@ -222,10 +211,6 @@ public class TargetRESTApi {
 
         public Long getProbeId() {
             return probeId;
-        }
-
-        public Optional<Long> getParentId() {
-            return parentId;
         }
 
         public boolean getIsHidden() {
@@ -236,7 +221,7 @@ public class TargetRESTApi {
             return readOnly;
         }
 
-        public List<String> getDerivedTargetIds() {
+        public List<Long> getDerivedTargetIds() {
             return derivedTargetIds;
         }
 

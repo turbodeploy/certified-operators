@@ -21,6 +21,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.Table;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -75,6 +77,21 @@ public class KVBackedTargetStore implements TargetStore {
     private final ConcurrentMap<Long, Set<Long>> derivedTargetIdsByParentId;
 
     /**
+     * Map of derived target ID to set of targets that have that target ID as a derived target.
+     */
+    @GuardedBy("storeLock")
+    private final ConcurrentMap<Long, Set<Long>> parentTargetIdsByDerivedTargetId;
+
+    /**
+     * Table that takes a parent ID and a derived target ID and returns the last target spec
+     * returned by that parent target for that derived target.  We need this so that when one
+     * parent of a derived target is deleted or no longer discovers that derived target, we can
+     * get account values from another parent of that derived target.
+     */
+    @GuardedBy("storeLock")
+    private final Table<Long, Long, TargetSpec> targetSpecByParentTargetIdDerivedTargetId;
+
+    /**
      * Locks for write operations on target storages.
      */
     private final Object storeLock = new Object();
@@ -90,7 +107,8 @@ public class KVBackedTargetStore implements TargetStore {
         this.identityStore = Objects.requireNonNull(identityStore);
 
         this.derivedTargetIdsByParentId = new ConcurrentHashMap<>();
-
+        this.parentTargetIdsByDerivedTargetId = new ConcurrentHashMap<>();
+        this.targetSpecByParentTargetIdDerivedTargetId = HashBasedTable.create();
         // Check the key-value store for targets backed up
         // by previous incarnations of a KVBackedTargetStore.
         final Map<String, String> persistedTargets = this.keyValueStore.getByPrefix(TARGET_KV_STORE_PREFIX);
@@ -99,7 +117,10 @@ public class KVBackedTargetStore implements TargetStore {
             .map(entry -> {
                 try {
                     final Target newTarget = new Target(entry.getValue(), probeStore);
-                    addDerivedTargetsRelationships(newTarget);
+                    // update data structures with parent - derived target relationship
+                    newTarget.getSpec().getDerivedTargetIdsList().forEach(derivedTargetId ->
+                        addDerivedTargetParent(newTarget.getId(), derivedTargetId,
+                            Optional.empty()));
                     addAccountDefEntryList(newTarget);
                     logger.info("Restored existing target '{}' ({}) for probe {}.", newTarget.getDisplayName(),
                             newTarget.getId(), newTarget.getProbeId());
@@ -221,10 +242,11 @@ public class KVBackedTargetStore implements TargetStore {
         throws IdentityStoreException {
        // All the derived target specs are guaranteed from the same parent target, so we can pick up the
         // parent id in the first element in the list.
+        final Set<Long> existingDerivedTargetIds = new HashSet<>();
         synchronized (storeLock) {
             // Fetch the current derived target oids. We need to remove the existing targets which are not
             // occurred in this discovery cycle.
-            final Set<Long> existingDerivedTargetIds = getDerivedTargetIds(parentTargetId);
+            existingDerivedTargetIds.addAll(getDerivedTargetIds(parentTargetId));
             if (!targetSpecs.isEmpty()) {
                 final IdentityStoreUpdate<TargetSpec> identityStoreUpdate =
                     identityStore.fetchOrAssignItemOids(targetSpecs);
@@ -234,8 +256,8 @@ public class KVBackedTargetStore implements TargetStore {
                 // Iterate created oids and update the existing derived targets.
                 oldItems.forEach((key, value) -> {
                     try {
+                        addDerivedTargetParent(parentTargetId, value, Optional.of(key));
                         updateTarget(value, key.getAccountValueList());
-                        updateDerivedTargetIds(value);
                         existingDerivedTargetIds.remove(value);
                     } catch (InvalidTargetException | TargetNotFoundException |
                         IdentityStoreException | IdentifierConflictException e) {
@@ -248,6 +270,7 @@ public class KVBackedTargetStore implements TargetStore {
                     try {
                         final Target retTarget = new Target(value, probeStore,
                             Objects.requireNonNull(key), true);
+                        addDerivedTargetParent(parentTargetId, value, Optional.of(key));
                         registerTarget(retTarget);
                     } catch (InvalidTargetException e) {
                         try {
@@ -263,18 +286,23 @@ public class KVBackedTargetStore implements TargetStore {
                     }
                 });
             }
-            // Remove all the derived targets which are not in the latest response DTO.
-            existingDerivedTargetIds.forEach(targetId -> {
-                try {
+        }
+        // Remove all the derived targets which are not in the latest response DTO.
+        // Target deletion cannot happen within a storeLock, so we release the lock first.
+        existingDerivedTargetIds.forEach(targetId -> {
+            try {
+                if (removeDerivedTargetFromParent(targetId, parentTargetId)) {
                     removeTarget(targetId);
-                } catch (TargetNotFoundException e) {
-                    logger.error(String.format("Derived target %s was not found.", targetId), e);
-                } catch (IdentityStoreException e) {
-                    logger.error(
-                        String.format(
-                            "Remove identifiers of target %s from database failed.", targetId), e);
                 }
-            });
+            } catch (TargetNotFoundException | InvalidTargetException e) {
+                logger.error(String.format("Derived target %s was not found.", targetId), e);
+            } catch (IdentityStoreException | IdentifierConflictException e) {
+                logger.error(
+                    String.format(
+                        "Remove identifiers of target %s from database failed.", targetId), e);
+            }
+        });
+        synchronized (storeLock) {
             try {
                 updateDerivedTargetIds(parentTargetId);
             } catch (TargetNotFoundException e) {
@@ -284,23 +312,91 @@ public class KVBackedTargetStore implements TargetStore {
     }
 
     /**
-     * Add parent id to derived target ids relationship into map.
+     * Remove the relationships between a derived target and its parent.  Return true if the derived
+     * target has no more parents.
      *
-     * @param target The target which way add this relationship.
+     * @param derivedTargetId the target id of the derived target.
+     * @param parentTargetId  the target if of the parent target.
+     * @return true if the derived target should be removed because it has no more parents.
+     * @throws InvalidTargetException when updateTarget throws it.
+     * @throws TargetNotFoundException when updateTarget throws it.
+     * @throws IdentityStoreException when updateTarget throws it.
+     * @throws IdentifierConflictException when updateTarget throws it.
      */
-    private void addDerivedTargetsRelationships(@Nonnull final Target target) {
-        if (target.getSpec().hasParentId()) {
-            final long parentTargetId = target.getSpec().getParentId();
-            derivedTargetIdsByParentId.computeIfAbsent(parentTargetId, k -> new HashSet<>())
-                .add(target.getId());
+    private boolean removeDerivedTargetFromParent(final long derivedTargetId,
+                                                  final long parentTargetId)
+        throws InvalidTargetException, TargetNotFoundException,
+        IdentityStoreException, IdentifierConflictException {
+        synchronized (storeLock) {
+            Set<Long> derivedTargets = derivedTargetIdsByParentId.get(parentTargetId);
+            if (derivedTargets == null || !derivedTargets.remove(derivedTargetId)) {
+                logger.warn("While removing derived target {} from parent {}: "
+                        + "derived target id not found in parent derived target list.", derivedTargetId,
+                    parentTargetId);
+            }
+
+            final Set<Long> ancestors = parentTargetIdsByDerivedTargetId.get(derivedTargetId);
+            targetSpecByParentTargetIdDerivedTargetId.remove(parentTargetId, derivedTargetId);
+
+            // Remove parent from ancestors and either update the the derived target with new account
+            // values or mark it for removal.
+            if (ancestors != null && ancestors.remove(parentTargetId)) {
+                // no more ancestors, derived target should be deleted
+                if (ancestors.isEmpty()) {
+                    parentTargetIdsByDerivedTargetId.remove(derivedTargetId);
+                    return true;
+                }
+                // we may have deleted the derived target whose account values we were using, so find
+                // another set of account values to use
+                updateTarget(derivedTargetId,
+                    ancestors.stream()
+                        .map(parentId ->
+                            targetSpecByParentTargetIdDerivedTargetId.get(parentId, derivedTargetId))
+                        .filter(Objects::nonNull)
+                        .findFirst());
+                return false;
+            }
+            // We should never get here.
+            logger.warn("Attempt to remove derived target {} from parent {} but no existing " +
+                "relationship found.", derivedTargetId, parentTargetId);
+            return ancestors.isEmpty();
         }
+    }
+
+    /**
+     * Called when we process a derived target spec from a parent target discovery and find that
+     * the derived target already exists in the identity store.  In that case, we do some
+     * bookkeeping here to track the relationship between the parent target and derived target.
+     *
+     * @param derivedTargetId target id of the derived target.
+     * @param targetSpec TargetSpec of the derived target.
+     * @param parentTargetId target id of the parent target.
+     */
+    @GuardedBy("storeLock")
+    private void addDerivedTargetParent(final long parentTargetId,
+                                        final long derivedTargetId,
+                                        @Nonnull final Optional<TargetSpec> targetSpec) {
+        Objects.requireNonNull(targetSpec);
+        logger.debug("Adding target relationships between parent {} and derived target {}.",
+            parentTargetId, derivedTargetId);
+        parentTargetIdsByDerivedTargetId.computeIfAbsent(derivedTargetId,
+            k -> new HashSet<>())
+            .add(parentTargetId);
+        derivedTargetIdsByParentId.computeIfAbsent(parentTargetId, k -> new HashSet<>())
+            .add(derivedTargetId);
+        targetSpec.ifPresent(spec ->
+            targetSpecByParentTargetIdDerivedTargetId.put(parentTargetId, derivedTargetId, spec));
     }
 
     @GuardedBy("storeLock")
     private void registerTarget(Target target) {
         keyValueStore.put(TARGET_KV_STORE_PREFIX + Long.toString(target.getId()), target.toJsonString());
         targetsById.put(target.getId(), target);
-        addDerivedTargetsRelationships(target);
+        // update data structures with parent - derived target relationship
+        target.getSpec().getDerivedTargetIdsList().forEach(derivedTargetId ->
+            addDerivedTargetParent(target.getId(), derivedTargetId,
+                Optional.empty()));
+
         logger.info("Registered target '{}' ({}) for probe {}.", target.getDisplayName(), target.getId(),
                 target.getProbeId());
         listeners.forEach(listener -> listener.onTargetAdded(target));
@@ -333,6 +429,30 @@ public class KVBackedTargetStore implements TargetStore {
         return listeners.remove(Objects.requireNonNull(listener));
     }
 
+    /**
+     * Convenience method to update a target when you may not have a TargetSpec.  If there is no
+     * TargetSpec, get the account values from the existing target.
+     *
+     * @param targetId ID of target to update.
+     * @param spec Optional TargetSpec with updated account values.
+     * @return {@link Target} updated with the new state of the target.
+     * @throws InvalidTargetException if underlying call to updateTarget throws.
+     * @throws TargetNotFoundException if no target exists with targetId.
+     * @throws IdentityStoreException if underlying call to updateTarget throws.
+     * @throws IdentifierConflictException if underlying call to updateTarget throws.
+     */
+    private Target updateTarget(long targetId, @Nonnull Optional<TargetSpec> spec)
+        throws InvalidTargetException, TargetNotFoundException,
+            IdentityStoreException, IdentifierConflictException {
+        final Target oldTarget = targetsById.get(targetId);
+        if (oldTarget == null) {
+            throw new TargetNotFoundException(targetId);
+        }
+        final List<AccountValue> accountValues = spec.map(TargetSpec::getAccountValueList)
+            .orElse(oldTarget.getSpec().getAccountValueList());
+        return updateTarget(targetId, accountValues);
+    }
+
     @Override
     public Target updateTarget(long targetId, @Nonnull Collection<AccountValue> updatedFields)
         throws InvalidTargetException, TargetNotFoundException,
@@ -345,7 +465,12 @@ public class KVBackedTargetStore implements TargetStore {
                 throw new TargetNotFoundException(targetId);
             }
             retTarget =
-                    oldTarget.withUpdatedFields(updatedFields, probeStore);
+                oldTarget.withUpdatedFields(updatedFields, probeStore)
+                    .withUpdatedDerivedTargetIds(
+                        getDerivedTargetIds(targetId)
+                            .stream()
+                            .collect(Collectors.toList()),
+                        probeStore);
             identityStore.updateItemAttributes(ImmutableMap.of(targetId, retTarget.getSpec()));
             targetsById.put(targetId, retTarget);
             keyValueStore.put(TARGET_KV_STORE_PREFIX + Long.toString(retTarget.getId()),
@@ -353,11 +478,10 @@ public class KVBackedTargetStore implements TargetStore {
         }
 
         logger.info("Updated target '{}' ({}) for probe {}", retTarget.getDisplayName(), targetId,
-                retTarget.getProbeId());
+            retTarget.getProbeId());
         listeners.forEach(listener -> listener.onTargetUpdated(retTarget));
         return retTarget;
     }
-
 
     /**
      * Updates "derived target IDs" field for a given parent {@link Target}.
@@ -366,31 +490,29 @@ public class KVBackedTargetStore implements TargetStore {
      * @param targetId parent {@link Target}'s ID.
      * @throws TargetNotFoundException When the requested target cannot be found.
      */
+    @GuardedBy("storeLock")
     private void updateDerivedTargetIds(long targetId)
             throws TargetNotFoundException {
-        synchronized (storeLock) {
-            final Target oldTarget = targetsById.get(targetId);
-            if (oldTarget == null) {
-                throw new TargetNotFoundException(targetId);
-            }
-            try {
-                final Target retTarget = oldTarget.withUpdatedDerivedTargetIds(
-                                getDerivedTargetIds(targetId)
-                                        .stream()
-                                        .map(String::valueOf)
-                                        .collect(Collectors.toList()),
-                                probeStore);
-                identityStore.updateItemAttributes(ImmutableMap.of(targetId, retTarget.getSpec()));
-                targetsById.put(targetId, retTarget);
-                keyValueStore.put(TARGET_KV_STORE_PREFIX + Long.toString(retTarget.getId()),
-                        retTarget.toJsonString());
-            } catch (IdentityStoreException | IdentifierConflictException e) {
-                logger.error(String.format(
-                        "Remove identifiers of target %s from database failed.",
-                        oldTarget.getId()), e);
-            } catch (InvalidTargetException e) {
-                logger.error(String.format("Target %s could not be created.", oldTarget.getId()), e);
-            }
+        final Target oldTarget = targetsById.get(targetId);
+        if (oldTarget == null) {
+            throw new TargetNotFoundException(targetId);
+        }
+        try {
+            final Target retTarget = oldTarget.withUpdatedDerivedTargetIds(
+                getDerivedTargetIds(targetId)
+                    .stream()
+                    .collect(Collectors.toList()),
+                probeStore);
+            identityStore.updateItemAttributes(ImmutableMap.of(targetId, retTarget.getSpec()));
+            targetsById.put(targetId, retTarget);
+            keyValueStore.put(TARGET_KV_STORE_PREFIX + Long.toString(retTarget.getId()),
+                retTarget.toJsonString());
+        } catch (IdentityStoreException | IdentifierConflictException e) {
+            logger.error(String.format(
+                "Remove identifiers of target %s from database failed.",
+                oldTarget.getId()), e);
+        } catch (InvalidTargetException e) {
+            logger.error(String.format("Target %s could not be created.", oldTarget.getId()), e);
         }
     }
 
@@ -466,11 +588,17 @@ public class KVBackedTargetStore implements TargetStore {
         if (derivedTargetIds == null) {
             return;
         }
+        // if there were derived targets, we only remove those targets if they no longer have any
+        // parent targets.  If the deleted target was the primary parent, but other parents exist,
+        // we need to select a new primary parent and update the derived target with the new spec
         logger.info("Removing {} derived targets for target {}", derivedTargetIds.size(), targetId);
         derivedTargetIds.forEach(derivedTargetId -> {
             try {
-                removeTarget(derivedTargetId);
-            } catch (TargetNotFoundException | IdentityStoreException e) {
+                if (removeDerivedTargetFromParent(derivedTargetId, targetId)) {
+                    removeTarget(derivedTargetId);
+                }
+            } catch (TargetNotFoundException | IdentityStoreException | InvalidTargetException
+                | IdentifierConflictException e) {
                 logger.error("Remove derived target " + derivedTargetId + " failed.", e);
             }
         });
@@ -544,9 +672,12 @@ public class KVBackedTargetStore implements TargetStore {
     }
 
     private void findTargetChain(final long targetId, final Stack<Long> stackOfTargetId) throws InvalidTargetException {
-        Optional<Long> parentTargetId = derivedTargetIdsByParentId.entrySet().stream()
+        Optional<Long> parentTargetId = Optional.empty();
+        synchronized (storeLock) {
+            parentTargetId = derivedTargetIdsByParentId.entrySet().stream()
                 .filter(derivedTargetEntry -> derivedTargetEntry.getValue().contains(targetId))
                 .map(Entry::getKey).findFirst();
+        }
         if (parentTargetId.isPresent()) {
             if (!stackOfTargetId.contains(parentTargetId.get())) {
                 stackOfTargetId.push(parentTargetId.get());

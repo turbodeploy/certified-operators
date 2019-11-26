@@ -53,15 +53,6 @@ public interface TargetInfo extends TargetData {
     String getStatus();
 
     /**
-     * Returns optional parent id of this target. E.g. if the target is belonged to storage browsing or
-     * billing categories, it should has a parent target like VC or Azure target. The id will point to the
-     * instance of target. If there is no parent target, the field will be empty.
-     *
-     * @return optional of parent id of the target
-     */
-    Optional<Long> getParentId();
-
-    /**
      * Returns the boolean value to know if the target is hidden
      *
      * @return boolean that whether we hide the target
@@ -81,5 +72,5 @@ public interface TargetInfo extends TargetData {
      *
      * @return List of the derived target IDs associated with this target.
      */
-    List<String> getDerivedTargetIds();
+    List<Long> getDerivedTargetIds();
 }

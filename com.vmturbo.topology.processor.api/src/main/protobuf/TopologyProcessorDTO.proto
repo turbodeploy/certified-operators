@@ -9,15 +9,14 @@ message TargetSpec {
     required int64 probe_id = 1;
     // Account values, used for this target.
     repeated AccountValue account_value = 2;
-    // This field is valid only the target is derived target. It represents
-    // the id of the parent target which discovered this target.
-    optional int64 parent_id = 3;
+    // This field has been deprecated as it is made redundant by derived_target_ids.
+    optional int64 parent_id = 3 [deprecated = true];
     // This field indicates whether the target should be show on UI.
     optional bool is_hidden = 4 [default = false];
     // This field indicates whether the target cannot be changed through public APIs.
     optional bool read_only = 5 [default = false];
     // This field stores the derived target IDs associated with this target.
-    repeated string derived_target_ids = 6;
+    repeated int64 derived_target_ids = 6;
 }
 
 message TargetInfo {

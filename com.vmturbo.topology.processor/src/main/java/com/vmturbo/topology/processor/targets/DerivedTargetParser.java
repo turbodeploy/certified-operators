@@ -78,7 +78,7 @@ public class DerivedTargetParser {
                             derivedTargetDTO);
                     // If the target is dependent on the parent target, then we create it as derived target, or
                     // we should create the target as normal way as the case for VCD creating VC targets.
-                    if (targetSpec.hasParentId()) {
+                    if (derivedTargetDTO.hasDependent() && derivedTargetDTO.getDependent()) {
                         derivedTargetSpecs.add(targetSpec);
                     } else {
                         try {
@@ -119,9 +119,6 @@ public class DerivedTargetParser {
         targetSpec.setReadOnly(derivedTargetDTO.getReadonly());
         targetSpec.setProbeId(probeId);
         targetSpec.setIsHidden(derivedTargetDTO.getHidden());
-        if (derivedTargetDTO.hasDependent() && derivedTargetDTO.getDependent()) {
-            targetSpec.setParentId(parentTargetId);
-        }
         return targetSpec.build();
     }
 }

@@ -957,7 +957,8 @@ public class TargetsService implements ITargetsService {
         try {
             TargetApiDTO targetApiDTO = mapTargetInfoToDTO(targetInfo);
             targetApiDTO.setDerivedTargets(
-                convertDerivedTargetInfosToDtos(targetInfo.getDerivedTargetIds(), allTargetInfos));
+                convertDerivedTargetInfosToDtos(targetInfo.getDerivedTargetIds().stream()
+                    .map(String::valueOf).collect(Collectors.toList()), allTargetInfos));
             return targetApiDTO;
         } catch (CommunicationException e) {
             throw new CommunicationError(e);
