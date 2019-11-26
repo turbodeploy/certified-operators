@@ -33,6 +33,7 @@ import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
 import org.jooq.DSLContext;
 import org.jooq.InsertValuesStep6;
+import org.jooq.InsertValuesStep7;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.action.orchestrator.action.Action;
@@ -226,7 +227,8 @@ public class PlanActionStore implements ActionStore {
         return loadAction(actionId)
             .map(action -> actionFactory.newPlanAction(action.getRecommendation(),
                 recommendationTimeByActionPlanId.get(action.getActionPlanId()),
-                action.getActionPlanId(), action.getDescription(), action.getAssociatedAccountId()));
+                action.getActionPlanId(), action.getDescription(),
+                    action.getAssociatedAccountId(), action.getAssociatedResourceGroupId()));
     }
 
     /**
@@ -252,7 +254,7 @@ public class PlanActionStore implements ActionStore {
                 recommendationTimeByActionPlanId.get(action.getActionPlanId()),
                 action.getActionPlanId(),
                 action.getDescription(),
-                action.getAssociatedAccountId()))
+                action.getAssociatedAccountId(), action.getAssociatedResourceGroupId()))
             .collect(Collectors.toMap(Action::getId, Function.identity()));
         return actions;
     }
@@ -266,7 +268,7 @@ public class PlanActionStore implements ActionStore {
                     recommendationTimeByActionPlanId.get(action.getActionPlanId()),
                     action.getActionPlanId(),
                     action.getDescription(),
-                    action.getAssociatedAccountId()))
+                    action.getAssociatedAccountId(), action.getAssociatedResourceGroupId()))
                 .collect(Collectors.toList())));
     }
 
@@ -371,14 +373,15 @@ public class PlanActionStore implements ActionStore {
                     Iterators.partition(translatedActionsToAdd.iterator(), BATCH_SIZE).forEachRemaining(actionBatch -> {
                         // If we expand the Market Action table we need to modify this insert
                         // statement and the subsequent "values" bindings.
-                        InsertValuesStep6<MarketActionRecord, Long, Long, Long, ActionDTO.Action, String, Long> step =
+                        InsertValuesStep7<MarketActionRecord, Long, Long, Long, ActionDTO.Action,
+                                                        String, Long, Long> step =
                             transactionDsl.insertInto(MARKET_ACTION,
                                 MARKET_ACTION.ID,
                                 MARKET_ACTION.ACTION_PLAN_ID,
                                 MARKET_ACTION.TOPOLOGY_CONTEXT_ID,
                                 MARKET_ACTION.RECOMMENDATION,
                                 MARKET_ACTION.DESCRIPTION,
-                                MARKET_ACTION.ASSOCIATED_ACCOUNT_ID);
+                                MARKET_ACTION.ASSOCIATED_ACCOUNT_ID, MARKET_ACTION.ASSOCIATED_RESOURCE_GROUP_ID);
 
                         for (ActionAndInfo actionAndInfo : actionBatch) {
                             step = step.values(actionAndInfo.translatedAction().getId(),
@@ -386,7 +389,8 @@ public class PlanActionStore implements ActionStore {
                                 planData.getTopologyContextId(),
                                 actionAndInfo.translatedAction(),
                                 actionAndInfo.description(),
-                                actionAndInfo.associatedAccountId().orElse(null));
+                                actionAndInfo.associatedAccountId().orElse(null),
+                                actionAndInfo.associatedResourceGroupId().orElse(null));
                         }
                         step.execute();
                     });
@@ -685,5 +689,13 @@ public class PlanActionStore implements ActionStore {
          * with an account.
          */
         Optional<Long> associatedAccountId();
+
+        /**
+         * The ID of the resource group associated with the action (cloud only).
+         *
+         * @return {@link Optional} containing the resource group Id, if the action can be
+         * associated with resource group.
+         */
+        Optional<Long> associatedResourceGroupId();
     }
 }

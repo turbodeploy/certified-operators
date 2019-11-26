@@ -34,6 +34,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateRespons
 public class ActionsRpcServiceTest {
     private static final long ACTION_PLAN_ID = 9876;
     private static final long ASSOCIATED_ID_ACCT = 123123;
+    private static final long ASSOCIATED_RESOURCE_GROUP_ID = 111;
     private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
 
     @Test
@@ -118,6 +119,7 @@ public class ActionsRpcServiceTest {
             state,
             new ActionTranslation(action),
             ASSOCIATED_ID_ACCT,
+            ASSOCIATED_RESOURCE_GROUP_ID,
             actionDescription.getBytes());
         return spy(new Action(orchestratorAction, actionModeCalculator));
     }

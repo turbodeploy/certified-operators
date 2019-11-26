@@ -117,6 +117,15 @@ public class GroupByFilters {
         setValue(StringConstants.BUSINESS_UNIT, String.valueOf(businessAccountId));
     }
 
+    /**
+     * Add a filter with particular resource group ID.
+     *
+     * @param resourceGroupId The ID of the resource group.
+     */
+    public void setResourceGroupId(final long resourceGroupId) {
+        setValue(StringConstants.RESOURCE_GROUP, String.valueOf(resourceGroupId));
+    }
+
     public void setTargetEntityId(final long entityId) {
         setValue(StringConstants.TARGET_UUID_CC, String.valueOf(entityId));
     }

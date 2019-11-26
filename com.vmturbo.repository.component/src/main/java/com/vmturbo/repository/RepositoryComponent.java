@@ -24,6 +24,9 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import io.grpc.BindableService;
 import io.grpc.ServerInterceptor;
 
+import javaslang.circuitbreaker.CircuitBreakerConfig;
+import javaslang.circuitbreaker.CircuitBreakerRegistry;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,9 +36,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.web.client.RestTemplate;
-
-import javaslang.circuitbreaker.CircuitBreakerConfig;
-import javaslang.circuitbreaker.CircuitBreakerRegistry;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.arangodb.ArangoHealthMonitor;
@@ -47,6 +47,7 @@ import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOREST.RepositoryServiceController;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceImplBase;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoREST.SupplyChainServiceController;
@@ -68,6 +69,7 @@ import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFacto
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory.DefaultEntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
 import com.vmturbo.components.common.utils.EnvironmentUtils;
+import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.market.component.api.impl.MarketSubscription;
@@ -115,6 +117,7 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
     RepositoryApiConfig.class,
     TopologyProcessorClientConfig.class,
     ActionOrchestratorClientConfig.class,
+    GroupClientConfig.class,
     MarketClientConfig.class,
     RepositorySecurityConfig.class,
     RepositoryProperties.class,
@@ -141,6 +144,9 @@ public class RepositoryComponent extends BaseVmtComponent {
 
     @Autowired
     private ActionOrchestratorClientConfig actionOrchestratorClientConfig;
+
+    @Autowired
+    private GroupClientConfig groupClientConfig;
 
     @Autowired
     private TopologyProcessorClientConfig tpClientConfig;
@@ -540,7 +546,8 @@ public class RepositoryComponent extends BaseVmtComponent {
             EntitySeverityServiceGrpc.newBlockingStub(
                 actionOrchestratorClientConfig.actionOrchestratorChannel()),
             ActionsServiceGrpc.newBlockingStub(
-                actionOrchestratorClientConfig.actionOrchestratorChannel()));
+                actionOrchestratorClientConfig.actionOrchestratorChannel()),
+            GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()));
     }
 
     /**

@@ -89,7 +89,10 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
@@ -777,8 +780,8 @@ public class GroupsServiceTest {
 
         final GroupAndMembers vmGroupAndMembers = ImmutableGroupAndMembers.builder()
             .group(vmGroup)
-            .members(Arrays.asList(10L))
-            .entities(Arrays.asList(10L))
+            .members(Collections.singletonList(11L))
+            .entities(Collections.singletonList(11L))
             .build();
 
         when(groupExpander.getGroupWithMembers("10"))
@@ -786,7 +789,7 @@ public class GroupsServiceTest {
 
         final GroupFilter groupFilter = GroupFilter.newBuilder()
             .setGroupType(GroupType.RESOURCE)
-            .addId(2L)
+            .addAllId(Arrays.asList(2L, 10L))
             .build();
 
         final GetGroupsRequest groupsRequest = GetGroupsRequest.newBuilder()
@@ -835,6 +838,90 @@ public class GroupsServiceTest {
         assertEquals(rgName, groupApiDTO.getDisplayName());
         assertEquals(StringConstants.RESOURCE_GROUP, groupApiDTO.getClassName());
         assertEquals("2", groupApiDTO.getUuid());
+        assertThat(groupApiDTO.getSeverity(), is(Severity.NORMAL.name()));
+    }
+
+    /**
+     * Tests the case when we are trying to get resource groups inside the scope of single
+     * resource group.
+     *
+     * @throws Exception when something goes wrong.
+     */
+    @Test
+    public void testGetResourcesGroupInsideTheScopeOfSingleResourceGroup() throws Exception {
+        //Arrange
+        final long resourceGroupOid = 1L;
+        final String rgName = "testRG";
+        final ApiId entityApiId = mock(ApiId.class);
+        when(entityApiId.isGroup()).thenReturn(true);
+        when(uuidMapper.fromUuid(String.valueOf(resourceGroupOid))).thenReturn(entityApiId);
+
+        final GroupDefinition groupDefinitionRg = GroupDefinition.newBuilder()
+                .setType(GroupType.RESOURCE)
+                .setStaticGroupMembers(StaticMembers.newBuilder()
+                        .addMembersByType(StaticMembersByType.newBuilder()
+                                .setType(MemberType.newBuilder()
+                                        .setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
+                                .addAllMembers(Arrays.asList(2L, 3L))
+                                .build())
+                        .build())
+                .build();
+
+        final Grouping rgGroup = Grouping.newBuilder()
+                .setDefinition(groupDefinitionRg)
+                .addExpectedTypes(
+                        MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE).build())
+                .setId(resourceGroupOid)
+                .build();
+
+        final GroupAndMembers rgGroupAndMembers = ImmutableGroupAndMembers.builder()
+                .group(rgGroup)
+                .members(Arrays.asList(2L, 3L))
+                .entities(Arrays.asList(2L, 3L))
+                .build();
+
+        when(groupExpander.getGroupWithMembers("1"))
+                .thenReturn(Optional.of(rgGroupAndMembers));
+
+        final GroupFilter groupFilter = GroupFilter.newBuilder()
+                .setGroupType(GroupType.RESOURCE)
+                .addAllId(Collections.singletonList(resourceGroupOid))
+                .build();
+
+        final GetGroupsRequest groupsRequest = GetGroupsRequest.newBuilder()
+                .setGroupFilter(groupFilter)
+                .build();
+
+        when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.RESOURCE),
+                eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
+                .setGroupType(GroupType.RESOURCE).build());
+
+        when(groupExpander.getGroupsWithMembers(eq(groupsRequest))).thenReturn(
+                Collections.singleton(rgGroupAndMembers).stream());
+
+        final GroupApiDTO groupApiDtoMock = new GroupApiDTO();
+        groupApiDtoMock.setUuid(String.valueOf(resourceGroupOid));
+        groupApiDtoMock.setDisplayName(rgName);
+        groupApiDtoMock.setClassName(StringConstants.RESOURCE_GROUP);
+        groupApiDtoMock.setSeverity(Severity.NORMAL.toString());
+
+        when(groupMapper.getEnvironmentTypeForGroup(eq(rgGroupAndMembers)))
+                .thenReturn(EnvironmentType.CLOUD);
+
+        when(groupMapper.toGroupApiDto(rgGroupAndMembers, EnvironmentType.CLOUD, true))
+                .thenReturn(groupApiDtoMock);
+
+        //Act
+        final List<GroupApiDTO> groupApiDTOs =
+                groupsService.getGroupsByType(GroupType.RESOURCE,
+                        Collections.singletonList(String.valueOf(resourceGroupOid)), Collections.emptyList());
+
+        //Assert
+        assertThat(groupApiDTOs.size(), is(1));
+        final GroupApiDTO groupApiDTO = groupApiDTOs.get(0);
+        assertEquals(rgName, groupApiDTO.getDisplayName());
+        assertEquals(StringConstants.RESOURCE_GROUP, groupApiDTO.getClassName());
+        assertEquals(String.valueOf(resourceGroupOid), groupApiDTO.getUuid());
         assertThat(groupApiDTO.getSeverity(), is(Severity.NORMAL.name()));
     }
 

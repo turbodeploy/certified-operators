@@ -105,8 +105,11 @@ public class PlanActionStoreTest {
         @Nonnull
         @Override
         public Action newPlanAction(@Nonnull ActionDTO.Action recommendation, @Nonnull LocalDateTime recommendationTime,
-                                    long actionPlanId, String description, @Nullable final Long associatedAccountId) {
-            return spy(new Action(recommendation, recommendationTime, actionPlanId, actionModeCalculator, description, associatedAccountId));
+                                    long actionPlanId, String description,
+                @Nullable final Long associatedAccountId,
+                @Nullable final Long associatedResourceGroupId) {
+            return spy(new Action(recommendation, recommendationTime, actionPlanId,
+                    actionModeCalculator, description, associatedAccountId, associatedResourceGroupId));
         }
     }
 
@@ -135,11 +138,11 @@ public class PlanActionStoreTest {
         // Enforce that all actions created with this factory get the same recommendation time
         // so that actions can be easily compared.
         when(actionFactory.newPlanAction(any(ActionDTO.Action.class),
-                any(LocalDateTime.class), anyLong(), anyString(), any())).thenAnswer(
+                any(LocalDateTime.class), anyLong(), anyString(), any(), any())).thenAnswer(
             invocation -> {
                 Object[] args = invocation.getArguments();
                 return new Action((ActionDTO.Action) args[0], actionRecommendationTime, (Long) args[2],
-                        actionModeCalculator, "Move VM from H1 to H2", 321L);
+                        actionModeCalculator, "Move VM from H1 to H2", 321L, 121L);
             });
         setEntitiesOIDs();
     }
@@ -251,7 +254,8 @@ public class PlanActionStoreTest {
         actionStore.populateRecommendedActions(actionPlan);
 
         ActionOrchestratorTestUtils.assertActionsEqual(
-            actionFactory.newPlanAction(action, actionRecommendationTime, firstPlanId, "", null),
+            actionFactory.newPlanAction(action, actionRecommendationTime, firstPlanId, "", null,
+                    null),
             actionStore.getAction(1L).get()
         );
     }
@@ -270,7 +274,8 @@ public class PlanActionStoreTest {
         Map<Long, Action> actionsMap = actionStore.getActions();
         actionList.forEach(action ->
             ActionOrchestratorTestUtils.assertActionsEqual(
-                actionFactory.newPlanAction(action, actionRecommendationTime, firstPlanId, "", null),
+                actionFactory.newPlanAction(action, actionRecommendationTime, firstPlanId, "",
+                        null, null),
                 actionsMap.get(action.getId())
             )
         );
@@ -280,7 +285,7 @@ public class PlanActionStoreTest {
     public void testOverwriteActionsEmptyStore() throws Exception {
         final List<Action> actionList = actionList(3).stream()
             .map(marketAction -> actionFactory.newPlanAction(marketAction, actionRecommendationTime,
-                    firstPlanId, "", null))
+                    firstPlanId, "", null, null))
             .collect(Collectors.toList());
 
         actionStore.overwriteActions(ImmutableMap.of(ActionPlanType.MARKET, actionList));
@@ -303,11 +308,11 @@ public class PlanActionStoreTest {
         final int numOverwriteActions = 2;
         final List<Action> marketOverwriteActions = actionList(numOverwriteActions).stream()
             .map(marketAction -> actionFactory.newPlanAction(marketAction, actionRecommendationTime,
-                firstPlanId, "", null))
+                firstPlanId, "", null, null))
             .collect(Collectors.toList());
         final List<Action> buyRIOverwriteActions = actionList(numOverwriteActions).stream()
             .map(buyRIAction -> actionFactory.newPlanAction(buyRIAction, actionRecommendationTime,
-                secondPlanId, "", null))
+                secondPlanId, "", null, null))
             .collect(Collectors.toList());
 
         actionStore.overwriteActions(ImmutableMap.of(

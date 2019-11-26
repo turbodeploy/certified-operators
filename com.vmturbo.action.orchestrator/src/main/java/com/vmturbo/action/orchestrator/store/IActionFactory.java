@@ -34,6 +34,8 @@ public interface IActionFactory {
      * @param actionPlanId The ID of the ActionPlan the recommendation was a part of.
      * @param description The description of the recommendation.
      * @param associatedAccountId The business account associated with this action. Null if none.
+     * @param associatedResourceGroupId The resource group associated with this action. Null if
+     * none.
      * @return A new {@link Action} instance.
      */
     @Nonnull
@@ -41,5 +43,6 @@ public interface IActionFactory {
                          @Nonnull LocalDateTime recommendationTime,
                          long actionPlanId,
                          @Nullable String description,
-                         @Nullable Long associatedAccountId);
+                         @Nullable Long associatedAccountId,
+                         @Nullable Long associatedResourceGroupId);
 }

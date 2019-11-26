@@ -135,6 +135,7 @@ public class MapperConfig {
             groupFilterMapper(),
             communicationConfig.severityPopulator(),
             serviceConfig.businessAccountRetriever(),
+            communicationConfig.costServiceBlockingStub(),
             communicationConfig.getRealtimeTopologyContextId()
             );
     }

@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -34,11 +35,18 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.group.BillingFamilyApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
+import com.vmturbo.api.dto.group.ResourceGroupApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
+import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
@@ -59,6 +67,7 @@ import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.TargetInfo;
@@ -128,6 +137,7 @@ public class GroupMapper {
     private final SeverityPopulator severityPopulator;
 
     private final BusinessAccountRetriever businessAccountRetriever;
+    private final CostServiceBlockingStub costServiceBlockingStub;
 
     private final long realtimeTopologyContextId;
 
@@ -142,6 +152,7 @@ public class GroupMapper {
      * @param groupFilterMapper for converting between internal and api filter representation.
      * @param severityPopulator for get severity information.
      * @param businessAccountRetriever for getting business account information for billing families.
+     * @param costServiceBlockingStub for getting information about costs.
      * @param realtimeTopologyContextId the topology context id, used for getting severity.
      */
     public GroupMapper(@Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
@@ -152,6 +163,7 @@ public class GroupMapper {
                        @Nonnull final GroupFilterMapper groupFilterMapper,
                        @Nonnull final SeverityPopulator severityPopulator,
                        @Nonnull final BusinessAccountRetriever businessAccountRetriever,
+                       @Nonnull final CostServiceBlockingStub costServiceBlockingStub,
                        long realtimeTopologyContextId) {
         this.supplyChainFetcherFactory = Objects.requireNonNull(supplyChainFetcherFactory);
         this.groupExpander = Objects.requireNonNull(groupExpander);
@@ -161,6 +173,7 @@ public class GroupMapper {
         this.groupFilterMapper = groupFilterMapper;
         this.severityPopulator = Objects.requireNonNull(severityPopulator);
         this.businessAccountRetriever = Objects.requireNonNull(businessAccountRetriever);
+        this.costServiceBlockingStub = Objects.requireNonNull(costServiceBlockingStub);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
@@ -296,13 +309,14 @@ public class GroupMapper {
      * @param populateSeverity whether or not to populate severity of the group
      * @return The {@link GroupApiDTO} object.
      */
+    @SuppressWarnings("checkstyle:RegexpSingleline")
     @Nonnull
     public GroupApiDTO toGroupApiDto(@Nonnull final GroupAndMembers groupAndMembers,
                                      @Nonnull final EnvironmentType environmentType,
                                      boolean populateSeverity) {
         final GroupApiDTO outputDTO;
         final Grouping group = groupAndMembers.group();
-        outputDTO = convertToGroupApiDto(groupAndMembers, environmentType);
+        outputDTO = convertToGroupApiDto(groupAndMembers);
 
         outputDTO.setDisplayName(group.getDefinition().getDisplayName());
         outputDTO.setUuid(Long.toString(group.getId()));
@@ -311,6 +325,9 @@ public class GroupMapper {
         outputDTO.setEntitiesCount(groupAndMembers.entities().size());
         outputDTO.setActiveEntitiesCount(getActiveEntitiesCount(groupAndMembers));
 
+        calculateEstimatedCostForCloudEnv(groupAndMembers, environmentType).ifPresent(
+                outputDTO::setCostPrice);
+
         // only populate severity if required and if the group is not empty, since it's expensive
         if (populateSeverity && !groupAndMembers.entities().isEmpty()) {
             severityPopulator.calculateSeverity(realtimeTopologyContextId, groupAndMembers.entities())
@@ -318,6 +335,32 @@ public class GroupMapper {
         }
 
         return outputDTO;
+    }
+
+    private Optional<Float> calculateEstimatedCostForCloudEnv(
+            @Nonnull GroupAndMembers groupAndMembers, @Nonnull EnvironmentType environmentType) {
+        if (environmentType == EnvironmentType.CLOUD) {
+            final GetCloudCostStatsResponse cloudCostStatsResponse =
+                    costServiceBlockingStub.getCloudCostStats(GetCloudCostStatsRequest.newBuilder()
+                            .setEntityFilter(Cost.EntityFilter.newBuilder()
+                                    .addAllEntityId(groupAndMembers.members())
+                                    .build())
+                            .build());
+            final List<CloudCostStatRecord> costStatRecordList =
+                    cloudCostStatsResponse.getCloudStatRecordList();
+            if (!costStatRecordList.isEmpty()) {
+                // exclude cost with category STORAGE for VMs, because this cost is duplicate STORAGE cost for volumes
+                final double estimatedCost = costStatRecordList.get(0)
+                        .getStatRecordsList()
+                        .stream()
+                        .filter(el -> !(el.getCategory() == CostCategory.STORAGE &&
+                                el.getAssociatedEntityType() == EntityType.VIRTUAL_MACHINE_VALUE))
+                        .mapToDouble(entityCostStat -> entityCostStat.getValues().getTotal())
+                        .sum();
+                return Optional.of((float)estimatedCost);
+            }
+        }
+        return Optional.empty();
     }
 
     private int getMembersCount(GroupAndMembers groupAndMembers) {
@@ -344,17 +387,32 @@ public class GroupMapper {
      * to API representation of the object.
      *
      * @param groupAndMembers The internal representation of the object.
-     * @param environmentType The environment type to set on the converted object.
      * @return the converted object with some of the details filled in.
      */
-    private GroupApiDTO convertToGroupApiDto(@Nonnull final GroupAndMembers groupAndMembers, EnvironmentType environmentType) {
-        Grouping group = groupAndMembers.group();
-        GroupDefinition groupDefinition = group.getDefinition();
+     private GroupApiDTO convertToGroupApiDto(@Nonnull final GroupAndMembers groupAndMembers) {
+        final Grouping group = groupAndMembers.group();
+        final GroupDefinition groupDefinition = group.getDefinition();
         final GroupApiDTO outputDTO;
-        if (GroupType.BILLING_FAMILY.equals(group.getDefinition().getType())) {
-            outputDTO = extractBillingFamilyInfo(groupAndMembers);
-        } else {
-            outputDTO = new GroupApiDTO();
+        switch (groupDefinition.getType()) {
+            case BILLING_FAMILY:
+                outputDTO = extractBillingFamilyInfo(groupAndMembers);
+                break;
+            case RESOURCE:
+                outputDTO = new ResourceGroupApiDTO();
+                if (groupDefinition.hasOwner()) {
+                    final long groupOwner = groupDefinition.getOwner();
+                    ((ResourceGroupApiDTO)outputDTO).setParentUuid(String.valueOf(groupOwner));
+                    repositoryApi.entityRequest(groupOwner)
+                            .getMinimalEntity()
+                            .ifPresent(el -> ((ResourceGroupApiDTO)outputDTO).setParentDisplayName(
+                                    el.getDisplayName()));
+                } else {
+                    logger.error("The resource group '{}'({}) doesn't have owner",
+                            groupDefinition.getDisplayName(), group.getId());
+                }
+                break;
+            default:
+                outputDTO = new GroupApiDTO();
         }
         outputDTO.setUuid(String.valueOf(group.getId()));
 

@@ -13,6 +13,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anySet;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
@@ -46,6 +47,7 @@ import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
@@ -56,11 +58,14 @@ import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.group.BillingFamilyApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
+import com.vmturbo.api.dto.group.ResourceGroupApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
+import com.vmturbo.common.protobuf.cost.CostMoles;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
@@ -91,6 +96,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -108,6 +114,9 @@ public class GroupMapperTest {
 
     private static final long CONTEXT_ID = 7777777;
 
+    /**
+     * Expected exception rule.
+     */
     @Rule
     public ExpectedException thrown = ExpectedException.none();
 
@@ -125,6 +134,14 @@ public class GroupMapperTest {
 
     private RepositoryApi repositoryApi = mock(RepositoryApi.class);
 
+    private CostMoles.CostServiceMole costServiceMole = spy(new CostMoles.CostServiceMole());
+
+    /**
+     * gRPC server to mock out inter-component dependencies.
+     */
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(costServiceMole);
+
     private EntityFilterMapper entityFilterMapper = new EntityFilterMapper(groupUseCaseParser);
 
     private GroupFilterMapper groupFilterMapper = new GroupFilterMapper();
@@ -132,10 +149,8 @@ public class GroupMapperTest {
     private SeverityPopulator severityPopulator = mock(SeverityPopulator.class);
 
     private final BusinessAccountRetriever businessAccountRetriever = mock(BusinessAccountRetriever.class);
+    private GroupMapper groupMapper;
 
-    private GroupMapper groupMapper = new GroupMapper(supplyChainFetcherFactory,
-                    groupExpander, topologyProcessor, repositoryApi, entityFilterMapper,
-                    groupFilterMapper, severityPopulator, businessAccountRetriever, CONTEXT_ID);
 
     private static String AND = "AND";
     private static String FOO = "foo";
@@ -143,6 +158,10 @@ public class GroupMapperTest {
 
     @Before
     public void setup() {
+        groupMapper = new GroupMapper(supplyChainFetcherFactory, groupExpander, topologyProcessor,
+                repositoryApi, entityFilterMapper, groupFilterMapper, severityPopulator,
+                businessAccountRetriever, CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                CONTEXT_ID);
         SearchRequest req = ApiTestUtils.mockSearchCountReq(0);
         when(repositoryApi.newSearchRequest(any())).thenReturn(req);
     }
@@ -811,10 +830,13 @@ public class GroupMapperTest {
      */
     @Test
     public void testMapResourceGroup() {
+        final long parentId = 1L;
+        final String parentDisplayName = "Test displayName";
         final Grouping group = Grouping.newBuilder().setId(8L)
             .setOrigin(Origin.newBuilder().setUser(Origin.User.newBuilder()))
             .setDefinition(GroupDefinition.newBuilder().setType(GroupType.RESOURCE)
                 .setDisplayName("foo")
+                .setOwner(parentId)
                 .setStaticGroupMembers(StaticMembers.newBuilder()
                     .addMembersByType(StaticMembersByType
                         .newBuilder()
@@ -844,6 +866,10 @@ public class GroupMapperTest {
                 ))
             .build();
 
+        final SingleEntityRequest testRg = ApiTestUtils.mockSingleEntityRequest(
+                MinimalEntity.newBuilder().setOid(parentId).setDisplayName(parentDisplayName).build());
+        when(repositoryApi.entityRequest(parentId)).thenReturn(testRg);
+
         when(groupExpander.getMembersForGroup(group)).thenReturn(ImmutableGroupAndMembers.builder()
             .group(group).entities(GroupProtoUtil.getStaticMembers(group))
             .members(GroupProtoUtil.getStaticMembers(group)).build());
@@ -860,6 +886,8 @@ public class GroupMapperTest {
         assertThat(mappedDto.getGroupType(), is(WORKLOAD));
         assertThat(mappedDto.getEnvironmentType(), is(EnvironmentType.CLOUD));
         assertThat(mappedDto.getClassName(), is(RESOURCE_GROUP));
+        assertThat(((ResourceGroupApiDTO)mappedDto).getParentDisplayName(), is(parentDisplayName));
+        assertThat(((ResourceGroupApiDTO)mappedDto).getParentUuid(), is(String.valueOf(parentId)));
     }
 
     @Test

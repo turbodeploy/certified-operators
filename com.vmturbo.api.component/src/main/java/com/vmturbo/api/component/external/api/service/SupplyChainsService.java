@@ -319,6 +319,10 @@ public class SupplyChainsService implements ISupplyChainsService {
                 apiStat.addFilter(EntitiesCountCriteria.target.name(),
                     Long.toString(statGroup.getTargetId()));
             }
+            if (statGroup.hasResourceGroupId()) {
+                apiStat.addFilter(EntitiesCountCriteria.resourceGroup.name(),
+                        Long.toString(statGroup.getResourceGroupId()));
+            }
             return apiStat;
         }
 
@@ -341,10 +345,7 @@ public class SupplyChainsService implements ISupplyChainsService {
                 case template:
                     return Optional.of(SupplyChainGroupBy.TEMPLATE);
                 case resourceGroup:
-                    // TODO (roman, Nov 14 2019) OM-52583: Support these options, down to
-                    // the repository.
-                    logger.error("Group by {} not implemented in XL.", criteria);
-                    return Optional.empty();
+                    return Optional.of(SupplyChainGroupBy.RESOURCE_GROUP);
                 default:
                     logger.error("Unexpected entities count criteria: {}", criteria);
                     throw new InvalidOperationException("Invalid criteria: " + criteria);

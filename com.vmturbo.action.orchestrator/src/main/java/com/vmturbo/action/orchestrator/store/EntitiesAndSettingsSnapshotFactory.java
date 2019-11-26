@@ -1,6 +1,8 @@
 package com.vmturbo.action.orchestrator.store;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -12,15 +14,20 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.Maps;
 
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
@@ -41,6 +48,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.repository.api.RepositoryListener;
 import com.vmturbo.repository.api.TopologyAvailabilityTracker;
 import com.vmturbo.repository.api.TopologyAvailabilityTracker.TopologyUnavailableException;
@@ -59,6 +67,8 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
     private final SettingPolicyServiceBlockingStub settingPolicyService;
 
     private final RepositoryServiceBlockingStub repositoryService;
+
+    private final GroupServiceBlockingStub groupService;
 
     // TODO this is a temporary implementation.  Roman will have the Business Account in the Snapshot
     //      so that no explicitly call need to be made.
@@ -81,6 +91,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         this.settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(groupChannel);
         this.repositoryService = RepositoryServiceGrpc.newBlockingStub(repoChannel);
         this.searchService = SearchServiceGrpc.newBlockingStub(repoChannel);
+        this.groupService = GroupServiceGrpc.newBlockingStub(groupChannel);
         this.timeToWaitForTopology = timeToWaitForTopology;
         this.timeToWaitUnit = timeToWaitUnit;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -96,15 +107,18 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         private final Map<Long, Map<String, Setting>> settingsByEntityAndSpecName;
         private final Map<Long, ActionPartialEntity> oidToEntityMap;
         private final OwnershipGraph<EntityWithConnections> ownershipGraph;
+        private final Map<Long, Long> entityToResourceGroupMap;
         private final long topologyContextId;
 
         public EntitiesAndSettingsSnapshot(@Nonnull final Map<Long, Map<String, Setting>> settings,
                 @Nonnull final Map<Long, ActionPartialEntity> entityMap,
                 @Nonnull final OwnershipGraph<EntityWithConnections> ownershipGraph,
+                @Nonnull final Map<Long, Long> entityToResourceGroupMap,
                 final long topologyContextId) {
             this.settingsByEntityAndSpecName = settings;
             this.oidToEntityMap = entityMap;
             this.ownershipGraph = ownershipGraph;
+            this.entityToResourceGroupMap = entityToResourceGroupMap;
             this.topologyContextId = topologyContextId;
         }
 
@@ -144,6 +158,17 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         public Optional<EntityWithConnections> getOwnerAccountOfEntity(final long entityId) {
             // The first owner is the immediate owner.
             return ownershipGraph.getOwners(entityId).stream().findFirst();
+        }
+
+        /**
+         * Get the resource group for entity.
+         *
+         * @param entityId entityId which is looking for the resource group
+         * @return resourceGroupId
+         */
+        @Nonnull
+        public Optional<Long> getResourceGroupForEntity(final long entityId) {
+            return Optional.ofNullable(entityToResourceGroupMap.get(entityId));
         }
 
     }
@@ -195,8 +220,26 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
             topologyContextId, topologyId);
         final OwnershipGraph<EntityWithConnections> ownershipGraph =
             retrieveOwnershipGraph(entities, topologyContextId, topologyId);
+        final Map<Long, Long> entityToResourceGroupMap =
+                retrieveResourceGroupsForEntities(entities);
         return new EntitiesAndSettingsSnapshot(newSettings, entityMap, ownershipGraph,
-            topologyContextId);
+                entityToResourceGroupMap, topologyContextId);
+    }
+
+    @Nonnull
+    private Map<Long, Long> retrieveResourceGroupsForEntities(@Nonnull Set<Long> entities) {
+        final Map<Long, Long> entityToResourceGroupMap = new HashMap<>(entities.size());
+        for (Long entity : entities) {
+            final GetGroupForEntityResponse groupForEntityResponse = groupService.getGroupForEntity(
+                    GetGroupForEntityRequest.newBuilder().setEntityId(entity).build());
+            final List<Grouping> groups = groupForEntityResponse.getGroupList();
+            for (Grouping group : groups) {
+                if (group.getDefinition().getType().equals(GroupType.RESOURCE)) {
+                    entityToResourceGroupMap.put(entity, group.getId());
+                }
+            }
+        }
+        return entityToResourceGroupMap;
     }
 
     @Nonnull
@@ -236,7 +279,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
     @Nonnull
     public EntitiesAndSettingsSnapshot emptySnapshot() {
         return new EntitiesAndSettingsSnapshot(Collections.emptyMap(), Maps.newHashMap(),
-            OwnershipGraph.empty(), realtimeTopologyContextId);
+            OwnershipGraph.empty(), Maps.newHashMap(), realtimeTopologyContextId);
     }
 
     /**

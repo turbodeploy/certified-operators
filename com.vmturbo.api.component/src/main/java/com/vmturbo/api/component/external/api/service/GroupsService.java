@@ -1226,15 +1226,18 @@ public class GroupsService implements IGroupsService {
             @Nullable final EnvironmentType environmentType) throws OperationFailedException {
         final GetGroupsRequest.Builder reqBuilder = getGroupsRequestForFilters(groupType,
                         filterList);
-
         GroupFilter.Builder builder = GroupFilter.newBuilder(reqBuilder.getGroupFilter());
-
         scopes.stream()
             .map(groupExpander::getGroupWithMembers)
             .filter(Optional::isPresent)
             .map(Optional::get)
-            .filter(groupAndMembers -> isNestedGroupOfType(groupAndMembers, groupType))
-            .forEach(clusterAndMembers -> clusterAndMembers.members().forEach(builder::addId));
+            .forEach(grAndMem -> {
+                if (isNestedGroupOfType(grAndMem, groupType)) {
+                    grAndMem.members().forEach(builder::addId);
+                } else {
+                    builder.addId(grAndMem.group().getId());
+                }
+            });
         reqBuilder.setGroupFilter(builder);
         return getGroupApiDTOS(reqBuilder.build(), true, environmentType);
     }

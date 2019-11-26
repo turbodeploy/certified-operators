@@ -89,6 +89,7 @@ public class ActionStateUpdaterTest {
         when(entitySettingsCache.getSettingsForEntity(eq(3L)))
             .thenReturn(makeActionModeSetting(ActionMode.MANUAL));
         when(entitySettingsCache.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
+        when(entitySettingsCache.getResourceGroupForEntity(anyLong())).thenReturn(Optional.empty());
         testAction = new Action(recommendation, 4, actionModeCalculator);
         when(actionStorehouse.getStore(eq(realtimeTopologyContextId))).thenReturn(Optional.of(actionStore));
         when(actionStore.getAction(eq(notFoundId))).thenReturn(Optional.empty());
@@ -157,7 +158,8 @@ public class ActionStateUpdaterTest {
                 serializedAction.getExecutionStep(),
                 serializedAction.getCurrentState().getNumber(),
                 serializedAction.getActionDetailData(),
-                serializedAction.getAssociatedAccountId());
+                serializedAction.getAssociatedAccountId(),
+                serializedAction.getAssociatedResourceGroupId());
     }
 
 
@@ -192,7 +194,8 @@ public class ActionStateUpdaterTest {
             serializedAction.getExecutionStep(),
             serializedAction.getCurrentState().getNumber(),
             serializedAction.getActionDetailData(),
-            serializedAction.getAssociatedAccountId());
+            serializedAction.getAssociatedAccountId(),
+            serializedAction.getAssociatedResourceGroupId());
     }
 
     /**
@@ -226,7 +229,8 @@ public class ActionStateUpdaterTest {
             serializedAction.getRecommendationTime(),
             serializedAction.getActionDecision(),
             serializedAction.getExecutionStep(),
-            serializedAction.getCurrentState().getNumber(), serializedAction.getActionDetailData(), null);
+            serializedAction.getCurrentState().getNumber(),
+            serializedAction.getActionDetailData(), null, null);
     }
 
     /**
@@ -271,7 +275,8 @@ public class ActionStateUpdaterTest {
             serializedAction.getRecommendationTime(),
             serializedAction.getActionDecision(),
             serializedAction.getExecutionStep(),
-            serializedAction.getCurrentState().getNumber(), serializedAction.getActionDetailData(), null);
+            serializedAction.getCurrentState().getNumber(),
+                serializedAction.getActionDetailData(), null, null);
         SerializationState serializedAction2 = new SerializationState(testAction);
         verify(actionHistoryDao).persistActionHistory(recommendation.getId(),
             recommendation,
@@ -279,7 +284,8 @@ public class ActionStateUpdaterTest {
             serializedAction2.getRecommendationTime(),
             serializedAction2.getActionDecision(),
             serializedAction2.getExecutionStep(),
-            serializedAction2.getCurrentState().getNumber(), serializedAction2.getActionDetailData(), null);
+            serializedAction2.getCurrentState().getNumber(),
+                serializedAction2.getActionDetailData(), null, null);
     }
 
     /**

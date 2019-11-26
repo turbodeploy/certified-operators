@@ -38,12 +38,17 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResp
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainGroupBy;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainStat;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainStat.StatGroup;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 
 /**
@@ -72,10 +77,12 @@ public class SupplyChainStatistician {
      *
      * @param severityService Stub to get entity severities.
      * @param actionsService Stub to get action stats.
+     * @param groupService Stub to get data about groups.
      */
     public SupplyChainStatistician(final EntitySeverityServiceBlockingStub severityService,
-                                   final ActionsServiceBlockingStub actionsService) {
-        this(new SupplementaryDataFactory(severityService, actionsService));
+            final ActionsServiceBlockingStub actionsService,
+            final GroupServiceBlockingStub groupService) {
+        this(new SupplementaryDataFactory(severityService, actionsService, groupService));
     }
 
     @VisibleForTesting
@@ -188,6 +195,11 @@ public class SupplyChainStatistician {
                         // We handled this above when multi-plexing the group-by criteria into
                         // the builders array.
                         break;
+                    case RESOURCE_GROUP:
+                        long resourceGroupId =
+                                supplementaryData.getResourceGroupId(entity.getOid());
+                        statGroupKey.setResourceGroupId(resourceGroupId);
+                        break;
                     case BUSINESS_ACCOUNT_ID:
                         Optional<RepoGraphEntity> firstBaOwner;
                         do {
@@ -257,11 +269,15 @@ public class SupplyChainStatistician {
 
         private final ActionsServiceBlockingStub actionsService;
 
+        private final GroupServiceBlockingStub groupService;
+
         @VisibleForTesting
         SupplementaryDataFactory(final EntitySeverityServiceBlockingStub severityService,
-                                 final ActionsServiceBlockingStub actionsService) {
+                final ActionsServiceBlockingStub actionsService,
+                final GroupServiceBlockingStub groupService) {
             this.severityService = severityService;
             this.actionsService = actionsService;
+            this.groupService = groupService;
         }
 
         private Map<Long, Set<ActionCategory>> getCategoriesById(@Nonnull final List<Long> supplyChainEntities) {
@@ -322,6 +338,30 @@ public class SupplyChainStatistician {
         }
 
         @Nonnull
+        private Map<Long, Long> getResourceGroupsById(@Nonnull final List<Long> supplyChainEntities) {
+            final Map<Long, Long> resourceGroupForEntity = new HashMap<>();
+            try {
+                for (Long entity: supplyChainEntities) {
+                    final GetGroupForEntityResponse groupForEntityResponse =
+                            groupService.getGroupForEntity(
+                            GetGroupForEntityRequest.newBuilder().setEntityId(entity).build());
+                    final List<Grouping> groups = groupForEntityResponse.getGroupList();
+                    for (Grouping group: groups) {
+                        if (group.getDefinition().getType().equals(GroupType.RESOURCE)) {
+                            resourceGroupForEntity.put(entity, group.getId());
+                        } else {
+                            logger.trace("There is no resource group for {} entity", entity);
+                        }
+                    }
+                }
+                return resourceGroupForEntity;
+            } catch (StatusRuntimeException e) {
+                logger.error("Failed to retrieve resource groups. Error: {}", e.getMessage());
+                return Collections.emptyMap();
+            }
+        }
+
+        @Nonnull
         @VisibleForTesting
         SupplementaryData newSupplementaryData(@Nonnull final List<Long> supplyChainEntities,
                                                @Nonnull final List<SupplyChainGroupBy> groupByList) {
@@ -333,7 +373,11 @@ public class SupplyChainStatistician {
                 groupByList.contains(SupplyChainGroupBy.SEVERITY) ?
                     getSeveritiesById(supplyChainEntities) :
                     Collections.emptyMap();
-            return new SupplementaryData(severitiesById, actionCategoriesById);
+            final Map<Long, Long> resourceGroupsById =
+                groupByList.contains(SupplyChainGroupBy.RESOURCE_GROUP) ?
+                    getResourceGroupsById(supplyChainEntities) :
+                        Collections.emptyMap();
+            return new SupplementaryData(severitiesById, actionCategoriesById, resourceGroupsById);
         }
     }
 
@@ -347,11 +391,14 @@ public class SupplyChainStatistician {
     static class SupplementaryData {
         private final Map<Long, Severity> severitiesByEntity;
         private final Map<Long, Set<ActionCategory>> categoriesForEntity;
+        private final Map<Long, Long> resourceGroupForEntity;
 
         private SupplementaryData(final Map<Long, Severity> severitiesByEntity,
-                                  final Map<Long, Set<ActionCategory>> categoriesForEntity) {
+                                  final Map<Long, Set<ActionCategory>> categoriesForEntity,
+                final Map<Long, Long> resourceGroupForEntity) {
             this.severitiesByEntity = severitiesByEntity;
             this.categoriesForEntity = categoriesForEntity;
+            this.resourceGroupForEntity = resourceGroupForEntity;
         }
 
         @Nonnull
@@ -362,6 +409,10 @@ public class SupplyChainStatistician {
         @Nonnull
         Set<ActionCategory> getCategories(final long oid) {
             return categoriesForEntity.getOrDefault(oid, Collections.emptySet());
+        }
+
+        long getResourceGroupId(final long oid) {
+            return resourceGroupForEntity.getOrDefault(oid, null);
         }
     }
 
@@ -448,6 +499,8 @@ public class SupplyChainStatistician {
 
         private String template = null;
 
+        private Long resourceGroupId = null;
+
         /**
          * Convert to a {@link StatGroup} protobuf.
          *
@@ -479,7 +532,16 @@ public class SupplyChainStatistician {
                 retBldr.setTemplate(template);
             }
 
+            if (resourceGroupId != null) {
+                retBldr.setResourceGroupId(resourceGroupId);
+            }
             return retBldr.build();
+        }
+
+        @Nonnull
+        StatGroupKey setResourceGroupId(final Long resourceGroupId) {
+            this.resourceGroupId = resourceGroupId;
+            return this;
         }
 
         @Nonnull
@@ -540,6 +602,7 @@ public class SupplyChainStatistician {
                     Objects.equals(otherKey.ownerBusinessAccount, ownerBusinessAccount) &&
                     otherKey.severity == severity &&
                     otherKey.actionCategory == actionCategory &&
+                    Objects.equals(otherKey.resourceGroupId, resourceGroupId) &&
                     Objects.equals(otherKey.template, template);
             } else {
                 return false;
@@ -549,7 +612,7 @@ public class SupplyChainStatistician {
         @Override
         public int hashCode() {
             return Objects.hash(entityType, entityState, discoveringTarget,
-                ownerBusinessAccount, severity, actionCategory, template);
+                ownerBusinessAccount, severity, actionCategory, template, resourceGroupId);
         }
     }
 }

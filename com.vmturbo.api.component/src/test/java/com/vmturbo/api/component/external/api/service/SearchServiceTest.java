@@ -95,6 +95,9 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityS
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
+import com.vmturbo.common.protobuf.cost.CostMoles;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -166,12 +169,13 @@ public class SearchServiceTest {
     private StatsHistoryServiceMole historyServiceSpy = Mockito.spy(new StatsHistoryServiceMole());
     private ActionsServiceMole actionOrchestratorRpcService = new ActionsServiceMole();
     private GroupServiceMole groupRpcService = new GroupServiceMole();
+    private CostMoles.CostServiceMole costRpcService = spy(new CostMoles.CostServiceMole());
 
     @Rule
     public GrpcTestServer grpcServer =
         GrpcTestServer.newServer(
             searchServiceSpy, entitySeverityServiceSpy, historyServiceSpy,
-            actionOrchestratorRpcService, groupRpcService);
+            actionOrchestratorRpcService, groupRpcService, costRpcService);
 
     private static final long ENTITY_ID_1 = 1L;
     private static final long ENTITY_ID_2 = 2L;
@@ -198,10 +202,12 @@ public class SearchServiceTest {
                 EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel());
         final GroupServiceBlockingStub groupServiceBlockingStub =
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        final CostServiceBlockingStub costServiceBlockingStub =
+                CostServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(userSessionContext.isUserScoped()).thenReturn(false);
         groupMapper = new GroupMapper(supplyChainFetcherFactory, groupExpander, topologyProcessor,
                 repositoryApi, entityFilterMapper, groupFilterMapper, severityPopulator,
-                businessAccountRetriever, realTimeContextId);
+                businessAccountRetriever, costServiceBlockingStub, realTimeContextId);
 
         searchService = spy(new SearchService(
                 repositoryApi,

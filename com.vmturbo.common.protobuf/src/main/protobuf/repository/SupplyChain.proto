@@ -152,7 +152,8 @@ enum SupplyChainGroupBy {
     // Group by the ID of the business account that owns the entity.
     BUSINESS_ACCOUNT_ID = 8;
 
-    // TODO (roman, Nov 13 2019): Add "RESOURCE_GROUP = 9;".
+    // Group by the ID of the resource group contains the entity.
+    RESOURCE_GROUP = 9;
 }
 
 // A single supply chain statistic describing the number of entities
@@ -215,6 +216,11 @@ message SupplyChainStat {
         //
         // Otherwise, this is unset.
         optional int64 account_id = 8;
+
+        // If the request group_by criteria contains SuppluChainGroupBy.ResourceGroup:
+        // If set, the resource group oids for this entities
+        // If unset, the entities in this group don't belong to resource groups
+        optional int64 resource_group_id = 9;
     }
 
     // The "group" of a particular stat. See "StatGroup" documentation.

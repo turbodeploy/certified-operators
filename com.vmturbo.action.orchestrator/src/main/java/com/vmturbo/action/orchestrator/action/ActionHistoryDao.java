@@ -30,6 +30,7 @@ public interface ActionHistoryDao {
      * @param actionDetailData Detail about the action (used to help reconstruct descriptions and
      *                         other topology-related data).
      * @param associatedAccountId The ID of the associated business account, if any.
+     * @param associatedResourceGroupId The ID of the associated resource group, if any.
      * @return action history, if created
      */
     @Nonnull
@@ -42,7 +43,8 @@ public interface ActionHistoryDao {
             @Nullable ExecutionStep executionStep,
             int currentState,
             @Nullable byte[] actionDetailData,
-            @Nullable Long associatedAccountId);
+            @Nullable Long associatedAccountId,
+            @Nullable Long associatedResourceGroupId);
 
     /**
      * Returns all the existing action history between 'startDate' and 'endDate'.

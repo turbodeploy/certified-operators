@@ -38,8 +38,9 @@ public class ActionFactory implements IActionFactory {
                                 @Nonnull final LocalDateTime recommendationTime,
                                 final long actionPlanId,
                                 String description,
-                                @Nullable final Long associatedAccountId) {
+                                @Nullable final Long associatedAccountId,
+                                @Nullable final Long associatedResourceGroupId) {
         return new Action(recommendation, recommendationTime, actionPlanId,
-            actionModeCalculator, description, associatedAccountId);
+            actionModeCalculator, description, associatedAccountId, associatedResourceGroupId);
     }
 }

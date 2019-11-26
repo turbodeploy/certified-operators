@@ -16,6 +16,7 @@ import java.util.Optional;
 import com.google.common.collect.ImmutableList;
 
 import org.apache.commons.collections4.CollectionUtils;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -288,14 +289,16 @@ public class SupplyChainsServiceTest {
         final SupplyChainStatsApiInputDTO inputDTO = new SupplyChainStatsApiInputDTO();
         inputDTO.setEnvironmentType(EnvironmentType.CLOUD);
         inputDTO.setTypes(Collections.singletonList(UIEntityType.VIRTUAL_MACHINE.apiStr()));
-        inputDTO.setGroupBy(Collections.singletonList(EntitiesCountCriteria.businessUnit));
+        inputDTO.setGroupBy(Arrays.asList(EntitiesCountCriteria.businessUnit,
+                EntitiesCountCriteria.resourceGroup));
         inputDTO.setUuids(Collections.singletonList(Long.toString(uuid)));
 
         final SupplyChainStat stat = SupplyChainStat.newBuilder()
             .setNumEntities(100)
             .build();
 
-        when(mockStatMapper.countCriteriaToGroupBy(any())).thenReturn(Optional.of(SupplyChainGroupBy.BUSINESS_ACCOUNT_ID));
+        when(mockStatMapper.countCriteriaToGroupBy(EntitiesCountCriteria.businessUnit)).thenReturn(Optional.of(SupplyChainGroupBy.BUSINESS_ACCOUNT_ID));
+        when(mockStatMapper.countCriteriaToGroupBy(EntitiesCountCriteria.resourceGroup)).thenReturn(Optional.of(SupplyChainGroupBy.RESOURCE_GROUP));
         final StatApiDTO retDto = mock(StatApiDTO.class);
         when(mockStatMapper.supplyChainStatToApi(any())).thenReturn(retDto);
         when(supplyChainMock.fetchStats(any())).thenReturn(Collections.singletonList(stat));
@@ -308,7 +311,9 @@ public class SupplyChainsServiceTest {
         verify(supplyChainMock).entityTypes(inputDTO.getTypes());
         verify(supplyChainMock).apiEnvironmentType(inputDTO.getEnvironmentType());
         verify(mockStatMapper).countCriteriaToGroupBy(EntitiesCountCriteria.businessUnit);
-        verify(supplyChainMock).fetchStats(Collections.singletonList(SupplyChainGroupBy.BUSINESS_ACCOUNT_ID));
+        verify(mockStatMapper).countCriteriaToGroupBy(EntitiesCountCriteria.resourceGroup);
+        verify(supplyChainMock).fetchStats(Arrays.asList(SupplyChainGroupBy.BUSINESS_ACCOUNT_ID,
+                SupplyChainGroupBy.RESOURCE_GROUP));
         verify(mockStatMapper).supplyChainStatToApi(stat);
 
         assertThat(retSnapshot.size(), is(1));
@@ -332,20 +337,10 @@ public class SupplyChainsServiceTest {
         assertThat(mapper.countCriteriaToGroupBy(EntitiesCountCriteria.severity), is(Optional.of(SupplyChainGroupBy.SEVERITY)));
         assertThat(mapper.countCriteriaToGroupBy(EntitiesCountCriteria.state), is(Optional.of(SupplyChainGroupBy.ENTITY_STATE)));
         assertThat(mapper.countCriteriaToGroupBy(EntitiesCountCriteria.target), is(Optional.of(SupplyChainGroupBy.TARGET)));
-        assertThat(mapper.countCriteriaToGroupBy(EntitiesCountCriteria.template),
-            is(Optional.of(SupplyChainGroupBy.TEMPLATE)));
+        assertThat(mapper.countCriteriaToGroupBy(EntitiesCountCriteria.template), is(Optional.of(SupplyChainGroupBy.TEMPLATE)));
+        assertThat(mapper.countCriteriaToGroupBy(EntitiesCountCriteria.resourceGroup), is(Optional.of(SupplyChainGroupBy.RESOURCE_GROUP)));
     }
 
-    /**
-     * Test proper exceptions for unsupported {@link EntitiesCountCriteria}.
-     *
-     * @throws InvalidOperationException To satisfy compiler.
-     */
-    @Test
-    public void testSupplyChainStatMapperUnsupportedCriteria() throws InvalidOperationException {
-        final SupplyChainStatMapper mapper = new SupplyChainStatMapper();
-        assertThat(mapper.countCriteriaToGroupBy(EntitiesCountCriteria.resourceGroup), is(Optional.empty()));
-    }
 
     /**
      * Test mapping {@link SupplyChainStat} to {@link StatApiDTO} with the action category filter.
@@ -406,6 +401,25 @@ public class SupplyChainsServiceTest {
         assertThat(statApiDTO.getFilters().size(), is(1));
         assertThat(statApiDTO.getFilters().get(0).getType(), is(EntitiesCountCriteria.entityType.name()));
         assertThat(statApiDTO.getFilters().get(0).getValue(), is(UIEntityType.VIRTUAL_MACHINE.apiStr()));
+    }
+
+    /**
+     * Test mapping {@link SupplyChainStat} to {@link StatApiDTO} with the resource group filter.
+     */
+    @Test
+    public void testSupplyChainStatMapperStatToApiResourceGroup() {
+        long associatedResourceGroupId = 1L;
+        final SupplyChainStatMapper mapper = new SupplyChainStatMapper();
+
+        SupplyChainStat supplyChainStat = SupplyChainStat.newBuilder()
+                .setNumEntities(100)
+                .setStatGroup(StatGroup.newBuilder().setResourceGroupId(associatedResourceGroupId))
+                .build();
+        StatApiDTO statApiDTO = mapper.supplyChainStatToApi(supplyChainStat);
+        assertThat(statApiDTO.getValue(), is(100.0f));
+        assertThat(statApiDTO.getFilters().size(), is(1));
+        assertThat(statApiDTO.getFilters().get(0).getType(), is(EntitiesCountCriteria.resourceGroup.name()));
+        Assert.assertEquals(statApiDTO.getFilters().get(0).getValue(), String.valueOf(associatedResourceGroupId));
     }
 
     /**

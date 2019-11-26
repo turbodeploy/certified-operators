@@ -48,6 +48,7 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainGroupBy;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
@@ -478,7 +479,9 @@ public class SupplyChainStatisticianTest {
     public void testSupplementaryFactoryActionCategories() {
         final SupplementaryDataFactory factory = new SupplementaryDataFactory(
             EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-            ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+            ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            GroupServiceGrpc.newBlockingStub(grpcServer.getChannel())
+        );
 
         final List<Long> entities = Arrays.asList(1L, 2L);
 
@@ -525,7 +528,8 @@ public class SupplyChainStatisticianTest {
     public void testSupplementaryFactorySeverities() {
         final SupplementaryDataFactory factory = new SupplementaryDataFactory(
             EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-            ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+            ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()));
 
         final List<Long> entities = Arrays.asList(1L, 2L, 3L);
 

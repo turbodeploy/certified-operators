@@ -155,6 +155,10 @@ class ActionStatsMapper {
             groupByFilters.setBusinessAccountId(actionStat.getStatGroup().getBusinessAccountId());
         }
 
+        if (actionStat.getStatGroup().hasResourceGroupId()) {
+            groupByFilters.setResourceGroupId(actionStat.getStatGroup().getResourceGroupId());
+        }
+
         if (actionStat.getStatGroup().hasTargetEntityId()) {
             if (query.actionInput().getGroupBy().contains(StringConstants.TEMPLATE)) {
                 MinimalEntity template = entityLookup.get(actionStat.getStatGroup().getTargetEntityId());

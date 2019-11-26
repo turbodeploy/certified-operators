@@ -78,7 +78,8 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
             @Nonnull final ExecutionStep executionStep,
             @Nonnull final int currentState,
             @Nullable final byte[] actionDetailData,
-            @Nullable final Long associatedAccountId) {
+            @Nullable final Long associatedAccountId,
+            @Nullable final Long associatedResourceGroupId) {
         final LocalDateTime curTime = LocalDateTime.now();
         String userName = SecurityConstant.USER_ID_CTX_KEY.get();
         if (userName == null) {
@@ -95,7 +96,7 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
                 currentState,
                 userName,
                 actionDetailData,
-                associatedAccountId);
+                associatedAccountId, associatedResourceGroupId);
         dsl.newRecord(ACTION_HISTORY, actionHistory).store();
         return actionHistory;
     }
@@ -131,6 +132,7 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
             ActionDTO.ActionState.forNumber(actionHistory.getCurrentState()),
             new ActionTranslation(actionHistory.getRecommendation()),
             actionHistory.getAssociatedAccountId(),
+            actionHistory.getAssociatedResourceGroupId(),
             actionHistory.getActionDetailData()), actionModeCalculator);
     }
 }

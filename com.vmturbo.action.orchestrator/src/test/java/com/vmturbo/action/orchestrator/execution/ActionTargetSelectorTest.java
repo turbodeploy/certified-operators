@@ -97,7 +97,7 @@ public class ActionTargetSelectorTest {
     public void setup() {
         when(probeCapabilityCache.getCachedCapabilities()).thenReturn(cachedCapabilities);
         when(entitySettingsCache.emptySnapshot()).thenReturn(new EntitiesAndSettingsSnapshot(
-            Collections.emptyMap(), Maps.newHashMap(), null, 0));
+            Collections.emptyMap(), Maps.newHashMap(), null, Maps.newHashMap(), 0));
         targetEntitySelectorMock = mock(ActionExecutionEntitySelector.class);
         MockitoAnnotations.initMocks(this);
         // The class under test

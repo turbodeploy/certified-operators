@@ -74,6 +74,7 @@ class CombinedStatsBuckets {
                 bucketKey.targetEntityId().ifPresent(bldr::setTargetEntityId);
                 bucketKey.reasonCommodityBaseType().ifPresent(bldr::setReasonCommodityBaseType);
                 bucketKey.businessAccountId().ifPresent(bldr::setBusinessAccountId);
+                bucketKey.resourceGroupId().ifPresent(bldr::setResourceGroupId);
                 return new CombinedStatsBucket(entityPredicate, bldr.build());
             });
         bucket.add(actionInfo);
@@ -141,6 +142,13 @@ class CombinedStatsBuckets {
          * @return Value, or {@link Optional} if the requested group-by included the business account.
          */
         Optional<Long> businessAccountId();
+
+        /**
+         * The resource group associated with the actions in this bucket.
+         *
+         * @return Value, or {@link Optional} if the requested group-by included the resource group.
+         */
+        Optional<Long> resourceGroupId();
     }
 
     @Nonnull
@@ -191,6 +199,11 @@ class CombinedStatsBuckets {
             keyBuilder.businessAccountId(actionView.getAssociatedAccount()
                 // Use an explicit 0 for actions not associated with accounts.
                 .orElse(0L));
+        }
+
+        if (groupBy.contains(GroupBy.RESOURCE_GROUP_ID)) {
+            keyBuilder.resourceGroupId(
+                    actionInfo.action().getAssociatedResourceGroupId().orElse(0L));
         }
 
         return keyBuilder.build();

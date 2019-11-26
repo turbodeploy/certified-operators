@@ -157,6 +157,14 @@ public interface ActionView {
     Optional<Long> getAssociatedAccount();
 
     /**
+     * Get the OID of resource group this action is associated with. Resource group for
+     * "primaryEntity" involved in the action.
+     *
+     * @return resource group OID. This will be empty for on-prem actions.
+     */
+    Optional<Long> getAssociatedResourceGroupId();
+
+    /**
      * Determine whether the action is executable.
      * An action is generally executable when its recommendation is marked as executable
      * by the market and its state is ready.

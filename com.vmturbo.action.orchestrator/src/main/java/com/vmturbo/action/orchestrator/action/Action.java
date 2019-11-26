@@ -158,6 +158,8 @@ public class Action implements ActionView {
 
     private Optional<Long> associatedAccountId = Optional.empty();
 
+    private Optional<Long> associatedResourceGroupId = Optional.empty();
+
     /**
      * The state of the action. The state of an action transitions due to certain system events.
      * The initial state is determined by the action mode.
@@ -238,7 +240,8 @@ public class Action implements ActionView {
                   final long actionPlanId,
                   @Nonnull final ActionModeCalculator actionModeCalculator,
                   @Nullable final String description,
-                  @Nullable final Long associatedAccountId) {
+                  @Nullable final Long associatedAccountId,
+                  @Nullable final Long associatedResourceGroupId) {
         this.recommendation = recommendation;
         this.actionTranslation = new ActionTranslation(this.recommendation);
         this.actionPlanId = actionPlanId;
@@ -251,14 +254,16 @@ public class Action implements ActionView {
         this.actionModeCalculator = actionModeCalculator;
         this.description = description;
         this.associatedAccountId = Optional.ofNullable(associatedAccountId);
+        this.associatedResourceGroupId = Optional.ofNullable(associatedResourceGroupId);
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
                   final long actionPlanId, @Nonnull final ActionModeCalculator actionModeCalculator) {
         // This constructor is used by LiveActionStore, so passing null to 'description' argument
-        // or the 'associatedAccountId' is not hurtful since the description will be formed at a
-        // later stage during refreshAction.
-        this(recommendation, LocalDateTime.now(), actionPlanId, actionModeCalculator, null, null);
+        // or the 'associatedAccountId' or to "associatedResourceGroup" is not hurtful since the
+        // description will be formed at a later stage during refreshAction.
+        this(recommendation, LocalDateTime.now(), actionPlanId, actionModeCalculator, null, null,
+                null);
     }
 
     /**
@@ -380,6 +385,7 @@ public class Action implements ActionView {
                 final long primaryEntity = ActionDTOUtil.getPrimaryEntityId(recommendation);
                 associatedAccountId = entitiesSnapshot.getOwnerAccountOfEntity(primaryEntity)
                     .map(EntityWithConnections::getOid);
+                associatedResourceGroupId = entitiesSnapshot.getResourceGroupForEntity(primaryEntity);
             } catch (UnsupportedActionException e) {
                 // Shouldn't ever happen here, because we would have rejected this action
                 // if it was unsupported.
@@ -538,6 +544,11 @@ public class Action implements ActionView {
     @Nonnull
     public Optional<Long> getAssociatedAccount() {
         return associatedAccountId;
+    }
+
+    @Override
+    public Optional<Long> getAssociatedResourceGroupId() {
+        return associatedResourceGroupId;
     }
 
     /**
@@ -1045,6 +1056,11 @@ public class Action implements ActionView {
         }
 
         @Nullable
+        public Long getAssociatedResourceGroupId() {
+            return associatedResourceGroupId;
+        }
+
+        @Nullable
         public byte[] getActionDetailData() {
             return actionDetailData;
         }
@@ -1060,6 +1076,8 @@ public class Action implements ActionView {
         private final ActionTranslation actionTranslation;
 
         private final Long associatedAccountId;
+
+        private final Long associatedResourceGroupId;
 
         private final byte[] actionDetailData;
 
@@ -1080,6 +1098,7 @@ public class Action implements ActionView {
             this.actionTranslation = action.actionTranslation;
             this.actionCategory = action.getActionCategory();
             this.associatedAccountId = action.getAssociatedAccount().orElse(null);
+            this.associatedResourceGroupId = action.getAssociatedResourceGroupId().orElse(null);
             this.actionDetailData = action.getDescription() == null
                 ? null : action.getDescription().getBytes();
         }
@@ -1092,6 +1111,7 @@ public class Action implements ActionView {
                                   @Nonnull ActionState actionState,
                                   @Nonnull ActionTranslation actionTranslation,
                                   @Nullable Long associatedAccountId,
+                                  @Nullable Long associatedResourceGroupId,
                                   @Nullable byte[] actionDetailData) {
             this.actionPlanId = actionPlanId;
             this.recommendation = recommendation;
@@ -1103,6 +1123,7 @@ public class Action implements ActionView {
             this.actionCategory =
                     ActionCategoryExtractor.assignActionCategory(recommendation.getExplanation());
             this.associatedAccountId = associatedAccountId;
+            this.associatedResourceGroupId = associatedResourceGroupId;
             this.actionDetailData = actionDetailData;
         }
     }

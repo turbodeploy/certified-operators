@@ -2,6 +2,7 @@ package com.vmturbo.action.orchestrator.store;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
@@ -11,10 +12,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import io.grpc.Status;
@@ -22,11 +21,14 @@ import io.grpc.Status;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
 
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
@@ -37,7 +39,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.repository.api.TopologyAvailabilityTracker;
 import com.vmturbo.repository.api.TopologyAvailabilityTracker.QueuedTopologyRequest;
 
@@ -49,12 +51,14 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
     private static final long TOPOLOGY_CONTEXT_ID = 77L;
     private static final long ENTITY_ID = 1L;
     private static final String VM_CLASSIC_ENTITY_TYPE = "VirtualMachine";
+    private static final Long ASSOCIATED_RESOURCE_GROUP_ID = 123L;
 
     private SettingPolicyServiceMole spServiceSpy = spy(new SettingPolicyServiceMole());
     private RepositoryServiceMole repoServiceSpy = spy(new RepositoryServiceMole());
+    private GroupServiceMole groupServiceSpy = spy(new GroupServiceMole());
 
     @Rule
-    public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(spServiceSpy, repoServiceSpy);
+    public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(spServiceSpy, repoServiceSpy, groupServiceSpy);
 
     private EntitiesAndSettingsSnapshotFactory entitySettingsCache;
 
@@ -86,6 +90,10 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
                 .setSettingSpecName("foo")
                 .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
                 .build();
+        final Grouping associatedResourceGroup = Grouping.newBuilder()
+                .setId(ASSOCIATED_RESOURCE_GROUP_ID)
+                .setDefinition(GroupDefinition.newBuilder().setType(GroupType.RESOURCE).build())
+                .build();
 
         final ServiceEntityApiDTO entityDto = new ServiceEntityApiDTO();
         entityDto.setUuid(Long.toString(ENTITY_ID));
@@ -103,6 +111,9 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
                     .setSetting(setting)
                     .addEntityOids(ENTITY_ID))
                 .build()));
+        when(groupServiceSpy.getGroupForEntity(
+                GetGroupForEntityRequest.newBuilder().setEntityId(ENTITY_ID).build())).thenReturn(
+                GetGroupForEntityResponse.newBuilder().addGroup(associatedResourceGroup).build());
 
 
         final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(
@@ -111,6 +122,7 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
         final Map<String, Setting> newSettings = snapshot.getSettingsForEntity(ENTITY_ID);
         assertTrue(newSettings.containsKey(setting.getSettingSpecName()));
         assertThat(newSettings.get(setting.getSettingSpecName()), is(setting));
+        assertEquals(snapshot.getResourceGroupForEntity(ENTITY_ID).get(), ASSOCIATED_RESOURCE_GROUP_ID);
 
         verify(topologyAvailabilityTracker).queueTopologyRequest(TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
         verify(topologyRequest).waitForTopology(MIN_TO_WAIT, TimeUnit.MINUTES);
@@ -125,6 +137,8 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
     public void testNewSnapshotError() {
         when(spServiceSpy.getEntitySettingsError(any()))
             .thenReturn(Optional.of(Status.INTERNAL.asException()));
+        when(groupServiceSpy.getGroupForEntity(any())).thenReturn(
+                GetGroupForEntityResponse.getDefaultInstance());
 
         final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(Collections.singleton(ENTITY_ID),
             TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);

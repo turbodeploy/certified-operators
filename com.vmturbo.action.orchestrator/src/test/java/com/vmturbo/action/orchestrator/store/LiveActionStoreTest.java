@@ -111,9 +111,10 @@ public class LiveActionStoreTest {
         @Nonnull
         @Override
         public Action newPlanAction(@Nonnull ActionDTO.Action recommendation, @Nonnull LocalDateTime recommendationTime,
-                                    long actionPlanId, String description, @Nullable final Long associatedAccountId) {
+                                    long actionPlanId, String description,
+                @Nullable final Long associatedAccountId, @Nullable final Long associatedResourceGroupId) {
             return spy(new Action(recommendation, recommendationTime, actionPlanId,
-                actionModeCalculator, description, associatedAccountId));
+                actionModeCalculator, description, associatedAccountId, associatedResourceGroupId));
         }
     }
 
