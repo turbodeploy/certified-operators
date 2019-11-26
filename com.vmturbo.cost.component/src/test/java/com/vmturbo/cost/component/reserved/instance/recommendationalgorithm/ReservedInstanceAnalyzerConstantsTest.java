@@ -7,6 +7,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
@@ -58,7 +59,7 @@ public class ReservedInstanceAnalyzerConstantsTest {
     static final long AWS_TARGET_ID = 77777L;
     static final Origin AWS_ORIGIN = Origin.newBuilder()
         .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-            .addDiscoveringTargetIds(AWS_TARGET_ID))
+            .putDiscoveredTargetData(AWS_TARGET_ID, PerTargetEntityInformation.getDefaultInstance()))
         .build();
 
     /*

@@ -125,6 +125,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -164,6 +165,7 @@ public class ActionSpecMapperTest {
     private static final String DC1_NAME = "DC-1";
     private static final long DATACENTER2_ID = 200L;
     private static final String DC2_NAME = "DC-2";
+    private static final String TARGET_VENDOR_ID = "qqq";
 
     private ActionSpecMapper mapper;
 
@@ -1561,7 +1563,9 @@ public class ActionSpecMapperTest {
             .setOid(oid)
             .setDisplayName(displayName)
             .setEntityType(entityType)
-            .addDiscoveringTargetIds(TARGET_ID)
+            // all entities to have same vendor id for testing
+            .putDiscoveredTargetData(TARGET_ID, PerTargetEntityInformation.newBuilder()
+                            .setVendorId(TARGET_VENDOR_ID).build())
             .build();
 
         final ServiceEntityApiDTO mappedE = new ServiceEntityApiDTO();

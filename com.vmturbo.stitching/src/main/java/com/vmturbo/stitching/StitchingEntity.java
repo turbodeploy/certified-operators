@@ -9,6 +9,8 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang3.StringUtils;
+
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
@@ -20,6 +22,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
 import com.vmturbo.stitching.journal.JournalableEntity;
 import com.vmturbo.stitching.utilities.CommoditiesBought;
+import com.vmturbo.stitching.utilities.DTOFieldAndPropertyHandler;
 
 /**
  * An entity capable of being stitched.
@@ -363,9 +366,12 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      * @return {@link DiscoveryOrigin} for this entity.
      */
     default DiscoveryOrigin buildDiscoveryOrigin() {
-        return DiscoveryOriginBuilder.discoveredBy(getTargetId())
-            .withMergeFromTargetIds(getMergeInformation().stream()
-                .map(StitchingMergeInformation::getTargetId))
+        String localName = DTOFieldAndPropertyHandler.getVendorId(getEntityBuilder());
+        if (StringUtils.isBlank(localName)) {
+            localName = getEntityBuilder().getId();
+        }
+        return DiscoveryOriginBuilder.discoveredBy(getTargetId(), localName)
+            .withMerge(getMergeInformation().stream())
             .lastUpdatedAt(getLastUpdatedTime());
     }
 

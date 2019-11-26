@@ -7,11 +7,10 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
-import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ActionExecutionREST.ActionExecutionServiceController;
-import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
 import com.vmturbo.topology.processor.actions.data.context.ActionExecutionContextFactory;
+import com.vmturbo.topology.processor.actions.data.spec.ActionDataManager;
 import com.vmturbo.topology.processor.controllable.ControllableConfig;
 import com.vmturbo.topology.processor.conversions.TopologyToSdkEntityConverter;
 import com.vmturbo.topology.processor.entity.EntityConfig;
@@ -61,7 +60,7 @@ public class ActionsConfig {
     @Bean
     public TopologyToSdkEntityConverter topologyToSdkEntityConverter() {
         return new TopologyToSdkEntityConverter(entityConfig.entityStore(),
-                targetConfig.targetStore());
+                targetConfig.targetStore(), targetConfig.groupScopeResolver());
     }
 
     @Bean

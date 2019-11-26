@@ -1,8 +1,9 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -11,18 +12,19 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 public class ServiceEntityMapper {
 
@@ -103,11 +105,7 @@ public class ServiceEntityMapper {
                 .ifPresent(result::setEnvironmentType);
         }
 
-        if (!topologyEntityDTO.getDiscoveringTargetIdsList().isEmpty()) {
-            thinTargetCache.getTargetInfo(topologyEntityDTO.getDiscoveringTargetIds(0))
-                .map(this::createTargetApiDto)
-                .ifPresent(result::setDiscoveredBy);
-        }
+        setDiscoveredBy(topologyEntityDTO::getDiscoveredTargetDataMap, result);
 
         //tags
         result.setTags(
@@ -162,13 +160,8 @@ public class ServiceEntityMapper {
                 .ifPresent(seDTO::setEnvironmentType);
         }
 
-        final List<Long> discoveringTargets =
-            topologyEntityDTO.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList();
-        if (!discoveringTargets.isEmpty()) {
-            thinTargetCache.getTargetInfo(discoveringTargets.get(0))
-                .map(this::createTargetApiDto)
-                .ifPresent(seDTO::setDiscoveredBy);
-        }
+        setDiscoveredBy(() -> topologyEntityDTO.getOrigin().getDiscoveryOrigin()
+                        .getDiscoveredTargetDataMap(), seDTO);
 
         //tags
         seDTO.setTags(
@@ -211,6 +204,30 @@ public class ServiceEntityMapper {
         //tags
         result.setTags(serviceEntityApiDTO.getTags());
 
+        result.setVendorIds(serviceEntityApiDTO.getVendorIds());
+
         return result;
     }
+
+    private void setDiscoveredBy(Supplier<Map<Long, PerTargetEntityInformation>> idMapGetter, ServiceEntityApiDTO result) {
+        Map<Long, PerTargetEntityInformation> target2data = idMapGetter.get();
+        if (!target2data.isEmpty()) {
+            // only one target will be returned
+            thinTargetCache.getTargetInfo(target2data.keySet().iterator().next())
+                .map(this::createTargetApiDto)
+                .ifPresent(result::setDiscoveredBy);
+            // convert target ids to strings for api
+            // filter out hidden targets
+            // skip targets where vendor ids are unset
+            result.setVendorIds(target2data.entrySet().stream()
+                .filter(target2id -> target2id.getValue().hasVendorId() && !StringUtils
+                                .isEmpty(target2id.getValue().getVendorId()))
+                .filter(target2id -> !thinTargetCache.getTargetInfo(target2id.getKey())
+                    .map(ThinTargetInfo::isHidden).orElse(false))
+                .collect(Collectors
+                        .toMap(target2id -> String.valueOf(target2id.getKey()),
+                               target2id -> target2id.getValue().getVendorId())));
+        }
+    }
+
 }

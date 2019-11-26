@@ -22,6 +22,7 @@ import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -152,10 +153,11 @@ public class StitchingContextTest {
         assertEquals(4, topology.size());
 
         assertEquals(e1_1.getOid(), topology.getEntity(e1_1.getOid()).get().getOid());
-        assertEquals(e1_1.getLastUpdatedTime(),
-            topology.getEntity(e1_1.getOid()).get().getDiscoveryOrigin().get().getLastUpdatedTime());
+        DiscoveryOrigin origin = topology.getEntity(e1_1.getOid()).get().getDiscoveryOrigin().get();
+        assertEquals(e1_1.getLastUpdatedTime(), origin.getLastUpdatedTime());
+        assertEquals(1, origin.getDiscoveredTargetDataMap().size());
         assertEquals(e1_1.getTargetId(),
-            topology.getEntity(e1_1.getOid()).get().getDiscoveryOrigin().get().getDiscoveringTargetIds(0));
+                     origin.getDiscoveredTargetDataMap().keySet().iterator().next().longValue());
         assertEquals(1, topology.getConsumers(e1_1.getOid()).count());
         assertEquals(0, topology.getProviders(e1_1.getOid()).count());
 

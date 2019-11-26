@@ -42,6 +42,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
@@ -952,7 +953,8 @@ public class TopologyConverterFromMarketTest {
         final TopologyDTO.TopologyEntityDTO originalVm = TopologyDTO.TopologyEntityDTO.newBuilder()
                 .setOid(VM_OID).setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setOrigin(Origin.newBuilder().setDiscoveryOrigin(
-                        DiscoveryOrigin.newBuilder().addDiscoveringTargetIds(123)))
+                    DiscoveryOrigin.newBuilder().putDiscoveredTargetData(123,
+                        PerTargetEntityInformation.getDefaultInstance())))
                 .build();
 
         final EconomyDTOs.TraderTO vmTrader =
@@ -1011,7 +1013,8 @@ public class TopologyConverterFromMarketTest {
         final TopologyDTO.TopologyEntityDTO originalVm = TopologyDTO.TopologyEntityDTO.newBuilder()
                 .setOid(VM_OID).setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setOrigin(Origin.newBuilder().setDiscoveryOrigin(
-                        DiscoveryOrigin.newBuilder().addDiscoveringTargetIds(123)))
+                    DiscoveryOrigin.newBuilder().putDiscoveredTargetData(123,
+                        PerTargetEntityInformation.getDefaultInstance())))
                 .build();
 
         final long cloneId = 127329;

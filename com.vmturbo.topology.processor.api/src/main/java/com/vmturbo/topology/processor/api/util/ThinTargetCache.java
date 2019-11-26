@@ -172,7 +172,7 @@ public class ThinTargetCache implements TargetListener {
     private ThinTargetInfo toThinTargetInfo(@Nonnull final TargetInfo targetInfo,
                                             @Nonnull final ThinProbeInfo probeInfo) {
         final ImmutableThinTargetInfo.Builder resultBldr = ImmutableThinTargetInfo.builder()
-            .oid(targetInfo.getId());
+            .oid(targetInfo.getId()).isHidden(targetInfo.isHidden());
         resultBldr.displayName(targetInfo.getDisplayName());
 
         // fetch information about the probe, and store the probe type in the result
@@ -233,5 +233,12 @@ public class ThinTargetCache implements TargetListener {
         String displayName();
 
         ThinProbeInfo probeInfo();
+
+        /**
+         * Whether the target is not visible.
+         *
+         * @return true when hidden
+         */
+        boolean isHidden();
     }
 }

@@ -179,7 +179,7 @@ public class TopologyEntityUtils {
                 .setEntityType(entityType.getNumber())
                 .setDisplayName(displayName)
                 .setOrigin(Origin.newBuilder()
-                    .setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(discoveringTargetId)
+                    .setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(discoveringTargetId, null)
                         .lastUpdatedAt(lastUpdatedTime))));
 
         addCommodityBoughtMap(builder.getEntityBuilder(), producers);
@@ -230,7 +230,7 @@ public class TopologyEntityUtils {
                 .setEntityType(entityType.getNumber())
                 .setDisplayName(displayName)
                 .setOrigin(Origin.newBuilder()
-                    .setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(discoveringTargetId)
+                    .setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(discoveringTargetId, null)
                         .lastUpdatedAt(lastUpdatedTime))));
 
         for (long connectedTo : connectedToEntities) {

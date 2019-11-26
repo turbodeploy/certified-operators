@@ -19,10 +19,12 @@ import javax.annotation.Nonnull;
 
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -60,21 +62,28 @@ public class TopologyEntityTest {
         ).build();
 
         assertTrue(entity.hasDiscoveryOrigin());
-        assertEquals(111L, entity.getDiscoveryOrigin().get().getDiscoveringTargetIds(0));
-        assertEquals(222L, entity.getDiscoveryOrigin().get().getLastUpdatedTime());
+        DiscoveryOrigin origin = entity.getDiscoveryOrigin().get();
+        assertEquals(111L, origin.getDiscoveredTargetDataMap().entrySet().iterator().next().getKey().longValue());
+        assertEquals(222L, origin.getLastUpdatedTime());
     }
 
     @Test
     public void testBuildDiscoveryInformationWithMergeFromTargetIds() {
+        final StitchingMergeInformation mergedTarget1 =
+                        new StitchingMergeInformation(1L, 333L,
+                                                      StitchingErrors.none());
+        final StitchingMergeInformation mergedTarget2 =
+                    new StitchingMergeInformation(1L, 444L,
+                                                  StitchingErrors.none());
         final TopologyEntity entity = TopologyEntity.newBuilder(dtoBuilder.setOrigin(
             Origin.newBuilder().setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(111L)
-                .withMergeFromTargetIds(333L, 444L)
+                .withMerge(mergedTarget1, mergedTarget2)
                 .lastUpdatedAt(222L))))
             .build();
 
         assertTrue(entity.hasDiscoveryOrigin());
-        assertThat(entity.getDiscoveryOrigin().get().getDiscoveringTargetIdsList(),
-            containsInAnyOrder(111L, 333L, 444L));
+        assertThat(entity.getDiscoveryOrigin().get().getDiscoveredTargetDataMap().keySet(),
+            containsInAnyOrder(111L, mergedTarget1.getTargetId(), mergedTarget2.getTargetId()));
         assertEquals(222L, entity.getDiscoveryOrigin().get().getLastUpdatedTime());
     }
 
@@ -85,10 +94,16 @@ public class TopologyEntityTest {
         final TopologyEntity.Builder storage = makeStorageEntity(11, EntityType.STORAGE, Optional.of(logicalPool));
         makeStorageEntity(21, EntityType.VIRTUAL_MACHINE, Optional.of(storage)); // VM buying from storage
 
+        final StitchingMergeInformation mergedTarget1 =
+                        new StitchingMergeInformation(logicalPool.getOid(), 333L,
+                                                      StitchingErrors.none());
+        final StitchingMergeInformation mergedTarget2 =
+                    new StitchingMergeInformation(logicalPool.getOid(), 444L,
+                                                  StitchingErrors.none());
         logicalPool.getEntityBuilder()
             .getOriginBuilder()
             .setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(111L)
-                .withMergeFromTargetIds(333L, 444L)
+                .withMerge(mergedTarget1, mergedTarget2)
                 .lastUpdatedAt(222L));
 
         final TopologyEntity da = diskArray.build();
@@ -160,9 +175,15 @@ public class TopologyEntityTest {
 
     @Test
     public void testClearConsumersAndProviders() {
+        final StitchingMergeInformation mergedTarget1 =
+                        new StitchingMergeInformation(1L, 333L,
+                                                      StitchingErrors.none());
+        final StitchingMergeInformation mergedTarget2 =
+                        new StitchingMergeInformation(1L, 444L,
+                                                      StitchingErrors.none());
         final TopologyEntity.Builder consumer = TopologyEntity.newBuilder(dtoBuilder.setOrigin(
             Origin.newBuilder().setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(111L)
-                .withMergeFromTargetIds(333L, 444L)
+                .withMerge(mergedTarget1, mergedTarget2)
                 .lastUpdatedAt(222L))));
         final TopologyEntity.Builder provider = TopologyEntity.newBuilder(dtoBuilder.setOrigin(
             Origin.newBuilder().setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(222L)

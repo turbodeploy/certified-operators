@@ -13,14 +13,15 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
+import com.google.common.collect.ImmutableMap;
 import com.google.protobuf.InvalidProtocolBufferException;
 
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4FastDecompressor;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -29,6 +30,7 @@ import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
@@ -57,7 +59,7 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
     private final EntityState state;
     private final Map<String, List<String>> tags;
     private final Map<Integer, CommoditySoldDTO> soldCommodities;
-    private final List<Long> discoveringTargetIds;
+    private final Map<Long, PerTargetEntityInformation> discoveredTargetData;
 
     /**
      * These lists represent all connections of this entity:
@@ -98,13 +100,8 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
         this.state = src.getEntityState();
 
         // Will be an empty list if the entity was not discovered.
-        if (src.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList().isEmpty()) {
-            this.discoveringTargetIds = Collections.emptyList();
-        } else {
-            final ArrayList<Long> discoveringTargets = new ArrayList<>(src.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList());
-            discoveringTargets.trimToSize();
-            this.discoveringTargetIds = discoveringTargets;
-        }
+        this.discoveredTargetData = ImmutableMap
+                        .copyOf(src.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap());
 
         if (src.getTags().getTagsCount() > 0) {
             tags = new HashMap<>(src.getTags().getTagsCount());
@@ -339,10 +336,10 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
                 .build()));
         builder.setTags(tagsBuilder);
 
-        if (!discoveringTargetIds.isEmpty()) {
+        if (!discoveredTargetData.isEmpty()) {
             builder.setOrigin(Origin.newBuilder()
                 .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                    .addAllDiscoveringTargetIds(discoveringTargetIds)));
+                    .putAllDiscoveredTargetData(discoveredTargetData)));
         }
 
         builder.addAllCommoditySoldList(soldCommodities.values());
@@ -412,7 +409,14 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
     @Nonnull
     @Override
     public Stream<Long> getDiscoveringTargetIds() {
-        return discoveringTargetIds.stream();
+        return discoveredTargetData.keySet().stream();
+    }
+
+    @Override
+    public String getVendorId(long targetId) {
+        return Optional.ofNullable(discoveredTargetData.get(targetId))
+                        .filter(PerTargetEntityInformation::hasVendorId)
+                        .map(PerTargetEntityInformation::getVendorId).orElse(null);
     }
 
     /**
@@ -510,4 +514,5 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
             return this;
         }
     }
+
 }

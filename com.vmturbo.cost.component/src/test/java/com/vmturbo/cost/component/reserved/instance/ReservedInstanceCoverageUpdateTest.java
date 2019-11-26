@@ -12,7 +12,11 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 
 import org.jooq.DSLContext;
 import org.junit.Before;
@@ -26,15 +30,11 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
@@ -104,7 +104,7 @@ public class ReservedInstanceCoverageUpdateTest {
 
     private static final Origin AWS_ORIGIN = Origin.newBuilder()
             .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                    .addDiscoveringTargetIds(AWS_TARGET_ID))
+                    .putDiscoveredTargetData(AWS_TARGET_ID, PerTargetEntityInformation.getDefaultInstance()))
             .build();
 
     private final TopologyEntityDTO AZ = TopologyEntityDTO.newBuilder()

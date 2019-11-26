@@ -39,6 +39,7 @@ public class AbstractReservedInstanceCoverageAllocatorTest {
         final ThinTargetInfo targetInfo = ImmutableThinTargetInfo.builder()
                 .oid(1)
                 .displayName("mockedThinTargetInfo")
+                .isHidden(false)
                 .probeInfo(ImmutableThinProbeInfo.builder()
                         .oid(1)
                         .type(cspType.toString())

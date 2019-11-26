@@ -8,11 +8,11 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
@@ -107,11 +107,15 @@ class TopologyEntityDTOConverter {
         se.setCommoditySoldList(t.getCommoditySoldListList().stream().map(comm ->
                 CommodityMapper.convertToCommoditySoldRepoDTO(seOid, comm)).collect(Collectors.toList()));
 
-        // save discovering target ids
+        // save discovering target ids - use empty strings for serialization
         if (t.hasOrigin() && t.getOrigin().hasDiscoveryOrigin()) {
-            se.setTargetIds(t.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList().stream()
-                .map(String::valueOf)
-                .collect(Collectors.toList()));
+            se.setTargetVendorIds(t.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap()
+                            .entrySet().stream()
+                            .collect(Collectors
+                                    .toMap(target2id -> String.valueOf(target2id.getKey()),
+                                           target2id -> target2id.getValue().hasVendorId()
+                                               ? target2id.getValue().getVendorId()
+                                               : "")));
         }
 
         if (t.hasPipelineErrors()) {
