@@ -13,6 +13,7 @@ import javax.annotation.Nonnull;
  * highly available and will essentially never go down.
  *
  * <p>The intended use case is for small amounts of runtime data.
+ * TODO (Gary Zeng, Oct 28, 2019) fix the "infinite retry" logic. See OM-51986 for details.
  */
 public interface KeyValueStore {
     /**

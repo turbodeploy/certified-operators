@@ -14,6 +14,7 @@ import com.vmturbo.identity.store.CachingIdentityStore;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.identity.store.PersistentIdentityStore;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
+import com.vmturbo.securekvstore.SecureKeyValueStoreConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
@@ -27,17 +28,23 @@ import com.vmturbo.topology.processor.probes.ProbeConfig;
  */
 @Configuration
 @Import({ProbeConfig.class, KVConfig.class, SQLDatabaseConfig.class, GroupClientConfig.class,
-        RepositoryClientConfig.class})
+        RepositoryClientConfig.class, SecureKeyValueStoreConfig.class})
 public class TargetConfig {
 
     @Value("${identityGeneratorPrefix}")
     private long identityGeneratorPrefix;
+
+    @Value("${enableSecureStore:false}")
+    private boolean enableSecureStore;
 
     @Autowired
     private ProbeConfig probeConfig;
 
     @Autowired
     private KVConfig kvConfig;
+
+    @Autowired
+    private SecureKeyValueStoreConfig vaultKeyValueStoreConfig;
 
     @Autowired
     private SQLDatabaseConfig databaseConfig;
@@ -54,7 +61,7 @@ public class TargetConfig {
     @Bean
     public TargetStore targetStore() {
         return new KVBackedTargetStore(
-                kvConfig.keyValueStore(),
+                enableSecureStore ? vaultKeyValueStoreConfig.vaultKeyValueStore() : kvConfig.keyValueStore(),
                 probeConfig.probeStore(),
                 identityStore());
     }
