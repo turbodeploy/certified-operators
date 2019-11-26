@@ -78,6 +78,7 @@ import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ChangeAppCommodityKeyOnVMAndAppStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.DummySettingsResolutionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.EntityValidationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.GraphCreationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PlanScopingStage;
@@ -94,6 +95,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadGroupsStage
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadTemplatesStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadWorkflowsStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.StageResult;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Status;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 
@@ -387,6 +389,19 @@ public class StagesTest {
         policyStage.execute(topologyGraph);
 
         verify(policyManager).applyPolicies(eq(topologyGraph), eq(groupResolver), eq(Collections.emptyList()));
+    }
+
+    /**
+     * Test that the DummySettingsResolutionStage convert {@link TopologyGraph} to
+     * {@link GraphWithSettings} with empty settings.
+     */
+    @Test
+    public void testDummySettingsResolutionStage() {
+        final DummySettingsResolutionStage stage = new DummySettingsResolutionStage();
+        @SuppressWarnings("unchecked")
+        final TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
+        StageResult<GraphWithSettings> stageResult = stage.execute(topologyGraph);
+        assertTrue(stageResult.getResult().getEntitySettings().isEmpty());
     }
 
     @Test

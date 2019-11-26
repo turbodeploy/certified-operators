@@ -86,7 +86,7 @@ public class TopologyProcessorRpcConfig {
     @Bean
     public TopologyRpcService topologyRpcService() {
         return new TopologyRpcService(topologyConfig.topologyHandler(),
-            topologyConfig.topologyPipelineFactory(),
+            topologyConfig.livePipelineFactory(),
             identityProviderConfig.identityProvider(),
             entityConfig.entityStore(),
             schedulerConfig.scheduler(),

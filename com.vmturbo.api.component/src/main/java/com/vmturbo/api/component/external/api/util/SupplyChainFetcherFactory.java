@@ -1,6 +1,5 @@
 package com.vmturbo.api.component.external.api.util;
 
-import java.net.NoRouteToHostException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -27,6 +26,8 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import io.grpc.Status;
+import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
 import org.apache.commons.collections4.CollectionUtils;
@@ -909,9 +910,16 @@ public class SupplyChainFetcherFactory {
                             }
                         }
                     } catch (RuntimeException e) {
-                        logger.error("Error when fetching severities: ", e);
-                        if (e.getCause() != null && (e.getCause() instanceof NoRouteToHostException)) {
-                            actionOrchestratorAvailable = false;
+                        if (e instanceof StatusRuntimeException) {
+                            // This is a gRPC StatusRuntimeException
+                            Status status = ((StatusRuntimeException)e).getStatus();
+                            logger.warn("Unable to fetch severities: {} caused by {}.",
+                                    status.getDescription(), status.getCause());
+                            if (status.getCode() == Code.UNAVAILABLE) {
+                                actionOrchestratorAvailable = false;
+                            }
+                        } else {
+                            logger.error("Error when fetching severities: ", e);
                         }
                     }
                 }

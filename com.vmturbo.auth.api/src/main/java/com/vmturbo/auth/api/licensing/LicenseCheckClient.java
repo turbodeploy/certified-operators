@@ -27,7 +27,7 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
     private final Logger logger = LogManager.getLogger();
 
     // cache the most recent license summary
-    LicenseSummary lastLicenseSummary;
+    private LicenseSummary lastLicenseSummary;
 
     public LicenseCheckClient(@Nonnull final IMessageReceiver<LicenseSummary> messageReceiver,
                               @Nonnull final ExecutorService executorService) {
@@ -61,10 +61,18 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
 
     /**
      * Is license check ready? Internally, it will check if last license summary is available.
-     * @return true iff summary is available.
+     * @return true if summary is available.
      */
     public boolean isReady() {
         return lastLicenseSummary != null;
+    }
+
+    /**
+     * Check if this license is for developer freemium edition.
+     * @return true if "visibility_only" feature exists in a valid license.
+     */
+    public boolean isDevFreemium() {
+        return hasValidLicense() && isFeatureAvailable(LicenseFeature.VISIBILITY_ONLY);
     }
 
     @Override

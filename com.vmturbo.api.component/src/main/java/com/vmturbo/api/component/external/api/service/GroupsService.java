@@ -1111,15 +1111,17 @@ public class GroupsService implements IGroupsService {
      */
     private Map<Long, Severity> getGroupsSeverities(List<GroupAndMembers> groupsWithMembers) {
         final Map<Long, Severity> groupSeverity = new HashMap<>();
-        Map<Long, Severity> entitiesSeverityMap =
+        Map<Long, Optional<Severity>> entitiesSeverityMap =
             severityPopulator.calculateSeverities(realtimeTopologyContextId,
-                groupsWithMembers.stream().flatMap(groupAndMembers -> groupAndMembers.entities().stream())
+                groupsWithMembers.stream()
+                    .flatMap(groupAndMembers -> groupAndMembers.entities().stream())
                     .collect(Collectors.toSet()));
 
-        groupsWithMembers.stream().forEach(groupAndMembers -> {
+        groupsWithMembers.forEach(groupAndMembers -> {
             groupSeverity.put(groupAndMembers.group().getId(), groupAndMembers.entities().stream()
                 .map(entitiesSeverityMap::get)
-                .filter(Objects::nonNull)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
                 .reduce(Severity.NORMAL, (first, second)
                     -> first.getNumber() > second.getNumber() ? first : second));
         });

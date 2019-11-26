@@ -36,7 +36,7 @@ import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory;
+import com.vmturbo.topology.processor.topology.pipeline.LivePipelineFactory;
 
 /**
  * Implementation of the TopologyService defined in topology/TopologyDTO.proto.
@@ -45,7 +45,7 @@ public class TopologyRpcService extends TopologyServiceImplBase {
     private static final Logger logger = LogManager.getLogger();
 
     private final TopologyHandler topologyHandler;
-    private final TopologyPipelineFactory topologyPipelineFactory;
+    private final LivePipelineFactory livePipelineFactory;
     private final StitchingJournalFactory journalFactory;
     private final IdentityProvider identityProvider;
     private final EntityStore entityStore;
@@ -54,7 +54,7 @@ public class TopologyRpcService extends TopologyServiceImplBase {
     private final Scheduler scheduler;
 
     public TopologyRpcService(@Nonnull final TopologyHandler topologyHandler,
-                              @Nonnull final TopologyPipelineFactory topologyPipelineFactory,
+                              @Nonnull final LivePipelineFactory livePipelineFactory,
                               @Nonnull final IdentityProvider identityProvider,
                               @Nonnull final EntityStore entityStore,
                               @Nonnull final Scheduler scheduler,
@@ -62,7 +62,7 @@ public class TopologyRpcService extends TopologyServiceImplBase {
                               final long realtimeTopologyContextId,
                               @Nonnull final Clock clock) {
         this.topologyHandler = Objects.requireNonNull(topologyHandler);
-        this.topologyPipelineFactory = Objects.requireNonNull(topologyPipelineFactory);
+        this.livePipelineFactory = Objects.requireNonNull(livePipelineFactory);
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.entityStore = Objects.requireNonNull(entityStore);
         this.scheduler = Objects.requireNonNull(scheduler);
@@ -112,7 +112,7 @@ public class TopologyRpcService extends TopologyServiceImplBase {
             // Because this RPC triggers a broadcast, be sure to reset the broadcast schedule
             // so that we don't send too many in close succession.
             scheduler.resetBroadcastSchedule();
-            topologyPipelineFactory
+            livePipelineFactory
                 .liveTopology(topologyInfo.build(),
                               Collections.singletonList(new GrpcBroadcastManager(responseObserver)),
                               journalFactory)
@@ -135,7 +135,7 @@ public class TopologyRpcService extends TopologyServiceImplBase {
 
         private final StreamObserver<Topology> responseObserver;
 
-        public GrpcBroadcastManager(@Nonnull final StreamObserver<Topology> responseObserver) {
+        GrpcBroadcastManager(@Nonnull final StreamObserver<Topology> responseObserver) {
             this.responseObserver = Objects.requireNonNull(responseObserver);
         }
 
@@ -174,7 +174,7 @@ public class TopologyRpcService extends TopologyServiceImplBase {
 
         private long entitiesSent;
 
-        public GrpcBroadcastImpl(@Nonnull final StreamObserver<Topology> responseObserver,
+        GrpcBroadcastImpl(@Nonnull final StreamObserver<Topology> responseObserver,
                                  @Nonnull final TopologyInfo topologyInfo) {
             this.responseObserver = Objects.requireNonNull(responseObserver);
             this.topologyInfo = Objects.requireNonNull(topologyInfo);

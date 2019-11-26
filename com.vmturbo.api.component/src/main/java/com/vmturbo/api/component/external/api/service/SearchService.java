@@ -36,6 +36,9 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -561,38 +564,49 @@ public class SearchService implements ISearchService {
             allEntityOids = expandedIds;
         }
 
-        if (paginationRequest.getOrderBy().equals(SearchOrderBy.SEVERITY)) {
-            final SearchEntityOidsRequest searchOidsRequest = SearchEntityOidsRequest.newBuilder()
-                    .addAllSearchParameters(searchParameters)
-                    .addAllEntityOid(allEntityOids)
-                    .build();
-            return getServiceEntityPaginatedWithSeverity(inputDTO, updatedQuery, paginationRequest,
-                    allEntityOids, searchOidsRequest);
-        } else if (paginationRequest.getOrderBy().equals(SearchOrderBy.UTILIZATION)) {
-            final SearchEntityOidsRequest searchOidsRequest = SearchEntityOidsRequest.newBuilder()
-                    .addAllSearchParameters(searchParameters)
-                    .addAllEntityOid(allEntityOids)
-                    .build();
-            return getServiceEntityPaginatedWithUtilization(inputDTO, updatedQuery, paginationRequest,
-                    allEntityOids, searchOidsRequest, isGlobalScope);
-        } else {
-            // We don't use the RepositoryAPI utility because we do pagination,
-            // and want to handle the pagination parameters.
-            final SearchEntitiesRequest searchEntitiesRequest = SearchEntitiesRequest.newBuilder()
-                .addAllSearchParameters(searchParameters)
-                .addAllEntityOid(allEntityOids)
-                .setReturnType(PartialEntity.Type.API)
-                .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
-                .build();
-            final SearchEntitiesResponse response = searchServiceRpc.searchEntities(searchEntitiesRequest);
-            List<ServiceEntityApiDTO> entities = response.getEntitiesList().stream()
-                    .map(PartialEntity::getApi)
-                    .map(serviceEntityMapper::toServiceEntityApiDTO)
-                    .collect(Collectors.toList());
-            severityPopulator.populate(realtimeContextId, entities);
-            return buildPaginationResponse(entities,
-                    response.getPaginationResponse(), paginationRequest);
+        try {
+            if (paginationRequest.getOrderBy().equals(SearchOrderBy.SEVERITY)) {
+                final SearchEntityOidsRequest searchOidsRequest = SearchEntityOidsRequest.newBuilder()
+                        .addAllSearchParameters(searchParameters)
+                        .addAllEntityOid(allEntityOids)
+                        .build();
+                return getServiceEntityPaginatedWithSeverity(inputDTO, updatedQuery, paginationRequest,
+                        allEntityOids, searchOidsRequest);
+            } else if (paginationRequest.getOrderBy().equals(SearchOrderBy.UTILIZATION)) {
+                final SearchEntityOidsRequest searchOidsRequest = SearchEntityOidsRequest.newBuilder()
+                        .addAllSearchParameters(searchParameters)
+                        .addAllEntityOid(allEntityOids)
+                        .build();
+                return getServiceEntityPaginatedWithUtilization(inputDTO, updatedQuery, paginationRequest,
+                        allEntityOids, searchOidsRequest, isGlobalScope);
+            }
+        } catch (RuntimeException e) {
+            if (e instanceof StatusRuntimeException) {
+                // This is a gRPC StatusRuntimeException
+                Status status = ((StatusRuntimeException)e).getStatus();
+                logger.warn("Unable to search entities ordered by {}: {} caused by {}.",
+                        paginationRequest.getOrderBy(), status.getDescription(), status.getCause());
+            } else {
+                logger.error("Error when searching entities ordered by {}.",
+                        paginationRequest.getOrderBy(), e);
+            }
         }
+        // We don't use the RepositoryAPI utility because we do pagination,
+        // and want to handle the pagination parameters.
+        final SearchEntitiesRequest searchEntitiesRequest = SearchEntitiesRequest.newBuilder()
+            .addAllSearchParameters(searchParameters)
+            .addAllEntityOid(allEntityOids)
+            .setReturnType(PartialEntity.Type.API)
+            .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
+            .build();
+        final SearchEntitiesResponse response = searchServiceRpc.searchEntities(searchEntitiesRequest);
+        List<ServiceEntityApiDTO> entities = response.getEntitiesList().stream()
+                .map(PartialEntity::getApi)
+                .map(serviceEntityMapper::toServiceEntityApiDTO)
+                .collect(Collectors.toList());
+        severityPopulator.populate(realtimeContextId, entities);
+        return buildPaginationResponse(entities,
+                response.getPaginationResponse(), paginationRequest);
     }
 
     /**

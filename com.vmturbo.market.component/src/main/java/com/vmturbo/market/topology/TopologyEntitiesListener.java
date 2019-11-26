@@ -18,6 +18,7 @@ import javax.annotation.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.DataSegment;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -37,6 +38,8 @@ public class TopologyEntitiesListener implements EntitiesListener {
 
     private final MarketRunner marketRunner;
 
+    private final LicenseCheckClient licenseCheckClient;
+
     private Optional<Integer> maxPlacementsOverride;
 
     private final float rightsizeLowerWatermark;
@@ -51,12 +54,14 @@ public class TopologyEntitiesListener implements EntitiesListener {
         throw new RuntimeException("private constructor called");
     }
 
-    public TopologyEntitiesListener(@Nonnull MarketRunner marketRunner,
-                                    @Nonnull final Optional<Integer> maxPlacementsOverride,
-                                    final float rightsizeLowerWatermark,
-                                    final float rightsizeUpperWatermark) {
+    TopologyEntitiesListener(@Nonnull MarketRunner marketRunner,
+                             @Nonnull final Optional<Integer> maxPlacementsOverride,
+                             final float rightsizeLowerWatermark,
+                             final float rightsizeUpperWatermark,
+                             @Nonnull final LicenseCheckClient licenseCheckClient) {
         this.marketRunner = Objects.requireNonNull(marketRunner);
         this.maxPlacementsOverride = Objects.requireNonNull(maxPlacementsOverride);
+        this.licenseCheckClient = Objects.requireNonNull(licenseCheckClient);
         this.rightsizeLowerWatermark = rightsizeLowerWatermark;
         this.rightsizeUpperWatermark = rightsizeUpperWatermark;
 
@@ -74,18 +79,12 @@ public class TopologyEntitiesListener implements EntitiesListener {
         final long topologyId = topologyInfo.getTopologyId();
         // Do not cache {@link TopologyEntityDTO}'s if analysis is already running on a RT topology
         if (marketRunner.isAnalysisRunningForRtTopology(topologyInfo)) {
-            try {
-                // drain the iterator and exit.
-                while (entityIterator.hasNext()) {
-                    entityIterator.nextChunk();
-                }
-            } catch (CommunicationException | TimeoutException e) {
-                logger.error("Error occurred while receiving topology " + topologyId + " with for " +
-                        "context " + topologyContextId, e);
-            } catch (InterruptedException e) {
-                logger.info("Thread interrupted receiving topology " + topologyId + " with for " +
-                        "context " + topologyContextId, e);
-            }
+            drainTopologyEntities(entityIterator, topologyContextId, topologyId);
+            return;
+        }
+        if (licenseCheckClient.isDevFreemium()) {
+            drainTopologyEntities(entityIterator, topologyContextId, topologyId);
+            logger.error("You are running a developer freemium edition. Analysis is disabled.");
             return;
         }
         // TODO: karthikt : Do we really need a Set here. Duplicated entities
@@ -108,10 +107,10 @@ public class TopologyEntitiesListener implements EntitiesListener {
             final MatrixInterface matrix = loadMatrix(exts);
             TheMatrix.setInstance(topologyId, matrix);
         } catch (CommunicationException | TimeoutException e) {
-            logger.error("Error occurred while receiving topology " + topologyId + " with for " +
+            logger.error("Error occurred while receiving topology " + topologyId + " for " +
                     "context " + topologyContextId, e);
         } catch (InterruptedException e) {
-            logger.info("Thread interrupted receiving topology " + topologyId + " with for " +
+            logger.info("Thread interrupted receiving topology " + topologyId + " for " +
                     "context " + topologyContextId, e);
         }
         marketRunner.scheduleAnalysis(topologyInfo, entities, false, maxPlacementsOverride,
@@ -179,5 +178,22 @@ public class TopologyEntitiesListener implements EntitiesListener {
             importer.start(desired);
         }
         return desired;
+    }
+
+    private void drainTopologyEntities(@Nonnull final RemoteIterator<DataSegment> entityIterator,
+                                       final long topologyContextId,
+                                       final long topologyId) {
+        try {
+            // drain the iterator and return.
+            while (entityIterator.hasNext()) {
+                entityIterator.nextChunk();
+            }
+        } catch (CommunicationException | TimeoutException e) {
+            logger.error("Error occurred while receiving topology " + topologyId + " for " +
+                    "context " + topologyContextId, e);
+        } catch (InterruptedException e) {
+            logger.info("Thread interrupted receiving topology " + topologyId + " for " +
+                    "context " + topologyContextId, e);
+        }
     }
 }

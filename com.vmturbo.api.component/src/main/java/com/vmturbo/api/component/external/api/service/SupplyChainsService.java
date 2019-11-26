@@ -20,6 +20,9 @@ import javax.annotation.Nonnull;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -232,9 +235,21 @@ public class SupplyChainsService implements ISupplyChainsService {
         } catch (NumberFormatException e) {
             return Optional.empty();
         }
-        final OptionalPlanInstance possiblePlan =
-            planRpcService.getPlan(PlanId.newBuilder().setPlanId(prospectivePlanId).build());
-        return possiblePlan.hasPlanInstance() ? Optional.of(possiblePlan.getPlanInstance()) : Optional.empty();
+        try {
+            final OptionalPlanInstance possiblePlan =
+                    planRpcService.getPlan(PlanId.newBuilder().setPlanId(prospectivePlanId).build());
+            return possiblePlan.hasPlanInstance() ? Optional.of(possiblePlan.getPlanInstance()) : Optional.empty();
+        } catch (RuntimeException e) {
+            if (e instanceof StatusRuntimeException) {
+                // This is a gRPC StatusRuntimeException
+                Status status = ((StatusRuntimeException)e).getStatus();
+                logger.warn("Unable to get plan {}: {} caused by {}.",
+                        prospectivePlanId, status.getDescription(), status.getCause());
+            } else {
+                logger.error("Error when getting plan {}.", prospectivePlanId, e);
+            }
+            return Optional.empty();
+        }
     }
 
     /**

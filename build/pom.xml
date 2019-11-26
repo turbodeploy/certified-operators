@@ -255,6 +255,7 @@
         <profile>
             <id>topology-processor</id>
             <modules>
+                <module>../com.vmturbo.auth.api</module>
                 <module>../com.vmturbo.stitching</module>
                 <module>../com.vmturbo.topology.processor.api</module>
                 <module>../com.vmturbo.topology.processor</module>
@@ -294,6 +295,7 @@
         <profile>
             <id>api</id>
             <modules>
+                <module>../com.vmturbo.auth.api</module>
                 <module>../com.vmturbo.api.component</module>
                 <module>../com.vmturbo.system.notification.receiver</module>
             </modules>
