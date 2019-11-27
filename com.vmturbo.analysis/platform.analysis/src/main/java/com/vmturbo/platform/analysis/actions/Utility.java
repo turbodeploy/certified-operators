@@ -3,6 +3,7 @@ package com.vmturbo.platform.analysis.actions;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -369,6 +370,6 @@ public final class Utility {
         return provider.getCustomers().stream()
             .map(ShoppingList::getBuyer)
                 .filter(trader -> trader.getSettings().isResizeThroughSupplier())
-                    .collect(Collectors.toSet());
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 } // end Utility class

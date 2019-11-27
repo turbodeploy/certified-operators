@@ -2,6 +2,7 @@ package com.vmturbo.platform.analysis.ede;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
@@ -213,16 +214,15 @@ public class Suspension {
         }
 
         boolean isProviderOfResizeThroughSupplier = Utility.isProviderOfResizeThroughSupplierTrader(trader);
-        Set<Trader> resizeThroughSuppliers = new HashSet<>();
-        Set<ShoppingList> resizeThroughSupplierCustomers = new HashSet<>();
+        Set<ShoppingList> resizeThroughSupplierCustomers = new LinkedHashSet<>();
         if (isProviderOfResizeThroughSupplier) {
-            resizeThroughSuppliers = Utility.getResizeThroughSupplierTradersFromProvider(trader);
+            Set<Trader> resizeThroughSuppliers = Utility.getResizeThroughSupplierTradersFromProvider(trader);
             resizeThroughSupplierCustomers = resizeThroughSuppliers.stream()
                                                         .flatMap(t -> t.getCustomers().stream())
-                                                                    .collect(Collectors.toSet());
+                                                                    .collect(Collectors.toCollection(LinkedHashSet::new));
         }
 
-        Set<ShoppingList> customersOfSuspCandidate = new HashSet<>();
+        Set<ShoppingList> customersOfSuspCandidate = new LinkedHashSet<>();
         if (moveAllPossibleCustomers) {
             economy.getMarketsAsSeller(trader).stream()
                     .map(Market::getBuyers)
