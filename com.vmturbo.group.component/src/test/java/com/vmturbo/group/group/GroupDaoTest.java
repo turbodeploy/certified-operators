@@ -34,11 +34,13 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.GroupFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.OptimizationMetadata;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.group.db.GroupComponent;
@@ -300,6 +302,30 @@ public class GroupDaoTest {
         Assert.assertEquals(groupDefinition2, group2.getDefinition());
         Assert.assertEquals(memberTypes, new HashSet<>(group2.getExpectedTypesList()));
         Assert.assertFalse(group2.getSupportsMemberReverseLookup());
+    }
+
+    /**
+     * Tests creating of a group with property filter for the property that is not supported.
+     * Runtime exception is expected.
+     *
+     * @throws Exception on exceptions occurred.
+     */
+    @Test
+    public void createUserGroupWithInvalidGroupProperty() throws Exception {
+        final String nonExistingProperty = "some fantastical not existing property";
+        final GroupDefinition groupDefinition = GroupDefinition.newBuilder(createGroupDefinition())
+                .clearStaticGroupMembers()
+                .setGroupFilters(GroupFilters.newBuilder()
+                        .addGroupFilter(GroupFilter.newBuilder()
+                                .addPropertyFilters(PropertyFilter.newBuilder()
+                                        .setPropertyName(nonExistingProperty))))
+                .build();
+        final Set<MemberType> memberTypes = new HashSet<>(
+                Arrays.asList(MemberType.newBuilder().setEntity(1).build(),
+                        MemberType.newBuilder().setGroup(GroupType.STORAGE_CLUSTER).build()));
+        expectedException.expect(IllegalArgumentException.class);
+        expectedException.expectMessage(nonExistingProperty);
+        groupStore.createGroup(createUserOrigin(), groupDefinition, memberTypes, false);
     }
 
     /**

@@ -32,6 +32,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 import com.google.gson.reflect.TypeToken;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -63,6 +64,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.GroupFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.OptimizationMetadata;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.SelectionCriteriaCase;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType.TypeCase;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
@@ -128,11 +130,28 @@ public class GroupDAO implements IGroupStore, Diagnosable {
 
     private static final Logger logger = LogManager.getLogger();
 
+    private static final Map<String, Function<PropertyFilter, Optional<Condition>>>
+            PROPETY_FILTER_CONDITION_CREATORS;
+
     private final IdentityProvider identityProvider;
 
     private final DSLContext dslContext;
 
     private final Collection<Consumer<Long>> deleteCallbacks = new CopyOnWriteArrayList<>();
+
+    static {
+        PROPETY_FILTER_CONDITION_CREATORS =
+                ImmutableMap.<String, Function<PropertyFilter, Optional<Condition>>>builder().put(
+                        SearchableProperties.DISPLAY_NAME,
+                        GroupDAO::createDisplayNameSearchCondition)
+                        .put(StringConstants.TAGS_ATTR, prpertyFilter -> Optional.of(
+                                createTagsSearchCondition(prpertyFilter)))
+                        .put(StringConstants.OID, propertyFilter -> Optional.of(
+                                createOidCondition(propertyFilter, GROUPING.ID)))
+                        .put(StringConstants.ACCOUNTID, propertyFilter -> Optional.of(
+                                createOidCondition(propertyFilter, GROUPING.OWNER_ID)))
+                        .build();
+    }
 
     /**
      * Constructs group DAO.
@@ -169,6 +188,7 @@ public class GroupDAO implements IGroupStore, Diagnosable {
         validateStaticMembers(context,
                 Collections.singleton(groupDefinition.getStaticGroupMembers()),
                 Collections.singletonMap(groupPojo.getId(), groupPojo.getGroupType()));
+        validatePropertyFilters(groupDefinition.getGroupFilters());
         final Collection<Long> sameNameGroups = context.select(GROUPING.ID)
                 .from(GROUPING)
                 .where(GROUPING.ORIGIN_DISCOVERED_SRC_ID.isNull())
@@ -191,6 +211,19 @@ public class GroupDAO implements IGroupStore, Diagnosable {
                 insertExpectedMembers(context, groupPojo.getId(), new HashSet<>(expectedMembers),
                         groupDefinition.getStaticGroupMembers()));
         context.batchInsert(inserts).execute();
+    }
+
+    private void validatePropertyFilters(@Nullable GroupFilters groupFilters) {
+        for (GroupFilter filter : groupFilters.getGroupFilterList()) {
+            for (PropertyFilter propertyFilter : filter.getPropertyFiltersList()) {
+                if (!PROPETY_FILTER_CONDITION_CREATORS.containsKey(
+                        propertyFilter.getPropertyName())) {
+                    throw new IllegalArgumentException(
+                            "Property filter " + propertyFilter.getPropertyName() +
+                                    " is not supported");
+                }
+            }
+        }
     }
 
     @Nonnull
@@ -863,21 +896,19 @@ public class GroupDAO implements IGroupStore, Diagnosable {
         }
         final Collection<Condition> allConditions = new ArrayList<>();
         for (PropertyFilter propertyFilter: propertyFilters) {
-            if (propertyFilter.getPropertyName().equals(SearchableProperties.DISPLAY_NAME)) {
-                createDisplayNameSearchCondition(propertyFilter).ifPresent(allConditions::add);
-            } else if (propertyFilter.getPropertyName().equals(StringConstants.TAGS_ATTR)) {
-                allConditions.add(createTagsSearchCondition(propertyFilter));
-            } else if (propertyFilter.getPropertyName().equals(StringConstants.OID)) {
-                allConditions.add(createOidCondition(propertyFilter, GROUPING.ID));
-            } else if (propertyFilter.getPropertyName().equals(StringConstants.ACCOUNTID)) {
-                allConditions.add(createOidCondition(propertyFilter, GROUPING.OWNER_ID));
+            final Function<PropertyFilter, Optional<Condition>> conditionCreator =
+                    PROPETY_FILTER_CONDITION_CREATORS.get(propertyFilter.getPropertyName());
+            if (conditionCreator == null) {
+                throw new IllegalArgumentException(
+                        "Unsupported property filter found: " + propertyFilter.getPropertyName());
             }
+            conditionCreator.apply(propertyFilter).ifPresent(allConditions::add);
         }
         return allConditions;
     }
 
     @Nonnull
-    private Optional<Condition> createDisplayNameSearchCondition(
+    private static Optional<Condition> createDisplayNameSearchCondition(
             @Nonnull PropertyFilter propertyFilter) {
         if (!propertyFilter.hasStringFilter()) {
             throw new IllegalArgumentException("Filter for display name must have StringFilter");
@@ -918,7 +949,7 @@ public class GroupDAO implements IGroupStore, Diagnosable {
     }
 
     @Nonnull
-    private Condition createTagsSearchCondition(@Nonnull PropertyFilter propertyFilter) {
+    private static Condition createTagsSearchCondition(@Nonnull PropertyFilter propertyFilter) {
         if (!propertyFilter.hasMapFilter()) {
             throw new IllegalArgumentException(
                     "MapFilter is expected for " + StringConstants.TAGS_ATTR + " filter: " +
@@ -961,7 +992,7 @@ public class GroupDAO implements IGroupStore, Diagnosable {
     }
 
     @Nonnull
-    private Condition createOidCondition(@Nonnull PropertyFilter filter,
+    private static Condition createOidCondition(@Nonnull PropertyFilter filter,
             @Nonnull Field<Long> fieldToCheck) {
         if (!filter.hasStringFilter()) {
             throw new IllegalArgumentException(
@@ -990,7 +1021,7 @@ public class GroupDAO implements IGroupStore, Diagnosable {
     }
 
     @Nonnull
-    private Optional<Condition> createOriginFilter(@Nonnull OriginFilter originFilter) {
+    private static Optional<Condition> createOriginFilter(@Nonnull OriginFilter originFilter) {
         final Collection<Condition> conditions = new ArrayList<>();
         for (Origin.Type originType : EnumSet.copyOf(originFilter.getOriginList())) {
             switch (originType) {
@@ -1012,12 +1043,12 @@ public class GroupDAO implements IGroupStore, Diagnosable {
     }
 
     @Nonnull
-    private Condition createIdFilter(@Nonnull List<Long> groupIds) {
+    private static Condition createIdFilter(@Nonnull List<Long> groupIds) {
         return GROUPING.ID.in(groupIds);
     }
 
     @Nonnull
-    private Optional<Condition> combineConditions(@Nonnull Collection<Condition> conditions,
+    private static Optional<Condition> combineConditions(@Nonnull Collection<Condition> conditions,
             @Nonnull BiFunction<Condition, Condition, Condition> combineFunction) {
         Condition result = null;
         for (Condition condition : conditions) {
