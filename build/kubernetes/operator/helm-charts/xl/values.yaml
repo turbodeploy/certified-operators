@@ -118,6 +118,8 @@ hyperflex:
   enabled: false
 hyperv:
   enabled: false
+intersight:
+  enabled: false
 istio:
   enabled: false
 mssql:
