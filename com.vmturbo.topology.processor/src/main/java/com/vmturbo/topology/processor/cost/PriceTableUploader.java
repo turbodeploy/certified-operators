@@ -387,7 +387,7 @@ public class PriceTableUploader implements Diagnosable {
             String regionInternalId = onDemandPriceTableForRegion.getRelatedRegion().getId();
             if (!cloudEntitiesMap.containsKey(regionInternalId)) {
                 // !kosher
-                logger.error("On-demand price table reader: OID not found for region local id {}."
+                logger.warn("On-demand price table reader: OID not found for region local id {}."
                         + " Skipping this table.", regionInternalId);
                 continue;
             }
