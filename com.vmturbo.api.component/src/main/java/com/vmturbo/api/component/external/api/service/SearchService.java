@@ -295,13 +295,14 @@ public class SearchService implements ISearchService {
         final String groupType = (groupTypes != null && groupTypes.size() > 0) ? groupTypes.get(0) : null;
         // TODO: escape any special chars in query string if isregex is false.
 
+        if (types == null && groupType == null) {
+            throw new IllegalArgumentException("Type or groupType must be set for search result.");
+        }
         // Determine which of many (many) types of searches is requested.
         // NB: this method is heavily overloaded.  The REST endpoint to be redefined
         // TODO most of the cases below only handle one type of scope.  We need to generalize scope
         // handling to handle target, market, entity, or group for all use cases.
-        if (types == null && scopes == null && state == null && groupType == null) {
-            return paginationRequest.allResultsResponse(searchAll());
-        } else if (StringUtils.isNotEmpty(groupType)) {
+        if (StringUtils.isNotEmpty(groupType)) {
             // if 'groupType' is specified, this MUST be a search over GROUPs
             return groupsService.getPaginatedGroupApiDTOS(
                 addNameMatcher(query, Collections.emptyList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
@@ -363,6 +364,15 @@ public class SearchService implements ISearchService {
             // clusters, and derive a list of ServiceEntities
             Set<String> scopeServiceEntityIds = groupsService.expandUuids(Sets.newHashSet(scopes),
                 types, environmentType).stream().map(String::valueOf).collect(Collectors.toSet());
+
+            final boolean isGlobalScope = containsGlobalScope(Sets.newHashSet(scopes));
+
+            // Check if the scope is not global and the set of scope ids is empty.
+            // This means there is an invalid scope.
+            if (!isGlobalScope && scopeServiceEntityIds.isEmpty()) {
+                // throw an exception since the input is not valid
+                throw new IllegalArgumentException("Invalid scope specified. There are no entities related to the scope.");
+            }
 
             // TODO (roman, June 17 2019: We should probably include the IDs in the query, unless
             // there are a lot of IDs.
@@ -544,7 +554,7 @@ public class SearchService implements ISearchService {
                     inputDTO.getEnvironmentType());
             if (expandedIds.isEmpty()) {
                 // return empty response since there is no related entities in given scope
-                return paginationRequest.allResultsResponse(Collections.emptyList());
+                throw new IllegalArgumentException("Invalid scope specified. There are no entities related to the scope.");
             }
             // if scope is specified, result entities should be chosen from related entities in scope
             // note: environment type has already been filtered above in expandUuids

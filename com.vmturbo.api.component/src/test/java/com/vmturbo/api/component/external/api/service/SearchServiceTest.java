@@ -293,6 +293,31 @@ public class SearchServiceTest {
         verify(groupsService).getPaginatedGroupApiDTOS(any(), any(), any(), eq(EnvironmentType.ONPREM));
     }
 
+    /**
+     * This tests whether an exception is thrown if the query does not specify either a type or group type
+     * @throws Exception this is expected from this test because the arguments are invalid.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testInvalidGetSearchResults() throws Exception {
+        // Type, entity type and group type are all empty. This should throw an exception.
+        searchService.getSearchResults(".*a.*", null, Lists.newArrayList("string1"), "ACTIVE", null, EnvironmentType.CLOUD,
+                null, null, null, Lists.newArrayList("probeType1"), true);
+    }
+
+
+    /**
+     * This tests whether an exception is thrown if the query specifies an invalid scope.
+     * @throws Exception this is expected from this test because the arguments are invalid.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testInvalidScopeGetSearchResults() throws Exception {
+        // Type, entity type and group type are all empty. This should throw an exception.
+        when(groupExpander.getGroup(any())).thenReturn(Optional.empty());
+        when(groupsService.expandUuids(any(), any(), any())).thenReturn(Collections.emptySet());
+        searchService.getSearchResults(".*a.*", Lists.newArrayList("VirtualMachine"), Lists.newArrayList("string1"), "ACTIVE", null, EnvironmentType.CLOUD,
+                null, null, null, Lists.newArrayList("probeType1"), true);
+    }
+
     @Test
     public void testGetSearchEntitiesByProbeTypes() throws Exception {
         ServiceEntityApiDTO se1 = supplyChainTestUtils.createServiceEntityApiDTO(1L, targetId1);
@@ -419,6 +444,12 @@ public class SearchServiceTest {
 
         ApiTestUtils.mockRealtimeId(UuidMapper.UI_REAL_TIME_MARKET_STR, 777777, uuidMapper);
 
+        when(groupExpander.getGroup(any())).thenReturn(Optional.of(Grouping.newBuilder()
+                .setId(5L)
+                .setDefinition(GroupDefinition.getDefaultInstance())
+                .build()
+        ));
+
         // Act
         Collection<BaseApiDTO> results = getSearchResults(searchService, null, types,
                 scopes, null, null, null, null,
@@ -484,6 +515,14 @@ public class SearchServiceTest {
         List<String> types = Lists.newArrayList("VirtualMachine");
         EntityDetailType entityDetailType = EntityDetailType.aspects;
 
+        when(groupExpander.getGroup(any())).thenReturn(Optional.of(Grouping.newBuilder()
+                .setId(1L)
+                .setDefinition(GroupDefinition.getDefaultInstance())
+                .build()
+        ));
+        when(groupsService.expandUuids(any(), any(), any())).thenReturn(ImmutableSet.of(2L, 4L,
+                5L));
+
         //WHEN
         Collection<BaseApiDTO> results = getSearchResults(searchService, null, types, scopes, null, null, null, null, entityDetailType);
 
@@ -507,6 +546,14 @@ public class SearchServiceTest {
         List<String> scopes = Lists.newArrayList("283218897841408");
         List<String> types = Lists.newArrayList("VirtualMachine");
         EntityDetailType entityDetailType = null;
+
+        when(groupExpander.getGroup(any())).thenReturn(Optional.of(Grouping.newBuilder()
+                .setId(1L)
+                .setDefinition(GroupDefinition.getDefaultInstance())
+                .build()
+        ));
+        when(groupsService.expandUuids(any(), any(), any())).thenReturn(ImmutableSet.of(2L, 4L,
+                5L));
 
         //WHEN
         Collection<BaseApiDTO> results = getSearchResults(searchService, null, types, scopes, null, null, null, null, entityDetailType);
