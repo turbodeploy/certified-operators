@@ -42,5 +42,4 @@ public class ImmutableUpdateException extends Exception {
             super(message);
         }
     }
-
 }

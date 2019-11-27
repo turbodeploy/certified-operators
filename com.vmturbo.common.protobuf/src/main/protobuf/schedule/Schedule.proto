@@ -1,0 +1,88 @@
+syntax = "proto2";
+package schedule;
+
+option java_package = "com.vmturbo.common.protobuf.schedule";
+option java_outer_classname = "ScheduleProto";
+
+// A definition of generic schedule entity
+// For more info see
+// https://vmturbo.atlassian.net/wiki/spaces/PMTES/pages/1019281789/Feature+Page+-+XL+Schedules
+message Schedule {
+
+    // The id of the Schedule.
+    optional int64 id = 1;
+
+    // The name of the Schedule
+    optional string display_name = 2;
+
+    // The start time of the schedule window (milliseconds since Unix epoch)
+    optional int64 start_time = 3;
+
+    // The end time of the schedule window ((milliseconds since Unix epoch)
+    optional int64 end_time = 4;
+
+    // Whether the schedule applies daily, weekly, monthly, or only once.
+    oneof recurrence {
+        OneTime one_time = 10;
+        Daily daily = 11;
+        Weekly weekly = 12;
+        Monthly monthly = 13;
+    }
+
+    // The last date (milliseconds since Unix epoch) the schedule is active, if any
+    oneof ending {
+        int64 last_date = 6;
+        Perpetual perpetual = 7;
+    }
+
+    // Recurrence rule, if any
+    optional string recur_rule = 14;
+
+    // Timezone id
+    optional string timezone_id = 15;
+
+    // A policy active only once
+    message OneTime {}
+
+    // A schedule active daily
+    message Daily {
+        // Schedule should be active every specified number of days
+        optional int32 interval = 1;
+    }
+
+    // A schedule active weekly
+    message Weekly {
+
+        // The day(s) of the week on which the schedule should be active
+        // If not set, this defaults to the day of the start_date
+        repeated DayOfWeek days_of_week = 4;
+    }
+
+    // A schedule active monthly
+    message Monthly {
+
+        // The day(s) of the month on which the schedule should be active.
+        repeated int32 days_of_month = 4;
+        // Alternatively, if schedule is active on certain day each week, the weeks of the month
+        // the schedule should be active
+        repeated int32 weeks_of_month = 5;
+    }
+
+    enum DayOfWeek {
+        MONDAY = 1;
+        TUESDAY = 2;
+        WEDNESDAY = 3;
+        THURSDAY = 4;
+        FRIDAY = 5;
+        SATURDAY = 6;
+        SUNDAY = 7;
+    }
+
+    // To mark that a schedule will continue indefinitely without an end date
+    message Perpetual {}
+
+    message NextOccurrence {
+        optional int64 start_time = 3;
+        optional int64 end_time = 4;
+    }
+}

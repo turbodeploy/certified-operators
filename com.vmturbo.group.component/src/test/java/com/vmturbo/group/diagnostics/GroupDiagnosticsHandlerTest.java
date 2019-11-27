@@ -40,6 +40,7 @@ import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
 import com.vmturbo.group.group.GroupDAO;
 import com.vmturbo.group.policy.PolicyStore;
+import com.vmturbo.group.schedule.ScheduleStore;
 import com.vmturbo.group.setting.SettingStore;
 
 /**
@@ -57,15 +58,19 @@ public class GroupDiagnosticsHandlerTest {
 
     private SettingStore settingStore;
 
+    private ScheduleStore scheduleStore;
+
     private final List<String> groupLines = Collections.singletonList("some groups");
     private final List<String> policyLines = Collections.singletonList("some policies");
     private final List<String> settingLines = Collections.singletonList("some settings");
+    private final List<String> scheduleLines = Collections.singletonList("some schedules");
 
     @Before
     public void setUp() throws Exception {
         groupStore = mock(GroupDAO.class);
         policyStore = mock(PolicyStore.class);
         settingStore = mock(SettingStore.class);
+        scheduleStore = mock(ScheduleStore.class);
     }
 
     @Test
@@ -73,7 +78,7 @@ public class GroupDiagnosticsHandlerTest {
         setupDump();
 
         final GroupDiagnosticsHandler handler =
-            new GroupDiagnosticsHandler(groupStore, policyStore, settingStore,
+            new GroupDiagnosticsHandler(groupStore, policyStore, settingStore, scheduleStore,
                 zipReaderFactory, diagnosticsWriter);
         final ZipOutputStream zos = mock(ZipOutputStream.class);
         handler.dump(zos);
@@ -88,6 +93,9 @@ public class GroupDiagnosticsHandlerTest {
         verify(diagnosticsWriter).writeZipEntry(eq(GroupDiagnosticsHandler.SETTINGS_DUMP_FILE),
             streamArg.capture(), eq(zos));
         assertEquals(settingLines, streamArg.getValue().collect(Collectors.toList()));
+        verify(diagnosticsWriter).writeZipEntry(eq(GroupDiagnosticsHandler.SCHEDULES_DUMP_FILE),
+            streamArg.capture(), eq(zos));
+        assertEquals(scheduleLines, streamArg.getValue().collect(Collectors.toList()));
         verify(diagnosticsWriter).writePrometheusMetrics(any(CollectorRegistry.class),
             eq(zos));
         verify(diagnosticsWriter, times(0)).writeZipEntry(
@@ -104,7 +112,7 @@ public class GroupDiagnosticsHandlerTest {
             .thenThrow(new DiagnosticsException(Collections.singletonList("POLICY ERRORS")));
 
         final GroupDiagnosticsHandler handler =
-            new GroupDiagnosticsHandler(groupStore, policyStore, settingStore,
+            new GroupDiagnosticsHandler(groupStore, policyStore, settingStore, scheduleStore,
                 zipReaderFactory, diagnosticsWriter);
         final ZipOutputStream zos = mock(ZipOutputStream.class);
         final List<String> errors = handler.dump(zos);
@@ -125,6 +133,11 @@ public class GroupDiagnosticsHandlerTest {
             streamArg.capture(), eq(zos));
         assertEquals(settingLines, streamArg.getValue().collect(Collectors.toList()));
 
+        // Schedule Dump file SHOULD get written because it does not generate errors.
+        verify(diagnosticsWriter).writeZipEntry(eq(GroupDiagnosticsHandler.SCHEDULES_DUMP_FILE),
+            streamArg.capture(), eq(zos));
+        assertEquals(scheduleLines, streamArg.getValue().collect(Collectors.toList()));
+
         verify(diagnosticsWriter).writeZipEntry(
             eq(GroupDiagnosticsHandler.ERRORS_FILE), streamArg.capture(), eq(zos));
         assertEquals(errors, streamArg.getValue().collect(Collectors.toList()));
@@ -144,11 +157,15 @@ public class GroupDiagnosticsHandlerTest {
         when(settingDiags.getName()).thenReturn(GroupDiagnosticsHandler.SETTINGS_DUMP_FILE);
         when(settingDiags.getLines()).thenReturn(settingLines);
 
+        final Diags scheduleDiags = mock(Diags.class);
+        when(scheduleDiags.getName()).thenReturn(GroupDiagnosticsHandler.SCHEDULES_DUMP_FILE);
+        when(scheduleDiags.getLines()).thenReturn(scheduleLines);
+
         // Send policies before group
-        setupRestore(policyDiags, groupDiags, settingDiags);
+        setupRestore(policyDiags, groupDiags, settingDiags, scheduleDiags);
 
         final GroupDiagnosticsHandler handler =
-            new GroupDiagnosticsHandler(groupStore, policyStore, settingStore,
+            new GroupDiagnosticsHandler(groupStore, policyStore, settingStore, scheduleStore,
                 zipReaderFactory, diagnosticsWriter);
         List<String> errors = handler.restore(mock(ZipInputStream.class));
         assertTrue(errors.isEmpty());
@@ -161,6 +178,10 @@ public class GroupDiagnosticsHandlerTest {
         final InOrder groupSettingOrder = Mockito.inOrder(groupStore, settingStore);
         groupSettingOrder.verify(groupStore).restoreDiags(eq(groupLines));
         groupSettingOrder.verify(settingStore).restoreDiags(eq(settingLines));
+
+        final InOrder scheduleSettingOrder = Mockito.inOrder(settingStore, scheduleStore);
+        scheduleSettingOrder.verify(settingStore).restoreDiags(eq(settingLines));
+        scheduleSettingOrder.verify(scheduleStore).restoreDiags(eq(scheduleLines));
     }
 
     /**
@@ -173,6 +194,7 @@ public class GroupDiagnosticsHandlerTest {
         doReturn(groupLines.stream()).when(groupStore).collectDiagsStream();
         doReturn(policyLines.stream()).when(policyStore).collectDiagsStream();
         doReturn(settingLines.stream()).when(settingStore).collectDiagsStream();
+        doReturn(scheduleLines.stream()).when(scheduleStore).collectDiagsStream();
     }
 
     private void setupRestore(Diags diags, Diags... otherDiags) {

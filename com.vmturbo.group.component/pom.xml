@@ -24,6 +24,7 @@
         <javaslang.version>2.0.5</javaslang.version>
         <reactor.version>3.0.3.RELEASE</reactor.version>
         <jooq.version>3.12.1</jooq.version>
+        <ical4j.version>3.0.10</ical4j.version>
 
         <!-- TODO: user and password configuration should NOT be checked into source control -->
         <db.url>jdbc:mysql://localhost:3306</db.url>
@@ -142,6 +143,11 @@
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.mnode.ical4j</groupId>
+            <artifactId>ical4j</artifactId>
+            <version>${ical4j.version}</version>
         </dependency>
 
         <!-- Test Scope -->

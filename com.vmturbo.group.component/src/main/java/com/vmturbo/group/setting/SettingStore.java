@@ -885,7 +885,13 @@ public class SettingStore implements Diagnosable {
      * Delete all setting policies.
      */
     private void deleteAllSettingPolicies() {
-        dslContext.truncate(SETTING_POLICY).execute();
+        // Calling delete instead of truncate so that ON DELETE triggers in child table
+        // can be fired
+        dslContext.transactionResult(configuration -> {
+            final DSLContext context = DSL.using(configuration);
+            return context.deleteFrom(SETTING_POLICY)
+                .execute();
+        });
         groupToSettingPolicyIndex.clear();
     }
 

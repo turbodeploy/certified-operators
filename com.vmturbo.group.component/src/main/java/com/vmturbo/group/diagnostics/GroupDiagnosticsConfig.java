@@ -10,6 +10,7 @@ import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory.DefaultDiagsZipReader;
 import com.vmturbo.group.group.GroupConfig;
 import com.vmturbo.group.policy.PolicyConfig;
+import com.vmturbo.group.schedule.ScheduleConfig;
 import com.vmturbo.group.setting.SettingConfig;
 
 /**
@@ -18,7 +19,8 @@ import com.vmturbo.group.setting.SettingConfig;
 @Configuration
 @Import({GroupConfig.class,
         PolicyConfig.class,
-        SettingConfig.class})
+        SettingConfig.class,
+        ScheduleConfig.class})
 public class GroupDiagnosticsConfig {
 
     @Autowired
@@ -29,6 +31,9 @@ public class GroupDiagnosticsConfig {
 
     @Autowired
     private PolicyConfig policyConfig;
+
+    @Autowired
+    private ScheduleConfig scheduleConfig;
 
     @Bean
     public DiagnosticsWriter diagnosticsWriter() {
@@ -43,7 +48,8 @@ public class GroupDiagnosticsConfig {
     @Bean
     public GroupDiagnosticsHandler diagsHandler() {
         return new GroupDiagnosticsHandler(groupConfig.groupStore(), policyConfig.policyStore(),
-            settingConfig.settingStore(), recursiveZipReaderFactory(), diagnosticsWriter());
+            settingConfig.settingStore(), scheduleConfig.scheduleStore(), recursiveZipReaderFactory(),
+            diagnosticsWriter());
     }
 
     @Bean

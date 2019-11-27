@@ -26,6 +26,7 @@ import com.vmturbo.components.common.diagnostics.Diags;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
 import com.vmturbo.group.policy.PolicyStore;
+import com.vmturbo.group.schedule.ScheduleStore;
 import com.vmturbo.group.setting.SettingStore;
 
 public class GroupDiagnosticsHandler {
@@ -56,6 +57,14 @@ public class GroupDiagnosticsHandler {
     @VisibleForTesting
     static final String SETTINGS_DUMP_FILE = "settings_dump.diags";
 
+    /**
+     * The file name for the schedules dump collected from the {@link ScheduleStore}.
+     * It's a string file, so the "diags" extension is required for compatibility
+     * with {@link DiagsZipReader}.
+     */
+    @VisibleForTesting
+    static final String SCHEDULES_DUMP_FILE = "schedules_dump.diags";
+
     @VisibleForTesting
     static final String ERRORS_FILE = "dump_errors";
 
@@ -64,6 +73,8 @@ public class GroupDiagnosticsHandler {
     private final PolicyStore policyStore;
 
     private final SettingStore settingStore;
+
+    private final ScheduleStore scheduleStore;
 
     private final DiagnosticsWriter diagnosticsWriter;
 
@@ -75,17 +86,20 @@ public class GroupDiagnosticsHandler {
      * @param groupStore group store
      * @param policyStore policy store
      * @param settingStore setting store
+     * @param scheduleStore schedule store
      * @param zipReaderFactory zip reader factory
      * @param diagnosticsWriter writer
      */
     public GroupDiagnosticsHandler(@Nonnull final Diagnosable groupStore,
                                    @Nonnull final PolicyStore policyStore,
                                    @Nonnull final SettingStore settingStore,
+                                   @Nonnull final ScheduleStore scheduleStore,
                                    @Nonnull final DiagsZipReaderFactory zipReaderFactory,
                                    @Nonnull final DiagnosticsWriter diagnosticsWriter) {
         this.groupStore = Objects.requireNonNull(groupStore);
         this.policyStore = Objects.requireNonNull(policyStore);
         this.settingStore = Objects.requireNonNull(settingStore);
+        this.scheduleStore = Objects.requireNonNull(scheduleStore);
         this.zipReaderFactory = Objects.requireNonNull(zipReaderFactory);
         this.diagnosticsWriter = Objects.requireNonNull(diagnosticsWriter);
     }
@@ -118,6 +132,14 @@ public class GroupDiagnosticsHandler {
         // Settings
         try {
             diagnosticsWriter.writeZipEntry(SETTINGS_DUMP_FILE, settingStore.collectDiagsStream(),
+                diagnosticZip);
+        } catch (DiagnosticsException e) {
+            errors.addAll(e.getErrors());
+        }
+
+        // Schedules
+        try {
+            diagnosticsWriter.writeZipEntry(SCHEDULES_DUMP_FILE, scheduleStore.collectDiagsStream(),
                 diagnosticZip);
         } catch (DiagnosticsException e) {
             errors.addAll(e.getErrors());
@@ -156,6 +178,9 @@ public class GroupDiagnosticsHandler {
                 case SETTINGS_DUMP_FILE:
                     restoreFnsByName.put(SETTINGS_DUMP_FILE, () -> performRestore(diags, settingStore));
                     break;
+                case SCHEDULES_DUMP_FILE:
+                    restoreFnsByName.put(SCHEDULES_DUMP_FILE, () -> performRestore(diags, scheduleStore));
+                    break;
                 default:
                     logger.warn("Skipping file: {}", diags.getName());
                     break;
@@ -174,6 +199,8 @@ public class GroupDiagnosticsHandler {
                 .ifPresent(policiesRestoreFn -> errors.addAll(policiesRestoreFn.restore()));
             Optional.ofNullable(restoreFnsByName.get(SETTINGS_DUMP_FILE))
                     .ifPresent(settingsRestoreFn -> errors.addAll(settingsRestoreFn.restore()));
+            Optional.ofNullable(restoreFnsByName.get(SCHEDULES_DUMP_FILE))
+                .ifPresent(schedulesRestoreFn -> errors.addAll(schedulesRestoreFn.restore()));
         }
 
         return errors;
