@@ -24,11 +24,14 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.components.common.utils.StringConstants;
 
 /**
- * Sub-query responsible for getting cluster-level stats from the history component.
+ * Sub-query responsible for getting pre aggregated cluster-level stats from the history
+ * component. This query is meant for stats that are calculated daily, during the nightly plan.
+ * Stats such as mem and cpu, should be fetched by HistoricalCommodityStatsSubQuery since they
+ * are calculated every 10 minutes.
  */
 public class ClusterStatsSubQuery implements StatsSubQuery {
 
-    private static final Set<String> CLUSTER_STATS =
+    private static final Set<String> PRE_AGGREGATED_CLUSTER_STATS =
         ImmutableSet.of(StringConstants.CPU_HEADROOM,
             StringConstants.MEM_HEADROOM,
             StringConstants.STORAGE_HEADROOM,
@@ -37,8 +40,6 @@ public class ClusterStatsSubQuery implements StatsSubQuery {
             StringConstants.STORAGE_EXHAUSTION,
             StringConstants.VM_GROWTH,
             StringConstants.HEADROOM_VMS,
-            StringConstants.MEM,
-            StringConstants.CPU,
             StringConstants.NUM_VMS,
             StringConstants.NUM_HOSTS,
             StringConstants.NUM_STORAGES,
@@ -65,12 +66,12 @@ public class ClusterStatsSubQuery implements StatsSubQuery {
             .isPresent() &&
             context.getRequestedStats().stream()
                 .map(StatApiInputDTO::getName)
-                .anyMatch(CLUSTER_STATS::contains);
+                .anyMatch(PRE_AGGREGATED_CLUSTER_STATS::contains);
     }
 
     @Override
     public SubQuerySupportedStats getHandledStats(@Nonnull final StatsQueryContext context) {
-        return SubQuerySupportedStats.some(context.findStats(CLUSTER_STATS));
+        return SubQuerySupportedStats.some(context.findStats(PRE_AGGREGATED_CLUSTER_STATS));
     }
 
     @Nonnull
