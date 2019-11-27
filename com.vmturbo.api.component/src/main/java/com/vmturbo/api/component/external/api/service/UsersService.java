@@ -290,12 +290,7 @@ public class UsersService implements IUsersService {
             final ResponseEntity<String> result = restTemplate_.exchange(baseRequest().path("/users/add").build().toUriString(),
                 HttpMethod.POST, entity, String.class);
             // Return data.
-            UserApiDTO user = new UserApiDTO();
-            user.setLoginProvider(userApiDTO.getLoginProvider());
-            user.setUsername(userApiDTO.getUsername());
-            user.setDisplayName(userApiDTO.getUsername());
-            user.setRoleName(userApiDTO.getRoleName());
-            user.setScope(userApiDTO.getScope());
+            UserApiDTO user = populateResultUserApiDTOFromInput(userApiDTO);
             user.setUuid(result.getBody());
             AuditLog.newEntry(AuditAction.CREATE_USER,
                 String.format("Created new user %s", userApiDTO.getUsername()), true)
@@ -332,11 +327,8 @@ public class UsersService implements IUsersService {
             // handled in GlobalExceptionHandler
             restTemplate_.exchange(builder.build().toUriString(), HttpMethod.PUT, entity, String.class);
             // Return data.
-            UserApiDTO user = new UserApiDTO();
-            user.setUsername(userApiDTO.getUsername());
-            user.setRoleName(userApiDTO.getRoleName());
-            user.setScope(userApiDTO.getScope());
-            user.setUuid(userApiDTO.getUuid());
+            UserApiDTO user = populateResultUserApiDTOFromInput(userApiDTO);
+
             final String details = String.format(PERMISSION_CHANGED,
                 userApiDTO.getRoleName() != null ? userApiDTO.getRoleName().toLowerCase() : "",
                 userApiDTO.getScope() != null && !userApiDTO.getScope().isEmpty() ?
@@ -380,11 +372,7 @@ public class UsersService implements IUsersService {
             restTemplate_.exchange(builder.build().toUriString(), HttpMethod.PUT, entity,
                 Void.class);
             // Return data.
-            UserApiDTO user = new UserApiDTO();
-            user.setUsername(userApiDTO.getUsername());
-            user.setRoleName(userApiDTO.getRoleName());
-            user.setScope(userApiDTO.getScope());
-            user.setUuid(userApiDTO.getUuid());
+            UserApiDTO user = populateResultUserApiDTOFromInput(userApiDTO);
             final String details = String.format("User %s password changed", userApiDTO.getUsername());
             AuditLog.newEntry(AuditAction.CHANGE_PASSWORD,
                 details, true)
@@ -402,6 +390,26 @@ public class UsersService implements IUsersService {
     }
 
     /**
+     * When creating and editing a user, the result api dto is formed from the
+     * input dto and then fields are modified.  This method copies basic data
+     * from the input dto to the output.
+     * @param inputDto input data sent from the user to add or update a user
+     * @return a UserApiDTO with basic fields populated from the inputDto
+     */
+    private UserApiDTO populateResultUserApiDTOFromInput(@Nonnull UserApiDTO inputDto) {
+        UserApiDTO user = new UserApiDTO();
+        user.setUsername(inputDto.getUsername());
+        user.setRoleName(inputDto.getRoleName());
+        user.setScope(inputDto.getScope());
+        user.setUuid(inputDto.getUuid());
+        user.setLoginProvider(inputDto.getLoginProvider());
+        user.setDisplayName(inputDto.getUsername());
+        user.setType(inputDto.getType());
+        return user;
+    }
+
+
+    /**
      * Edits user information.
      * We always receive the role in the userApiDTO.
      * The password in the userApiDTO will be non-{@code null} if the password modification is
@@ -416,6 +424,10 @@ public class UsersService implements IUsersService {
     public UserApiDTO editUser(String uuid, UserApiDTO userApiDTO) throws Exception {
         // make sure there is a valid input before updating.
         validateUserInput(userApiDTO);
+        if (!StringUtils.isBlank(userApiDTO.getUuid()) && !userApiDTO.getUuid().equals(uuid)) {
+            throw new IllegalArgumentException("The user id passed as a parmaeter and in the input data must match.");
+        }
+        userApiDTO.setUuid(uuid);
         UserApiDTO dto = setUserRoles(userApiDTO);
         if (LoginProviderMapper.fromApi(userApiDTO.getLoginProvider()).equals(PROVIDER.LOCAL)) {
             // We change the password only if requested.

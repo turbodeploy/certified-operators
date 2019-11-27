@@ -2,7 +2,10 @@ package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.api.component.external.api.service.UsersService.HTTP_ACCEPT;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.fail;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -326,6 +329,105 @@ public class UserServiceTest {
         expectedException.expect(IllegalArgumentException.class);
         // edit user case.
         usersService.editUser(userId, userApiDTO);
+    }
+
+    /**
+     * Testing that when the api the uuid in the input dot does not match the uuid
+     * passed as a parameter, the service will
+     * throw an IllegalArgumentException
+     * @throws Exception when the service fails to edit the user
+     */
+    @Test
+    public void testEditUserUuidMismatch() throws Exception {
+        final String userId = "1234";
+        final String userName = "";
+        final String userType = "DedicatedCustomer";
+        final String userRole = "observer";
+        final String userLoginProvider = "LOCAL";
+
+        UserApiDTO userApiDTO = new UserApiDTO();
+        userApiDTO.setUsername(userName);
+        userApiDTO.setType(userType);
+        userApiDTO.setRoleName(userRole);
+        userApiDTO.setLoginProvider(userLoginProvider);
+        userApiDTO.setUuid("not1234");
+
+        // This should throw an illegal argument exception
+        expectedException.expect(IllegalArgumentException.class);
+        UserApiDTO resultUser = usersService.editUser(userId, userApiDTO);
+    }
+
+    /**
+     * Testing that the creation of a user is successful, comparing
+     * the data passed into the create with the result data returned.
+     * @throws Exception when the service fails to create the user
+     */
+    @Test
+    public void testCreateUser() throws Exception {
+        final String userName = "test1";
+        final String userType = "DedicatedCustomer";
+        final String userRole = "observer";
+        final String userLoginProvider = "LOCAL";
+
+        logon("admin");
+        UserApiDTO userApiDTO = new UserApiDTO();
+        userApiDTO.setUsername(userName);
+        userApiDTO.setPassword(userName);
+        userApiDTO.setType(userType);
+        userApiDTO.setRoleName(userRole);
+        userApiDTO.setLoginProvider(userLoginProvider);
+
+        final HttpEntity<AuthUserDTO> entity = new HttpEntity<>(composeHttpHeaders());
+        final ResponseEntity<String> responseEntity = new ResponseEntity<>( "234256", HttpStatus.OK);
+        when(restTemplate.exchange(eq("http://:0/users/add"), any(), any(), eq(String.class)))
+                .thenReturn(responseEntity);
+        UserApiDTO resultUser = usersService.createUser(userApiDTO);
+
+        // Verify that the data in the result user is the same as the input
+        assertEquals(userApiDTO.getUsername(), resultUser.getUsername());
+        assertEquals(userApiDTO.getType(), resultUser.getType());
+        assertEquals(userApiDTO.getLoginProvider(), resultUser.getLoginProvider());
+        assertEquals(userApiDTO.getRoleName(), resultUser.getRoleName());
+        assertEquals(userApiDTO.getUsername(), resultUser.getDisplayName());
+        assertFalse(resultUser.getUuid().isEmpty());
+    }
+
+    /**
+     * Testing that editing a user returns the modified user
+     * data back.
+     * @throws Exception when the service fails to edit the user
+     */
+    @Test
+    public void testEditUser() throws Exception {
+        final String userName = "test2";
+        final String userId = "123456";
+        final String userType = "DedicatedCustomer";
+        final String userRole = "observer";
+        final String userLoginProvider = "LOCAL";
+
+        logon("admin");
+        UserApiDTO userApiDTO = new UserApiDTO();
+        userApiDTO.setUsername(userName);
+        userApiDTO.setPassword(userName);
+        userApiDTO.setType(userType);
+        userApiDTO.setRoleName(userRole);
+        userApiDTO.setLoginProvider(userLoginProvider);
+
+        final ResponseEntity<String> responseEntity = new ResponseEntity<>( "234256", HttpStatus.OK);
+        when(restTemplate.exchange(eq("http://:0/users/setroles"), eq(HttpMethod.PUT), any(), eq(String.class)))
+                .thenReturn(responseEntity);
+        when(restTemplate.exchange(eq("http://:0/users/setpassword"), eq(HttpMethod.PUT), any(),
+                eq(Void.class))).thenReturn(new ResponseEntity<Void>(HttpStatus.OK));
+        UserApiDTO resultUser = usersService.editUser(userId, userApiDTO);
+
+        // Verify that the data in the result user is the same as the input
+        // including the id
+        assertEquals(userApiDTO.getUsername(), resultUser.getUsername());
+        assertEquals(userApiDTO.getType(), resultUser.getType());
+        assertEquals(userApiDTO.getLoginProvider(), resultUser.getLoginProvider());
+        assertEquals(userApiDTO.getRoleName(), resultUser.getRoleName());
+        assertEquals(userApiDTO.getUsername(), resultUser.getDisplayName());
+        assertEquals(userId, resultUser.getUuid());
     }
 
     private HttpHeaders composeHttpHeaders() {
