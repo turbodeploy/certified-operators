@@ -3,12 +3,16 @@
  */
 package com.vmturbo.platform.analysis.testUtilities;
 
-import java.util.*;
-
-import com.google.common.collect.Lists;
-import org.checkerframework.checker.nullness.qual.NonNull;
-
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+
+import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+
+import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Basket;

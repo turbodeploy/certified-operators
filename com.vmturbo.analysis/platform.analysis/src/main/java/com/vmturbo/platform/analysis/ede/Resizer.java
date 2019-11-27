@@ -325,7 +325,7 @@ public class Resizer {
      * @param seller            The seller
      * @return                  Total effectiveCapacity of commoditySold across all customers
      */
-    private static double calculateTotalEffectiveCapacityOnCoConsumersForResizeUp (Economy economy,
+    private static double calculateTotalEffectiveCapacityOnCoConsumersForResizeUp(Economy economy,
                                                                                    CommoditySpecification commSpec,
                                                                                    Trader seller) {
         // co-dependant commodity capacity validation
@@ -367,7 +367,7 @@ public class Resizer {
      * @param seller            The seller
      * @return                  Total effectiveCapacity of commoditySold across all customers
      */
-    private static double calculateTotalEffectiveCapacityOnCoConsumersForResizeDown (Economy economy,
+    private static double calculateTotalEffectiveCapacityOnCoConsumersForResizeDown(Economy economy,
                                                                                    CommoditySpecification commSpec,
                                                                                    Trader seller) {
         // co-dependant commodity capacity validation

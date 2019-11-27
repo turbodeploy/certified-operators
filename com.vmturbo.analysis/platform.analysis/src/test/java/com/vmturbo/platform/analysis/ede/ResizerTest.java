@@ -704,17 +704,19 @@ public class ResizerTest {
      * validates capacities and returns a value that prevents the resizes.
      */
     @Test
-    public void testResizesWithCoDependancies () {
+    public void testResizesWithCoDependancies() {
         double pmMemCapacity = 220;
         double memUsedByVm = 65;
         double vmVmemCapacity = 500;
-        double vmemUsedByAppServer1 = 50, vmemUsedByDbServer1 = 50;
+        double vmemUsedByAppServer1 = 50;
+        double vmemUsedByDbServer1 = 50;
         double heapUsedByApp = 155;
         double vmMinDesiredUtil = 0.65;
         double vmMaxDesiredUtil = 0.75;
         double economyRightSizeLower = 1;
         double economyRightSizeUpper = 0.7;
-        double appServerHeapCapacity = 160, dbServerDbMemCapacity = 160;
+        double appServerHeapCapacity = 160;
+        double dbServerDbMemCapacity = 160;
 
         Economy economy = new Economy();
         pm = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0L),
