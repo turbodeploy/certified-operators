@@ -25,7 +25,7 @@ public class ApplicationInfoMapperTest {
         .setIpAddress("1.2.3.4")
         .build();
     private static final DatabaseEngine DATABASE_ENGINE = DatabaseEngine.MARIADB;
-    private static final DatabaseEdition DATABASE_EDITION = DatabaseEdition.ORACLE_ENTERPRISE;
+    private static final DatabaseEdition DATABASE_EDITION = DatabaseEdition.ENTERPRISE;
     private static final String DATABASE_VERSION = "1.0";
 
     @Test

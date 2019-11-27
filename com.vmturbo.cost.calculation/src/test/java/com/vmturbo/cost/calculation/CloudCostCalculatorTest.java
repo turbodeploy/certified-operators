@@ -426,7 +426,7 @@ public class CloudCostCalculatorTest {
         final TestEntityClass db = TestEntityClass.newBuilder(dbId)
                 .setType(EntityType.DATABASE_VALUE)
                 .setDatabaseConfig(new EntityInfoExtractor.DatabaseConfig(
-                    DatabaseEdition.SQL_SERVER_ENTERPRISE,
+                    DatabaseEdition.ENTERPRISE,
                     DatabaseEngine.MYSQL, LicenseModel.BRING_YOUR_OWN_LICENSE, DeploymentType.SINGLE_AZ))
                 .build(infoExtractor);
 
@@ -462,7 +462,7 @@ public class CloudCostCalculatorTest {
         final TestEntityClass db = TestEntityClass.newBuilder(dbId)
             .setType(EntityType.DATABASE_SERVER_VALUE)
             .setDatabaseConfig(new EntityInfoExtractor.DatabaseConfig(
-                DatabaseEdition.SQL_SERVER_ENTERPRISE,
+                DatabaseEdition.ENTERPRISE,
                 DatabaseEngine.MYSQL, LicenseModel.BRING_YOUR_OWN_LICENSE, DeploymentType.SINGLE_AZ))
             .build(infoExtractor);
 
@@ -543,7 +543,7 @@ public class CloudCostCalculatorTest {
                 .setType(EntityType.DATABASE_SERVER_VALUE)
                 .setEntityState(EntityState.POWERED_OFF)
                 .setDatabaseConfig(new EntityInfoExtractor.DatabaseConfig(
-                        DatabaseEdition.SQL_SERVER_ENTERPRISE,
+                        DatabaseEdition.ENTERPRISE,
                         DatabaseEngine.MYSQL, LicenseModel.BRING_YOUR_OWN_LICENSE, DeploymentType.SINGLE_AZ))
                 .build(infoExtractor);
 
@@ -641,7 +641,7 @@ public class CloudCostCalculatorTest {
                             .setDbEngine(DatabaseEngine.MARIADB)
                             .addPrices(price(Unit.HOURS, BASE_PRICE)))
                     .addConfigurationPriceAdjustments(DatabaseTierConfigPrice.newBuilder()
-                            .setDbEdition(DatabaseEdition.SQL_SERVER_ENTERPRISE)
+                            .setDbEdition(DatabaseEdition.ENTERPRISE)
                             .setDbEngine(DatabaseEngine.MYSQL)
                             .addPrices(price(Unit.HOURS, MYSQL_ADJUSTMENT)))
                     .build())
@@ -651,7 +651,7 @@ public class CloudCostCalculatorTest {
                         .setDbEngine(DatabaseEngine.MARIADB)
                         .addPrices(price(Unit.HOURS, BASE_PRICE)))
                     .addConfigurationPriceAdjustments(DatabaseTierConfigPrice.newBuilder()
-                        .setDbEdition(DatabaseEdition.SQL_SERVER_ENTERPRISE)
+                        .setDbEdition(DatabaseEdition.ENTERPRISE)
                         .setDbEngine(DatabaseEngine.MYSQL)
                         .addPrices(price(Unit.HOURS, MYSQL_ADJUSTMENT)))
                     .build())

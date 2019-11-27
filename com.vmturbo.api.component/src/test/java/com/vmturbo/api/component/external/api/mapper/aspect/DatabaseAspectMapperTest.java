@@ -18,7 +18,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.LicenseModel;
 
 public class DatabaseAspectMapperTest extends BaseAspectMapperTest {
 
-    private static final DatabaseEdition TEST_DATABASE_EDITION = DatabaseEdition.ORACLE_ENTERPRISE;
+    private static final DatabaseEdition TEST_DATABASE_EDITION = DatabaseEdition.ENTERPRISE;
     private static final DatabaseEngine TEST_DATABASE_ENGINE = DatabaseEngine.MARIADB;
     private static final DeploymentType TEST_DEPLOYMENT_TYPE = DeploymentType.MULTI_AZ;
     private static final LicenseModel TEST_LICENSE_MODEL = LicenseModel.BRING_YOUR_OWN_LICENSE;

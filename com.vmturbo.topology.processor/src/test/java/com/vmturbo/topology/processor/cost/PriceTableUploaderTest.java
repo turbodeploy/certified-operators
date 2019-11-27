@@ -168,7 +168,7 @@ public class PriceTableUploaderTest {
                                 .setRelatedDatabaseTier(DB_TIER_BUILDER)
                                 .setDatabaseTierPriceList(DatabaseTierPriceList.newBuilder()
                                         .setBasePrice(DatabaseTierConfigPrice.newBuilder()
-                                                .setDbEdition(DatabaseEdition.ORACLE_ENTERPRISE)
+                                                .setDbEdition(DatabaseEdition.ENTERPRISE)
                                                 .setDbEngine(DatabaseEngine.ORACLE)
                                                 .addPrices(Price.newBuilder()
                                                         .setPriceAmount(CurrencyAmount.newBuilder()
@@ -183,7 +183,7 @@ public class PriceTableUploaderTest {
         long dbId = cloudOidByLocalId.get(DB_TIER_ONE);
         Assert.assertTrue(onDemandTable.containsDbPricesByInstanceId(dbId));
         DatabaseTierPriceList dbPriceList = onDemandTable.getDbPricesByInstanceIdMap().get(dbId);
-        Assert.assertEquals(DatabaseEdition.ORACLE_ENTERPRISE, dbPriceList.getBasePrice().getDbEdition());
+        Assert.assertEquals(DatabaseEdition.ENTERPRISE, dbPriceList.getBasePrice().getDbEdition());
         Assert.assertEquals(2.0,dbPriceList.getBasePrice().getPrices(0).getPriceAmount().getAmount(),0);
     }
 
