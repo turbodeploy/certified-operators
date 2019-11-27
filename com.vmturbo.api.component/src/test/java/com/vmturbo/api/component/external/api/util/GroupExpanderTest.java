@@ -10,9 +10,12 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableSet;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
@@ -33,6 +36,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
@@ -42,6 +46,68 @@ public class GroupExpanderTest {
     private GroupExpander groupExpander;
 
     private GroupServiceMole groupServiceSpy = spy(new GroupServiceMole());
+
+    private static final Long RG_OID = 1111L;
+    private static final Grouping RG_GROUP = Grouping.newBuilder()
+        .setId(RG_OID)
+        .setDefinition(GroupDefinition.newBuilder()
+            .setType(GroupType.RESOURCE)
+            .setDisplayName("rg1")
+            .setStaticGroupMembers(GroupDTO.StaticMembers.newBuilder()
+                .addMembersByType(GroupDTO.StaticMembers.StaticMembersByType.newBuilder()
+                    .setType(GroupDTO.MemberType.newBuilder()
+                        .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()).build())
+                    .addMembers(10L)
+                    .addMembers(11L)
+                    .build())
+                .addMembersByType(GroupDTO.StaticMembers.StaticMembersByType.newBuilder()
+                    .setType(GroupDTO.MemberType.newBuilder()
+                        .setEntity(UIEntityType.DATABASE.typeNumber()).build())
+                    .addMembers(20L)
+                    .build())
+                .build())
+            .build())
+        .build();
+
+    private static final Long DYNAMIC_GROUP_OID = 1234L;
+    private static final Grouping DYNAMIC_GROUP = Grouping.newBuilder()
+        .setId(DYNAMIC_GROUP_OID)
+        .setDefinition(GroupDefinition.newBuilder()
+            .setType(GroupType.REGULAR)
+            .setDisplayName("foo")
+            .setEntityFilters(EntityFilters.newBuilder()
+                .addEntityFilter(EntityFilter.newBuilder()
+                    .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                    .setSearchParametersCollection(
+                        SearchParametersCollection.getDefaultInstance()
+                    )
+                )
+            )
+            .build())
+        .build();
+
+    private static final Long NESTED_GROUP_OID = 2342L;
+    private static final Grouping NESTED_GROUP = Grouping.newBuilder()
+        .setId(NESTED_GROUP_OID)
+        .addExpectedTypes(GroupDTO.MemberType.newBuilder()
+            .setGroup(GroupType.RESOURCE).build())
+        .setDefinition(GroupDefinition.newBuilder()
+            .setType(GroupType.REGULAR)
+            .setDisplayName("nested group")
+            .setStaticGroupMembers(GroupDTO.StaticMembers.newBuilder()
+                .addMembersByType(GroupDTO.StaticMembers.StaticMembersByType.newBuilder()
+                    .setType(GroupDTO.MemberType.newBuilder()
+                        .setGroup(GroupType.RESOURCE).build())
+                    .addMembers(1111L)
+                    .build())
+                .addMembersByType(GroupDTO.StaticMembers.StaticMembersByType.newBuilder()
+                    .setType(GroupDTO.MemberType.newBuilder()
+                        .setGroup(GroupType.REGULAR).build())
+                    .addMembers(1234L)
+                    .build())
+                .build())
+            .build())
+        .build();
 
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(groupServiceSpy);
@@ -115,27 +181,15 @@ public class GroupExpanderTest {
      */
     @Test
     public void testExpandGroupUuid() throws Exception {
-        doReturn(GetGroupResponse.newBuilder()
-            .setGroup(Grouping.newBuilder()
-                .setId(1234)
-                .setDefinition(GroupDefinition.newBuilder()
-                        .setType(GroupType.REGULAR)
-                        .setDisplayName("foo")
-                        .setEntityFilters(EntityFilters.newBuilder()
-                                        .addEntityFilter(EntityFilter.newBuilder()
-                                            .setSearchParametersCollection(
-                                                            SearchParametersCollection.getDefaultInstance()
-                                                            )
-                                            )
-                                )
-            .build())).build()).when(groupServiceSpy).getGroup(GroupID.newBuilder().setId(1234).build());
+        doReturn(GetGroupResponse.newBuilder().setGroup(DYNAMIC_GROUP).build())
+            .when(groupServiceSpy).getGroup(GroupID.newBuilder().setId(DYNAMIC_GROUP_OID).build());
 
         doReturn(GetMembersResponse.newBuilder().setMembers(Members.newBuilder()
             .addIds(10)
             .addIds(11)
             .addIds(12))
             .build()).when(groupServiceSpy).getMembers(GroupDTO.GetMembersRequest.newBuilder()
-                .setId(1234L)
+                .setId(DYNAMIC_GROUP_OID)
                 .setExpectPresent(true)
                 .build());
 
@@ -156,5 +210,135 @@ public class GroupExpanderTest {
         Set<Long> expandedOids = groupExpander.expandUuid("1234");
         assertThat(expandedOids.size(), equalTo(1));
         assertThat(expandedOids.iterator().next(), equalTo(1234L));
+    }
+
+    /**
+     * Tests the case where we call expand uuid to types to entities map on an
+     * empty group.
+     */
+    @Test
+    public void testExpandUuidToTypeToEntitiesMapForAnEmptyGroup() {
+        // ARRANGE
+        final Grouping emptyGroup = Grouping.newBuilder()
+            .setId(1234L)
+            .setDefinition(GroupDefinition.newBuilder()
+                .setType(GroupType.REGULAR)
+                .setDisplayName("group1")
+                .setStaticGroupMembers(GroupDTO.StaticMembers.newBuilder()
+                    .addMembersByType(GroupDTO.StaticMembers.StaticMembersByType.newBuilder()
+                        .setType(GroupDTO.MemberType.newBuilder()
+                            .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()).build())
+                        .build())
+                    .build())
+                .build())
+            .build();
+
+        doReturn(GetGroupResponse.newBuilder()
+            .setGroup(emptyGroup).build())
+            .when(groupServiceSpy).getGroup(GroupID.newBuilder().setId(1234L).build());
+
+        // ACT
+        Map<UIEntityType, Set<Long>> result = groupExpander.expandUuidToTypeToEntitiesMap(1234L);
+
+        //ASSERT
+        assertThat(result.size(), equalTo(0));
+    }
+
+    /**
+     * Tests the case where we call expand uuid to types to entities map on a
+     * resource group with virtual machine and databases.
+     */
+    @Test
+    public void testExpandUuidToTypeToEntitiesMapForAResourceGroup() {
+        // ARRANGE
+        doReturn(GetGroupResponse.newBuilder()
+                .setGroup(RG_GROUP).build())
+            .when(groupServiceSpy).getGroup(GroupID.newBuilder().setId(RG_OID).build());
+
+        // ACT
+        Map<UIEntityType, Set<Long>> result = groupExpander.expandUuidToTypeToEntitiesMap(RG_OID);
+
+        //ASSERT
+        assertThat(result.size(), equalTo(2));
+        assertThat(result.get(UIEntityType.VIRTUAL_MACHINE), equalTo(ImmutableSet.of(10L, 11L)));
+        assertThat(result.get(UIEntityType.DATABASE), equalTo(Collections.singleton(20L)));
+    }
+
+    /**
+     * Tests the case where we call expand uuid to types to entities map on a
+     * dynamic group of virtual machines.
+     */
+    @Test
+    public void testExpandUuidToTypeToEntitiesMapForADynamicGroup() {
+        // ARRANGE
+        doReturn(GetGroupResponse.newBuilder().setGroup(DYNAMIC_GROUP).build())
+            .when(groupServiceSpy).getGroup(GroupID.newBuilder().setId(DYNAMIC_GROUP_OID).build());
+
+        doReturn(GetMembersResponse.newBuilder().setMembers(Members.newBuilder()
+            .addIds(10)
+            .addIds(11)
+            .addIds(12))
+            .build()).when(groupServiceSpy).getMembers(GroupDTO.GetMembersRequest.newBuilder()
+            .setId(DYNAMIC_GROUP_OID)
+            .setExpectPresent(true)
+            .build());
+
+        // ACT
+        Map<UIEntityType, Set<Long>> result = groupExpander.expandUuidToTypeToEntitiesMap(DYNAMIC_GROUP_OID);
+
+        //ASSERT
+        assertThat(result.size(), equalTo(1));
+        assertThat(result.get(UIEntityType.VIRTUAL_MACHINE), equalTo(ImmutableSet.of(10L, 11L,
+            12L)));
+    }
+
+    /**
+     * Tests the case where we call expand uuid to types to entities map on a
+     * nested group.
+     */
+    @Test
+    public void testExpandUuidToTypeToEntitiesMapForANestedGroup() {
+        // ARRANGE
+        doReturn(GetGroupResponse.newBuilder()
+            .setGroup(NESTED_GROUP).build())
+            .when(groupServiceSpy).getGroup(GroupID.newBuilder().setId(NESTED_GROUP_OID).build());
+
+        doReturn(GetMembersResponse.newBuilder().setMembers(Members.newBuilder()
+                .addIds(10)
+                .addIds(11)
+                .addIds(12)
+                .addIds(20))
+                .build())
+            .when(groupServiceSpy).getMembers(GroupDTO.GetMembersRequest.newBuilder()
+                .setId(NESTED_GROUP_OID)
+                .setExpandNestedGroups(true)
+                .setExpectPresent(true)
+                .build());
+
+        doReturn(GetGroupResponse.newBuilder()
+            .setGroup(RG_GROUP).build())
+            .when(groupServiceSpy).getGroup(GroupID.newBuilder().setId(RG_OID).build());
+
+        doReturn(GetGroupResponse.newBuilder().setGroup(DYNAMIC_GROUP).build())
+            .when(groupServiceSpy).getGroup(GroupID.newBuilder().setId(DYNAMIC_GROUP_OID).build());
+
+        doReturn(GetMembersResponse.newBuilder().setMembers(Members.newBuilder()
+                .addIds(10)
+                .addIds(11)
+                .addIds(12))
+                .build())
+            .when(groupServiceSpy).getMembers(GroupDTO.GetMembersRequest.newBuilder()
+                .setId(DYNAMIC_GROUP_OID)
+                .setExpectPresent(true)
+                .build());
+
+        // ACT
+        Map<UIEntityType, Set<Long>> result = groupExpander.expandUuidToTypeToEntitiesMap(NESTED_GROUP_OID);
+
+        //ASSERT
+        assertThat(result.size(), equalTo(2));
+        assertThat(result.get(UIEntityType.VIRTUAL_MACHINE), equalTo(ImmutableSet.of(10L, 11L,
+            12L)));
+        assertThat(result.get(UIEntityType.DATABASE), equalTo(Collections.singleton(20L)));
     }
 }

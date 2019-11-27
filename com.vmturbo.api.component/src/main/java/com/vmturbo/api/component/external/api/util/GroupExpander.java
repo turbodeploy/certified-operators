@@ -3,10 +3,13 @@ package com.vmturbo.api.component.external.api.util;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -22,6 +25,7 @@ import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
@@ -29,6 +33,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 
 /**
  * A utility object to:
@@ -79,7 +84,7 @@ public class GroupExpander {
      * Get the group associated with a particular UUID, if any.
      * @param uuid The string UUID. This may be the OID of a group, an entity, or a magic string
      *             (e.g. Market).
-     * @return The {@link Group} associated with the UUID, if any.
+     * @return The {@link Grouping} associated with the UUID, if any.
      */
     public Optional<Grouping> getGroup(@Nonnull final String uuid) {
         if (StringUtils.isNumeric(uuid)) {
@@ -90,6 +95,58 @@ public class GroupExpander {
         } else {
             return Optional.empty();
         }
+    }
+
+    /**
+     * Get the entities in this group categorized by their type.
+     *
+     * @param groupUuid The string UUID. This should be an oid of a group otherwise it will return
+     *                  empty.
+     * @return The map from the type of the entites to entities of that type in that group.
+     */
+    public Map<UIEntityType, Set<Long>> expandUuidToTypeToEntitiesMap(Long groupUuid) {
+
+        Optional<GroupAndMembers> groupAndMembers = getGroupWithMembers(String.valueOf(groupUuid));
+        if (groupAndMembers.isPresent()) {
+            if (groupAndMembers.get().entities().size() == 0) {
+                return  Collections.emptyMap();
+            }
+
+            final GroupDTO.GroupDefinition group = groupAndMembers.get().group().getDefinition();
+            if (GroupProtoUtil.isNestedGroup(groupAndMembers.get().group())) {
+                return groupAndMembers.get()
+                    .members()
+                    .stream()
+                    .map(this::expandUuidToTypeToEntitiesMap)
+                    .map(Map::entrySet)
+                    .flatMap(Set::stream)
+                    .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue(),
+                        (e1, e2) -> Sets.union(e1, e2)));
+
+            } else if (group.hasStaticGroupMembers()) {
+                return group
+                    .getStaticGroupMembers()
+                    .getMembersByTypeList()
+                    .stream()
+                    .collect(Collectors.toMap(x -> UIEntityType.fromType(x.getType().getEntity()),
+                         x -> new HashSet<>(x.getMembersList())));
+            } else if (group.hasEntityFilters()) {
+                if (group.getEntityFilters().getEntityFilterCount() == 1) {
+                    Map<UIEntityType, Set<Long>> result = new HashMap<>();
+                    result.put(UIEntityType.fromType(group.getEntityFilters()
+                            .getEntityFilter(0).getEntityType()),
+                        new HashSet<>(groupAndMembers.get().members()));
+                    return result;
+
+                } else {
+                    // This is when this a heterogeneous dynamic group. We don't have that use case
+                    // right now (Nov 2019) and no plan to support it therefore return empty
+                    return Collections.emptyMap();
+                }
+            }
+        }
+
+        return Collections.emptyMap();
     }
 
     /**
@@ -117,13 +174,13 @@ public class GroupExpander {
     }
 
     /**
-     * Given a {@link Group}, get its members. If the {@link Group} is a dynamic group, this
+     * Given a {@link Grouping}, get its members. If the {@link Grouping} is a dynamic group, this
      * may make a call to the group component.
      *
      * Note - it's preferable to use this method for convenience, and to allow for (potential)
      * caching in the future.
      *
-     * @param group The {@link Group}
+     * @param group The {@link Grouping}
      * @return  The {@link GroupAndMembers} describing the group and its members.
      */
     @Nonnull

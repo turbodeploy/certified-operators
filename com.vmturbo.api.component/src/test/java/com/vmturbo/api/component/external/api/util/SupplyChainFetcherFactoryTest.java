@@ -443,8 +443,10 @@ public class SupplyChainFetcherFactoryTest {
                         .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
                 .build());
         when(groupAndMembers.members()).thenReturn(Arrays.asList(vmId1, vmId2));
+        when(groupAndMembers.entities()).thenReturn(Arrays.asList(vmId1, vmId2));
         when(groupExpander.getGroupWithMembers(groupId)).thenReturn(Optional.of(groupAndMembers));
-        when(groupExpander.expandUuid(eq(groupId))).thenReturn(ImmutableSet.of(vmId1, vmId2));
+        when(groupExpander.expandUuidToTypeToEntitiesMap(eq(1L))).thenReturn(
+            ImmutableMap.of(UIEntityType.VIRTUAL_MACHINE, ImmutableSet.of(vmId1, vmId2)));
 
         RepositoryApi.MultiEntityRequest req1and2 = ApiTestUtils.mockMultiMinEntityReq(
                 Lists.newArrayList(

@@ -672,9 +672,8 @@ public class SupplyChainFetcherFactory {
             // (e.g. some sort of "entity counts" API for grouped severities,
             //       and/or options on the /search API for aspects)
             if (UuidMapper.hasLimitedScope(seedUuids) &&
-                    seedUuids.size() == 1 && CollectionUtils.size(entityTypes) == 1) {
+                    seedUuids.size() == 1 && CollectionUtils.size(entityTypes) > 0) {
                 final String groupUuid = seedUuids.iterator().next();
-                final String desiredEntityType = entityTypes.iterator().next();
                 final Optional<GroupAndMembers> groupWithMembers =
                     groupExpander.getGroupWithMembers(groupUuid);
                 if (groupWithMembers.isPresent()) {
@@ -685,42 +684,22 @@ public class SupplyChainFetcherFactory {
                         .map(UIEntityType::apiStr)
                         .collect(Collectors.toList());
 
-                        if (groupTypes.contains(desiredEntityType)) {
-                            if (groupWithMembers.get().members().isEmpty()) {
+                        if (groupTypes.containsAll(entityTypes)) {
+                            if (groupWithMembers.get().entities().isEmpty()) {
                                 return Collections.emptyList();
                             }
-                            final Set<Long> allMembers = groupExpander.expandUuid(groupUuid);
-                            final Set<Long> filteredMembers;
-                            // if environment type is not specified, no need to filter
-                            if (!environmentType.isPresent()) {
-                                filteredMembers = allMembers;
-                            } else {
-                                // if global scope group, then check the environment directly,
-                                // no need to filter if it matches
-                                if (group.getDefinition().getOptimizationMetadata().getIsGlobalScope() &&
-                                        UIEnvironmentType.fromEnvType(environmentType.get())
-                                                .matchesEnvType(group.getDefinition()
-                                                        .getOptimizationMetadata().getEnvironmentType())) {
-                                    filteredMembers = allMembers;
-                                } else {
-                                    // normal cases, fetch all members and filter by environment type
-                                    filteredMembers = repositoryApi.entitiesRequest(allMembers)
-                                            .getMinimalEntities()
-                                            .filter(minimalEntity -> UIEnvironmentType.fromEnvType(
-                                                    environmentType.get()).matchesEnvType(
-                                                            minimalEntity.getEnvironmentType()))
-                                            .map(MinimalEntity::getOid)
-                                            .collect(Collectors.toSet());
-                                }
-                            }
 
-                            return Collections.singletonList(SupplyChainNode.newBuilder()
-                                .setEntityType(desiredEntityType)
-                                .putMembersByState(EntityState.POWERED_ON_VALUE,
-                                    MemberList.newBuilder()
-                                        .addAllMemberOids(filteredMembers)
-                                        .build())
-                                .build());
+                            final Map<UIEntityType, Set<Long>> typeToMembers =
+                                groupExpander.expandUuidToTypeToEntitiesMap(group.getId());
+
+                            return entityTypes
+                                .stream()
+                                .map(type -> createSupplyChainNode(type,
+                                    typeToMembers.get(UIEntityType.fromString(type)),
+                                    group))
+                                .filter(Optional::isPresent)
+                                .map(Optional::get)
+                                .collect(Collectors.toList());
                         }
                     }
                 }
@@ -744,6 +723,46 @@ public class SupplyChainFetcherFactory {
                     response.getSupplyChain().getMissingStartingEntitiesList());
             }
             return response.getSupplyChain().getSupplyChainNodesList();
+        }
+
+        private Optional<SupplyChainNode> createSupplyChainNode(String type,
+                                                                Set<Long> entities,
+                                                                final Grouping group) {
+            if (CollectionUtils.isEmpty(entities)) {
+                return Optional.empty();
+            }
+
+            final Set<Long> filteredMembers;
+            // if environment type is not specified, no need to filter
+            if (environmentType.isPresent()) {
+                // if global scope group, then check the environment directly,
+                // no need to filter if it matches
+                if (group.getDefinition().getOptimizationMetadata().getIsGlobalScope() &&
+                    UIEnvironmentType.fromEnvType(environmentType.get())
+                        .matchesEnvType(group.getDefinition()
+                            .getOptimizationMetadata().getEnvironmentType())) {
+                    filteredMembers = entities;
+                } else {
+                    // normal cases, fetch all members and filter by environment type
+                    filteredMembers = repositoryApi.entitiesRequest(entities)
+                        .getMinimalEntities()
+                        .filter(minimalEntity -> UIEnvironmentType.fromEnvType(
+                            environmentType.get()).matchesEnvType(
+                            minimalEntity.getEnvironmentType()))
+                        .map(MinimalEntity::getOid)
+                        .collect(Collectors.toSet());
+                }
+            } else {
+                filteredMembers = entities;
+            }
+
+            return Optional.of(SupplyChainNode.newBuilder()
+                .setEntityType(type)
+                .putMembersByState(EntityState.POWERED_ON_VALUE,
+                    MemberList.newBuilder()
+                        .addAllMemberOids(filteredMembers)
+                        .build())
+                .build());
         }
 
         protected long getTopologyContextId() {
