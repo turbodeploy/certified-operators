@@ -143,7 +143,8 @@ enum SupplyChainGroupBy {
     // This will require a call to the action orchestrator to get the categories of entities.
     ACTION_CATEGORY = 4;
 
-    // TODO (roman, Nov 13 2019): Add "TEMPLATE = 5;".
+    // Group by the display name of template of the entity
+    TEMPLATE = 5;
 
     // Group by the IDs of targets that discovered the entity.
     TARGET = 6;
@@ -193,6 +194,13 @@ message SupplyChainStat {
         //
         // Otherwise, this is unset.
         optional .action.ActionCategory action_category = 4;
+
+        // If the request group_by criteria contains SupplyChainGroupBy.TEMPLATE:
+        //   If set, the entities in this group all have template with the display name in
+        //   this value.
+        //
+        // Otherwise, this is unset.
+        optional string template = 5;
 
         // If the request group_by criteria contains SupplyChainGroupBy.TARGET:
         //   If set, the OID of the target that discovered the entities in this group.

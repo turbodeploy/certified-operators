@@ -332,6 +332,8 @@ public class SupplyChainsServiceTest {
         assertThat(mapper.countCriteriaToGroupBy(EntitiesCountCriteria.severity), is(Optional.of(SupplyChainGroupBy.SEVERITY)));
         assertThat(mapper.countCriteriaToGroupBy(EntitiesCountCriteria.state), is(Optional.of(SupplyChainGroupBy.ENTITY_STATE)));
         assertThat(mapper.countCriteriaToGroupBy(EntitiesCountCriteria.target), is(Optional.of(SupplyChainGroupBy.TARGET)));
+        assertThat(mapper.countCriteriaToGroupBy(EntitiesCountCriteria.template),
+            is(Optional.of(SupplyChainGroupBy.TEMPLATE)));
     }
 
     /**
@@ -342,7 +344,6 @@ public class SupplyChainsServiceTest {
     @Test
     public void testSupplyChainStatMapperUnsupportedCriteria() throws InvalidOperationException {
         final SupplyChainStatMapper mapper = new SupplyChainStatMapper();
-        assertThat(mapper.countCriteriaToGroupBy(EntitiesCountCriteria.template), is(Optional.empty()));
         assertThat(mapper.countCriteriaToGroupBy(EntitiesCountCriteria.resourceGroup), is(Optional.empty()));
     }
 

@@ -299,6 +299,10 @@ public class SupplyChainsService implements ISupplyChainsService {
                 apiStat.addFilter(EntitiesCountCriteria.riskSubCategory.name(),
                     ActionSpecMapper.mapXlActionCategoryToApi(statGroup.getActionCategory()));
             }
+            if (statGroup.hasTemplate()) {
+                apiStat.addFilter(EntitiesCountCriteria.template.name(),
+                   statGroup.getTemplate());
+            }
             if (statGroup.hasEntityState()) {
                 apiStat.addFilter(EntitiesCountCriteria.state.name(),
                     UIEntityState.fromEntityState(statGroup.getEntityState()).apiStr());
@@ -335,6 +339,7 @@ public class SupplyChainsService implements ISupplyChainsService {
                 case businessUnit:
                     return Optional.of(SupplyChainGroupBy.BUSINESS_ACCOUNT_ID);
                 case template:
+                    return Optional.of(SupplyChainGroupBy.TEMPLATE);
                 case resourceGroup:
                     // TODO (roman, Nov 14 2019) OM-52583: Support these options, down to
                     // the repository.

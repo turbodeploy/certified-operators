@@ -15,6 +15,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 
 import io.grpc.StatusRuntimeException;
 
@@ -54,6 +55,17 @@ public class SupplyChainStatistician {
     private static final Logger logger = LogManager.getLogger();
 
     private final SupplementaryDataFactory supplementaryDataFactory;
+
+    /**
+     * This holds the mapping from a type of tier that represent the template of
+     * that entity.
+     */
+    private static final Map<UIEntityType, UIEntityType> TYPE_TO_TIER = ImmutableMap.of(
+            UIEntityType.VIRTUAL_MACHINE, UIEntityType.COMPUTE_TIER,
+            UIEntityType.DATABASE, UIEntityType.DATABASE_TIER,
+            UIEntityType.DATABASE_SERVER, UIEntityType.DATABASE_SERVER_TIER,
+            UIEntityType.VIRTUAL_VOLUME, UIEntityType.STORAGE_TIER
+        );
 
     /**
      * Create a new {@link SupplyChainStatistician}.
@@ -169,6 +181,9 @@ public class SupplyChainStatistician {
                     case ACTION_CATEGORY:
                         // We handled this above when multi-plexing.
                         break;
+                    case TEMPLATE:
+                        getTemplate(entity).ifPresent(statGroupKey::setTemplate);
+                        break;
                     case TARGET:
                         // We handled this above when multi-plexing the group-by criteria into
                         // the builders array.
@@ -192,6 +207,24 @@ public class SupplyChainStatistician {
             });
         });
         return retStats;
+    }
+
+    @Nonnull
+    private Optional<String> getTemplate(@Nonnull RepoGraphEntity entity) {
+        final UIEntityType tierType =
+            TYPE_TO_TIER.get(UIEntityType.fromType(entity.getEntityType()));
+
+        // If there is no tier defined for this entity type just return the template type as unknown
+        if (tierType == null) {
+            return Optional.empty();
+        }
+
+        // Find the tier in the consumer and return its display name
+        return entity.getProviders()
+            .stream()
+            .filter(e -> tierType.typeNumber() == e.getEntityType())
+            .map(RepoGraphEntity::getDisplayName)
+            .findAny();
     }
 
     /**
@@ -413,6 +446,8 @@ public class SupplyChainStatistician {
 
         private ActionCategory actionCategory = null;
 
+        private String template = null;
+
         /**
          * Convert to a {@link StatGroup} protobuf.
          *
@@ -439,6 +474,11 @@ public class SupplyChainStatistician {
             if (actionCategory != null) {
                 retBldr.setActionCategory(actionCategory);
             }
+
+            if (template != null) {
+                retBldr.setTemplate(template);
+            }
+
             return retBldr.build();
         }
 
@@ -478,6 +518,12 @@ public class SupplyChainStatistician {
             return this;
         }
 
+        @Nonnull
+        StatGroupKey setTemplate(final String template) {
+            this.template = template;
+            return this;
+        }
+
         @Override
         public boolean equals(Object other) {
             if (other == null) {
@@ -493,7 +539,8 @@ public class SupplyChainStatistician {
                     Objects.equals(otherKey.discoveringTarget, discoveringTarget) &&
                     Objects.equals(otherKey.ownerBusinessAccount, ownerBusinessAccount) &&
                     otherKey.severity == severity &&
-                    otherKey.actionCategory == actionCategory;
+                    otherKey.actionCategory == actionCategory &&
+                    Objects.equals(otherKey.template, template);
             } else {
                 return false;
             }
@@ -502,7 +549,7 @@ public class SupplyChainStatistician {
         @Override
         public int hashCode() {
             return Objects.hash(entityType, entityState, discoveringTarget,
-                ownerBusinessAccount, severity, actionCategory);
+                ownerBusinessAccount, severity, actionCategory, template);
         }
     }
 }
