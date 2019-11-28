@@ -629,7 +629,7 @@ public class Placement {
         }
 
         List<Entry<ShoppingList, Market>> movableSlByMarket = economy.moveableSlByMarket(trader);
-        final QuoteCache cache = (commonCliques.size() > 2)
+        final QuoteCache cache = commonCliques.size() > 1
             ? new QuoteCache(economy.getTraders().size(),
                 economy.getMarketsAsBuyer(trader).values().stream()
                     .mapToInt(market -> market.getActiveSellers().size()).sum(),
