@@ -18,6 +18,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
@@ -45,6 +46,8 @@ import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest.Ac
 import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest.AccountExpenseQueryScope.IdList;
 import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesResponse;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
@@ -60,6 +63,7 @@ import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier.PricingIdentifierName;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
@@ -95,8 +99,10 @@ public class BusinessAccountRetrieverTest {
 
     private BusinessAccountMapper mockMapper = mock(BusinessAccountMapper.class);
 
+    private GroupExpander mockGroupExpander = mock(GroupExpander.class);
+
     private BusinessAccountRetriever businessAccountRetriever =
-        new BusinessAccountRetriever(repositoryApi, thinTargetCache, mockMapper);
+        new BusinessAccountRetriever(repositoryApi, mockGroupExpander, thinTargetCache, mockMapper);
 
     /**
      * Test getting all business accounts via
@@ -177,6 +183,51 @@ public class BusinessAccountRetrieverTest {
             .build());
         // "allAccounts" false, because we're scoped to a target.
         verify(mockMapper).convert(Collections.singletonList(ACCOUNT), false);
+
+        assertThat(results, is(Collections.singletonList(convertedDto)));
+    }
+
+    /**
+     * Test getting the business account that belongs to a valid group.
+     */
+    @Test
+    public void testGetBusinessAccountsInScopeOfGroup() {
+        // ARRANGE
+        final String groupId = "123";
+        final Set<Long> expandedOids = ImmutableSet.of(ENTITY_OID);
+
+        // Mock the search request to return the matching accounts
+        final RepositoryApi.SearchRequest mockReq =
+            ApiTestUtils.mockSearchFullReq(Lists.newArrayList(ACCOUNT));
+        when(repositoryApi.newSearchRequest(any()))
+            .thenReturn(mockReq);
+
+        when(thinTargetCache.getTargetInfo(Long.parseLong(groupId))).thenReturn(Optional.empty());
+        when(mockGroupExpander.getGroup(groupId)).thenReturn(Optional.of(Grouping.newBuilder()
+                .setId(Long.parseLong(groupId))
+                .setDefinition(GroupDefinition.newBuilder().setType(GroupType.REGULAR)
+                    .setDisplayName("group_of_accounts").setIsTemporary(true))
+                .build()
+            ));
+        when(mockGroupExpander.expandUuid(groupId)).thenReturn(expandedOids);
+
+        // Mock the mapper to convert the account to an API DTO.
+        final BusinessUnitApiDTO convertedDto = mock(BusinessUnitApiDTO.class);
+        when(mockMapper.convert(any(), anyBoolean()))
+            .thenReturn(Collections.singletonList(convertedDto));
+
+        // ACT
+        final List<BusinessUnitApiDTO> results = businessAccountRetriever.getBusinessAccountsInScope(
+            Lists.newArrayList(groupId));
+
+        // ASSERT
+        verify(repositoryApi).newSearchRequest(SearchProtoUtil.makeSearchParameters(
+            SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT))
+                .addSearchFilter(SearchProtoUtil.searchFilterProperty(
+                    SearchProtoUtil.idFilter(expandedOids)))
+            .build());
+
+        verify(mockMapper).convert(Lists.newArrayList(ACCOUNT), false);
 
         assertThat(results, is(Collections.singletonList(convertedDto)));
     }

@@ -73,10 +73,8 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
         CommunicationConfig.class,
         RepositoryClientConfig.class,
         TopologyProcessorClientConfig.class,
-        ReportingClientConfig.class,
         PublicKeyStoreConfig.class,
         LicenseCheckClientConfig.class,
-        NotificationClientConfig.class,
         UserSessionConfig.class,
         KeyValueStoreConfig.class})
 @PropertySource("classpath:api-component.properties")
@@ -150,16 +148,10 @@ public class ServiceConfig {
     private CommunicationConfig communicationConfig;
 
     @Autowired
-    private RepositoryClientConfig repositoryClientConfig;
-
-    @Autowired
     private MapperConfig mapperConfig;
 
     @Autowired
     private ApiWebsocketConfig websocketConfig;
-
-    @Autowired
-    private ReportingClientConfig reportingClientConfig;
 
     @Autowired
     private ServletContext servletContext;
@@ -168,13 +160,7 @@ public class ServiceConfig {
     private PublicKeyStoreConfig publicKeyStoreConfig;
 
     @Autowired
-    private TopologyProcessorClientConfig topologyProcessorClientConfig;
-
-    @Autowired
     private LicenseCheckClientConfig licenseCheckClientConfig;
-
-    @Autowired
-    private NotificationClientConfig notificationClientConfig;
 
     @Autowired
     private UserSessionConfig userSessionConfig;
@@ -242,6 +228,7 @@ public class ServiceConfig {
     @Bean
     public BusinessAccountRetriever businessAccountRetriever() {
         return new BusinessAccountRetriever(communicationConfig.repositoryApi(),
+            communicationConfig.groupExpander(),
             communicationConfig.costServiceBlockingStub(),
             communicationConfig.thinTargetCache());
     }

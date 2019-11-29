@@ -39,6 +39,7 @@ import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest.Ac
 import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest.AccountExpenseQueryScope.IdList;
 import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
@@ -63,6 +64,8 @@ public class BusinessAccountRetriever {
 
     private final RepositoryApi repositoryApi;
 
+    private final GroupExpander groupExpander;
+
     private final ThinTargetCache thinTargetCache;
 
     private final BusinessAccountMapper businessAccountMapper;
@@ -71,21 +74,25 @@ public class BusinessAccountRetriever {
      * Public constructor for the retriever.
      *
      * @param repositoryApi Utility class to access the repository for searches.
+     * @param groupExpander The group expander used to get the group members details.
      * @param costService Stub to get cost/expense information.
      * @param thinTargetCache Utility that cashes target-related information we need on each
      *                        business account.
      */
     public BusinessAccountRetriever(@Nonnull final RepositoryApi repositoryApi,
+                                    @Nonnull final GroupExpander groupExpander,
                                     @Nonnull final CostServiceBlockingStub costService,
                                     @Nonnull final ThinTargetCache thinTargetCache) {
-        this(repositoryApi, thinTargetCache, new BusinessAccountMapper(thinTargetCache, new SupplementaryDataFactory(costService)));
+        this(repositoryApi, groupExpander, thinTargetCache, new BusinessAccountMapper(thinTargetCache, new SupplementaryDataFactory(costService)));
     }
 
     @VisibleForTesting
     BusinessAccountRetriever(@Nonnull final RepositoryApi repositoryApi,
+                             @Nonnull final GroupExpander groupExpander,
                              @Nonnull final ThinTargetCache thinTargetCache,
                              @Nonnull final BusinessAccountMapper businessAccountMapper) {
         this.repositoryApi = repositoryApi;
+        this.groupExpander = groupExpander;
         this.thinTargetCache = thinTargetCache;
         this.businessAccountMapper = businessAccountMapper;
     }
@@ -109,35 +116,58 @@ public class BusinessAccountRetriever {
     }
 
     /**
-     * Find all discovered business units discovered by targets in the scope.  If scope is null
+     * Find all discovered business units based on the input scope. If scope is null
      * or empty, return all discovered business units.
      *
-     * @param scopeUuids a list of target ids.
-     * @return Set of discovered business units.
+     * @param scopeUuids The list of input IDs.
+     * @return The set of discovered business units.
      */
     public List<BusinessUnitApiDTO> getBusinessAccountsInScope(@Nullable List<String> scopeUuids) {
-        // TODO - handle more scopes than just targets.
-        final Set<Long> scopeTargets = CollectionUtils.emptyIfNull(scopeUuids).stream()
-            .filter(StringUtils::isNumeric)
-            .map(Long::parseLong)
-            .filter(oid -> thinTargetCache.getTargetInfo(oid).isPresent())
-            .collect(Collectors.toSet());
+        boolean allAccounts = true;
+        final SearchParameters.Builder builder = SearchProtoUtil.makeSearchParameters(SearchProtoUtil
+            .entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT));
 
-        final SearchParameters.Builder builder = SearchProtoUtil.makeSearchParameters(
-            SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT));
-        if (!scopeTargets.isEmpty()) {
-            // The search will only return business accounts discovered by the specific targets.
-            builder.addSearchFilter(SearchProtoUtil.searchFilterProperty(
-                SearchProtoUtil.discoveredBy(scopeTargets)));
+        Set<Long> numericIds = CollectionUtils.emptyIfNull(scopeUuids).stream()
+            .filter(StringUtils::isNumeric)
+            .map(Long::parseLong).collect(Collectors.toSet());
+
+        if (!numericIds.isEmpty()) {
+            // We need to distinguish between the "get all business accounts" case and the
+            // "get some" business accounts case. For now, the presence of scope targets is
+            // sufficient. When we support additional scopes this will need to change.
+            allAccounts = false;
+
+            final Set<Long> targetIds = numericIds.stream()
+                .filter(oid -> thinTargetCache.getTargetInfo(oid).isPresent())
+                .collect(Collectors.toSet());
+
+            if (!targetIds.isEmpty()) {
+                // The search will only return business accounts discovered by the specific targets.
+                builder.addSearchFilter(SearchProtoUtil.searchFilterProperty(
+                    SearchProtoUtil.discoveredBy(targetIds)));
+            } else {
+                String firstIdAsStr = numericIds.iterator().next().toString();
+
+                // Check if the first ID is a valid group ID.
+                Optional<Grouping> groupOptional = groupExpander.getGroup(firstIdAsStr);
+                if (groupOptional.isPresent()) {
+                    // Valid Group ID found. Expand its members to get the list of Account OIDs.
+                    final Set<Long> expandedOidsList = groupExpander.expandUuid(firstIdAsStr);
+                    builder.addSearchFilter(SearchProtoUtil
+                        .searchFilterProperty(SearchProtoUtil.idFilter(expandedOidsList)));
+                } else {
+                    builder.addSearchFilter(SearchProtoUtil
+                        .searchFilterProperty(SearchProtoUtil.idFilter(numericIds)));
+                }
+            }
+        } else {
+            logger.debug("The input scope list doesn't contain numeric IDs. Returning all Business Units.");
         }
 
-        final List<TopologyEntityDTO> businessAccounts = repositoryApi.newSearchRequest(builder.build())
+        List<TopologyEntityDTO> businessAccounts = repositoryApi.newSearchRequest(builder.build())
             .getFullEntities()
             .collect(Collectors.toList());
-        // We need to distinguish between the "get all business accounts" case and the
-        // "get some" business accounts case. For now, the presence of scope targets is
-        // sufficient. When we support additional scopes this will need to change.
-        final boolean allAccounts = scopeTargets.isEmpty();
+
         return businessAccountMapper.convert(businessAccounts, allAccounts);
     }
 
