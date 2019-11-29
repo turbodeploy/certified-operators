@@ -35,7 +35,7 @@ import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrot
 public class Suspension {
 
     // a set to keep all traders that is the sole seller in any market.
-    private @NonNull Set<@NonNull Trader> soleProviders = new HashSet<@NonNull Trader>();
+    private @NonNull Set<@NonNull Trader> soleProviders = new HashSet<>();
     // Keeps track of the guaranteed buyers who have had a supplier suspend
     private @NonNull Set<@NonNull Trader> guaranteedBuyersWithSuspensions = new HashSet<>();
 
@@ -47,7 +47,7 @@ public class Suspension {
     // this trader can not move out of it. So it should not be selected again because there will
     // always be some customers staying on it.
     private @NonNull Set<@NonNull Trader> unprofitableSellersCouldNotSuspend =
-                                                                             new HashSet<@NonNull Trader>();
+                                                                             new HashSet<>();
     private Ledger ledger_;
 
     private PriorityQueue<Trader> suspensionCandidateHeap_ = new PriorityQueue<>((t1, t2) -> {
@@ -361,10 +361,12 @@ public class Suspension {
         final List<@NonNull Trader> guaranteedBuyers = GuaranteedBuyerHelper
                 .findGuaranteedBuyers(traderToSuspend);
         // Do not allow a suspension if the trader's guaranteed buyer already had a supplier
-        // suspend.
+        // suspend. Unless it is a provider of resize through supplier so we are not limited in
+        // suspending only 1 host per cluster for vSan.
         // TODO This needs to eventually be handled by the suspension throttling mechanism by
         // creating groups for each guaranteed buyer.
-        if (guaranteedBuyers.stream().anyMatch(guaranteedBuyersWithSuspensions::contains)) {
+        if (guaranteedBuyers.stream().anyMatch(guaranteedBuyersWithSuspensions::contains)
+                        && !Utility.isProviderOfResizeThroughSupplierTrader(traderToSuspend)) {
             return false;
         }
 
