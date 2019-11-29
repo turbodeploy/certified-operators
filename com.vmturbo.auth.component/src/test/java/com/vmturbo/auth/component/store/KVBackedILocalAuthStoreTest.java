@@ -1,5 +1,6 @@
 package com.vmturbo.auth.component.store;
 
+import static com.vmturbo.auth.component.store.AuthProviderRoleTest.getAuthentication;
 import static org.mockito.Mockito.spy;
 
 import java.util.Arrays;
@@ -113,6 +114,9 @@ public class KVBackedILocalAuthStoreTest {
         System.setProperty("com.vmturbo.keydir", tempFolder.newFolder().getAbsolutePath());
         System.setProperty("com.vmturbo.kvdir", tempFolder.newFolder().getAbsolutePath());
         groupServiceClient = GroupServiceGrpc.newBlockingStub(mockServer.getChannel());
+        // always require security context in auth component: "defense-in-depth" principle.
+        SecurityContextHolder.getContext()
+                .setAuthentication(getAuthentication("ROLE_OBSERVER", "OBSERVER"));
     }
 
     @Test

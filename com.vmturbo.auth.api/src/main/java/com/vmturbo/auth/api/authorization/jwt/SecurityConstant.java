@@ -52,7 +52,14 @@ public class SecurityConstant {
      */
     public static final String COMPONENT_ATTRIBUTE = "x-turbo-component";
 
+    /**
+     * All roles in the JWT begin with this prefix.
+     */
     public static final String ROLE_STRING = "ROLE_";
+
+    /**
+     * The role for the ADMINISTRATOR user.
+     */
     public static final String ADMINISTRATOR = "administrator";
 
     /**
