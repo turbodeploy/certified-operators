@@ -24,7 +24,9 @@ global:
 #  externalSyslog: a608c38591a9f11e9ad190efbcf8c7e5-1236730884.us-east-1.elb.amazonaws.com
 #  debug: true
   dev_options: "-agentlib:jdwp=transport=dt_socket,address=0.0.0.0:8000,server=y,suspend=n"
-  certmanager: false
+  certmanager:
+    enabled: false
+    certissuer: letsencrypt-prod
   ingress:
     # domain: *.turbonomic.com
     secrets:
@@ -52,6 +54,12 @@ kubeturbo:
 training:
   enabled: false
 
+loki:
+  enabled: false
+promtail:
+  enabled: false
+fluent-bit:
+  enabled: false
 prometheus:
   enabled: false
 grafana:

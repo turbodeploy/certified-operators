@@ -108,7 +108,7 @@ spec:
   - {{ .Values.global.externalIP }}
   {{ end }}
 ---
-  {{- if .Values.global.certmanager }}
+  {{- if .Values.global.certmanager.enabled }}
 apiVersion: cert-manager.io/v1alpha2
 kind: Certificate
 metadata:
@@ -116,7 +116,7 @@ metadata:
 spec:
   secretName: nginx-ingressgateway-certs
   issuerRef:
-    name: letsencrypt-prod
+    name: {{ .Values.global.certmanager.issuer }}
   commonName: {{ .Values.global.ingress.domain | default "*.turbonomic.com" | quote }}
   acme:
     config:

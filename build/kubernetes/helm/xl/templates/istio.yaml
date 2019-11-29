@@ -132,27 +132,15 @@ spec:
     spec:
       containers:
       - name: istio-proxy
-        image: "docker.io/istio/proxyv2:1.2.3"
+        image: docker.io/istio/proxyv2:1.4.0
         imagePullPolicy: IfNotPresent
-        ports:
-        - containerPort: 15020
-        - containerPort: 80
-        - containerPort: 443
-        - containerPort: 31400
-        - containerPort: 15029
-        - containerPort: 15030
-        - containerPort: 15031
-        - containerPort: 15032
-        - containerPort: 15443
-        - containerPort: 15090
-          protocol: TCP
-          name: http-envoy-prom
         args:
         - proxy
         - router
         - --domain
         - $(POD_NAMESPACE).svc.cluster.local
-        - --log_output_level=default:info
+        - --log_output_level
+        - info
         - --drainDuration
         - '45s' #drainDuration
         - --parentShutdownDuration
@@ -167,33 +155,18 @@ spec:
         - "15000"
         - --statusPort
         - "15020"
+{{- if .Values.istioingress.mtls }}
+        - --controlPlaneAuthPolicy
+        - NONE
+        - --discoveryAddress
+        - istio-pilot.istio-system.svc.cluster.local:15010
+{{ else }}
         - --controlPlaneAuthPolicy
         - MUTUAL_TLS
         - --discoveryAddress
         - istio-pilot.istio-system.svc.cluster.local:15011
-        readinessProbe:
-          failureThreshold: 30
-          httpGet:
-            path: /healthz/ready
-            port: 15020
-            scheme: HTTP
-          initialDelaySeconds: 1
-          periodSeconds: 2
-          successThreshold: 1
-          timeoutSeconds: 1
-        resources:
-          limits:
-            cpu: 2000m
-            memory: 1024Mi
-          requests:
-            cpu: 10m
-            memory: 40Mi
+{{- end }}
         env:
-        - name: NODE_NAME
-          valueFrom:
-            fieldRef:
-              apiVersion: v1
-              fieldPath: spec.nodeName
         - name: POD_NAME
           valueFrom:
             fieldRef:
@@ -214,6 +187,11 @@ spec:
             fieldRef:
               apiVersion: v1
               fieldPath: status.hostIP
+        - name: SERVICE_ACCOUNT
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.serviceAccountName
         - name: ISTIO_META_POD_NAME
           valueFrom:
             fieldRef:
@@ -226,6 +204,55 @@ spec:
               fieldPath: metadata.namespace
         - name: ISTIO_META_ROUTER_MODE
           value: sni-dnat
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
+        - name: ISTIO_META_WORKLOAD_NAME
+          value: t8c-istio-ingressgateway
+        - name: ISTIO_META_OWNER
+          value: kubernetes://api/apps/v1/namespaces/{{ .Release.Namespace }}/deployments/t8c-istio-ingressgateway
+        - name: ISTIO_META_USER_SDS
+          value: "false"
+        - name: SDS_ENABLED
+          value: "false"
+        - name: ISTIO_META_CLUSTER_ID
+          value: Kubernetes
+        - name: ISTIO_METAJSON_LABELS
+          value: '{"app":"{{ .Chart.Name }}","istio":"t8c-ingressgateway-{{ .Release.Name }}"}'
+        - name: ISTIO_META_MESH_ID
+          value: cluster.local
+        ports:
+        - containerPort: 15020
+          name: status-port
+        - containerPort: 80
+          name: http2
+        - containerPort: 443
+          name: https
+        - containerPort: 15443
+          name: tls
+        - containerPort: 15090
+          name: http-envoy-prom
+        readinessProbe:
+          failureThreshold: 30
+          httpGet:
+            path: /healthz/ready
+            port: 15020
+            scheme: HTTP
+          initialDelaySeconds: 1
+          periodSeconds: 2
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: "2"
+            memory: 1Gi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
         volumeMounts:
         - name: istio-certs
           mountPath: /etc/certs
@@ -236,6 +263,11 @@ spec:
         - name: ingressgateway-ca-certs
           mountPath: "/etc/istio/ingressgateway-ca-certs"
           readOnly: true
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
       volumes:
       - name: istio-certs
         secret:
@@ -281,7 +313,7 @@ spec:
     port: 15443
 ---
   {{- end }}
-  {{- if .Values.global.certmanager }}
+  {{- if .Values.global.certmanager.enabled }}
 apiVersion: cert-manager.io/v1alpha2
 kind: Certificate
 metadata:
@@ -293,7 +325,7 @@ metadata:
 spec:
   secretName: istio-ingressgateway-certs
   issuerRef:
-    name: letsencrypt-prod
+    name: {{ .Values.global.certmanager.issuer }}
   commonName: {{ .Values.global.ingress.domain | default "*.turbonomic.com" | quote }}
   acme:
     config:

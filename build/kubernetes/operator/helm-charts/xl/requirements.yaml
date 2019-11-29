@@ -107,6 +107,18 @@ dependencies:
     repository: file://../base/logstash
     version: 1.7.0
     condition: global.elk
+  - name: loki
+    repository: file://../base/loki
+    version: "^0.6.0"
+    condition: loki.enabled
+  - name: promtail
+    repository: file://../base/promtail
+    version: "^0.6.0"
+    condition: promtail.enabled
+  - name: fluent-bit
+    repository: file://../base/fluent-bit
+    version: "^0.0.1"
+    condition: fluent-bit.enabled
 
 # Monitoring dependencies
   - name: prometheus

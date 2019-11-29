@@ -298,6 +298,12 @@ datasources:
       access: proxy
       database: metron
       isDefault: false
+    - name: Loki
+      type: loki
+      url: http://loki:3100
+      access: proxy
+      database: metron
+      isDefault: false
 
 ## Configure notifiers
 ## ref: http://docs.grafana.org/administration/provisioning/#alert-notification-channels
