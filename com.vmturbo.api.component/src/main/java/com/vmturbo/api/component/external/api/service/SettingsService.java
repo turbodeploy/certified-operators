@@ -331,32 +331,4 @@ public class SettingsService implements ISettingsService {
             scope.getEntityTypeSet().getEntityTypeList().contains(targetEntityType);
     }
 
-    /**
-     * get a setting by entity or group uuid, settings manager name and setting name
-     * GET /entities/{uuid}/settings/{manager_uuid}/{setting_uuid}/
-     *
-     * @param uuid     of entity or group
-     * @param manUuid  name of settings manager
-     * @param settUuid name of setting
-     * @return SettingApiDTO
-     * @throws Exception
-     */
-    public <T extends Serializable> SettingApiDTO<T> getSettingByGroupOrEntity(String uuid, String manUuid,
-                                            String settUuid) throws Exception {
-        throw ApiUtils.notImplementedInXL();
-    }
-
-    /**
-     * get list of settings by entity or group uuid and settings manager name
-     * GET /entities/{uuid}/settings/{manager_uuid}/
-     *
-     * @param uuid    of entity or group
-     * @param manUuid name of settings manager
-     * @return list of SettingApiDTO
-     * @throws Exception
-     */
-    public List<? extends SettingApiDTO<?>> getSettingsManagerByGroupOrEntity(String uuid, String manUuid
-    ) throws Exception {
-        throw ApiUtils.notImplementedInXL();
-    }
 }

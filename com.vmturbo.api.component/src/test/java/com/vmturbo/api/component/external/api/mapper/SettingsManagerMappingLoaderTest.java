@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -13,11 +14,14 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.gson.Gson;
 
 import org.junit.Test;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.gson.Gson;
 
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.PlanSettingInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
@@ -132,4 +136,78 @@ public class SettingsManagerMappingLoaderTest {
         assertThat(mgr.getUuid(), is("mgr"));
         assertThat(mgr.getDisplayName(), is("name"));
     }
+
+    /**
+     * Test the ability to get all setting names owned by a speific manager.
+     */
+    @Test
+    public void testGetSettingsByManager() {
+        // create a test mapping with managerA and managerB
+        final SettingsManagerInfo settingsManagerInfoA = new SettingsManagerInfo("managerA",
+                "category",
+                ImmutableSet.of("settingA1", "settingA2"), mock(PlanSettingInfo.class));
+        final SettingsManagerInfo settingsManagerInfoB = new SettingsManagerInfo("managerB",
+                "category",
+                ImmutableSet.of("settingB1", "settingB2"), mock(PlanSettingInfo.class));
+        final SettingsManagerMapping managerMapping = new SettingsManagerMapping(
+                ImmutableMap.of("managerA", settingsManagerInfoA, "managerB", settingsManagerInfoB),
+                ImmutableMap.of("settingA1", "managerA",
+                        "settingA2", "managerA",
+                        "settingB1", "managerB",
+                        "settingB2", "managerB"));
+
+        // verify that we can request settings for one manager but not the other
+        final Set<String> settingsForB = managerMapping.getSettingNamesForManagers(ImmutableList.of("managerB"));
+        assertThat(settingsForB, containsInAnyOrder("settingB1", "settingB2"));
+        // no manager A settings are returned.
+        assertFalse(settingsForB.contains("settingA1"));
+        // if you request no managers, you should get an empty set back
+        assertTrue(managerMapping.getSettingNamesForManagers(null).isEmpty());
+        assertTrue(managerMapping.getSettingNamesForManagers(Collections.emptyList()).isEmpty());
+
+    }
+
+    /**
+     * Verify that if you ask for settings for an unrecognized manager, an error will be thrown.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetSettingsByManagerNonexistentManager() {
+        final SettingsManagerMapping managerMapping = new SettingsManagerMapping(
+                Collections.emptyMap(),
+                Collections.emptyMap());
+
+        assertTrue(managerMapping.getSettingNamesForManagers(ImmutableList.of("madeUpManager")).isEmpty());
+    }
+
+    /**
+     * Test requests for settings by setting name.
+     */
+    @Test
+    public void testGetSettingsByName() {
+        // create a test mapping with managerA and managerB
+        final SettingsManagerInfo settingsManagerInfoA = new SettingsManagerInfo("managerA",
+                "category",
+                ImmutableSet.of("settingA1", "settingA2"), mock(PlanSettingInfo.class));
+        final SettingsManagerInfo settingsManagerInfoB = new SettingsManagerInfo("managerB",
+                "category",
+                ImmutableSet.of("settingB1", "settingB2"), mock(PlanSettingInfo.class));
+        final SettingsManagerMapping managerMapping = new SettingsManagerMapping(
+                ImmutableMap.of("managerA", settingsManagerInfoA, "managerB", settingsManagerInfoB),
+                ImmutableMap.of("settingA1", "managerA",
+                        "settingA2", "managerA",
+                        "settingB1", "managerB",
+                        "settingB2", "managerB"));
+
+        // verify that we can request settings for one manager but not the other
+        final Set<String> settingsForB = managerMapping.getSettingNamesForManagers(ImmutableList.of("managerB"));
+        assertThat(settingsForB, containsInAnyOrder("settingB1", "settingB2"));
+        // no manager A settings are returned.
+        assertFalse(settingsForB.contains("settingA1"));
+        // if you request no managers, you should get an empty set back
+        assertTrue(managerMapping.getSettingNamesForManagers(null).isEmpty());
+        assertTrue(managerMapping.getSettingNamesForManagers(Collections.emptyList()).isEmpty());
+
+    }
+
+
 }

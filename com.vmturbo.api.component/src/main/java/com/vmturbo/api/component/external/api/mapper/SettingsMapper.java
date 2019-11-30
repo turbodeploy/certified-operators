@@ -1,6 +1,5 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import java.io.Serializable;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
@@ -165,6 +164,15 @@ public class SettingsMapper {
     public static final String GLOBAL_ACTION_SETTING_NAME = "Global Action Mode Defaults";
 
     public static final int GLOBAL_ACTION_SETTING_NAME_ID = 55555;
+
+    /**
+     * The special setting manager name for the nightly plan cluster headroom settings.
+     */
+    public static final String CLUSTER_HEADROOM_SETTINGS_MANAGER = "capacityplandatamanager";
+    /**
+     * The special setting name for the headroom template used for calculating cluster headroom.
+     */
+    public static final String CLUSTER_HEADROOM_TEMPLATE_SETTING_UUID = "templateName";
 
     /**
      * A constant indicating that a {@link SettingSpec} has no associated setting manager.
@@ -1468,22 +1476,36 @@ public class SettingsMapper {
      * @return the SettingsManagerApiDTO with the name of the template
      */
     @Nonnull
-    public SettingsManagerApiDTO toSettingsManagerApiDTO(Template template) {
+    public static SettingsManagerApiDTO toSettingsManagerApiDTO(Template template) {
         String templateName = template.getTemplateInfo().getName();
 
         SettingsManagerApiDTO settingsManagerApiDto = new SettingsManagerApiDTO();
-        settingsManagerApiDto.setUuid("capacityplandatamanager");
+        settingsManagerApiDto.setUuid(CLUSTER_HEADROOM_SETTINGS_MANAGER);
         settingsManagerApiDto.setDisplayName(templateName);
 
-        SettingApiDTO<Serializable> settingApiDTO = new SettingApiDTO();
-        settingApiDTO.setDisplayName("Template Name");
-        settingApiDTO.setValue(templateName);
-        settingApiDTO.setValueDisplayName(templateName);
-        List<SettingApiDTO<Serializable>> list = new ArrayList<>();
-        list.add(settingApiDTO);
-        settingsManagerApiDto.setSettings(list);
+        settingsManagerApiDto.setSettings(Collections.singletonList(toHeadroomTemplateSetting(template)));
 
         return settingsManagerApiDto;
+    }
+
+    /**
+     * Given a "headroom" {@link Template} object, create a corresponding {@link SettingApiDTO} that represents
+     * a headroom template setting based on that template.
+     *
+     * @param template the template to be converted
+     * @return the SettingApiDTO for that template
+     */
+    @Nonnull
+    public static SettingApiDTO<String> toHeadroomTemplateSetting(Template template) {
+        String templateName = template.getTemplateInfo().getName();
+        SettingApiDTO settingApiDTO = new SettingApiDTO();
+        settingApiDTO.setUuid(SettingsMapper.CLUSTER_HEADROOM_TEMPLATE_SETTING_UUID);
+        settingApiDTO.setDisplayName("Template Name");
+        settingApiDTO.setValue(Long.toString(template.getId()));
+        settingApiDTO.setValueType(InputValueType.STRING);
+        settingApiDTO.setValueDisplayName(templateName);
+        settingApiDTO.setEntityType(UIEntityType.PHYSICAL_MACHINE.apiStr());
+        return settingApiDTO;
     }
 }
 

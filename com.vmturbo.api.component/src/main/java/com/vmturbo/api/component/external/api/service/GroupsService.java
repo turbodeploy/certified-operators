@@ -76,7 +76,6 @@ import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
-import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
@@ -165,8 +164,6 @@ public class GroupsService implements IGroupsService {
 
     private static final String CLUSTER_HEADROOM_GROUP_UUID = "GROUP-PhysicalMachineByCluster";
     private static final String STORAGE_CLUSTER_HEADROOM_GROUP_UUID = "GROUP-StorageByStorageCluster";
-    private static final String CLUSTER_HEADROOM_SETTINGS_MANAGER = "capacityplandatamanager";
-    private static final String CLUSTER_HEADROOM_TEMPLATE_SETTING_UUID = "templateName";
     private final ActionsServiceBlockingStub actionOrchestratorRpc;
 
     private final GroupServiceBlockingStub groupServiceRpc;
@@ -428,6 +425,69 @@ public class GroupsService implements IGroupsService {
         return mgrs;
     }
 
+    @Override
+    public SettingApiDTO getSettingByGroup(final String groupUuid, final String settingManagerUuid,
+                                           final String settingUuid) throws Exception {
+        Optional<Grouping> maybeGroup = groupExpander.getGroup(groupUuid);
+        if (!maybeGroup.isPresent()) {
+            throw new IllegalArgumentException(groupUuid + " is not a group id.");
+        }
+        Grouping group = maybeGroup.get();
+
+        // we don't even need to check the settingManagerUuid, to be honest. the settingUuid should
+        // be enough of an ID in XL.
+        // if we are requesting the special "headroom template" setting then we don't need to go to the
+        // setting service.Grouping
+        if (SettingsMapper.CLUSTER_HEADROOM_TEMPLATE_SETTING_UUID.equalsIgnoreCase(settingUuid)) {
+            return getTemplateSetting(group.getId());
+        } else {
+            // for the other managers, we need to get the setting from the setting service. We'll
+            // use the entitySettingQueryExecutor for now. We could probably optimize the call a bit
+            // since we're only expecting a limited result, but since this is an "undocumented API"
+            // right now, not going to worry about performance yet.
+            Optional<SettingApiDTO> optionalSetting = entitySettingQueryExecutor.getEntitySettings(
+                    uuidMapper.fromUuid(groupUuid),
+                    false,
+                    Collections.singleton(settingUuid))
+                    .stream()
+                    .map(settingManager -> settingManager.getSettings())
+                    .flatMap(List::stream)
+                    .map(setting -> (SettingApiDTO) setting)
+                    .findFirst();
+
+            if (!optionalSetting.isPresent()) {
+                throw new UnknownObjectException("Setting " + settingUuid + " not found for id " + groupUuid);
+            }
+            return optionalSetting.get();
+        }
+    }
+
+    @Override
+    public List<? extends SettingApiDTO<?>> getSettingsByGroupAndManager(final String groupUuid,
+                                                         final String settingManagerUuid) throws Exception {
+        Optional<Grouping> maybeGroup = groupExpander.getGroup(groupUuid);
+        if (!maybeGroup.isPresent()) {
+            throw new IllegalArgumentException(groupUuid + " is not a group id.");
+        }
+
+        Grouping group = maybeGroup.get();
+        // if we are requesting the special "capacity plan data manager" we won't even go to the
+        // setting service.
+        if (SettingsMapper.CLUSTER_HEADROOM_SETTINGS_MANAGER.equalsIgnoreCase(settingManagerUuid)) {
+            return Collections.singletonList(getTemplateSetting(group.getId()));
+        } else {
+            // for the other managers, we need to get the settings from the setting service.
+            return entitySettingQueryExecutor.getEntitySettings(
+                    uuidMapper.fromUuid(groupUuid),
+                    false,
+                    settingsManagerMapping.getSettingNamesForManagers(Collections.singleton(settingManagerUuid)))
+                    .stream()
+                        .map(SettingsManagerApiDTO::getSettings)
+                        .flatMap(List::stream)
+                        .collect(Collectors.toList());
+        }
+    }
+
     /**
      * Populate the SettingsManagerApiDTO object with data from managerInfo and the template setting.
      *
@@ -440,7 +500,7 @@ public class GroupsService implements IGroupsService {
             @Nonnull SettingsManagerInfo managerInfo,
             @Nonnull SettingApiDTO<String> templateSetting) {
         final SettingsManagerApiDTO settingsManager = new SettingsManagerApiDTO();
-        settingsManager.setUuid(CLUSTER_HEADROOM_SETTINGS_MANAGER);
+        settingsManager.setUuid(SettingsMapper.CLUSTER_HEADROOM_SETTINGS_MANAGER);
         settingsManager.setDisplayName(managerInfo.getDisplayName());
         settingsManager.setCategory(managerInfo.getDefaultCategory());
         settingsManager.setSettings(Collections.singletonList(templateSetting));
@@ -485,18 +545,7 @@ public class GroupsService implements IGroupsService {
     private SettingApiDTO<String> getTemplateSetting(long groupId) throws UnknownObjectException {
         Template headroomTemplate = getHeadroomTemplate(groupId);
 
-
-        String templateName = headroomTemplate.getTemplateInfo().getName();
-        String templateId = Long.toString(headroomTemplate.getId());
-
-        SettingApiDTO<String> setting = new SettingApiDTO<>();
-        setting.setUuid(CLUSTER_HEADROOM_TEMPLATE_SETTING_UUID);
-        setting.setValue(templateId);
-        setting.setValueDisplayName(templateName);
-        setting.setValueType(InputValueType.STRING);
-        setting.setEntityType(UIEntityType.PHYSICAL_MACHINE.apiStr());
-
-        return setting;
+        return SettingsMapper.toHeadroomTemplateSetting(headroomTemplate);
     }
 
     /**
@@ -528,8 +577,8 @@ public class GroupsService implements IGroupsService {
                                                  SettingApiDTO<String> setting)
             throws Exception {
         // Update the cluster headroom template ID
-        if (settingUuid.equals(CLUSTER_HEADROOM_TEMPLATE_SETTING_UUID) &&
-                managerName.equals(CLUSTER_HEADROOM_SETTINGS_MANAGER)) {
+        if (settingUuid.equals(SettingsMapper.CLUSTER_HEADROOM_TEMPLATE_SETTING_UUID) &&
+                managerName.equals(SettingsMapper.CLUSTER_HEADROOM_SETTINGS_MANAGER)) {
             try {
                  templateService.updateHeadroomTemplateForCluster(
                      TemplateDTO.UpdateHeadroomTemplateRequest.newBuilder()

@@ -17,6 +17,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -158,6 +159,34 @@ public class SettingsManagerMappingLoader {
         @Nonnull
         public Optional<SettingsManagerInfo> getManagerInfo(@Nonnull final String mgrUuid) {
             return Optional.ofNullable(managersByUuid.get(mgrUuid));
+        }
+
+        /**
+         * Given a collection of manager names, get the set of setting names controlled by the managers. If
+         * the collection of names is empty, then the return set will be empty too.
+         *
+         * <p>This will generate an {@link IllegalArgumentException} if an unrecognized manager id is requested.
+         *
+         * @param managerUuids the collection of manager uuids to find settings for.
+         * @return the set of setting names owned by the input managers, or an empty set if no managers
+         * were specified.
+         */
+        public Set<String> getSettingNamesForManagers(@Nullable Collection<String> managerUuids) {
+            // get the list of setting names owned by te specified set of managers. If the manager uuid
+            // collection is empty, then the return value will be empty too.
+            return managerUuids == null
+                    ? Collections.emptySet()
+                    : managerUuids.stream()
+                    .map(managerUuid -> {
+                        Optional<SettingsManagerInfo> settingsManagerInfo = getManagerInfo(managerUuid);
+                        if (!settingsManagerInfo.isPresent()) {
+                            throw new IllegalArgumentException("Unsupported manager: " + managerUuid);
+                        }
+                        return settingsManagerInfo.get();
+                    })
+                    .map(SettingsManagerInfo::getSettings)
+                    .flatMap(Set::stream)
+                    .collect(Collectors.toSet());
         }
 
         /**

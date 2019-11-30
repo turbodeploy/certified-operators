@@ -60,6 +60,7 @@ import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
+import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
@@ -356,6 +357,16 @@ public class EntitiesService implements IEntitiesService {
         final List<SettingsManagerApiDTO> retMgrs =
             entitySettingQueryExecutor.getEntitySettings(id, includePolicies);
         return retMgrs;
+    }
+
+    @Override
+    public SettingApiDTO getSettingByEntity(final String s, final String s1, final String s2) throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Override
+    public List<? extends SettingApiDTO<?>> getSettingsByEntityAndManager(final String s, final String s1) throws Exception {
+        throw ApiUtils.notImplementedInXL();
     }
 
     @Override

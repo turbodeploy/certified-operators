@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.util.setting;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -14,11 +15,12 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import com.google.common.base.Preconditions;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.base.Preconditions;
 
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
@@ -106,9 +108,30 @@ public class EntitySettingQueryExecutor {
     @Nonnull
     public List<SettingsManagerApiDTO> getEntitySettings(@Nonnull final ApiId scope,
                                                          final boolean includePolicyBreakdown) {
+        return getEntitySettings(scope, includePolicyBreakdown, null);
+    }
 
+    /**
+     * Get the entity settings associated with a particular scope, optionally filtered by "settings
+     * manager" name.
+     *
+     * <p>This will return both the setting descriptions and the current values.
+     *
+     * @param scope The scope for the query - this can be a group or an individual entity.
+     * @param includePolicyBreakdown Whether or not to include which policies the settings come from.
+     *                  If this is false, and the scope is a group, we will only return
+     *                  the "dominant" setting value for each setting active on the group. The
+     *                  dominant value is the one that applies to the most entities.
+     * @param settingNames If specified, will only request the specified setting names.
+     * @return The settings active on this scope, represented as {@link SettingsManagerApiDTO}s,
+     *          restricted to the specified managers.
+     */
+    @Nonnull
+    public List<SettingsManagerApiDTO> getEntitySettings(@Nonnull final ApiId scope,
+                                                         final boolean includePolicyBreakdown,
+                                                         @Nullable Collection<String> settingNames) {
         final Set<UIEntityType> types = scope.getScopeTypes().isPresent() ?
-                        scope.getScopeTypes().get() : Collections.emptySet();
+                scope.getScopeTypes().get() : Collections.emptySet();
         final Set<Long> oids;
         if (scope.isGroup()) {
             oids = groupExpander.expandOids(Collections.singleton(scope.oid()));
@@ -120,6 +143,7 @@ public class EntitySettingQueryExecutor {
             GetEntitySettingsRequest.newBuilder()
                 .setSettingFilter(EntitySettingFilter.newBuilder()
                     .addAllEntities(oids)
+                    .addAllSettingName(settingNames != null ? settingNames : Collections.emptyList())
                     .build())
                 .setIncludeSettingPolicies(includePolicyBreakdown)
                 .build();
