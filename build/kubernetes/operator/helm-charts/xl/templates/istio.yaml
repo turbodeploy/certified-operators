@@ -102,7 +102,7 @@ spec:
           number: 8080
     websocketUpgrade: true
 {{- if .Values.istioingress.routes }}
-{{ toYaml .Values.istioingress.routes | indent 8 }}
+{{ toYaml .Values.istioingress.routes | indent 2 }}
 {{- end }}
 ---
 apiVersion: apps/v1
