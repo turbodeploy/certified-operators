@@ -32,7 +32,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.forecasting.TimeInMillisConstants;
-import com.vmturbo.commons.utils.ThrowingFunction;
+import com.vmturbo.components.common.utils.ThrowingFunction;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
