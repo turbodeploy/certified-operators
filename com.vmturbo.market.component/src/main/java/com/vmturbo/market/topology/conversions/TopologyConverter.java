@@ -626,7 +626,7 @@ public class TopologyConverter {
                                               @Nonnull Optional<EntityReservedInstanceCoverage> originalRiCoverage) {
         // Are any of the shopping lists of the projected trader placed on discounted tier?
         Optional<ShoppingListTO> projectedRiTierSl = getShoppingListSuppliedByRiTier(projectedTraderTO);
-
+        final long entityId = projectedTraderTO.getOid();
         if (projectedRiTierSl.isPresent()) {
             // Destination is RI. Get the projected RI Tier and the projected coupon comm bought.
             RiDiscountedMarketTier projectedRiTierDestination = (RiDiscountedMarketTier)
@@ -664,12 +664,13 @@ public class TopologyConverter {
                 // The information of the number of coupons to use is present in the coupon
                 // commodity bought of the trader
                 final Map<Long, Double> riIdtoCouponsOfRIUsed = projectedRiTierDestination
-                        .useCoupons(projectedTraderTO.getOid(), projectedCouponCommBought.get().getQuantity());
+                        .useCoupons(entityId, projectedCouponCommBought.get().getQuantity());
                 if (!riIdtoCouponsOfRIUsed.isEmpty()) {
                     EntityReservedInstanceCoverage riCoverage = EntityReservedInstanceCoverage.newBuilder()
                             .putAllCouponsCoveredByRi(riIdtoCouponsOfRIUsed)
-                            .setEntityCouponCapacity(destinationCouponCap).build();
-                    projectedReservedInstanceCoverage.put(projectedTraderTO.getOid(), riCoverage);
+                            .setEntityCouponCapacity(destinationCouponCap)
+                            .setEntityId(entityId).build();
+                    projectedReservedInstanceCoverage.put(entityId, riCoverage);
                 }
             } else {
                 // Entity stayed on the same RI Tier. Check if the coverage changed.
@@ -685,16 +686,17 @@ public class TopologyConverter {
                         originalNumberOfCouponsBought)) {
                     // Coverage changed. Create a new RICoverage object
                     final Map<Long, Double> riIdtoCouponsOfRIUsed = projectedRiTierDestination
-                            .useCoupons(projectedTraderTO.getOid(), projectedNumberOfCouponsBought);
+                            .useCoupons(entityId, projectedNumberOfCouponsBought);
                     if (!riIdtoCouponsOfRIUsed.isEmpty()) {
                         EntityReservedInstanceCoverage riCoverage = EntityReservedInstanceCoverage.newBuilder()
                                 .putAllCouponsCoveredByRi(riIdtoCouponsOfRIUsed)
-                                .setEntityCouponCapacity(destinationCouponCap).build();
-                        projectedReservedInstanceCoverage.put(projectedTraderTO.getOid(), riCoverage);
+                                .setEntityCouponCapacity(destinationCouponCap)
+                                .setEntityId(entityId).build();
+                        projectedReservedInstanceCoverage.put(entityId, riCoverage);
                     }
                 } else {
                     // Coverage did not change. Use the original ri coverage.
-                    projectedReservedInstanceCoverage.put(projectedTraderTO.getOid(), originalRiCoverage.get());
+                    projectedReservedInstanceCoverage.put(entityId, originalRiCoverage.get());
                 }
             }
         } else {
@@ -703,8 +705,9 @@ public class TopologyConverter {
                 Integer destinationCouponCap = primaryMarketTier.get().getTier().getTypeSpecificInfo()
                                                 .getComputeTier().getNumCoupons();
                 EntityReservedInstanceCoverage riCoverage = EntityReservedInstanceCoverage.newBuilder()
-                        .setEntityCouponCapacity(destinationCouponCap).build();
-                projectedReservedInstanceCoverage.put(projectedTraderTO.getOid(), riCoverage);
+                        .setEntityCouponCapacity(destinationCouponCap)
+                        .setEntityId(entityId).build();
+                projectedReservedInstanceCoverage.put(entityId, riCoverage);
             }
         }
     }
