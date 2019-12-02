@@ -43,7 +43,7 @@ import com.vmturbo.api.dto.admin.ProductCapabilityDTO;
 import com.vmturbo.api.dto.admin.ProductVersionDTO;
 import com.vmturbo.api.dto.admin.SystemStatusApiDTO;
 import com.vmturbo.api.dto.cluster.ClusterConfigurationDTO;
-import com.vmturbo.api.enums.ConfigurationMode;
+import com.vmturbo.api.enums.DeploymentMode;
 import com.vmturbo.api.enums.ConfigurationType;
 import com.vmturbo.api.enums.LoggingLevel;
 import com.vmturbo.api.exceptions.InvalidOperationException;
@@ -151,7 +151,7 @@ public class AdminService implements IAdminService {
 
     private final BuildProperties buildProperties;
 
-    private ConfigurationMode configurationMode;
+    private DeploymentMode deploymentMode;
 
     AdminService(@Nonnull final ClusterService clusterService,
                  @Nonnull final KeyValueStore keyValueStore,
@@ -159,14 +159,14 @@ public class AdminService implements IAdminService {
                  @Nonnull final RestTemplate restTemplate,
                  @Nonnull final ApiWebsocketHandler apiWebsocketHandler,
                  @Nonnull final BuildProperties buildProperties,
-                @Nonnull final ConfigurationMode configurationMode) {
+                @Nonnull final DeploymentMode deploymentMode) {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.keyValueStore = Objects.requireNonNull(keyValueStore);
         this.clusterMgrApi = Objects.requireNonNull(clusterMgrApi);
         this.restTemplate = Objects.requireNonNull(restTemplate);
         this.apiWebsocketHandler = Objects.requireNonNull(apiWebsocketHandler);
         this.buildProperties = buildProperties;
-        this.configurationMode = configurationMode;
+        this.deploymentMode = deploymentMode;
     }
 
     @Override
@@ -471,7 +471,7 @@ public class AdminService implements IAdminService {
     @Override
     public ProductCapabilityDTO getProductCapabilities() throws Exception {
         ProductCapabilityDTO productCapabilityDTO = new ProductCapabilityDTO();
-        productCapabilityDTO.setConfigurationMode(this.configurationMode);
+        productCapabilityDTO.setDeploymentMode(this.deploymentMode);
         productCapabilityDTO.setReportingEnabled(false);
         return productCapabilityDTO;
     }

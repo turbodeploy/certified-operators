@@ -52,7 +52,7 @@ import com.vmturbo.api.dto.admin.ProductCapabilityDTO;
 import com.vmturbo.api.dto.admin.ProductVersionDTO;
 import com.vmturbo.api.dto.cluster.ClusterConfigurationDTO;
 import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
-import com.vmturbo.api.enums.ConfigurationMode;
+import com.vmturbo.api.enums.DeploymentMode;
 import com.vmturbo.api.enums.LoggingLevel;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
@@ -150,7 +150,7 @@ public class AdminServiceTest {
     }
 
     /**
-     * Test {@link AdminService#getVersionInfo(boolean)} with default {@link ConfigurationMode}.
+     * Test {@link AdminService#getVersionInfo(boolean)} with default {@link DeploymentMode}.
      *
      * <p>Server congfiguration sets reporting to true</p>
      * @throws Exception if an error occurs
@@ -161,12 +161,12 @@ public class AdminServiceTest {
         ProductCapabilityDTO dto = serviceUnderTest.getProductCapabilities();
 
         //THEN
-        assertEquals(ConfigurationMode.SERVER, dto.getConfigurationMode());
+        assertEquals(DeploymentMode.SERVER, dto.getDeploymentMode());
         assertFalse(dto.isReportingEnabled());
     }
 
     /**
-     * Test {@link AdminService#getVersionInfo(boolean)} with default {@link ConfigurationMode}.
+     * Test {@link AdminService#getVersionInfo(boolean)} with default {@link DeploymentMode}.
      *
      * @throws Exception if an error occurs
      */
@@ -179,12 +179,12 @@ public class AdminServiceTest {
                 Mockito.mock(RestTemplate.class),
                 Mockito.mock(ApiWebsocketHandler.class),
                 Mockito.mock(BuildProperties.class),
-                ConfigurationMode.SAAS);
+                DeploymentMode.SAAS);
         //WHEN
         ProductCapabilityDTO dto = adminService.getProductCapabilities();
 
         //THEN
-        assertEquals(ConfigurationMode.SAAS, dto.getConfigurationMode());
+        assertEquals(DeploymentMode.SAAS, dto.getDeploymentMode());
         assertFalse(dto.isReportingEnabled());
     }
 
@@ -457,7 +457,7 @@ public class AdminServiceTest {
         @Bean
         public AdminService adminService() {
             return new AdminService(clusterService, keyValueStore(),
-                clusterMgrClient(), restTemplate, apiWebsocketHandler(), buildProperties(), ConfigurationMode.SERVER);
+                clusterMgrClient(), restTemplate, apiWebsocketHandler(), buildProperties(), DeploymentMode.SERVER);
         }
 
         /**
