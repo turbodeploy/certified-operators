@@ -452,6 +452,17 @@ public class CloudDiscoveryConverter {
     }
 
     /**
+     * Get the zone id based on the region id.
+     *
+     * @param regionId id of the region
+     * @return id of the related availability zone
+     */
+    @Nonnull
+    public String getAzIdFromRegionId(@Nonnull String regionId) {
+        return conversionContext.getAzIdFromRegionId(regionId);
+    }
+
+    /**
      * Get the id for the storage tier.
      *
      * @param storageTier name of the storage tier

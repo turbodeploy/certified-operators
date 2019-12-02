@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.execution;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -10,6 +11,9 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 
+import com.vmturbo.action.orchestrator.action.constraint.ActionConstraintStore;
+import com.vmturbo.action.orchestrator.action.constraint.ActionConstraintStoreFactory;
+import com.vmturbo.action.orchestrator.action.constraint.CoreQuotaStore;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.Prerequisite;
@@ -17,8 +21,12 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action.PrerequisiteType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 
 /**
@@ -30,14 +38,6 @@ import com.vmturbo.platform.sdk.common.util.ProbeCategory;
  * require 64-bit AMIs will be generated along with the action.
  */
 class PrerequisiteCalculator {
-
-    // A list of single calculators for different type of pre-requisite.
-    private static List<SinglePrerequisiteCalculator> prerequisiteCalculators = ImmutableList.of(
-        PrerequisiteCalculator::calculatePrerequisiteEna,
-        PrerequisiteCalculator::calculatePrerequisiteNVMe,
-        PrerequisiteCalculator::calculatePrerequisiteArchitecture,
-        PrerequisiteCalculator::calculatePrerequisiteVirtualizationType
-    );
 
     /**
      * Private to prevent instantiation.
@@ -51,10 +51,67 @@ class PrerequisiteCalculator {
      * @param target the target of the action
      * @param snapshot the snapshot of entities used to fetch entity information
      * @param probeCategory the category of the probe which discovers the target
+     * @param actionConstraintStoreFactory the factory which has access to all action constraint stores
      * @return a set of pre-requisites
      */
     @Nonnull
     static Set<Prerequisite> calculatePrerequisites(
+            @Nonnull final Action action,
+            @Nonnull final ActionPartialEntity target,
+            @Nonnull final EntitiesAndSettingsSnapshot snapshot,
+            @Nonnull final ProbeCategory probeCategory,
+            @Nonnull final ActionConstraintStoreFactory actionConstraintStoreFactory) {
+        final Set<Prerequisite> whatPrerequisites = calculateGeneralPrerequisites(
+            action, target, snapshot, probeCategory);
+        final Set<Prerequisite> coreQuotaPrerequisites = calculateQuotaPrerequisite(
+            action, target, snapshot, probeCategory, actionConstraintStoreFactory.getCoreQuotaStore());
+
+        if (whatPrerequisites.isEmpty() && coreQuotaPrerequisites.isEmpty()) {
+            return Collections.emptySet();
+        }
+
+        final Set<Prerequisite> prerequisites =
+            new HashSet<>(whatPrerequisites.size() + coreQuotaPrerequisites.size());
+        prerequisites.addAll(whatPrerequisites);
+        prerequisites.addAll(coreQuotaPrerequisites);
+        return prerequisites;
+    }
+
+    /**
+     * This functional interface defines a single pre-requisites calculator.
+     */
+    @FunctionalInterface
+    private interface WhatPrerequisiteCalculator {
+        /**
+         * Calculate a specific type of pre-requisite.
+         *
+         * @param virtualMachineInfo virtualMachineInfo which contains pre-requisite info
+         * @param computeTierInfo computeTierInfo which contains pre-requisite info
+         * @return a {@link Prerequisite} if there's any
+         */
+        Optional<Prerequisite> calculate(VirtualMachineInfo virtualMachineInfo,
+                                         ComputeTierInfo computeTierInfo);
+    }
+
+    // A list of single calculators for different type of pre-requisite.
+    private static List<WhatPrerequisiteCalculator> whatPrerequisiteCalculators = ImmutableList.of(
+        PrerequisiteCalculator::calculateEnaPrerequisite,
+        PrerequisiteCalculator::calculateNVMePrerequisite,
+        PrerequisiteCalculator::calculateArchitecturePrerequisite,
+        PrerequisiteCalculator::calculateVirtualizationTypePrerequisite
+    );
+
+    /**
+     * Calculate pre-requisites for a given action.
+     *
+     * @param action the action pre-requisites will be calculated for
+     * @param target the target of the action
+     * @param snapshot the snapshot of entities used to fetch entity information
+     * @param probeCategory the category of the probe which discovers the target
+     * @return a set of pre-requisites
+     */
+    @Nonnull
+    static Set<Prerequisite> calculateGeneralPrerequisites(
             @Nonnull final Action action,
             @Nonnull final ActionPartialEntity target,
             @Nonnull final EntitiesAndSettingsSnapshot snapshot,
@@ -74,11 +131,12 @@ class PrerequisiteCalculator {
                 long destinationId = changeProvider.getDestination().getId();
                 Optional<ActionPartialEntity> destinationOptional =
                     snapshot.getEntityFromOid(destinationId);
+
                 if (destinationOptional.isPresent() &&
                     destinationOptional.get().getTypeSpecificInfo().hasComputeTier()) {
                     // Calculate pre-requisites when target has VirtualMachineInfo and
                     // destination has ComputeTierInfo.
-                    return prerequisiteCalculators.stream()
+                    return whatPrerequisiteCalculators.stream()
                         .map(calculator -> calculator.calculate(
                             target.getTypeSpecificInfo().getVirtualMachine(),
                             destinationOptional.get().getTypeSpecificInfo().getComputeTier()))
@@ -93,22 +151,6 @@ class PrerequisiteCalculator {
     }
 
     /**
-     * This functional interface defines a single pre-requisites calculator.
-     */
-    @FunctionalInterface
-    private interface SinglePrerequisiteCalculator {
-        /**
-         * Calculate a specific type of pre-requisite.
-         *
-         * @param virtualMachineInfo virtualMachineInfo which contains pre-requisite info
-         * @param computeTierInfo computeTierInfo which contains pre-requisite info
-         * @return a {@link Prerequisite} if there's any
-         */
-        Optional<Prerequisite> calculate(VirtualMachineInfo virtualMachineInfo,
-                                         ComputeTierInfo computeTierInfo);
-    }
-
-    /**
      * Calculate ENA pre-requisite. ENA (Elastic Network Adapter) driver is necessary for access to
      * Enhanced Networking on AWS EC2 instances.
      *
@@ -116,7 +158,7 @@ class PrerequisiteCalculator {
      * @param computeTierInfo computeTierInfo which contains pre-requisite info
      * @return a {@link Prerequisite} if there's any
      */
-    private static Optional<Prerequisite> calculatePrerequisiteEna(
+    private static Optional<Prerequisite> calculateEnaPrerequisite(
             @Nonnull final VirtualMachineInfo virtualMachineInfo,
             @Nonnull final ComputeTierInfo computeTierInfo) {
         // Check if the compute tier supports only Ena vms.
@@ -144,7 +186,7 @@ class PrerequisiteCalculator {
      * @param computeTierInfo computeTierInfo which contains pre-requisite info
      * @return a {@link Prerequisite} if there's any
      */
-    private static Optional<Prerequisite> calculatePrerequisiteNVMe(
+    private static Optional<Prerequisite> calculateNVMePrerequisite(
             @Nonnull final VirtualMachineInfo virtualMachineInfo,
             @Nonnull final ComputeTierInfo computeTierInfo) {
         // Check if the compute tier supports only NVMe vms.
@@ -171,7 +213,7 @@ class PrerequisiteCalculator {
      * @param computeTierInfo computeTierInfo which contains pre-requisite info
      * @return a {@link Prerequisite} if there's any
      */
-    private static Optional<Prerequisite> calculatePrerequisiteArchitecture(
+    private static Optional<Prerequisite> calculateArchitecturePrerequisite(
             @Nonnull final VirtualMachineInfo virtualMachineInfo,
             @Nonnull final ComputeTierInfo computeTierInfo) {
         // Check if the compute tier has supported architectures.
@@ -199,7 +241,7 @@ class PrerequisiteCalculator {
      * @param computeTierInfo computeTierInfo which contains pre-requisite info
      * @return a {@link Prerequisite} if there's any
      */
-    private static Optional<Prerequisite> calculatePrerequisiteVirtualizationType(
+    private static Optional<Prerequisite> calculateVirtualizationTypePrerequisite(
             @Nonnull final VirtualMachineInfo virtualMachineInfo,
             @Nonnull final ComputeTierInfo computeTierInfo) {
         // Check if the compute tier has supported virtualization types.
@@ -218,5 +260,172 @@ class PrerequisiteCalculator {
         }
 
         return Optional.empty();
+    }
+
+    /**
+     * Calculate pre-requisites for a given action. We now only calculate core quota.
+     *
+     * @param action the action pre-requisites will be calculated for
+     * @param target the target of the action
+     * @param snapshot the snapshot of entities used to fetch entity information
+     * @param probeCategory the category of the probe which discovers the target
+     * @param actionConstraintStore a store that contains all core quota info
+     * @return a set of pre-requisites
+     */
+    @Nonnull
+    static Set<Prerequisite> calculateQuotaPrerequisite(
+        @Nonnull final Action action,
+        @Nonnull final ActionPartialEntity target,
+        @Nonnull final EntitiesAndSettingsSnapshot snapshot,
+        @Nonnull final ProbeCategory probeCategory,
+        @Nonnull final ActionConstraintStore actionConstraintStore) {
+        if (!(actionConstraintStore instanceof CoreQuotaStore)) {
+            return Collections.emptySet();
+        }
+
+        // Check if the category of the probe which discovers the target is CLOUD_MANAGEMENT and this
+        // action is a Move action. If not, there's no need to calculate pre-requisites for this
+        // action because no pre-requisites will be generated for such an action.
+        if (probeCategory != ProbeCategory.CLOUD_MANAGEMENT ||
+            action.getInfo().getActionTypeCase() != ActionTypeCase.MOVE) {
+            return Collections.emptySet();
+        }
+
+        // Get associated business account id.
+        Optional<Long> businessAccountId = snapshot.getOwnerAccountOfEntity(target.getOid())
+            .map(EntityWithConnections::getOid);
+        if (!businessAccountId.isPresent()) {
+            return Collections.emptySet();
+        }
+
+        for (ChangeProvider changeProvider : action.getInfo().getMove().getChangesList()) {
+            if (changeProvider.hasSource() && changeProvider.hasDestination()) {
+
+                long sourceId = changeProvider.getSource().getId();
+                Optional<ActionPartialEntity> sourceOptional =
+                    snapshot.getEntityFromOid(sourceId);
+                long destinationId = changeProvider.getDestination().getId();
+                Optional<ActionPartialEntity> destinationOptional =
+                    snapshot.getEntityFromOid(destinationId);
+
+                if (sourceOptional.isPresent() &&
+                    sourceOptional.get().getTypeSpecificInfo().hasComputeTier() &&
+                    destinationOptional.isPresent() &&
+                    destinationOptional.get().getTypeSpecificInfo().hasComputeTier()) {
+
+                    final ComputeTierInfo sourceComputeTierInfo =
+                        sourceOptional.get().getTypeSpecificInfo().getComputeTier();
+                    final String sourceFamily = sourceComputeTierInfo.getQuotaFamily();
+                    final int sourceNumCores = sourceComputeTierInfo.getNumCores();
+
+                    final ComputeTierInfo destinationComputeTierInfo =
+                        destinationOptional.get().getTypeSpecificInfo().getComputeTier();
+                    final String destinationFamily = destinationComputeTierInfo.getQuotaFamily();
+                    final int destinationNumCores = destinationComputeTierInfo.getNumCores();
+
+                    // Get the connected region id.
+                    final Optional<Long> regionIdOptional = target.getConnectedEntitiesList()
+                        .stream().filter(connectedEntity ->
+                            connectedEntity.getConnectedEntityType() == EntityType.REGION_VALUE)
+                        .map(ConnectedEntity::getConnectedEntityId).findFirst();
+                    if (!regionIdOptional.isPresent()) {
+                        return Collections.emptySet();
+                    }
+
+                    final Optional<Prerequisite> prerequisite =
+                        calculateCoreQuotaPrerequisite(sourceFamily, sourceNumCores,
+                            destinationFamily, destinationNumCores, businessAccountId.get(),
+                            regionIdOptional.get(), (CoreQuotaStore)actionConstraintStore);
+
+                    return prerequisite.map(Collections::singleton).orElse(Collections.emptySet());
+                }
+            }
+        }
+
+        return Collections.emptySet();
+    }
+
+    /**
+     * Calculate core quota pre-requisite.
+     *
+     * <p>For example, suppose there's an VM move action from standard NPS family to
+     * standard HBS family in region East US for a business account.
+     * The remaining core quota of standard NPS family in region East US of this business account is 10.
+     * The remaining core quota of standard HBS family in region East US of this business account is 6.
+     * The total remaining core quota of region East US is 8.
+     *
+     * <p>Since the remaining core quota of the source family (standard NPS family) is larger than
+     * the one of destination family (standard HBS family), we're going to generate a core quota
+     * pre-requisite for this move action to request a quota increase for the destination family
+     * (standard HBS family) in region East US.
+     * Also, since the remaining core quota of the source family (standard NPS family) is large than
+     * the total core quota of region East US, we're going to generate a core quota pre-requisite
+     * to request a quota increase for the total regional vCPUs.
+     * These two pre-requisites are combined in one sentence as a single {@link Prerequisite}.
+     *
+     * @param sourceFamily the family name of the source compute tier
+     * @param sourceNumCores the number of cores of the source compute tier
+     * @param destinationFamily the family name of the destination compute tier
+     * @param destinationNumCores the number of cores of the destination compute tier
+     * @param businessAccountId the id of the business account
+     * @param regionId the id of the region
+     * @param coreQuotaStore a store that contains all core quota info
+     * @return an optional of pre-requisite
+     */
+    @Nonnull
+    private static Optional<Prerequisite> calculateCoreQuotaPrerequisite(
+        final String sourceFamily, final int sourceNumCores,
+        final String destinationFamily, final int destinationNumCores,
+        final long businessAccountId, final long regionId,
+        @Nonnull final CoreQuotaStore coreQuotaStore) {
+        boolean insufficientRegionalCores = false;
+        boolean insufficientFamilyCores = false;
+
+        // If resize represents an increase in cores, see if it fits within the remaining
+        // regional core quota.
+        if (destinationNumCores > sourceNumCores) {
+            int regionalQuota = coreQuotaStore.getCoreQuota(
+                businessAccountId, regionId, StringConstants.TOTAL_CORE_QUOTA);
+            if ((destinationNumCores - sourceNumCores) > regionalQuota) {
+                insufficientRegionalCores = true;
+            }
+        }
+
+        int additionalFamilyCoresNeeded;
+        if (destinationFamily.equals(sourceFamily)) {
+            // If staying in the same family, we only need the difference in CPUs.
+            additionalFamilyCoresNeeded = destinationNumCores - sourceNumCores;
+        } else {
+            // Otherwise, we need quota in the new family for all the cores, since the current
+            // ones are in a different family and aren't counted against that quota.
+            additionalFamilyCoresNeeded = destinationNumCores;
+        }
+
+        if (additionalFamilyCoresNeeded > 0) {
+            int familyQuota = coreQuotaStore.getCoreQuota(
+                businessAccountId, regionId, destinationFamily);
+            if (additionalFamilyCoresNeeded > familyQuota) {
+                insufficientFamilyCores = true;
+            }
+        }
+
+        if (!insufficientRegionalCores && !insufficientFamilyCores) {
+            return Optional.empty();
+        }
+
+        String quotaName = "";
+        if (insufficientRegionalCores) {
+            quotaName = StringConstants.TOTAL_REGIONAL_VCPUS_QUOTA_DISPLAYNAME;
+        }
+        if (insufficientRegionalCores && insufficientFamilyCores) {
+            quotaName += " and ";
+        }
+        if (insufficientFamilyCores) {
+            quotaName += destinationFamily;
+        }
+
+        return Optional.of(Prerequisite.newBuilder()
+            .setPrerequisiteType(PrerequisiteType.CORE_QUOTAS)
+            .setRegionId(regionId).setQuotaName(quotaName).build());
     }
 }

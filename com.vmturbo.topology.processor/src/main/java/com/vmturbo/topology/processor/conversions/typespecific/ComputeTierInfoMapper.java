@@ -67,6 +67,7 @@ public class ComputeTierInfoMapper extends TypeSpecificInfoMapper {
         return TypeSpecificInfo.newBuilder()
                 .setComputeTier(ComputeTierInfo.newBuilder()
                         .setFamily(ctData.getFamily())
+                        .setQuotaFamily(ctData.getQuotaFamily())
                         .setDedicatedStorageNetworkState(ctData.getDedicatedStorageNetworkState())
                         .setNumCoupons(ctData.getNumCoupons())
                         .setNumCores(ctData.getNumCores())
