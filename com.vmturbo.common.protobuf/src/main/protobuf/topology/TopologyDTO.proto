@@ -138,6 +138,10 @@ message TypeSpecificInfo {
         // An identifier for matching compute tiers that belong to the same family.
         optional string family = 1;
 
+        // Quota family is the group that comprises of profiles that count towards the usage limit for
+        // a defined category imposed on a Business Account.
+        optional string quota_family = 15;
+
         // Specifies the dedicated storage configuration state for the compute tier.
         // Market uses this to decide whether or not to combine IOThroughput and NetThroughput that
         // vm is buying and add them together as consumption, then check with compute tier.
@@ -395,6 +399,9 @@ message PartialEntity {
 
         // Type specific info
         optional TypeSpecificInfo type_specific_info = 11;
+
+        // The entities this entity is connected to.
+        repeated TopologyEntityDTO.ConnectedEntity connected_entities = 12;
     }
 
     // Contains the fields required by the API for conversion to the external API's entities.

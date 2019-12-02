@@ -32,6 +32,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.builders.EntityBuilders;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -377,6 +378,37 @@ public class SdkToTopologyEntityConverterTest {
         assertFalse(SdkToTopologyEntityConverter.isControllable(true, false));
         assertFalse(SdkToTopologyEntityConverter.isControllable(false, true));
         assertFalse(SdkToTopologyEntityConverter.isControllable(false, false));
+    }
+
+    /**
+     * Test {@link SdkToTopologyEntityConverter#entityPropertyFilter(EntityProperty)}.
+     */
+    @Test
+    public void testEntityPropertyFilter() {
+        final String nameSpace = "default";
+        final String name = "name";
+        final String value = "value";
+
+        EntityDTO.Builder builder = EntityDTO.newBuilder()
+            .setEntityType(EntityType.UNKNOWN)
+            .setId("id")
+            .addEntityProperties(EntityProperty.newBuilder()
+                .setName(StringConstants.CORE_QUOTA_PREFIX + "::subscriptionId::family")
+                .setValue("10").setNamespace(nameSpace))
+            .addEntityProperties(EntityProperty.newBuilder()
+                .setName("LocalName")
+                .setValue("supplyChainValue").setNamespace(nameSpace))
+            .addEntityProperties(EntityProperty.newBuilder()
+                .setName(name)
+                .setValue(value).setNamespace(nameSpace));
+
+        TopologyStitchingEntity stitchingEntity = new TopologyStitchingEntity(
+            StitchingEntityData.newBuilder(builder).oid(1).build());
+        final TopologyEntityDTO.Builder topologyDTO =
+            SdkToTopologyEntityConverter.newTopologyEntityDTO(stitchingEntity);
+
+        assertEquals(1, topologyDTO.getEntityPropertyMapMap().size());
+        assertEquals(value, topologyDTO.getEntityPropertyMapMap().get(name));
     }
 
     @Test

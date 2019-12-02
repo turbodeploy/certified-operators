@@ -12,6 +12,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.search.SearchResolver;
+import com.vmturbo.topology.processor.actions.ActionConstraintsUploader;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.controllable.ControllableManager;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
@@ -60,6 +61,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsUploadSta
 import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingGroupFixupStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SupplyChainValidationStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadActionConstraintsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadCloudCostDataStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadGroupsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadTemplatesStage;
@@ -127,6 +129,8 @@ public class LivePipelineFactory {
 
     private final LicenseCheckClient licenseCheckClient;
 
+    private final ActionConstraintsUploader actionConstraintsUploader;
+
     public LivePipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
                                @Nonnull final PolicyManager policyManager,
                                @Nonnull final StitchingManager stitchingManager,
@@ -152,7 +156,8 @@ public class LivePipelineFactory {
                                @Nonnull final CachedTopology constructTopologyStageCache,
                                @Nonnull final ProbeActionCapabilitiesApplicatorEditor applicatorEditor,
                                @Nonnull HistoryAggregator historyAggregationStage,
-                               @Nonnull final LicenseCheckClient licenseCheckClient) {
+                               @Nonnull final LicenseCheckClient licenseCheckClient,
+                               @Nonnull final ActionConstraintsUploader actionConstraintsUploader) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -179,6 +184,7 @@ public class LivePipelineFactory {
         this.applicatorEditor = Objects.requireNonNull(applicatorEditor);
         this.historyAggregator = Objects.requireNonNull(historyAggregationStage);
         this.licenseCheckClient = Objects.requireNonNull(licenseCheckClient);
+        this.actionConstraintsUploader = actionConstraintsUploader;
     }
 
     /**
@@ -237,6 +243,7 @@ public class LivePipelineFactory {
                 .addStage(new UploadCloudCostDataStage(discoveredCloudCostUploader))
                 .addStage(new ScanDiscoveredSettingPoliciesStage(discoveredSettingPolicyScanner,
                         discoveredGroupUploader))
+                .addStage(new UploadActionConstraintsStage(actionConstraintsUploader))
                 .addStage(new CacheWritingConstructTopologyFromStitchingContextStage(constructTopologyStageCache))
                 .addStage(new UploadGroupsStage(discoveredGroupUploader))
                 .addStage(new UploadWorkflowsStage(discoveredWorkflowUploader))

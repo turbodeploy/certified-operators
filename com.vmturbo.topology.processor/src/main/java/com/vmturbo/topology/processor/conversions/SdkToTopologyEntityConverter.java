@@ -42,6 +42,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Entity
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
+import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -238,7 +239,7 @@ public class SdkToTopologyEntityConverter {
         // TODO: Support for namespaces and proper handling of duplicate properties (see
         // OM-20545 for description of probe expectations related to duplicate properties).
         Map<String, String> entityPropertyMap = dto.getEntityPropertiesList().stream()
-            .filter(property -> !SupplyChainConstants.LOCAL_NAME.equals(property.getName()))
+            .filter(SdkToTopologyEntityConverter::entityPropertyFilter)
             .collect(Collectors.toMap(EntityProperty::getName, EntityProperty::getValue,
                 (valueA, valueB) -> {
                     logger.warn("Duplicate entity property with values \"{}\", \"{}" +
@@ -324,6 +325,18 @@ public class SdkToTopologyEntityConverter {
                 .build());
         }
         return retBuilder;
+    }
+
+    /**
+     * Check if we'll keep this property or not.
+     * {@code true} means keep it. {@code false} means don't keep it.
+     *
+     * @param property the property we need to check
+     * @return keep this property or not
+     */
+    static boolean entityPropertyFilter(@Nonnull final EntityProperty property) {
+        return !(SupplyChainConstants.LOCAL_NAME.equals(property.getName()) ||
+            property.getName().startsWith(StringConstants.CORE_QUOTA_PREFIX));
     }
 
     /**
