@@ -5,6 +5,7 @@ import java.util.concurrent.Executors;
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
+import com.vmturbo.topology.processor.actions.ActionsConfig;
 import com.vmturbo.topology.processor.ncm.MatrixConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -64,7 +65,8 @@ import com.vmturbo.topology.processor.workflow.WorkflowConfig;
     MatrixConfig.class,
     HistoryAggregationConfig.class,
     LicenseCheckClientConfig.class,
-    TopologyProcessorDBConfig.class
+    TopologyProcessorDBConfig.class,
+    ActionsConfig.class
 })
 public class TopologyConfig {
 
@@ -130,6 +132,9 @@ public class TopologyConfig {
 
     @Autowired
     private LicenseCheckClientConfig licenseCheckClientConfig;
+
+    @Autowired
+    private ActionsConfig actionsConfig;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -220,7 +225,8 @@ public class TopologyConfig {
                 cachedTopology(),
                 probeActionCapabilitiesApplicatorEditor(),
                 historyAggregationConfig.historyAggregationStage(),
-                licenseCheckClientConfig.licenseCheckClient()
+                licenseCheckClientConfig.licenseCheckClient(),
+                actionsConfig.actionConstraintsUploader()
         );
     }
 

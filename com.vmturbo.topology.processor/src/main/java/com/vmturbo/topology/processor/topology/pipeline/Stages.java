@@ -54,6 +54,7 @@ import com.vmturbo.stitching.journal.IStitchingJournal.StitchingMetrics;
 import com.vmturbo.stitching.journal.TopologyEntitySemanticDiffer;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.search.SearchResolver;
+import com.vmturbo.topology.processor.actions.ActionConstraintsUploader;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.controllable.ControllableManager;
@@ -376,6 +377,27 @@ public class Stages {
         public Status passthrough(@Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
             discoveredClusterConstraintCache.applyClusterCommodity(topologyGraph);
             // TODO (roman, Oct 23 2018): Provide some information about modified commodities.
+            return Status.success();
+        }
+    }
+
+    /**
+     * This stage uploads action constraints to the action orchestrator component.
+     * We only do this for the live topology. Plan uses the same action constraints as real time.
+     */
+    public static class UploadActionConstraintsStage extends PassthroughStage<StitchingContext> {
+
+        private final ActionConstraintsUploader actionConstraintsUploader;
+
+        UploadActionConstraintsStage(
+                @Nonnull final ActionConstraintsUploader actionConstraintsUploader) {
+            this.actionConstraintsUploader = actionConstraintsUploader;
+        }
+
+        @Nonnull
+        @Override
+        public Status passthrough(@Nonnull final StitchingContext stitchingContext) {
+            actionConstraintsUploader.uploadActionConstraintInfo(stitchingContext);
             return Status.success();
         }
     }

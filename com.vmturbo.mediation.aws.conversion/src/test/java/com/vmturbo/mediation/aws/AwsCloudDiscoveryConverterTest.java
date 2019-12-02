@@ -451,7 +451,7 @@ public class AwsCloudDiscoveryConverterTest {
 
     @Test
     public void testRegionConverter() {
-        IEntityConverter converter = new RegionConverter();
+        IEntityConverter converter = new RegionConverter(SDKProbeType.AWS);
         newEntitiesByType.get(EntityType.REGION).forEach(entity -> {
             String entityId = entity.getId();
             EntityDTO.Builder newEntity = awsConverter.getNewEntityBuilder(entityId);

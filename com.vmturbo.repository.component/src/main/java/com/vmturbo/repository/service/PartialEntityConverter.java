@@ -90,6 +90,7 @@ public class PartialEntityConverter {
                     actionEntityBldr.setPrimaryProviderId(providerId);
                 });
                 actionEntityBldr.setTypeSpecificInfo(repoGraphEntity.getTypeSpecificInfo());
+                actionEntityBldr.addAllConnectedEntities(repoGraphEntity.getBroadcastConnections());
                 partialEntityBldr.setAction(actionEntityBldr);
                 break;
             case API:

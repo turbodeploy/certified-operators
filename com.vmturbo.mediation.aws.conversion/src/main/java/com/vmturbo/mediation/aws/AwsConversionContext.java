@@ -49,7 +49,7 @@ public class AwsConversionContext implements CloudProviderConversionContext {
         converters.put(EntityType.COMPUTE_TIER, new ComputeTierConverter(SDKProbeType.AWS));
         converters.put(EntityType.DATABASE, new DatabaseConverter(SDKProbeType.AWS));
         converters.put(EntityType.BUSINESS_ACCOUNT, new BusinessAccountConverter(SDKProbeType.AWS));
-        converters.put(EntityType.REGION, new RegionConverter());
+        converters.put(EntityType.REGION, new RegionConverter(SDKProbeType.AWS));
         converters.put(EntityType.STORAGE, new AwsStorageConverter());
         converters.put(EntityType.DATABASE_SERVER_TIER, new DatabaseServerTierConverter());
         converters.put(EntityType.DATABASE_SERVER, new DatabaseServerConverter(SDKProbeType.AWS));
@@ -87,10 +87,10 @@ public class AwsConversionContext implements CloudProviderConversionContext {
     }
 
     /**
-     * Get region id based on AZ id. It get "ca-central-1" from AZ id and then combine
+     * Get region id based on AZ id. It gets "ca-central-1" from AZ id and then combine
      * with prefix into the Region id. For example:
      *     AWS AZ id is:     aws::ca-central-1::PM::ca-central-1b
-     *     AWS Region id is: aws::ca-central-1::DC::ca-central-1
+     *     AWS Region id is: aws::ca-central-1::DC::ca-central-1b
      *
      * @param azId id of the AZ
      * @return region id for the AZ
@@ -100,6 +100,22 @@ public class AwsConversionContext implements CloudProviderConversionContext {
     public String getRegionIdFromAzId(@Nonnull String azId) {
         String region = azId.split("::", 3)[1];
         return "aws::" + region + "::DC::" + region;
+    }
+
+    /**
+     * Get AZ id based on region id. It gets "ca-central-1" from region id and then combine
+     * with prefix into the AZ id. For example:
+     *     AWS AZ id is:     aws::ca-central-1::PM::ca-central-1b
+     *     AWS Region id is: aws::ca-central-1::DC::ca-central-1b
+     *
+     * @param regionId id of the region
+     * @return id of the AZ
+     */
+    @Nonnull
+    @Override
+        public String getAzIdFromRegionId(@Nonnull String regionId) {
+        String region = regionId.split("::", 3)[1];
+        return "aws::" + region + "::PM::" + region;
     }
 
     @Nonnull

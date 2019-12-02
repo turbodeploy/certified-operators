@@ -25,7 +25,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 public class ComputeTierInfoMapperTest {
 
 
-    public static final String FAMILY = "FAMILY";
+    private static final String FAMILY = "FAMILY";
+    private static final String QUOTA_FAMILY = "QUOTA_FAMILY";
     private static final int NUM_COUPONS = 42;
     private static final int NUM_CORES = 64;
 
@@ -36,6 +37,7 @@ public class ComputeTierInfoMapperTest {
         TypeSpecificInfo expected = TypeSpecificInfo.newBuilder()
                 .setComputeTier(ComputeTierInfo.newBuilder()
                         .setFamily(FAMILY)
+                        .setQuotaFamily(QUOTA_FAMILY)
                         .setDedicatedStorageNetworkState(DedicatedStorageNetworkState.CONFIGURED_ENABLED)
                         .setNumCoupons(NUM_COUPONS)
                         .setNumCores(NUM_CORES)
@@ -78,6 +80,7 @@ public class ComputeTierInfoMapperTest {
         return EntityDTO.newBuilder()
             .setComputeTierData(ComputeTierData.newBuilder()
                 .setFamily(FAMILY)
+                .setQuotaFamily(QUOTA_FAMILY)
                 .setDedicatedStorageNetworkState(DedicatedStorageNetworkState.CONFIGURED_ENABLED)
                 .setNumCoupons(NUM_COUPONS)
                 .setNumCores(NUM_CORES)
