@@ -10,20 +10,19 @@ import static org.junit.Assert.assertNotNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
-import java.util.TimeZone;
+import java.util.Optional;
 
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,6 +35,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -62,11 +62,13 @@ public class SqlEntityCostStoreTest {
     private final ComponentCost componentCost = ComponentCost.newBuilder()
             .setAmount(CurrencyAmount.newBuilder().setAmount(3.111).setCurrency(1))
             .setCategory(CostCategory.ON_DEMAND_COMPUTE)
+            .setCostSource(CostSource.ON_DEMAND_RATE)
             .build();
     private final ComponentCost componentCost1 =
             ComponentCost.newBuilder()
                     .setAmount(CurrencyAmount.newBuilder().setAmount(2.111).setCurrency(1))
                     .setCategory(CostCategory.IP)
+                    .setCostSource(CostSource.ON_DEMAND_RATE)
                     .build();
     private final EntityCost entityCost = EntityCost.newBuilder()
             .setAssociatedEntityId(ID1)
@@ -335,6 +337,13 @@ public class SqlEntityCostStoreTest {
 
         assertTrue(results.values().stream().allMatch(entityCosts -> entityCosts.values().stream()
                 .allMatch(entityCost -> entityCost.getComponentCostCount() == 2)));
+
+        Map<Long, EntityCost> costsBySourceAndCategory = store.getLatestEntityCost(1l, CostCategory.ON_DEMAND_COMPUTE,
+                new HashSet<>(Arrays.asList(CostSource.ON_DEMAND_RATE)));
+
+        assertEquals(costsBySourceAndCategory.get(1L).getComponentCostCount(), 1);
+
+        assertEquals(costsBySourceAndCategory.get(1L).getComponentCost(0), componentCost);
         // clean up
         store.cleanEntityCosts(now);
         assertEquals(0, store.getEntityCosts(now, now.minusHours(1l)).size());
@@ -377,12 +386,14 @@ public class SqlEntityCostStoreTest {
         assertThat(entityCost.getComponentCostList(), containsInAnyOrder(
                 ComponentCost.newBuilder()
                         .setCategory(CostCategory.ON_DEMAND_COMPUTE)
+                        .setCostSource(CostSource.ON_DEMAND_RATE)
                         .setAmount(CurrencyAmount.newBuilder()
                                 .setCurrency(CurrencyAmount.getDefaultInstance().getCurrency())
                                 .setAmount(7.0))
                         .build(),
                 ComponentCost.newBuilder()
                         .setCategory(CostCategory.ON_DEMAND_LICENSE)
+                        .setCostSource(CostSource.ON_DEMAND_RATE)
                         .setAmount(CurrencyAmount.newBuilder()
                                 .setCurrency(CurrencyAmount.getDefaultInstance().getCurrency())
                                 .setAmount(3.0))
@@ -399,6 +410,8 @@ public class SqlEntityCostStoreTest {
         when(journal.getEntity()).thenReturn(entity);
         when(journal.getCategories()).thenReturn(costsByCategory.keySet());
         for (final CostCategory category : CostCategory.values()) {
+            when(journal.getHourlyCostBySourceAndCategory(category,Optional.of(CostSource.ON_DEMAND_RATE)))
+                    .thenReturn(trax(costsByCategory.getOrDefault(category, 0.0)));
             when(journal.getHourlyCostForCategory(category))
                     .thenReturn(trax(costsByCategory.getOrDefault(category, 0.0)));
         }

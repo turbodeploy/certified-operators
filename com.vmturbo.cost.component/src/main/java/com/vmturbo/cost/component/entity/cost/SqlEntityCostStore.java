@@ -6,11 +6,14 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -20,7 +23,9 @@ import org.jooq.BatchBindStep;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
+import org.jooq.Record;
 import org.jooq.Record6;
+import org.jooq.Record7;
 import org.jooq.Result;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
@@ -30,13 +35,13 @@ import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.cost.component.util.CostFilter;
-import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.sql.utils.DbException;
 import com.vmturbo.trax.TraxNumber;
@@ -93,6 +98,7 @@ public class SqlEntityCostStore implements EntityCostStore {
                                     .set(ENTITY_COST.CREATED_TIME, curTime)
                                     .set(ENTITY_COST.ASSOCIATED_ENTITY_TYPE, 0)
                                     .set(ENTITY_COST.COST_TYPE, 0)
+                                    .set(ENTITY_COST.COST_SOURCE, 1)
                                     .set(ENTITY_COST.CURRENCY, 0)
                                     .set(ENTITY_COST.AMOUNT, BigDecimal.valueOf(0)));
 
@@ -104,6 +110,7 @@ public class SqlEntityCostStore implements EntityCostStore {
                                             curTime,
                                             entityCost.getAssociatedEntityType(),
                                             componentCost.getCategory().getNumber(),
+                                            componentCost.getCostSource().getNumber(),
                                             entityCost.getTotalAmount().getCurrency(),
                                             BigDecimal.valueOf(componentCost.getAmount().getAmount()))));
 
@@ -145,22 +152,30 @@ public class SqlEntityCostStore implements EntityCostStore {
                                         .set(ENTITY_COST.CREATED_TIME, curTime)
                                         .set(ENTITY_COST.ASSOCIATED_ENTITY_TYPE, 0)
                                         .set(ENTITY_COST.COST_TYPE, 0)
+                                        .set(ENTITY_COST.COST_SOURCE, 0)
                                         .set(ENTITY_COST.CURRENCY, 0)
                                         .set(ENTITY_COST.AMOUNT, BigDecimal.valueOf(0)));
 
                         // Bind values to the batch insert statement. Each "bind" should have values for
                         // all fields set during batch initialization.
                         chunk.forEach(journal -> journal.getCategories().forEach(costType -> {
-                            final TraxNumber categoryCost = journal.getHourlyCostForCategory(costType);
-                            batch.bind(journal.getEntity().getOid(),
-                                    curTime,
-                                    journal.getEntity().getEntityType(),
-                                    costType.getNumber(),
-                                    // TODO (roman, Sept 5 2018): Not handling currency in cost
-                                    // calculation yet.
-                                    CurrencyAmount.getDefaultInstance().getCurrency(),
-                                    BigDecimal.valueOf(categoryCost.getValue()));
-                        }));
+                            for (CostSource costSource : CostSource.values()) {
+                                final TraxNumber categoryCost = journal.getHourlyCostBySourceAndCategory(costType, Optional.of(costSource));
+                                if (categoryCost != null) {
+                                    batch.bind(journal.getEntity().getOid(),
+                                            curTime,
+                                            journal.getEntity().getEntityType(),
+                                            costType.getNumber(),
+                                            costSource.getNumber(),
+                                            // TODO (roman, Sept 5 2018): Not handling currency in cost
+                                            // calculation yet.
+                                            CurrencyAmount.getDefaultInstance().getCurrency(),
+                                            BigDecimal.valueOf(categoryCost.getValue()));
+
+                                }
+                            }
+                        }
+                        ));
 
                         if (batch.size() > 0) {
                             logger.info("Persisting batch of size: {}", batch.size());
@@ -191,11 +206,12 @@ public class SqlEntityCostStore implements EntityCostStore {
     public Map<Long, Map<Long, EntityCost>> getEntityCosts(@Nonnull final LocalDateTime startDate,
                                                            @Nonnull final LocalDateTime endDate) throws DbException {
         try {
-            final Result<Record6<Long, LocalDateTime, Integer, Integer, Integer, BigDecimal>> records = dsl
+            final Result<Record7<Long, LocalDateTime, Integer, Integer, Integer, Integer, BigDecimal>> records = dsl
                     .select(ENTITY_COST.ASSOCIATED_ENTITY_ID,
                             ENTITY_COST.CREATED_TIME,
                             ENTITY_COST.ASSOCIATED_ENTITY_TYPE,
                             ENTITY_COST.COST_TYPE,
+                            ENTITY_COST.COST_SOURCE,
                             ENTITY_COST.CURRENCY,
                             ENTITY_COST.AMOUNT)
                     .from(ENTITY_COST)
@@ -210,14 +226,20 @@ public class SqlEntityCostStore implements EntityCostStore {
     @Override
     public Map<Long, Map<Long, EntityCost>> getEntityCosts(@Nonnull final CostFilter entityCostFilter) throws DbException {
         try {
-            final Field<Long> entityId = (Field<Long>) entityCostFilter.getTable().field(ENTITY_COST.ASSOCIATED_ENTITY_ID.getName());
-            final Field<LocalDateTime> createdTime = (Field<LocalDateTime>) entityCostFilter.getTable().field(ENTITY_COST.CREATED_TIME.getName());
-            final Field<Integer> entityType = (Field<Integer>) entityCostFilter.getTable().field(ENTITY_COST.ASSOCIATED_ENTITY_TYPE.getName());
-            final Field<Integer> costType = (Field<Integer>) entityCostFilter.getTable().field(ENTITY_COST.COST_TYPE.getName());
-            final Field<Integer> currency = (Field<Integer>) entityCostFilter.getTable().field(ENTITY_COST.CURRENCY.getName());
-            final Field<BigDecimal> amount = (Field<BigDecimal>) entityCostFilter.getTable().field(ENTITY_COST.AMOUNT.getName());
-            final Result<Record6<Long, LocalDateTime, Integer, Integer, Integer, BigDecimal>> records = dsl
-                    .select(entityId, createdTime, entityType, costType, currency, amount)
+            final Field<Long> entityId = (Field<Long>)entityCostFilter.getTable().field(ENTITY_COST.ASSOCIATED_ENTITY_ID.getName());
+            final Field<LocalDateTime> createdTime = (Field<LocalDateTime>)entityCostFilter.getTable().field(ENTITY_COST.CREATED_TIME.getName());
+            final Field<Integer> entityType = (Field<Integer>)entityCostFilter.getTable().field(ENTITY_COST.ASSOCIATED_ENTITY_TYPE.getName());
+            final Field<Integer> costType = (Field<Integer>)entityCostFilter.getTable().field(ENTITY_COST.COST_TYPE.getName());
+            final Field<Integer> costSource = (Field<Integer>)entityCostFilter.getTable().field(ENTITY_COST.COST_SOURCE.getName());
+            final Field<Integer> currency = (Field<Integer>)entityCostFilter.getTable().field(ENTITY_COST.CURRENCY.getName());
+            final Field<BigDecimal> amount = (Field<BigDecimal>)entityCostFilter.getTable().field(ENTITY_COST.AMOUNT.getName());
+            List<Field<?>> list = Arrays.asList(entityId, createdTime, entityType, costType, currency, amount);
+            List<Field<?>> modifiableList = new ArrayList<>(list);
+            if (entityCostFilter.getTable().equals(ENTITY_COST)) {
+                modifiableList.add(costSource);
+            }
+            final Result<? extends Record> records = dsl
+                    .select(modifiableList)
                     .from(entityCostFilter.getTable())
                     .where(entityCostFilter.getConditions())
                     .fetch();
@@ -234,12 +256,11 @@ public class SqlEntityCostStore implements EntityCostStore {
      * @param entityCostRecords entity cost records in db
      * @return Entity cost map, key is timestamp in long, values are List of EntityCost DTOs.
      */
-    private Map<Long, Map<Long, EntityCost>> constructEntityCostMap
-    (@Nonnull final Result<Record6<Long, LocalDateTime, Integer, Integer, Integer, BigDecimal>> entityCostRecords) {
+    private Map<Long, Map<Long, EntityCost>> constructEntityCostMap(@Nonnull final Result<? extends Record> entityCostRecords) {
         final Map<Long, Map<Long, EntityCost>> records = new HashMap<>();
         entityCostRecords.forEach(entityRecord -> {
             Map<Long, EntityCost> costsForTimestamp = records
-                    .computeIfAbsent(TimeUtil.localDateTimeToMilli(entityRecord.value2(), clock), k -> new HashMap<>());
+                    .computeIfAbsent(TimeUtil.localDateTimeToMilli((LocalDateTime)entityRecord.getValue(ENTITY_COST.CREATED_TIME.getName()), clock), k -> new HashMap<>());
             //TODO: optimize to avoid building EntityCost
             final EntityCost newCost = toEntityCostDTO(new RecordWrapper(entityRecord));
             costsForTimestamp.compute(newCost.getAssociatedEntityId(),
@@ -260,11 +281,12 @@ public class SqlEntityCostStore implements EntityCostStore {
                                                            @Nonnull final LocalDateTime startDate,
                                                            @Nonnull final LocalDateTime endDate) throws DbException {
         try {
-            final Result<Record6<Long, LocalDateTime, Integer, Integer, Integer, BigDecimal>> records = dsl
+            final Result<Record7<Long, LocalDateTime, Integer, Integer, Integer, Integer, BigDecimal>> records = dsl
                     .select(ENTITY_COST.ASSOCIATED_ENTITY_ID,
                             ENTITY_COST.CREATED_TIME,
                             ENTITY_COST.ASSOCIATED_ENTITY_TYPE,
                             ENTITY_COST.COST_TYPE,
+                            ENTITY_COST.COST_SOURCE,
                             ENTITY_COST.CURRENCY,
                             ENTITY_COST.AMOUNT)
                     .from(ENTITY_COST)
@@ -293,11 +315,12 @@ public class SqlEntityCostStore implements EntityCostStore {
                 conditions.add(ENTITY_COST.field(ENTITY_COST.ASSOCIATED_ENTITY_ID.getName()).in(entityIds));
             }
 
-            final Result<Record6<Long, LocalDateTime, Integer, Integer, Integer, BigDecimal>> records = dsl
+            final Result<Record7<Long, LocalDateTime, Integer, Integer, Integer, Integer, BigDecimal>> records = dsl
                     .select(ENTITY_COST.ASSOCIATED_ENTITY_ID,
                             ENTITY_COST.CREATED_TIME,
                             ENTITY_COST.ASSOCIATED_ENTITY_TYPE,
                             ENTITY_COST.COST_TYPE,
+                            ENTITY_COST.COST_SOURCE,
                             ENTITY_COST.CURRENCY,
                             ENTITY_COST.AMOUNT)
                     .from(ENTITY_COST)
@@ -309,6 +332,39 @@ public class SqlEntityCostStore implements EntityCostStore {
 
                     .fetch();
             return constructEntityCostMap(records);
+        } catch (DataAccessException e) {
+            throw new DbException("Failed to get entity costs from DB" + e.getMessage());
+        }
+    }
+
+    @Override
+    public Map<Long, EntityCost> getLatestEntityCost(@Nonnull final Long entityId,
+                                                     @Nonnull final CostCategory category,
+                                                     @Nonnull final Set<CostSource> costSources) throws DbException {
+        try {
+            Set<Integer> numericCostSources = costSources.stream().map(s -> s.getNumber()).collect(Collectors.toSet());
+            Map<Long, EntityCost> entityCostById = new HashMap<>();
+            final List<Condition> conditions = new ArrayList<>();
+            conditions.add(ENTITY_COST.COST_SOURCE.in(numericCostSources));
+            conditions.add(ENTITY_COST.COST_TYPE.eq(category.getNumber()));
+            final Result<Record7<Long, LocalDateTime, Integer, Integer, Integer, Integer, BigDecimal>> records = dsl
+                    .select(ENTITY_COST.ASSOCIATED_ENTITY_ID,
+                            ENTITY_COST.CREATED_TIME,
+                            ENTITY_COST.ASSOCIATED_ENTITY_TYPE,
+                            ENTITY_COST.COST_TYPE,
+                            ENTITY_COST.COST_SOURCE,
+                            ENTITY_COST.CURRENCY,
+                            ENTITY_COST.AMOUNT)
+                    .from(ENTITY_COST)
+                    .where(conditions.toArray(new Condition[conditions.size()]))
+                    .and(ENTITY_COST.ASSOCIATED_ENTITY_ID.eq(entityId))
+                    .fetch();
+            records.forEach(entityRecord -> {
+                Long entityOid = entityRecord.value1();
+                EntityCost cost = toEntityCostDTO(new RecordWrapper(entityRecord));
+                entityCostById.put(entityOid, cost);
+                    });
+            return entityCostById;
         } catch (DataAccessException e) {
             throw new DbException("Failed to get entity costs from DB" + e.getMessage());
         }
@@ -337,6 +393,7 @@ public class SqlEntityCostStore implements EntityCostStore {
                         .setAmount(recordWrapper.getAmount().doubleValue())
                         .setCurrency(recordWrapper.getCurrency()))
                 .setCategory(CostCategory.forNumber(recordWrapper.getCostType()))
+                .setCostSource(CostSource.forNumber(recordWrapper.getCostSource()))
                 .build();
         return Cost.EntityCost.newBuilder()
                 .setAssociatedEntityId(recordWrapper.getAssociatedEntityId())
@@ -349,32 +406,37 @@ public class SqlEntityCostStore implements EntityCostStore {
      * A wrapper class to wrap {@link Record6} class, to make it more readable
      */
     class RecordWrapper {
-        final Record6<Long, LocalDateTime, Integer, Integer, Integer, BigDecimal> record6;
-        RecordWrapper(Record6 record6) {
-            this.record6 = record6;
+        final Record record7;
+
+        RecordWrapper(Record record7) {
+            this.record7 = record7;
         }
 
         long getAssociatedEntityId() {
-            return record6.value1();
+            return record7.get(ENTITY_COST.ASSOCIATED_ENTITY_ID);
         }
 
         LocalDateTime getCreatedTime() {
-            return record6.value2();
+            return record7.get(ENTITY_COST.CREATED_TIME);
         }
 
         int getAssociatedEntityType() {
-            return record6.value3();
+            return record7.get(ENTITY_COST.ASSOCIATED_ENTITY_TYPE);
         }
 
         int getCostType() {
-            return record6.value4();
+            return record7.get(ENTITY_COST.COST_TYPE);
+        }
+
+        int getCostSource() {
+            return record7.get(ENTITY_COST.COST_SOURCE);
         }
 
         int getCurrency() {
-            return record6.value5();
+            return record7.get(ENTITY_COST.CURRENCY);
         }
         BigDecimal getAmount() {
-            return record6.value6();
+            return record7.get(ENTITY_COST.AMOUNT);
         }
     }
 }

@@ -103,6 +103,7 @@ import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
+import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesRequest;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
@@ -119,6 +120,7 @@ import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 
 /**
  * Map an ActionSpec returned from the ActionOrchestrator into an {@link ActionApiDTO} to be
@@ -1522,9 +1524,26 @@ public class ActionSpecMapper {
      */
     private void setOnDemandRates(long entityUuid, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
         // set on-demand rates
-        // todo: template rates will be added here after OM-51505
-        cloudResizeActionDetailsApiDTO.setOnDemandRateBefore(0f);
-        cloudResizeActionDetailsApiDTO.setOnDemandRateAfter(0f);
+        GetTierPriceForEntitiesRequest request = GetTierPriceForEntitiesRequest.newBuilder().setOid(entityUuid)
+                .setCostCategory(CostCategory.ON_DEMAND_COMPUTE).build();
+        Map<Long, CurrencyAmount> beforeCostByEntityOidMap = costServiceBlockingStub.getTierPriceForEntities(request)
+                .getBeforeTierPriceByEntityOidMap();
+        Map<Long, CurrencyAmount> afterCostByEntityOidMap = costServiceBlockingStub.getTierPriceForEntities(request)
+                .getAfterTierPriceByEntityOidMap();
+        if (beforeCostByEntityOidMap != null && beforeCostByEntityOidMap.get(entityUuid) != null) {
+            double amount = beforeCostByEntityOidMap.get(entityUuid).getAmount();
+            cloudResizeActionDetailsApiDTO.setOnDemandRateBefore((float)amount);
+        } else {
+            logger.error("Current On Demand rate for entity with oid {}, not found", entityUuid);
+            cloudResizeActionDetailsApiDTO.setOnDemandRateBefore(0f);
+        }
+        if (afterCostByEntityOidMap != null && afterCostByEntityOidMap.get(entityUuid) != null) {
+            double amount = afterCostByEntityOidMap.get(entityUuid).getAmount();
+            cloudResizeActionDetailsApiDTO.setOnDemandRateAfter((float)amount);
+        } else {
+            logger.error("Projected On Demand rate for entity with oid {}, not found", entityUuid);
+            cloudResizeActionDetailsApiDTO.setOnDemandRateAfter(0f);
+        }
     }
 
     /**
