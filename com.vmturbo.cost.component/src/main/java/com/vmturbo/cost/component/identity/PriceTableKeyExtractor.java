@@ -25,7 +25,7 @@ public class PriceTableKeyExtractor implements AttributeExtractor<PriceTableKey>
      * String representing the Price Table key identifiers.
      */
     public static final String PRICE_TABLE_KEY_IDENTIFIERS = "price_table_key_identifiers";
-    private static final String ROOT_PROBE_TYPE = "root_probe_type";
+    private static final String PRICING_GROUP = "pricing_group";
 
     /**
      * {@inheritDoc}
@@ -35,8 +35,8 @@ public class PriceTableKeyExtractor implements AttributeExtractor<PriceTableKey>
     public IdentityMatchingAttributes extractAttributes(@Nonnull PriceTableKey priceTableKey) {
         Map<String, String> probeKeyMaterialMap = Maps.newHashMap(priceTableKey.getProbeKeyMaterialMap());
         final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
-        //adding root probe type as an Identifier.
-        probeKeyMaterialMap.put(ROOT_PROBE_TYPE, priceTableKey.getRootProbeType());
+        //adding pricing group as an identifier
+        probeKeyMaterialMap.put(PRICING_GROUP, priceTableKey.getPricingGroup());
         return SimpleMatchingAttributes.newBuilder()
                 .addAttribute(PRICE_TABLE_KEY_IDENTIFIERS, gson.toJson(probeKeyMaterialMap))
                 .build();

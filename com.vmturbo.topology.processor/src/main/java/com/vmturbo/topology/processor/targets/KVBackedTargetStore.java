@@ -650,41 +650,4 @@ public class KVBackedTargetStore implements TargetStore {
             .flatMap(target -> probeStore.getProbe(target.getProbeId()))
             .flatMap(probeInfo -> Optional.ofNullable(ProbeCategory.create(probeInfo.getProbeCategory())));
     }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Optional<Long> findRootTarget(final long targetId) {
-        final Stack<Long> targetStack = new Stack<>();
-        try {
-            findTargetChain(targetId, targetStack);
-        } catch (InvalidTargetException e) {
-            logger.error("Could not determine rootTarget for {}. Parents found: {}",
-                    targetId, targetStack.toString(), e);
-        }
-        if (targetStack.isEmpty()) {
-            return getTarget(targetId).isPresent() ? Optional.of(targetId) : Optional.empty();
-        } else {
-            //we assume targets in derivedTargetIdsByParentId are always valid.
-            return Optional.of(targetStack.pop());
-        }
-    }
-
-    private void findTargetChain(final long targetId, final Stack<Long> stackOfTargetId) throws InvalidTargetException {
-        Optional<Long> parentTargetId = Optional.empty();
-        synchronized (storeLock) {
-            parentTargetId = derivedTargetIdsByParentId.entrySet().stream()
-                .filter(derivedTargetEntry -> derivedTargetEntry.getValue().contains(targetId))
-                .map(Entry::getKey).findFirst();
-        }
-        if (parentTargetId.isPresent()) {
-            if (!stackOfTargetId.contains(parentTargetId.get())) {
-                stackOfTargetId.push(parentTargetId.get());
-            } else {
-                throw new InvalidTargetException("Cyclic dependency between parent -> derived target.");
-            }
-            findTargetChain(parentTargetId.get(), stackOfTargetId);
-        }
-    }
 }

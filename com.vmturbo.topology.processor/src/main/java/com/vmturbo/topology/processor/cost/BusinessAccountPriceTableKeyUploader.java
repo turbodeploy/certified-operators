@@ -62,38 +62,49 @@ public class BusinessAccountPriceTableKeyUploader {
                             return;
                         }
                         Builder priceTableKeyBuilder = PriceTableKey.newBuilder();
-                        long targetId = topologyStitchingEntity.getTargetId();
-                        Optional<Long> rootTarget = targetStore.findRootTarget(targetId);
-                        if (rootTarget.isPresent()) {
-                            final Optional<SDKProbeType> rootProbeType = targetStore
-                                    .getProbeTypeForTarget(rootTarget.get());
-                            rootProbeType.ifPresent(sdkProbeType -> priceTableKeyBuilder
-                                    .setRootProbeType(sdkProbeType.getProbeType()));
-                        } else {
-                            logger.error("TargetID {} was not found in the targetStore.", targetId);
-                        }
+                        // Add the key material from the probe
                         topologyStitchingEntity.getEntityBuilder()
-                                .getBusinessAccountData().getPriceTableKeysList().forEach(priceTableKey -> {
-                            priceTableKeyBuilder
-                                    .putProbeKeyMaterial(priceTableKey.getIdentifierName().name(),
-                                            priceTableKey.getIdentifierValue());
-                        });
-                        try {
-                            final PriceTableKey priceTableKey;
-                            if (uploadingData.containsKey(accountId)) {
-                                logger.debug("PriceTableKey for accountID {} already found in uploadingData." +
-                                                "Resolving by merging keys", accountId );
-                                priceTableKey = compareAndUpdatePriceTableKey(priceTableKeyBuilder.build(),
-                                        uploadingData.get(accountId));
-                                logger.debug("PriceTableKey for accountID {} merged", accountId);
-                            } else {
-                                priceTableKey = priceTableKeyBuilder.build();
+                                .getBusinessAccountData().getPriceTableKeysList().forEach(priceTableKey ->
+                                priceTableKeyBuilder
+                                        .putProbeKeyMaterial(priceTableKey.getIdentifierName().name(),
+                                                priceTableKey.getIdentifierValue()));
+
+                        // Add the pricing group to the key
+                        final long targetId = topologyStitchingEntity.getTargetId();
+                        final Optional<SDKProbeType> probeType =
+                                targetStore.getProbeTypeForTarget(targetId);
+                        final Optional<String> pricingGroup = probeType
+                                .map(PricingGroupMapper::getPricingGroupForProbeType)
+                                .orElseGet(() -> {
+                                    logger.error("TargetID {} was not found in the targetStore.",
+                                            targetId);
+                                    return Optional.empty();
+                                });
+
+                        if (pricingGroup.isPresent()) {
+                            priceTableKeyBuilder.setPricingGroup(pricingGroup.get());
+
+                            try {
+                                final PriceTableKey priceTableKey;
+                                if (uploadingData.containsKey(accountId)) {
+                                    logger.debug("PriceTableKey for accountID {} already found in uploadingData." +
+                                            "Resolving by merging keys", accountId);
+                                    priceTableKey = compareAndUpdatePriceTableKey(priceTableKeyBuilder.build(),
+                                            uploadingData.get(accountId));
+                                    logger.debug("PriceTableKey for accountID {} merged", accountId);
+                                } else {
+                                    priceTableKey = priceTableKeyBuilder.build();
+                                }
+                                uploadingData.put(accountId, priceTableKey);
+                            } catch (PriceTableKeyException e) {
+                                logger.error("Unable to compile PriceTableKey material.", e);
+                                //remove the older controversial account as well to avoid inconsistent data.
+                                uploadingData.remove(accountId);
                             }
-                            uploadingData.put(accountId, priceTableKey);
-                        } catch (PriceTableKeyException e) {
-                            logger.error("Unable to compile PriceTableKey material.", e);
-                            //remove the older controversial account as well to avoid inconsistent data.
-                            uploadingData.remove(accountId);
+
+                        } else {
+                            logger.error("Unable to find pricing group for target (TargetID={}, AccountID={})",
+                                    targetId, accountId);
                         }
                     });
 
@@ -112,13 +123,13 @@ public class BusinessAccountPriceTableKeyUploader {
                                                         @Nonnull final PriceTableKey previousPriceTableKey)
             throws PriceTableKeyException {
         final Builder resultPriceTableKey = PriceTableKey.newBuilder();
-        if (!currentPriceTableKey.getRootProbeType().equals(previousPriceTableKey.getRootProbeType())) {
+        if (!currentPriceTableKey.getPricingGroup().equals(previousPriceTableKey.getPricingGroup())) {
             throw new PriceTableKeyException(MessageFormat
-                    .format("Root_probe_type did not match. current : {0} vs previous {1}",
-                            currentPriceTableKey.getRootProbeType(),
-                            previousPriceTableKey.getRootProbeType()));
+                    .format("pricing_group did not match. current : {0} vs previous {1}",
+                            currentPriceTableKey.getPricingGroup(),
+                            previousPriceTableKey.getPricingGroup()));
         } else {
-            resultPriceTableKey.setRootProbeType(currentPriceTableKey.getRootProbeType());
+            resultPriceTableKey.setPricingGroup(currentPriceTableKey.getPricingGroup());
         }
         Map<String, String> currentPriceTableKeyMap = Maps.newHashMap(currentPriceTableKey
                 .getProbeKeyMaterialMap());

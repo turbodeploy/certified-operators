@@ -66,8 +66,8 @@ public class BusinessAccountPriceTableKeyUploaderTest {
     @Before
     public void setup() {
         // test cost component client
-        when(targetStore.findRootTarget(anyLong())).thenReturn(Optional.of(11L));
-        when(targetStore.getProbeTypeForTarget(11L)).thenReturn(Optional.of(SDKProbeType.AWS));
+        when(targetStore.getProbeTypeForTarget(TARGET_ID_AWS_DISCOVERY_1)).thenReturn(Optional.of(SDKProbeType.AWS));
+        when(targetStore.getProbeTypeForTarget(TARGET_ID_AWS_BILLING_1)).thenReturn(Optional.of(SDKProbeType.AWS_BILLING));
         final PricingServiceBlockingStub priceServiceClient = PricingServiceGrpc.newBlockingStub(server.getChannel());
         businessAccountPriceTableKeyUploader = new BusinessAccountPriceTableKeyUploader(priceServiceClient, targetStore);
         long now = System.currentTimeMillis();
@@ -141,7 +141,7 @@ public class BusinessAccountPriceTableKeyUploaderTest {
         verify(mockStitchingContext, times(1)).getEntitiesByEntityTypeAndTarget();
 
         PriceTableKey awsPriceTableKey = PriceTableKey.newBuilder()
-                .setRootProbeType("AWS").build();
+                .setPricingGroup("AWS").build();
         verify(pricingServiceMole).uploadAccountPriceTableKeys(eq(
                 UploadAccountPriceTableKeyRequest.newBuilder(
                         UploadAccountPriceTableKeyRequest.newBuilder()

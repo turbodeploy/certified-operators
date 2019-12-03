@@ -46,9 +46,11 @@ message PriceTable {
 
 // PriceTableKey contains information which describes the source of price table.
 message PriceTableKey {
-    // eg: root_probe_type like aws,azure ea etc.
-    // root_probe_type is determined by looking up the root probe in target store of a given target.
-    optional string root_probe_type = 1;
+    // Represents the scope of this PriceTableKey. It is expected the group will be an identifier
+    // of the cloud provider (e.g. AWS, Azure). This group is a short-term implementation for scoping
+    // the keys, which is expected to be replaced by a CloudServiceProvider entity identifier in the
+    // near future
+    optional string pricing_group = 1;
 
     // probe_key_material is a map of miscellaneous information about the price table which helps to
     // uniquely identify a price table and to which account it might be related to.

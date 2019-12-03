@@ -129,7 +129,7 @@ public class BusinessAccountPriceTableKeyStoreTest {
      */
     @Test
     public void testAccurateBAToPriceTableMapping() throws IdentityStoreException {
-        PriceTableKey priceTableKey = mockPriceTable("mockSDKProbeType1");
+        PriceTableKey priceTableKey = mockPriceTable("aws");
         BusinessAccountPriceTableKey businessAccountPriceTableKey = businessPriceTableKeyGenerator(priceTableKey);
         businessAccountPriceTableKeyStore.uploadBusinessAccount(businessAccountPriceTableKey);
         Map<Long, Long> priceTableKeyMap = businessAccountPriceTableKeyStore.fetchPriceTableKeyOidsByBusinessAccount(Collections.emptySet());
@@ -151,8 +151,8 @@ public class BusinessAccountPriceTableKeyStoreTest {
      */
     @Test
     public void testOverwriteBAToPriceTableMapping() throws IdentityStoreException {
-        PriceTableKey fooPriceTableKey = mockPriceTable("mockSDKProbeType1");
-        PriceTableKey barPriceTableKey = mockPriceTable("mockSDKProbeType2");
+        PriceTableKey fooPriceTableKey = mockPriceTable("aws");
+        PriceTableKey barPriceTableKey = mockPriceTable("azure");
 
         //first insert
         BusinessAccountPriceTableKey businessAccountPriceTableKey = businessPriceTableKeyGenerator(fooPriceTableKey);
@@ -183,8 +183,8 @@ public class BusinessAccountPriceTableKeyStoreTest {
      */
     @Test
     public void testCollectAndRestoreDiagsFunctionality() throws DiagnosticsException, IdentityStoreException {
-        PriceTableKey fooPriceTableKey = mockPriceTable("mockSDKProbeType1");
-        PriceTableKey barPriceTableKey = mockPriceTable("mockSDKProbeType2");
+        PriceTableKey fooPriceTableKey = mockPriceTable("aws");
+        PriceTableKey barPriceTableKey = mockPriceTable("azure");
 
         //first insert
         BusinessAccountPriceTableKey businessAccountPriceTableKey = BusinessAccountPriceTableKey.newBuilder()
@@ -286,8 +286,9 @@ public class BusinessAccountPriceTableKeyStoreTest {
         assertThat(priceTableKeyOids.values().contains(priceTableKeyOid), is(true));
     }
 
-    private PriceTableKey mockPriceTable(final String rootProbeType) {
-        return PriceTableKey.newBuilder().setRootProbeType(rootProbeType)
+    private PriceTableKey mockPriceTable(final String pricingGroup) {
+        return PriceTableKey.newBuilder()
+                .setPricingGroup(pricingGroup)
                 .putProbeKeyMaterial("enrollmentId", "123")
                 .putProbeKeyMaterial("offerId", "456")
                 .build();

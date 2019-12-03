@@ -549,9 +549,6 @@ public class KVBackedTargetStoreTest {
         verifyDerivedTargetIdsList(
                 Lists.newArrayList(derived3.getId()),
                 getDerivedTargetIds(derived1));
-        assertEquals(parent.getId(), (long)targetStore.findRootTarget(derived3.getId()).get());
-        assertEquals(parent.getId(), (long)targetStore.findRootTarget(derived2.getId()).get());
-        assertEquals(parent.getId(), (long)targetStore.findRootTarget(derived1.getId()).get());
     }
 
     /**
@@ -981,21 +978,5 @@ public class KVBackedTargetStoreTest {
         assertEquals(1, updatedParentTarget.get().getSpec().getDerivedTargetIdsCount());
         assertEquals(derivedTargetId2,
             updatedParentTarget.get().getSpec().getDerivedTargetIdsList().iterator().next());
-    }
-
-    @Test
-    public void testInvalidTargetAndRootTarget() throws DuplicateTargetException, InvalidTargetException, IdentityStoreException {
-        prepareInitialProbe();
-        final Target parent = targetStore.createTarget(createTargetSpec(0L, 666));
-        final TargetSpec derivedTargetSpec1 = TargetSpec.newBuilder()
-                .setProbeId(DERIVED_PROBE_ID)
-                .setIsHidden(true)
-                .addAllAccountValue(createAccountValue(100))
-                .build();
-        targetStore.createOrUpdateDerivedTargets(Collections.singletonList(derivedTargetSpec1),
-            parent.getId());
-        final Long derived1 = verifyDerivedTargetCreation(derivedTargetSpec1);
-        assertEquals(Optional.of(parent.getId()), targetStore.findRootTarget(derived1));
-        assertEquals(Optional.empty(), targetStore.findRootTarget(100L));
     }
 }

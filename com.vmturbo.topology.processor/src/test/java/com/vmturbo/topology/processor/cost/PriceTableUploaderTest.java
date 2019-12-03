@@ -373,7 +373,6 @@ public class PriceTableUploaderTest {
      */
     @Test
     public void testBuildPricesToUpload() {
-        when(targetStore.findRootTarget(anyLong())).thenReturn(Optional.of(TARGET_ID));
         TopologyProcessorCostTestUtils utils = new TopologyProcessorCostTestUtils();
         final StitchingContext stitchingContext = utils.setupStitchingContext();
         CloudEntitiesMap cloudEntitiesMap = new CloudEntitiesMap(stitchingContext, new HashMap<>());
@@ -404,7 +403,7 @@ public class PriceTableUploaderTest {
                                         .setPriceAmount(CurrencyAmount.newBuilder()
                                                 .setAmount(IP_PRICE_AMOUNT))))))
                 .build();
-        PriceTableKey.Builder priceTableKey = PriceTableKey.newBuilder().setRootProbeType("AWS")
+        PriceTableKey.Builder priceTableKey = PriceTableKey.newBuilder().setPricingGroup("AWS")
                 .putProbeKeyMaterial("ENROLLMENT_NO", "123");
         ProbePriceData probePriceData = new ProbePriceData();
         probePriceData.riSpecPrices = Collections.emptyList();

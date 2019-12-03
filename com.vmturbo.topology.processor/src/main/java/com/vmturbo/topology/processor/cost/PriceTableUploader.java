@@ -281,8 +281,17 @@ public class PriceTableUploader implements Diagnosable {
                         SDKProbeType.create(sdkProbeType.getProbeType()));
                 // add the RI price table for this probe type
                 probePriceData.riSpecPrices = getRISpecPrices(priceTable, cloudEntitiesMap);
-                probePriceData.priceTableKey = generatePriceTableKey(priceTable, targetId);
-                probePricesList.add(probePriceData);
+
+                final Optional<PriceTableKey> optPriceTableKey =
+                        generatePriceTableKey(priceTable, targetId);
+
+                if (optPriceTableKey.isPresent()) {
+                    probePriceData.priceTableKey = optPriceTableKey.get();
+                    probePricesList.add(probePriceData);
+                } else {
+                    logger.error("Unable to create price table key for price table (TargetID={})",
+                            targetId);
+                }
             });
         }
         buildTimer.observe();
@@ -299,7 +308,7 @@ public class PriceTableUploader implements Diagnosable {
      * @return {@link PriceTableKey} which is sent to cost component.
      */
     @Nonnull
-    private PriceTableKey generatePriceTableKey(@Nonnull final PricingDTO.PriceTable priceTable,
+    private Optional<PriceTableKey> generatePriceTableKey(@Nonnull final PricingDTO.PriceTable priceTable,
                                                 @Nonnull final Long targetId) {
         Builder priceTableKeyBuilder = PriceTableKey.newBuilder();
         priceTable.getPriceTableKeysList().forEach(pricingIdentifier -> {
@@ -307,15 +316,12 @@ public class PriceTableUploader implements Diagnosable {
                     pricingIdentifier.getIdentifierValue());
         });
 
-        Optional<Long> rootTarget = targetStore.findRootTarget(targetId);
-        if (rootTarget.isPresent()) {
-            final Optional<SDKProbeType> rootProbeType = targetStore.getProbeTypeForTarget(rootTarget.get());
-            rootProbeType.ifPresent(sdkProbeType -> priceTableKeyBuilder
-                    .setRootProbeType(sdkProbeType.getProbeType()));
-        } else {
-            logger.error("TargetID {} was not found in the targetStore.", targetId);
-        }
-        return priceTableKeyBuilder.build();
+        return targetStore.getProbeTypeForTarget(targetId)
+                .map(PricingGroupMapper::getPricingGroupForProbeType)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .map(priceTableKeyBuilder::setPricingGroup)
+                .map(PriceTableKey.Builder::build);
     }
 
     @VisibleForTesting
@@ -741,8 +747,7 @@ public class PriceTableUploader implements Diagnosable {
             for (Map.Entry<Long, ProbePriceData> entry : priceTablesToUpload.entrySet()) {
                 long checksum = entry.getKey();
                 ProbePriceData probePriceData = entry.getValue();
-                if (probePriceData.priceTable != null &&
-                        probePriceData.priceTableKey.getRootProbeType() != null) {
+                if (probePriceData.priceTable != null) {
                     logger.debug("Sending price table for probe {}", probePriceData.probeType);
                     sendSegment(ProbePriceTableSegment.newBuilder().setHeader((ProbePriceTableHeader.newBuilder()
                             .setCreatedTime(clock.millis())

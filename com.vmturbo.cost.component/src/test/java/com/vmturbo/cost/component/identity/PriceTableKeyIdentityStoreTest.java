@@ -139,7 +139,7 @@ public class PriceTableKeyIdentityStoreTest {
 
         assertThat(identityMatchingAttributeMap.get("enrollmentId"), is("123"));
         assertThat(identityMatchingAttributeMap.get("offerId"), is("456"));
-        assertThat(identityMatchingAttributeMap.get("root_probe_type"), is("aws"));
+        assertThat(identityMatchingAttributeMap.get("pricing_group"), is("aws"));
     }
 
 
@@ -170,7 +170,7 @@ public class PriceTableKeyIdentityStoreTest {
         PriceTableKey priceTableKey = mockPriceTableKey("azure");
         testIdentityStore.fetchOrAssignOid(priceTableKey);
 
-        priceTableKey = priceTableKey.newBuilderForType().setRootProbeType("aws").build();
+        priceTableKey = priceTableKey.newBuilderForType().setPricingGroup("aws").build();
         testIdentityStore.fetchOrAssignOid(priceTableKey);
 
         Map<IdentityMatchingAttributes, Long> matchingAttributesLongMap = testIdentityStore.fetchAllOidMappings(dsl);
@@ -335,8 +335,9 @@ public class PriceTableKeyIdentityStoreTest {
 
     }
 
-    private PriceTableKey mockPriceTableKey(final String probeType) {
-        return PriceTableKey.newBuilder().setRootProbeType(probeType)
+    private PriceTableKey mockPriceTableKey(final String pricingGroup) {
+        return PriceTableKey.newBuilder()
+                .setPricingGroup(pricingGroup)
                 .putProbeKeyMaterial("enrollmentId", "123")
                 .putProbeKeyMaterial("offerId", "456")
                 .build();
