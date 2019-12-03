@@ -196,9 +196,8 @@ public class SupplyChainStatistician {
                         // the builders array.
                         break;
                     case RESOURCE_GROUP:
-                        long resourceGroupId =
-                                supplementaryData.getResourceGroupId(entity.getOid());
-                        statGroupKey.setResourceGroupId(resourceGroupId);
+                        supplementaryData.getResourceGroupId(entity.getOid())
+                                .ifPresent(statGroupKey::setResourceGroupId);
                         break;
                     case BUSINESS_ACCOUNT_ID:
                         Optional<RepoGraphEntity> firstBaOwner;
@@ -411,8 +410,8 @@ public class SupplyChainStatistician {
             return categoriesForEntity.getOrDefault(oid, Collections.emptySet());
         }
 
-        long getResourceGroupId(final long oid) {
-            return resourceGroupForEntity.getOrDefault(oid, null);
+        Optional<Long> getResourceGroupId(final long oid) {
+            return Optional.ofNullable(resourceGroupForEntity.get(oid));
         }
     }
 

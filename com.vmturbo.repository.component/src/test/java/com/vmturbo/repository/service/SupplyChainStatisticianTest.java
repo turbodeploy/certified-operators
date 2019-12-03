@@ -114,6 +114,8 @@ public class SupplyChainStatisticianTest {
     private static final String TIER2_DISPLAY_NAME = "c4.large";
     private static final String DB_DISPLAY_NAME = "DB1";
 
+    private static final long RESOURCE_GROUP_1_OID = 123;
+    private static final long RESOURCE_GROUP_2_OID = 321;
 
 
     private static final SupplyChain SUPPLY_CHAIN = SupplyChain.newBuilder()
@@ -258,6 +260,60 @@ public class SupplyChainStatisticianTest {
                     .setAccountId(BUSINESS_ACCOUNT_2_OID))
                 .setNumEntities(1)
                 .build()));
+    }
+
+    /**
+     * Test calculating stats, grouping by resource group.
+     */
+    @Test
+    public void testGroupByResourceGroup() {
+        when(mockSupplementaryData.getResourceGroupId(VM_OID)).thenReturn(Optional.of(RESOURCE_GROUP_1_OID));
+        when(mockSupplementaryData.getResourceGroupId(DISABLED_VM_OID)).thenReturn(Optional.of(RESOURCE_GROUP_1_OID));
+        when(mockSupplementaryData.getResourceGroupId(DB_OID)).thenReturn(Optional.of(RESOURCE_GROUP_1_OID));
+        when(mockSupplementaryData.getResourceGroupId(TIER_1_OID)).thenReturn(Optional.empty());
+        when(mockSupplementaryData.getResourceGroupId(TIER_2_OID)).thenReturn(Optional.empty());
+        final List<SupplyChainStat> stats = statistician.calculateStats(SUPPLY_CHAIN_VM_N_DB,
+                Collections.singletonList(SupplyChainGroupBy.RESOURCE_GROUP), entityLookup);
+        assertThat(stats, containsInAnyOrder(
+                SupplyChainStat.newBuilder()
+                        .setStatGroup(StatGroup.newBuilder())
+                        .setNumEntities(2)
+                        .build(),
+                SupplyChainStat.newBuilder()
+                        .setStatGroup(StatGroup.newBuilder()
+                                .setResourceGroupId(RESOURCE_GROUP_1_OID))
+                        .setNumEntities(3)
+                        .build()));
+    }
+
+    /**
+     * Test calculating stats, grouping by resource group. When entities belong to different
+     * resource groups or don't belong to any resource group at all.
+     */
+    @Test
+    public void testGroupByResourceGroupWithAnyGroups() {
+        when(mockSupplementaryData.getResourceGroupId(VM_OID)).thenReturn(Optional.of(RESOURCE_GROUP_1_OID));
+        when(mockSupplementaryData.getResourceGroupId(DISABLED_VM_OID)).thenReturn(Optional.of(RESOURCE_GROUP_1_OID));
+        when(mockSupplementaryData.getResourceGroupId(DB_OID)).thenReturn(Optional.of(RESOURCE_GROUP_2_OID));
+        when(mockSupplementaryData.getResourceGroupId(TIER_1_OID)).thenReturn(Optional.empty());
+        when(mockSupplementaryData.getResourceGroupId(TIER_2_OID)).thenReturn(Optional.empty());
+        final List<SupplyChainStat> stats = statistician.calculateStats(SUPPLY_CHAIN_VM_N_DB,
+                Collections.singletonList(SupplyChainGroupBy.RESOURCE_GROUP), entityLookup);
+        assertThat(stats, containsInAnyOrder(
+                SupplyChainStat.newBuilder()
+                        .setStatGroup(StatGroup.newBuilder())
+                        .setNumEntities(2)
+                        .build(),
+                SupplyChainStat.newBuilder()
+                        .setStatGroup(StatGroup.newBuilder()
+                                .setResourceGroupId(RESOURCE_GROUP_2_OID))
+                        .setNumEntities(1)
+                        .build(),
+                SupplyChainStat.newBuilder()
+                        .setStatGroup(StatGroup.newBuilder()
+                                .setResourceGroupId(RESOURCE_GROUP_1_OID))
+                        .setNumEntities(2)
+                        .build()));
     }
 
     /**
