@@ -1,8 +1,8 @@
 package com.vmturbo.cost.component.expenses;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 
 import java.time.Instant;
@@ -13,8 +13,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
-import com.google.common.collect.ImmutableSet;
 
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
@@ -27,10 +25,12 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.vmturbo.common.protobuf.cost.Cost;
+import com.google.common.collect.ImmutableSet;
+
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo.ServiceExpenses;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest.GroupByType;
 import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest.AccountExpenseQueryScope;
 import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest.AccountExpenseQueryScope.IdList;
 import com.vmturbo.components.api.test.MutableFixedClock;
@@ -229,28 +229,32 @@ public class SqlAccountExpensesStoreTest {
                 ImmutableSet.of(43),
                 now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 now.plusDays(1l).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                TimeFrame.LATEST);
+                TimeFrame.LATEST,
+                Collections.singleton(GroupByType.TARGET.getValueDescriptor().getName()));
 
         final AccountExpensesFilter entityCostFilter1 = new AccountExpensesFilter(
                 ImmutableSet.of(2l), //Not in the table
                 Collections.EMPTY_SET,
                 now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 now.plusDays(1l).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                TimeFrame.LATEST);
+                TimeFrame.LATEST,
+                Collections.singleton(GroupByType.TARGET.getValueDescriptor().getName()));
 
         final AccountExpensesFilter entityCostFilter2 = new AccountExpensesFilter(
                 Collections.EMPTY_SET, //any
                 ImmutableSet.of(43),
                 now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 now.plusDays(1l).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                TimeFrame.LATEST);
+                TimeFrame.LATEST,
+                Collections.singleton(GroupByType.TARGET.getValueDescriptor().getName()));
 
         final AccountExpensesFilter entityCostFilter3 = new AccountExpensesFilter(
                 ImmutableSet.of(Long.MAX_VALUE),
                 ImmutableSet.of(Integer.MAX_VALUE),
                 now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 now.plusDays(1l).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                TimeFrame.LATEST);
+                TimeFrame.LATEST,
+                Collections.singleton(GroupByType.TARGET.getValueDescriptor().getName()));
 
         // INSERT
         saveExpense();
@@ -288,7 +292,8 @@ public class SqlAccountExpensesStoreTest {
                 Collections.EMPTY_SET,
                 now.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                 now.plusDays(1l).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                TimeFrame.LATEST);
+                TimeFrame.LATEST,
+                Collections.singleton(GroupByType.TARGET.getValueDescriptor().getName()));
 
         // INSERT
         saveExpense();

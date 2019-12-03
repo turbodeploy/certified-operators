@@ -796,36 +796,8 @@ message GetCloudExpenseStatsRequest {
 
 // A request to get bottom up Cloud cost stats
 message GetCloudCostStatsRequest {
-    // The start date of the request
-    // If the start date is set and the end date is not set, we will only get the latest stats.
-    optional uint64 start_date = 1;
 
-    // The end date of the request
-    // If the end date is set and the start date is not set, we will only get the latest stats.
-    optional uint64 end_date = 2;
-
-    // Whether or not to request projected bottom-up costs.
-    //
-    // Note - this will add the projected stats to any historical stats specified by the
-    // start_date and end_date parameters. There is no way to get ONLY the projected stats.
-    optional bool request_projected = 7;
-
-    // Entity ids filter, return all entities if not set
-    optional EntityFilter entity_filter = 3;
-
-    // Cost category filter, return all entities if not set
-    optional CostCategory cost_category_filter = 4;
-
-    // Entity type filter, could be VM or APP, return all entities if not set
-    optional EntityTypeFilter entity_type_filter = 5;
-
-    // A property names to aggregate stats over, as in an SQL 'group by' clause.
-    optional GroupByType group_by = 6;
-
-    enum GroupByType {
-        // Cloud Cost Component
-        COSTCOMPONENT = 1;
-    }
+    repeated CloudCostStatsQuery cloud_cost_stats_query = 1;
 }
 
 // Bottom up Cloud cost stats response
@@ -835,6 +807,44 @@ message GetCloudCostStatsResponse {
     repeated CloudCostStatRecord cloud_stat_record = 1;
 }
 
+message CloudCostStatsQuery {
+
+    // The start date of the request
+    // If the start date is set and the end date is not set, we will only get the latest stats.
+    optional int64 query_id = 1;
+
+    // The end date of the request
+    // If the end date is set and the start date is not set, we will only get the latest stats.
+    optional uint64 start_date = 2;
+
+    // Entity ids filter, return all entities if not set
+    optional uint64 end_date = 3;
+
+    // Whether or not to request projected bottom-up costs.
+    //
+    // Note - this will add the projected stats to any historical stats specified by the
+    // start_date and end_date parameters. There is no way to get ONLY the projected stats.
+    optional bool request_projected = 4;
+
+    // Entity ids filter, return all entities if not set
+    optional EntityFilter entity_filter = 5;
+
+    // Cost category filter, return all entities if not set
+    optional CostCategory cost_category_filter = 6;
+
+    // Entity type filter, could be VM or APP, return all entities if not set
+    optional EntityTypeFilter entity_type_filter = 7;
+
+    // A property names to aggregate stats over, as in an SQL 'group by' clause.
+    repeated GroupBy group_by = 8;
+
+    enum GroupBy {
+        COST_CATEGORY = 1;
+        ENTITY = 2;
+        ENTITY_TYPE = 3;
+    }
+}
+
 // Cloud cost stat record, used for both top down and bottom up
 message CloudCostStatRecord {
     // the actual snapshot_date for this response
@@ -842,6 +852,9 @@ message CloudCostStatRecord {
 
     // the individual stat_records collected
     repeated StatRecord stat_records = 2;
+
+    //this the query id used in CloudCostStatsQuery to uniquely identity a query in the list.
+    optional uint64 query_id = 3;
 
     // an individual stats value.
     message StatRecord {

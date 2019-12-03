@@ -11,7 +11,6 @@ import org.jooq.Table;
 
 import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 
-
 /**
  * A abstract class represents the filter object.
  * Current it's only used with entity and expense cost tables.
@@ -47,9 +46,19 @@ public abstract class CostFilter {
      *
      * @return a list of {@link Condition}.
      */
-    abstract public List<Condition> generateConditions();
+    public abstract List<Condition> generateConditions();
 
-    abstract public Condition[] getConditions();
+    public abstract Condition[] getConditions();
+
+    public abstract CostGroupBy getCostGroupBy();
 
     public abstract Table<?> getTable();
+
+    /**
+     * To check if the query should only be for latest Entity cost.
+     * @return true if latest.
+     */
+    public boolean isLatest() {
+        return startDateMillis == 0 && endDateMillis == 0;
+    }
 }

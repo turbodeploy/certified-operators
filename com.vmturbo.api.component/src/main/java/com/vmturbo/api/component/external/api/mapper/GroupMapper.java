@@ -14,6 +14,10 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
@@ -21,10 +25,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
-
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
@@ -43,6 +43,7 @@ import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
@@ -342,10 +343,11 @@ public class GroupMapper {
         if (environmentType == EnvironmentType.CLOUD) {
             final GetCloudCostStatsResponse cloudCostStatsResponse =
                     costServiceBlockingStub.getCloudCostStats(GetCloudCostStatsRequest.newBuilder()
+                            .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
                             .setEntityFilter(Cost.EntityFilter.newBuilder()
                                     .addAllEntityId(groupAndMembers.members())
                                     .build())
-                            .build());
+                            .build()).build());
             final List<CloudCostStatRecord> costStatRecordList =
                     cloudCostStatsResponse.getCloudStatRecordList();
             if (!costStatRecordList.isEmpty()) {

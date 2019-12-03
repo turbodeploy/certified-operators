@@ -5,7 +5,9 @@ import static com.vmturbo.cost.component.db.Tables.ACCOUNT_EXPENSES;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -13,6 +15,8 @@ import javax.annotation.Nullable;
 import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.Table;
+
+import com.google.common.collect.Sets;
 
 import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.db.Tables;
@@ -29,13 +33,29 @@ public class AccountExpensesFilter extends CostFilter {
 
     private final List<Condition> conditions;
 
+    @Nullable
+    private final CostGroupBy costGroupBy;
+
     public AccountExpensesFilter(@Nonnull Set<Long> entityFilter,
                                  @Nonnull Set<Integer> entityTypeFilter,
                                  final long startDateMillis,
                                  final long endDateMillis,
-                                 @Nullable final TimeFrame timeFrame) {
+                                 @Nullable final TimeFrame timeFrame,
+                                 @Nonnull Set<String> groupByFields) {
         super(entityFilter, entityTypeFilter, startDateMillis, endDateMillis, timeFrame, CREATED_TIME);
         this.conditions = generateConditions();
+        this.costGroupBy = createGroupByFieldString(groupByFields);
+    }
+
+    @Nullable
+    private CostGroupBy createGroupByFieldString(@Nonnull Set<String> items ) {
+        Set<String> listOfFields = Sets.newHashSet(items);
+        listOfFields.add(CREATED_TIME);
+        return items.isEmpty() ?
+                null :
+                new CostGroupBy(listOfFields.stream().map(columnName -> columnName.toLowerCase(Locale.getDefault()))
+                        .collect(Collectors.toSet()),
+                        timeFrame);
     }
 
     /**
@@ -81,5 +101,10 @@ public class AccountExpensesFilter extends CostFilter {
         } else {
             return Tables.ACCOUNT_EXPENSES_BY_MONTH;
         }
+    }
+
+    @Override
+    public CostGroupBy getCostGroupBy() {
+        return costGroupBy;
     }
 }

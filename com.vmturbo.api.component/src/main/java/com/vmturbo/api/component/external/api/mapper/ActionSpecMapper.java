@@ -30,16 +30,16 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
-
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMappingContextFactory.ActionSpecMappingContext;
@@ -99,6 +99,7 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
@@ -1491,11 +1492,11 @@ public class ActionSpecMapper {
         EntityFilter entityFilter = EntityFilter.newBuilder().addEntityId(entityUuid).build();
         GetCloudCostStatsRequest cloudCostStatsRequest = GetCloudCostStatsRequest
                 .newBuilder()
+                .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
                 .setStartDate(System.currentTimeMillis())
                 .setRequestProjected(true)
                 .setEntityFilter(entityFilter)
-                .setGroupBy(GetCloudCostStatsRequest.GroupByType.COSTCOMPONENT)
-                .build();
+                .build()).build();
         GetCloudCostStatsResponse response = costServiceBlockingStub.getCloudCostStats(cloudCostStatsRequest);
         int statRecordListSize = response.getCloudStatRecordList().size();
         if (statRecordListSize == 2) {

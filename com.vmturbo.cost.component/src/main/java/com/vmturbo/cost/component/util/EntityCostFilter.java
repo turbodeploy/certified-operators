@@ -2,16 +2,22 @@ package com.vmturbo.cost.component.util;
 
 import static com.vmturbo.cost.component.db.Tables.ENTITY_COST;
 
-import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
+import java.util.TimeZone;
+import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.jooq.Condition;
-import org.jooq.Field;
 import org.jooq.Table;
+
+import com.google.common.collect.Sets;
 
 import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.db.Tables;
@@ -24,17 +30,33 @@ import com.vmturbo.cost.component.db.Tables;
  */
 public class EntityCostFilter extends CostFilter {
 
-    private static final String CREATED_TIME = "created_time";
+    private static final String CREATED_TIME = ENTITY_COST.CREATED_TIME.getName();
 
     private final List<Condition> conditions;
+
+    @Nullable
+    private final CostGroupBy costGroupBy;
 
     public EntityCostFilter(final Set<Long> entityFilters,
                             final Set<Integer> entityTypeFilters,
                             final long startDateMillis,
                             final long endDateMillis,
-                            @Nullable final TimeFrame timeFrame) {
+                            @Nullable final TimeFrame timeFrame,
+                            @Nonnull Set<String> groupByFields) {
         super(entityFilters, entityTypeFilters, startDateMillis, endDateMillis, timeFrame, CREATED_TIME);
         this.conditions = generateConditions();
+        this.costGroupBy = createGroupByFieldString(groupByFields);
+    }
+
+    @Nullable
+    private CostGroupBy createGroupByFieldString(@Nonnull Set<String> items ) {
+        Set<String> listOfFields = Sets.newHashSet(items);
+        listOfFields.add(CREATED_TIME);
+        return items.isEmpty() ?
+                null :
+                new CostGroupBy(listOfFields.stream().map(columnName -> columnName.toLowerCase(Locale.getDefault()))
+                        .collect(Collectors.toSet()),
+                        timeFrame);
     }
 
     /**
@@ -49,8 +71,8 @@ public class EntityCostFilter extends CostFilter {
         final Table<?> table = getTable();
 
         if (startDateMillis > 0 && endDateMillis > 0) {
-            conditions.add(((Field<Timestamp>) table.field(snapshotTime))
-                    .between(new Timestamp(this.startDateMillis), new Timestamp(this.endDateMillis)));
+            conditions.add(getTable().field(ENTITY_COST.CREATED_TIME).between(getLocalDateTime(startDateMillis),
+                    getLocalDateTime(endDateMillis)));
         }
 
         if (!entityTypeFilters.isEmpty()) {
@@ -79,5 +101,25 @@ public class EntityCostFilter extends CostFilter {
         } else {
             return Tables.ENTITY_COST_BY_MONTH;
         }
+    }
+
+    /**
+     * GroupBy for {@link com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord}.
+     * @return null if there was no groupBy property in request.
+     */
+    @Nullable
+    public CostGroupBy getCostGroupBy() {
+        return costGroupBy;
+    }
+
+    /**
+     * Convert date time to local date time.
+     *
+     * @param dateTime date time with long type.
+     * @return local date time with LocalDateTime type.
+     */
+    private LocalDateTime getLocalDateTime(long dateTime) {
+        return LocalDateTime.ofInstant(Instant.ofEpochMilli(dateTime),
+                TimeZone.getDefault().toZoneId());
     }
 }
