@@ -332,6 +332,41 @@ public class UserServiceTest {
     }
 
     /**
+     * This test is only very slightly different than the previous test.
+     * It uses a userRole of Local instead of LOCAL.  These should be treated in
+     * the same way.
+     * @throws Exception when the edit of a user fails, and this is expected.
+     */
+    @Test
+    public void testEmptyPassword2() throws Exception {
+        final String userId = "1234";
+        final String userName = "testUser2";
+        final String userType = "DedicatedCustomer";
+        final String password = "";
+        final String userRole = "ADMINISTRATOR";
+        final String userLoginProvider = "Local";
+
+        UserApiDTO userApiDTO = new UserApiDTO();
+        userApiDTO.setUsername(userName);
+        userApiDTO.setType(userType);
+        userApiDTO.setRoleName(userRole);
+        userApiDTO.setPassword(password);
+        userApiDTO.setLoginProvider(userLoginProvider);
+
+        try {
+            // create user case.
+            usersService.createUser(userApiDTO);
+            fail("the illegal argument exception should throw");
+        } catch (IllegalArgumentException e) {
+            // Catch the exception there, so we can continue to the next test.
+        }
+        // This should throw an illegal argument exception
+        expectedException.expect(IllegalArgumentException.class);
+        // edit user case.
+        usersService.editUser(userId, userApiDTO);
+    }
+
+    /**
      * Testing that when the api the uuid in the input dot does not match the uuid
      * passed as a parameter, the service will
      * throw an IllegalArgumentException

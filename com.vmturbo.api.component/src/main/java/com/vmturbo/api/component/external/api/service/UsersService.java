@@ -453,7 +453,11 @@ public class UsersService implements IUsersService {
         if (StringUtils.isBlank(userApiDTO.getType())) {
             throw new IllegalArgumentException("No type specified for user.");
         }
-        if (StringUtils.isBlank(userApiDTO.getPassword())) {
+        // Only check the password if this is a local users.  Other user types do not require
+        // a password.
+        if (userApiDTO.getLoginProvider() != null &&
+                LoginProviderMapper.fromApi(userApiDTO.getLoginProvider()).equals(PROVIDER.LOCAL) &&
+                StringUtils.isBlank(userApiDTO.getPassword())) {
             throw new IllegalArgumentException("User password is empty.");
         }
     }
