@@ -2,13 +2,21 @@ package com.vmturbo.utilprobe.component;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.concurrent.TimeUnit;
+
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.kvstore.ConsulKeyValueStore;
+import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.mediation.client.MediationComponentMain;
 import com.vmturbo.mediation.common.ProbeConfigurationLoadException;
 import com.vmturbo.mediation.common.ProbeProperties;
@@ -18,6 +26,7 @@ import com.vmturbo.mediation.common.features.ProbeClassContext;
 import com.vmturbo.mediation.utilprobe.common.UtilProbe;
 import com.vmturbo.mediation.utilprobe.common.UtilProbeAccount;
 import com.vmturbo.platform.sdk.common.MediationMessage;
+import com.vmturbo.utilprobe.component.service.ConsulManagementService;
 
 /**
  * Component for UtilProbe.
@@ -30,6 +39,20 @@ class UtilProbeComponent extends MediationComponentMain {
 
     private static final String PROBE_TYPE = "UTILPROBE_TYPE";
     private static final String PROBE_CATEGORY = "UTILPROBE_CATEGORY";
+
+    @Value("${consul_host:}")
+    private String consulHost;
+    @Value("${consul_port:}")
+    private String consulPort;
+    @Value("${topologyProcessorHost:}")
+    private String topologyProcessorHost;
+    @Value("${serverHttpPort:}")
+    private String topologyProcessorPort;
+    @Value("${kvStoreRetryIntervalMillis:1000}")
+    private String kvStoreRetryIntervalMillis;
+
+    @Autowired
+    private ConsulManagementService consulManagementService;
 
     static void start() {
         startContext(UtilProbeComponent.class);
@@ -71,6 +94,57 @@ class UtilProbeComponent extends MediationComponentMain {
                 ProbeProperties.DEFAULT_PROBE_TIMEOUT_SEC,
                 MediationMessage.ProbeInfo.CreationMode.STAND_ALONE));
         return newProps;
+    }
+
+    /**
+     * Initializing key/value store.
+     *
+     * @return key/value store for topology processor
+     */
+    @Bean
+    protected KeyValueStore getKeyValueStore() {
+        logger.info("Initializing KV store:");
+        final String namespace = topologyProcessorHost + "-1";
+        logger.info("Namespace: {}", namespace);
+        logger.info("Consul host: {}", consulHost);
+        logger.info("Consul port: {}", consulPort);
+        logger.info("Retry interval: {}", kvStoreRetryIntervalMillis);
+        return new ConsulKeyValueStore(topologyProcessorHost + "-1",
+                this.consulHost,
+                this.consulPort,
+                Long.parseLong(kvStoreRetryIntervalMillis),
+                TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * Initializing key/value manager service.
+     *
+     * @return key value manager service
+     */
+    @Bean
+    public ConsulManagementService getKeyValueManagerService() {
+        return new ConsulManagementService(getKeyValueStore());
+    }
+
+    /**
+     * Operations after context constructing.
+     */
+    @PostConstruct
+    @Override
+    public void componentContextConstructed() {
+        super.componentContextConstructed();
+        consulManagementService.deleteConfig(System.getenv(PROBE_CATEGORY),
+                System.getenv(PROBE_TYPE));
+    }
+
+    /**
+     * Operations before context closing.
+     */
+    @PreDestroy
+    public void componentContextClosing() {
+        consulManagementService.deleteConfig(System.getenv(PROBE_CATEGORY),
+                System.getenv(PROBE_TYPE));
+        super.componentContextClosing();
     }
 
 }
