@@ -429,7 +429,7 @@ public class SearchService implements ISearchService {
         if (GROUP.equals(className)) {
             return groupsService.getPaginatedGroupApiDTOS(
                 addNameMatcher(query, inputDTO.getCriteriaList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
-                paginationRequest, null, inputDTO.getEnvironmentType());
+                paginationRequest,  inputDTO.getGroupType(), inputDTO.getEnvironmentType());
         } else if (GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.containsKey(className)) {
             // TODO(OM-49616): return the proper search filters and handle the query string properly
             GroupType groupType = GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.get(className);

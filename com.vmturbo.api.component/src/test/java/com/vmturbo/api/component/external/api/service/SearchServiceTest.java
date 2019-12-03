@@ -11,6 +11,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -826,6 +827,42 @@ public class SearchServiceTest {
         SearchFilter nameFilter = searchParameters.getSearchFilter(0);
         String value = nameFilter.getPropertyFilter().getStringFilter().getStringPropertyRegex();
         assertEquals("^.*\\Q[b\\E.*$", value);
+    }
+
+    /**
+     * Test getMembersBasedOnFilter where Group class is used with and without groupType set.
+     * Verify that the groupsService rpc call is invoked with the correct type parameter.
+     *
+     * @throws Exception in case of error
+     */
+    @Test
+    public void testGetMembersBasedOnFilterWithGroupTypeQuery() throws Exception {
+        final GroupApiDTO requestForVirtualMachineGroups = new GroupApiDTO();
+        requestForVirtualMachineGroups.setGroupType(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        requestForVirtualMachineGroups.setClassName(StringConstants.GROUP);
+        final GroupApiDTO requestForAllGroups = new GroupApiDTO();
+        requestForAllGroups.setClassName(StringConstants.GROUP);
+        final SearchPaginationResponse response = mock(SearchPaginationResponse.class);
+        Mockito.when(groupsService.getPaginatedGroupApiDTOS(any(), any(), any(), any()))
+            .thenReturn(response);
+        final ArgumentCaptor<String> resultCaptor =
+            ArgumentCaptor.forClass((Class)String.class);
+        final SearchPaginationRequest paginationRequest = mock(SearchPaginationRequest.class);
+
+        assertTrue(response == searchService.getMembersBasedOnFilter("foo",
+            requestForVirtualMachineGroups,
+            paginationRequest));
+        assertTrue(response == searchService.getMembersBasedOnFilter("foo",
+            requestForAllGroups,
+            paginationRequest));
+        verify(groupsService, times(2)).getPaginatedGroupApiDTOS(any(), any(), resultCaptor.capture(), any());
+        // verify that first call to groupsService.getPaginatedGroupApiDTOS passed in VirtualMachine
+        // as entityType argument
+        assertEquals(UIEntityType.VIRTUAL_MACHINE.apiStr(),
+            resultCaptor.getAllValues().get(0));
+        // verify that second call to groupsService.getPaginatedGroupApiDTOS had null as
+        // entityType argument
+        assertNull(resultCaptor.getAllValues().get(1));
     }
 
     /**
