@@ -32,7 +32,6 @@ import com.vmturbo.topology.processor.api.impl.OperationRESTApi.OperationRespons
 import com.vmturbo.topology.processor.api.impl.OperationRESTApi.ValidateAllResponse;
 import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.Operation;
-import com.vmturbo.topology.processor.operation.OperationManager;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeException;

@@ -62,6 +62,7 @@ import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.topology.processor.TestIdentityStore;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
@@ -190,6 +191,8 @@ public class TargetControllerTest {
     // Helper protos to construct probe infos
     // without setting all the useless required fields.
     private ProbeInfo probeInfo;
+    private ProbeInfo derivedProbeInfo;
+    private ProbeInfo otherProbeInfo;
     private AccountDefEntry mandatoryAccountDef;
     private AccountDefEntry optionalAccountDef;
 
@@ -197,7 +200,6 @@ public class TargetControllerTest {
     private TargetStore targetStore;
     private ITransport<MediationServerMessage, MediationClientMessage> transport;
     private IdentityProvider identityProvider;
-    private KeyValueStore mockKvStore;
     private IOperationManager operationManager;
 
     @Autowired
@@ -217,13 +219,10 @@ public class TargetControllerTest {
         probeStore = wac.getBean(ProbeStore.class);
         targetStore = wac.getBean(TargetStore.class);
         identityProvider = wac.getBean(IdentityProvider.class);
-        mockKvStore = wac.getBean(KeyValueStore.class);
         operationManager = wac.getBean(IOperationManager.class);
-        probeInfo = ProbeInfo.newBuilder()
-                .setProbeType("test")
-                .setProbeCategory("testCat")
-                .addTargetIdentifierField("mandatory")
-                .build();
+        probeInfo = createProbeInfo("test", "testCategoryStandAlone", "mandatory", CreationMode.STAND_ALONE);
+        derivedProbeInfo = createProbeInfo("testDerived", "testCategoryDerived", "mandatory", CreationMode.DERIVED);
+        otherProbeInfo = createProbeInfo("test", "testCategoryOther", "mandatory", CreationMode.OTHER);
         mandatoryAccountDef = AccountDefEntry.newBuilder()
                 .setCustomDefinition(CustomAccountDefEntry.newBuilder()
                         .setName("mandatory")
@@ -244,18 +243,39 @@ public class TargetControllerTest {
         transport = mock;
     }
 
+    private static ProbeInfo createProbeInfo(String probeType, String category, String identifierField,
+                                      CreationMode creationMode) {
+        return ProbeInfo.newBuilder()
+            .setProbeType(probeType)
+            .setProbeCategory(category)
+            .addTargetIdentifierField(identifierField)
+            .setCreationMode(creationMode)
+            .build();
+    }
+
     @Test
     public void addTarget() throws Exception {
+        final TargetInfo result = addTestTarget("mandatory", probeInfo, HttpStatus.OK);
+        Assert.assertNotNull(result.getTargetId());
+    }
+
+    @Test
+    public void addTargetOther() throws Exception {
+        final TargetInfo result = addTestTarget("mandatory", otherProbeInfo, HttpStatus.FORBIDDEN);
+        Assert.assertNull(result.getTargetId());
+    }
+
+    private TargetInfo addTestTarget(String customDefinitionName, ProbeInfo probeInfo,
+                                     HttpStatus httpStatus) throws Exception {
         final AccountDefEntry.Builder accountBuilder =
-                        AccountDefEntry.newBuilder(mandatoryAccountDef);
-        accountBuilder.getCustomDefinitionBuilder().setName("mandatory");
+            AccountDefEntry.newBuilder(mandatoryAccountDef);
+        accountBuilder.getCustomDefinitionBuilder().setName(customDefinitionName);
         ProbeInfo oneMandatory = ProbeInfo.newBuilder(probeInfo)
-                .addAccountDefinition(accountBuilder).build();
+            .addAccountDefinition(accountBuilder).build();
         probeStore.registerNewProbe(oneMandatory, transport);
         TargetAdder adder = new TargetAdder(identityProvider.getProbeId(oneMandatory));
         adder.setAccountField("mandatory", "1");
-        TargetInfo result = adder.postAndExpect(HttpStatus.OK);
-        Assert.assertNotNull(result.getTargetId());
+        return adder.postAndExpect(httpStatus);
     }
 
     @Test
@@ -674,14 +694,16 @@ public class TargetControllerTest {
     }
 
     /**
-     * Creates one probe with one mandatory field, registeres it in probe store and returns its id.
+     * Creates one probe with one mandatory field and desired probe info,
+     * registers it in probe store and returns its id.
      *
-     * @return id of the probe
-     * @throws Exception on exceptions occurred.
+     * @param probeInfo of the new probe to create
+     * @return the probe id
+     * @throws Exception in case the registration to the probe store fails
      */
-    private long createProbeWithOneField() throws Exception {
+    private long createProbeWithOneField(ProbeInfo probeInfo) throws Exception {
         final ProbeInfo info = ProbeInfo.newBuilder(probeInfo)
-                        .addAccountDefinition(mandatoryAccountDef).build();
+            .addAccountDefinition(mandatoryAccountDef).build();
         probeStore.registerNewProbe(info, transport);
         final long probeId = probeStore.getProbes().keySet().iterator().next();
         return probeId;
@@ -694,7 +716,7 @@ public class TargetControllerTest {
      */
     @Test
     public void removeTarget() throws Exception {
-        final long probeId = createProbeWithOneField();
+        final long probeId = createProbeWithOneField(probeInfo);
         final Target target1 = createTarget(probeId, "1");
         final Target target2 = createTarget(probeId, "2");
 
@@ -702,7 +724,6 @@ public class TargetControllerTest {
         final MvcResult mvcResult =
                         requestRemoveTarget(target1.getId()).andExpect(status().isOk()).andReturn();
         final TargetInfo targetDeleted = decodeResult(mvcResult, TargetInfo.class);
-
         Assert.assertEquals(Collections.singletonList(target2), targetStore.getAll());
         Assert.assertEquals(target1.getId(), targetDeleted.getId());
     }
@@ -744,7 +765,7 @@ public class TargetControllerTest {
      */
     @Test
     public void updateExistingTarget() throws Exception {
-        final long probeId = createProbeWithOneField();
+        final long probeId = createProbeWithOneField(probeInfo);
         final Target target1 = createTarget(probeId, "1");
         createTarget(probeId, "2");
         final TopologyProcessorDTO.TargetSpec newTargetSpec = createTargetSpec(probeId, "3");
@@ -762,13 +783,29 @@ public class TargetControllerTest {
     }
 
     /**
+     * Creates a probe with derived creation mode and checks that it cannot be edited from the api call.
+     *
+     * @throws Exception on exceptions occur
+     */
+    @Test
+    public void invalidUpdateExistingTarget() throws Exception {
+        final long probeId = createProbeWithOneField(derivedProbeInfo);
+        final Target targetBeforeOperation = createTarget(probeId, "1");
+        final TopologyProcessorDTO.TargetSpec newTargetSpec = createTargetSpec(probeId, "77");
+        final MvcResult mvcResult = requestModifyTarget(targetBeforeOperation.getId(), new TargetSpec(newTargetSpec))
+                .andExpect(status().isForbidden()).andReturn();
+        final Target targetAfterOperation = targetStore.getTarget(targetBeforeOperation.getId()).get();
+        Assert.assertNotEquals(newTargetSpec, targetAfterOperation.getNoSecretDto().getSpec());
+    }
+
+    /**
      * Tests for trial to update not existing target. Expected to return NOT_FOUND error.
      *
      * @throws Exception on exceptions occur
      */
     @Test
     public void updateNotExistingTarget() throws Exception {
-        final long probeId = createProbeWithOneField();
+        final long probeId = createProbeWithOneField(probeInfo);
         final TargetSpec spec = new TargetSpec(createTargetSpec(probeId, "2"));
         final long targetId = 1L;
         Assert.assertEquals(0, targetStore.getAll().size());
@@ -780,6 +817,21 @@ public class TargetControllerTest {
         Assert.assertEquals(1, resultTarget.getErrors().size());
         Assert.assertThat(resultTarget.getErrors().iterator().next(),
                         createTargetMatcher(targetId, "does not exist "));
+    }
+
+    /**
+     * Creates a probe with derived creation mode and checks that it cannot be removed from the api call.
+     *
+     * @throws Exception on exceptions occur
+     */
+    @Test
+    public void removeInvalidTarget() throws Exception {
+        final long probeId = createProbeWithOneField(derivedProbeInfo);
+        final Target target = createTarget(probeId, "7");
+        Assert.assertEquals(1, targetStore.getAll().size());
+        requestRemoveTarget(target.getId()).andExpect(status().isForbidden()).andReturn();
+        Assert.assertEquals(1, targetStore.getAll().size());
+        Assert.assertEquals(target, targetStore.getAll().iterator().next());
     }
 
     // Using this instead of overriding equals because tests are the only

@@ -10,6 +10,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.ws.rs.ForbiddenException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,6 +34,8 @@ import io.swagger.annotations.ApiResponses;
 
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.identity.exceptions.IdentifierConflictException;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.dto.InputField;
@@ -83,11 +86,11 @@ public class TargetController {
     public TargetController(@Nonnull final Scheduler scheduler, @Nonnull final TargetStore targetStore,
                             @Nonnull final ProbeStore probeStore, @Nonnull IOperationManager operationManager,
                             @Nonnull final TopologyHandler topologyHandler) {
-                this.scheduler = Objects.requireNonNull(scheduler);
-                this.targetStore = Objects.requireNonNull(targetStore);
-                this.probeStore = Objects.requireNonNull(probeStore);
-                this.operationManager = Objects.requireNonNull(operationManager);
-                this.topologyHandler = Objects.requireNonNull(topologyHandler);
+        this.scheduler = Objects.requireNonNull(scheduler);
+        this.targetStore = Objects.requireNonNull(targetStore);
+        this.probeStore = Objects.requireNonNull(probeStore);
+        this.operationManager = Objects.requireNonNull(operationManager);
+        this.topologyHandler = Objects.requireNonNull(topologyHandler);
     }
 
     @RequestMapping(method = RequestMethod.POST,
@@ -103,9 +106,22 @@ public class TargetController {
             @ApiParam(value = "The information for the target to add.", required = true)
             @RequestBody final TargetSpec targetSpec) {
         try {
-            final Target target = targetStore.createTarget(targetSpec.toDto());
-            final TargetInfo targetInfo = targetToTargetInfo(target);
-            return new ResponseEntity<>(targetInfo, HttpStatus.OK);
+            final Optional<ProbeInfo> probeInfo = probeStore.getProbe(targetSpec.toDto().getProbeId());
+            if (probeInfo.isPresent()) {
+                final CreationMode creationMode = probeInfo.get().getCreationMode();
+                if (TargetOperation.ADD.isValidTargetOperation(creationMode)) {
+                    final Target target = targetStore.createTarget(targetSpec.toDto());
+                    final TargetInfo targetInfo = targetToTargetInfo(target);
+                    return new ResponseEntity<>(targetInfo, HttpStatus.OK);
+                } else {
+                    // invalid operation
+                    return errorResponse(new ForbiddenException("ADD operation is not allowed on "
+                        + targetSpec.getProbeId()), HttpStatus.FORBIDDEN);
+                }
+            } else {
+                return errorResponse(new ForbiddenException("Target probe was not found: "
+                    + targetSpec.getProbeId()), HttpStatus.NOT_FOUND);
+            }
         } catch (TopologyProcessorException | IdentityStoreException | DuplicateTargetException e) {
             return errorResponse(e, HttpStatus.BAD_REQUEST);
         } catch (InvalidTargetException e) {
@@ -162,11 +178,18 @@ public class TargetController {
                                     required = true) @RequestBody final Collection<InputField> targetSpec,
                     @ApiParam(value = "The ID of the target.") @PathVariable("targetId") final Long targetId) {
         try {
-            Objects.requireNonNull(targetSpec);
-            final Target target = targetStore.updateTarget(targetId, targetSpec.stream()
-                            .map(av -> av.toAccountValue()).collect(Collectors.toList()));
-            final TargetInfo targetInfo = targetToTargetInfo(target);
-            return new ResponseEntity<>(targetInfo, HttpStatus.OK);
+            Target target = getTargetFromStore(targetId);
+            if (TargetOperation.UPDATE.isValidTargetOperation(target.getProbeInfo().getCreationMode())) {
+                Objects.requireNonNull(targetSpec);
+                target = targetStore.updateTarget(targetId, targetSpec.stream()
+                    .map(av -> av.toAccountValue()).collect(Collectors.toList()));
+                final TargetInfo targetInfo = targetToTargetInfo(target);
+                return new ResponseEntity<>(targetInfo, HttpStatus.OK);
+            } else {
+                // invalid operation
+                return errorResponse(new ForbiddenException("UPDATE operation is not allowed on "
+                    + target.getDisplayName()), HttpStatus.FORBIDDEN);
+            }
         } catch (InvalidTargetException e) {
             final TargetInfo resp = error(e.getErrors());
             return new ResponseEntity<>(resp, HttpStatus.BAD_REQUEST);
@@ -191,14 +214,25 @@ public class TargetController {
     public ResponseEntity<TargetInfo> removeTarget(@ApiParam(
                     value = "The ID of the target.") @PathVariable("targetId") final Long targetId) {
         try {
-            final Target target = targetStore.removeTargetAndBroadcastTopology(targetId, topologyHandler, scheduler);
-            return new ResponseEntity<>(targetToTargetInfo(target), HttpStatus.OK);
+            Target target = getTargetFromStore(targetId);
+            if (TargetOperation.REMOVE.isValidTargetOperation(target.getProbeInfo().getCreationMode())) {
+                target = targetStore.removeTargetAndBroadcastTopology(targetId, topologyHandler, scheduler);
+                return new ResponseEntity<>(targetToTargetInfo(target), HttpStatus.OK);
+            } else {
+                // invalid operation
+                return errorResponse(new ForbiddenException("Operation remove is not allowed on "
+                    + target.getDisplayName()), HttpStatus.FORBIDDEN);
+            }
         } catch (TargetNotFoundException e) {
             return errorResponse(e, HttpStatus.NOT_FOUND);
         } catch (IdentityStoreException e) {
             return errorResponse(e, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
+
+    @Nonnull
+    private Target getTargetFromStore(@Nonnull final Long targetId) throws TargetNotFoundException {
+        return targetStore.getTarget(targetId).orElseThrow(() -> new TargetNotFoundException(targetId)); }
 
     private ResponseEntity<TargetInfo> errorResponse(Throwable exception, HttpStatus status) {
         final TargetInfo targetInfo = error(null, exception.getMessage());
