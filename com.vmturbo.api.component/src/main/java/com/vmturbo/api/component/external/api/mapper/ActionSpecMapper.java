@@ -30,16 +30,16 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMappingContextFactory.ActionSpecMappingContext;
@@ -99,7 +99,6 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
-import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
@@ -1492,11 +1491,11 @@ public class ActionSpecMapper {
         EntityFilter entityFilter = EntityFilter.newBuilder().addEntityId(entityUuid).build();
         GetCloudCostStatsRequest cloudCostStatsRequest = GetCloudCostStatsRequest
                 .newBuilder()
-                .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
                 .setStartDate(System.currentTimeMillis())
                 .setRequestProjected(true)
                 .setEntityFilter(entityFilter)
-                .build()).build();
+                .setGroupBy(GetCloudCostStatsRequest.GroupByType.COSTCOMPONENT)
+                .build();
         GetCloudCostStatsResponse response = costServiceBlockingStub.getCloudCostStats(cloudCostStatsRequest);
         int statRecordListSize = response.getCloudStatRecordList().size();
         if (statRecordListSize == 2) {
@@ -1524,51 +1523,27 @@ public class ActionSpecMapper {
      * @param cloudResizeActionDetailsApiDTO - cloud resize action details DTO
      */
     private void setOnDemandRates(long entityUuid, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
-        // Get the on Demand compute costs
-        GetTierPriceForEntitiesRequest requestOnDemandComputeCosts = GetTierPriceForEntitiesRequest.newBuilder().setOid(entityUuid)
+        // set on-demand rates
+        GetTierPriceForEntitiesRequest request = GetTierPriceForEntitiesRequest.newBuilder().setOid(entityUuid)
                 .setCostCategory(CostCategory.ON_DEMAND_COMPUTE).build();
-        Map<Long, CurrencyAmount> beforeOnDemandComputeCostByEntityOidMap = costServiceBlockingStub.getTierPriceForEntities(requestOnDemandComputeCosts)
+        Map<Long, CurrencyAmount> beforeCostByEntityOidMap = costServiceBlockingStub.getTierPriceForEntities(request)
                 .getBeforeTierPriceByEntityOidMap();
-        Map<Long, CurrencyAmount> afterComputeCostByEntityOidMap = costServiceBlockingStub.getTierPriceForEntities(requestOnDemandComputeCosts)
+        Map<Long, CurrencyAmount> afterCostByEntityOidMap = costServiceBlockingStub.getTierPriceForEntities(request)
                 .getAfterTierPriceByEntityOidMap();
-
-        // Get the onDemand License costs
-        GetTierPriceForEntitiesRequest requestLicenseComputeCosts = GetTierPriceForEntitiesRequest.newBuilder().setOid(entityUuid)
-                .setCostCategory(CostCategory.ON_DEMAND_LICENSE).build();
-        Map<Long, CurrencyAmount> beforeLicenseComputeCosts = costServiceBlockingStub.getTierPriceForEntities(requestLicenseComputeCosts)
-                .getBeforeTierPriceByEntityOidMap();
-        Map<Long, CurrencyAmount> afterLicenseComputeCosts = costServiceBlockingStub.getTierPriceForEntities(requestLicenseComputeCosts)
-                .getAfterTierPriceByEntityOidMap();
-
-        double totalCurrentOnDemandRate = 0;
-        if (beforeOnDemandComputeCostByEntityOidMap != null && beforeOnDemandComputeCostByEntityOidMap.get(entityUuid) != null) {
-            double amount = beforeOnDemandComputeCostByEntityOidMap.get(entityUuid).getAmount();
-            totalCurrentOnDemandRate += amount;
-        }
-        if (beforeLicenseComputeCosts != null && beforeLicenseComputeCosts.get(entityUuid) != null) {
-            double amount = beforeLicenseComputeCosts.get(entityUuid).getAmount();
-            totalCurrentOnDemandRate += amount;
-        }
-        if (totalCurrentOnDemandRate == 0) {
+        if (beforeCostByEntityOidMap != null && beforeCostByEntityOidMap.get(entityUuid) != null) {
+            double amount = beforeCostByEntityOidMap.get(entityUuid).getAmount();
+            cloudResizeActionDetailsApiDTO.setOnDemandRateBefore((float)amount);
+        } else {
             logger.error("Current On Demand rate for entity with oid {}, not found", entityUuid);
+            cloudResizeActionDetailsApiDTO.setOnDemandRateBefore(0f);
         }
-        cloudResizeActionDetailsApiDTO.setOnDemandRateBefore((float)totalCurrentOnDemandRate);
-
-        double totalProjectedOnDemandRate = 0;
-        if (afterComputeCostByEntityOidMap != null && afterComputeCostByEntityOidMap.get(entityUuid) != null) {
-            double amount = afterComputeCostByEntityOidMap.get(entityUuid).getAmount();
-            totalProjectedOnDemandRate += amount;
-        }
-
-        if (afterLicenseComputeCosts != null && afterLicenseComputeCosts.get(entityUuid) != null) {
-            double amount = afterLicenseComputeCosts.get(entityUuid).getAmount();
-            totalProjectedOnDemandRate += amount;
-        }
-
-        if (totalProjectedOnDemandRate == 0) {
+        if (afterCostByEntityOidMap != null && afterCostByEntityOidMap.get(entityUuid) != null) {
+            double amount = afterCostByEntityOidMap.get(entityUuid).getAmount();
+            cloudResizeActionDetailsApiDTO.setOnDemandRateAfter((float)amount);
+        } else {
             logger.error("Projected On Demand rate for entity with oid {}, not found", entityUuid);
+            cloudResizeActionDetailsApiDTO.setOnDemandRateAfter(0f);
         }
-        cloudResizeActionDetailsApiDTO.setOnDemandRateAfter((float)totalProjectedOnDemandRate);
     }
 
     /**

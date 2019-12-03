@@ -142,33 +142,22 @@ public class TemplatesDaoImpl implements TemplatesDao {
     }
 
     /**
-     * Check if a template with the given name and id exists in the db.
-     * If id is null, check if a template with the given name exists in the db.
-     * Otherwise, check if a template with the given name but a different id exists in the db.
-     * If there's one template in the db satisfies the condition, return it.
+     * Check template with the same name does not exist is current list of templates.
      *
      * @param context Transaction context.
      * @param templateName template display name.
      * @param id           while editing a template.
-     * @return an optional of TemplateRecord
+     * @throws DuplicateTemplateException if duplicate template name found
      */
-    private Optional<TemplateRecord> determineUniqueTemplate(
-            final DSLContext context, String templateName, @Nullable Long id) {
+    private void determineUniqueTemplate(final DSLContext context, String templateName, @Nullable Long id) throws DuplicateTemplateException {
         Condition existCondition = id == null ?
                 TEMPLATE.NAME.eq(templateName) :
                 TEMPLATE.NAME.eq(templateName).and(TEMPLATE.ID.notEqual(id));
-        return Optional.ofNullable(context.fetchOne(TEMPLATE, existCondition));
+        if (context.fetchExists(TEMPLATE, existCondition)) {
+            throw new DuplicateTemplateException(templateName);
+        }
     }
 
-    /**
-     * Create a new template.
-     *
-     * @param context the transaction context
-     * @param templateInfo describes the contents of one template
-     * @param type of the template
-     * @return new created template
-     * @throws DuplicateTemplateException if duplicate template name found
-     */
     @Nonnull
     private TemplateDTO.Template internalCreateTemplate(@Nonnull final DSLContext context,
                                                         @Nonnull final TemplateInfo templateInfo,
@@ -176,23 +165,16 @@ public class TemplatesDaoImpl implements TemplatesDao {
             throws DuplicateTemplateException {
         try {
             return dsl.transactionResult(configuration -> {
-                Optional<TemplateRecord> templateRecordOptional =
-                    determineUniqueTemplate(context, templateInfo.getName(), null);
+                determineUniqueTemplate(context, templateInfo.getName(), null);
 
-                if (templateRecordOptional.isPresent()) {
-                    // If a template with the same name exists, update it.
-                    return editTemplate(templateRecordOptional.get().getId(), templateInfo);
-                } else {
-                    // Create a new template.
-                    final TemplateDTO.Template templateDto = TemplateDTO.Template.newBuilder()
+                final TemplateDTO.Template templateDto = TemplateDTO.Template.newBuilder()
                         .setId(IdentityGenerator.next())
                         .setType(type)
                         .setTemplateInfo(templateInfo)
                         .build();
-                    final TemplateRecord templateRecord = context.newRecord(TEMPLATE);
-                    updateRecordFromProto(templateDto, templateRecord);
-                    return templateDto;
-                }
+                final TemplateRecord templateRecord = context.newRecord(TEMPLATE);
+                updateRecordFromProto(templateDto, templateRecord);
+                return templateDto;
             });
         } catch (DataAccessException e) {
             if (e.getCause() instanceof DuplicateTemplateException) {
@@ -221,11 +203,7 @@ public class TemplatesDaoImpl implements TemplatesDao {
             return dsl.transactionResult(configuration -> {
                 final DSLContext transactionDsl = DSL.using(configuration);
 
-                Optional<TemplateRecord> templateRecordOptional =
-                    determineUniqueTemplate(transactionDsl, templateInfo.getName(), id);
-                if (templateRecordOptional.isPresent()) {
-                    throw new DuplicateTemplateException(templateInfo.getName());
-                }
+                determineUniqueTemplate(transactionDsl, templateInfo.getName(), id);
 
                 final TemplateRecord templateRecord = transactionDsl.selectFrom(TEMPLATE)
                         .where(TEMPLATE.ID.eq(id))

@@ -21,7 +21,6 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
@@ -49,8 +48,6 @@ import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
-import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
-import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityTypeFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
@@ -576,7 +573,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                                                              @Nonnull final Set<Long> entityStatOids,
                                                              @Nonnull final Set<String> requestGroupBySet,
                                                              @Nonnull final StatsQueryContext context) {
-        final CloudCostStatsQuery.Builder builder = CloudCostStatsQuery.newBuilder();
+        final GetCloudCostStatsRequest.Builder builder = GetCloudCostStatsRequest.newBuilder();
         // set entity types filter
         final Set<Integer> relatedEntityTypes = getRelatedEntityTypes(stats);
         if (!relatedEntityTypes.isEmpty()) {
@@ -590,9 +587,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             builder.getEntityFilterBuilder().addAllEntityId(entityStatOids);
         }
         if (isGroupByComponentRequest(requestGroupBySet)) {
-            for (String groupBy : requestGroupBySet) {
-                builder.addGroupBy(GroupBy.valueOf(groupBy));
-            }
+            builder.setGroupBy(GetCloudCostStatsRequest.GroupByType.COSTCOMPONENT);
         }
 
         context.getTimeWindow().ifPresent(timeWindow -> {
@@ -603,9 +598,8 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         if (context.requestProjected()) {
             builder.setRequestProjected(true);
         }
-        GetCloudCostStatsRequest getCloudExpenseStatsRequest = GetCloudCostStatsRequest.newBuilder()
-                .addCloudCostStatsQuery(builder.build()).build();
-        return costServiceRpc.getCloudCostStats(getCloudExpenseStatsRequest).getCloudStatRecordList();
+
+        return costServiceRpc.getCloudCostStats(builder.build()).getCloudStatRecordList();
     }
 
     private static boolean isGroupByComponentRequest(Set<String> requestGroupBySet) {
@@ -659,7 +653,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         }
         if (requestGroupBySet.contains(TARGET)) {
             builder.setGroupBy(GroupByType.TARGET);
-        } else if (requestGroupBySet.contains(CSP)) {
+        } else if (requestGroupBySet.contains(CSP)){
             builder.setGroupBy(GroupByType.CSP);
         } else if (requestGroupBySet.contains(CLOUD_SERVICE)) {
             builder.setGroupBy(GroupByType.CLOUD_SERVICE);
