@@ -33,15 +33,15 @@ public class TopologyProcessorNotificationListener implements TargetListener {
 
     @Override
     public void onTargetRemoved(final long targetId) {
-        Set<Long> singleUsedBusinessAccounts = businessAccountHelper
-                .getBusinessAccountsExclusiveToTargetId(targetId);
+        businessAccountHelper.removeTargetForBusinessAccount(targetId);
+        Set<Long> orphanedBAs = businessAccountHelper.removeBusinessAccountWithNoTargets();
         logger.info("Target removed notification received.");
         try {
             logger.debug("Removing BA for target removed and related price data from CostDB " +
                     "for target : {}", targetId);
-            //remove all the pricetablesKey attached to singleUsedBA OIDs.
+            //remove all the pricetablesKey attached to unused BA OIDs.
             businessAccountPriceTableKeyStore
-                    .removeBusinessAccountAndPriceTableKeyOid(singleUsedBusinessAccounts);
+                    .removeBusinessAccountAndPriceTableKeyOid(orphanedBAs);
             logger.debug("Successfully removed BA and price related data for target : {}", targetId);
         } catch (DbException e) {
             logger.error("Could not update cost DB on target removal.", e);
