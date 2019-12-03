@@ -38,6 +38,7 @@ import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
+import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.cost.calculation.CostJournal;
@@ -388,16 +389,17 @@ public class SqlEntityCostStore implements EntityCostStore {
 
     //Convert EntityCostRecord DB record to entity cost proto DTO
     private EntityCost toEntityCostDTO(@Nonnull final RecordWrapper recordWrapper) {
-        ComponentCost componentCost = ComponentCost.newBuilder()
+        Builder componentCostBuilder = ComponentCost.newBuilder()
                 .setAmount(CurrencyAmount.newBuilder()
                         .setAmount(recordWrapper.getAmount().doubleValue())
                         .setCurrency(recordWrapper.getCurrency()))
-                .setCategory(CostCategory.forNumber(recordWrapper.getCostType()))
-                .setCostSource(CostSource.forNumber(recordWrapper.getCostSource()))
-                .build();
+                .setCategory(CostCategory.forNumber(recordWrapper.getCostType()));
+        if (recordWrapper.getCostSource() != null) {
+            componentCostBuilder.setCostSource(CostSource.forNumber(recordWrapper.getCostSource()));
+        }
         return Cost.EntityCost.newBuilder()
                 .setAssociatedEntityId(recordWrapper.getAssociatedEntityId())
-                .addComponentCost(componentCost)
+                .addComponentCost(componentCostBuilder.build())
                 .setAssociatedEntityType(recordWrapper.getAssociatedEntityType())
                 .build();
     }
@@ -428,8 +430,13 @@ public class SqlEntityCostStore implements EntityCostStore {
             return record7.get(ENTITY_COST.COST_TYPE);
         }
 
-        int getCostSource() {
-            return record7.get(ENTITY_COST.COST_SOURCE);
+        Integer getCostSource() {
+            try {
+                int costSource = record7.get(ENTITY_COST.COST_SOURCE);
+                return costSource;
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
         }
 
         int getCurrency() {
