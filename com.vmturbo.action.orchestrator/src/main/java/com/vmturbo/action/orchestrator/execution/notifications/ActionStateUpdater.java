@@ -158,7 +158,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
 
             // Store the updated action and update the audit log
             saveToDb(action);
-            writeToAudit(action, true);
+            writeSuccessActionToAudit(action);
 
             // Retrieve the current action state, now that the action has received all events
             final ActionState actionState = action.getState();
@@ -274,7 +274,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
 
         failedCloudVMGroupProcessor.handleActionFailure(action);
         saveToDb(action);
-        writeToAudit(action, false);
+        writeFailActionToAudit(action, actionFailure);
 
         // Allow the action to initate a post-execution workflow, if one is defined
         if (ActionState.POST_IN_PROGRESS == action.getState() && action.hasPendingExecution()) {
@@ -290,14 +290,35 @@ public class ActionStateUpdater implements ActionExecutionListener {
     }
 
     /**
-     * Send the action execution result to remote audit log.
+     * Send success action execution result to remote audit log.
      *
      * @param action the executed action.
-     * @param isSuccessful is the execution successful.
      */
-    private void writeToAudit(final Action action, final boolean isSuccessful) {
+    private void writeSuccessActionToAudit(@Nonnull final Action action) {
         try {
-            AuditLog.newEntry(AuditAction.EXECUTE_ACTION, action.getDescription(), isSuccessful)
+            AuditLog.newEntry(AuditAction.EXECUTE_ACTION, Objects.requireNonNull(action).getDescription(), true)
+                .targetName(String.valueOf(action.getId()))
+                .audit();
+        } catch (RuntimeException e) {
+            logger.error(e.getMessage());
+        }
+    }
+
+    /**
+     * Send failed action execution result to remote audit log.
+     *
+     * @param action the executed action.
+     * @param actionFailure {@link ActionFailure} action failure object.
+     */
+    private void writeFailActionToAudit(@Nonnull final Action action,
+                                        @Nonnull final ActionFailure actionFailure) {
+        try {
+            String actionDescription = Objects.requireNonNull(action).getDescription();
+            String errorDescription = Objects.requireNonNull(actionFailure).getErrorDescription();
+            final String descriptionWithFailureReason = String.format("Action: %s.  Failure: %s",
+                actionDescription,
+                errorDescription);
+            AuditLog.newEntry(AuditAction.EXECUTE_ACTION, descriptionWithFailureReason, false)
                 .targetName(String.valueOf(action.getId()))
                 .audit();
         } catch (RuntimeException e) {
