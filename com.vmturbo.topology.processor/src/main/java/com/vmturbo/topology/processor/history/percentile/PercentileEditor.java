@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.history.percentile;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -215,12 +216,11 @@ public class PercentileEditor extends
         if (getConfig().isPlan()) {
             return;
         }
+        // perform daily maintenance if needed - synchronously within broadcast (consider scheduling)
+        maintenance();
         // persist the daily blob
         persistBlob(getCheckpoint(), getMaintenanceWindowInMs(),
                         UtilizationCountStore::getLatestCountsRecord);
-
-        // perform daily maintenance if needed - synchronously within broadcast (consider scheduling)
-        maintenance();
         // print the utilization counts from cache for the configured OID in logs
         // if debug is enabled.
         debugLogPercentileValues();
@@ -394,9 +394,10 @@ public class PercentileEditor extends
         }
     }
 
-    private void maintenance() throws HistoryCalculationException, InterruptedException {
+    private void maintenance() throws InterruptedException {
         if (!historyInitialized) {
-            throw new HistoryCalculationException("History is not initialized.");
+            logger.warn("Percentile history is not initialized.");
+            return;
         }
 
         final long checkpointMs = getCheckpoint();
@@ -470,6 +471,11 @@ public class PercentileEditor extends
             lastCheckpointMs = checkpointMs;
             backup.keepCacheOnClose();
 
+        } catch (HistoryCalculationException e) {
+            logger.error("{} maintenance failed for '{}' checkpoint, last checkpoint was at '{}'",
+                            enforceMaintenance ? "Enforced" : "Regular",
+                            Instant.ofEpochMilli(checkpointMs),
+                            Instant.ofEpochMilli(lastCheckpointMs), e);
         } finally {
             logger.info("Percentile cache {}maintenance {} took {}",
                             enforceMaintenance ? "enforced " : "", checkpoints, sw);
