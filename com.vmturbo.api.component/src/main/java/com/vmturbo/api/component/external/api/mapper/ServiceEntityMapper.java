@@ -217,13 +217,10 @@ public class ServiceEntityMapper {
                 .map(this::createTargetApiDto)
                 .ifPresent(result::setDiscoveredBy);
             // convert target ids to strings for api
-            // filter out hidden targets
             // skip targets where vendor ids are unset
             result.setVendorIds(target2data.entrySet().stream()
                 .filter(target2id -> target2id.getValue().hasVendorId() && !StringUtils
                                 .isEmpty(target2id.getValue().getVendorId()))
-                .filter(target2id -> !thinTargetCache.getTargetInfo(target2id.getKey())
-                    .map(ThinTargetInfo::isHidden).orElse(false))
                 .collect(Collectors
                         .toMap(target2id -> String.valueOf(target2id.getKey()),
                                target2id -> target2id.getValue().getVendorId())));

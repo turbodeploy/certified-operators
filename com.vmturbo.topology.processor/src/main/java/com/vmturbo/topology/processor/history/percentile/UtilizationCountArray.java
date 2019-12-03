@@ -73,26 +73,16 @@ public class UtilizationCountArray {
             logger.warn("Percentile usage point {} exceeds capacity {} for {}", usage, capacity, key);
             usage = newCapacity;
         }
-        if (capacity != 0d && Math.abs(capacity - newCapacity) > EPSILON && add) {
-            // proportionally rescale counts, assume value in the middle of the bucket
-            int[] newCounts = new int[counts.length];
-            for (int i = 0; i < counts.length; ++i) {
-                int newPercent = Math.min(100, (int)Math.ceil(buckets.average(i) * capacity / newCapacity));
-                Integer newIndex = buckets.index(newPercent);
-                if (newIndex != null && newIndex < counts.length) {
-                    newCounts[newIndex] += counts[i];
-                } else {
-                    logger.warn("Rescaling percentile index {} to capacity {} failed - out of bounds for {}",
-                                i, newCapacity, key);
-                }
-            }
-            counts = newCounts;
-        }
+
+        int percent = (int)Math.ceil(Math.abs(usage) * 100 / newCapacity);
         if (add) {
+            rescaleCountsIfNecessary(newCapacity, key);
             capacity = newCapacity;
+        } else if (capacity != 0d && Math.abs(capacity - newCapacity) > EPSILON) {
+            // reverse-rescale the value being subtracted
+            percent = Math.min(100, (int)Math.ceil(buckets.average(percent) * newCapacity / capacity));
         }
 
-        int percent = (int)Math.ceil(Math.abs(usage) * 100 / capacity);
         Integer index = buckets.index(percent);
         if (index != null && index < counts.length) {
             if (add) {
@@ -125,7 +115,7 @@ public class UtilizationCountArray {
     }
 
     /**
-     * Set the counts from a serialized record.
+     * Add up the counts from a serialized record.
      *
      * @param record persisted percentile entry record
      * @param key array identifier
@@ -139,6 +129,7 @@ public class UtilizationCountArray {
                                                   + ", expected "
                                                   + buckets.size());
         }
+        rescaleCountsIfNecessary(record.getCapacity(), key);
         int i = 0;
         for (Integer count : record.getUtilizationList()) {
             counts[i++] += count;
@@ -204,5 +195,25 @@ public class UtilizationCountArray {
     public String toDebugString() {
         return UtilizationCountArray.class.getSimpleName() + "{capacity=" + capacity  + ",counts="
                 + Arrays.toString(counts) + '}';
+    }
+
+    private void rescaleCountsIfNecessary(float newCapacity, String key) {
+        if (capacity != 0D && newCapacity != 0D && Math.abs(capacity - newCapacity) > EPSILON) {
+            // proportionally rescale counts, assume value in the middle of the bucket
+            logger.trace("Rescaling percentile counts for {} due to capacity change from {} to {}",
+                         key::toString, () -> capacity, () -> newCapacity);
+            int[] newCounts = new int[counts.length];
+            for (int i = 0; i < counts.length; ++i) {
+                int newPercent = Math.min(100, (int)Math.ceil(buckets.average(i) * capacity / newCapacity));
+                Integer newIndex = buckets.index(newPercent);
+                if (newIndex != null && newIndex < counts.length) {
+                    newCounts[newIndex] += counts[i];
+                } else {
+                    logger.warn("Rescaling percentile index {} to capacity {} failed - out of bounds for {}",
+                                i, newCapacity, key);
+                }
+            }
+            counts = newCounts;
+        }
     }
 }

@@ -234,6 +234,31 @@ public class UtilizationCountArrayTest {
     }
 
     /**
+     * Test that counts are rescaled when deserialization is invoked with
+     * a different from existing capacity.
+     *
+     * @throws HistoryCalculationException when failed
+     */
+    @Test
+    public void testDeserializeCapacityChange() throws HistoryCalculationException {
+        UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
+        PercentileRecord.Builder builder1 = PercentileRecord.newBuilder().setEntityOid(12)
+                        .setCommodityType(32).setCapacity(100f).setPeriod(30);
+        addCount(builder1, 5, 10);
+        addCount(builder1, 10, 10);
+        counts.deserialize(builder1.build(), "");
+        Assert.assertEquals(5, counts.getPercentile(50));
+
+        PercentileRecord.Builder builder2 = PercentileRecord.newBuilder().setEntityOid(12)
+                        .setCommodityType(32).setCapacity(50f).setPeriod(30);
+        addCount(builder2, 0, 0);
+        counts.deserialize(builder2.build(), "");
+        Assert.assertEquals(10, counts.getPercentile(25));
+        Assert.assertEquals(10, counts.getPercentile(50));
+        Assert.assertEquals(20, counts.getPercentile(75));
+    }
+
+    /**
      * Test for {@link UtilizationCountArray#copyCountsFrom(UtilizationCountArray)}
      * When the lengths of the counts arrays do match.
      *
