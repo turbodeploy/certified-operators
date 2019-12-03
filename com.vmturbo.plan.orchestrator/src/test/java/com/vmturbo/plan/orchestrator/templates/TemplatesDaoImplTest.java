@@ -300,15 +300,26 @@ public class TemplatesDaoImplTest {
             .allMatch(serialized::contains));
     }
 
+    /**
+     * Test {@link TemplatesDaoImpl#createTemplate(TemplateInfo)}.
+     *
+     * @throws DuplicateTemplateException if template name already exist
+     */
     @Test
-    public void testDuplicateTemplateNames() throws Exception {
-        TemplateInfo templateInfo = TemplateInfo.newBuilder()
+    public void testDuplicateTemplateNames() throws DuplicateTemplateException {
+        // Create a new template.
+        TemplateInfo newTemplateInfo = TemplateInfo.newBuilder()
                 .setName("template-instance")
+                .setDescription("a new template")
                 .build();
-        Template result = templatesDao.createTemplate(templateInfo);
-        assertEquals(result.getTemplateInfo(), templateInfo);
-        expectedException.expect(DuplicateTemplateException.class);
-        templatesDao.createTemplate(templateInfo);
+        assertEquals(templatesDao.createTemplate(newTemplateInfo).getTemplateInfo(), newTemplateInfo);
+
+        // Creating a template with the same name should replace the existing one.
+        TemplateInfo templateInfo = TemplateInfo.newBuilder()
+            .setName("template-instance")
+            .setDescription("a template with the same name")
+            .build();
+        assertEquals(templatesDao.createTemplate(templateInfo).getTemplateInfo(), templateInfo);
     }
 
     /**
