@@ -21,6 +21,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 
+import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -208,8 +209,9 @@ public class ComputeTierDemandStatsWriter {
         List<TopologyEntityDTO> cloudVms = cloudTopology
                 .getAllEntitiesOfType(EntityType.VIRTUAL_MACHINE_VALUE);
 
-        //A map of entity oid -> A map of <RI_ID, Coupons_Covered_By_RI>
-        final Map<Long, Map<Long, Double>> allProjectedEntitiesRICoverages =
+        // A map of entity oid -> EntityReservedInstanceCoverage.
+        // Used to determine whether an entity has an RI coverage.
+        final Map<Long, EntityReservedInstanceCoverage> allProjectedEntitiesRICoverages =
                 projectedRICoverageAndUtilStore.getAllProjectedEntitiesRICoverages();
 
         for (TopologyEntityDTO workLoadDto : cloudVms) {
@@ -261,10 +263,13 @@ public class ComputeTierDemandStatsWriter {
 
             // If its a projected topology we don't want to count a VM if its covered.
             if (isProjectedTopology) {
-                final Map<Long, Double> riCoverages = allProjectedEntitiesRICoverages.get(workLoadId);
-                if (riCoverages != null && riCoverages.size() > 0) {
-                    logger.debug("Skipping. Workload {} is covered by an RI.", workLoadDisplayName);
-                    continue;
+                final EntityReservedInstanceCoverage riCoverage = allProjectedEntitiesRICoverages.get(workLoadId);
+                if (riCoverage != null) {
+                    Map<Long, Double> riMapping = riCoverage.getCouponsCoveredByRiMap();
+                    if (riMapping != null && riMapping.size() > 0) {
+                        logger.debug("Skipping. Workload {} is covered by an RI.", workLoadDisplayName);
+                        continue;
+                    }
                 }
             }
 

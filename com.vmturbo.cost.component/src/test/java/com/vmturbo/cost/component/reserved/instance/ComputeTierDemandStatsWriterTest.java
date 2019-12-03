@@ -14,6 +14,7 @@ import org.mockito.Mockito;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -100,13 +101,18 @@ public class ComputeTierDemandStatsWriterTest {
 
         final ProjectedRICoverageAndUtilStore projectedRICoverageAndUtilStore =
                 Mockito.mock(ProjectedRICoverageAndUtilStore.class);
-        Map<Long, Map<Long, Double>> projectedEntitiesRICoverages = new HashMap<>();
+        Map<Long, EntityReservedInstanceCoverage> projectedEntitiesRICoverages = new HashMap<>();
+
         Map<Long, Double> vm2Coverage = new HashMap<>();
         vm2Coverage.put(1L, 1D);
+        EntityReservedInstanceCoverage coverage2 = EntityReservedInstanceCoverage.newBuilder()
+                .putAllCouponsCoveredByRi(vm2Coverage).build();
         Map<Long, Double> vm4Coverage = new HashMap<>();
         vm4Coverage.put(1L, 1D);
-        projectedEntitiesRICoverages.put(vm2.getOid(), vm2Coverage);
-        projectedEntitiesRICoverages.put(vm4.getOid(), vm4Coverage);
+        EntityReservedInstanceCoverage coverage4 = EntityReservedInstanceCoverage.newBuilder()
+                .putAllCouponsCoveredByRi(vm4Coverage).build();
+        projectedEntitiesRICoverages.put(vm2.getOid(), coverage2);
+        projectedEntitiesRICoverages.put(vm4.getOid(), coverage4);
 
         Mockito.when(projectedRICoverageAndUtilStore.getAllProjectedEntitiesRICoverages())
                 .thenReturn(projectedEntitiesRICoverages);

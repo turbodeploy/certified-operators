@@ -2,32 +2,31 @@ package com.vmturbo.cost.component.reserved.instance;
 
 import java.time.Clock;
 import java.time.temporal.ChronoUnit;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.cost.Cost;
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
-
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
+
+import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageResponse;
-//import com.vmturbo.common.protobuf.cost.Cost.GetProjectedEntityReservedInstanceCoverageRequest;
-//import com.vmturbo.common.protobuf.cost.Cost.GetProjectedEntityReservedInstanceCoverageResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceImplBase;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
@@ -110,7 +109,7 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
             // TODO (Alexey, Oct 24 2019): Respect input filter passed in the request.
             // TODO (Alexey, Oct 24 2019): Currently we use the same method as for RI Coverage.
             //  It looks incorrect. E.g. it doesn't take into account recommended RI purchases.
-            statRecords.add(createProjectedRICoverageStats(statRecords, filter));
+            statRecords.add(createProjectedRICoverageStats(filter));
             final GetReservedInstanceUtilizationStatsResponse response =
                     GetReservedInstanceUtilizationStatsResponse.newBuilder()
                             .addAllReservedInstanceStatsRecords(statRecords)
@@ -142,7 +141,7 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
             final List<ReservedInstanceStatsRecord> statRecords = reservedInstanceCoverageStore
                 .getReservedInstanceCoverageStatsRecords(filter);
             // Add projected RI Coverage point
-            statRecords.add(createProjectedRICoverageStats(statRecords, filter));
+            statRecords.add(createProjectedRICoverageStats(filter));
             final GetReservedInstanceCoverageStatsResponse response =
                     GetReservedInstanceCoverageStatsResponse.newBuilder()
                             .addAllReservedInstanceStatsRecords(statRecords)
@@ -243,27 +242,22 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
     }
 
     private ReservedInstanceStatsRecord createProjectedRICoverageStats(
-                    @Nonnull final List<ReservedInstanceStatsRecord> currentStatRecords,
-                    @Nonnull final ReservedInstanceFilter filter) {
-        final float usedCouponsTotal = getProjectedRICoverageCouponTotal(filter);
+                        @Nonnull final ReservedInstanceFilter filter) {
+        final Map<Long, EntityReservedInstanceCoverage> projectedEntitiesRICoverages =
+                projectedRICoverageStore.getScopedProjectedEntitiesRICoverages(filter);
+        double usedCouponsTotal = 0d;
+        double entityCouponsCapTotal = 0d;
+        for (EntityReservedInstanceCoverage entityRICoverage : projectedEntitiesRICoverages.values()) {
+            final Map<Long, Double> riMap = entityRICoverage.getCouponsCoveredByRiMap();
+            if (riMap != null) {
+                usedCouponsTotal += riMap.values().stream().mapToDouble(Double::doubleValue).sum();
+            }
+            entityCouponsCapTotal += entityRICoverage.getEntityCouponCapacity();
+        }
         final long projectedTime = clock.instant()
             .plus(PROJECTED_STATS_TIME_IN_FUTURE_HOURS, ChronoUnit.HOURS).toEpochMilli();
-        // TODO (Alexey, Oct 24 2019): Instead of again computing the total capacity stats for the
-        //  projected stats, we use the one from the last record. This is wrong since capacity may
-        //  have changed in the projected state. Also if currentStatRecords is empty we use used
-        //  coupons for capacity which is also incorrect.
-        final float capacity = currentStatRecords.isEmpty()
-            ? usedCouponsTotal
-            : currentStatRecords.get(currentStatRecords.size() - 1).getCapacity().getTotal();
-        return ReservedInstanceUtil.createRIStatsRecord(capacity, usedCouponsTotal, projectedTime);
-    }
-
-    private float getProjectedRICoverageCouponTotal(@Nonnull final ReservedInstanceFilter filter) {
-        return (float)projectedRICoverageStore.getScopedProjectedEntitiesRICoverages(filter)
-            .values().stream()
-            .flatMap(map -> map.values().stream())
-            .mapToDouble(i -> i)
-            .sum();
+        return ReservedInstanceUtil.createRIStatsRecord((float)entityCouponsCapTotal,
+                (float)usedCouponsTotal, projectedTime);
     }
 
     @Override
@@ -271,8 +265,8 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
                     Cost.GetProjectedEntityReservedInstanceCoverageRequest request,
                     StreamObserver<Cost.GetProjectedEntityReservedInstanceCoverageResponse> responseObserver) {
         final ReservedInstanceCoverageFilter filter = createProjectedEntityFilter(request);
-        final Map<Long, EntityReservedInstanceCoverage> retCoverage =
-                        createProjectedEntityRICoverageMap(filter);
+        final Map<Long, EntityReservedInstanceCoverage> retCoverage = projectedRICoverageStore
+                .getScopedProjectedEntitiesRICoverages(filter);
         final Cost.GetProjectedEntityReservedInstanceCoverageResponse response =
                         Cost.GetProjectedEntityReservedInstanceCoverageResponse.newBuilder()
                                         .putAllCoverageByEntityId(retCoverage).build();
@@ -291,24 +285,4 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
         }
         return filterBuilder.build();
     }
-
-    @Nonnull
-    private Map<Long, EntityReservedInstanceCoverage>
-                    createProjectedEntityRICoverageMap(
-                                    @Nonnull ReservedInstanceCoverageFilter filter) {
-        Map<Long, EntityReservedInstanceCoverage> coverage = new HashMap<>();
-        Map<Long, Map<Long, Double>> projectedCoverage =
-                        projectedRICoverageStore.getScopedProjectedEntitiesRICoverages(filter);
-        // TODO: fix commented line when we actually have the # coupons required by the template
-        for (Entry<Long, Map<Long, Double>> entry : projectedCoverage.entrySet()) {
-            coverage.put(entry.getKey(),
-                            EntityReservedInstanceCoverage.newBuilder().setEntityId(entry.getKey())
-                                            .putAllCouponsCoveredByRi(entry.getValue())
-                                            //.setCouponsUsedByEntity(the coupons required to
-                                            // completely cover the template);
-                                            .build());
-        }
-        return coverage;
-    }
-
 }
