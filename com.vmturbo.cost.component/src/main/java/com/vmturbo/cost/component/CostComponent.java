@@ -32,6 +32,7 @@ import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
 import com.vmturbo.cost.component.rpc.CostDebugConfig;
 import com.vmturbo.cost.component.topology.TopologyListenerConfig;
+import com.vmturbo.sql.utils.SQLDatabaseConfig;
 import com.vmturbo.trax.TraxConfiguration;
 import com.vmturbo.trax.TraxConfiguration.TopicSettings;
 import com.vmturbo.trax.TraxThrottlingLimit;
@@ -47,7 +48,7 @@ import com.vmturbo.trax.TraxThrottlingLimit;
     CostServiceConfig.class,
     PricingConfig.class,
     ReservedInstanceConfig.class,
-    CostDBConfig.class,
+    SQLDatabaseConfig.class,
     SpringSecurityConfig.class,
     TopologyListenerConfig.class,
     CostDebugConfig.class,
@@ -59,7 +60,7 @@ public class CostComponent extends BaseVmtComponent {
     private final Logger logger = LogManager.getLogger();
 
     @Autowired
-    private CostDBConfig dbConfig;
+    private SQLDatabaseConfig dbConfig;
 
     @Autowired
     private PricingConfig pricingConfig;
@@ -110,7 +111,7 @@ public class CostComponent extends BaseVmtComponent {
         logger.info("Adding MariaDB health check to the component health monitor.");
         getHealthMonitor()
                 .addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
-                    dbConfig.dataSource()::getConnection));
+                        dbConfig.dataSource()::getConnection));
 
         // Configure Trax to randomly sample a certain number of calculations per day for
         // tracking and debugging purposes.

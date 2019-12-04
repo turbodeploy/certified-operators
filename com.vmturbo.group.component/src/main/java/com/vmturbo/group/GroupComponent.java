@@ -29,6 +29,7 @@ import com.vmturbo.group.migration.MigrationConfig;
 import com.vmturbo.group.schedule.ScheduleConfig;
 import com.vmturbo.group.service.RpcConfig;
 import com.vmturbo.group.setting.SettingConfig;
+import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 /**
  * Main component configuration for the Group Component. Manages groups and policies.
@@ -39,7 +40,7 @@ import com.vmturbo.group.setting.SettingConfig;
         RpcConfig.class,
         SettingConfig.class,
         ScheduleConfig.class,
-        GroupComponentDBConfig.class,
+        SQLDatabaseConfig.class,
         GroupApiSecurityConfig.class,
         GroupDiagnosticsConfig.class,
         SpringSecurityConfig.class})
@@ -55,7 +56,7 @@ public class GroupComponent extends BaseVmtComponent {
     private RpcConfig rpcConfig;
 
     @Autowired
-    private GroupComponentDBConfig dbConfig;
+    private SQLDatabaseConfig dbConfig;
 
     @Autowired
     private SettingConfig settingConfig;
@@ -80,8 +81,8 @@ public class GroupComponent extends BaseVmtComponent {
     @PostConstruct
     private void setup() {
         logger.info("Adding MariaDB health check to the component health monitor.");
-        getHealthMonitor().addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
-            dbConfig.dataSource()::getConnection));
+        getHealthMonitor().addHealthCheck(
+            new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,dbConfig.dataSource()::getConnection));
     }
 
     @Override

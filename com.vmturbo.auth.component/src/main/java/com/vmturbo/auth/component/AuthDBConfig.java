@@ -1,5 +1,7 @@
 package com.vmturbo.auth.component;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Optional;
 
@@ -9,12 +11,14 @@ import javax.sql.DataSource;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.commons.codec.binary.Hex;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.util.Strings;
+import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.jooq.conf.RenderNameStyle;
 import org.jooq.conf.Settings;
+import org.jooq.impl.DataSourceConnectionProvider;
 import org.jooq.impl.DefaultConfiguration;
 import org.jooq.impl.DefaultDSLContext;
 import org.jooq.impl.DefaultExecuteListenerProvider;
@@ -24,7 +28,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.jdbc.datasource.LazyConnectionDataSourceProxy;
+import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
@@ -39,8 +47,9 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
  * Configuration for AUTH component interaction with a database.
  */
 @Configuration
+@Import({SQLDatabaseConfig.class})
 @EnableTransactionManagement
-public class AuthDBConfig extends SQLDatabaseConfig {
+public class AuthDBConfig {
     /**
      * The connection reconnect sleep time.
      */
@@ -78,18 +87,6 @@ public class AuthDBConfig extends SQLDatabaseConfig {
     public static final String INFLUX_ROOT_PW_KEY = "influxcreds";
 
     /**
-     * DB user name accessible to given schema.
-     */
-    @Value("${authDbUsername:auth}")
-    private String authDbUsername;
-
-    /**
-     * DB user password accessible to given schema.
-     */
-    @Value("${authDbPassword:}")
-    private String authDbPassword;
-
-    /**
      * The DB schema name.
      */
     @Value("${dbSchemaName}")
@@ -112,6 +109,9 @@ public class AuthDBConfig extends SQLDatabaseConfig {
 
     @Autowired
     private AuthKVConfig authKVConfig;
+
+    @Autowired
+    private SQLDatabaseConfig databaseConfig;
 
     /**
      * Generate a random password.  The value is returned as a sequence of 32 hexadecimal
@@ -147,10 +147,10 @@ public class AuthDBConfig extends SQLDatabaseConfig {
      */
     @Bean
     public String getRootSqlDBUser() {
-        // Both dbRootUsername and dbRootPassword have default values defined in {@link @SQLDatabaseConfig.java},
+        // Both dbUsername and dbUserPassword have default values defined in {@link @SQLDatabaseConfig.java},
         // So credential should not be null.
-        if (getSQLConfigObject().getRootCredentials().isPresent()) {
-            String rootDBUser = getSQLConfigObject().getRootCredentials().get().getUserName();
+        if (databaseConfig.getSQLConfigObject().getCredentials().isPresent()) {
+            String rootDBUser = databaseConfig.getSQLConfigObject().getCredentials().get().getUserName();
             // It will be updated every time auth is started, so we always have the latest root db user.
             authKVConfig.authKeyValueStore().put(CONSUL_ROOT_DB_USER_KEY, rootDBUser);
             return rootDBUser;
@@ -173,8 +173,8 @@ public class AuthDBConfig extends SQLDatabaseConfig {
      */
     @Bean
     public  @Nonnull String getRootSqlDBPassword() {
-        if (getSQLConfigObject().getRootCredentials().isPresent()) {
-            String dbPassword = getSQLConfigObject().getRootCredentials().get().getPassword();
+        if (databaseConfig.getSQLConfigObject().getCredentials().isPresent()) {
+            String dbPassword = databaseConfig.getSQLConfigObject().getCredentials().get().getPassword();
             // It will be updated every time auth is started, so we always have the latest root db password.
             authKVConfig.authKeyValueStore().put(CONSUL_ROOT_DB_PASS_KEY, CryptoFacility.encrypt(dbPassword));
             return dbPassword;
@@ -231,18 +231,20 @@ public class AuthDBConfig extends SQLDatabaseConfig {
     public @Nonnull DataSource dataSource() {
         // Create a correct data source.
         @Nonnull MariaDbDataSource dataSource = new MariaDbDataSource();
+        try {
+            dataSource.setUrl(getDbUrl());
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
         Optional<String> credentials = authKVConfig.authKeyValueStore().get(CONSUL_KEY);
         try {
             if (credentials.isPresent()) {
-                dataSource.setUser(authDbUsername);
+                dataSource.setUser(dbSchemaName);
                 dataSource.setPassword(getDecryptPassword(credentials.get()));
-                dataSource.setUrl(getDbUrl());
             } else {
                 // Use the well worn out defaults.
                 dataSource.setUser(getRootSqlDBUser());
                 dataSource.setPassword(getRootSqlDBPassword());
-                // Set DB connection root url.
-                dataSource.setUrl(getSQLConfigObject().getDbRootUrl());
             }
         } catch (SQLException e) {
             throw new BeanCreationException("Failed to initialize bean: " + e.getMessage());
@@ -285,6 +287,26 @@ public class AuthDBConfig extends SQLDatabaseConfig {
         return new SecureStorageController(secureDataStore());
     }
 
+    @Bean
+    public LazyConnectionDataSourceProxy lazyConnectionDataSource() {
+        return new LazyConnectionDataSourceProxy(dataSource());
+    }
+
+    @Bean
+    public TransactionAwareDataSourceProxy transactionAwareDataSource() {
+        return new TransactionAwareDataSourceProxy(lazyConnectionDataSource());
+    }
+
+    @Bean
+    public DataSourceTransactionManager transactionManager() {
+        return new DataSourceTransactionManager(lazyConnectionDataSource());
+    }
+
+    @Bean
+    public DataSourceConnectionProvider connectionProvider() {
+        return new DataSourceConnectionProvider(transactionAwareDataSource());
+    }
+
     /**
      * Creates the JDBC exception translator used by the Spring.
      *
@@ -296,39 +318,97 @@ public class AuthDBConfig extends SQLDatabaseConfig {
     }
 
     /**
+     * Performs the database migration.
+     */
+    @Bean
+    public Flyway performMigration() {
+        // Perform the database migration.
+        Flyway migrator = new Flyway();
+        migrator.setDataSource(dataSource());
+        migrator.setSchemas(dbSchemaName);
+        if (!StringUtils.isEmpty(migrationLocation)) {
+            migrator.setLocations(migrationLocation);
+        }
+        migrator.migrate();
+        return migrator;
+    }
+
+    /**
      * Creates the JOOQ configuration.
      *
      * @return The JOOQ configuration.
      */
     @Bean
     public DefaultConfiguration configuration() {
+        // Perform migration first using root connection.
+        performMigration();
+
+        // We explicitly assume MySQL datasource here for a moment.
+        MariaDbDataSource dataSource = (MariaDbDataSource)dataSource();
+        try {
+            dataSource.setUrl(databaseConfig.getSQLConfigObject().getDbUrl());
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+
         // Create the user and grant privileges in case the user has not been yet created.
         Optional<String> credentials = authKVConfig.authKeyValueStore().get(CONSUL_KEY);
-        String dbPassword = authDbPassword;
-        if (!credentials.isPresent()) {
-            // Use authDbPassword if specified;
-            // else, use the same externalized admin db password as prefix and append it with random characters.
-            dbPassword = !Strings.isEmpty(dbPassword) ? dbPassword : getRootSqlDBPassword() + generatePassword();
-            authKVConfig.authKeyValueStore().put(CONSUL_KEY, CryptoFacility.encrypt(dbPassword));
-        } else {
-            dbPassword = getDecryptPassword(credentials.get());
+        try {
+            if (!credentials.isPresent()) {
+                // use the same externalized admin db password as prefix and append it with random characters.
+                String dbPassword = getRootSqlDBPassword() + generatePassword();
+                // Make sure we have the proper user here.
+                // We call this only when the database user is not yet been created and set.
+                // We are doing the inlined code here, since creating multiple beans causes the circular
+                // dependencies in Sprint.
+                dataSource.setUser(getRootSqlDBUser());
+                dataSource.setPassword(getRootSqlDBPassword());
+                try (Connection connection = dataSource.getConnection()) {
+
+                    // Clean up existing auth db user, if it exists.
+                    try (PreparedStatement stmt = connection.prepareStatement(
+                            "DROP USER 'auth'@'%';")) {
+                        stmt.execute();
+                        logger.info("Cleaned up auth@% db user.");
+                    } catch (SQLException e) {
+                        // SQLException will be thrown when trying to drop not existed auth@% user in DB. It's valid case.
+                        logger.info("auth@% user is not in the DB, clean up is not needed.");
+                    }
+                    // Create auth db user.
+                    try (PreparedStatement stmt = connection.prepareStatement(
+                            "CREATE USER 'auth'@'%' IDENTIFIED BY ?;")) {
+                        stmt.setString(1, dbPassword);
+                        stmt.execute();
+                        logger.info("Created auth@% db user.");
+                    }
+                    // Grant auth db user privileges
+                    try (PreparedStatement stmt = connection.prepareStatement(
+                            "GRANT ALL PRIVILEGES ON auth.* TO 'auth'@'%';")) {
+                        stmt.execute();
+                        logger.info("Granted privileges to auth@% db user.");
+                    }
+                    // Flush user privileges
+                    try (PreparedStatement stmt = connection.prepareStatement("FLUSH PRIVILEGES;")) {
+                        stmt.execute();
+                        logger.info("Flushed DB privileges.");
+                    }
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
+                authKVConfig.authKeyValueStore().put(CONSUL_KEY, CryptoFacility.encrypt(dbPassword));
+                dataSource.setUser(dbSchemaName);
+                dataSource.setPassword(dbPassword);
+            }
+        } catch (SQLException e) {
+            throw new BeanCreationException("Failed to initialize bean: " + e.getMessage());
         }
-        // Create DB user with all privileges on the specified schema. Make sure we have the proper user here.
-        dataSourceConfig(dbSchemaName, authDbUsername, dbPassword);
 
         // Create a JOOQ configuration.
         DefaultConfiguration jooqConfiguration = new DefaultConfiguration();
         jooqConfiguration.set(connectionProvider());
         jooqConfiguration.set(new DefaultExecuteListenerProvider(exceptionTranslator()));
-        jooqConfiguration.set(new Settings()
-            .withRenderNameStyle(RenderNameStyle.LOWER)
-            // Set withRenderSchema to false to avoid rendering schema name in Jooq generated SQL
-            // statement. For example, with false withRenderSchema, statement
-            // "SELECT * FROM auth.widgetset" will be changed to "SELECT * FROM widgetset".
-            // And dynamically set schema name in the constructed JDBC connection URL to support
-            // multi-tenant database.
-            .withRenderSchema(false));
-        jooqConfiguration.set(getSQLConfigObject().getSqlDialect());
+        jooqConfiguration.set(new Settings().withRenderNameStyle(RenderNameStyle.LOWER));
+        jooqConfiguration.set(databaseConfig.getSQLConfigObject().getSqlDialect());
         return jooqConfiguration;
     }
 
@@ -358,7 +438,7 @@ public class AuthDBConfig extends SQLDatabaseConfig {
      * @return The database URL.
      */
     private String getDbUrl() {
-        return getSQLConfigObject().getDbUrl();
+        return databaseConfig.getSQLConfigObject().getDbUrl();
     }
 
     /**

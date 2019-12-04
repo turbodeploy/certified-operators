@@ -41,17 +41,17 @@ import com.vmturbo.cost.api.impl.CostSubscription;
 import com.vmturbo.cost.api.impl.CostSubscription.Topic;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
-import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
 import com.vmturbo.plan.orchestrator.reservation.ReservationConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
+import com.vmturbo.sql.utils.SQLDatabaseConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 
 /**
  * Spring configuration for plan instance manipulations.
  */
 @Configuration
-@Import({PlanOrchestratorDBConfig.class, RepositoryClientConfig.class,
+@Import({SQLDatabaseConfig.class, RepositoryClientConfig.class,
         ActionOrchestratorClientConfig.class, HistoryClientConfig.class,
         RepositoryClientConfig.class, TopologyProcessorClientConfig.class,
         BaseKafkaProducerConfig.class, ReservationConfig.class,
@@ -68,7 +68,7 @@ public class PlanConfig {
     private Long realtimeTopologyContextId;
 
     @Autowired
-    private PlanOrchestratorDBConfig dbConfig;
+    private SQLDatabaseConfig dbConfig;
 
     @Autowired
     private RepositoryClientConfig repositoryClientConfig;

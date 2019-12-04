@@ -15,18 +15,18 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
-import com.vmturbo.group.GroupComponentDBConfig;
 import com.vmturbo.group.IdentityProviderConfig;
 import com.vmturbo.group.api.SettingMessages.SettingNotification;
 import com.vmturbo.group.api.SettingsUpdatesReciever;
 import com.vmturbo.group.group.GroupConfig;
+import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
-@Import({GroupComponentDBConfig.class, IdentityProviderConfig.class, GroupConfig.class, BaseKafkaProducerConfig.class})
+@Import({SQLDatabaseConfig.class, IdentityProviderConfig.class, GroupConfig.class, BaseKafkaProducerConfig.class})
 public class SettingConfig {
 
     @Autowired
-    private GroupComponentDBConfig databaseConfig;
+    private SQLDatabaseConfig databaseConfig;
 
     @Autowired
     private IdentityProviderConfig identityProviderConfig;

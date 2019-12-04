@@ -17,23 +17,23 @@ import org.springframework.context.annotation.Import;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import com.vmturbo.action.orchestrator.ActionOrchestratorDBConfig;
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatRollupScheduler.RollupDirection;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
 import com.vmturbo.group.api.GroupClientConfig;
+import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
 @Import({
-    ActionOrchestratorDBConfig.class,
+    SQLDatabaseConfig.class,
     GroupClientConfig.class,
     ActionOrchestratorGlobalConfig.class
 })
 public class ActionStatsRollupConfig {
 
     @Autowired
-    private ActionOrchestratorDBConfig sqlDatabaseConfig;
+    private SQLDatabaseConfig sqlDatabaseConfig;
 
     @Autowired
     private ActionOrchestratorGlobalConfig globalConfig;

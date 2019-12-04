@@ -62,8 +62,9 @@ public class DbTestConfig {
         // always return the default DB password for this test
         DBPasswordUtil dbPasswordUtilMock = Mockito.mock(DBPasswordUtil.class);
         when(dbPasswordUtilMock.getSqlDbRootPassword()).thenReturn(DBPasswordUtil.obtainDefaultPW());
-        final SQLConfigObject sqlConfigObject = new SQLConfigObject(LOCALHOST, 3306, testDbName,
-            Optional.of(new UsernamePasswordCredentials("root", "vmturbo")), MARIADB, false, ImmutableMap.of(SQLDialect.MARIADB, PREP_STMTS_PROPERTY));
+        final SQLConfigObject sqlConfigObject = new SQLConfigObject(LOCALHOST, 3306,
+            Optional.of(new UsernamePasswordCredentials("root", "vmturbo")),
+                MARIADB, false, ImmutableMap.of(SQLDialect.MARIADB, PREP_STMTS_PROPERTY));
         return new HistorydbIO(dbPasswordUtilMock, sqlConfigObject);
     }
 

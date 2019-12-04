@@ -6,16 +6,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.cost.component.CostDBConfig;
+import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
-/**
- * Configuration of computer tier demand stats.
- */
-@Import({CostDBConfig.class})
+@Import({SQLDatabaseConfig.class})
 public class ComputeTierDemandStatsConfig {
 
     @Autowired
-    private CostDBConfig dbConfig;
+    private SQLDatabaseConfig dbConfig;
 
     @Value("${statsRecordsCommitBatchSize}")
     private int statsRecordsCommitBatchSize;

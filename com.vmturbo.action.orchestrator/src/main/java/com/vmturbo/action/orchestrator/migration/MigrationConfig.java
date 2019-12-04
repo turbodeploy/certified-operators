@@ -1,18 +1,17 @@
 package com.vmturbo.action.orchestrator.migration;
 
+import com.vmturbo.sql.utils.SQLDatabaseConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.action.orchestrator.ActionOrchestratorDBConfig;
-
 @Configuration
-@Import({ActionOrchestratorDBConfig.class})
+@Import({SQLDatabaseConfig.class})
 public class MigrationConfig {
 
     @Autowired
-    private ActionOrchestratorDBConfig databaseConfig;
+    private SQLDatabaseConfig databaseConfig;
 
     @Bean
     public ActionMigrationsLibrary actionsMigrationsLibrary() {

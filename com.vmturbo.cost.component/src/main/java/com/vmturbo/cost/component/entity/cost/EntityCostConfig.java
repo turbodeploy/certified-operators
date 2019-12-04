@@ -8,21 +8,21 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.MarketListenerConfig;
 import com.vmturbo.cost.component.notification.CostNotificationConfig;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
+import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
 @Import({MarketClientConfig.class,
         MarketListenerConfig.class,
-        CostDBConfig.class,
+        SQLDatabaseConfig.class,
         CostNotificationConfig.class})
 public class EntityCostConfig {
 
     @Autowired
-    private CostDBConfig databaseConfig;
+    private SQLDatabaseConfig databaseConfig;
 
     @Autowired
     private CostNotificationConfig costNotificationConfig;

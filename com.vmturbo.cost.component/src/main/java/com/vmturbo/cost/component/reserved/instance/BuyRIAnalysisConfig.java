@@ -14,7 +14,6 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
-import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.rpc.RIBuyContextFetchRpcService;
@@ -22,6 +21,7 @@ import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.Rese
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisInvoker;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
+import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 
 @Configuration
@@ -29,8 +29,7 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
         ReservedInstanceAnalysisConfig.class,
         GroupClientConfig.class,
         RepositoryClientConfig.class,
-        PricingConfig.class,
-        CostDBConfig.class})
+        PricingConfig.class})
 public class BuyRIAnalysisConfig {
 
     @Value("${normalBuyRIAnalysisIntervalHours}")
@@ -40,7 +39,7 @@ public class BuyRIAnalysisConfig {
     private long realtimeTopologyContextId;
 
     @Autowired
-    private CostDBConfig databaseConfig;
+    private SQLDatabaseConfig databaseConfig;
 
     @Autowired
     private ComputeTierDemandStatsConfig computeTierDemandStatsConfig;

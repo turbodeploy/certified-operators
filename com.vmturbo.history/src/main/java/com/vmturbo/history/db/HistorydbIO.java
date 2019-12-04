@@ -64,7 +64,6 @@ import com.google.common.collect.Sets;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.util.Strings;
 import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.InsertSetMoreStep;
@@ -129,17 +128,9 @@ public class  HistorydbIO extends BasedbIO {
     private final SQLConfigObject sqlConfigObject;
     private static final String SECURE_DB_QUERY_PARMS = "useSSL=true&trustServerCertificate=true";
 
-    /**
-     * DB user name accessible to given schema.
-     */
-    @Value("${historyDbUsername:history}")
-    private String historyDbUsername;
-
-    /**
-     * DB user password accessible to given schema.
-     */
-    @Value("${historyDbPassword:}")
-    private String historyDbPassword;
+    // MySQL Connection parameters
+    @Value("${userName:vmtplatform}")
+    private String userName;
 
     @Value("${requestHost:%}")
     private String requestHost;
@@ -209,12 +200,12 @@ public class  HistorydbIO extends BasedbIO {
 
     @Override
     protected String getRootConnectionUrl() {
-        return sqlConfigObject.getDbRootUrl();
+        return sqlConfigObject.getDbUrl();
     }
 
     @Override
     public String getUserName() {
-        return historyDbUsername;
+        return userName;
     }
 
     /**
@@ -226,7 +217,7 @@ public class  HistorydbIO extends BasedbIO {
      */
     @Override
     public String getPassword() {
-        return !Strings.isEmpty(historyDbPassword) ? historyDbPassword : dbPasswordUtil.getSqlDbRootPassword();
+        return dbPasswordUtil.getSqlDbRootPassword();
     }
 
     @Override
@@ -343,16 +334,16 @@ public class  HistorydbIO extends BasedbIO {
 
     @Override
     public String getRootUsername() {
-        if (sqlConfigObject.getRootCredentials().isPresent()) {
-            return sqlConfigObject.getRootCredentials().get().getUserName();
+        if (sqlConfigObject.getCredentials().isPresent()) {
+            return sqlConfigObject.getCredentials().get().getUserName();
         }
         return dbPasswordUtil.getSqlDbRootUsername();
     }
 
     @Override
     public String getRootPassword() {
-        if (sqlConfigObject.getRootCredentials().isPresent()) {
-            return sqlConfigObject.getRootCredentials().get().getPassword();
+        if (sqlConfigObject.getCredentials().isPresent()) {
+            return sqlConfigObject.getCredentials().get().getPassword();
         }
         return getPassword();
     }

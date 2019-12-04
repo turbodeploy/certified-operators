@@ -9,16 +9,17 @@ import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
 import com.vmturbo.cost.component.rpc.RIAndExpenseUploadRpcService;
+import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
 @Import({CostConfig.class,
     ReservedInstanceConfig.class,
-    CostDBConfig.class,
+    SQLDatabaseConfig.class,
     ReservedInstanceSpecConfig.class
 })
 public class CostServiceConfig {
     @Autowired
-    private CostDBConfig databaseConfig;
+    private SQLDatabaseConfig databaseConfig;
 
     @Autowired
     private ReservedInstanceConfig reservedInstanceConfig;

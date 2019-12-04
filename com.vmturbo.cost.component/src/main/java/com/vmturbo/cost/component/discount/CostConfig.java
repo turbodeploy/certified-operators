@@ -8,7 +8,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
@@ -16,16 +15,17 @@ import com.vmturbo.cost.component.expenses.SqlAccountExpensesStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.rpc.CostRpcService;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
+import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
-@Import({CostDBConfig.class,
+@Import({SQLDatabaseConfig.class,
         IdentityProviderConfig.class,
         DiscountConfig.class,
         EntityCostConfig.class,
         ReservedInstanceConfig.class})
 public class CostConfig {
     @Autowired
-    private CostDBConfig databaseConfig;
+    private SQLDatabaseConfig databaseConfig;
 
     @Autowired
     private IdentityProviderConfig identityProviderConfig;

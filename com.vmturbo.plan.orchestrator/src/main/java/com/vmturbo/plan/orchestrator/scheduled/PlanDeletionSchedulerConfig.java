@@ -19,11 +19,11 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.group.api.GroupClientConfig;
-import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.scenario.ScenarioConfig;
 import com.vmturbo.plan.orchestrator.scenario.ScenarioDao;
+import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 /**
  * Spring Configuration for deletion of old/expired plans.
@@ -34,14 +34,14 @@ import com.vmturbo.plan.orchestrator.scenario.ScenarioDao;
 @Import({GroupClientConfig.class,
          PlanConfig.class,
          ScenarioConfig.class,
-        PlanOrchestratorDBConfig.class})
+         SQLDatabaseConfig.class})
 public class PlanDeletionSchedulerConfig implements SchedulingConfigurer {
 
     @Autowired
     private GroupClientConfig groupClientConfig;
 
     @Autowired
-    private PlanOrchestratorDBConfig dbConfig;
+    private SQLDatabaseConfig dbConfig;
 
     @Autowired
     private PlanDao planDao;

@@ -11,7 +11,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.action.orchestrator.ActionOrchestratorDBConfig;
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
 import com.vmturbo.action.orchestrator.stats.HistoricalActionStatReader.CombinedStatsBucketsFactory.DefaultBucketsFactory;
 import com.vmturbo.action.orchestrator.stats.aggregator.ClusterActionAggregator.ClusterActionAggregatorFactory;
@@ -27,11 +26,12 @@ import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
+import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
 @Import({GroupClientConfig.class,
         RepositoryClientConfig.class,
-        ActionOrchestratorDBConfig.class,
+        SQLDatabaseConfig.class,
         ActionTranslationConfig.class,
         ActionStatsRollupConfig.class,
         ActionOrchestratorGlobalConfig.class})
@@ -44,7 +44,7 @@ public class ActionStatsConfig {
     private RepositoryClientConfig repositoryClientConfig;
 
     @Autowired
-    private ActionOrchestratorDBConfig sqlDatabaseConfig;
+    private SQLDatabaseConfig sqlDatabaseConfig;
 
     @Autowired
     private ActionTranslationConfig actionTranslationConfig;

@@ -20,7 +20,6 @@ import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCost
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
-import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
 import com.vmturbo.cost.component.discount.CostConfig;
@@ -34,6 +33,7 @@ import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
+import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 /**
  * Setup listener for topologies from Topology Processor. Does not directly configured
@@ -50,8 +50,7 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
         CostConfig.class,
         RepositoryClientConfig.class,
         BuyRIAnalysisConfig.class,
-        ReservedInstanceSpecConfig.class,
-        CostDBConfig.class})
+        ReservedInstanceSpecConfig.class})
 public class TopologyListenerConfig {
     private static final Logger logger = LogManager.getLogger();
 
@@ -59,7 +58,7 @@ public class TopologyListenerConfig {
     private TopologyProcessorListenerConfig topologyProcessorListenerConfig;
 
     @Autowired
-    private CostDBConfig databaseConfig;
+    private SQLDatabaseConfig databaseConfig;
 
     @Autowired
     private ComputeTierDemandStatsConfig computeTierDemandStatsConfig;
