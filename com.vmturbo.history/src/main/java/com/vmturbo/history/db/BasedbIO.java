@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.Driver;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -526,11 +527,20 @@ public abstract class BasedbIO {
         SQLDialect dialect = SchemaUtil.SUPPORTED_ADAPTERS.get(getAdapter());
         if (dialect == null)
             throw new UnsupportedOperationException("Invalid SQL dialect");
-        settings = new Settings().withRenderFormatted(true);
+        settings = new Settings()
+            .withRenderFormatted(true)
+            // Set withRenderSchema to false to avoid rendering schema name in Jooq generated SQL
+            // statement. For example, with false withRenderSchema, statement
+            // "SELECT * FROM vmtdb.entities" will be changed to "SELECT * FROM entities".
+            // And dynamically set schema name in the constructed JDBC connection URL to support
+            // multi-tenant database.
+            .withRenderSchema(false);
 
         // set a schema mapping in order to support Unit tests:
         if (mappedSchemaForTests != null) {
-            settings.withRenderMapping(new RenderMapping().withSchemata(new MappedSchema()
+            settings = new Settings()
+                .withRenderFormatted(true)
+                .withRenderMapping(new RenderMapping().withSchemata(new MappedSchema()
                     .withInput("vmtdb").withOutput(mappedSchemaForTests)));
         }
         return dialect;
@@ -1331,11 +1341,11 @@ public abstract class BasedbIO {
     }
 
     /**
-     * Initializes VMTDB to include vmturbo db, vmtplatform userid, and call SchemaUtil to
+     * Initializes VMTDB to include vmturbo db, given userid, and call SchemaUtil to
      * initialize vmtdb schema.
      *
      * We get a DB Connection for the "root" for use in the first two steps. Then we drop that and
-     * get a connection using "vmtplatform" and "vmtdb" to initialize the schema.
+     * get a connection using given username and password to initialize the schema.
      *
      * @param clearOldDb should the old db be cleared
      * @param version what version of schema is "current" - i.e. what should we
@@ -1347,63 +1357,90 @@ public abstract class BasedbIO {
     @VisibleForTesting
     public void init(boolean clearOldDb, Double version, String dbName,
                      Optional<String> migrationLocationOverride) throws VmtDbException {
-        // Attempt to retrieve root connection:
-        Connection rootConn = null;
         try {
-            rootConn = getRootConnection();
-        }
-        catch (SQLException sqle) {
-            logger.error("=======================================================");
-            logger.error("=  Unable to retrieve connection! Make sure MySQL is  =");
-            logger.error("=  running and the root password is correct.          =");
-            logger.error("=======================================================", sqle);
-            throw new VmtDbException(VmtDbException.CONN_POOL_STARTUP,
-                    "Cannot retrieve root db connection", sqle);
-        }
-
-        // if desired, remove the previous database
-        if (clearOldDb) {
-            SchemaUtil.dropDb(dbName, rootConn);
-        }
-
-        // Create the database
-        logger.info("Initializing database '" + dbName + "'...");
-        SchemaUtil.createDb(dbName, rootConn);
-        execute("use " + dbName + ";", rootConn);
-
-        // Allow 'vmtplatform' to access the database (= grants.sql):
-        final String requestUser = "'vmtplatform'@'" + getRequestHost() + "'";
-        logger.info("Initialize permissions for '" + requestUser + "' on '" + dbName + "'...");
-        execute("GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, PROCESS, REFERENCES, INDEX, ALTER, CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, EVENT, TRIGGER " +
-                        "ON *.* TO " + requestUser + " " +
-                        "IDENTIFIED BY '" + getPassword() + "';",
-                rootConn);
-        execute("GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, PROCESS, REFERENCES, INDEX, ALTER, CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, EVENT, TRIGGER " +
-                        "ON *.* TO " + "'vmtplatform'@'localhost'" + " " +
-                        "IDENTIFIED BY '" + getPassword() + "';",
-                rootConn);
-        execute("FLUSH PRIVILEGES;", rootConn);
-
-        try {
-            rootConn.close();
-        }
-        catch (SQLException e) {
-            logger.error(e);
-        }
-
-        // Initialize connection pool using 'vmtplatform' by creating a connection.
-        try {
+            // Test DB connection first to the schema under given user credentials.
             DBConnectionPool.instance = null;
             connection().close();
-        }
-        catch (SQLException e) {
-            logger.error("Migrate failed! Unable to initialize connection pool!", e);
-            return;
+            logger.info("DB connection is available to schema '{}' from user '{}'.",
+                dbName, getUserName());
+        } catch (VmtDbException | SQLException e) {
+            // VmtDbException or SQLException will be thrown if given db schema name or db user does
+            // not exist or password has been changed. This is a valid case.
+            initUsingRoot(clearOldDb, dbName);
         }
 
         // Initialize the tables at the latest schema:
         logger.info("Initialize tables...\n");
         SchemaUtil.initDb(version, clearOldDb, migrationLocationOverride);
+    }
+
+    /**
+     * Initialize using root credentials to create database schema and user.
+     *
+     * @param clearOldDb True if old db be cleared, otherwise false.
+     * @param dbName     The name of the database (e.g. "vmtdb").
+     * @throws VmtDbException If there is a database error.
+     */
+    private void initUsingRoot(boolean clearOldDb, String dbName) throws VmtDbException {
+        logger.info("Database schema '{}' or user '{}' does not exist or password has been changed. " +
+            "Initializing schema and user under root credentials...", dbName, getUserName());
+        // Attempt to retrieve root connection:
+        try (Connection rootConn = getRootConnection()) {
+            // if desired, remove the previous database
+            if (clearOldDb) {
+                SchemaUtil.dropDb(dbName, rootConn);
+            }
+
+            // Create the database
+            logger.info("Initializing database '" + dbName + "'...");
+            SchemaUtil.createDb(dbName, rootConn);
+            execute("use " + dbName + ";", rootConn);
+
+            // Allow given user to access the database (= grants.sql):
+            final String requestUser = "'" + getUserName() + "'@'" + getRequestHost() + "'";
+            logger.info("Initialize permissions for " + requestUser + " on '" + dbName + "'...");
+            // Clean up existing db user, if it exists.
+            try (PreparedStatement stmt = rootConn.prepareStatement(
+                "DROP USER ?@?;")) {
+                stmt.setString(1, getUserName());
+                stmt.setString(2, getRequestHost());
+                stmt.execute();
+                logger.info("Cleaned up {} db user.", requestUser);
+            } catch (SQLException e) {
+                // SQLException will be thrown when trying to drop not existed username% user in DB. It's valid case.
+                logger.info("{} user is not in the DB, clean up is not needed.", requestUser);
+            }
+            // Create db user.
+            try (PreparedStatement stmt = rootConn.prepareStatement(
+                "CREATE USER ?@? IDENTIFIED BY ?;")) {
+                stmt.setString(1, getUserName());
+                stmt.setString(2, getRequestHost());
+                stmt.setString(3, getPassword());
+                stmt.execute();
+                logger.info("Created {} db user.", requestUser);
+            }
+            // Grant db user privileges
+            try (PreparedStatement stmt = rootConn.prepareStatement(
+                "GRANT ALL PRIVILEGES ON " + dbName + ".* TO ?@?;")) {
+                stmt.setString(1, getUserName());
+                stmt.setString(2, getRequestHost());
+                stmt.execute();
+                logger.info("Granted all privileges on schema '{}' to {} db user.", dbName, requestUser);
+            }
+            // Flush user privileges
+            try (PreparedStatement stmt = rootConn.prepareStatement("FLUSH PRIVILEGES;")) {
+                stmt.execute();
+                logger.info("Flushed DB privileges on schema '{}' to user '{}'.", dbName, getUserName());
+            }
+
+        } catch (SQLException sqle) {
+            logger.error("=======================================================");
+            logger.error("=  Unable to retrieve connection! Make sure MySQL is  =");
+            logger.error("=  running and the root password is correct.          =");
+            logger.error("=======================================================", sqle);
+            throw new VmtDbException(VmtDbException.CONN_POOL_STARTUP,
+                "Cannot retrieve root db connection", sqle);
+        }
     }
 
     /**

@@ -33,7 +33,6 @@ import com.vmturbo.plan.orchestrator.scheduled.ClusterRollupSchedulerConfig;
 import com.vmturbo.plan.orchestrator.scheduled.PlanDeletionSchedulerConfig;
 import com.vmturbo.plan.orchestrator.scheduled.PlanProjectSchedulerConfig;
 import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 /**
  * Responsible for orchestrating plan workflow.
@@ -46,7 +45,7 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
         TemplatesConfig.class,
         ApiSecurityConfig.class,
         GlobalConfig.class,
-        SQLDatabaseConfig.class,
+        PlanOrchestratorDBConfig.class,
         PlanProjectSchedulerConfig.class,
         PlanProjectConfig.class,
         ReservationConfig.class,
@@ -73,7 +72,7 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
     private int mariaHealthCheckIntervalSeconds;
 
     @Autowired
-    private SQLDatabaseConfig dbConfig;
+    private PlanOrchestratorDBConfig dbConfig;
 
     @Autowired
     private ClusterRollupSchedulerConfig clusterRollupSchedulerConfig;
@@ -106,7 +105,7 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
     private void setup() {
         LOGGER.info("Adding MariaDB and Kafka producer health checks to the component health monitor.");
         getHealthMonitor().addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
-                        dbConfig.dataSource()::getConnection));
+            dbConfig.dataSource()::getConnection));
         getHealthMonitor().addHealthCheck(planConfig.kafkaHealthMonitor());
     }
 

@@ -10,11 +10,11 @@ import com.vmturbo.common.protobuf.plan.DeploymentProfileDTOREST.DiscoveredTempl
 import com.vmturbo.common.protobuf.plan.TemplateDTOREST.TemplateServiceController;
 import com.vmturbo.common.protobuf.plan.TemplateDTOREST.TemplateSpecServiceController;
 import com.vmturbo.plan.orchestrator.GlobalConfig;
+import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
 import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileConfig;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
-@Import({SQLDatabaseConfig.class, GlobalConfig.class, DeploymentProfileConfig.class})
+@Import({PlanOrchestratorDBConfig.class, GlobalConfig.class, DeploymentProfileConfig.class})
 public class TemplatesConfig {
 
     @Value("${templateSpecFile}")
@@ -33,7 +33,7 @@ public class TemplatesConfig {
     private int getTemplatesChunkSize;
 
     @Autowired
-    private SQLDatabaseConfig databaseConfig;
+    private PlanOrchestratorDBConfig databaseConfig;
 
     @Autowired
     private GlobalConfig globalConfig;
