@@ -1524,27 +1524,51 @@ public class ActionSpecMapper {
      * @param cloudResizeActionDetailsApiDTO - cloud resize action details DTO
      */
     private void setOnDemandRates(long entityUuid, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
-        // set on-demand rates
-        GetTierPriceForEntitiesRequest request = GetTierPriceForEntitiesRequest.newBuilder().setOid(entityUuid)
+        // Get the on Demand compute costs
+        GetTierPriceForEntitiesRequest requestOnDemandComputeCosts = GetTierPriceForEntitiesRequest.newBuilder().setOid(entityUuid)
                 .setCostCategory(CostCategory.ON_DEMAND_COMPUTE).build();
-        Map<Long, CurrencyAmount> beforeCostByEntityOidMap = costServiceBlockingStub.getTierPriceForEntities(request)
+        Map<Long, CurrencyAmount> beforeOnDemandComputeCostByEntityOidMap = costServiceBlockingStub.getTierPriceForEntities(requestOnDemandComputeCosts)
                 .getBeforeTierPriceByEntityOidMap();
-        Map<Long, CurrencyAmount> afterCostByEntityOidMap = costServiceBlockingStub.getTierPriceForEntities(request)
+        Map<Long, CurrencyAmount> afterComputeCostByEntityOidMap = costServiceBlockingStub.getTierPriceForEntities(requestOnDemandComputeCosts)
                 .getAfterTierPriceByEntityOidMap();
-        if (beforeCostByEntityOidMap != null && beforeCostByEntityOidMap.get(entityUuid) != null) {
-            double amount = beforeCostByEntityOidMap.get(entityUuid).getAmount();
-            cloudResizeActionDetailsApiDTO.setOnDemandRateBefore((float)amount);
-        } else {
+
+        // Get the onDemand License costs
+        GetTierPriceForEntitiesRequest requestLicenseComputeCosts = GetTierPriceForEntitiesRequest.newBuilder().setOid(entityUuid)
+                .setCostCategory(CostCategory.ON_DEMAND_LICENSE).build();
+        Map<Long, CurrencyAmount> beforeLicenseComputeCosts = costServiceBlockingStub.getTierPriceForEntities(requestLicenseComputeCosts)
+                .getBeforeTierPriceByEntityOidMap();
+        Map<Long, CurrencyAmount> afterLicenseComputeCosts = costServiceBlockingStub.getTierPriceForEntities(requestLicenseComputeCosts)
+                .getAfterTierPriceByEntityOidMap();
+
+        double totalCurrentOnDemandRate = 0;
+        if (beforeOnDemandComputeCostByEntityOidMap != null && beforeOnDemandComputeCostByEntityOidMap.get(entityUuid) != null) {
+            double amount = beforeOnDemandComputeCostByEntityOidMap.get(entityUuid).getAmount();
+            totalCurrentOnDemandRate += amount;
+        }
+        if (beforeLicenseComputeCosts != null && beforeLicenseComputeCosts.get(entityUuid) != null) {
+            double amount = beforeLicenseComputeCosts.get(entityUuid).getAmount();
+            totalCurrentOnDemandRate += amount;
+        }
+        if (totalCurrentOnDemandRate == 0) {
             logger.error("Current On Demand rate for entity with oid {}, not found", entityUuid);
-            cloudResizeActionDetailsApiDTO.setOnDemandRateBefore(0f);
         }
-        if (afterCostByEntityOidMap != null && afterCostByEntityOidMap.get(entityUuid) != null) {
-            double amount = afterCostByEntityOidMap.get(entityUuid).getAmount();
-            cloudResizeActionDetailsApiDTO.setOnDemandRateAfter((float)amount);
-        } else {
+        cloudResizeActionDetailsApiDTO.setOnDemandRateBefore((float)totalCurrentOnDemandRate);
+
+        double totalProjectedOnDemandRate = 0;
+        if (afterComputeCostByEntityOidMap != null && afterComputeCostByEntityOidMap.get(entityUuid) != null) {
+            double amount = afterComputeCostByEntityOidMap.get(entityUuid).getAmount();
+            totalProjectedOnDemandRate += amount;
+        }
+
+        if (afterLicenseComputeCosts != null && afterLicenseComputeCosts.get(entityUuid) != null) {
+            double amount = afterLicenseComputeCosts.get(entityUuid).getAmount();
+            totalProjectedOnDemandRate += amount;
+        }
+
+        if (totalProjectedOnDemandRate == 0) {
             logger.error("Projected On Demand rate for entity with oid {}, not found", entityUuid);
-            cloudResizeActionDetailsApiDTO.setOnDemandRateAfter(0f);
         }
+        cloudResizeActionDetailsApiDTO.setOnDemandRateAfter((float)totalProjectedOnDemandRate);
     }
 
     /**

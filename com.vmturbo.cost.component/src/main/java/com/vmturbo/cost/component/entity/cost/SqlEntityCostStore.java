@@ -511,7 +511,8 @@ public class SqlEntityCostStore implements EntityCostStore {
 
         Integer getCostSource() {
             try {
-                return record7.get(ENTITY_COST.COST_SOURCE);
+                int costSource = record7.get(ENTITY_COST.COST_SOURCE);
+                return costSource;
             } catch (IllegalArgumentException e) {
                 return null;
             }
