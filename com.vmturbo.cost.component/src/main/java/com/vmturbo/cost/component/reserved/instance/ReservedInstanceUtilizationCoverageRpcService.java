@@ -2,17 +2,20 @@ package com.vmturbo.cost.component.reserved.instance;
 
 import java.time.Clock;
 import java.time.temporal.ChronoUnit;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
+
+import com.google.common.collect.ImmutableMap;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -160,8 +163,35 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
                     StreamObserver<GetEntityReservedInstanceCoverageResponse> responseObserver) {
         try {
             logger.debug("Request for Entity RI coverage: {}", request);
-            final Map<Long, EntityReservedInstanceCoverage> retCoverage =
-                            entityReservedInstanceMappingStore.getEntityRiCoverage();
+            final Map<Long, Set<Coverage>> riCoverageByEntity = entityReservedInstanceMappingStore
+                    .getRICoverageByEntity();
+
+            final Map<Long, Double> entitiesCouponCapacity = reservedInstanceCoverageStore
+                    .getEntitiesCouponCapacity();
+
+            final Map<Long, EntityReservedInstanceCoverage> retCoverage = entitiesCouponCapacity.entrySet()
+                    .stream()
+                    .map(capacityEntry -> {
+                        long entityOid = capacityEntry.getKey();
+                        int capacity = capacityEntry.getValue().intValue();
+
+                        final Map<Long, Double> riCoverage =
+                                riCoverageByEntity.getOrDefault(entityOid, Collections.emptySet())
+                                        .stream()
+                                        .collect(ImmutableMap.toImmutableMap(
+                                                Coverage::getReservedInstanceId,
+                                                Coverage::getCoveredCoupons,
+                                                Double::sum));
+
+                        return EntityReservedInstanceCoverage.newBuilder()
+                                .setEntityId(entityOid)
+                                .setEntityCouponCapacity(capacity)
+                                .putAllCouponsCoveredByRi(riCoverage)
+                                .build();
+                    }).collect(ImmutableMap.toImmutableMap(
+                            EntityReservedInstanceCoverage::getEntityId,
+                            Function.identity()));
+
             logger.debug("Retrieved and returning RI coverage for {} entities.",
                             retCoverage.size());
             responseObserver.onNext(GetEntityReservedInstanceCoverageResponse.newBuilder()

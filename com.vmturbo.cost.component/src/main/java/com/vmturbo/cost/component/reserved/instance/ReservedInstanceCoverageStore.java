@@ -1,21 +1,24 @@
 package com.vmturbo.cost.component.reserved.instance;
 
+import static com.vmturbo.cost.component.db.tables.ReservedInstanceCoverageLatest.RESERVED_INSTANCE_COVERAGE_LATEST;
 import static com.vmturbo.cost.component.reserved.instance.ReservedInstanceUtil.SNAPSHOT_TIME;
 import static com.vmturbo.cost.component.reserved.instance.ReservedInstanceUtil.createSelectFieldsForRIUtilizationCoverage;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-
-import com.google.common.collect.Lists;
 
 import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.Result;
 import org.jooq.Table;
+
+import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.cost.component.db.Tables;
@@ -96,5 +99,18 @@ public class ReservedInstanceCoverageStore {
                         entityRiCoverage.getBusinessAccountId(), entityRiCoverage.getTotalCoupons(),
                         entityRiCoverage.getUsedCoupons(),null,null,null));
 
+    }
+
+    @Nonnull
+    protected Map<Long, Double> getEntitiesCouponCapacity() {
+        Map<Long, Double> entitiesCouponCapacity = new HashMap<>();
+        dsl.select(RESERVED_INSTANCE_COVERAGE_LATEST.ENTITY_ID, RESERVED_INSTANCE_COVERAGE_LATEST.TOTAL_COUPONS)
+                .from(Tables.RESERVED_INSTANCE_COVERAGE_LATEST)
+                .where(RESERVED_INSTANCE_COVERAGE_LATEST.SNAPSHOT_TIME.eq(
+                        dsl.select(RESERVED_INSTANCE_COVERAGE_LATEST.SNAPSHOT_TIME.max())
+                                .from(Tables.RESERVED_INSTANCE_COVERAGE_LATEST)))
+                .fetch()
+                .forEach(record -> entitiesCouponCapacity.put(record.value1(), record.value2()));
+        return entitiesCouponCapacity;
     }
 }

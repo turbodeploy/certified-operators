@@ -2,13 +2,17 @@ package com.vmturbo.cost.component.reserved.instance;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
+import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -17,6 +21,8 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageResponse;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.CoverageOrBuilder;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -77,14 +83,20 @@ public class ReservedInstanceUtilizationCoverageRpcServiceTest {
      */
     @Test
     public void testGetEntityReservedInstanceCoverage() {
-        final Map<Long, EntityReservedInstanceCoverage> coverageMap =
-                ImmutableMap.of(7L, EntityReservedInstanceCoverage.getDefaultInstance());
-        when(entityReservedInstanceMappingStore.getEntityRiCoverage())
-                .thenReturn(coverageMap);
+        final Coverage coverage1 = Coverage.newBuilder().setCoveredCoupons(2).setReservedInstanceId(1).build();
+        final Coverage coverage2 = Coverage.newBuilder().setCoveredCoupons(2).setReservedInstanceId(2).build();
+        final Map<Long, Set<Coverage>> rICoverageByEntity = ImmutableMap.of(1L, Sets.newHashSet(coverage1, coverage2));
+
+        when(entityReservedInstanceMappingStore.getRICoverageByEntity()).thenReturn(rICoverageByEntity);
+        when(reservedInstanceCoverageStore.getEntitiesCouponCapacity())
+                .thenReturn(ImmutableMap.of(1L, 4d));
+
         final GetEntityReservedInstanceCoverageResponse response =
             client.getEntityReservedInstanceCoverage(
                 GetEntityReservedInstanceCoverageRequest.getDefaultInstance());
 
-        assertThat(response.getCoverageByEntityIdMap(), is(coverageMap));
+        assertEquals(1, response.getCoverageByEntityIdMap().size());
+        assertEquals(4, response.getCoverageByEntityIdMap().get(1L).getEntityCouponCapacity());
+        assertEquals(2, response.getCoverageByEntityIdMap().get(1L).getCouponsCoveredByRiMap().size());
     }
 }
