@@ -38,9 +38,8 @@ public class ConsulManagementService {
      *
      * @param probeCategory category of probe
      * @param probeType type of probe
-     * @return optional of deleted probe key
      */
-    public Optional<String> deleteConfig(String probeCategory, String probeType) {
+    public void deleteConfig(String probeCategory, String probeType) {
         logger.info("Deleting old probe info started");
         Map<String, String> probes = keyValueStore.getByPrefix(PROBE_KV_STORE_PREFIX);
         Optional<Map.Entry<String, String>> oldProbeInfo = probes.entrySet().stream().filter(entry -> {
@@ -51,22 +50,24 @@ public class ConsulManagementService {
                         return probeCategory.equals(info.getProbeCategory()) &&
                                 probeType.equals(info.getProbeType());
                     } catch (InvalidProtocolBufferException e) {
-                        logger.error("Failed to load probe info from Consul");
+                        logger.error("Failed to load probe info from Consul, cannot parse data from {} key",
+                                entry.getKey());
                         return false;
                     }
                 }).findFirst();
         if (oldProbeInfo.isPresent()) {
+            final String key = oldProbeInfo.get().getKey();
             logger.info("Deleting probe info for probe {} with type '{}' and probe '{}'",
-                    oldProbeInfo.get().getKey(), probeType, probeCategory);
-            keyValueStore.removeKey(oldProbeInfo.get().getKey());
-            if (!keyValueStore.get(oldProbeInfo.get().getKey()).isPresent()) {
+                    key, probeType, probeCategory);
+            keyValueStore.removeKey(key);
+            if (!keyValueStore.containsKey(key)) {
                 logger.info("Probe info deleted successfully");
+            } else {
+                logger.error("Cannot delete probe info with key {}", key);
             }
-            return Optional.of(oldProbeInfo.get().getKey());
         } else {
             logger.info("No config found for probe with type '{}' and category '{}'",
                     probeType, probeCategory);
-            return Optional.empty();
         }
     }
 }

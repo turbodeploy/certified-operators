@@ -1,8 +1,10 @@
 package com.vmturbo.utilprobe.component.service;
 
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.HashMap;
@@ -12,7 +14,6 @@ import java.util.Optional;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -68,7 +69,9 @@ public class ConsulManagementServiceTest {
     @Test
     public void testDeleteConfig() {
         ConsulManagementService service = new ConsulManagementService(store);
-        Assert.assertEquals(Optional.of(KEY1), service.deleteConfig(CATEGORY1, TYPE1));
-        Assert.assertEquals(Optional.empty(), service.deleteConfig(CATEGORY2, TYPE1));
+        service.deleteConfig(CATEGORY1, TYPE1);
+        verify(store).removeKey(KEY1);
+        service.deleteConfig(CATEGORY1, TYPE2);
+        verify(store, atMost(1)).removeKey(anyString());
     }
 }
