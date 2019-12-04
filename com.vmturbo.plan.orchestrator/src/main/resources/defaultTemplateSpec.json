@@ -208,7 +208,7 @@
         },
         "fields" : [
           {
-            "name" : "diskIopsConsumed",
+            "name" : "diskIops",
             "displayName" : "IOPS",
             "valueType" : "NUMERIC",
             "description" : "Disk IOPS"
