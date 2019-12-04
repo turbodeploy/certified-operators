@@ -26,6 +26,7 @@ import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.components.common.migration.Migration;
 import com.vmturbo.group.diagnostics.GroupDiagnosticsConfig;
 import com.vmturbo.group.migration.MigrationConfig;
+import com.vmturbo.group.schedule.ScheduleConfig;
 import com.vmturbo.group.service.RpcConfig;
 import com.vmturbo.group.setting.SettingConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
@@ -38,6 +39,7 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
         MigrationConfig.class,
         RpcConfig.class,
         SettingConfig.class,
+        ScheduleConfig.class,
         SQLDatabaseConfig.class,
         GroupApiSecurityConfig.class,
         GroupDiagnosticsConfig.class,
@@ -58,6 +60,9 @@ public class GroupComponent extends BaseVmtComponent {
 
     @Autowired
     private SettingConfig settingConfig;
+
+    @Autowired
+    private ScheduleConfig scheduleConfig;
 
     @Autowired
     private GroupDiagnosticsConfig diagnosticsConfig;
@@ -93,6 +98,7 @@ public class GroupComponent extends BaseVmtComponent {
         return Arrays.asList(rpcConfig.policyService(),
             rpcConfig.groupService(),
             rpcConfig.settingService(),
+            rpcConfig.scheduleService(),
             rpcConfig.settingPolicyService());
     }
 
