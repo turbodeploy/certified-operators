@@ -71,16 +71,16 @@ class UtilProbeComponent extends MediationComponentMain {
         final String probeType = System.getenv(PROBE_TYPE);
         final String probeCategory = System.getenv(PROBE_CATEGORY);
 
-        logger.info("Probe type: " + probeType);
-        logger.info("Probe category: " + probeCategory);
+        logger.info("Probe type: {}\nProbe category: {}", probeType, probeCategory);
 
         Collection<ProbeProperties<?>> newProps = new ArrayList<>();
         ProbeClassContext<UtilProbeAccount> probeClassContext =
                 new ProbeClassContext<>(Thread.currentThread().getContextClassLoader(), UtilProbe.class);
         AccountValuesConverter<UtilProbeAccount> accountValuesConverter =
                 new FieldsBasedAccountValuesConverter<>(UtilProbeAccount.class);
-        logger.info("Account definitions: " + accountValuesConverter.getAccountDefinitions().toString());
-        logger.info("TargetId fields: " + accountValuesConverter.getTargetIdFields().toString());
+        logger.info("Account definitions: {}\nTargetId fields: {}",
+                accountValuesConverter.getAccountDefinitions().toString(),
+                accountValuesConverter.getTargetIdFields().toString());
 
         // Pass probe category and probe type from the parameters
         newProps.add(new ProbeProperties(
@@ -103,12 +103,15 @@ class UtilProbeComponent extends MediationComponentMain {
      */
     @Bean
     protected KeyValueStore getKeyValueStore() {
-        logger.info("Initializing KV store:");
         final String namespace = topologyProcessorHost + "-1";
-        logger.info("Namespace: {}", namespace);
-        logger.info("Consul host: {}", consulHost);
-        logger.info("Consul port: {}", consulPort);
-        logger.info("Retry interval: {}", kvStoreRetryIntervalMillis);
+        String logMessage = new StringBuilder()
+                .append("Initializing KV store:\n")
+                .append("Namespace: {}\n")
+                .append("Consul host: {}\n")
+                .append("Consul port: {}\n")
+                .append("Retry interval: {} ms\n")
+                .toString();
+        logger.info(logMessage, namespace, consulHost, consulPort, kvStoreRetryIntervalMillis);
         return new ConsulKeyValueStore(topologyProcessorHost + "-1",
                 this.consulHost,
                 this.consulPort,
