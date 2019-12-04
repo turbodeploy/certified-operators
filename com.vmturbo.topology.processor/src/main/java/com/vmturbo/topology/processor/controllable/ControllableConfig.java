@@ -6,10 +6,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
+import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
 
 @Configuration
-@Import(SQLDatabaseConfig.class)
+@Import(TopologyProcessorDBConfig.class)
 public class ControllableConfig {
     @Value("${activateOrMoveInProgressRecordExpiredSeconds}")
     private int activateOrMoveInProgressRecordExpiredSeconds;
@@ -21,11 +21,11 @@ public class ControllableConfig {
     private int activateSucceedRecordExpiredSeconds;
 
     @Autowired
-    private SQLDatabaseConfig databaseConfig;
+    private TopologyProcessorDBConfig topologyProcessorDBConfig;
 
     @Bean
     public EntityActionDaoImp entityActionDaoImp() {
-        return new EntityActionDaoImp(databaseConfig.dsl(), moveSucceedRecordExpiredSeconds,
+        return new EntityActionDaoImp(topologyProcessorDBConfig.dsl(), moveSucceedRecordExpiredSeconds,
                 activateOrMoveInProgressRecordExpiredSeconds, activateSucceedRecordExpiredSeconds);
     }
 

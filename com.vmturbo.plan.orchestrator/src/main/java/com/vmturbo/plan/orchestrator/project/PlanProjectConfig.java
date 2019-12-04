@@ -13,13 +13,13 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.plan.orchestrator.GlobalConfig;
+import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanConfig;
 import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
-@Import({SQLDatabaseConfig.class,
+@Import({PlanOrchestratorDBConfig.class,
         GlobalConfig.class,
         RepositoryClientConfig.class,
         HistoryClientConfig.class,
@@ -29,7 +29,7 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
         ActionOrchestratorClientConfig.class})
 public class PlanProjectConfig {
     @Autowired
-    private SQLDatabaseConfig databaseConfig;
+    private PlanOrchestratorDBConfig databaseConfig;
 
     @Autowired
     private GlobalConfig globalConfig;
