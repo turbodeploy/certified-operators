@@ -5,15 +5,15 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.group.GroupComponentDBConfig;
 import com.vmturbo.group.setting.SettingConfig;
+import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
-@Import({GroupComponentDBConfig.class, SettingConfig.class})
+@Import({SQLDatabaseConfig.class, SettingConfig.class})
 public class MigrationConfig {
 
     @Autowired
-    private GroupComponentDBConfig databaseConfig;
+    private SQLDatabaseConfig databaseConfig;
 
     @Autowired
     private SettingConfig settingConfig;

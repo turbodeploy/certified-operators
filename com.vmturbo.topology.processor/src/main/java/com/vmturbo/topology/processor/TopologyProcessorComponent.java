@@ -21,6 +21,7 @@ import org.springframework.web.context.ConfigurableWebApplicationContext;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.components.common.migration.Migration;
+import com.vmturbo.sql.utils.SQLDatabaseConfig;
 import com.vmturbo.topology.processor.actions.ActionsConfig;
 import com.vmturbo.topology.processor.analysis.AnalysisConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
@@ -74,12 +75,12 @@ import io.grpc.BindableService;
     SupplyChainValidationConfig.class,
     SchedulerConfig.class,
     StitchingConfig.class,
+    SQLDatabaseConfig.class,
     TargetConfig.class,
     TemplateConfig.class,
     TopologyConfig.class,
     TopologyProcessorApiConfig.class,
     TopologyProcessorApiSecurityConfig.class,
-    TopologyProcessorDBConfig.class,
     TopologyProcessorDiagnosticsConfig.class,
     TopologyProcessorRpcConfig.class
 })
@@ -95,6 +96,9 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
 
     @Autowired
     private ActionsConfig actionsConfig;
+
+    @Autowired
+    private SQLDatabaseConfig dbConfig;
 
     @Autowired
     private EntityConfig entityConfig;
@@ -121,9 +125,6 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
     private TopologyProcessorApiConfig topologyProcessorApiConfig;
 
     @Autowired
-    private TopologyProcessorDBConfig topologyProcessorDBConfig;
-
-    @Autowired
     private TopologyProcessorRpcConfig topologyProcessorRpcConfig;
 
 
@@ -133,8 +134,9 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
     @PostConstruct
     private void setup() {
         log.info("Adding MariaDB and Kafka producer health checks to the component health monitor.");
-        getHealthMonitor().addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
-            topologyProcessorDBConfig.dataSource()::getConnection));
+        getHealthMonitor().addHealthCheck(
+            new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
+                dbConfig.dataSource()::getConnection));
         getHealthMonitor().addHealthCheck(topologyProcessorApiConfig.kafkaProducerHealthMonitor());
     }
 

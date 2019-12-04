@@ -14,10 +14,7 @@ import org.junit.Test;
  */
 public class SQLDatabaseConfigTest {
 
-    /**
-     * Expected DB URL base for testing.
-     */
-    public static final String EXPECTED_DB_URL_BASE = "jdbc:mariadb://localhost:3306/vmtdb" +
+    public static final String EXPECTED_DB_URL_BASE = "jdbc:mariadb://localhost:3306" +
             "?useServerPrepStmts=true";
     public static final String ENABLE_SECURE_DB_CONNECTION = "enableSecureDBConnection";
 
@@ -48,15 +45,15 @@ public class SQLDatabaseConfigTest {
      */
     static class TestSQLDataBaseConfigImpl extends SQLDatabaseConfig {
         String getURL() {
-            return getSQLConfigObject().getDbUrl();
+            return super.getDbUrl();
         }
 
         @Override
         public SQLConfigObject getSQLConfigObject() {
             boolean secure = Boolean.valueOf(System.getProperty(ENABLE_SECURE_DB_CONNECTION));
             return new SQLDatabaseConfig.SQLConfigObject(
-                    "localhost", 3306, "vmtdb", Optional.empty(), SQLDialect.MARIADB.name(),
-                secure, ImmutableMap.of(SQLDialect.MARIADB, "useServerPrepStmts=true"));
+                    "localhost", 3306, Optional.empty(), SQLDialect.MARIADB.name(), secure,
+                    ImmutableMap.of(SQLDialect.MARIADB, "useServerPrepStmts=true"));
         }
     }
 }

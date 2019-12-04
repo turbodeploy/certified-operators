@@ -15,8 +15,8 @@ import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.identity.store.PersistentIdentityStore;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.securekvstore.SecureKeyValueStoreConfig;
+import com.vmturbo.sql.utils.SQLDatabaseConfig;
 import com.vmturbo.topology.processor.KVConfig;
-import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.probeproperties.KVBackedProbePropertyStore;
@@ -27,7 +27,7 @@ import com.vmturbo.topology.processor.probes.ProbeConfig;
  * Configuration for the target package.
  */
 @Configuration
-@Import({ProbeConfig.class, KVConfig.class, TopologyProcessorDBConfig.class, GroupClientConfig.class,
+@Import({ProbeConfig.class, KVConfig.class, SQLDatabaseConfig.class, GroupClientConfig.class,
         RepositoryClientConfig.class, SecureKeyValueStoreConfig.class})
 public class TargetConfig {
 
@@ -47,7 +47,7 @@ public class TargetConfig {
     private SecureKeyValueStoreConfig vaultKeyValueStoreConfig;
 
     @Autowired
-    private TopologyProcessorDBConfig databaseConfig;
+    private SQLDatabaseConfig databaseConfig;
 
     @Autowired
     private GroupClientConfig groupClientConfig;

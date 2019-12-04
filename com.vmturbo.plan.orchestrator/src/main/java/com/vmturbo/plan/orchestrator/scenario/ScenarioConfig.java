@@ -12,15 +12,15 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.plan.PlanDTOREST.ScenarioServiceController;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.plan.orchestrator.GlobalConfig;
-import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
+import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
-@Import({PlanOrchestratorDBConfig.class, GlobalConfig.class, UserSessionConfig.class,
+@Import({SQLDatabaseConfig.class, GlobalConfig.class, UserSessionConfig.class,
     GroupClientConfig.class, RepositoryClientConfig.class})
 public class ScenarioConfig {
     @Autowired
-    private PlanOrchestratorDBConfig databaseConfig;
+    private SQLDatabaseConfig databaseConfig;
 
     @Autowired
     private GlobalConfig globalConfig;
