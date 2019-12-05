@@ -20,7 +20,7 @@ import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
-import com.vmturbo.common.protobuf.search.Search.ClusterMembershipFilter;
+import com.vmturbo.common.protobuf.search.Search.GroupMembershipFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
@@ -57,7 +57,7 @@ public class SearchFilterResolverTest {
                 .build();
         final SearchParameters params = SearchParameters.newBuilder()
                 .addSearchFilter(SearchFilter.newBuilder()
-                        .setClusterMembershipFilter(ClusterMembershipFilter.newBuilder()
+                        .setGroupMembershipFilter(GroupMembershipFilter.newBuilder()
                                 .setClusterSpecifier(clusterSpecifier)
                                 .setGroupType(GroupType.COMPUTE_HOST_CLUSTER)))
                 .build();
@@ -92,7 +92,7 @@ public class SearchFilterResolverTest {
                 .build();
         final SearchParameters params = SearchParameters.newBuilder()
                 .addSearchFilter(SearchFilter.newBuilder()
-                        .setClusterMembershipFilter(ClusterMembershipFilter.newBuilder()
+                        .setGroupMembershipFilter(GroupMembershipFilter.newBuilder()
                                 .setClusterSpecifier(clusterSpecifier)))
                 .build();
 
@@ -137,7 +137,7 @@ public class SearchFilterResolverTest {
                 .build();
         final SearchParameters params = SearchParameters.newBuilder()
                 .addSearchFilter(SearchFilter.newBuilder()
-                        .setClusterMembershipFilter(ClusterMembershipFilter.newBuilder()
+                        .setGroupMembershipFilter(GroupMembershipFilter.newBuilder()
                                 .setClusterSpecifier(clusterSpecifier)))
                 .addSearchFilter(createNonGroupFilter())
                 .build();

@@ -8,7 +8,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
-import com.vmturbo.common.protobuf.search.Search.ClusterMembershipFilter;
+import com.vmturbo.common.protobuf.search.Search.GroupMembershipFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
@@ -50,7 +50,7 @@ public abstract class SearchFilterResolver {
         // return the original object if no group member filters inside
         if (searchParameters.getSearchFilterList()
                 .stream()
-                .noneMatch(SearchFilter::hasClusterMembershipFilter)) {
+                .noneMatch(SearchFilter::hasGroupMembershipFilter)) {
             return searchParameters;
         }
         // We have one or more Group Member Filters to resolve. Rebuild the SearchParameters.
@@ -77,7 +77,7 @@ public abstract class SearchFilterResolver {
      */
     @Nonnull
     private SearchFilter convertGroupMemberFilter(@Nonnull SearchFilter inputFilter) {
-        if (!inputFilter.hasClusterMembershipFilter()) {
+        if (!inputFilter.hasGroupMembershipFilter()) {
             return inputFilter;
         }
         // this has a group membership filter.
@@ -85,7 +85,7 @@ public abstract class SearchFilterResolver {
         // back to getMembers() to get generic group resolution, which would be more flexible,
         // but has the huge caveat of allowing circular references to happen. We'll stick to
         // just handling groups here and open it up later, when/if needed.
-        final ClusterMembershipFilter groupSrcFilter = inputFilter.getClusterMembershipFilter();
+        final GroupMembershipFilter groupSrcFilter = inputFilter.getGroupMembershipFilter();
         final PropertyFilter groupSpecifierFilter = groupSrcFilter.getClusterSpecifier();
         logger.debug("Resolving group filter {}", groupSpecifierFilter);
 

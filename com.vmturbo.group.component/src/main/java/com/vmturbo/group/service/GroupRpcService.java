@@ -377,7 +377,7 @@ public class GroupRpcService extends GroupServiceImplBase {
             // check if there are any group property filters in the search params
             if (!searchParameters.stream()
                 .anyMatch(params -> params.getSearchFilterList().stream()
-                    .anyMatch(SearchFilter::hasClusterMembershipFilter))) {
+                    .anyMatch(SearchFilter::hasGroupMembershipFilter))) {
                 newGrouping.getDefinitionBuilder().getEntityFiltersBuilder()
                     .addEntityFilter(entityFilter);
                 continue; // no group property filters inside -- return original group

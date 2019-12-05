@@ -31,8 +31,8 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase.GroupUseCaseCriteria;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
-import com.vmturbo.common.protobuf.search.Search.ClusterMembershipFilter;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
+import com.vmturbo.common.protobuf.search.Search.GroupMembershipFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ListFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
@@ -228,7 +228,7 @@ public class EntityFilterMapper {
         }
         final String propertyName = context.getIterator().next();
         propertyFilter.setPropertyName(propertyName);
-        final ClusterMembershipFilter clusterFilter = ClusterMembershipFilter.newBuilder()
+        final GroupMembershipFilter clusterFilter = GroupMembershipFilter.newBuilder()
                 .setClusterSpecifier(propertyFilter)
                 .setGroupType(groupType).build();
         return Collections.singletonList(searchFilterCluster(clusterFilter));
@@ -986,13 +986,13 @@ public class EntityFilterMapper {
     }
 
     /**
-     * Wrap an instance of {@link ClusterMembershipFilter} with a {@link SearchFilter}.
+     * Wrap an instance of {@link GroupMembershipFilter} with a {@link SearchFilter}.
      *
      * @param clusterFilter the cluster membership filter to wrap
      * @return a search filter that wraps the argument
      */
     @Nonnull
-    private static SearchFilter searchFilterCluster(@Nonnull ClusterMembershipFilter clusterFilter) {
-        return SearchFilter.newBuilder().setClusterMembershipFilter(clusterFilter).build();
+    private static SearchFilter searchFilterCluster(@Nonnull GroupMembershipFilter clusterFilter) {
+        return SearchFilter.newBuilder().setGroupMembershipFilter(clusterFilter).build();
     }
 }
