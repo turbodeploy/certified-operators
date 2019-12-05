@@ -7,14 +7,14 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTOREST.DeploymentProfileServiceController;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
+import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
 
 @Configuration
-@Import(SQLDatabaseConfig.class)
+@Import(PlanOrchestratorDBConfig.class)
 public class DeploymentProfileConfig {
 
     @Autowired
-    private SQLDatabaseConfig databaseConfig;
+    private PlanOrchestratorDBConfig databaseConfig;
 
     @Bean
     public DeploymentProfileDaoImpl deploymentProfileDao() {

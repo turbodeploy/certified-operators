@@ -5,19 +5,19 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.group.GroupComponentDBConfig;
 import com.vmturbo.group.IdentityProviderConfig;
 import com.vmturbo.group.setting.SettingConfig;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 /**
  * Spring configuration of Schedule backend.
  */
 @Configuration
-@Import({SQLDatabaseConfig.class,  IdentityProviderConfig.class, SettingConfig.class})
+@Import({GroupComponentDBConfig.class,  IdentityProviderConfig.class, SettingConfig.class})
 public class ScheduleConfig {
     /** Database config. */
     @Autowired
-    private SQLDatabaseConfig databaseConfig;
+    private GroupComponentDBConfig databaseConfig;
 
     /** Identity provider config. */
     @Autowired

@@ -9,8 +9,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.topology.IdentityREST.IdentityServiceController;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
 import com.vmturbo.topology.processor.KVConfig;
+import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
 import com.vmturbo.topology.processor.identity.services.HeuristicsMatcher;
 import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyingStore;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
@@ -25,7 +25,7 @@ import com.vmturbo.topology.processor.probes.ProbeConfig;
  * of the heavy lifting of OID assignment.
  */
 @Configuration
-@Import({KVConfig.class, SQLDatabaseConfig.class})
+@Import({KVConfig.class, TopologyProcessorDBConfig.class})
 public class IdentityProviderConfig {
 
     @Autowired
@@ -35,7 +35,7 @@ public class IdentityProviderConfig {
     private ProbeConfig probeConfig;
 
     @Autowired
-    private SQLDatabaseConfig sqlDatabaseConfig;
+    private TopologyProcessorDBConfig topologyProcessorDBConfig;
 
     @Value("${identityGeneratorPrefix}")
     private long identityGeneratorPrefix;
@@ -52,7 +52,7 @@ public class IdentityProviderConfig {
 
     @Bean
     public IdentityDatabaseStore identityDatabaseStore() {
-        return new IdentityDatabaseStore(sqlDatabaseConfig.dsl());
+        return new IdentityDatabaseStore(topologyProcessorDBConfig.dsl());
     }
 
     @Bean

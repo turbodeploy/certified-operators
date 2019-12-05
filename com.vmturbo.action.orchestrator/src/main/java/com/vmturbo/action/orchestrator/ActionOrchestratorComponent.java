@@ -34,7 +34,6 @@ import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 /**
  * The component for the action orchestrator.
@@ -50,7 +49,7 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
         ActionStoreConfig.class,
         ApiSecurityConfig.class,
         ActionOrchestratorGlobalConfig.class,
-        SQLDatabaseConfig.class,
+        ActionOrchestratorDBConfig.class,
         SpringSecurityConfig.class,
         WorkflowConfig.class})
 public class ActionOrchestratorComponent extends BaseVmtComponent {
@@ -64,7 +63,7 @@ public class ActionOrchestratorComponent extends BaseVmtComponent {
     private RpcConfig rpcConfig;
 
     @Autowired
-    private SQLDatabaseConfig dbConfig;
+    private ActionOrchestratorDBConfig dbConfig;
 
     @Autowired
     private ActionOrchestratorApiConfig actionOrchestratorApiConfig;
@@ -87,8 +86,8 @@ public class ActionOrchestratorComponent extends BaseVmtComponent {
     @PostConstruct
     private void setup() {
         log.info("Adding MariaDB health check to the component health monitor.");
-        getHealthMonitor().addHealthCheck(
-                new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,dbConfig.dataSource()::getConnection));
+        getHealthMonitor().addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
+            dbConfig.dataSource()::getConnection));
         getHealthMonitor().addHealthCheck(actionOrchestratorApiConfig.kafkaProducerHealthMonitor());
     }
 
