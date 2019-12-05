@@ -10,22 +10,22 @@
             {"inputType": "*", "elements": "Application:displayName:CONSUMES", "filterCategory": "entity", "filterType": "vmsByApplication"},
             {"inputType": "*", "elements": "PhysicalMachine:Cluster:PRODUCES", "filterCategory": "entity", "filterType": "vmsByClusterName"},
             {"inputType": "*", "elements": "DataCenter:displayName:PRODUCES", "filterCategory": "entity", "filterType": "vmsByDC"},
-            {"inputType": "s", "elements": "state", "filterCategory": "property", "filterType": "vmsByState"},
-            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "vmsByTag"},
+            {"inputType": "s", "elements": "state", "filterCategory": "property", "filterType": "vmsByState", "loadOptions": true},
+            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "vmsByTag", "loadOptions": true},
             {"inputType": "*", "elements": "virtualMachineInfoRepoDTO.guestOsType", "filterCategory": "property", "filterType": "vmsByGuestName"},
             {"inputType": "#", "elements": "virtualMachineInfoRepoDTO.numCpus", "filterCategory": "property", "filterType": "vmsByNumCPUs"},
-            {"inputType": "s", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "vmsByBusinessAccountUuid"},
+            {"inputType": "s", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "vmsByBusinessAccountUuid", "loadOptions": true},
             {"inputType": "#", "elements": "commoditySoldList[type=VMem,capacity]", "filterCategory": "property", "filterType": "vmsByMem"},
             {"inputType": "*", "elements": "LogicalPool:displayName:PRODUCES:Storage:PRODUCES:1", "filterCategory": "entity", "filterType": "vmsByLogicalPoolName"},
             {"inputType": "*", "elements": "networks", "filterCategory": "property", "filterType": "vmsByNetwork"},
-            {"inputType": "s", "elements": "MemberOf:ResourceGroup:uuid", "filterCategory": "entity", "filterType": "vmsByResourceGroupUuid"}
+            {"inputType": "s", "elements": "MemberOf:ResourceGroup:uuid", "filterCategory": "entity", "filterType": "vmsByResourceGroupUuid", "loadOptions": true}
         ]
     },
 
     "VirtualDataCenter" : {
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "vdcsByName"},
-            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "vdcsByTag"}
+            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "vdcsByTag", "loadOptions": true}
         ]
     },
 
@@ -34,8 +34,8 @@
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "pmsByName"},
             {"inputType": "*", "elements": "Cluster", "filterCategory": "entity", "filterType": "pmsByClusterName"},
             {"inputType": "*", "elements": "DataCenter:displayName:PRODUCES", "filterCategory": "entity", "filterType": "pmsByDC"},
-            {"inputType": "s", "elements": "state", "filterCategory": "property", "filterType": "pmsByState"},
-            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "pmsByTag"},
+            {"inputType": "s", "elements": "state", "filterCategory": "property", "filterType": "pmsByState", "loadOptions": true},
+            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "pmsByTag", "loadOptions": true},
             {"inputType": "*", "elements": "Storage:displayName:PRODUCES:1", "filterCategory": "entity", "filterType": "pmsByStorage"},
             {"inputType": "*", "elements": "Switch:displayName:PRODUCES:1", "filterCategory": "entity", "filterType": "pmsBySwitch"},
             {"inputType": "#", "elements": "commoditySoldList[type=Mem,capacity]", "filterCategory": "property", "filterType": "pmsByMem"},
@@ -54,8 +54,8 @@
             {"inputType": "*", "elements": "VirtualMachine:displayName:CONSUMES:1", "filterCategory": "entity", "filterType": "storageByVMs"},
             {"inputType": "*", "elements": "PhysicalMachine:Cluster:CONSUMES", "filterCategory": "entity", "filterType": "storageByPMCluster"},
             {"inputType": "*", "elements": "Cluster", "filterCategory": "entity", "filterType": "storageByStorageCluster"},
-            {"inputType": "s", "elements": "state", "filterCategory": "property", "filterType": "storageByState"},
-            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "storageByTag"},
+            {"inputType": "s", "elements": "state", "filterCategory": "property", "filterType": "storageByState", "loadOptions": true},
+            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "storageByTag", "loadOptions": true},
             {"inputType": "*", "elements": "DataCenter:displayName:PRODUCES:1:PhysicalMachine:CONSUMES:1", "filterCategory": "entity", "filterType": "storageByDC"},
             {"inputType": "*", "elements": "storageInfoRepoDTO.local", "filterCategory": "property", "filterType": "storageWithLocalSupport"}
         ]
@@ -90,16 +90,16 @@
     "Database" : {
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseByName"},
-            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "databaseByTag"},
-            {"inputType": "s", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "databaseByBusinessAccountUuid"}
+            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "databaseByTag", "loadOptions": true},
+            {"inputType": "s", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "databaseByBusinessAccountUuid", "loadOptions": true}
         ]
     },
 
     "DatabaseServer" : {
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseServerByName"},
-            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "databaseServerByTag"},
-            {"inputType": "s", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "databaseServerByBusinessAccountUuid"}
+            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "databaseServerByTag", "loadOptions": true},
+            {"inputType": "s", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "databaseServerByBusinessAccountUuid", "loadOptions": true}
         ]
     },
 
@@ -110,14 +110,14 @@
     "DataCenter": {
         "criteria": [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "datacentersByName"},
-            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "datacentersByTag"}
+            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "datacentersByTag", "loadOptions": true}
         ]
     },
 
     "Cluster" : {
         "criteria" : [
           {"inputType": "*", "elements": "Cluster:displayName", "filterCategory": "property", "filterType": "clustersByName"},
-          {"inputType": "s|*", "elements": "ConsistsOf:PhysicalMachine:MemberOf:Cluster:tags", "filterCategory": "property", "filterType": "clustersByTag"}
+          {"inputType": "s|*", "elements": "ConsistsOf:PhysicalMachine:MemberOf:Cluster:tags", "filterCategory": "property", "filterType": "clustersByTag", "loadOptions": true}
         ]
     },
 
@@ -159,13 +159,13 @@
       "criteria" : [
         {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "virtualVolumeByName"},
         {"inputType": "*", "elements": "Storage:storageInfoRepoDTO.local:CONNECTED_FROM:1", "filterCategory": "property", "filterType": "virtualVolumeWithLocalSupport"},
-        {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "volumeByTag"},
-        {"inputType": "s", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "volumeByAccount"},
+        {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "volumeByTag", "loadOptions": true},
+        {"inputType": "s", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "volumeByAccount", "loadOptions": true},
         {"inputType": "*", "elements": "VirtualMachine:displayName:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "volumeByConnectedVm"},
-        {"inputType": "s", "elements": "virtualVolumeInfoRepoDTO.attachmentState", "filterCategory": "property", "filterType": "volumeByAttachmentState"},
-        {"inputType": "s", "elements": "StorageTier:oid:CONNECTED_FROM:1", "filterCategory": "entity", "filterType": "volumeByTier"},
-        {"inputType": "s", "elements": "Region:oid:CONNECTED_TO:1:AvailabilityZone:CONNECTED_FROM:1", "filterCategory": "entity", "filterType": "volumeByRegion"},
-        {"inputType": "s", "elements": "cloudProvider", "filterCategory": "property", "filterType": "volumeByCloudProvider"},
+        {"inputType": "s", "elements": "virtualVolumeInfoRepoDTO.attachmentState", "filterCategory": "property", "filterType": "volumeByAttachmentState", "loadOptions": true},
+        {"inputType": "s", "elements": "StorageTier:oid:CONNECTED_FROM:1", "filterCategory": "entity", "filterType": "volumeByTier", "loadOptions": true},
+        {"inputType": "s", "elements": "Region:oid:CONNECTED_TO:1:AvailabilityZone:CONNECTED_FROM:1", "filterCategory": "entity", "filterType": "volumeByRegion", "loadOptions": true},
+        {"inputType": "s", "elements": "cloudProvider", "filterCategory": "property", "filterType": "volumeByCloudProvider", "loadOptions": true},
         {"inputType": "*", "elements": "vendorId", "filterCategory": "property", "filterType": "volumeById"}
       ]
     },

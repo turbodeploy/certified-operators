@@ -32,10 +32,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
+
+import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -59,6 +61,8 @@ import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
+import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase;
+import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase.GroupUseCaseCriteria;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
@@ -66,8 +70,6 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
-import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
-import com.vmturbo.api.component.external.api.util.ImmutableGroupAndMembers;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -99,15 +101,11 @@ import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.cost.CostMoles;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.search.Search.ClusterMembershipFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
@@ -126,9 +124,9 @@ import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -153,7 +151,8 @@ public class SearchServiceTest {
     private RepositoryApi repositoryApi = mock(RepositoryApi.class);
     private GroupMapper groupMapper;
     private TopologyProcessor topologyProcessor = mock(TopologyProcessor.class);
-    private final GroupUseCaseParser groupUseCaseParser = mock(GroupUseCaseParser.class);
+    private final GroupUseCaseParser groupUseCaseParser =
+            new GroupUseCaseParser("groupBuilderUsecases.json");
     private final SupplyChainFetcherFactory supplyChainFetcherFactory = mock(SupplyChainFetcherFactory.class);
     private final UuidMapper uuidMapper = mock(UuidMapper.class);
     private final GroupExpander groupExpander = mock(GroupExpander.class);
@@ -1215,6 +1214,36 @@ public class SearchServiceTest {
 
         // verify that a null filter list but valid search string will give you a singleton list
         Assert.assertEquals(1, searchService.addNameMatcher("match me bro", null, "Type").size());
+    }
+
+    /**
+     * This test ensures that options loading is implemented by the {@link SearchService} for all
+     * the search criteria declaring that options have to be loaded from the server.
+     *
+     * @throws Exception on exceptions occur
+     */
+    @Test
+    public void testCriteriaLoadOptions() throws Exception {
+        for (Entry<String, GroupUseCase> useCaseEntry : groupUseCaseParser.getUseCases()
+                .entrySet()) {
+            final String entityType = useCaseEntry.getKey();
+            for (GroupUseCaseCriteria criteria: useCaseEntry.getValue().getCriteria()) {
+                if (criteria.isLoadOptions()) {
+                    testCriteriaLoadOptions(entityType, criteria.getElements());
+                }
+            }
+        }
+    }
+
+    private void testCriteriaLoadOptions(@Nonnull String entityType, @Nonnull String criteriaKey) {
+        try {
+            searchService.getCriteriaOptions(criteriaKey, null, entityType, null);
+        } catch (UnknownObjectException e) {
+            Assert.fail("Loading options for entity type " + entityType +
+                    " is not supported for criteria " + criteriaKey);
+        } catch (Exception e) {
+            // It is Ok to have it here.
+        }
     }
 
     private List<ApiPartialEntity> setupEntitiesForMemberQuery() {

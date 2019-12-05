@@ -209,6 +209,8 @@ public class SearchService implements ISearchService {
         criteriaOptionProviders = ImmutableMap.<String, CriteriaOptionProvider>builder().put(STATE,
                 (a, b, c) -> getStateOptions())
                 .put(StringConstants.TAGS_ATTR, this::getSTagAttributeOptions)
+                .put("ConsistsOf:PhysicalMachine:MemberOf:Cluster:tags",
+                        this::getSTagAttributeOptions)
                 .put(ACCOUNT_OID, (a, b, c) -> getAccountOptions())
                 .put(VOLUME_ATTACHMENT_STATE_FILTER_PATH,
                         (a, b, c) -> getVolumeAttachmentStateOptions())
@@ -1034,14 +1036,23 @@ public class SearchService implements ISearchService {
         return Collections.unmodifiableList(result);
     }
 
+    /**
+     * Get available option by criteria.
+     * @param criteriaKey criteria key to query for
+     * @param scopes scopes to apply
+     * @param entityType entity type criteria is requested for
+     * @param envType environment type
+     * @return list of criteria options
+     * @throws OperationFailedException if something failed executing
+     * @throws UnknownObjectException if options loading is not supported for the criteria
+     */
     @Override
     public List<CriteriaOptionApiDTO> getCriteriaOptions(final String criteriaKey,
-                                                         final List<String> scopes,
-                                                         final String entityType,
-                                                         final EnvironmentType envType) throws Exception {
+            final List<String> scopes, final String entityType, final EnvironmentType envType)
+            throws OperationFailedException, UnknownObjectException {
         final CriteriaOptionProvider optionsProvider = criteriaOptionProviders.get(criteriaKey);
         if (optionsProvider == null) {
-            throw new IllegalArgumentException("Unknown criterion key: " + criteriaKey);
+            throw new UnknownObjectException("Unknown criterion key: " + criteriaKey);
         } else {
             return optionsProvider.getOptions(scopes, entityType, envType);
         }
