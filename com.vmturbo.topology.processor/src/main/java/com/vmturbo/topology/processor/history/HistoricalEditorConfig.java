@@ -1,7 +1,12 @@
 package com.vmturbo.topology.processor.history;
 
+import java.util.Optional;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -15,6 +20,7 @@ import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
  * Provides basic settings/policies access functionality, to be extended.
  */
 public class HistoricalEditorConfig {
+    private static final Logger logger = LogManager.getLogger();
     private EntitySettingsCollection entitySettings;
     private TopologyGraph<TopologyEntity> graph;
     private boolean isPlan;
@@ -69,12 +75,19 @@ public class HistoricalEditorConfig {
      * @return entity oid
      * @throws HistoryCalculationException when not initialized
      */
-    @Nonnull
+    @Nullable
     protected EntityType getEntityType(long oid) throws HistoryCalculationException {
         if (graph == null) {
             throw new HistoryCalculationException("Settings are not initialized for history calculation");
         }
-        return graph.getEntity(oid).map(TopologyEntity::getEntityType).map(EntityType::forNumber)
-                        .orElseThrow(() -> new HistoryCalculationException("Entity not found by oid " + oid));
+        Optional<TopologyEntity> entity = graph.getEntity(oid);
+        if (!entity.isPresent()) {
+            logger.debug(
+                    "{} There is no entity with id {} in topology graph during historical data calculations . Returning null.",
+                    getClass().getSimpleName(), oid);
+            return null;
+        }
+        return entity.map(TopologyEntity::getEntityType).map(EntityType::forNumber)
+                        .orElseThrow(() -> new HistoryCalculationException("Entity type calculation failed for entity with oid " + oid));
     }
 }

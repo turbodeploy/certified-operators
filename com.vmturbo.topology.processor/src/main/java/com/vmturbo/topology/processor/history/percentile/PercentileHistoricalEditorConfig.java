@@ -180,6 +180,8 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
                         + " setting, assuming default for "
                         + oid, e);
         }
+        logger.debug("{} Returning default value {} for percentile {} with oid {}",
+                getClass().getSimpleName(), defaultValue, description, oid);
         return defaultValue;
     }
 
