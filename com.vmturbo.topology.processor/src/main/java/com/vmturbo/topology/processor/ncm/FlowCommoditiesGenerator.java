@@ -270,8 +270,6 @@ public class FlowCommoditiesGenerator {
         double[] flows = matrix.getEndpointFlows(enpoint.getOid());
         if (flows.length == 0) {
             flows = new double[]{0., 0., 0., 0.};
-        } else if (flows[0] == 0) {
-            flows[0] = 1.;
         }
         return flows;
     }
