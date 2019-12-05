@@ -27,6 +27,7 @@ public class ActionTypeToActionTypeCaseConverter {
                     .put(ActionType.DEACTIVATE, ActionTypeCase.DEACTIVATE)
                     .put(ActionType.MOVE, ActionTypeCase.MOVE)
                     .put(ActionType.SCALE, ActionTypeCase.SCALE)
+                    .put(ActionType.RI_REALLOCATION, ActionTypeCase.RIREALLOCATION)
                     .put(ActionType.PROVISION, ActionTypeCase.PROVISION)
                     .put(ActionType.RECONFIGURE, ActionTypeCase.RECONFIGURE)
                     .put(ActionType.RESIZE, ActionTypeCase.RESIZE)

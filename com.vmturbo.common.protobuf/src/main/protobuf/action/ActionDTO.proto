@@ -23,6 +23,7 @@ message Explanation {
         DeleteExplanation delete = 7;
         BuyRIExplanation buyRI = 8;
         ScaleExplanation scale = 9;
+        RIReallocationExplanation riReallocation = 10;
     }
 
     // A list of explanations for move action.
@@ -213,6 +214,10 @@ message Explanation {
         optional float estimatedOnDemandCost = 3;
     }
 
+    message RIReallocationExplanation {
+        // TODO: Consider adding some details here, e.g. other scaling actions that freed up RI.
+    }
+
     // Reference to a commodity causing the action, with extended per-commodity information.
     message ReasonCommodity {
         required topology.CommodityType commodity_type = 1;
@@ -389,6 +394,18 @@ message BuyRI {
     optional ActionEntity region = 5;
 }
 
+// Reserved instance reallocation action (aka Accounting action). These actions are generated
+// for VMs that are moved to reserved instances that became available because some other VMs were
+// moved to different templates.
+message RIReallocation {
+    // Workload entity that benefits from RI reallocation.
+    required ActionEntity target = 1;
+
+    // Workload tier that workload belongs to. It can be Compute Tier, Database Tier or Database
+    // Server Tier.
+    required ActionEntity workloadTier = 2;
+}
+
 // Contains the information describing the recommendation for what
 // action should be executed in the environment.
 message ActionInfo {
@@ -404,6 +421,7 @@ message ActionInfo {
         Delete delete = 7;
         BuyRI buyRi = 8;
         Scale scale = 9;
+        RIReallocation riReallocation = 10;
     }
 }
 
@@ -624,6 +642,11 @@ enum ActionType {
     // for workloads when they are moved from one template to another. Market doesn't generate
     // Scale actions but Action Orchestrator translates Cloud Moves to Scale actions.
     SCALE = 11;
+
+    // Reserved instance reallocation action (aka Accounting action). These actions are generated
+    // for VMs that are moved to reserved instances that became available because some other VMs were
+    // moved to different templates.
+    RI_REALLOCATION = 12;
 }
 
 // The ActionState describes the current state of an action.
