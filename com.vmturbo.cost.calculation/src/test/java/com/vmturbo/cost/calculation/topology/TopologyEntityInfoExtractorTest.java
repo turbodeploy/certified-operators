@@ -4,7 +4,6 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Optional;
@@ -38,13 +37,13 @@ public class TopologyEntityInfoExtractorTest {
     private final TopologyEntityInfoExtractor entityInfoExtractor =
             new TopologyEntityInfoExtractor();
 
-    private static String VM_IP = "1.1.1.1";
-    private static float STORAGE_ACCESS_CAP = 5;
-    private static float STORAGE_AMOUNT_CAP = 6;
-    private static int COMPUTE_NUM_OF_CUPONS = 7;
-    private static double DELTA = 1e-10;
-    private static long DEFAULT_ID = 0;
-    private static String DEFAULT_DB_NAME = "testDB";
+    private static final String VM_IP = "1.1.1.1";
+    private static final float STORAGE_ACCESS_CAP = 5;
+    private static final float STORAGE_AMOUNT_CAP = 6;
+    private static final int COMPUTE_NUM_OF_COUPONS = 7;
+    private static final double DELTA = 1e-10;
+    private static final long DEFAULT_ID = 0;
+    private static final String DEFAULT_DB_NAME = "testDB";
 
     private static final TopologyEntityDTO VM = TopologyEntityDTO.newBuilder()
             .setOid(DEFAULT_ID)
@@ -99,7 +98,7 @@ public class TopologyEntityInfoExtractorTest {
         .setOid(DEFAULT_ID)
         .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
             .setComputeTier(ComputeTierInfo.newBuilder()
-                .setNumCoupons(COMPUTE_NUM_OF_CUPONS).build()))
+                .setNumCoupons(COMPUTE_NUM_OF_COUPONS).build()))
         .build();
 
     private static final TopologyEntityDTO DB = TopologyEntityDTO.newBuilder()
@@ -135,9 +134,18 @@ public class TopologyEntityInfoExtractorTest {
         assertThat(entityInfoExtractor.getName(DB), is(DB.getDisplayName()));
     }
 
+    /**
+     * Test getting entity state.
+     */
+    @Test
+    public void testExtractState() {
+        assertThat(entityInfoExtractor.getEntityState(DB), is(DB.getEntityState()));
+    }
+
     @Test
     public void testExtractVmComputeConfig() {
         Optional<ComputeConfig> computeConfigOptional = entityInfoExtractor.getComputeConfig(VM);
+        assertTrue(computeConfigOptional.isPresent());
         final ComputeConfig config = computeConfigOptional.get();
         assertThat(config.getOs(), is(OSType.LINUX));
         assertThat(config.getTenancy(), is(Tenancy.DEFAULT));
@@ -146,7 +154,9 @@ public class TopologyEntityInfoExtractorTest {
 
     @Test
     public void testExtractAhubVmComputeConfig() {
-        final ComputeConfig config = entityInfoExtractor.getComputeConfig(AHUB_VM).get();
+        final Optional<ComputeConfig> configOptional = entityInfoExtractor.getComputeConfig(AHUB_VM);
+        assertTrue(configOptional.isPresent());
+        final ComputeConfig config = configOptional.get();
         assertThat(config.getOs(), is(OSType.WINDOWS));
         assertThat(config.getTenancy(), is(Tenancy.DEFAULT));
         assertThat(config.getLicenseModel(), is(EntityDTO.LicenseModel.AHUB));
@@ -177,8 +187,8 @@ public class TopologyEntityInfoExtractorTest {
     @Test
     public void testExtractDatabaseConfig() {
         Optional<DatabaseConfig> dbConfigOptional = entityInfoExtractor.getDatabaseConfig(DB);
-        final DatabaseConfig dbConfig = dbConfigOptional.orElseGet(null);
-        assertNotNull(dbConfig);
+        assertTrue(dbConfigOptional.isPresent());
+        final DatabaseConfig dbConfig = dbConfigOptional.get();
         assertThat(dbConfig.getEngine(), is(DatabaseEngine.SQL_SERVER));
         assertThat(dbConfig.getEdition(), is(DatabaseEdition.SQL_SERVER_STANDARD));
         assertThat(dbConfig.getLicenseModel(), is(LicenseModel.LICENSE_INCLUDED));
@@ -217,7 +227,7 @@ public class TopologyEntityInfoExtractorTest {
     public void testGetComputeTierConfig() {
         final Optional<ComputeTierConfig> computeTierConfig = entityInfoExtractor.getComputeTierConfig(COMPUTE_TIER);
         assertTrue(computeTierConfig.isPresent());
-        assertEquals(COMPUTE_NUM_OF_CUPONS, computeTierConfig.get().getNumCoupons());
+        assertEquals(COMPUTE_NUM_OF_COUPONS, computeTierConfig.get().getNumCoupons());
     }
 
     @Test

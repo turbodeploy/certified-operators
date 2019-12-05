@@ -26,6 +26,7 @@ import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceApplicatorFactory;
@@ -190,23 +191,23 @@ public class CloudCostCalculator<ENTITY_CLASS> {
             final CostCalculationContext context = new CostCalculationContext(journal, entity, regionId,
                     accountPricingData, onDemandPriceTable, spotInstancePriceTable);
 
-        switch (entityInfoExtractor.getEntityType(entity)) {
-            case EntityType.VIRTUAL_MACHINE_VALUE:
-                calculateVirtualMachineCost(context);
-                break;
-            case EntityType.DATABASE_VALUE:
-                calculateDatabaseCost(false, context);
-                break;
-            case EntityType.DATABASE_SERVER_VALUE:
-                calculateDatabaseCost(true, context);
-                break;
-            case EntityType.VIRTUAL_VOLUME_VALUE:
-                calculateVirtualVolumeCost(context);
-                break;
-            default:
-                logger.error("Received invalid entity " + entity.toString());
-                break;
-        }
+            switch (entityInfoExtractor.getEntityType(entity)) {
+                case EntityType.VIRTUAL_MACHINE_VALUE:
+                    calculateVirtualMachineCost(context);
+                    break;
+                case EntityType.DATABASE_VALUE:
+                    calculateDatabaseCost(false, context);
+                    break;
+                case EntityType.DATABASE_SERVER_VALUE:
+                    calculateDatabaseCost(true, context);
+                    break;
+                case EntityType.VIRTUAL_VOLUME_VALUE:
+                    calculateVirtualVolumeCost(context);
+                    break;
+                default:
+                    logger.error("Received invalid entity " + entity.toString());
+                    break;
+            }
 
             final CostJournal<ENTITY_CLASS> builtJournal = journal.build();
             if (traxContext.on()) {
@@ -405,30 +406,31 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 Preconditions.checkArgument(
                     riComputeCoveragePercent.getValue() >= 0.0 && riComputeCoveragePercent.getValue() <= 1.0);
                 final long regionId = context.getRegionid();
-                recordVMSpotInstanceCost(computeTier, riComputeCoveragePercent, journal, computeConfig,
-                        context);
                 final Optional<OnDemandPriceTable> onDemandPriceTable = context.getOnDemandPriceTable();
-                if (onDemandPriceTable.isPresent()) {
-                    if (computeConfig.getBillingType() != VMBillingType.BIDDING) {
-                        final ComputeTierPriceList computePriceList =
-                            onDemandPriceTable.get().getComputePricesByTierIdMap()
-                                .get(entityInfoExtractor.getId(computeTier));
-                        if (computePriceList != null) {
-                            final ComputeTierConfigPrice basePrice = computePriceList.getBasePrice();
-                            // For compute tiers, we're working with "hourly" costs, and the amount
-                            // of "compute" bought from the tier is 1 unit. Note: This cost is purely
-                            // on demand and does not include any RI related costs.
-                            TraxNumber traxNumber = trax(1, "full on demand");
-                            recordOnDemandVmCost(journal, traxNumber, basePrice, computeTier);
-                            recordVMLicenseCost(journal, computeTier, computeConfig,
-                                computePriceList, traxNumber, accountPricingData);
-                        }
-                    }
-                    recordVMIpCost(entity, computeTier, onDemandPriceTable.get(), journal);
-                } else {
+                if (!onDemandPriceTable.isPresent()) {
                     logger.warn("calculateVirtualMachineCost: Global price table has no entry for region {}." +
-                            "  This means there is some inconsistency between the topology and pricing data.",
-                        regionId);
+                                    "  This means there is some inconsistency between the topology and pricing data.",
+                            regionId);
+                }
+                if (computeConfig.getBillingType() == VMBillingType.BIDDING) {
+                    recordVMSpotInstanceCost(computeTier, riComputeCoveragePercent, journal, context);
+                } else if (isBillable(entity) && onDemandPriceTable.isPresent()) {
+                    final ComputeTierPriceList computePriceList = onDemandPriceTable.get()
+                            .getComputePricesByTierIdMap()
+                            .get(entityInfoExtractor.getId(computeTier));
+                    if (computePriceList != null) {
+                        final ComputeTierConfigPrice basePrice = computePriceList.getBasePrice();
+                        // For compute tiers, we're working with "hourly" costs, and the amount
+                        // of "compute" bought from the tier is 1 unit. Note: This cost is purely
+                        // on demand and does not include any RI related costs.
+                        TraxNumber traxNumber = trax(1, "full on demand");
+                        recordOnDemandVmCost(journal, traxNumber, basePrice, computeTier);
+                        recordVMLicenseCost(journal, computeTier, computeConfig,
+                                computePriceList, traxNumber, accountPricingData);
+                    }
+                }
+                if (onDemandPriceTable.isPresent()) {
+                    recordVMIpCost(entity, computeTier, onDemandPriceTable.get(), journal);
                 }
             });
         });
@@ -526,21 +528,18 @@ public class CloudCostCalculator<ENTITY_CLASS> {
      * @param computeTier              Compute Tier that we are calculating.
      * @param riComputeCoveragePercent RI to calculate the coverage.
      * @param journal                  Journal used to add the costs to.
-     * @param computeConfig            Compute configuration of the computeTier.
      * @param context                  The account pricing calculation context
      */
     private void recordVMSpotInstanceCost(ENTITY_CLASS computeTier, TraxNumber riComputeCoveragePercent,
-                                          CostJournal.Builder<ENTITY_CLASS> journal, ComputeConfig computeConfig,
+                                          CostJournal.Builder<ENTITY_CLASS> journal,
                                           CostCalculationContext context) {
-        if (computeConfig.getBillingType() == VMBillingType.BIDDING) {
-            final Optional<SpotInstancePriceTable> spotPriceTable = context.getSpotInstancePriceTable();
-            if (spotPriceTable.isPresent()) {
-                Price spotPrice = spotPriceTable.get().getSpotPriceByInstanceIdMap()
-                        .get(entityInfoExtractor.getId(computeTier));
-                final TraxNumber unitsBought = riComputeCoveragePercent.subtractFrom(1.0).compute("units bought at spot price");
-                journal.recordOnDemandCost(CostCategory.SPOT, computeTier,
-                        spotPrice, unitsBought);
-            }
+        final Optional<SpotInstancePriceTable> spotPriceTable = context.getSpotInstancePriceTable();
+        if (spotPriceTable.isPresent()) {
+            Price spotPrice = spotPriceTable.get().getSpotPriceByInstanceIdMap()
+                    .get(entityInfoExtractor.getId(computeTier));
+            final TraxNumber unitsBought = riComputeCoveragePercent.subtractFrom(1.0).compute("units bought at spot price");
+            journal.recordOnDemandCost(CostCategory.SPOT, computeTier,
+                    spotPrice, unitsBought);
         }
     }
 
@@ -549,6 +548,11 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         final ENTITY_CLASS entity = (ENTITY_CLASS)context.getEntity();
         final long entityId = entityInfoExtractor.getId(entity);
         logger.trace("Starting entity cost calculation for db {}", entityId);
+        if (!isBillable(entity)) {
+            logger.trace("Skipping DB/DBServer cost calculation for {} because it is not in" +
+                            " billable state", entityId);
+            return;
+        }
         entityInfoExtractor.getDatabaseConfig(entity).ifPresent(databaseConfig -> {
             // Calculate on-demand prices for entities that have a database config.
             final Optional<ENTITY_CLASS> tier;
@@ -657,6 +661,16 @@ public class CloudCostCalculator<ENTITY_CLASS> {
             logger.error("Bad price list could not accommodate a purchase of {} units. Prices: {}",
                 prices);
         }
+    }
+
+    /**
+     * Checks if entity is billable. Implementation considers only powered on entities as billable.
+     *
+     * @param entity Entity to check.
+     * @return True if entity is billable.
+     */
+    private boolean isBillable(@Nonnull final ENTITY_CLASS entity) {
+        return entityInfoExtractor.getEntityState(entity) == EntityState.POWERED_ON;
     }
 
     /**
