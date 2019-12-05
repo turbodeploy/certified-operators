@@ -16,6 +16,10 @@ import com.vmturbo.topology.processor.history.percentile.PercentileDto.Percentil
  * - maintain the counts per-bucket and give out the score on request
  */
 public class UtilizationCountArray {
+    /**
+     * String representation of non-initialized {@link UtilizationCountArray} instance.
+     */
+    protected static final String EMPTY = "{empty}";
     private static final Logger logger = LogManager.getLogger();
     // change of capacity for more than half a % requires rescaling
     private static final float EPSILON = 0.005f;
@@ -185,7 +189,7 @@ public class UtilizationCountArray {
 
     @Override
     public String toString() {
-        return UtilizationCountArray.class.getSimpleName() + "{capacity=" + capacity + '}';
+        return createToString(true);
     }
 
     /**
@@ -193,8 +197,23 @@ public class UtilizationCountArray {
      * @return the string representation of the utilization store including the counts data.
      */
     public String toDebugString() {
-        return UtilizationCountArray.class.getSimpleName() + "{capacity=" + capacity  + ",counts="
-                + Arrays.toString(counts) + '}';
+        return createToString(false);
+    }
+
+    private String createToString(boolean withoutCounts) {
+        return String.format("%s#%s", UtilizationCountArray.class.getSimpleName(),
+                        getFieldDescriptions(withoutCounts));
+    }
+
+    private String getFieldDescriptions(boolean withoutCounts) {
+        final boolean notInitialized = capacity == 0;
+        if (notInitialized) {
+            return EMPTY;
+        }
+        if (withoutCounts) {
+            return String.format("{capacity=%s}", capacity);
+        }
+        return String.format("{capacity=%s; counts=%s}", capacity, Arrays.toString(counts));
     }
 
     private void rescaleCountsIfNecessary(float newCapacity, String key) {

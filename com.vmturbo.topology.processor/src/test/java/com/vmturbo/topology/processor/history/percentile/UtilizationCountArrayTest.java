@@ -2,7 +2,9 @@ package com.vmturbo.topology.processor.history.percentile;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Supplier;
 
+import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -301,6 +303,45 @@ public class UtilizationCountArrayTest {
         expectedException.expectMessage(
                 "The internal 5 and external 6 the lengths of the counts arrays do not match");
         utilizationCountArray1.copyCountsFrom(utilizationCountArray2);
+    }
+
+    /**
+     * Checks that {@link UtilizationCountArray#toString()} and {@link
+     * UtilizationCountArray#toDebugString()} methods are creating expected strings in predefined
+     * states:
+     * <ul>
+     *     <li>No points were added to {@link UtilizationCountArray} or
+     *     {@link UtilizationCountArray#clear()} was called means that instance has not
+     *     been initialized, so {@link UtilizationCountArray#EMPTY} string will be returned in
+     *     any string representations;</li>
+     *     <li>Points were added to {@link UtilizationCountArray} instance, means that instance
+     *     was initialized and capacity ant counts will be displayed.</li>
+     * </ul>
+     *
+     * @throws HistoryCalculationException in case adding of the point failed.
+     */
+    @Test
+    public void toStringTests() throws HistoryCalculationException {
+        final UtilizationCountArray utilizationCountArray = new UtilizationCountArray(new PercentileBuckets());
+        checkToString(utilizationCountArray::toDebugString, UtilizationCountArray.EMPTY);
+        checkToString(utilizationCountArray::toString, UtilizationCountArray.EMPTY);
+        utilizationCountArray.addPoint(35, 100, null, true);
+        utilizationCountArray.addPoint(40, 100, null, true);
+        utilizationCountArray.addPoint(40, 100, null, true);
+        utilizationCountArray.addPoint(40, 100, null, true);
+        checkToString(utilizationCountArray::toString, "{capacity=100.0}");
+        checkToString(utilizationCountArray::toDebugString,
+                        "{capacity=100.0; counts=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}");
+        utilizationCountArray.clear();
+        checkToString(utilizationCountArray::toString, UtilizationCountArray.EMPTY);
+        checkToString(utilizationCountArray::toDebugString, UtilizationCountArray.EMPTY);
+    }
+
+    private void checkToString(Supplier<String> toStringSupplier,
+                    final String expectedFieldsToString) {
+        Assert.assertThat(toStringSupplier.get(), CoreMatchers.is(String
+                        .format("%s#%s", UtilizationCountArray.class.getSimpleName(),
+                                        expectedFieldsToString)));
     }
 
     private static void addCount(UtilizationCountArray counts, int count, int quantity)
