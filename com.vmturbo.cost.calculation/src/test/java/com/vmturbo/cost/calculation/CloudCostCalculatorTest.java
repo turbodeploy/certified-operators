@@ -108,6 +108,7 @@ public class CloudCostCalculatorTest {
     private static final double IOPS_PRICE = 4.5; // price per GB above the range
     private static final double GB_MONTH_PRICE_10 = 14.0;
     private static final double GB_MONTH_PRICE_20 = 26.0;
+    private static final double GB_MONTH_PRICE_32 = 38.0;
     private static final long V_VOLUME_SIZRE_IOPS = 17;
 
     private static final long REGION_ID = 1;
@@ -380,13 +381,40 @@ public class CloudCostCalculatorTest {
 
     /**
      * Test both Unit.GB_MONTH and Unit.MONTH components of volume cost.
-     *
-     * @throws CloudCostDataRetrievalException not expected to happen
      */
     @Test
     public void testCalculateVolumeCostGBMonth() {
         final int vVolSizeMb = 19; // should be >= GB_RANGE
+        final CostJournal<TestEntityClass> journal =
+                createCostJornalForVolumeCostCalculation(vVolSizeMb);
 
+        assertThat(journal.getTotalHourlyCost().getValue(),
+            closeTo(GB_RANGE * GB_PRICE_RANGE_1 + (vVolSizeMb - GB_RANGE) * GB_PRICE
+                + GB_MONTH_PRICE_20, DELTA));
+    }
+
+    /**
+     * Test the case when Unit.GB_MONTH has a size that equals to the end range.
+     */
+    @Test
+    public void testCalculateVolumeCostSizeEqualToEndRange() {
+        final int vVolSizeMb = 32;
+        final CostJournal<TestEntityClass> journal =
+                createCostJornalForVolumeCostCalculation(vVolSizeMb);
+        assertThat(journal.getTotalHourlyCost().getValue(),
+                closeTo(GB_RANGE * GB_PRICE_RANGE_1 + (vVolSizeMb - GB_RANGE) * GB_PRICE
+                        + GB_MONTH_PRICE_32, DELTA));
+    }
+
+    /**
+     * Creates cloudCost data for a given virtual volume size.
+     *
+     * @param vVolSizeMb virtual volume size.
+     * @return {@link CostJournal} for volume of a given virtual volume size.
+     * @throws CloudCostDataRetrievalException not expected to happen
+     */
+    private CostJournal<TestEntityClass> createCostJornalForVolumeCostCalculation(
+                                                            final int vVolSizeMb) {
         final TestEntityClass volume = TestEntityClass.newBuilder(VOLUME_ID)
                 .setType(EntityType.VIRTUAL_VOLUME_VALUE)
                 .setVolumeConfig(new VirtualVolumeConfig(0, vVolSizeMb * 1024))
@@ -397,10 +425,7 @@ public class CloudCostCalculatorTest {
         AccountPricingData accountPricingData = new AccountPricingData(setupDiscountApplicator(0.0), PRICE_TABLE, 15L);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
-        final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(volume);
-        assertThat(journal.getTotalHourlyCost().getValue(),
-            closeTo(GB_RANGE * GB_PRICE_RANGE_1 + (vVolSizeMb - GB_RANGE) * GB_PRICE
-                + GB_MONTH_PRICE_20, DELTA));
+        return cloudCostCalculator.calculateCost(volume);
     }
 
     /**
@@ -541,6 +566,9 @@ public class CloudCostCalculatorTest {
                             * CostProtoUtil.HOURS_IN_MONTH))
                         // 20GB disk - $16/hr
                         .addPrices(price(Unit.MONTH, 20, GB_MONTH_PRICE_20
+                            * CostProtoUtil.HOURS_IN_MONTH))
+                        // 32GB disk - $16/hr
+                        .addPrices(price(Unit.MONTH, 32, GB_MONTH_PRICE_32
                             * CostProtoUtil.HOURS_IN_MONTH))
                         .build())
                     .build())

@@ -283,8 +283,9 @@ public class CloudCostCalculator<ENTITY_CLASS> {
      *  1) A flat monthly fee. In this case, there should just be one price in the list with no end range.
      *  2) A list of monthly ranges - e.g. $5 for a 10GB disk, $7 for a 20GB disk, and so on.
      *
-     *  In both cases, we just loop through the list until we find the price whose end range is less
-     *  than the amount required by the volume, if the endRange is unset or 0 we treat it like infinity.
+     *  In both cases, we just loop through the list until we find the price whose end range is
+     *  equal or less than the amount required by the volume, if the endRange is unset or 0 we
+     *  treat it like infinity.
      *
      * @param monthlyPrices     contains all prices for month unit.
      * @param amountCapacityGb  amount capacity of the volume in gb.
@@ -301,7 +302,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 price = rangePrice;
                 final long endRange = rangePrice.getEndRangeInUnits() > 0
                     ? rangePrice.getEndRangeInUnits() : Long.MAX_VALUE;
-                if (amountCapacityGb < endRange) {
+                if (amountCapacityGb <= endRange) {
                     break;
                 }
             }
