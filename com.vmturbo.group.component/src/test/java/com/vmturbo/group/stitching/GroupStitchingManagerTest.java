@@ -8,6 +8,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -44,8 +45,19 @@ public class GroupStitchingManagerTest {
     private static final long TARGET_2 = 112L;
     private static final long TARGET_3 = 113L;
     private static final String PROBE_TYPE = SDKProbeType.VCENTER.toString();
+    private static final String AWS_PROBE_TYPE = SDKProbeType.AWS.toString();
+    private static final String AWS_BILLING_PROBE_TYPE = SDKProbeType.AWS_BILLING.toString();
     private static final String GROUP_ID = "group-1";
     private static final String GROUP_ID_2 = "group-2";
+    private static final String BF_ID_1 = "BillingFamily::1";
+    private static final String BF_ID_2 = "BillingFamily::2";
+
+    private static final String BF_DISPLAY_NAME_1_FROM_AWS = "Development";
+    private static final String BF__DISPLAY_NAME_1_FROM_AWS_BILLING = "1";
+    private static final String BF__DISPLAY_NAME_2_FROM_AWS = "Test";
+
+    private static final long ACCOUNT_ID_1 = 1;
+    private static final long ACCOUNT_ID_2 = 1;
     private static final long VM_ID_1 = 11;
     private static final long VM_ID_2 = 12;
     private static final long VM_ID_3 = 13;
@@ -68,6 +80,18 @@ public class GroupStitchingManagerTest {
     private static final UploadedGroup group5 =
             GroupTestUtils.createUploadedGroup(GroupType.RESOURCE, GROUP_ID_2,
                     ImmutableMap.of(EntityType.VIRTUAL_MACHINE_VALUE, Sets.newHashSet(VM_ID_3)));
+    private static final UploadedGroup billingFamilyGroup1 =
+            GroupTestUtils.createUploadedGroupWithDisplayName(GroupType.BILLING_FAMILY, BF_ID_1,
+                    ImmutableMap.of(EntityType.BUSINESS_ACCOUNT_VALUE,
+                            Sets.newHashSet(ACCOUNT_ID_1)), BF_DISPLAY_NAME_1_FROM_AWS);
+    private static final UploadedGroup billingFamilyGroup2 =
+            GroupTestUtils.createUploadedGroupWithDisplayName(GroupType.BILLING_FAMILY, BF_ID_1,
+                    ImmutableMap.of(EntityType.BUSINESS_ACCOUNT_VALUE,
+                            Sets.newHashSet(ACCOUNT_ID_1)), BF__DISPLAY_NAME_1_FROM_AWS_BILLING);
+    private static final UploadedGroup billingFamilyGroup3 =
+            GroupTestUtils.createUploadedGroupWithDisplayName(GroupType.BILLING_FAMILY, BF_ID_2,
+                    ImmutableMap.of(EntityType.BUSINESS_ACCOUNT_VALUE,
+                            Sets.newHashSet(ACCOUNT_ID_2)), BF__DISPLAY_NAME_2_FROM_AWS);
 
     private IGroupStore groupStore;
     private GroupStitchingManager stitchingManager;
@@ -121,6 +145,45 @@ public class GroupStitchingManagerTest {
                 .findFirst()
                 .get();
         Assert.assertEquals(Collections.singleton(TARGET_3), singleGroup.getTargetIds());
+    }
+
+    /**
+     * Test that billing families with same source_id should be stitched plus test probe
+     * priorities (AWS has more priority then AWS_BILLING). Group properties (like display name)
+     * from more priority probe will be present in the resulting stitched group.
+     */
+    @Test
+    public void testBillingFamiliesStitching() {
+        groupStitchingContext.setTargetGroups(TARGET_1, AWS_PROBE_TYPE,
+                Collections.singletonList(billingFamilyGroup1));
+        groupStitchingContext.setTargetGroups(TARGET_2, AWS_BILLING_PROBE_TYPE,
+                Collections.singletonList(billingFamilyGroup2));
+        Mockito.when(groupStore.getDiscoveredGroupsIds()).thenReturn(Collections.emptyList());
+        final StitchingResult result = stitchingManager.stitch(groupStore, groupStitchingContext);
+        Assert.assertEquals(1, result.getGroupsToAddOrUpdate().size());
+        final StitchingGroup stitchingGroup = result.getGroupsToAddOrUpdate().iterator().next();
+        Assert.assertEquals(BF_ID_1, stitchingGroup.getSourceId());
+        Assert.assertEquals(BF_DISPLAY_NAME_1_FROM_AWS,
+                stitchingGroup.getGroupDefinition().getDisplayName());
+        Assert.assertEquals(Sets.newHashSet(TARGET_1, TARGET_2), stitchingGroup.getTargetIds());
+    }
+
+    /**
+     * Test that billing families with different source_id shouldn't be stitched.
+     */
+    @Test
+    public void testBillingFamiliesWithoutStitching() {
+        groupStitchingContext.setTargetGroups(TARGET_1, AWS_PROBE_TYPE,
+                Collections.singletonList(billingFamilyGroup1));
+        groupStitchingContext.setTargetGroups(TARGET_3, AWS_PROBE_TYPE,
+                Collections.singletonList(billingFamilyGroup3));
+        Mockito.when(groupStore.getDiscoveredGroupsIds()).thenReturn(Collections.emptyList());
+        final StitchingResult result = stitchingManager.stitch(groupStore, groupStitchingContext);
+        Assert.assertEquals(2, result.getGroupsToAddOrUpdate().size());
+        final Collection<StitchingGroup> resultGroups = result.getGroupsToAddOrUpdate();
+        final List<String> sourceIds =
+                resultGroups.stream().map(StitchingGroup::getSourceId).collect(Collectors.toList());
+        Assert.assertTrue(sourceIds.containsAll(Arrays.asList(BF_ID_1, BF_ID_2)));
     }
 
     /**
@@ -235,6 +298,26 @@ public class GroupStitchingManagerTest {
         final StitchingResult result = stitchingManager.stitch(groupStore, groupStitchingContext);
         Assert.assertEquals(Sets.newHashSet(oid1ToDelete, oid2ToDelete),
                 result.getGroupsToDelete());
+        Assert.assertEquals(2, result.getGroupsToAddOrUpdate().size());
+    }
+
+    /**
+     * Test that we don't need to find groups for undiscovered targets if after remove all
+     * stitching groups from groupToDelete during the stitching, groupToDelete become empty.
+     */
+    @Test
+    public void testInteractionsWithUndiscoveredTargets() {
+        groupStitchingContext.setTargetGroups(TARGET_2, PROBE_TYPE, Arrays.asList(group1, group2));
+        groupStitchingContext.addUndiscoveredTarget(TARGET_3);
+        final Collection<DiscoveredGroupId> discovered = new ArrayList<>(1);
+        final long oid1 = 123L;
+        discovered.add(new DiscoveredGroupIdImpl(oid1, TARGET_2, GROUP_ID, GroupType.REGULAR));
+        Mockito.when(groupStore.getDiscoveredGroupsIds()).thenReturn(discovered);
+
+        Mockito.verify(groupStore, Mockito.never())
+                .getGroupsByTargets(Collections.singletonList(TARGET_3));
+        final StitchingResult result = stitchingManager.stitch(groupStore, groupStitchingContext);
+        Assert.assertEquals(Collections.emptySet(), result.getGroupsToDelete());
         Assert.assertEquals(2, result.getGroupsToAddOrUpdate().size());
     }
 
