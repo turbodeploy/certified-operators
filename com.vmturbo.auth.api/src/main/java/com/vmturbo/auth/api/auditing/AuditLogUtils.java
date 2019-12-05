@@ -15,15 +15,14 @@ import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.cloudbees.syslog.Facility;
 import com.cloudbees.syslog.MessageFormat;
 import com.cloudbees.syslog.Severity;
 import com.cloudbees.syslog.sender.TcpSyslogMessageSender;
 import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;

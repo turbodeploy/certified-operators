@@ -26,6 +26,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.Result;
+import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.common.protobuf.stats.Stats.GetPercentileCountsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.PercentileChunk;
@@ -123,7 +124,7 @@ public class PercentileReader
                                 () -> processedBytes, () -> startTimestamp,
                                 dataMetricTimer::getTimeElapsedSecs);
                 responseObserver.onCompleted();
-            } catch (VmtDbException | SQLException ex) {
+            } catch (VmtDbException | SQLException | DataAccessException ex) {
                 LOGGER.error("Cannot extract data from the database for '{}'", startTimestamp, ex);
                 responseObserver.onError(
                                 Status.INTERNAL.withDescription(ex.getMessage()).asException());
