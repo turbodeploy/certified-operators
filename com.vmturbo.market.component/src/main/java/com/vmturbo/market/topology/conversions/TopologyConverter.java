@@ -2165,7 +2165,8 @@ public class TopologyConverter {
 
             TopologyEntityDTO region = cloudTc.getRegionOfCloudConsumer(topologyEntity);
             if (providerTopologyEntity.getEntityType() == EntityType.COMPUTE_TIER_VALUE &&
-                    coverage.isPresent() && region != null) {
+                    coverage.isPresent() && !coverage.get().getCouponsCoveredByRiMap().isEmpty()
+                    && region != null) {
                 long riId = coverage.get().getCouponsCoveredByRiMap().keySet().iterator().next();
                 final ReservedInstanceData riData = cloudTc.getRiDataById(riId);
                 final TopologyEntityDTO computeTier =
