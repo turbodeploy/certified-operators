@@ -66,9 +66,9 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
@@ -256,8 +256,7 @@ public class GroupRpcService extends GroupServiceImplBase {
             // Check temp group cache first, because it's faster.
             optGroupInfo = tempGroupCache.getGrouping(groupId);
             if (!optGroupInfo.isPresent()) {
-                optGroupInfo = transactionProvider.transaction(
-                        stores -> stores.getGroupStore().getGroup(groupId));
+                optGroupInfo = groupStore.getGroup(groupId);
             }
         } catch (DataAccessException e) {
             logger.error("Failed to get group: " + groupId, e);
@@ -461,11 +460,9 @@ public class GroupRpcService extends GroupServiceImplBase {
         final PropertyFilter clusterSpecifierFilter =
                 inputFilter.getClusterMembershipFilter().getClusterSpecifier();
         logger.debug("Resolving ClusterMemberFilter {}", clusterSpecifierFilter);
-        final Set<Long> matchingClusterMembers =
-                groupStore.getGroups(GroupFilter.newBuilder().build()).stream()
-                .filter(group -> matchFilter(clusterSpecifierFilter, group))
-                .filter(group -> GroupProtoUtil.CLUSTER_GROUP_TYPES
-                                .contains(group.getDefinition().getType())) // only clusters plz
+        final Set<Long> matchingClusterMembers = groupStore.getGroups(
+                GroupFilter.newBuilder().addPropertyFilters(clusterSpecifierFilter).build())
+                .stream()
                 .map(Grouping::getDefinition)
                 .flatMap(clusterInfo -> GroupProtoUtil.getAllStaticMembers(clusterInfo).stream())
                 .collect(Collectors.toSet());
@@ -473,11 +470,8 @@ public class GroupRpcService extends GroupServiceImplBase {
         StringJoiner sj = new StringJoiner("$|^", "^", "$");
         matchingClusterMembers.forEach(oid -> sj.add(oid.toString()));
 
-        SearchFilter searchFilter = SearchFilter.newBuilder()
-                .setPropertyFilter(PropertyFilter.newBuilder()
-                        .setPropertyName("oid")
-                        .setStringFilter(StringFilter.newBuilder()
-                                .setStringPropertyRegex(sj.toString())))
+        final SearchFilter searchFilter = SearchFilter.newBuilder()
+                .setPropertyFilter(SearchProtoUtil.idFilter(matchingClusterMembers))
                 .build();
         return searchFilter;
     }
