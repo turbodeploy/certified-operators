@@ -23,6 +23,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -152,6 +153,11 @@ public class ActionSpecMapper {
     private static final Set<String> SCALE_TIER_VALUES = ImmutableSet.of(
             UIEntityType.COMPUTE_TIER.apiStr(), UIEntityType.DATABASE_SERVER_TIER.apiStr(),
             UIEntityType.DATABASE_TIER.apiStr());
+
+    private static final Set<String> CLOUD_ACTIONS_TIER_VALUES = new ImmutableSet.Builder<String>()
+                    .addAll(SCALE_TIER_VALUES)
+                    .add(UIEntityType.STORAGE_TIER.apiStr())
+                    .build();
 
     /**
      * Map of entity types to shortened versions for action descriptions.
@@ -485,7 +491,7 @@ public class ActionSpecMapper {
 
         // update actionApiDTO with more info for plan actions
         if (topologyContextId != realtimeTopologyContextId) {
-            addMoreInfoToActionApiDTOForPlan(actionApiDTO, context);
+            addMoreInfoToActionApiDTOForPlan(actionApiDTO, context, recommendation);
         }
 
         return actionApiDTO;
@@ -497,14 +503,19 @@ public class ActionSpecMapper {
      *
      * @param actionApiDTO the plan ActionApiDTO to add more info to
      * @param context the ActionSpecMappingContext
+     * @param action action info
      * @throws UnknownObjectException if target entity is not found
+     * @throws UnsupportedActionException if the action type of the {@link ActionSpec}
+     * is not supported.
      */
     private void addMoreInfoToActionApiDTOForPlan(@Nonnull ActionApiDTO actionApiDTO,
-                                                  @Nonnull ActionSpecMappingContext context)
-                throws UnknownObjectException {
+                                                  @Nonnull ActionSpecMappingContext context,
+                                                  @Nonnull ActionDTO.Action action)
+                throws UnknownObjectException, UnsupportedActionException {
         final ServiceEntityApiDTO targetEntity = actionApiDTO.getTarget();
         final ServiceEntityApiDTO newEntity = actionApiDTO.getNewEntity();
-        final Long targetEntityId = Long.valueOf(targetEntity.getUuid());
+        final String targetEntityUuid = targetEntity.getUuid();
+        final Long targetEntityId = Long.valueOf(targetEntityUuid);
 
         // add aspects to targetEntity
         final Map<String, EntityAspect> aspects = new HashMap<>();
@@ -515,7 +526,7 @@ public class ActionSpecMapper {
         targetEntity.setAspects(aspects);
 
         // add more info for cloud actions
-        if (newEntity != null && SCALE_TIER_VALUES.contains(newEntity.getClassName())) {
+        if (newEntity != null && CLOUD_ACTIONS_TIER_VALUES.contains(newEntity.getClassName())) {
             // set template for cloud actions, which is the new tier the entity is using
             TemplateApiDTO templateApiDTO = new TemplateApiDTO();
             templateApiDTO.setUuid(newEntity.getUuid());
@@ -530,8 +541,24 @@ public class ActionSpecMapper {
             actionApiDTO.setCurrentLocation(regionDTO);
             actionApiDTO.setNewLocation(regionDTO);
 
-            // set virtualDisks on ActionApiDTO
-            actionApiDTO.setVirtualDisks(context.getVolumeAspects(targetEntityId));
+            /*
+             * Set virtualDisks on ActionApiDTO. Scale virtual volume actions have virtual volume as
+             * target entity after converting to the ActionApiDTO. SO we need get VM ID from action info.
+             */
+            final boolean isVirtualVolumeTarget = targetEntity.getClassName()
+                            .equals(UIEntityType.VIRTUAL_VOLUME.apiStr());
+            final Long vmId = isVirtualVolumeTarget
+                            ? ActionDTOUtil.getPrimaryEntity(action, false).getId()
+                            : targetEntityId;
+            // Filter virtual disks if it is scale virtual volume action.
+            final Predicate<VirtualDiskApiDTO> filter = isVirtualVolumeTarget
+                            ? vd -> targetEntityUuid.equals(vd.getUuid())
+                            : vd -> true;
+
+            final List<VirtualDiskApiDTO> virtualDisks = context.getVolumeAspects(vmId).stream()
+                            .filter(filter)
+                            .collect(Collectors.toList());
+            actionApiDTO.setVirtualDisks(virtualDisks);
         }
     }
 

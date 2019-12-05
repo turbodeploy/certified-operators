@@ -1,6 +1,5 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -482,9 +481,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                 .build());
         if (topologyContextId != null) {
             // get projected cost
-            long now = Instant.now().toEpochMilli();
-            request.setStartDate(now);
-            request.setEndDate(now);
+            request.setRequestProjected(true);
         }
 
         try {

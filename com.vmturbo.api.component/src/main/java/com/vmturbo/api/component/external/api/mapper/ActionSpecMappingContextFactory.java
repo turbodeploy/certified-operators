@@ -432,6 +432,9 @@ public class ActionSpecMappingContextFactory {
                         // should be calculated from market side and returned in action?
                         newStorageAmount.setName(stat.getName());
                         newStorageAmount.setCapacity(stat.getCapacity());
+                        newStorageAmount.setValue(stat.getValue());
+                        newStorageAmount.setValues(stat.getValues());
+                        newStorageAmount.setUnits(stat.getUnits());
                         break;
                     }
                 }
@@ -533,7 +536,7 @@ public class ActionSpecMappingContextFactory {
         }
 
         List<VirtualDiskApiDTO> getVolumeAspects(@Nonnull Long vmId) {
-            return volumeAspectsByVM.get(vmId);
+            return volumeAspectsByVM.getOrDefault(vmId, Collections.emptyList());
         }
 
         Optional<EntityAspect> getCloudAspect(@Nonnull Long entityId) {
