@@ -29,6 +29,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.api.enums.CloudType;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
@@ -39,16 +40,17 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.validation.Errors;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
-import com.vmturbo.api.component.external.api.mapper.EnvironmentTypeMapper;
-import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
+import com.vmturbo.api.component.external.api.mapper.EntityEnvironment;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
-import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
-import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
-import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
-import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
+import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
+import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
+import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
+import com.vmturbo.api.component.external.api.mapper.EnvironmentTypeMapper;
+import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
+import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
+import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
@@ -291,8 +293,8 @@ public class GroupsService implements IGroupsService {
 
         final Optional<GroupAndMembers> groupAndMembers = groupExpander.getGroupWithMembers(uuid);
         if (groupAndMembers.isPresent()) {
-            return groupMapper.toGroupApiDto(groupAndMembers.get(),
-                    groupMapper.getEnvironmentTypeForGroup(groupAndMembers.get()), true);
+            EntityEnvironment envCloudType = groupMapper.getEnvironmentAndCloudTypeForGroup(groupAndMembers.get());
+            return groupMapper.toGroupApiDto(groupAndMembers.get(), envCloudType.getEnvironmentType(), envCloudType.getCloudType(), true);
         } else {
             final String msg = "Group not found: " + uuid;
             logger.error(msg);
@@ -1052,8 +1054,11 @@ public class GroupsService implements IGroupsService {
                 groupExpander.getGroupsWithMembers(groupsRequest);
         final List<GroupApiDTO> retList = groupsWithMembers
                 .filter(groupAndMembers -> !isHiddenGroup(groupAndMembers.group()))
-                .map(groupAndMembers -> groupMapper.toGroupApiDto(groupAndMembers,
-                        groupMapper.getEnvironmentTypeForGroup(groupAndMembers), populateSeverity))
+                .map(groupAndMembers -> {
+                    EntityEnvironment envCloudType = groupMapper.getEnvironmentAndCloudTypeForGroup(groupAndMembers);
+                    GroupApiDTO groupApiDTO = groupMapper.toGroupApiDto(groupAndMembers, envCloudType.getEnvironmentType(), envCloudType.getCloudType(), populateSeverity);
+                    return groupApiDTO;
+                })
                 .filter(groupApiDTO -> EnvironmentTypeMapper.matches(environmentType,
                         groupApiDTO.getEnvironmentType()))
                 .collect(Collectors.toList());
@@ -1190,7 +1195,7 @@ public class GroupsService implements IGroupsService {
             .filter(groupWithMembers -> !isHiddenGroup(groupWithMembers.group()))
             .map(groupAndMembers -> {
                 GroupApiDTO groupApiDTO = groupMapper.toGroupApiDtoWithoutActiveEntities(groupAndMembers,
-                    EnvironmentType.UNKNOWN);
+                    EnvironmentType.UNKNOWN, CloudType.UNKNOWN);
                 if (populateSeverity) {
                     groupApiDTO.setSeverity(groupSeverities.get(groupAndMembers.group().getId()).name());
                 }
@@ -1382,8 +1387,11 @@ public class GroupsService implements IGroupsService {
 
         return clustersById.values().stream()
             .map(groupExpander::getMembersForGroup)
-            .map(clusterAndMembers -> groupMapper.toGroupApiDto(clusterAndMembers,
-                    groupMapper.getEnvironmentTypeForGroup(clusterAndMembers), true))
+            .map(clusterAndMembers -> {
+                EntityEnvironment envCloudType = groupMapper.getEnvironmentAndCloudTypeForGroup(clusterAndMembers);
+                GroupApiDTO groupApiDTO = groupMapper.toGroupApiDto(clusterAndMembers, envCloudType.getEnvironmentType(), envCloudType.getCloudType(), true);
+                return groupApiDTO;
+            })
             .filter(groupApiDTO -> EnvironmentTypeMapper.matches(environmentType,
                     groupApiDTO.getEnvironmentType()))
             .collect(Collectors.toList());

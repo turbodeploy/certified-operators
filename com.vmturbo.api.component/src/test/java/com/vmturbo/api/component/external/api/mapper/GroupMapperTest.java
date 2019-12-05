@@ -33,6 +33,11 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
+import com.vmturbo.api.enums.CloudType;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
+import com.vmturbo.topology.processor.api.util.ImmutableThinTargetInfo;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import io.grpc.Status;
 
 import org.junit.Assert;
@@ -148,6 +153,10 @@ public class GroupMapperTest {
 
     private SeverityPopulator severityPopulator = mock(SeverityPopulator.class);
 
+    private final ThinTargetCache targetCache = mock(ThinTargetCache.class);
+
+    private final CloudTypeMapper cloudTypeMapper = mock(CloudTypeMapper.class);
+
     private final BusinessAccountRetriever businessAccountRetriever = mock(BusinessAccountRetriever.class);
     private GroupMapper groupMapper;
 
@@ -161,7 +170,7 @@ public class GroupMapperTest {
         groupMapper = new GroupMapper(supplyChainFetcherFactory, groupExpander, topologyProcessor,
                 repositoryApi, entityFilterMapper, groupFilterMapper, severityPopulator,
                 businessAccountRetriever, CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                CONTEXT_ID);
+                CONTEXT_ID, targetCache, cloudTypeMapper);
         SearchRequest req = ApiTestUtils.mockSearchCountReq(0);
         when(repositoryApi.newSearchRequest(any())).thenReturn(req);
     }
@@ -1291,8 +1300,119 @@ public class GroupMapperTest {
 
         MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(listVMs);
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
+        EntityEnvironment envCloudType = groupMapper.getEnvironmentAndCloudTypeForGroup(groupExpander.getMembersForGroup(group));
+        assertEquals(envCloudType.getEnvironmentType(), EnvironmentType.HYBRID);
+    }
 
-        assertEquals(groupMapper.getEnvironmentTypeForGroup(groupExpander.getMembersForGroup(group)), EnvironmentType.HYBRID);
+    /**
+     * Test getEnvironmentTypeForGroup returns proper type for a group (ON_PREM, CLOUD, HYBRID).
+     */
+    @Test
+    public void testGetCloudTypeForGroup() {
+        final String displayName = "group-foo";
+        final int groupType = EntityType.VIRTUAL_MACHINE.getNumber();
+        final long oid = 123L;
+        final long uuid1 = 2L;
+        final long uuid2 = 3L;
+        final long targetId1 = 2141L;
+        final long targetId2 = 9485L;
+        final long probeId1 = 111L;
+        final long probeId2 = 222L;
+
+        final Grouping group = Grouping.newBuilder()
+                .setId(oid)
+                .addExpectedTypes(MemberType.newBuilder().setEntity(groupType))
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setDisplayName(displayName)
+                        .setEntityFilters(EntityFilters.newBuilder()
+                                .addEntityFilter(EntityFilter
+                                        .newBuilder()
+                                        .setEntityType(groupType)
+                                        .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+                                                .addSearchParameters(SEARCH_PARAMETERS.setSourceFilterSpecs(
+                                                        buildFilterSpecs("pmsByName", "foo", "foo"))))
+                                )
+
+                        )
+                )
+                .build();
+
+        when(groupExpander.getMembersForGroup(group)).thenReturn(ImmutableGroupAndMembers.builder()
+                .group(group)
+                .members(ImmutableSet.of(uuid1, uuid2))
+                .entities(ImmutableSet.of(uuid1, uuid2))
+                .build());
+
+        final MinimalEntity entVM1 =  MinimalEntity.newBuilder()
+                .setOid(uuid1)
+                .setDisplayName("foo1")
+                .addDiscoveringTargetIds(targetId1)
+                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setEnvironmentType(com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType.CLOUD)
+                .build();
+        final MinimalEntity entVM2 =  MinimalEntity.newBuilder()
+                .setOid(uuid1)
+                .setDisplayName("foo2")
+                .addDiscoveringTargetIds(targetId2)
+                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setEnvironmentType(com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType.CLOUD)
+                .build();
+        List<MinimalEntity> listVMs = new ArrayList<>();
+        listVMs.add(entVM1);
+
+        final ThinTargetCache.ThinTargetInfo thinTargetInfo1 = ImmutableThinTargetInfo.builder()
+                .probeInfo(ImmutableThinProbeInfo.builder()
+                        .category(ProbeCategory.CLOUD_MANAGEMENT.getCategoryInUpperCase())
+                        .type(SDKProbeType.AWS.getProbeType())
+                        .oid(probeId1)
+                        .build())
+                .displayName("TARGET_DISPLAY_NAME")
+                .oid(targetId1)
+                .isHidden(false)
+                .build();
+
+        final ThinTargetCache.ThinTargetInfo thinTargetInfo2 = ImmutableThinTargetInfo.builder()
+                .probeInfo(ImmutableThinProbeInfo.builder()
+                        .category(ProbeCategory.CLOUD_MANAGEMENT.getCategoryInUpperCase())
+                        .type(SDKProbeType.AZURE.getProbeType())
+                        .oid(probeId2)
+                        .build())
+                .displayName("TARGET_DISPLAY_NAME")
+                .oid(targetId2)
+                .isHidden(false)
+                .build();
+
+        final TargetInfo targetInfo1 = Mockito.mock(TargetInfo.class);
+        when(targetInfo1.getProbeId()).thenReturn(probeId1);
+
+        final ProbeInfo probeInfo1 = Mockito.mock(ProbeInfo.class);
+        when(probeInfo1.getType()).thenReturn(SDKProbeType.AWS.getProbeType());
+
+        MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(listVMs);
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
+        when(targetCache.getTargetInfo(targetId1)).thenReturn(Optional.of(thinTargetInfo1));
+        when(cloudTypeMapper.fromTargetType(any())).thenReturn(CloudType.AWS);
+        // test with only one type, cloudType should be AWS
+        EntityEnvironment envCloudType = groupMapper.getEnvironmentAndCloudTypeForGroup(groupExpander.getMembersForGroup(group));
+        assertEquals(envCloudType.getCloudType(), CloudType.AWS);
+
+        listVMs.add(entVM2);
+        final TargetInfo targetInfo2 = Mockito.mock(TargetInfo.class);
+        when(targetInfo2.getProbeId()).thenReturn(probeId2);
+
+        final ProbeInfo probeInfo2 = Mockito.mock(ProbeInfo.class);
+        when(probeInfo2.getType()).thenReturn(SDKProbeType.AZURE_SERVICE_PRINCIPAL.getProbeType());
+
+        MultiEntityRequest req2 = ApiTestUtils.mockMultiMinEntityReq(listVMs);
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req2);
+        when(targetCache.getTargetInfo(targetId1)).thenReturn(Optional.of(thinTargetInfo1));
+        when(targetCache.getTargetInfo(targetId2)).thenReturn(Optional.of(thinTargetInfo2));
+        when(cloudTypeMapper.fromTargetType("AWS")).thenReturn(CloudType.AWS);
+        when(cloudTypeMapper.fromTargetType("Azure Subscription")).thenReturn(CloudType.AZURE);
+        // test with both AWS and Azure, cloudType should be Hybrid
+        envCloudType = groupMapper.getEnvironmentAndCloudTypeForGroup(groupExpander.getMembersForGroup(group));
+        assertEquals(envCloudType.getCloudType(), CloudType.HYBRID);
     }
 
     /**
@@ -1346,10 +1466,8 @@ public class GroupMapperTest {
 
         final MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(listVMs);
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
-
-        assertEquals(
-                groupMapper.getEnvironmentTypeForGroup(groupExpander.getMembersForGroup(group)),
-                EnvironmentType.CLOUD);
+        EntityEnvironment envCloudType = groupMapper.getEnvironmentAndCloudTypeForGroup(groupExpander.getMembersForGroup(group));
+        assertEquals(envCloudType.getEnvironmentType(), EnvironmentType.CLOUD);
     }
 
     /**
@@ -1437,6 +1555,7 @@ public class GroupMapperTest {
         GroupApiDTO mappedDto = groupMapper.toGroupApiDto(
             groupAndMembers,
             EnvironmentType.CLOUD,
+            CloudType.AWS,
             false);
 
         Assert.assertTrue(mappedDto instanceof BillingFamilyApiDTO);

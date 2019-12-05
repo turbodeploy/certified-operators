@@ -29,6 +29,17 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.api.component.external.api.mapper.EntityEnvironment;
+import com.vmturbo.api.component.external.api.mapper.GroupMapper;
+import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper;
+import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
+import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
+import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
+import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
+import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.enums.CloudType;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -43,15 +54,7 @@ import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
-import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
-import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
-import com.vmturbo.api.component.external.api.mapper.GroupMapper;
-import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
-import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
-import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
-import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
-import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
@@ -344,8 +347,8 @@ public class GroupsServiceTest {
             .members(Collections.singleton(1L))
             .entities(Collections.singleton(1L))
             .build();
-        when(groupMapper.getEnvironmentTypeForGroup(groupAndMembers)).thenReturn(EnvironmentType.ONPREM);
-        when(groupMapper.toGroupApiDto(groupAndMembers, EnvironmentType.ONPREM, true)).thenReturn(apiGroup);
+        when(groupMapper.getEnvironmentAndCloudTypeForGroup(groupAndMembers)).thenReturn(new EntityEnvironment(EnvironmentType.ONPREM, CloudType.UNKNOWN));
+        when(groupMapper.toGroupApiDto(groupAndMembers, EnvironmentType.ONPREM, CloudType.UNKNOWN, true)).thenReturn(apiGroup);
 
         when(groupExpander.getGroupWithMembers("1"))
             .thenReturn(Optional.of(groupAndMembers));
@@ -382,8 +385,8 @@ public class GroupsServiceTest {
         GroupAndMembers clusterAndMembers = groupAndMembers(1L, GroupType.COMPUTE_HOST_CLUSTER, Collections.singleton(7L));
         when(groupExpander.getGroupsWithMembers(any()))
             .thenReturn(Stream.of(clusterAndMembers));
-        when(groupMapper.getEnvironmentTypeForGroup(clusterAndMembers)).thenReturn(EnvironmentType.ONPREM);
-        when(groupMapper.toGroupApiDto(clusterAndMembers, EnvironmentType.ONPREM, true)).thenReturn(clusterApiDto);
+        when(groupMapper.getEnvironmentAndCloudTypeForGroup(clusterAndMembers)).thenReturn(new EntityEnvironment(EnvironmentType.ONPREM, CloudType.UNKNOWN));
+        when(groupMapper.toGroupApiDto(clusterAndMembers, EnvironmentType.ONPREM, CloudType.UNKNOWN, true)).thenReturn(clusterApiDto);
         when(severityPopulator.calculateSeverity(CONTEXT_ID, Collections.singleton(7L)))
             .thenReturn(Optional.of(Severity.NORMAL));
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.COMPUTE_HOST_CLUSTER),
@@ -421,8 +424,8 @@ public class GroupsServiceTest {
         GroupAndMembers clusterAndMembers = groupAndMembers(1L, GroupType.STORAGE_CLUSTER, Collections.singleton(7L));
         when(groupExpander.getGroupsWithMembers(any()))
             .thenReturn(Stream.of(clusterAndMembers));
-        when(groupMapper.getEnvironmentTypeForGroup(clusterAndMembers)).thenReturn(EnvironmentType.ONPREM);
-        when(groupMapper.toGroupApiDto(clusterAndMembers, EnvironmentType.ONPREM, true)).thenReturn(clusterApiDto);
+        when(groupMapper.getEnvironmentAndCloudTypeForGroup(clusterAndMembers)).thenReturn(new EntityEnvironment(EnvironmentType.ONPREM, CloudType.UNKNOWN));
+        when(groupMapper.toGroupApiDto(clusterAndMembers, EnvironmentType.ONPREM, CloudType.UNKNOWN, true)).thenReturn(clusterApiDto);
         when(severityPopulator.calculateSeverity(CONTEXT_ID, Collections.singleton(7L)))
             .thenReturn(Optional.of(Severity.NORMAL));
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.STORAGE_CLUSTER),
@@ -698,8 +701,8 @@ public class GroupsServiceTest {
             .build();
 
         when(groupExpander.getMembersForGroup(cluster)).thenReturn(clusterAndMembers);
-        when(groupMapper.getEnvironmentTypeForGroup(clusterAndMembers)).thenReturn(EnvironmentType.ONPREM);
-        when(groupMapper.toGroupApiDto(clusterAndMembers, EnvironmentType.ONPREM, true)).thenReturn(groupApiDtoMock);
+        when(groupMapper.getEnvironmentAndCloudTypeForGroup(clusterAndMembers)).thenReturn(new EntityEnvironment(EnvironmentType.ONPREM, CloudType.UNKNOWN));
+        when(groupMapper.toGroupApiDto(clusterAndMembers, EnvironmentType.ONPREM, CloudType.UNKNOWN, true)).thenReturn(groupApiDtoMock);
         when(groupServiceSpy.getGroupForEntity(GetGroupForEntityRequest.newBuilder()
                 .setEntityId(1L)
                 .build()))
@@ -828,10 +831,10 @@ public class GroupsServiceTest {
         groupApiDtoMock.setClassName(StringConstants.RESOURCE_GROUP);
         groupApiDtoMock.setSeverity(Severity.NORMAL.toString());
 
-        when(groupMapper.getEnvironmentTypeForGroup(eq(childRgGroupAndMembers)))
-            .thenReturn(EnvironmentType.CLOUD);
+        when(groupMapper.getEnvironmentAndCloudTypeForGroup(eq(childRgGroupAndMembers)))
+            .thenReturn(new EntityEnvironment(EnvironmentType.CLOUD, CloudType.AZURE));
 
-        when(groupMapper.toGroupApiDto(childRgGroupAndMembers, EnvironmentType.CLOUD, true))
+        when(groupMapper.toGroupApiDto(childRgGroupAndMembers, EnvironmentType.CLOUD, CloudType.AZURE, true))
             .thenReturn(groupApiDtoMock);
 
         //Act
@@ -912,10 +915,10 @@ public class GroupsServiceTest {
         groupApiDtoMock.setClassName(StringConstants.RESOURCE_GROUP);
         groupApiDtoMock.setSeverity(Severity.NORMAL.toString());
 
-        when(groupMapper.getEnvironmentTypeForGroup(eq(rgGroupAndMembers)))
-                .thenReturn(EnvironmentType.CLOUD);
+        when(groupMapper.getEnvironmentAndCloudTypeForGroup(eq(rgGroupAndMembers)))
+                .thenReturn(new EntityEnvironment(EnvironmentType.CLOUD, CloudType.AZURE));
 
-        when(groupMapper.toGroupApiDto(rgGroupAndMembers, EnvironmentType.CLOUD, true))
+        when(groupMapper.toGroupApiDto(rgGroupAndMembers, EnvironmentType.CLOUD, CloudType.AZURE, true))
                 .thenReturn(groupApiDtoMock);
 
         //Act
@@ -1059,8 +1062,8 @@ public class GroupsServiceTest {
                 .entities(Collections.emptyList())
                 .build();
         when(groupExpander.getMembersForGroup(group1)).thenReturn(groupAndMembers1);
-        when(groupMapper.getEnvironmentTypeForGroup(groupAndMembers1)).thenReturn(EnvironmentType.ONPREM);
-        when(groupMapper.toGroupApiDto(groupAndMembers1, EnvironmentType.ONPREM, true)).thenReturn(groupApiDto1);
+        when(groupMapper.getEnvironmentAndCloudTypeForGroup(groupAndMembers1)).thenReturn(new EntityEnvironment(EnvironmentType.ONPREM, CloudType.UNKNOWN));
+        when(groupMapper.toGroupApiDto(groupAndMembers1, EnvironmentType.ONPREM, CloudType.UNKNOWN, true)).thenReturn(groupApiDto1);
         // cloud group
         final Grouping group2 = Grouping.newBuilder()
                 .setId(2L)
@@ -1074,8 +1077,8 @@ public class GroupsServiceTest {
                 .entities(Collections.emptyList())
                 .build();
         when(groupExpander.getMembersForGroup(group2)).thenReturn(groupAndMembers2);
-        when(groupMapper.getEnvironmentTypeForGroup(groupAndMembers2)).thenReturn(EnvironmentType.CLOUD);
-        when(groupMapper.toGroupApiDto(groupAndMembers2, EnvironmentType.CLOUD, true)).thenReturn(groupApiDto2);
+        when(groupMapper.getEnvironmentAndCloudTypeForGroup(groupAndMembers2)).thenReturn(new EntityEnvironment(EnvironmentType.CLOUD, CloudType.AWS));
+        when(groupMapper.toGroupApiDto(groupAndMembers2, EnvironmentType.CLOUD, CloudType.AWS, true)).thenReturn(groupApiDto2);
 
         when(groupServiceSpy.getGroupForEntity(GetGroupForEntityRequest.newBuilder()
                 .setEntityId(111L)

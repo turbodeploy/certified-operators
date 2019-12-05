@@ -57,16 +57,17 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
+import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase;
+import com.vmturbo.api.component.external.api.mapper.CloudTypeMapper;
+import com.vmturbo.api.component.external.api.mapper.GroupMapper;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper;
+import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
+import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
-import com.vmturbo.api.component.external.api.mapper.GroupMapper;
-import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
-import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase;
-import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase.GroupUseCaseCriteria;
-import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
-import com.vmturbo.api.component.external.api.mapper.UuidMapper;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
+import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase.GroupUseCaseCriteria;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
@@ -137,6 +138,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Unit test for {@link SearchService}.
@@ -188,7 +190,8 @@ public class SearchServiceTest {
     private final String probeType2 = SDKProbeType.AZURE.getProbeType();
 
     private SeverityPopulator severityPopulator = mock(SeverityPopulator.class);
-
+    private final ThinTargetCache targetCache = mock(ThinTargetCache.class);
+    private final CloudTypeMapper cloudTypeMapper = mock(CloudTypeMapper.class);
     private ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
 
     @Before
@@ -207,7 +210,7 @@ public class SearchServiceTest {
         when(userSessionContext.isUserScoped()).thenReturn(false);
         groupMapper = new GroupMapper(supplyChainFetcherFactory, groupExpander, topologyProcessor,
                 repositoryApi, entityFilterMapper, groupFilterMapper, severityPopulator,
-                businessAccountRetriever, costServiceBlockingStub, realTimeContextId);
+                businessAccountRetriever, costServiceBlockingStub, realTimeContextId, targetCache, cloudTypeMapper);
 
         searchService = spy(new SearchService(
                 repositoryApi,

@@ -137,7 +137,9 @@ public class MapperConfig {
             communicationConfig.severityPopulator(),
             serviceConfig.businessAccountRetriever(),
             communicationConfig.costServiceBlockingStub(),
-            communicationConfig.getRealtimeTopologyContextId()
+            communicationConfig.getRealtimeTopologyContextId(),
+            communicationConfig.thinTargetCache(),
+            cloudTypeMapper()
             );
     }
 
