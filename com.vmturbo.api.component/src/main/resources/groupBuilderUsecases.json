@@ -91,7 +91,8 @@
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseByName"},
             {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "databaseByTag", "loadOptions": true},
-            {"inputType": "s", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "databaseByBusinessAccountUuid", "loadOptions": true}
+            {"inputType": "s", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "databaseByBusinessAccountUuid", "loadOptions": true},
+            {"inputType": "s", "elements": "MemberOf:ResourceGroup:uuid", "filterCategory": "entity", "filterType": "databaseByResourceGroupUuid", "loadOptions": true}
         ]
     },
 
@@ -99,7 +100,8 @@
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseServerByName"},
             {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "databaseServerByTag", "loadOptions": true},
-            {"inputType": "s", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "databaseServerByBusinessAccountUuid", "loadOptions": true}
+            {"inputType": "s", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "databaseServerByBusinessAccountUuid", "loadOptions": true},
+            {"inputType": "s", "elements": "MemberOf:ResourceGroup:uuid", "filterCategory": "entity", "filterType": "databaseServerByResourceGroupUuid", "loadOptions": true}
         ]
     },
 

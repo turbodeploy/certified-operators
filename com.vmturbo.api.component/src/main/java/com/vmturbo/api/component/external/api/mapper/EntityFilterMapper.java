@@ -147,8 +147,9 @@ public class EntityFilterMapper {
         final ImmutableMap.Builder<String, Function<SearchFilterContext, List<SearchFilter>>>
                 filterTypesToProcessors = new ImmutableMap.Builder<>();
         filterTypesToProcessors.put(StringConstants.TAGS_ATTR, EntityFilterMapper::getTagProcessor);
-        filterTypesToProcessors.put(StringConstants.CLUSTER, EntityFilterMapper::getClusterProcessor);
-        filterTypesToProcessors.put(MEMBER_OF, EntityFilterMapper::getGroupByOidProcessor);
+        filterTypesToProcessors.put(StringConstants.CLUSTER,
+                EntityFilterMapper::getGroupFilterProcessor);
+        filterTypesToProcessors.put(MEMBER_OF, EntityFilterMapper::getGroupFilterProcessor);
         filterTypesToProcessors.put(NETWORKS, EntityFilterMapper::getNetworkProcessor);
         filterTypesToProcessors.put(SearchableProperties.VENDOR_ID, EntityFilterMapper::getVendorIdProcessor);
         filterTypesToProcessors.put(CONSUMES, traversalFilterProcessor);
@@ -206,29 +207,30 @@ public class EntityFilterMapper {
     }
 
     @Nonnull
-    private static List<SearchFilter> getClusterProcessor(@Nonnull SearchFilterContext context) {
-        final ClusterMembershipFilter clusterFilter = ClusterMembershipFilter.newBuilder()
-                .setGroupType(GroupType.COMPUTE_HOST_CLUSTER)
-                .setClusterSpecifier(
-                        SearchProtoUtil.nameFilterRegex(context.getFilter().getExpVal(),
-                                context.getFilter().getExpType().equals(REGEX_MATCH),
-                                context.getFilter().getCaseSensitive()))
-                .build();
-        return Collections.singletonList(searchFilterCluster(clusterFilter));
-    }
-
-    @Nonnull
-    private static List<SearchFilter> getGroupByOidProcessor(@Nonnull SearchFilterContext context) {
-        // Empty all the tail of the statement
-        while (context.iterator.hasNext()) {
-            context.iterator.next();
+    private static List<SearchFilter> getGroupFilterProcessor(@Nonnull SearchFilterContext context) {
+        final GroupType groupType =
+                GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.get(context.currentToken);
+        if (groupType == null) {
+            throw new IllegalArgumentException(
+                    "Unknown group type for search filter " + context.getFilter().getExpType());
         }
-        final Collection<Long> oids = Arrays.stream(context.getFilter().getExpVal().split("\\|"))
-                .map(Long::parseLong)
-                .collect(Collectors.toSet());
+        final PropertyFilter.Builder propertyFilter;
+        if (context.exactMatching) {
+            final Collection<String> oids =
+                    Arrays.asList(context.getFilter().getExpVal().split("\\|"));
+            propertyFilter = PropertyFilter.newBuilder()
+                    .setStringFilter(SearchProtoUtil.stringFilterExact(oids, true, true));
+        } else {
+            propertyFilter = PropertyFilter.newBuilder()
+                    .setStringFilter(
+                            SearchProtoUtil.stringFilterRegex(context.getFilter().getExpVal(), true,
+                                    true));
+        }
+        final String propertyName = context.getIterator().next();
+        propertyFilter.setPropertyName(propertyName);
         final ClusterMembershipFilter clusterFilter = ClusterMembershipFilter.newBuilder()
-                .setClusterSpecifier(SearchProtoUtil.idFilter(oids))
-                .build();
+                .setClusterSpecifier(propertyFilter)
+                .setGroupType(groupType).build();
         return Collections.singletonList(searchFilterCluster(clusterFilter));
     }
 
@@ -579,8 +581,9 @@ public class EntityFilterMapper {
                                             @Nonnull String firstToken) {
         final String currentToken = iterator.next();
 
-        final SearchFilterContext filterContext = new SearchFilterContext(filter, iterator,
-                entityType, currentToken, firstToken);
+        final SearchFilterContext filterContext =
+                new SearchFilterContext(filter, iterator, entityType, currentToken, firstToken,
+                        inputType.contains("s") || inputType.contains("#"));
         final Function<SearchFilterContext, List<SearchFilter>> filterApiDtoProcessor =
                         FILTER_TYPES_TO_PROCESSORS.get(currentToken);
 
@@ -816,14 +819,17 @@ public class EntityFilterMapper {
         // "PhysicalMachine:displayName:PRODUCES:1", the first token is "PhysicalMachine"
         private final String firstToken;
 
+        private final boolean exactMatching;
+
         SearchFilterContext(@Nonnull FilterApiDTO filter, @Nonnull Iterator<String> iterator,
                         @Nonnull List<String> entityTypes, @Nonnull String currentToken,
-                            @Nonnull String firstToken) {
+                            @Nonnull String firstToken, boolean exactMatching) {
             this.filter = Objects.requireNonNull(filter);
             this.iterator = Objects.requireNonNull(iterator);
             this.entityTypes = Objects.requireNonNull(entityTypes);
             this.currentToken = Objects.requireNonNull(currentToken);
             this.firstToken = Objects.requireNonNull(firstToken);
+            this.exactMatching = Objects.requireNonNull(exactMatching);
         }
 
         @Nonnull
@@ -844,6 +850,10 @@ public class EntityFilterMapper {
         @Nonnull
         public String getCurrentToken() {
             return currentToken;
+        }
+
+        public boolean isExactMatching() {
+            return exactMatching;
         }
 
         public boolean isHopCountBasedTraverse(@Nonnull StoppingConditionOrBuilder stopper) {
