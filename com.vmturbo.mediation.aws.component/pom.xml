@@ -41,6 +41,17 @@
                                     <overWrite>false</overWrite>
                                     <outputDirectory>${project.build.directory}/probe-jars/probe</outputDirectory>
                                 </artifactItem>
+                                <artifactItem>
+                                    <!-- AWS mediation atrifact (.zip) contains a resource folder that must be
+                                    placed into 'probe-jars/probe' folder as well. -->
+                                    <groupId>com.vmturbo</groupId>
+                                    <artifactId>com.vmturbo.mediation.aws</artifactId>
+                                    <version>${project.version}</version>
+                                    <type>zip</type>
+                                    <overWrite>false</overWrite>
+                                    <outputDirectory>${project.build.directory}/probe-jars/probe</outputDirectory>
+                                    <excludes>**/*.jar</excludes>
+                                </artifactItem>
                             </artifactItems>
                         </configuration>
                     </execution>
