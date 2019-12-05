@@ -7,6 +7,7 @@ import "common/EnvironmentTypeEnum.proto";
 import "common/Pagination.proto";
 import "topology/TopologyDTO.proto";
 import "tag/Tag.proto";
+import "CommonDTO.proto";
 
 // A search definition that needs to be performed on a topology, represented as a DAG.
 message SearchParameters {
@@ -244,6 +245,8 @@ message PropertyFilter {
 message ClusterMembershipFilter {
     // Specifies the group(s) to filter membership based on.
     optional PropertyFilter cluster_specifier = 1;
+    // Type of a group requested. If not specified, quiery will not distinguish between group types.
+    optional common_dto.GroupDTO.GroupType group_type = 2;
 }
 
 enum ComparisonOperator {

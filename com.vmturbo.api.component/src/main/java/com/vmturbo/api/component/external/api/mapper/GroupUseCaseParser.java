@@ -9,12 +9,12 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+
 import org.apache.commons.io.IOUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase.GroupUseCaseCriteria;
 
@@ -78,6 +78,11 @@ public class GroupUseCaseParser {
             public String getFilterType() {
                 return this.filterType;
             }
+
+            @Override
+            public String toString() {
+                return getClass().getSimpleName() + "[" + filterType + "]";
+            }
         }
 
         public GroupUseCase(List<GroupUseCaseCriteria> criteria) {
@@ -86,6 +91,11 @@ public class GroupUseCaseParser {
 
         public List<GroupUseCaseCriteria> getCriteria() {
             return this.criteria;
+        }
+
+        @Override
+        public String toString() {
+            return criteria == null ? "<empty>" : criteria.toString();
         }
     }
 

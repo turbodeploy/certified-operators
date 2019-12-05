@@ -48,17 +48,6 @@ public class SearchProtoUtil {
     }
 
     /**
-     * Wrap an instance of {@link ClusterMembershipFilter} with a {@link SearchFilter}.
-     * @param clusterFilter the cluster membership filter to wrap
-     * @return a search filter that wraps the argument
-     */
-    public static SearchFilter searchFilterCluster(ClusterMembershipFilter clusterFilter) {
-        return SearchFilter.newBuilder()
-            .setClusterMembershipFilter(clusterFilter)
-            .build();
-    }
-
-    /**
      * Wrap an instance of {@link TraversalFilter} with a {@link SearchFilter}.
      * @param traversalFilter the traversal filter to wrap
      * @return a search filter that wraps the argument
@@ -397,15 +386,6 @@ public class SearchProtoUtil {
             .build();
     }
 
-    /**
-     * Create a {@link ClusterMembershipFilter} based on a cluster property type filter.
-     * @return a {@link ClusterMembershipFilter}
-     */
-    public static ClusterMembershipFilter clusterFilter(PropertyFilter propertyFilter) {
-        return ClusterMembershipFilter.newBuilder()
-            .setClusterSpecifier(propertyFilter)
-            .build();
-    }
 
     /**
      * Creates a {@link SearchParameters} objects that begins from a specific entity
@@ -450,4 +430,6 @@ public class SearchProtoUtil {
     public static SearchParameters.Builder makeSearchParameters(PropertyFilter startFilter) {
         return SearchParameters.newBuilder().setStartingFilter(startFilter);
     }
+
+
 }

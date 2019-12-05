@@ -586,51 +586,6 @@ public class SearchServiceTest {
         verify(businessAccountRetriever).getBusinessAccountsInScope(scopes);
     }
 
-    @Test
-    public void testClusterFilters() throws Exception {
-        // create a SearchParams for members of Cluster1
-        final PropertyFilter clusterSpecifier = PropertyFilter.newBuilder()
-                .setStringFilter(StringFilter.newBuilder()
-                        .setStringPropertyRegex("Cluster1"))
-                .setPropertyName("displayName")
-                .build();
-        final SearchParameters params = SearchParameters.newBuilder()
-                .addSearchFilter(SearchFilter.newBuilder()
-                        .setClusterMembershipFilter(ClusterMembershipFilter.newBuilder()
-                                .setClusterSpecifier(clusterSpecifier)))
-                .build();
-
-        final GroupAndMembers clusterAndMembers = ImmutableGroupAndMembers.builder()
-                .group(Grouping.newBuilder()
-                        .setId(1L)
-                        .setDefinition(GroupDefinition.newBuilder()
-                                .setType(GroupType.COMPUTE_HOST_CLUSTER)
-                                .setDisplayName("Cluster1")
-                        )
-                        .build())
-                .members(ImmutableSet.of(1L, 2L))
-                // Not needed for clusters
-                .entities(Collections.emptyList())
-                .build();
-
-        when(groupExpander.getGroupsWithMembers(any())).thenReturn(Stream.of(clusterAndMembers));
-
-        SearchParameters resolvedParams = searchService.resolveClusterFilters(params);
-
-        // we should get the members of cluster 1 in the static filter
-        StringFilter stringFilter = resolvedParams.getSearchFilter(0).getPropertyFilter().getStringFilter();
-        assertEquals(
-                ImmutableSet.of("1", "2"),
-                stringFilter.getOptionsList().stream().collect(Collectors.toSet()));
-
-        final ArgumentCaptor<GetGroupsRequest> reqCaptor = ArgumentCaptor.forClass(GetGroupsRequest.class);
-        verify(groupExpander).getGroupsWithMembers(reqCaptor.capture());
-        GetGroupsRequest req = reqCaptor.getValue();
-        assertEquals(GroupType.COMPUTE_HOST_CLUSTER, req.getGroupFilter().getGroupType());
-        assertThat(
-                req.getGroupFilter().getPropertyFilters(0).getStringFilter(),
-                is(clusterSpecifier.getStringFilter()));
-    }
 
     /**
      * Test that search parameters with no cloud provider search filter are left untouched. Test
@@ -1213,6 +1168,33 @@ public class SearchServiceTest {
 
         assertEquals(1, result3.size());
         assertEquals(CloudType.UNKNOWN.name(), result3.get(0).getValue());
+    }
+
+    /**
+     * All cloud provider options should be present in criteria.
+     *
+     * @throws Exception if something is catastrophically wrong.
+     */
+    @Test
+    public void testResourceGroupOptions() throws Exception {
+        final GroupApiDTO resourceGroup1 = new GroupApiDTO();
+        resourceGroup1.setDisplayName("Ravenclaw");
+        resourceGroup1.setUuid("111");
+        final GroupApiDTO resourceGroup2 = new GroupApiDTO();
+        resourceGroup2.setDisplayName("Gryffindor");
+        resourceGroup2.setUuid("222");
+
+        Mockito.when(
+                groupsService.getGroupsByType(GroupType.RESOURCE, null, Collections.emptyList()))
+                .thenReturn(Arrays.asList(resourceGroup1, resourceGroup2));
+        final List<CriteriaOptionApiDTO> result1 =
+                searchService.getCriteriaOptions(EntityFilterMapper.RESROUCE_GROUP_OID, null, null,
+                        null);
+        Assert.assertEquals(2, result1.size());
+        Assert.assertEquals("Ravenclaw", result1.get(0).getDisplayName());
+        Assert.assertEquals("111", result1.get(0).getValue());
+        Assert.assertEquals("Gryffindor", result1.get(1).getDisplayName());
+        Assert.assertEquals("222", result1.get(1).getValue());
     }
 
     /**

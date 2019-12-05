@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -49,6 +50,7 @@ import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
  * This class converts filter for filter entities in the API to the filter
@@ -67,6 +69,8 @@ public class EntityFilterMapper {
     // since UI gets all criteria from "groupBuilderUseCases.json" and check if the criteria
     // matches that inside "groupBuilderUseCases.json".
     public static final String ACCOUNT_OID = "BusinessAccount:oid:CONNECTED_TO:1";
+    /** Key of the criteria to query resource groups by ids. */
+    public static final String RESROUCE_GROUP_OID = "MemberOf:ResourceGroup:uuid";
     public static final String STATE = "state";
     public static final String NETWORKS = "networks";
     public static final String CONNECTED_NETWORKS_FIELD = "connectedNetworks";
@@ -99,6 +103,7 @@ public class EntityFilterMapper {
      */
     public static final String EMPTY_QUERY_STRING = "\\Q\\E";
 
+    private static final String MEMBER_OF = "MemberOf";
 
     // set of supported traversal types, the string should be the same as groupBuilderUsecases.json
     private static final Set<String> TRAVERSAL_TYPES = ImmutableSet.of(
@@ -143,6 +148,7 @@ public class EntityFilterMapper {
                 filterTypesToProcessors = new ImmutableMap.Builder<>();
         filterTypesToProcessors.put(StringConstants.TAGS_ATTR, EntityFilterMapper::getTagProcessor);
         filterTypesToProcessors.put(StringConstants.CLUSTER, EntityFilterMapper::getClusterProcessor);
+        filterTypesToProcessors.put(MEMBER_OF, EntityFilterMapper::getGroupByOidProcessor);
         filterTypesToProcessors.put(NETWORKS, EntityFilterMapper::getNetworkProcessor);
         filterTypesToProcessors.put(SearchableProperties.VENDOR_ID, EntityFilterMapper::getVendorIdProcessor);
         filterTypesToProcessors.put(CONSUMES, traversalFilterProcessor);
@@ -199,14 +205,31 @@ public class EntityFilterMapper {
         }
     }
 
-    private static List<SearchFilter> getClusterProcessor(SearchFilterContext context) {
-        ClusterMembershipFilter clusterFilter =
-                        SearchProtoUtil.clusterFilter(
-                            SearchProtoUtil.nameFilterRegex(
-                                context.getFilter().getExpVal(),
+    @Nonnull
+    private static List<SearchFilter> getClusterProcessor(@Nonnull SearchFilterContext context) {
+        final ClusterMembershipFilter clusterFilter = ClusterMembershipFilter.newBuilder()
+                .setGroupType(GroupType.COMPUTE_HOST_CLUSTER)
+                .setClusterSpecifier(
+                        SearchProtoUtil.nameFilterRegex(context.getFilter().getExpVal(),
                                 context.getFilter().getExpType().equals(REGEX_MATCH),
-                                context.getFilter().getCaseSensitive()));
-                return Collections.singletonList(SearchProtoUtil.searchFilterCluster(clusterFilter));
+                                context.getFilter().getCaseSensitive()))
+                .build();
+        return Collections.singletonList(searchFilterCluster(clusterFilter));
+    }
+
+    @Nonnull
+    private static List<SearchFilter> getGroupByOidProcessor(@Nonnull SearchFilterContext context) {
+        // Empty all the tail of the statement
+        while (context.iterator.hasNext()) {
+            context.iterator.next();
+        }
+        final Collection<Long> oids = Arrays.stream(context.getFilter().getExpVal().split("\\|"))
+                .map(Long::parseLong)
+                .collect(Collectors.toSet());
+        final ClusterMembershipFilter clusterFilter = ClusterMembershipFilter.newBuilder()
+                .setClusterSpecifier(SearchProtoUtil.idFilter(oids))
+                .build();
+        return Collections.singletonList(searchFilterCluster(clusterFilter));
     }
 
     private static List<SearchFilter> getNetworkProcessor(SearchFilterContext context) {
@@ -950,5 +973,16 @@ public class EntityFilterMapper {
         filterApiDTO.setFilterType(Objects.requireNonNull(sourceFilter.getFilterType()));
         filterApiDTO.setCaseSensitive(Objects.requireNonNull(sourceFilter.getIsCaseSensitive()));
         return filterApiDTO;
+    }
+
+    /**
+     * Wrap an instance of {@link ClusterMembershipFilter} with a {@link SearchFilter}.
+     *
+     * @param clusterFilter the cluster membership filter to wrap
+     * @return a search filter that wraps the argument
+     */
+    @Nonnull
+    private static SearchFilter searchFilterCluster(@Nonnull ClusterMembershipFilter clusterFilter) {
+        return SearchFilter.newBuilder().setClusterMembershipFilter(clusterFilter).build();
     }
 }
