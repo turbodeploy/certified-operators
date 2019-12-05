@@ -139,6 +139,13 @@
         ]
     },
 
+    "ResourceGroup" : {
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "resourceGroupByName"},
+            {"inputType": "s", "elements": "BusinessAccount:oid", "filterCategory": "entity", "filterType": "resourceGroupByBusinessAccountUuid", "loadOptions": true}
+        ]
+    },
+
     "DiskArray" : {
         "criteria" : [
           {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "diskarrayByName"}

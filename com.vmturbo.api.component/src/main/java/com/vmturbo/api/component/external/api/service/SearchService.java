@@ -212,6 +212,7 @@ public class SearchService implements ISearchService {
                 .put("ConsistsOf:PhysicalMachine:MemberOf:Cluster:tags",
                         this::getSTagAttributeOptions)
                 .put(ACCOUNT_OID, (a, b, c) -> getAccountOptions())
+                .put("BusinessAccount:oid",  (a, b, c) -> getAccountOptions())
                 .put(VOLUME_ATTACHMENT_STATE_FILTER_PATH,
                         (a, b, c) -> getVolumeAttachmentStateOptions())
                 .put(CONNECTED_STORAGE_TIER_FILTER_PATH,
