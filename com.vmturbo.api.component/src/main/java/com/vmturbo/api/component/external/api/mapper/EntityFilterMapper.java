@@ -231,7 +231,7 @@ public class EntityFilterMapper {
         final String propertyName = context.getIterator().next();
         propertyFilter.setPropertyName(propertyName);
         final GroupMembershipFilter clusterFilter = GroupMembershipFilter.newBuilder()
-                .setClusterSpecifier(propertyFilter)
+                .setGroupSpecifier(propertyFilter)
                 .setGroupType(groupType).build();
         return Collections.singletonList(searchFilterCluster(clusterFilter));
     }

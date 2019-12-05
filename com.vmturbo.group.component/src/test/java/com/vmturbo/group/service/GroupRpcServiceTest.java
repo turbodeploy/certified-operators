@@ -2040,7 +2040,7 @@ public class GroupRpcServiceTest {
                                         .addSearchFilter(SearchFilter.newBuilder()
                                                 .setGroupMembershipFilter(
                                                         GroupMembershipFilter.newBuilder()
-                                                                .setClusterSpecifier(
+                                                                .setGroupSpecifier(
                                                                         PropertyFilter.newBuilder()
                                                                                 .setPropertyName(
                                                                                         "oid")

@@ -401,7 +401,7 @@ public class V1_13__MigrateDataToNewGroups implements JdbcMigration {
                             break;
                         case GROUP_MEMBERSHIP_FILTER:
                             propertyFilters.add(searchFilter.getGroupMembershipFilterBuilder()
-                                    .getClusterSpecifierBuilder());
+                                    .getGroupSpecifierBuilder());
                             break;
                         default:
                             break;

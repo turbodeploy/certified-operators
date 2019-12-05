@@ -467,7 +467,7 @@ public class GroupMapperTest {
         final GroupMembershipFilter clusterMembershipFilter =
                         param.getSearchFilter(0).getGroupMembershipFilter();
         // verify that we are looking for clusters with name FOO
-        assertEquals("^" + FOO + "$", clusterMembershipFilter.getClusterSpecifier()
+        assertEquals("^" + FOO + "$", clusterMembershipFilter.getGroupSpecifier()
                         .getStringFilter().getStringPropertyRegex());
 
         // test conversion from GroupApiDTO back to FilterApiDTO

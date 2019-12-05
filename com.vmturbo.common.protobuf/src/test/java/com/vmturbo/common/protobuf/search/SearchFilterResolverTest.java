@@ -58,7 +58,7 @@ public class SearchFilterResolverTest {
         final SearchParameters params = SearchParameters.newBuilder()
                 .addSearchFilter(SearchFilter.newBuilder()
                         .setGroupMembershipFilter(GroupMembershipFilter.newBuilder()
-                                .setClusterSpecifier(clusterSpecifier)
+                                .setGroupSpecifier(clusterSpecifier)
                                 .setGroupType(GroupType.COMPUTE_HOST_CLUSTER)))
                 .build();
         Mockito.when(groupsGetter.apply(Mockito.any())).thenReturn(Sets.newHashSet(1L, 2L));
@@ -93,7 +93,7 @@ public class SearchFilterResolverTest {
         final SearchParameters params = SearchParameters.newBuilder()
                 .addSearchFilter(SearchFilter.newBuilder()
                         .setGroupMembershipFilter(GroupMembershipFilter.newBuilder()
-                                .setClusterSpecifier(clusterSpecifier)))
+                                .setGroupSpecifier(clusterSpecifier)))
                 .build();
 
         Mockito.when(groupsGetter.apply(Mockito.any())).thenReturn(Sets.newHashSet(1L, 2L));
@@ -138,7 +138,7 @@ public class SearchFilterResolverTest {
         final SearchParameters params = SearchParameters.newBuilder()
                 .addSearchFilter(SearchFilter.newBuilder()
                         .setGroupMembershipFilter(GroupMembershipFilter.newBuilder()
-                                .setClusterSpecifier(clusterSpecifier)))
+                                .setGroupSpecifier(clusterSpecifier)))
                 .addSearchFilter(createNonGroupFilter())
                 .build();
         Mockito.when(groupsGetter.apply(Mockito.any())).thenReturn(Sets.newHashSet(1L, 2L));

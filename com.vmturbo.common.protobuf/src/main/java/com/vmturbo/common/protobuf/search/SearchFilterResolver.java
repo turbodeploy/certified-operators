@@ -86,7 +86,7 @@ public abstract class SearchFilterResolver {
         // but has the huge caveat of allowing circular references to happen. We'll stick to
         // just handling groups here and open it up later, when/if needed.
         final GroupMembershipFilter groupSrcFilter = inputFilter.getGroupMembershipFilter();
-        final PropertyFilter groupSpecifierFilter = groupSrcFilter.getClusterSpecifier();
+        final PropertyFilter groupSpecifierFilter = groupSrcFilter.getGroupSpecifier();
         logger.debug("Resolving group filter {}", groupSpecifierFilter);
 
         final GroupFilter.Builder groupFilter =

@@ -231,7 +231,7 @@ message PropertyFilter {
 //
 // This filter gets special handling in SearchService, where the group information is resolved in a
 // separate step from the other filtering mechanisms and then is translated to a String RegEx filter
-// for checking if an entity id is part of the cluster.
+// for checking if an entity id is part of the group.
 //
 // This is due to the group membership information being stored in a separate arango database from
 // the topology information and disallowing "joining" the topology documents with group info
@@ -241,8 +241,8 @@ message PropertyFilter {
 //
 message GroupMembershipFilter {
     // Specifies the group(s) to filter membership based on.
-    optional PropertyFilter cluster_specifier = 1;
-    // Type of a group requested. If not specified, quiery will not distinguish between group types.
+    optional PropertyFilter group_specifier = 1;
+    // Type of a group requested. If not specified, query will not distinguish between group types.
     optional common_dto.GroupDTO.GroupType group_type = 2;
 }
 
