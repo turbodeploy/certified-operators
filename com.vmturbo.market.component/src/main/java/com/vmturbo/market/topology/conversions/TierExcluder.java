@@ -143,48 +143,53 @@ public class TierExcluder {
             List<Long> excludedTiersList = entitySettingGroup.getSetting()
                 .getSortedSetOfOidSettingValue().getOidsList();
             List<Long> consumers = entitySettingGroup.getEntityOidsList();
-            // Make sure that the setting has some consumer and some excluded tiers
-            // Also make sure that the topology contains the excluded tier
-            if (!consumers.isEmpty() && !excludedTiersList.isEmpty()
-                && topology.containsKey(excludedTiersList.iterator().next())) {
-                Set<Long> excludedTiers = Sets.newHashSet(excludedTiersList);
-                // If it is the first time that we are seeing this excluded set, then create
-                // a new commodity type for it and make the included tiers sell it.
-                if (!excludedTiersToCommodityType.containsKey(excludedTiers)) {
-                    // TODO: Is there a better way to look for entity type?
-                    int entityType = topology.get(excludedTiers.iterator().next()).getEntityType();
-                    Set<Long> includedTiers = topology.values().stream()
-                        .filter(t -> t.getEntityType() == entityType
-                            && !excludedTiers.contains(t.getOid()))
-                        .map(TopologyEntityDTO::getOid)
-                        .collect(Collectors.toSet());
+            // Ensure at least one consumer is in the topology. In case of optimize cloud plans,
+            // we get a scoped topology and it is possible that none of the consumers
+            // are present in the scoped topology
+            if (consumers.stream().anyMatch(consumer -> topology.containsKey(consumer))) {
+                // Also make sure that at least one excluded tier is present in the topology
+                Optional<Long> singleExcludedTierId = excludedTiersList.stream().filter(
+                    entity -> topology.containsKey(entity)).findFirst();
+                if (singleExcludedTierId.isPresent()) {
+                    Set<Long> excludedTiers = Sets.newHashSet(excludedTiersList);
+                    // If it is the first time that we are seeing this excluded set, then create
+                    // a new commodity type for it and make the included tiers sell it.
+                    if (!excludedTiersToCommodityType.containsKey(excludedTiers)) {
+                        // TODO: Is there a better way to look for entity type?
+                        int entityType = topology.get(singleExcludedTierId.get()).getEntityType();
+                        Set<Long> includedTiers = topology.values().stream()
+                            .filter(t -> t.getEntityType() == entityType
+                                && !excludedTiers.contains(t.getOid()))
+                            .map(TopologyEntityDTO::getOid)
+                            .collect(Collectors.toSet());
 
-                    CommodityType commodityType = CommodityType.newBuilder()
-                        .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
-                        .setKey(TIER_EXCLUSION_KEY_PREFIX + keyCounter++)
-                        .build();
-                    tierExclusionCommodityTypes.add(commodityType);
-                    excludedTiersToCommodityType.put(excludedTiers, commodityType);
+                        CommodityType commodityType = CommodityType.newBuilder()
+                            .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
+                            .setKey(TIER_EXCLUSION_KEY_PREFIX + keyCounter++)
+                            .build();
+                        tierExclusionCommodityTypes.add(commodityType);
+                        excludedTiersToCommodityType.put(excludedTiers, commodityType);
 
-                    for (Long tierId : includedTiers) {
-                        TopologyEntityDTO tier = topology.get(tierId);
-                        String family = tier.getTypeSpecificInfo().getComputeTier().getFamily();
-                        tierToCommTypeSold.computeIfAbsent(
-                            tierId, k -> new HashSet<>()).add(commodityType);
-                        familyToTiers.computeIfAbsent(
-                            family, k -> new HashSet<>()).add(tierId);
+                        for (Long tierId : includedTiers) {
+                            TopologyEntityDTO tier = topology.get(tierId);
+                            String family = tier.getTypeSpecificInfo().getComputeTier().getFamily();
+                            tierToCommTypeSold.computeIfAbsent(
+                                tierId, k -> new HashSet<>()).add(commodityType);
+                            familyToTiers.computeIfAbsent(
+                                family, k -> new HashSet<>()).add(tierId);
+                        }
                     }
-                }
-                // Get the comm type for this excluded set, and make the consumers buy it
-                CommodityType commType = excludedTiersToCommodityType.get(excludedTiers);
-                consumers.forEach(consumer -> consumerToCommTypeBought.computeIfAbsent(
-                    consumer, k -> new HashSet<>()).add(commType));
+                    // Get the comm type for this excluded set, and make the consumers buy it
+                    CommodityType commType = excludedTiersToCommodityType.get(excludedTiers);
+                    consumers.forEach(consumer -> consumerToCommTypeBought.computeIfAbsent(
+                        consumer, k -> new HashSet<>()).add(commType));
 
-                List<Long> responsibleSettingPolicies = entitySettingGroup.getPolicyIdList().stream()
-                    .map(SettingPolicyId::getPolicyId)
-                    .collect(Collectors.toList());
-                consumers.forEach(consumer -> consumerOidToTierExclusionSettings.computeIfAbsent(
-                    consumer, k -> new HashSet<>()).addAll(responsibleSettingPolicies));
+                    List<Long> responsibleSettingPolicies = entitySettingGroup.getPolicyIdList().stream()
+                        .map(SettingPolicyId::getPolicyId)
+                        .collect(Collectors.toList());
+                    consumers.forEach(consumer -> consumerOidToTierExclusionSettings.computeIfAbsent(
+                        consumer, k -> new HashSet<>()).addAll(responsibleSettingPolicies));
+                }
             }
         });
         isInitialized = true;

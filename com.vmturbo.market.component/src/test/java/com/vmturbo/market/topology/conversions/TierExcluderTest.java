@@ -77,8 +77,8 @@ public class TierExcluderTest {
     private static final String T2_FAMILY = "t2";
     private static final String M4_FAMILY = "m4";
 
-    private static final long VM1 = 100L;
-    private static final long VM2 = 101L;
+    private static final long VM1 = 101L;
+    private static final long VM2 = 102L;
     private static final long VM1SlOid = 1000L;
     private static final long VM2SlOid = 1010L;
     private static final List<Long> consumers = Arrays.asList(VM1, VM2);
@@ -161,7 +161,7 @@ public class TierExcluderTest {
             ImmutableMap.of(
                 VM1, LongStream.rangeClosed(3L, 5L).boxed().collect(Collectors.toSet()),
                 VM2, LongStream.rangeClosed(1L, 5L).boxed().collect(Collectors.toSet()));
-        assertCommodities(expectedConsumerToPossibleSuppliers);
+        assertCommodities(expectedConsumerToPossibleSuppliers, consumers);
     }
 
     /**
@@ -188,7 +188,7 @@ public class TierExcluderTest {
             ImmutableMap.of(
                 VM1, LongStream.rangeClosed(3L, 5L).boxed().collect(Collectors.toSet()),
                 VM2, LongStream.rangeClosed(3L, 5L).boxed().collect(Collectors.toSet()));
-        assertCommodities(expectedConsumerToPossibleSuppliers);
+        assertCommodities(expectedConsumerToPossibleSuppliers, consumers);
         assertEquals(1, tierExcluder.getTierExclusionCommoditiesToSell(3L).size());
         assertEquals(1, tierExcluder.getTierExclusionCommoditiesToSell(4L).size());
         assertEquals(1, tierExcluder.getTierExclusionCommoditiesToSell(5L).size());
@@ -218,7 +218,7 @@ public class TierExcluderTest {
             ImmutableMap.of(
                 VM1, LongStream.rangeClosed(3L, 5L).boxed().collect(Collectors.toSet()),
                 VM2, ImmutableSet.of(1L, 2L, 5L));
-        assertCommodities(expectedConsumerToPossibleSuppliers);
+        assertCommodities(expectedConsumerToPossibleSuppliers, consumers);
         assertEquals(2, tierExcluder.getTierExclusionCommoditiesToSell(5L).size());
     }
 
@@ -247,7 +247,7 @@ public class TierExcluderTest {
             ImmutableMap.of(
                 VM1, LongStream.rangeClosed(2L, 5L).boxed().collect(Collectors.toSet()),
                 VM2, ImmutableSet.of(1L, 4L, 5L));
-        assertCommodities(expectedConsumerToPossibleSuppliers);
+        assertCommodities(expectedConsumerToPossibleSuppliers, consumers);
         Set<CommodityType> t2Commodities = tierExcluder.getTierExclusionCommoditiesToSell(T2_FAMILY);
         Set<CommodityType> m4Commodities = tierExcluder.getTierExclusionCommoditiesToSell(M4_FAMILY);
         assertEquals(2, t2Commodities.size());
@@ -271,7 +271,7 @@ public class TierExcluderTest {
             ImmutableMap.of(
                 VM1, LongStream.rangeClosed(1L, 5L).boxed().collect(Collectors.toSet()),
                 VM2, LongStream.rangeClosed(1L, 5L).boxed().collect(Collectors.toSet()));
-        assertCommodities(expectedConsumerToPossibleSuppliers);
+        assertCommodities(expectedConsumerToPossibleSuppliers, consumers);
     }
 
     /**
@@ -293,7 +293,7 @@ public class TierExcluderTest {
             ImmutableMap.of(
                 VM1, Sets.newHashSet(),
                 VM2, Sets.newHashSet());
-        assertCommodities(expectedConsumerToPossibleSuppliers);
+        assertCommodities(expectedConsumerToPossibleSuppliers, consumers);
     }
 
     /**
@@ -320,7 +320,7 @@ public class TierExcluderTest {
             ImmutableMap.of(
                 VM1, LongStream.rangeClosed(3L, 5L).boxed().collect(Collectors.toSet()),
                 VM2, LongStream.rangeClosed(3L, 5L).boxed().collect(Collectors.toSet()));
-        assertCommodities(expectedConsumerToPossibleSuppliers);
+        assertCommodities(expectedConsumerToPossibleSuppliers, consumers);
         assertTrue(tierExcluder.getTierExclusionCommoditiesToSell(6L).isEmpty());
         assertTrue(tierExcluder.getTierExclusionCommoditiesToSell(7L).isEmpty());
     }
@@ -345,9 +345,99 @@ public class TierExcluderTest {
             ImmutableMap.of(
                 VM1, LongStream.rangeClosed(1L, 5L).boxed().collect(Collectors.toSet()),
                 VM2, LongStream.rangeClosed(1L, 5L).boxed().collect(Collectors.toSet()));
-        assertCommodities(expectedConsumerToPossibleSuppliers);
-        assertTrue(tierExcluder.getTierExclusionCommoditiesToBuy(1L).isEmpty());
-        assertTrue(tierExcluder.getTierExclusionCommoditiesToBuy(2L).isEmpty());
+        assertCommodities(expectedConsumerToPossibleSuppliers, consumers);
+        assertTrue(tierExcluder.getTierExclusionCommoditiesToBuy(VM1).isEmpty());
+        assertTrue(tierExcluder.getTierExclusionCommoditiesToBuy(VM2).isEmpty());
+    }
+
+
+    /**
+     * 2 VMs - VM3 and VM4, 5 compute tiers - 1, 2, 3, 4, 5.
+     * Policy 500 excludes tiers 1 and 2 and for VM3, VM4.
+     * But the incoming topology is scoped and does not include VM3 and VM4.
+     * Assert that we do not apply the policies i.e. we do not create any commodities.
+     */
+    @Test
+    public void testAllConsumersNotInScopedTopology() {
+        Long VM3 = 103L;
+        Long VM4 = 104L;
+        EntitySettingGroup entitySettingGroup1 = createEntitySettingGroup(
+            Arrays.asList(1L, 2L), Arrays.asList(VM3, VM4), Arrays.asList(500L));
+        GetEntitySettingsResponse response = GetEntitySettingsResponse.newBuilder()
+            .addSettingGroup(entitySettingGroup1).build();
+        when(settingPolicyServiceMole.getEntitySettings(any())).thenReturn(Arrays.asList(response));
+
+        tierExcluder.initialize(topology);
+
+        assertTrue(tierExcluder.getTierExclusionCommoditiesToBuy(VM3).isEmpty());
+        assertTrue(tierExcluder.getTierExclusionCommoditiesToBuy(VM4).isEmpty());
+    }
+
+    /**
+     * 2 VMs - VM1 and VM3, 5 compute tiers - 1, 2, 3, 4, 5.
+     * Policy 500 excludes tiers 1 and 2 and for VM1, VM3.
+     * But the incoming topology is scoped and does not include VM3.
+     * But we still apply the policy as VM1 is included in the scoped topology.
+     */
+    @Test
+    public void testSomeConsumersNotInScopedTopology() {
+        Long VM3 = 103L;
+        EntitySettingGroup entitySettingGroup1 = createEntitySettingGroup(
+            Arrays.asList(1L, 2L), Arrays.asList(VM3, VM1), Arrays.asList(500L));
+        GetEntitySettingsResponse response = GetEntitySettingsResponse.newBuilder()
+            .addSettingGroup(entitySettingGroup1).build();
+        when(settingPolicyServiceMole.getEntitySettings(any())).thenReturn(Arrays.asList(response));
+
+        tierExcluder.initialize(topology);
+
+        Map<Long, Set<Long>> expectedConsumerToPossibleSuppliers =
+            ImmutableMap.of(
+                VM3, LongStream.rangeClosed(3L, 5L).boxed().collect(Collectors.toSet()),
+                VM1, LongStream.rangeClosed(3L, 5L).boxed().collect(Collectors.toSet()));
+        assertCommodities(expectedConsumerToPossibleSuppliers, Arrays.asList(VM1, VM3));
+    }
+
+    /**
+     * 2 VMs - VM1 and VM2, 5 compute tiers - 1, 2, 3, 4, 5.
+     * Policy 500 excludes tiers 6 and 7 for VM1, VM2.
+     * But the incoming topology is scoped and does not include tiers 6 and 7.
+     * So we do not apply the policy.
+     */
+    @Test
+    public void testExcludedTiersNotInScopedTopology() {
+        EntitySettingGroup entitySettingGroup1 = createEntitySettingGroup(
+            Arrays.asList(6L, 7L), Arrays.asList(VM1, VM2), Arrays.asList(500L));
+        GetEntitySettingsResponse response = GetEntitySettingsResponse.newBuilder()
+            .addSettingGroup(entitySettingGroup1).build();
+        when(settingPolicyServiceMole.getEntitySettings(any())).thenReturn(Arrays.asList(response));
+
+        tierExcluder.initialize(topology);
+
+        assertTrue(tierExcluder.getTierExclusionCommoditiesToBuy(VM1).isEmpty());
+        assertTrue(tierExcluder.getTierExclusionCommoditiesToBuy(VM2).isEmpty());
+    }
+
+    /**
+     * 2 VMs - VM1 and VM2, 5 compute tiers - 1, 2, 3, 4, 5.
+     * Policy 500 excludes tiers 5, 6, 7 and 8 for VM1, VM2.
+     * But the incoming topology is scoped and does not include tiers 6, 7 and 8.
+     * We should still apply the policy.
+     */
+    @Test
+    public void testSomeExcludedTiersNotInScopedTopology() {
+        EntitySettingGroup entitySettingGroup1 = createEntitySettingGroup(
+            Arrays.asList(6L, 7L, 8L, 5L), Arrays.asList(VM1, VM2), Arrays.asList(500L));
+        GetEntitySettingsResponse response = GetEntitySettingsResponse.newBuilder()
+            .addSettingGroup(entitySettingGroup1).build();
+        when(settingPolicyServiceMole.getEntitySettings(any())).thenReturn(Arrays.asList(response));
+
+        tierExcluder.initialize(topology);
+
+        Map<Long, Set<Long>> expectedConsumerToPossibleSuppliers =
+            ImmutableMap.of(
+                VM1, LongStream.rangeClosed(1L, 4L).boxed().collect(Collectors.toSet()),
+                VM2, LongStream.rangeClosed(1L, 4L).boxed().collect(Collectors.toSet()));
+        assertCommodities(expectedConsumerToPossibleSuppliers, Arrays.asList(VM1, VM2));
     }
 
     /**
@@ -550,7 +640,8 @@ public class TierExcluderTest {
             .build();
     }
 
-    private void assertCommodities(Map<Long, Set<Long>> expectedConsumerToPossibleProviders) {
+    private void assertCommodities(Map<Long, Set<Long>> expectedConsumerToPossibleProviders,
+                                   List<Long> consumers) {
         // Compute actual consumer to possible suppliers
         Map<Long, Set<Long>> actualConsumerToPossibleProviders = Maps.newHashMap();
         for (Long consumer : consumers) {
@@ -559,12 +650,14 @@ public class TierExcluderTest {
             // Consumer will at most buy only one commodity
             assertTrue(commodityBoughtByConsumer.size() <= 1);
             for (Long provider : topology.keySet()) {
-                Set<TopologyDTO.CommodityType> commoditySoldByTier =
-                    tierExcluder.getTierExclusionCommoditiesToSell(provider);
-                Set<Long> providers = actualConsumerToPossibleProviders
-                    .computeIfAbsent(consumer, k -> new HashSet<>());
-                if (commoditySoldByTier.containsAll(commodityBoughtByConsumer)) {
-                    providers.add(provider);
+                if (topology.get(provider).getEntityType() != EntityType.VIRTUAL_MACHINE_VALUE) {
+                    Set<TopologyDTO.CommodityType> commoditySoldByTier =
+                        tierExcluder.getTierExclusionCommoditiesToSell(provider);
+                    Set<Long> providers = actualConsumerToPossibleProviders
+                        .computeIfAbsent(consumer, k -> new HashSet<>());
+                    if (commoditySoldByTier.containsAll(commodityBoughtByConsumer)) {
+                        providers.add(provider);
+                    }
                 }
             }
         }
@@ -603,6 +696,12 @@ public class TierExcluderTest {
                 .setEntityType(EntityType.COMPUTE_TIER_VALUE)
                 .setTypeSpecificInfo(typeSpecificInfo).build());
         }
+        topology.put(VM1, TopologyEntityDTO.newBuilder()
+            .setOid(VM1)
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).build());
+        topology.put(VM2, TopologyEntityDTO.newBuilder()
+            .setOid(VM2)
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE).build());
         return topology;
     }
 }
