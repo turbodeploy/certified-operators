@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.service;
 import static com.vmturbo.components.common.utils.StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -31,6 +32,7 @@ import com.google.common.collect.Sets;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -48,6 +50,7 @@ import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
@@ -706,14 +709,38 @@ public class GroupsService implements IGroupsService {
                         });
                 }
                 return statSnapshotApiDTOS;
-            } else {
-                final ApiId apiScopeId = uuidMapper.fromUuid(uuid);
+            }
+
+            final ApiId apiScopeId = uuidMapper.fromUuid(uuid);
+            if (isCloudTabGlobalOptimization(apiScopeId)) {
+                // only get cloud related entities
+                inputDto.setEnvironmentType(EnvironmentType.CLOUD);
+                inputDto.setRelatedEntityTypes(
+                    // all types. cannot make it empty because extractMgmtUnitSubgroupFilter will
+                    // replace it with the groups entity types.
+                    Arrays.stream(UIEntityType.values()).map(UIEntityType::apiStr).collect(Collectors.toList()));
+
                 final Map<ApiId, List<StatSnapshotApiDTO>> retStats =
                     actionStatsQueryExecutor.retrieveActionStats(ImmutableActionStatsQuery.builder()
-                        .scopes(Collections.singleton(apiScopeId))
+                        .addScopes(apiScopeId)
                         .actionInput(inputDto)
                         .build());
-                return retStats.getOrDefault(apiScopeId, Collections.emptyList());
+
+                return retStats.values().stream()
+                    .flatMap(listStat -> listStat.stream())
+                    .filter(listStat -> !CollectionUtils.isEmpty(listStat.getStatistics()))
+                    .collect(Collectors.toList());
+            } else {
+                final Map<ApiId, List<StatSnapshotApiDTO>> retStats =
+                    actionStatsQueryExecutor.retrieveActionStats(ImmutableActionStatsQuery.builder()
+                        .addScopes(apiScopeId)
+                        .actionInput(inputDto)
+                        .build());
+
+                return retStats.values().stream()
+                    .flatMap(listStat -> listStat.stream())
+                    .filter(listStat -> !CollectionUtils.isEmpty(listStat.getStatistics()))
+                    .collect(Collectors.toList());
             }
         } catch (StatusRuntimeException e) {
             if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
@@ -722,6 +749,17 @@ public class GroupsService implements IGroupsService {
                 throw e;
             }
         }
+    }
+
+    private static boolean isCloudTabGlobalOptimization(ApiId apiScopeId) {
+        Optional<CachedGroupInfo> opt = apiScopeId.getCachedGroupInfo();
+        if (!opt.isPresent()) {
+            return false;
+        }
+        CachedGroupInfo groupInfo = opt.get();
+        Set<UIEntityType> entityTypes = groupInfo.getEntityTypes();
+        return apiScopeId.isGlobalTempGroup()
+            && (entityTypes.contains(UIEntityType.REGION) || entityTypes.contains(UIEntityType.AVAILABILITY_ZONE));
     }
 
     @Override

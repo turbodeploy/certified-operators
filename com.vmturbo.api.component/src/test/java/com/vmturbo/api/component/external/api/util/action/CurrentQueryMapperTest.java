@@ -12,14 +12,17 @@ import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import com.vmturbo.api.component.ApiTestUtils;
@@ -414,5 +417,35 @@ public class CurrentQueryMapperTest {
         assertThat(mappedGroupBy, contains(GroupBy.ACTION_CATEGORY));
     }
 
+    /**
+     * Scope filter extractor should perform optimization when given a global temp group by asking
+     * for global scope, similar to {@link HistoricalQueryMapper}.
+     *
+     * @throws OperationFailedException should not be thrown.
+     */
+    @Test
+    public void testExtractScopeFiltersGlobalOptimization() throws OperationFailedException {
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.isPlan()).thenReturn(false);
+        when(apiId.isRealtimeMarket()).thenReturn(false);
+        when(apiId.isGlobalTempGroup()).thenReturn(true);
+        ActionApiInputDTO actionInput = new ActionApiInputDTO();
+        actionInput.setEnvironmentType(com.vmturbo.api.enums.EnvironmentType.CLOUD);
+        ActionStatsQuery actionStatsQuery = ImmutableActionStatsQuery.builder()
+            .addScopes(apiId)
+            .entityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+            .actionInput(actionInput)
+            .build();
+
+        EntityScopeFactory entityScopeFactory = new EntityScopeFactory(groupExpander, supplyChainFetcherFactory);
+        ScopeFilterExtractor scopeFitlerExtrator = new ScopeFilterExtractor(userSessionContext, entityScopeFactory);
+        Map<ApiId, ScopeFilter> scopeFilters = scopeFitlerExtrator.extractScopeFilters(actionStatsQuery);
+        Assert.assertEquals(1, scopeFilters.size());
+        Assert.assertTrue(scopeFilters.containsKey(apiId));
+        ScopeFilter actual = scopeFilters.get(apiId);
+        Assert.assertTrue(actual.hasGlobal());
+        Assert.assertEquals(EnvironmentType.CLOUD, actual.getGlobal().getEnvironmentType());
+        Assert.assertEquals(ImmutableSet.of(UIEntityType.VIRTUAL_MACHINE.typeNumber()), new HashSet<>(actual.getGlobal().getEntityTypeList()));
+    }
 
 }

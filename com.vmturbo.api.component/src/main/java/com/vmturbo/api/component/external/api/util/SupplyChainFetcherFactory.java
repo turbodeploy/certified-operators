@@ -22,7 +22,6 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
@@ -65,6 +64,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.M
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainStat;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
@@ -79,15 +79,6 @@ import com.vmturbo.components.common.utils.StringConstants;
 public class SupplyChainFetcherFactory {
 
     private static final Logger logger = LogManager.getLogger();
-
-    /**
-     * Map Entity types to be expanded to the RelatedEntityType to retrieve. For example,
-     * replace requests for stats for a DATACENTER entity with the PHYSICAL_MACHINEs
-     * in that DATACENTER.
-     */
-    private static final Map<UIEntityType, UIEntityType> ENTITY_TYPES_TO_EXPAND = ImmutableMap.of(
-        UIEntityType.DATACENTER, UIEntityType.PHYSICAL_MACHINE
-    );
 
     private final SupplyChainServiceBlockingStub supplyChainRpcService;
 
@@ -183,12 +174,18 @@ public class SupplyChainFetcherFactory {
             return Collections.emptySet();
         }
 
+        final Set<String> entityTypeString = UIEntityType.ENTITY_TYPES_TO_EXPAND.keySet().stream()
+            .map(UIEntityType::apiStr)
+            .collect(Collectors.toSet());
         final Set<Long> expandedEntityOids = Sets.newHashSet();
         // get all service entities which need to expand.
-        final Map<Long, MinimalEntity> expandServiceEntities = ENTITY_TYPES_TO_EXPAND.keySet().stream()
-            .flatMap(entityType -> repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
-                SearchProtoUtil.entityTypeFilter(entityType)).build())
-                .getMinimalEntities())
+        final Map<Long, MinimalEntity> expandServiceEntities = repositoryApi.newSearchRequest(
+            SearchProtoUtil.makeSearchParameters(SearchProtoUtil.idFilter(entityOidsToExpand))
+                .addSearchFilter(SearchFilter.newBuilder()
+                    .setPropertyFilter(SearchProtoUtil.entityTypeFilter(entityTypeString))
+                    .build())
+                .build())
+            .getMinimalEntities()
             .collect(Collectors.toMap(MinimalEntity::getOid, Function.identity()));
 
         // go through each entity and check if it needs to expand.
@@ -197,19 +194,23 @@ public class SupplyChainFetcherFactory {
                 // if expandServiceEntityMap contains oid, it means current oid entity needs to expand.
                 if (expandServiceEntities.containsKey(oidToExpand)) {
                     final MinimalEntity expandEntity = expandServiceEntities.get(oidToExpand);
-                    final String relatedEntityType =
-                        ENTITY_TYPES_TO_EXPAND.get(UIEntityType.fromType(expandEntity.getEntityType())).apiStr();
+                    final List<String> relatedEntityTypes =
+                        UIEntityType.ENTITY_TYPES_TO_EXPAND.get(UIEntityType.fromType(expandEntity.getEntityType()))
+                            .stream()
+                            .map(UIEntityType::apiStr)
+                            .collect(Collectors.toList());
                     // fetch the supply chain map:  entity type -> SupplyChainNode
                     Map<String, SupplyChainNode> supplyChainMap = newNodeFetcher()
-                        .entityTypes(Collections.singletonList(relatedEntityType))
+                        .entityTypes(relatedEntityTypes)
                         .addSeedUuid(Long.toString(expandEntity.getOid()))
                         .fetch();
-                    SupplyChainNode relatedEntities = supplyChainMap.get(relatedEntityType);
-                    if (relatedEntities != null) {
-                        expandedEntityOids.addAll(RepositoryDTOUtil.getAllMemberOids(relatedEntities));
+                    if (!supplyChainMap.isEmpty()) {
+                        for (SupplyChainNode relatedEntities : supplyChainMap.values()) {
+                            expandedEntityOids.addAll(RepositoryDTOUtil.getAllMemberOids(relatedEntities));
+                        }
                     } else {
                         logger.warn("RelatedEntityType {} not found in supply chain for {}; " +
-                            "the entity is discarded", relatedEntityType, expandEntity.getOid());
+                            "the entity is discarded", relatedEntityTypes, expandEntity.getOid());
                     }
                 } else {
                     expandedEntityOids.add(oidToExpand);

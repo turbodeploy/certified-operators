@@ -280,6 +280,34 @@ class CurrentQueryMapper {
                             query.getEnvironmentType(),
                             userScope));
                     }
+                } else if (scope.isGlobalTempGroup()) {
+                    // this is an optimization because evaluating the entities in the global scope,
+                    // especially for for a temp global group containing all regions are zones
+                    // is EXTREMELY EXPENSIVE.
+                    // taken from HistoricalQueryMapper.extractMgmtUnitSubgroupFilter
+                    // If it's a global-scope temporary group, we treat it as a case of the market.
+                    final GlobalScope.Builder globalScope = GlobalScope.newBuilder();
+                    if (query.getEnvironmentType().isPresent()) {
+                        globalScope.setEnvironmentType(query.getEnvironmentType().get());
+                    }
+                    // If the query doesn't specify explicit related entity types, use the type
+                    // of the group as the entity type.
+                    //
+                    // If the query DOES specify explicit related entity types, ignore the group
+                    // entity types. i.e. saying "get me stats for all PMs related to all VMs in
+                    // the system" is pretty much the same - or close enough - to "get me stats for
+                    // all PMs in the system".
+                    if (query.getRelatedEntityTypes().isEmpty()) {
+                        // The .get() is safe because we know it's a group (or else we wouldn't be
+                        // in this block.
+                        scope.getScopeTypes().get().stream()
+                            .map(UIEntityType::typeNumber)
+                            .forEach(globalScope::addEntityType);
+                    } else {
+                        globalScope.addAllEntityType(relatedEntityTypes);
+                    }
+
+                    scopeBuilder.setGlobal(globalScope.build());
                 } else {
                     // Right now there is no way to specify an entity scope within a plan,
                     // so we leave the context ID unset (default = realtime).

@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.util.stats;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -90,8 +91,8 @@ public class StatsQueryScopeExpanderTest {
             supplyChainFetcherFactory, userSessionContext);
         // Doing this here because we make this RPC in every call.
         final SearchRequest req = ApiTestUtils.mockSearchMinReq(Collections.singletonList(DC));
-        when(repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
-            SearchProtoUtil.entityTypeFilter(UIEntityType.DATACENTER)).build())).thenReturn(req);
+        final SearchRequest emptyReq = ApiTestUtils.mockSearchMinReq(Collections.emptyList());
+        when(repositoryApi.newSearchRequest(any())).thenReturn(req);
     }
 
     @Test

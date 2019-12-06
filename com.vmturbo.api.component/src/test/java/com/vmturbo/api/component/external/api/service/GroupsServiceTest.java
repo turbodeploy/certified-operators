@@ -25,9 +25,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -51,6 +53,7 @@ import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
@@ -61,10 +64,14 @@ import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
 import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
+import com.vmturbo.api.dto.statistic.StatApiDTO;
+import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.enums.ActionCostType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -1105,4 +1112,46 @@ public class GroupsServiceTest {
                 EnvironmentType.UNKNOWN);
         assertThat(groupApiDTOs, empty());
     }
+
+    /**
+     * Request using global temp group that contains regions should trigger the global optimization.
+     *
+     * @throws Exception should not be thrown.
+     */
+    @Test
+    public void testGetActionCountStatsByUuidGlobalOptimization() throws Exception {
+        // This is the request sent by the SAVINGS widget
+        ActionApiInputDTO actionApiInputDTO = new ActionApiInputDTO();
+        actionApiInputDTO.setGroupBy(Arrays.asList("actionTypes", "targetType", "risk"));
+        actionApiInputDTO.setEnvironmentType(EnvironmentType.CLOUD);
+        actionApiInputDTO.setCostType(ActionCostType.SAVING);
+
+        CachedGroupInfo cachedGroupInfo = mock(CachedGroupInfo.class);
+        when(cachedGroupInfo.getEntityTypes()).thenReturn(ImmutableSet.of(UIEntityType.REGION));
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.isGlobalTempGroup()).thenReturn(true);
+        when(apiId.getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
+        when(uuidMapper.fromUuid("0")).thenReturn(apiId);
+
+        StatSnapshotApiDTO nonEmptyStatSnapshot = new StatSnapshotApiDTO();
+        nonEmptyStatSnapshot.setStatistics(Arrays.asList(new StatApiDTO()));
+        when(actionStatsQueryExecutor.retrieveActionStats(any())).thenReturn(ImmutableMap.of(
+            // global temp group scope that was sent as input
+            apiId, Arrays.asList(nonEmptyStatSnapshot),
+            // related entity that's within the scope of the input group
+            mock(ApiId.class), Arrays.asList(nonEmptyStatSnapshot, nonEmptyStatSnapshot)
+        ));
+
+        // let oid 0 be the oid of a global temp group
+        List<StatSnapshotApiDTO> actual = groupsService.getActionCountStatsByUuid("0", actionApiInputDTO);
+        // The size should be 3 because 1 comes from apiId, 2 more come from the entity within the scope
+        // As a result, the the lists are combined into a list of size 3.
+        Assert.assertEquals(3, actual.size());
+
+        // environment type of input dto should not change
+        Assert.assertEquals(EnvironmentType.CLOUD, actionApiInputDTO.getEnvironmentType());
+        // related entity types should by updated to all entity types
+        Assert.assertEquals(UIEntityType.values().length, actionApiInputDTO.getRelatedEntityTypes().size());
+    }
+
 }

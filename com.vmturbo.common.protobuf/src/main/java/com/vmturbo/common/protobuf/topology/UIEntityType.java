@@ -1,11 +1,13 @@
 package com.vmturbo.common.protobuf.topology;
 
+import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.StringUtil;
@@ -61,6 +63,42 @@ public enum UIEntityType {
      */
     public static final Set<UIEntityType> WORKLOAD_ENTITY_TYPES = ImmutableSet.of(
         UIEntityType.VIRTUAL_MACHINE, UIEntityType.DATABASE, UIEntityType.DATABASE_SERVER);
+
+    /**
+     * When looking at things like action from cloud entities like BusinessAccount, Region, and
+     * Availability zone, the actions must also come from these entity types. This differs from
+     * data centers which only needs PMs.
+     */
+    public static final Set<UIEntityType> SCOPE_EXPANSION_TYPES_FOR_CLOUD = ImmutableSet.of(
+        UIEntityType.APPLICATION,
+        UIEntityType.APPLICATION_SERVER,
+        UIEntityType.BUSINESS_APPLICATION,
+        UIEntityType.CONTAINER,
+        UIEntityType.CONTAINER_POD,
+        UIEntityType.DATABASE,
+        UIEntityType.DATABASE_SERVER,
+        UIEntityType.DATABASE_SERVER_TIER,
+        UIEntityType.DATABASE_TIER,
+        UIEntityType.LOAD_BALANCER,
+        UIEntityType.STORAGE,
+        UIEntityType.VIRTUAL_APPLICATION,
+        UIEntityType.VIRTUAL_MACHINE,
+        UIEntityType.VIRTUAL_VOLUME
+    );
+
+
+
+    /**
+     * Map Entity types to be expanded to the RelatedEntityType to retrieve. For example,
+     * replace requests for stats for a DATACENTER entity with the PHYSICAL_MACHINEs
+     * in that DATACENTER.
+     */
+    public static final Map<UIEntityType, Set<UIEntityType>> ENTITY_TYPES_TO_EXPAND = ImmutableMap.of(
+        UIEntityType.DATACENTER, ImmutableSet.of(UIEntityType.PHYSICAL_MACHINE),
+        UIEntityType.REGION, UIEntityType.SCOPE_EXPANSION_TYPES_FOR_CLOUD,
+        UIEntityType.BUSINESS_ACCOUNT, UIEntityType.SCOPE_EXPANSION_TYPES_FOR_CLOUD,
+        UIEntityType.AVAILABILITY_ZONE, UIEntityType.SCOPE_EXPANSION_TYPES_FOR_CLOUD
+    );
 
     private final String uiStr;
 
