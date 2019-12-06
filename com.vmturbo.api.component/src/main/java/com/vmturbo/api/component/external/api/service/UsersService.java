@@ -16,6 +16,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.xml.parsers.ParserConfigurationException;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -679,6 +680,7 @@ public class UsersService implements IUsersService {
     @Override
     public ActiveDirectoryApiDTO createActiveDirectory(
             final ActiveDirectoryApiDTO inputDTO) {
+        validateActiveDirectoryInput(inputDTO);
         try {
             final String request = baseRequest().path("/users/ad").build().toUriString();
             HttpEntity<ActiveDirectoryDTO> entity = new HttpEntity<>(convertADInfoToAuth(inputDTO),
@@ -742,6 +744,7 @@ public class UsersService implements IUsersService {
     @Override
     public ActiveDirectoryGroupApiDTO createActiveDirectoryGroup(
             final ActiveDirectoryGroupApiDTO adGroupInputDto) {
+        validateActiveDirectoryGroupInput(adGroupInputDto);
         try {
             HttpHeaders headers = composeHttpHeaders();
             HttpEntity<SecurityGroupDTO> entity;
@@ -749,6 +752,12 @@ public class UsersService implements IUsersService {
             Class<SecurityGroupDTO> clazz = SecurityGroupDTO.class;
             final Map<Long, GroupApiDTO> groupApiDTOMap = buildGroupApiDtoMap(adGroupInputDto);
             String request = baseRequest().path("/users/ad/groups").build().toUriString();
+            final String details = String.format("Created external group: %s with role: %s",
+                    adGroupInputDto.getDisplayName(), adGroupInputDto.getRoleName());
+            AuditLog.newEntry(AuditAction.CREATE_GROUP,
+                    details, true)
+                    .targetName("EXTERNAL GROUP")
+                    .audit();
             return convertGroupInfoFromAuth(
                 restTemplate_.exchange(request, HttpMethod.POST, entity, clazz).getBody(),
                 groupApiDTOMap);
@@ -772,18 +781,25 @@ public class UsersService implements IUsersService {
     @Override
     public ActiveDirectoryGroupApiDTO changeActiveDirectoryGroup(
             final ActiveDirectoryGroupApiDTO adGroupInputDto) {
+        validateActiveDirectoryGroupInput(adGroupInputDto);
         try {
             HttpEntity<SecurityGroupDTO> entity = new HttpEntity<>(
                 convertGroupInfoToAuth(adGroupInputDto), composeHttpHeaders());
             final Map<Long, GroupApiDTO> groupApiDTOMap = buildGroupApiDtoMap(adGroupInputDto);
             String request = baseRequest().path("/users/ad/groups").build().toUriString();
+            final String details = String.format("Changed external group: %s with role: %s",
+                    adGroupInputDto.getDisplayName(), adGroupInputDto.getRoleName());
+            AuditLog.newEntry(AuditAction.CHANGE_GROUP,
+                    details, true)
+                    .targetName("EXTERNAL GROUP")
+                    .audit();
             return convertGroupInfoFromAuth(
                 restTemplate_.exchange(request, HttpMethod.PUT, entity, SecurityGroupDTO.class).getBody(),
                 groupApiDTOMap);
         } catch (RuntimeException e) {
             final String details = String.format("Failed to create external group: %s with role: %s",
                 adGroupInputDto.getDisplayName(), adGroupInputDto.getRoleName());
-            AuditLog.newEntry(AuditAction.CREATE_GROUP,
+            AuditLog.newEntry(AuditAction.CHANGE_GROUP,
                 details, false)
                 .targetName("EXTERNAL GROUP")
                 .audit();
@@ -803,12 +819,6 @@ public class UsersService implements IUsersService {
             adGroupInputDto.getScope().forEach(groupApiDTO ->
                 groupApiDTOMap.put(Long.valueOf(groupApiDTO.getUuid()), groupApiDTO));
         }
-        final String details = String.format("Created external group: %s with role: %s",
-            adGroupInputDto.getDisplayName(), adGroupInputDto.getRoleName());
-        AuditLog.newEntry(AuditAction.CREATE_GROUP,
-            details, true)
-            .targetName("EXTERNAL GROUP")
-            .audit();
         return groupApiDTOMap;
     }
 
@@ -820,6 +830,7 @@ public class UsersService implements IUsersService {
      */
     @Override
     public Boolean deleteActiveDirectoryGroup(final String groupName) {
+        Preconditions.checkArgument(!StringUtils.isBlank(groupName), "Group name cannot be empty");
         try {
             UriComponentsBuilder builder = baseRequest().path("/users/ad/groups/" + groupName);
             final String request = builder.build().toUriString();
@@ -1016,5 +1027,36 @@ public class UsersService implements IUsersService {
             logger_.info(e);
         }
         return false;
+    }
+
+    /**
+     * Validate that the active directory group api dto specified has a valid name, type, and roleName.
+     *
+     * @param apiDTO dto representing the active directory group.
+     */
+    private void validateActiveDirectoryGroupInput(@Nonnull final ActiveDirectoryGroupApiDTO apiDTO) {
+        if (StringUtils.isBlank(apiDTO.getDisplayName())) {
+            throw new IllegalArgumentException("No name specified for active directory group.");
+        }
+        if (StringUtils.isBlank(apiDTO.getRoleName())) {
+            throw new IllegalArgumentException("No role specified for active directory group.");
+        }
+        if (StringUtils.isBlank(apiDTO.getType())) {
+            throw new IllegalArgumentException("No type specified for active directory group.");
+        }
+    }
+
+    /**
+     * Validate that the active directory api dto specified has a valid domain name and login provider url.
+     *
+     * @param apiDTO dto representing the active directory,
+     */
+    private void validateActiveDirectoryInput(@Nonnull final ActiveDirectoryApiDTO apiDTO) {
+        if (StringUtils.isBlank(apiDTO.getDomainName())) {
+            throw new IllegalArgumentException("No domain name specified for active directory.");
+        }
+        if (StringUtils.isBlank(apiDTO.getLoginProviderURI())) {
+            throw new IllegalArgumentException("No login provider URL specified for active directory.");
+        }
     }
 }
