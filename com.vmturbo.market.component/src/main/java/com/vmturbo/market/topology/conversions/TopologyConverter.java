@@ -2211,14 +2211,6 @@ public class TopologyConverter {
         double usedQuantity = newQuantity[0];
         double peakQuantity = newQuantity[1];
 
-        // Bought Flow-0 commodity must have quantity of 1.
-        if (topologyCommBought.getCommodityType().getType() ==
-            CommodityDTO.CommodityType.FLOW_VALUE &&
-            "FLOW-0".equals(topologyCommBought.getCommodityType().getKey()) &&
-            topologyCommBought.getUsed() == 0) {
-            usedQuantity = 1D;
-        }
-
         if (usedQuantity < 0) {
             // We don't want to log every time we get used = -1 because mediation
             // sets some values to -1 as default.
@@ -2229,6 +2221,13 @@ public class TopologyConverter {
             usedQuantity = 0;
         }
         usedQuantity *= topologyCommBought.getScalingFactor();
+
+        // Bought Flow-0 commodity must have quantity of 1.
+        if (topologyCommBought.getCommodityType().getType() ==
+            CommodityDTO.CommodityType.FLOW_VALUE &&
+            "FLOW-0".equals(topologyCommBought.getCommodityType().getKey())) {
+            usedQuantity = 1D;
+        }
 
         if (peakQuantity < 0) {
             // We don't want to log every time we get peak = -1 because mediation
