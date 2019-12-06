@@ -3,6 +3,8 @@ package com.vmturbo.api.component.external.api.util.stats.query.impl;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isOneOf;
+import static org.hamcrest.number.IsCloseTo.closeTo;
+
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -40,6 +42,7 @@ import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord.StatValue;
@@ -210,6 +213,70 @@ public class CloudCostsStatsSubQueryTest {
         });
     }
 
+    /**
+     * Tests the case where we are getting the stats for entities inside an account.
+     */
+    @Test
+    public void testAggregateAccountStats() {
+        // ARRANGE
+        CloudCostsStatsSubQuery.CloudStatRecordAggregator aggregator =
+            new CloudCostsStatsSubQuery.CloudStatRecordAggregator();
+
+        StatRecord vmCompute = StatRecord.newBuilder()
+            .setAssociatedEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+            .setCategory(Cost.CostCategory.ON_DEMAND_COMPUTE)
+            .setAssociatedEntityId(1L)
+            .setValues(StatValue.newBuilder().setAvg(10.0f).build())
+            .build();
+
+        StatRecord vmStorage = StatRecord.newBuilder()
+            .setAssociatedEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+            .setCategory(Cost.CostCategory.STORAGE)
+            .setAssociatedEntityId(1L)
+            .setValues(StatValue.newBuilder().setAvg(23.0f).build())
+            .build();
+
+        StatRecord volumeStorage = StatRecord.newBuilder()
+            .setAssociatedEntityType(UIEntityType.VIRTUAL_VOLUME.typeNumber())
+            .setCategory(Cost.CostCategory.ON_DEMAND_COMPUTE)
+            .setAssociatedEntityId(2L)
+            .setValues(StatValue.newBuilder().setAvg(23.0f).build())
+            .build();
+
+        StatRecord detachedVolumeStorage = StatRecord.newBuilder()
+            .setAssociatedEntityType(UIEntityType.VIRTUAL_VOLUME.typeNumber())
+            .setCategory(Cost.CostCategory.ON_DEMAND_COMPUTE)
+            .setAssociatedEntityId(3L)
+            .setValues(StatValue.newBuilder().setAvg(55.0f).build())
+            .build();
+
+        CloudCostStatRecord record = CloudCostStatRecord.newBuilder()
+            .addStatRecords(vmCompute)
+            .addStatRecords(vmStorage)
+            .addStatRecords(volumeStorage)
+            .addStatRecords(detachedVolumeStorage)
+            .build();
+
+        List<CloudCostStatRecord> cloudStatRecords = Collections.singletonList(record);
+
+        Set<StatApiInputDTO> requestedStats = Collections.emptySet();
+        StatsQueryContext context = mock(StatsQueryContext.class);
+        ApiId apiId = mock(ApiId.class);
+        when(context.getInputScope()).thenReturn(apiId);
+        when(apiId.getScopeTypes()).thenReturn(
+            Optional.of(Collections.singleton(UIEntityType.BUSINESS_ACCOUNT)));
+
+
+        // ACT
+        List<CloudCostStatRecord> aggregatedRecords = aggregator.aggregate(cloudStatRecords,
+            requestedStats, context);
+
+        // ASSERT
+        assertThat(aggregatedRecords.size(), is(1));
+        assertThat(aggregatedRecords.get(0).getStatRecordsCount(), is(1));
+        assertThat((double)aggregatedRecords.get(0).getStatRecords(0).getValues().getTotal(),
+            closeTo(88d, 0.01d));
+    }
 
     @Test
     public void testGetGroupByStorageTierStat() {

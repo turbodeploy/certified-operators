@@ -556,7 +556,9 @@ public class CostRpcService extends CostServiceImplBase {
                                   StreamObserver<GetCloudCostStatsResponse> responseObserver) {
         try {
             if (!request.hasCostCategoryFilter()) {
-                final TimeFrame timeFrame = timeFrameCalculator.millis2TimeFrame(request.getStartDate());
+                final TimeFrame timeFrame =
+                    request.hasStartDate() ?
+                        timeFrameCalculator.millis2TimeFrame(request.getStartDate()) : TimeFrame.LATEST;
                 final Set<Long> filterIds = request.getEntityFilter().getEntityIdList().stream().collect(Collectors.toSet());
                 final Set<Integer> entityTypeFilterIds = request.getEntityTypeFilter().getEntityTypeIdList().stream().collect(Collectors.toSet());
 
