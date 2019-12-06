@@ -74,12 +74,16 @@ public class SupplyChainResolver<E extends TopologyGraphEntity<E>> {
     }
 
     // Providers and connected-to count as "connected provider types"
-    private NeighborFunction<E> getProvidersFunction = entity -> Stream.concat(
-        entity.getProviders().stream(), entity.getConnectedToEntities().stream());
+    private NeighborFunction<E> getProvidersFunction = entity ->
+        Stream.concat(entity.getProviders().stream(),
+                      Stream.concat(entity.getOwnersOrAggregators().stream(),
+                                    entity.getOutboundAssociatedEntities().stream()));
 
     // Consumers and connected-from count as "connected consumer types"
-    private NeighborFunction<E> getConsumersFunction = entity -> Stream.concat(
-        entity.getConsumers().stream(), entity.getConnectedFromEntities().stream());
+    private NeighborFunction<E> getConsumersFunction = entity ->
+        Stream.concat(entity.getConsumers().stream(),
+                      Stream.concat(entity.getOwnedEntities().stream(),
+                                    entity.getInboundAssociatedEntities().stream()));
 
     /**
      * Get the supply chain starting from a set of vertices.

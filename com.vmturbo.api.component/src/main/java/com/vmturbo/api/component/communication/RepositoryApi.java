@@ -32,6 +32,8 @@ import com.vmturbo.common.protobuf.search.Search.CountEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
@@ -41,6 +43,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * This is the preferred way to access the repository from the API.
@@ -55,8 +58,6 @@ import com.vmturbo.common.protobuf.topology.UIEntityType;
  * If not, use {@link RepositoryApi#newSearchRequest(SearchParameters)}.
  */
 public class RepositoryApi {
-
-    private static final Logger logger = LogManager.getLogger();
 
     private final SeverityPopulator severityPopulator;
 
@@ -121,6 +122,41 @@ public class RepositoryApi {
     public MultiEntityRequest entitiesRequest(@Nonnull final Set<Long> oids) {
         return new MultiEntityRequest(realtimeTopologyContextId, repositoryService,
             severityPopulator, serviceEntityMapper, oids);
+    }
+
+    /**
+     * Create a new request to fetch the region in which some entities reside.
+     *
+     * @param oids the collection of entities
+     * @return a search request for the region
+     */
+    public SearchRequest getRegion(@Nonnull Collection<Long> oids) {
+        return requestForTypeBasedTraversal(oids,
+                                            TraversalDirection.INCLUDED_BY,
+                                            EntityType.REGION);
+    }
+
+    /**
+     * Create a new request to traverse a specific direction and search
+     * for entities of a specific type.
+     *
+     * @param oids the collection of entities to start from
+     * @param traversalDirection the direction to travel
+     * @param entityType the entity type to look for
+     * @return the search request
+     */
+    public SearchRequest requestForTypeBasedTraversal(@Nonnull Collection<Long> oids,
+                                                      @Nonnull TraversalDirection traversalDirection,
+                                                      @Nonnull EntityType entityType) {
+        final SearchParameters searchParameters =
+                SearchParameters.newBuilder()
+                        .setStartingFilter(SearchProtoUtil.idFilter(oids))
+                        .addSearchFilter(SearchProtoUtil.searchFilterTraversal(
+                                SearchProtoUtil.traverseToType(traversalDirection, entityType)))
+                        .build();
+        return new SearchRequest(realtimeTopologyContextId, searchServiceBlockingStub,
+                                 severityPopulator, serviceEntityMapper,
+                                 Collections.singleton(searchParameters));
     }
 
     /**

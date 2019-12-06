@@ -44,6 +44,7 @@ import org.mockito.Mockito;
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMappingContextFactory.ActionSpecMappingContext;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
@@ -234,6 +235,9 @@ public class ActionSpecMapperTest {
         when(repositoryApi.entitiesRequest(Sets.newHashSet(DATACENTER1_ID,
             DATACENTER2_ID)))
             .thenReturn(datacenterReq);
+
+        final SearchRequest emptySearchReq = ApiTestUtils.mockEmptySearchReq();
+        when(repositoryApi.getRegion(any())).thenReturn(emptySearchReq);
 
         CostServiceGrpc.CostServiceBlockingStub costServiceBlockingStub =
                 CostServiceGrpc.newBlockingStub(grpcServer.getChannel());

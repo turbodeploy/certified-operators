@@ -83,6 +83,7 @@ public class EntityFilterMapper {
     private static final String PRODUCES = "PRODUCES";
     private static final String CONNECTED_TO = "CONNECTED_TO";
     private static final String CONNECTED_FROM = "CONNECTED_FROM";
+    private static final String OWNS = "OWNS";
 
     public static final String EQUAL = "EQ";
     public static final String NOT_EQUAL = "NEQ";
@@ -107,7 +108,7 @@ public class EntityFilterMapper {
 
     // set of supported traversal types, the string should be the same as groupBuilderUsecases.json
     private static final Set<String> TRAVERSAL_TYPES = ImmutableSet.of(
-            CONSUMES, PRODUCES, CONNECTED_TO, CONNECTED_FROM);
+            CONSUMES, PRODUCES, CONNECTED_TO, CONNECTED_FROM, OWNS);
 
     // map from the comparison symbol to the ComparisonOperator enum
     // the order matters, since when this is used for checking whether a string contains
@@ -156,6 +157,7 @@ public class EntityFilterMapper {
         filterTypesToProcessors.put(PRODUCES, traversalFilterProcessor);
         filterTypesToProcessors.put(CONNECTED_FROM, traversalFilterProcessor);
         filterTypesToProcessors.put(CONNECTED_TO, traversalFilterProcessor);
+        filterTypesToProcessors.put(OWNS, traversalFilterProcessor);
         return filterTypesToProcessors.build();
     }
 

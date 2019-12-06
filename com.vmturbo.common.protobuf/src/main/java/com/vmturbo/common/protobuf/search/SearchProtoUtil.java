@@ -23,6 +23,7 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditi
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class SearchProtoUtil {
 
@@ -355,7 +356,8 @@ public class SearchProtoUtil {
     /**
      * Create a traversal filter that searches for instances of the provided type
      * in the given direction.
-     * @param direction either PRODUCES or CONSUMES
+     *
+     * @param direction traversal direction
      * @param stopType the entity type to stop at
      * @return a traversal filter
      */
@@ -367,6 +369,24 @@ public class SearchProtoUtil {
             .setTraversalDirection(direction)
             .setStoppingCondition(stopAtType)
             .build();
+    }
+
+    /**
+     * Create a traversal filter that searches for instances of the provided type
+     * in the given direction.
+     *
+     * @param direction traversal direction
+     * @param stopType the entity type to stop at
+     * @return a traversal filter
+     */
+    public static TraversalFilter traverseToType(TraversalDirection direction, EntityType stopType) {
+        StoppingCondition stopAtType = StoppingCondition.newBuilder()
+                .setStoppingPropertyFilter(entityTypeFilter(stopType.getNumber()))
+                .build();
+        return TraversalFilter.newBuilder()
+                .setTraversalDirection(direction)
+                .setStoppingCondition(stopAtType)
+                .build();
     }
 
     /**

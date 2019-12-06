@@ -157,7 +157,7 @@ public class ReservedInstanceAnalyzerConstantsTest {
         .addConnectedEntityList(ConnectedEntity.newBuilder()
             .setConnectedEntityType(REGION_AWS_OHIO.getEntityType())
             .setConnectedEntityId(REGION_AWS_OHIO.getOid())
-            .setConnectionType(ConnectionType.NORMAL_CONNECTION))
+            .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
         .setTypeSpecificInfo(m5TypeSpecificInfo)
         .build();
 
@@ -170,11 +170,11 @@ public class ReservedInstanceAnalyzerConstantsTest {
         .addConnectedEntityList(ConnectedEntity.newBuilder()
             .setConnectedEntityType(REGION_AWS_OHIO.getEntityType())
             .setConnectedEntityId(REGION_AWS_OHIO.getOid())
-            .setConnectionType(ConnectionType.NORMAL_CONNECTION))
+            .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
         .addConnectedEntityList(ConnectedEntity.newBuilder()
             .setConnectedEntityType(REGION_AWS_OREGON.getEntityType())
             .setConnectedEntityId(REGION_AWS_OREGON.getOid())
-            .setConnectionType(ConnectionType.NORMAL_CONNECTION))
+            .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
         .setTypeSpecificInfo(t2TypeSpecificInfo)
         .build();
 
@@ -187,11 +187,11 @@ public class ReservedInstanceAnalyzerConstantsTest {
         .addConnectedEntityList(ConnectedEntity.newBuilder()
             .setConnectedEntityType(REGION_AWS_OHIO.getEntityType())
             .setConnectedEntityId(REGION_AWS_OHIO.getOid())
-            .setConnectionType(ConnectionType.NORMAL_CONNECTION))
+            .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
         .addConnectedEntityList(ConnectedEntity.newBuilder()
             .setConnectedEntityType(REGION_AWS_OREGON.getEntityType())
             .setConnectedEntityId(REGION_AWS_OREGON.getOid())
-            .setConnectionType(ConnectionType.NORMAL_CONNECTION))
+            .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
         .setTypeSpecificInfo(t2TypeSpecificInfo)
         .build();
     static final BigDecimal VALUE_ALLOCATION = new BigDecimal(10);

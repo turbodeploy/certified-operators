@@ -48,6 +48,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -598,7 +599,8 @@ public class TopologyConverterFromMarketTest {
                         .setProviderEntityType(EntityType.STORAGE_TIER_VALUE))
                 .addConnectedEntityList(
                         ConnectedEntity.newBuilder().setConnectedEntityId(azOid)
-                                .setConnectedEntityType(az.getEntityType()))
+                                .setConnectedEntityType(az.getEntityType())
+                                .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
                 .build();
         // Use reflection and these entities to the entityOidToDto map
         Field entityOidToDto = TopologyConverter.class.getDeclaredField("entityOidToDto");

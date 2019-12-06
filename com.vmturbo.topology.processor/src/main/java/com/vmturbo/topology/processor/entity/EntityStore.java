@@ -300,7 +300,7 @@ public class EntityStore {
      * entity. This logic can be removed once EntityDTO itself supports connected relationship.
      *
      * @param targetId the id of the target
-     * @return true if the target is in {@link SUPPORTED_CONNECTED_TO_PROBES} otherwise false
+     * @return true if the target is in {@link #SUPPORTED_CONNECTED_TO_PROBES} otherwise false
      */
     private boolean supportsConnectedTo(long targetId) {
         return targetStore.getProbeTypeForTarget(targetId)

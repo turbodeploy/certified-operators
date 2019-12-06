@@ -214,10 +214,6 @@ public class TopologyEntityTest {
         final TopologyEntity rg = rgBuilder.build();
         final TopologyEntity vol = volBuilder.build();
 
-        assertEquals(1, vm.getConnectedFromEntities().size());
-        assertEquals(vm.getConnectedFromEntities().get(0), az);
-        assertEquals(1, vm.getConnectedToEntities().size());
-        assertEquals(vm.getConnectedToEntities().get(0), vol);
         assertFalse(vm.getOwner().isPresent());
         assertEquals(0, vm.getOwnedEntities().size());
         assertEquals(1, vm.getAggregators().size());
@@ -227,10 +223,6 @@ public class TopologyEntityTest {
         assertEquals(1, vm.getOwnersOrAggregators().size());
         assertEquals(vm.getOwnersOrAggregators().get(0), az);
 
-        assertEquals(1, az.getConnectedFromEntities().size());
-        assertEquals(az.getConnectedFromEntities().get(0), rg);
-        assertEquals(1, az.getConnectedToEntities().size());
-        assertEquals(az.getConnectedToEntities().get(0), vm);
         assertEquals(az.getOwner().get(), rg);
         assertEquals(0, az.getOwnedEntities().size());
         assertEquals(0, az.getAggregators().size());
@@ -241,9 +233,6 @@ public class TopologyEntityTest {
         assertEquals(1, az.getOwnersOrAggregators().size());
         assertEquals(az.getOwnersOrAggregators().get(0), rg);
 
-        assertEquals(0, rg.getConnectedFromEntities().size());
-        assertEquals(1, rg.getConnectedToEntities().size());
-        assertEquals(rg.getConnectedToEntities().get(0), az);
         assertFalse(rg.getOwner().isPresent());
         assertEquals(1, rg.getOwnedEntities().size());
         assertEquals(rg.getOwnedEntities().get(0), az);
@@ -253,9 +242,6 @@ public class TopologyEntityTest {
         assertEquals(rg.getOwnedOrAggregatedEntities().get(0), az);
         assertEquals(0, rg.getOwnersOrAggregators().size());
 
-        assertEquals(1, vol.getConnectedFromEntities().size());
-        assertEquals(vol.getConnectedFromEntities().get(0), vm);
-        assertEquals(0, vol.getConnectedToEntities().size());
         assertFalse(vol.getOwner().isPresent());
         assertEquals(0, vol.getOwnedEntities().size());
         assertEquals(0, vol.getAggregators().size());
@@ -282,10 +268,9 @@ public class TopologyEntityTest {
         assertEquals(vm.getDisplayName(), vmSnapshot.getDisplayName());
         assertEquals(vm.getEntityType(), vmSnapshot.getEntityType());
 
-        assertEquals(1, vmSnapshot.getConnectedFromEntities().size());
-        assertEquals(vmSnapshot.getConnectedFromEntities().get(0), az);
-        assertEquals(1, vmSnapshot.getConnectedToEntities().size());
-        assertEquals(vmSnapshot.getConnectedToEntities().get(0), vol);
+
+        assertEquals(1, vmSnapshot.getOutboundAssociatedEntities().size());
+        assertEquals(vmSnapshot.getOutboundAssociatedEntities().get(0), vol);
         assertFalse(vmSnapshot.getOwner().isPresent());
         assertEquals(0, vmSnapshot.getOwnedEntities().size());
         assertEquals(1, vmSnapshot.getAggregators().size());
@@ -342,8 +327,6 @@ public class TopologyEntityTest {
     }
 
     private void assertEntityHasNoConnections(TopologyEntity entity) {
-        assertEquals(0, entity.getConnectedFromEntities().size());
-        assertEquals(0, entity.getConnectedToEntities().size());
         assertFalse(entity.getOwner().isPresent());
         assertEquals(0, entity.getOwnedEntities().size());
         assertEquals(0, entity.getAggregators().size());

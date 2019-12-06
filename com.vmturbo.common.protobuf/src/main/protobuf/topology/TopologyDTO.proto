@@ -686,11 +686,12 @@ message TopologyEntityDTO {
     repeated ConnectedEntity connected_entity_list = 12;
 
     // This message defines a topological connection between 2 entities.
-    // This relationship is unidirectional, the semantic depends on the ConnectionType itself.
     // This message needs to be used only to represent a topological relationship where the 2
-    // entities are connected to each other, but they are not trading any resources between them;
-    // for relationship where there is a consumer->provider semantic need, you need to use the above
-    // "commodities_bought_from_providers" field.
+    // entities are connected to each other, but they are not trading any resources between them.
+    //
+    // A connection between two entities A and B will appear only once in the broadcast,
+    // either as one of the connections of A or as one of the connections of B. Which one
+    // is used depends on the type of the connection.
     message ConnectedEntity {
 
         // Id of the entity on the other side of the connection
@@ -699,42 +700,66 @@ message TopologyEntityDTO {
         // Type of the entity on the other side of the connection
         optional int32 connected_entity_type = 2;
 
-        // Type of connection that this message is representing. different types means different
-        // semantics
+        // Type of connection that this message is representing.
         optional ConnectionType connection_type = 3;
 
-        // Type of connection that this message is representing. different types means different
+        // Type of connection that this message is representing. Different types means different
         // semantics
         enum ConnectionType {
-
-            // Normal connection is a basic topology connection, where 2 entities are physically or
-            // virtually connected. This means that from each one of those entities we should be able to
-            // see the connection and navigate to the other one.
-            // There is no well-defined direction in this connection, but given that we want to represent
-            // only unidirectional connections, this means that the direction to be used here is a
-            // convention decided by the author/code that will generate this dto (but it should be
-            // consistent across the topology).
-            // Example: the connection from pm to storage can be defined in both directions, but
-            // we decided that will always be from pm -> storage.
+            // Normal connection is a basic topology connection between two entities,
+            // which only serves the purpose of traversability from the one to the other.
+            // No other more precise semantics is implied.
+            //
+            // There is no direction in this connection; it should be understood as symmetrical.
+            // Examples of normal connections:
+            // (a) the connection between a compute tier and a storage tier
+            // (b) the connection between a VM and a virtual volume
+            // (c) the connection between a virtual volume and the availability zone it resides in
+            //     (changing the semantics of this case is to be deferred for the future)
+            //
+            // In the topology broadcast, the connection appears only on one of the
+            // records of the two connected entities.
+            // (a) The connection between compute and storage tier
+            //     appears in the compute tier record
+            // (b) the connection between VM and volume appears in the VM record
+            // (c) the connection between volume and zone appears in the volume record
             NORMAL_CONNECTION = 1;
 
-            // Owns connection is used where 2 entities not only are topologically connected, but
-            // in addition, the entity defined in this protobuf is the owner of the entity at the other
-            // side of the connection.
-            // This relationship is unidirectional and the semantic is owner -> owned (or master -> slave).
-            // This relationship can in the future drive behaviors like:
-            // - when the master is deleted, delete also all the slaves
-            // - group all the slaves by master
-            // - aggregate slaves stats/metrics by master
+            // Ownership is used when two entities not only are topologically connected,
+            // but, in addition, one of the entities (the owned entity) cannot meaningfully exist
+            // without the other (the owner). Examples of ownerships:
+            // (a) Business accounts own workloads in the cloud (e.g., VMs, DBs)
+            //     and applications
+            // (b) Business accounts can own sub-accounts
+            // (c) Regions own availability zones
+            // (d) Cloud services own tiers
+            //
+            // The relationship is directional and should never form circles.
+            // Each entity can have at most one owner.
+            //
+            // In the topology broadcast, the connection appears always in the record of the owner.
             OWNS_CONNECTION = 2;
 
             // Aggregation is a directional relationship between two entities, the "aggregator"
-            // and the "aggregated entity". Aggregators are entities that can also be thought of as
-            // containing other entities, for example, Regions contain their VMs or Datacenters
-            // contain their PMs.
-            // This relationship is unidirectional and points from the aggregator to the aggregated
-            // entities.
-            AGGREGATES_CONNECTION = 3;
+            // and the "aggregated entity". It denotes a notion of containment (e.g.,
+            // the aggregated can be understood to be "inside" the aggregator), but it is less
+            // strict than ownership, in two ways:
+            // (a) An entity can have more than one aggregator
+            // (b) An aggregated entity can exist meaningfully without its aggregator(s)
+            // Aggregation should not form circles in the topology.
+            //
+            // Examples of aggregation:
+            // (a) Availability zones aggregate cloud workloads
+            // (b) In the absence of availability zones (e.g., Azure), regions aggregate cloud workloads
+            // (c) Regions aggregate tiers
+            // (d) Datacenters aggregate storage and PMs
+            //
+            // Attention!  In the topology broadcast, the connection appears always in the record of the
+            // *aggregated entity*. This is the opposite of the convention that we use for ownership.
+            // The reason for this inconsistent convention has to do with the memory efficiency
+            // of the Market and the Cost component, which use TopologyEntityDTO objects directly
+            // in their logic.
+            AGGREGATED_BY_CONNECTION = 3;
         }
     }
 

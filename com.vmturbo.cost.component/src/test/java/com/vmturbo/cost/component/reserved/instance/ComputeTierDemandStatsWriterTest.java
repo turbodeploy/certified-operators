@@ -185,7 +185,7 @@ public class ComputeTierDemandStatsWriterTest {
                 .addConnectedEntityList(ConnectedEntity.newBuilder()
                         .setConnectedEntityId(availabilityZone.getOid())
                         .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
-                        .setConnectionType(ConnectionType.NORMAL_CONNECTION))
+                        .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
                 .build();
     }
 

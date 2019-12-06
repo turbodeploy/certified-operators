@@ -518,7 +518,7 @@ public class ActionSpecMapper {
             actionApiDTO.setTemplate(templateApiDTO);
 
             // set location, which is the region
-            final ApiPartialEntity region = context.getRegionForVM(targetEntityId);
+            final ApiPartialEntity region = context.getRegion(targetEntityId);
             final BaseApiDTO regionDTO = serviceEntityMapper.toServiceEntityApiDTO(region);
             // todo: set current and new location to be different if region could be changed
             actionApiDTO.setCurrentLocation(regionDTO);
@@ -1113,7 +1113,7 @@ public class ActionSpecMapper {
      */
     private void setCurrentAndNewLocation(long targetUuid, ActionSpecMappingContext context, ActionApiDTO actionApiDTO)
         throws UnknownObjectException {
-        ApiPartialEntity region = context.getRegionForVM(targetUuid);
+        ApiPartialEntity region = context.getRegion(targetUuid);
         if (region != null) {
             BaseApiDTO regionDTO = serviceEntityMapper.toServiceEntityApiDTO(region);
             regionDTO.setDisplayName(region.getDisplayName());

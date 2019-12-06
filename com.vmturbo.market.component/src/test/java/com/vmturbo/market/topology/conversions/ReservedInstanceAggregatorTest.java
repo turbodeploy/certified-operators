@@ -1,7 +1,6 @@
 package com.vmturbo.market.topology.conversions;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -23,6 +22,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
@@ -145,6 +145,7 @@ public class ReservedInstanceAggregatorTest {
                 .addConnectedEntityList(ConnectedEntity.newBuilder()
                         .setConnectedEntityType(EntityType.REGION_VALUE)
                         .setConnectedEntityId(REGION_1)
+                        .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
                         .build())
             .build();
         topology.put(TIER_1, computeTier);

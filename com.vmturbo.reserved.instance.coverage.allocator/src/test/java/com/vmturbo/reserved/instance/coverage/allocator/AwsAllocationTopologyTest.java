@@ -130,7 +130,7 @@ class AwsAllocationTopologyTest {
             .addConnectedEntityList(ConnectedEntity.newBuilder()
                     .setConnectedEntityId(AVAILIBILITY_ZONE_A.getOid())
                     .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
-                    .setConnectionType(ConnectionType.NORMAL_CONNECTION))
+                    .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
             .setOrigin(Origin.newBuilder()
                     .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
                             .addDiscoveringTargetIds(OID_PROVIDER.incrementAndGet())

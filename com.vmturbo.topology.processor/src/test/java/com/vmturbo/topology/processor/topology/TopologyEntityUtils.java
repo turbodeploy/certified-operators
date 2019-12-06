@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.topology;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -238,6 +239,40 @@ public class TopologyEntityUtils {
                 .setConnectedEntityId(connectedTo)
                 .setConnectionType(ConnectionType.NORMAL_CONNECTION)
                 .build());
+        }
+        return builder;
+    }
+
+    /**
+     * Create a minimal topology entity builder.
+     *
+     * @param oid The OID of the topology entity.
+     * @param discoveringTargetId The ID of the target that discovered the entity.
+     * @param lastUpdatedTime last updated time of the topology entity
+     * @param displayName topology entity display name.
+     * @param entityType The entity type for the entity.
+     * @param connectedToEntities The OIDs of the entities that the created entity should be
+     *                            connected to in the topology together with the respective
+     *                            connection types
+     * @return A {@link TopologyEntityDTO} with the given properties.
+     */
+    public static TopologyEntity.Builder connectedTopologyEntity(
+             long oid, long discoveringTargetId, long lastUpdatedTime, String displayName,
+             EntityType entityType, Collection<ConnectedEntity> connectedToEntities) {
+        final TopologyEntity.Builder builder = TopologyEntity.newBuilder(
+                TopologyEntityDTO.newBuilder()
+                        .setOid(oid)
+                        .setEntityType(entityType.getNumber())
+                        .setDisplayName(displayName)
+                        .setOrigin(Origin.newBuilder()
+                                .setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(discoveringTargetId)
+                                        .lastUpdatedAt(lastUpdatedTime))));
+
+        for (ConnectedEntity connectedEntity : connectedToEntities) {
+            builder.getEntityBuilder().addConnectedEntityList(ConnectedEntity.newBuilder()
+                    .setConnectedEntityId(connectedEntity.getConnectedEntityId())
+                    .setConnectionType(connectedEntity.getConnectionType())
+                    .build());
         }
         return builder;
     }

@@ -109,11 +109,11 @@ public class WastedFilesPostStitchingOperationTest {
         virtVolWasted1 = virtualVolumeWasted1.build();
         TopologyEntity virtMachine1 = virtualMachine1.build();
         TopologyEntity virtMachine2 = virtualMachine2.build();
-        assertTrue(virtMachine1.getConnectedToEntities().contains(virtVol1));
-        assertTrue(virtMachine2.getConnectedToEntities().contains(virtVol2));
-        assertTrue(virtVol1.getConnectedToEntities().contains(storageEntity1));
-        assertTrue(virtVol2.getConnectedToEntities().contains(storageEntity1));
-        assertTrue(virtVolWasted1.getConnectedToEntities().contains(storageEntity1));
+        assertTrue(virtMachine1.getOutboundAssociatedEntities().contains(virtVol1));
+        assertTrue(virtMachine2.getOutboundAssociatedEntities().contains(virtVol2));
+        assertTrue(virtVol1.getOutboundAssociatedEntities().contains(storageEntity1));
+        assertTrue(virtVol2.getOutboundAssociatedEntities().contains(storageEntity1));
+        assertTrue(virtVolWasted1.getOutboundAssociatedEntities().contains(storageEntity1));
         assertEquals(vm1Files.length, virtVol1.getTopologyEntityDtoBuilder()
             .getTypeSpecificInfo().getVirtualVolume().getFilesCount());
         assertEquals(vm2Files.length, virtVol2.getTopologyEntityDtoBuilder()
@@ -137,7 +137,7 @@ public class WastedFilesPostStitchingOperationTest {
         PostStitchingTestUtilities.addFilesToVirtualVolume(virtualVolumeWasted2, allFiles);
         storageEntity2 = storage2.build();
         virtVolWasted2 = virtualVolumeWasted2.build();
-        assertTrue(virtVolWasted2.getConnectedToEntities().contains(storageEntity2));
+        assertTrue(virtVolWasted2.getOutboundAssociatedEntities().contains(storageEntity2));
         assertEquals(allFiles.length, virtVolWasted2.getTopologyEntityDtoBuilder()
             .getTypeSpecificInfo().getVirtualVolume().getFilesCount());
     }
@@ -253,7 +253,7 @@ public class WastedFilesPostStitchingOperationTest {
             .addFileToVirtualVolume(virtualVolumeWasted3, validPath3, otherLinks3);
         storageEntity3 = storage3.build();
         virtVolWasted3 = virtualVolumeWasted3.build();
-        assertTrue(virtVolWasted3.getConnectedToEntities().contains(storageEntity3));
+        assertTrue(virtVolWasted3.getOutboundAssociatedEntities().contains(storageEntity3));
         assertEquals(1, virtVolWasted3.getTopologyEntityDtoBuilder()
             .getTypeSpecificInfo().getVirtualVolume().getFilesCount());
     }

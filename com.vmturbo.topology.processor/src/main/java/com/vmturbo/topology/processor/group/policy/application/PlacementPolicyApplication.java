@@ -242,8 +242,10 @@ public abstract class PlacementPolicyApplication {
                 final Optional<Long> volumeId;
                 if (optionalConsumer.get().getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE) {
                     // if it's volume, the real consumer should be the VM which uses this volume
-                    Optional<TopologyEntity> optVM =  optionalConsumer.get()
-                        .getConnectedFromEntities(EntityType.VIRTUAL_MACHINE_VALUE)
+                    Optional<TopologyEntity> optVM = optionalConsumer.get()
+                        .getInboundAssociatedEntities()
+                        .stream()
+                        .filter(e -> e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
                         .findFirst();
                     if (!optVM.isPresent()) {
                         // the volume is not used by any VM, which means it is a wasted volume,

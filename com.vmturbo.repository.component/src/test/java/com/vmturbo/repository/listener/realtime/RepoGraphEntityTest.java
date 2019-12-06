@@ -128,9 +128,6 @@ public class RepoGraphEntityTest {
         final RepoGraphEntity az = azBuilder.build();
         final RepoGraphEntity rg = rgBuilder.build();
 
-        assertEquals(1, vm.getConnectedFromEntities().size());
-        assertEquals(vm.getConnectedFromEntities().get(0), az);
-        assertEquals(0, vm.getConnectedToEntities().size());
         assertFalse(vm.getOwner().isPresent());
         assertEquals(0, vm.getOwnedEntities().size());
         assertEquals(1, vm.getAggregators().size());
@@ -139,11 +136,9 @@ public class RepoGraphEntityTest {
         assertEquals(0, vm.getOwnedOrAggregatedEntities().size());
         assertEquals(1, vm.getOwnersOrAggregators().size());
         assertEquals(vm.getOwnersOrAggregators().get(0), az);
+        assertEquals(1, vm.getBroadcastConnections().size());
+        assertEquals(1, vm.getBroadcastRelatedEntities().size());
 
-        assertEquals(1, az.getConnectedFromEntities().size());
-        assertEquals(az.getConnectedFromEntities().get(0), rg);
-        assertEquals(1, az.getConnectedToEntities().size());
-        assertEquals(az.getConnectedToEntities().get(0), vm);
         assertEquals(az.getOwner().get(), rg);
         assertEquals(0, az.getOwnedEntities().size());
         assertEquals(0, az.getAggregators().size());
@@ -153,10 +148,9 @@ public class RepoGraphEntityTest {
         assertEquals(az.getOwnedOrAggregatedEntities().get(0), vm);
         assertEquals(1, az.getOwnersOrAggregators().size());
         assertEquals(az.getOwnersOrAggregators().get(0), rg);
+        assertEquals(0, az.getBroadcastConnections().size());
+        assertEquals(0, az.getBroadcastRelatedEntities().size());
 
-        assertEquals(0, rg.getConnectedFromEntities().size());
-        assertEquals(1, rg.getConnectedToEntities().size());
-        assertEquals(rg.getConnectedToEntities().get(0), az);
         assertFalse(rg.getOwner().isPresent());
         assertEquals(1, rg.getOwnedEntities().size());
         assertEquals(rg.getOwnedEntities().get(0), az);
@@ -165,6 +159,8 @@ public class RepoGraphEntityTest {
         assertEquals(1, rg.getOwnedOrAggregatedEntities().size());
         assertEquals(rg.getOwnedOrAggregatedEntities().get(0), az);
         assertEquals(0, rg.getOwnersOrAggregators().size());
+        assertEquals(1, rg.getBroadcastConnections().size());
+        assertEquals(1, rg.getBroadcastRelatedEntities().size());
     }
 
     /**
@@ -217,8 +213,6 @@ public class RepoGraphEntityTest {
     }
 
     private void assertEntityHasNoConnections(RepoGraphEntity entity) {
-        assertEquals(0, entity.getConnectedFromEntities().size());
-        assertEquals(0, entity.getConnectedToEntities().size());
         assertFalse(entity.getOwner().isPresent());
         assertEquals(0, entity.getOwnedEntities().size());
         assertEquals(0, entity.getAggregators().size());

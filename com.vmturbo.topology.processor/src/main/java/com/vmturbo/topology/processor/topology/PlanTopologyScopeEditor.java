@@ -1,8 +1,8 @@
 package com.vmturbo.topology.processor.topology;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 import java.util.function.Function;
@@ -30,11 +31,13 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphCreator;
+import com.vmturbo.topology.graph.TopologyGraphEntity;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
 
@@ -42,10 +45,6 @@ public class PlanTopologyScopeEditor {
 
     private static final Logger logger = LogManager.getLogger();
 
-    // a set of entity type that represent cloud service tiers
-    private static final Set<EntityType> SERVICE_TIERS = Collections.unmodifiableSet(EnumSet
-                    .of(EntityType.DATABASE_TIER, EntityType.DATABASE_SERVER_TIER,
-                        EntityType.COMPUTE_TIER, EntityType.STORAGE_TIER));
     // a set of on-prem application entity type
     private static final Set<Integer> APPLICATION_ENTITY_TYPES = Stream
                     .of(EntityType.APPLICATION_VALUE, EntityType.APPLICATION_SERVER_VALUE,
@@ -63,11 +62,6 @@ public class PlanTopologyScopeEditor {
     // used to find application entities if user scoped in infrastructure layer, or is used
     // to find infrastructure entities if user scoped in application layer.
     private static final int OVERLAPPING_ENTITY_TYPE_VALUE = EntityType.VIRTUAL_MACHINE_VALUE;
-
-    private static final Set<EntityType> CLOUD_ENTITY_TYPES_TO_FIND_PROVIDERS = Stream
-                    .concat(SERVICE_TIERS.stream(), Stream.of(EntityType.REGION))
-                    .collect(Collectors.collectingAndThen(Collectors.toSet(),
-                                                          Collections::unmodifiableSet));
     private static final Set<EntityType> CLOUD_SCOPE_ENTITY_TYPES = Stream.of(EntityType.REGION,
                              EntityType.BUSINESS_ACCOUNT, EntityType.VIRTUAL_MACHINE,
                              EntityType.DATABASE, EntityType.DATABASE_SERVER,
@@ -90,114 +84,134 @@ public class PlanTopologyScopeEditor {
      */
     public TopologyGraph<TopologyEntity> scopeCloudTopology(@Nonnull final TopologyInfo topologyInfo,
                                                             @Nonnull final TopologyGraph<TopologyEntity> graph) {
-        logger.info("Entering scoping stage for cloud topology .....");
-        Set<TopologyEntity> totalEntitySet = graph.entities().collect(Collectors.toSet());
-        // record a count of the number of entities by their entity type in the context.
-        logger.info("Initial entity graph total count is {}", graph.size());
-        entityCountMsg(graph.entities().collect(Collectors.toSet()));
-        final List<Long> seedOids = topologyInfo.getScopeSeedOidsList();
-        final Set<Long> targetSet = totalEntitySet.stream().filter(e -> seedOids.contains(e.getOid()))
-                                                  .flatMap(TopologyEntity::getDiscoveringTargetIds)
-                                                  .collect(Collectors.toSet());
-        // first filter all entities discovered by the target which discover the scope seed
-        // TODO: Cloud migration plan has to keep onprem entity selected, which will not have same
-        // target as the scope
-        Map<Long, TopologyEntity> filteredEntities = filterEntitiesByTarget(targetSet, totalEntitySet);
-        logger.info("Entities with the same discovery target count is {}", filteredEntities.size());
-        entityCountMsg(filteredEntities.values().stream().collect(Collectors.toSet()));
-        final Set<TopologyEntity> cloudProviders = new HashSet<>();
-        final Set<TopologyEntity> cloudConsumers = new HashSet<>();
-        for (Long seedOid : seedOids) {
-            TopologyEntity seed = filteredEntities.get(seedOid);
-            // if user specify a scope on region or business account
-            if (CLOUD_SCOPE_ENTITY_TYPES.contains(EntityType.forNumber(seed.getEntityType()))) {
-                /*
-                 * If starting from region, traverse downward we can find all AZ.
-                 * If starting from BA, traverse downward we can find all DB, DBS, VM, VV and AZ.
-                 * If stating form VM/DB/DBS, traverse downward we can find all VV, AZ.
-                 */
-                cloudConsumers.addAll(findConnectedEntities(seed, filteredEntities.keySet(), false));
-                cloudConsumers.add(seed);
-                logger.trace("Tracing cloud consumers after scoping on the following entities: "
-                        + cloudConsumers.stream()
-                        .map(TopologyEntity::getDisplayName)
-                        .collect(Collectors.toList()));
-                final Set<TopologyEntity> entitiesToFindProviders = getEntitiesToFindProviders(seed, cloudConsumers);
-                if (!entitiesToFindProviders.isEmpty()) {
-                    cloudProviders.addAll(entitiesToFindProviders);
-                    // we need to add all cloud providers which are the service tiers and regions
-                    // we can start from AZ/Region to go upward to get them
-                    for (TopologyEntity a : entitiesToFindProviders) {
-                        cloudProviders.addAll(findConnectedEntities(a, filteredEntities.keySet(), true));
-                    }
-                } else {
-                    // in case of azure, there could be no availability zone, if the scope starts
-                    // with ba, we add all service tiers into topology. VM will find the service tier
-                    // with correct ba in market analysis
-                    cloudProviders.addAll(filteredEntities.values().stream()
-                            .filter(e -> SERVICE_TIERS.contains(e.getEntityType()))
-                            .collect(Collectors.toSet()));
-                }
-                logger.trace("Tracing cloud service tiers after scoping on the following entities: " +
-                        cloudProviders.stream().map(TopologyEntity::getDisplayName)
-                        .collect(Collectors.toList()));
-            }
-        }
-        Set<TopologyEntity> entityToKeep = totalEntitySet.stream()
-                .filter(e -> cloudConsumers.contains(e) || cloudProviders.contains(e))
+        // TODO: the implementation of this algorithm can be replaced by calls to
+        // the new scoped supply chain algorithm, which will come with OM-51366
+        // from the seed list keep accounts, regions, and workloads only
+        final Set<Long> seedIds =
+            topologyInfo.getScopeSeedOidsList().stream()
+                .filter(oid -> graph.getEntity(oid)
+                                    .map(e -> CLOUD_SCOPE_ENTITY_TYPES.contains(
+                                                    EntityType.forNumber(e.getEntityType())))
+                                    .orElse(false))
                 .collect(Collectors.toSet());
-        Map<Long, TopologyEntity.Builder> resultEntityMap = entityToKeep.stream()
-                .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                .collect(Collectors.toMap(Builder::getOid, TopologyEntity::newBuilder));
-        // record the scoped result
-        logger.info("Final scoped entity set total count is {}", entityToKeep.size());
-        entityCountMsg(entityToKeep);
+
+        // get ids of VMs connected to seed Virtual Volumes
+        // and add them to the set of seed ids
+        final Set<Long> vmsConnectedToSeedVirtualVolumes =
+            seedIds.stream()
+                .filter(oid -> graph.getEntity(oid).get().getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
+                .flatMap(oid -> graph.getEntity(oid).get().getInboundAssociatedEntities().stream()
+                                    .filter(e -> e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                                    .map(TopologyEntity::getOid))
+                .collect(Collectors.toSet());
+        final Set<Long> seedIdsWithConnectedVMs =
+                Stream.concat(seedIds.stream(),
+                              vmsConnectedToSeedVirtualVolumes.stream())
+                    .collect(Collectors.toSet());
+
+        // targets of the seeds
+        final Collection<Long> targetIds = graph.getEntities(seedIdsWithConnectedVMs)
+                                                .flatMap(TopologyEntity::getDiscoveringTargetIds)
+                                                .filter(Objects::nonNull)
+                                                .collect(Collectors.toSet());
+
+        // applying inclusion transitively will fetch all workloads associated
+        // with a business account or region
+        // if scoping on a region, it will also bring availability zones
+        final List<TopologyEntity> workloadsAndZones =
+            TopologyGraphEntity.applyTransitively(graph.getEntities(seedIdsWithConnectedVMs)
+                                                       .collect(Collectors.toList()),
+                                                  TopologyEntity::getOwnedOrAggregatedEntities)
+                .stream()
+                .filter(e -> !TopologyDTOUtil.isTierEntityType(e.getEntityType()))
+                .distinct()
+                .collect(Collectors.toList());
+
+        // applying getConsumers transitively will fetch all transitive consumers
+        // of all workloads (e.g., applications, business applications, etc.)
+        // if scoping on an account, we now have:
+        //   - all sub-accounts
+        //   - all workloads owned by the account and its sub-accounts
+        //   - all transitive consumers of those workloads
+        // if scoping on a region, we now have:
+        //   - all zones
+        //   - all workloads in the region, except virtual volumes
+        //   - all transitive consumers of those workloads
+        // if scoping on a single workload, we now have:
+        //   - the workload and all its transitive consumers
+        final List<TopologyEntity> workLoadsZonesAndConsumers =
+            TopologyGraphEntity.applyTransitively(workloadsAndZones, TopologyEntity::getConsumers);
+
+        // special case: the virtual volumes must be added to the list,
+        // because they are not aggregated by regions or zones
+        final List<TopologyEntity> virtualVolumes =
+            workloadsAndZones.stream()
+                .filter(e -> e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+                .flatMap(e -> e.getOutboundAssociatedEntities().stream())
+                .filter(e -> e.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
+                .collect(Collectors.toList());
+        final List<TopologyEntity> workloadsZonesConsumersAndVolumes =
+                Stream.concat(workLoadsZonesAndConsumers.stream(), virtualVolumes.stream())
+                    .distinct()
+                    .collect(Collectors.toList());
+
+        // get all the entities aggregating the workloads
+        // if scoping on an account, we now have:
+        //   - all sub-accounts
+        //   - the account owning this account
+        //   - all workloads owned by the account and its sub-accounts
+        //   - the virtual volumes connected to those workloads (for VMs)
+        //   - all transitive consumers of those workloads
+        //   - all zones and all regions in which those workloads live
+        // if scoping on a region, we now have:
+        //   - all zones in the region
+        //   - all workloads in the region
+        //   - all transitive consumers of those workloads
+        //   - the virtual volumes connected to those workloads (for VMs)
+        //   - all accounts owning those workloads and consumers
+        //   - the accounts owning those accounts
+        // if scoping on a single workload, we now have:
+        //   - the workload and all its transitive consumers
+        //   - the virtual volumes connected to the workload (for VMs)
+        //   - the zone and region in which the workload lives
+        //   - the account owning this workload and the account owning that account
+        final Set<TopologyEntity> cloudConsumers =
+            TopologyGraphEntity.applyTransitively(workloadsZonesConsumersAndVolumes,
+                                                  TopologyEntity::getOwnersOrAggregators)
+                .stream()
+                .collect(Collectors.toSet());
+
+        // calculate all tiers associated with all the regions in cloudConsumers
+        // add the owning services
+        final Set<TopologyEntity> regions = cloudConsumers.stream()
+                                                .filter(e -> e.getEntityType() == EntityType.REGION_VALUE)
+                                                .collect(Collectors.toSet());
+        final Set<TopologyEntity> tiers = regions.stream()
+                                            .flatMap(e -> e.getAggregatedEntities().stream())
+                                            .filter(e -> TopologyDTOUtil.isTierEntityType(e.getEntityType()))
+                                            .collect(Collectors.toSet());
+        final Set<TopologyEntity> services = tiers.stream()
+                                                .map(TopologyEntity::getOwner)
+                                                .filter(Optional::isPresent)
+                                                .map(Optional::get)
+                                                .collect(Collectors.toSet());
+        final List<TopologyEntity> cloudProviders = new ArrayList<>(regions);
+        cloudProviders.addAll(tiers);
+        cloudProviders.addAll(services);
+
+        // union consumers and producers and filter by target
+        final Map<Long, TopologyEntity.Builder> resultEntityMap =
+            Stream.concat(cloudConsumers.stream(), cloudProviders.stream())
+                    .distinct()
+                    .filter(e -> discoveredBy(e, targetIds))
+                    .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                    .collect(Collectors.toMap(Builder::getOid, TopologyEntity::newBuilder));
         return new TopologyGraphCreator<>(resultEntityMap).build();
     }
 
-    /**
-     * Gets entities to find providers.
-     * 1) If seed is region it returns all availability zones or regions from cloud consumers.
-     * This allows to get all providers for the region.
-     * 2) In all other cases we get connected entities (regions or tiers) and seed. Seed needed to get its providers.
-     * This allows to avoid to get entities out of scope. As AZ in AWS (region in Azure) has connected from relations
-     * to VMs, DBs, DBSs. But such entities are available from the cloud consumers for the defined scope.
-     *
-     * @param seed seed entity.
-     * @param cloudConsumers cloud consumers set.
-     * @return set of entities that needs to be used to get providers.
-     */
-    private static Set<TopologyEntity> getEntitiesToFindProviders(TopologyEntity seed, Set<TopologyEntity> cloudConsumers) {
-        final Set<TopologyEntity> azOrRegions = filterAzOrRegionEntities(cloudConsumers);
-        if (seed.getEntityType() == EntityType.REGION_VALUE) {
-            return azOrRegions;
-        }
-        final Set<TopologyEntity> entitiesToFindProviders = azOrRegions.stream()
-                        .flatMap(e -> e.getConnectedFromEntities().stream())
-                        .filter(entity -> CLOUD_ENTITY_TYPES_TO_FIND_PROVIDERS
-                                        .contains(EntityType.forNumber(entity.getEntityType())))
-                        .collect(Collectors.toSet());
-        entitiesToFindProviders.add(seed);
-        return entitiesToFindProviders;
-    }
-
-    /**
-     * Gets all availability zones from cloud consumers. There is no availability zone in case of Azure.
-     * In this case it returns all regions.
-     *
-     * @param cloudConsumers entities to search for availability zones or regions.
-     * @return set of availability zones or regions.
-     */
-    private static Set<TopologyEntity> filterAzOrRegionEntities(Set<TopologyEntity> cloudConsumers) {
-        final Set<TopologyEntity> result = cloudConsumers.stream()
-                        .filter(e -> e.getEntityType() == EntityType.AVAILABILITY_ZONE_VALUE)
-                        .collect(Collectors.toSet());
-        if (!result.isEmpty()) {
-            return result;
-        }
-        return cloudConsumers.stream()
-                        .filter(e -> e.getEntityType() == EntityType.REGION_VALUE)
-                        .collect(Collectors.toSet());
+    private static boolean discoveredBy(@Nonnull TopologyEntity topologyEntity,
+                                        @Nonnull Collection<Long> targetIds) {
+        return topologyEntity.getDiscoveringTargetIds().anyMatch(targetIds::contains);
     }
 
     /**
@@ -211,64 +225,6 @@ public class PlanTopologyScopeEditor {
         originEntityByType.entrySet().forEach(entry -> infoMsg.append(" Entity type ")
                 .append(EntityType.forNumber(entry.getKey())).append(" count is ").append(entry.getValue()));
         logger.info(infoMsg.toString());
-    }
-
-    /**
-     * Traverse up or down supply chain to recursively finds seed's TopologyStitchingEntity.
-     *
-     * @param seed the start point of traverse
-     * @param inputOids entities oids for which to find connected entities.
-     * @param traverseUp whether to go up or go down supply chain
-     *
-     * @return a set of connected entities.
-     */
-    @Nonnull
-    private Set<TopologyEntity> findConnectedEntities(@Nonnull final TopologyEntity seed,
-                                                      @Nonnull final Set<Long> inputOids,
-                                                      boolean traverseUp) {
-        final Set<TopologyEntity> seedConnectedSet = new HashSet<>();
-        if (!traverseUp && seed.getConnectedToEntities().isEmpty() ||
-                traverseUp && seed.getConnectedFromEntities().isEmpty()) {
-            return seedConnectedSet;
-        }
-        final List<TopologyEntity> connectedEnitites = traverseUp ? seed.getConnectedFromEntities()
-                : seed.getConnectedToEntities();
-        // Finding the cloud services connected to the service tiers.
-        if (SERVICE_TIERS.stream().map(EntityType::getNumber).anyMatch(t -> t ==
-                seed.getEntityType())) {
-            /*
-             * Service tiers can be connected to/from different entities including other service tiers.
-             * We don't need such entities as it can be out of scope but we need cloud services.
-             */
-            return connectedEnitites.stream().filter(e -> e.getEntityType() ==
-                    EntityType.CLOUD_SERVICE.getNumber()).collect(Collectors.toSet());
-        }
-        for (TopologyEntity connectedEntity : connectedEnitites) {
-            if (inputOids.contains(connectedEntity.getOid())) {
-                seedConnectedSet.add(connectedEntity);
-                seedConnectedSet.addAll(findConnectedEntities(connectedEntity, inputOids,
-                        traverseUp));
-            }
-        }
-        return seedConnectedSet;
-    }
-
-    /**
-     * Filter input entities by target id.
-     *
-     * @param targetId a set of target ids
-     * @param entities s list of entities to be filtered
-     * @return a map of entities by oid
-     */
-    private Map<Long, TopologyEntity> filterEntitiesByTarget(@Nonnull Set<Long> targetId,
-                                                             @Nonnull Set<TopologyEntity> entities) {
-        Map<Long, TopologyEntity> entitiesFilterByTarget = new HashMap<>();
-        entities.forEach(e -> {
-            if (e.getDiscoveringTargetIds().anyMatch(t -> targetId.contains(t))) {
-                entitiesFilterByTarget.put(e.getOid(), e);
-            };
-        });
-      return entitiesFilterByTarget;
     }
 
     /**
@@ -588,8 +544,7 @@ public class PlanTopologyScopeEditor {
                 // if the entity type present in IN_SCOPE_CONNECTED_ENTITY_TYPES. Typically,
                 // a virtual volume is not a consumer nor a provider, yet it is referenced
                 // during move action interpretation, that is why we need to include it in scope.
-                Stream.concat(currentNode.getConnectedFromEntities().stream(),
-                    currentNode.getConnectedToEntities().stream())
+                currentNode.getAllConnectedEntities().stream()
                     .forEach(c -> {
                         // we need to populate all connected entities of a virtual volume,
                         // and the virtual volume itself. For example, if the scope starts

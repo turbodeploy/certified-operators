@@ -37,6 +37,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.EntityPipelineErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
@@ -53,6 +54,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
+import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.topology.processor.conversions.typespecific.ApplicationInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.BusinessAccountInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.BusinessUserMapper;
@@ -226,6 +228,11 @@ public class SdkToTopologyEntityConverter {
                                         .setConnectionType(entry.getKey())
                                         .build()))
                 .collect(Collectors.toList());
+
+        final Set<StitchingEntity> aggregatedEntities = entity.getConnectedFromByType()
+                .getOrDefault(ConnectionType.AGGREGATED_BY_CONNECTION, Collections.emptySet());
+        final Set<StitchingEntity> owners = entity.getConnectedFromByType()
+                .getOrDefault(ConnectionType.OWNS_CONNECTION, Collections.emptySet());
 
         // Copy properties map from probe DTO to topology DTO
         // TODO: Support for namespaces and proper handling of duplicate properties (see
@@ -505,17 +512,19 @@ public class SdkToTopologyEntityConverter {
             }
         }
 
-        return TopologyDTO.TopologyEntityDTO.newBuilder()
-            .setEntityType(entityType)
-            .setOid(oid)
-            .setDisplayName(displayName)
-            .setEntityState(entityState)
-            .setAnalysisSettings(analysisSettingsBuilder)
-            .putAllEntityPropertyMap(entityPropertyMap)
-            .setTags(Tags.newBuilder().putAllTags(entityTags).build())
-            .addAllCommoditySoldList(soldList)
-            .addAllCommoditiesBoughtFromProviders(boughtList)
-            .addAllConnectedEntityList(connectedToList);
+        final TopologyEntityDTO.Builder result =
+                TopologyDTO.TopologyEntityDTO.newBuilder()
+                        .setEntityType(entityType)
+                        .setOid(oid)
+                        .setDisplayName(displayName)
+                        .setEntityState(entityState)
+                        .setAnalysisSettings(analysisSettingsBuilder)
+                        .putAllEntityPropertyMap(entityPropertyMap)
+                        .setTags(Tags.newBuilder().putAllTags(entityTags).build())
+                        .addAllCommoditySoldList(soldList)
+                        .addAllCommoditiesBoughtFromProviders(boughtList)
+                        .addAllConnectedEntityList(connectedToList);
+        return result;
     }
 
     private static TopologyDTO.EntityState entityState(EntityDTOOrBuilder entityDTO) {

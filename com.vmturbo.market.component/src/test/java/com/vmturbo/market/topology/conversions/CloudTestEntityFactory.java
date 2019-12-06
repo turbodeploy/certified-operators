@@ -8,6 +8,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -55,9 +56,10 @@ class CloudTestEntityFactory {
                                 .build()).build())
                 .addAllCommoditySoldList(createComputeTierSoldCommodities());
         if (connectToRegion) {
-            builder.addConnectedEntityList(ConnectedEntity.newBuilder().setConnectedEntityId(REGION_ID)
-                    .setConnectedEntityType(EntityType.REGION_VALUE)
-                    .build());
+            builder.addConnectedEntityList(ConnectedEntity.newBuilder()
+                                                .setConnectedEntityId(REGION_ID)
+                                                .setConnectedEntityType(EntityType.REGION_VALUE)
+                                                .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION));
         }
         return builder.build();
     }

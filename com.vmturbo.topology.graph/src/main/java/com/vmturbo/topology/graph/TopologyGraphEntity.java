@@ -1,10 +1,12 @@
 package com.vmturbo.topology.graph;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -215,65 +217,28 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
     List<E> getAggregatedEntities();
 
     /**
-     * Get all {@link TopologyGraphEntity}s connected to this, including owned and aggregated entities.
-     * The set of entities returned should be equal to the set of entities returned by
-     * {@link TopologyEntityDTO#getConnectedEntityListList()} in the equivalent
-     * {@link TopologyEntityDTO} object.
+     * Applies a function transitively to all entities in a collection
+     * and collects the results. This utility function is meant to
+     * facilitate traversals in the topology graph.
      *
-     * @return all entities connected to this entity
-     *         (outbound associations, owned entities, and aggregated entities)
+     * @param seed the collection of entities to start with
+     * @param function the function to apply transitively
+     * @param <E1> the precise implementation of {@link TopologyGraphEntity}
+     * @return the collection of all entities
+     *         obtained after applying the function transitively
      */
     @Nonnull
-    default List<E> getConnectedToEntities() {
-        return Stream.of(getOutboundAssociatedEntities(), getAggregatedEntities(), getOwnedEntities())
-                .flatMap(List::stream)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Like {@link TopologyGraphEntity#getConnectedToEntities()}, but groups the entities by
-     * connection type.
-     *
-     * @return A map of {@link ConnectionType} to the list of entities this entity is connected
-     *         to by a connection of that type.
-     *
-     */
-    @Nonnull
-    default Map<ConnectionType, List<E>> getConnectedToEntitiesByConnectionType() {
-        return ImmutableMap.of(
-            ConnectionType.NORMAL_CONNECTION, getOutboundAssociatedEntities(),
-            ConnectionType.AGGREGATES_CONNECTION, getAggregatedEntities(),
-            ConnectionType.OWNS_CONNECTION, getOwnedEntities());
-    }
-
-    /**
-     * Get all {@link TopologyGraphEntity}s that connect to this, including owner and aggregators.
-     *
-     * @return all entities that connect to this entity (inbound associations, owner, and aggregators)
-     */
-    @Nonnull
-    default List<E> getConnectedFromEntities() {
-        return Stream.of(getInboundAssociatedEntities(), getAggregators(), ownerAsList())
-                .flatMap(List::stream)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Like {@link TopologyGraphEntity#getConnectedFromEntities()}, but groups the entities by
-     * connection type.
-     *
-     * @return A map of {@link ConnectionType} to the list of entities this entity is connected
-     *         from by a connection of that type.
-     *
-     */
-    @Nonnull
-    default Map<ConnectionType, List<E>> getConnectedFromEntitiesByConnectionType() {
-        return ImmutableMap.of(
-            ConnectionType.NORMAL_CONNECTION, getInboundAssociatedEntities(),
-            ConnectionType.AGGREGATES_CONNECTION, getAggregators(),
-            ConnectionType.OWNS_CONNECTION, getOwner()
-                .map(Collections::singletonList)
-                .orElse(Collections.emptyList()));
+    static <E1 extends TopologyGraphEntity<E1>> List<E1> applyTransitively(
+            @Nonnull List<E1> seed, @Nonnull Function<E1, List<E1>> function) {
+        final Set<E1> result = new HashSet<>(seed);
+        int oldResultSize = 0;
+        while (oldResultSize < result.size()) {
+            oldResultSize = result.size();
+            result.addAll(result.stream()
+                                .flatMap(e -> function.apply(e).stream())
+                                .collect(Collectors.toSet()));
+        }
+        return result.stream().collect(Collectors.toList());
     }
 
     /**
@@ -311,16 +276,16 @@ public interface TopologyGraphEntity<E extends TopologyGraphEntity> {
     }
 
     /**
-     * A convenience method that applies a type filter on
-     * {@link TopologyGraphEntity#getConnectedFromEntities()}.
+     * Get all connected entities
      *
-     * @param type entity type of the returned entities
-     * @return return all inbound connections of a certain entity type
+     * @return the owned and aggregated entities.
      */
     @Nonnull
-    default Stream<E> getConnectedFromEntities(final int type) {
-        return getConnectedFromEntities().stream()
-            .filter(entity -> entity.getEntityType() == type);
+    default List<E> getAllConnectedEntities() {
+        return Stream.of(getOwnedOrAggregatedEntities(), getOwnersOrAggregators(),
+                         getInboundAssociatedEntities(), getOutboundAssociatedEntities())
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
     }
 
     /**

@@ -24,6 +24,7 @@ import org.mockito.Mockito;
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
@@ -145,6 +146,8 @@ public class CompoundMoveTest {
             .newBlockingStub(supplyChainGrpcServer.getChannel());
 
         repositoryApi = mock(RepositoryApi.class);
+        final SearchRequest emptySearchReq = ApiTestUtils.mockEmptySearchReq();
+        when(repositoryApi.getRegion(any())).thenReturn(emptySearchReq);
 
         actionSpecMappingContextFactory = new ActionSpecMappingContextFactory(policyService,
                 Executors.newCachedThreadPool(new ThreadFactoryBuilder().build()), repositoryApi,
