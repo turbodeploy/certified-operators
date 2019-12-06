@@ -50,7 +50,7 @@
                                     <type>zip</type>
                                     <overWrite>false</overWrite>
                                     <outputDirectory>${project.build.directory}/probe-jars/probe</outputDirectory>
-                                    <excludes>**/*.jar</excludes>
+                                    <excludes>**/*.jar,**/*.xml</excludes>
                                 </artifactItem>
                             </artifactItems>
                         </configuration>
