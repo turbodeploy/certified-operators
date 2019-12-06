@@ -472,6 +472,7 @@ public class TopologyProcessorNotificationSender
                 // Send the entities first.
                 if (chunk.size() > 0) {
                     sendChunk();
+                    chunk.clear();
                 }
                 extensionChunk.add(extension);
                 if (extensionChunk.size() >= MessageChunker.CHUNK_SIZE) {

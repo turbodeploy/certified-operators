@@ -2211,12 +2211,11 @@ public class TopologyConverter {
         double usedQuantity = newQuantity[0];
         double peakQuantity = newQuantity[1];
 
-        // Bought Flow commodities must have quantity of 1.
-        // Only the FLOW-0 is actually used by the EdeCommon.computeCommodityCost(), so setting
-        // all Flows to 1.
-        // should be alright.
+        // Bought Flow-0 commodity must have quantity of 1.
         if (topologyCommBought.getCommodityType().getType() ==
-            CommodityDTO.CommodityType.FLOW_VALUE) {
+            CommodityDTO.CommodityType.FLOW_VALUE &&
+            "FLOW-0".equals(topologyCommBought.getCommodityType().getKey()) &&
+            topologyCommBought.getUsed() == 0) {
             usedQuantity = 1D;
         }
 
