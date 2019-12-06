@@ -68,18 +68,16 @@ public class MarketPriceTable {
             .put(DatabaseEngine.MYSQL, "MySql")
             .put(DatabaseEngine.ORACLE, "Oracle")
             .put(DatabaseEngine.POSTGRESQL, "PostgreSql")
-            .put(DatabaseEngine.SQL_SERVER, "SqlServer")
+            .put(DatabaseEngine.SQLSERVER, "SqlServer")
             .put(DatabaseEngine.UNKNOWN, "Unknown").build();
 
     public static final Map<DatabaseEdition, String> DB_EDITION_MAP = ImmutableMap.<DatabaseEdition, String>builder()
-            .put(DatabaseEdition.ORACLE_ENTERPRISE, "Enterprise")
-            .put(DatabaseEdition.ORACLE_STANDARD, "Standard")
-            .put(DatabaseEdition.ORACLE_STANDARD_1, "Standard One")
-            .put(DatabaseEdition.ORACLE_STANDARD_2, "Standard Two")
-            .put(DatabaseEdition.SQL_SERVER_ENTERPRISE, "Enterprise")
-            .put(DatabaseEdition.SQL_SERVER_STANDARD, "Standard")
-            .put(DatabaseEdition.SQL_SERVER_WEB, "Web")
-            .put(DatabaseEdition.SQL_SERVER_EXPRESS, "Express").build();
+            .put(DatabaseEdition.ENTERPRISE, "Enterprise")
+            .put(DatabaseEdition.STANDARD, "Standard")
+            .put(DatabaseEdition.STANDARDONE, "Standard One")
+            .put(DatabaseEdition.STANDARDTWO, "Standard Two")
+            .put(DatabaseEdition.WEB, "Web")
+            .put(DatabaseEdition.EXPRESS, "Express").build();
 
     public static final Map<DeploymentType, String> DEPLOYMENT_TYPE_MAP = ImmutableMap.<DeploymentType, String>builder()
             .put(DeploymentType.MULTI_AZ, "MultiAz")

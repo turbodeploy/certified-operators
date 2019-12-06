@@ -23,7 +23,6 @@
         <immutables-javaslang.version>0.1.0</immutables-javaslang.version>
         <javaslang.version>2.0.5</javaslang.version>
         <reactor.version>3.0.3.RELEASE</reactor.version>
-        <jooq.version>3.12.1</jooq.version>
         <ical4j.version>3.0.10</ical4j.version>
 
         <!-- TODO: user and password configuration should NOT be checked into source control -->

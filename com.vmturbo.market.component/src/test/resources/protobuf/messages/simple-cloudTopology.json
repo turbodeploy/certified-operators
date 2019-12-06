@@ -1170,7 +1170,7 @@
     "entityType": 46,
     "typeSpecificInfo": {
       "database": {
-        "edition": "SQL_SERVER_ENTERPRISE"
+        "edition": "ENTERPRISE"
       }
     },
     "oid": "72623594843399",

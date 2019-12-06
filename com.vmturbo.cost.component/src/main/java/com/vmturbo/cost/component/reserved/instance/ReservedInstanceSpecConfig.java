@@ -7,19 +7,19 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceSpecServiceController;
+import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 /**
  * Config class for ReservedInstanceSpec.
  */
 @Configuration
 @Import({IdentityProviderConfig.class,
-        SQLDatabaseConfig.class})
+        CostDBConfig.class})
 public class ReservedInstanceSpecConfig {
 
     @Autowired
-    private SQLDatabaseConfig databaseConfig;
+    private CostDBConfig databaseConfig;
 
     @Autowired
     private IdentityProviderConfig identityProviderConfig;

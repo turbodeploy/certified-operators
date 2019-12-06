@@ -178,18 +178,15 @@ public class ActionSpecMappingContextFactory {
                 throws UnsupportedActionException, ExecutionException, InterruptedException {
 
         final Future<Map<Long, PolicyDTO.Policy>> policies = executorService.submit(this::getPolicies);
-        final Future<List<ApiPartialEntity>> entities = executorService.submit(() ->
+        final Future<Map<Long, ApiPartialEntity>> entities = executorService.submit(() ->
             getEntities(actions, topologyContextId));
-        List<ApiPartialEntity> topologyEntityDTOs = entities.get();
+        Map<Long, ApiPartialEntity> entitiesById = entities.get();
 
         Map<Long, Pair<ReservedInstanceBought, ReservedInstanceSpec>> buyRIIdToRIBoughtandRISpec  =
                                         getBuyRIIdToRIBoughtandRISpec(actions.stream()
                                         .filter(a -> a.getInfo().hasBuyRi())
                                         .map(a -> a.getInfo().getBuyRi())
                                         .collect(Collectors.toList()));
-
-        final Map<Long, ApiPartialEntity> entitiesById = topologyEntityDTOs.stream()
-            .collect(Collectors.toMap(ApiPartialEntity::getOid, Function.identity()));
 
         final Map<Long, ApiPartialEntity> datacenterById =
             getDatacentersByEntity(entitiesById.keySet(), topologyContextId);
@@ -332,7 +329,7 @@ public class ActionSpecMappingContextFactory {
     }
 
     @Nonnull
-    private List<ApiPartialEntity> getEntities(@Nonnull final List<Action> actions, final long contextId) {
+    private Map<Long, ApiPartialEntity> getEntities(@Nonnull final List<Action> actions, final long contextId) {
         final Set<Long> srcEntities = new HashSet<>();
         final Set<Long> projEntities = new HashSet<>();
         final Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntityIds(actions);
@@ -370,18 +367,22 @@ public class ActionSpecMappingContextFactory {
             }
         });
 
-        final List<ApiPartialEntity> retList = repositoryApi.entitiesRequest(srcEntities)
+        final Map<Long, ApiPartialEntity> retMap = repositoryApi.entitiesRequest(srcEntities)
             .contextId(contextId)
             .getEntities()
-            .collect(Collectors.toList());
+            .collect(Collectors.toMap(ApiPartialEntity::getOid, Function.identity()));
+        // Find entities we can't find in the source topology in the projected topology.
+        srcEntities.stream()
+            .filter(srcId -> !retMap.containsKey(srcId))
+            .forEach(projEntities::add);
         if (!projEntities.isEmpty()) {
             repositoryApi.entitiesRequest(projEntities)
                 .contextId(contextId)
                 .projectedTopology()
                 .getEntities()
-                .forEach(retList::add);
+                .forEach(e -> retMap.put(e.getOid(), e));
         }
-        return retList;
+        return retMap;
     }
 
     @Nonnull

@@ -45,6 +45,7 @@ import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
+import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.PrimitiveValue;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.PredefinedAccountDefinition;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
@@ -626,7 +627,7 @@ public class KVBackedTargetStoreTest {
                     .setName(barName)
                     .setDisplayName("bar-displayName")
                     .setDescription("bar-desc"))
-                .setMandatory(true))
+                .setMandatory(false))
             .build();
         Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
 
@@ -642,6 +643,75 @@ public class KVBackedTargetStoreTest {
 
         assertAccountValueEquals(updatedTarget, fooName, "foo-original");
         assertAccountValueEquals(updatedTarget, barName, "bar-updated");
+    }
+
+    /**
+     * Test that when we update a target with an empty string value for an existing numeric field,
+     * the respective account value is removed from the target.  If we update a string field,
+     * however, the empty string does get sent as the new account value.
+     *
+     * @throws Exception when there is a problem updating the target.
+     */
+    @Test
+    public void testEmptyValuesUpdateTarget() throws Exception {
+        final String fooName = "foo";
+        final String barName = "bar";
+        final String carName = "car";
+        final String originalFooValue = "foo-original";
+        final String originalBarValue = "8080";
+        final String originalCarValue = "car-original";
+
+        final TopologyProcessorDTO.AccountValue fooAccountValue =
+            TopologyProcessorDTO.AccountValue.newBuilder().setKey(fooName)
+                .setStringValue(originalFooValue).build();
+        final TopologyProcessorDTO.AccountValue barAccountValue =
+            TopologyProcessorDTO.AccountValue.newBuilder().setKey(barName)
+                .setStringValue(originalBarValue).build();
+        final TopologyProcessorDTO.AccountValue carAccountValue =
+            TopologyProcessorDTO.AccountValue.newBuilder().setKey(carName)
+                .setStringValue(originalCarValue).build();
+
+        final ProbeInfo probeInfo = ProbeInfo.newBuilder(this.probeInfo)
+            .addAccountDefinition(AccountDefEntry.newBuilder()
+                .setCustomDefinition(CustomAccountDefEntry.newBuilder()
+                    .setName(fooName)
+                    .setDisplayName("foo-displayName")
+                    .setDescription("foo-desc"))
+                .setMandatory(true))
+            .addAccountDefinition(AccountDefEntry.newBuilder()
+                .setCustomDefinition(CustomAccountDefEntry.newBuilder()
+                    .setName(barName)
+                    .setDisplayName("bar-displayName")
+                    .setDescription("bar-desc")
+                    .setPrimitiveValue(PrimitiveValue.NUMERIC))
+                .setMandatory(false))
+            .addAccountDefinition(AccountDefEntry.newBuilder()
+                .setCustomDefinition(CustomAccountDefEntry.newBuilder()
+                    .setName(carName)
+                    .setDisplayName("car-displayName")
+                    .setDescription("car-desc")
+                    .setPrimitiveValue(PrimitiveValue.STRING))
+                .setMandatory(false))
+            .build();
+        Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
+
+        final TargetSpec targetSpec = TargetSpec.newBuilder().setProbeId(0)
+            .addAllAccountValue(Arrays.asList(fooAccountValue, barAccountValue)).build();
+        final Target target = targetStore.createTarget(targetSpec);
+        assertAccountValueEquals(target, fooName, originalFooValue);
+        assertAccountValueEquals(target, barName, originalBarValue);
+
+        final Target updatedTargetEmptyBarAndCarValues = target.withUpdatedFields(
+            ImmutableList.of(barAccountValue.toBuilder().setStringValue("").build(),
+                carAccountValue.toBuilder().setStringValue("").build()),
+            probeStore);
+        // assert that account value that was set to empty string does not exist
+        assertFalse(updatedTargetEmptyBarAndCarValues.getMediationAccountVals(groupScopeResolver).stream()
+            .filter(acctValue -> acctValue.getKey().equals(barAccountValue.getKey()))
+            .findAny()
+            .isPresent());
+        assertAccountValueEquals(updatedTargetEmptyBarAndCarValues, fooName, originalFooValue);
+        assertAccountValueEquals(updatedTargetEmptyBarAndCarValues, carName, "");
     }
 
     private void assertAccountValueEquals(@Nonnull final Target target,

@@ -56,14 +56,14 @@ public class FlowCommoditiesGenerator {
      * @param graph The graph with settings.
      */
     public void generateCommodities(final @Nonnull TopologyStitchingGraph graph) {
-        // Get PMs.
-        graph.entities().filter(e -> e.getEntityType().equals(PHYSICAL_MACHINE))
-             .forEach(this::sellFlowCommoditiesPM);
         // Generate Underlay graph.
         generateUnderlayGraph(graph);
         // Populate DPoDs.
         graph.entities().filter(e -> e.getEntityType().equals(CHASSIS))
              .forEach(this::getNetworkDpods);
+        // Get PMs.
+        graph.entities().filter(e -> e.getEntityType().equals(PHYSICAL_MACHINE))
+             .forEach(this::sellFlowCommoditiesPM);
     }
 
     /**
@@ -72,6 +72,7 @@ public class FlowCommoditiesGenerator {
      * @param graph The topology stitching graph.
      */
     private void generateUnderlayGraph(final @Nonnull TopologyStitchingGraph graph) {
+        matrix.resetUnderlay();
         graph.entities().filter(e -> e.getEntityType().equals(AVAILABILITY_ZONE))
              .forEach(this::setAZTopology);
         graph.entities().filter(e -> e.getEntityType().equals(PHYSICAL_MACHINE))
@@ -267,13 +268,7 @@ public class FlowCommoditiesGenerator {
      * @return The flows.
      */
     private double[] getFlows(final @Nonnull StitchingEntity enpoint) {
-        double[] flows = matrix.getEndpointFlows(enpoint.getOid());
-        if (flows.length == 0) {
-            flows = new double[]{0., 0., 0., 0.};
-        } else if (flows[0] == 0) {
-            flows[0] = 1.;
-        }
-        return flows;
+        return matrix.getEndpointFlows(enpoint.getOid());
     }
 
     /**
@@ -294,6 +289,9 @@ public class FlowCommoditiesGenerator {
                                                     .setProviderId(providerID)
                                                     .setProviderType(PHYSICAL_MACHINE);
         final double[] flows = getFlows(vm);
+        if (flows.length == 0) {
+            return;
+        }
         for (int i = 0; i < FlowsCommonUtils.FLOW_KEYS.length; i++) {
             cb.addBought(genBoughtComm(soldComms[i].getKey(), flows[i], soldComms[i].getCapacity()));
             vm.addCommoditySold(buildSoldFlowComm(FlowsCommonUtils.FLOW_KEYS[i],
@@ -348,6 +346,9 @@ public class FlowCommoditiesGenerator {
                                                     .setProviderId(providerID)
                                                     .setProviderType(VIRTUAL_MACHINE);
         final double[] flows = getFlows(pod);
+        if (flows.length == 0) {
+            return;
+        }
         for (int i = 0; i < FlowsCommonUtils.FLOW_KEYS.length; i++) {
             cb.addBought(genBoughtComm(soldComms[i].getKey(), flows[i], soldComms[i].getCapacity()));
         }

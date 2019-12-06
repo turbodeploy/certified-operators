@@ -10,13 +10,13 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 
+import com.vmturbo.group.GroupComponentDBConfig;
 import com.vmturbo.group.IdentityProviderConfig;
 import com.vmturbo.group.flyway.V1_11_Callback;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
 @Import({IdentityProviderConfig.class,
-        SQLDatabaseConfig.class})
+        GroupComponentDBConfig.class})
 public class GroupConfig {
 
     @Value("${tempGroupExpirationTimeMins:10}")
@@ -26,7 +26,7 @@ public class GroupConfig {
     private IdentityProviderConfig identityProviderConfig;
 
     @Autowired
-    private SQLDatabaseConfig databaseConfig;
+    private GroupComponentDBConfig databaseConfig;
 
     /**
      * Define flyway callbacks to be active during migrations for group component.

@@ -39,7 +39,6 @@ import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord.StatValue;
-import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
@@ -461,7 +460,6 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
      * @param volumes list of volumes to get cost for
      * @return map of cost StatApiDTO for each volume id
      */
-
     private Map<Long, List<StatApiDTO>> getVolumeCostStats(@Nonnull List<TopologyEntityDTO> volumes,
                                                      @Nullable Long topologyContextId) {
         final Set<Long> cloudVolumeIds = volumes.stream()
@@ -472,18 +470,18 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         if (cloudVolumeIds.isEmpty()) {
             return Collections.emptyMap();
         }
-        final GetCloudCostStatsRequest.Builder request = GetCloudCostStatsRequest.newBuilder();
-        final CloudCostStatsQuery.Builder cloudCostStatsQuery = CloudCostStatsQuery.newBuilder();
-                cloudCostStatsQuery.setEntityFilter(EntityFilter.newBuilder()
-                                .addAllEntityId(cloudVolumeIds)
-                                .build());
+
+        final GetCloudCostStatsRequest.Builder request = GetCloudCostStatsRequest.newBuilder()
+            .setEntityFilter(EntityFilter.newBuilder()
+                .addAllEntityId(cloudVolumeIds)
+                .build());
         if (topologyContextId != null) {
             // get projected cost
             long now = Instant.now().toEpochMilli();
-            cloudCostStatsQuery.setStartDate(now);
-            cloudCostStatsQuery.setEndDate(now);
+            request.setStartDate(now);
+            request.setEndDate(now);
         }
-        request.addCloudCostStatsQuery(cloudCostStatsQuery.build());
+
         try {
             final List<CloudCostStatRecord> cloudStatRecords = costServiceRpc.getCloudCostStats(request.build())
                 .getCloudStatRecordList();

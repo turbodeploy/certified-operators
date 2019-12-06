@@ -22,6 +22,7 @@ import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.CostComponentGlobalConfig;
+import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.cost.component.MarketListenerConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
@@ -33,7 +34,6 @@ import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopologyFactory;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 @Configuration
@@ -41,7 +41,7 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache;
     GroupClientConfig.class,
     MarketClientConfig.class,
     MarketListenerConfig.class,
-    SQLDatabaseConfig.class,
+    CostDBConfig.class,
     RepositoryClientConfig.class,
     ComputeTierDemandStatsConfig.class,
     CostNotificationConfig.class,
@@ -83,7 +83,7 @@ public class ReservedInstanceConfig {
     private RepositoryClientConfig repositoryClientConfig;
 
     @Autowired
-    private SQLDatabaseConfig databaseConfig;
+    private CostDBConfig databaseConfig;
 
     @Autowired
     private IdentityProviderConfig identityProviderConfig;

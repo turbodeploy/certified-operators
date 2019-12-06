@@ -4,6 +4,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Optional;
@@ -107,8 +108,8 @@ public class TopologyEntityInfoExtractorTest {
         .setEntityType(EntityType.DATABASE_VALUE)
         .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
             .setDatabase(DatabaseInfo.newBuilder()
-                .setEngine(DatabaseEngine.SQL_SERVER)
-                .setEdition(DatabaseEdition.SQL_SERVER_STANDARD)
+                .setEngine(DatabaseEngine.SQLSERVER)
+                .setEdition(DatabaseEdition.STANDARD)
                 .setLicenseModel(LicenseModel.LICENSE_INCLUDED)
                 .setDeploymentType(DeploymentType.SINGLE_AZ)))
         .build();
@@ -188,9 +189,10 @@ public class TopologyEntityInfoExtractorTest {
     public void testExtractDatabaseConfig() {
         Optional<DatabaseConfig> dbConfigOptional = entityInfoExtractor.getDatabaseConfig(DB);
         assertTrue(dbConfigOptional.isPresent());
-        final DatabaseConfig dbConfig = dbConfigOptional.get();
-        assertThat(dbConfig.getEngine(), is(DatabaseEngine.SQL_SERVER));
-        assertThat(dbConfig.getEdition(), is(DatabaseEdition.SQL_SERVER_STANDARD));
+        final DatabaseConfig dbConfig = dbConfigOptional.orElseGet(null);
+        assertNotNull(dbConfig);
+        assertThat(dbConfig.getEngine(), is(DatabaseEngine.SQLSERVER));
+        assertThat(dbConfig.getEdition(), is(DatabaseEdition.STANDARD));
         assertThat(dbConfig.getLicenseModel(), is(LicenseModel.LICENSE_INCLUDED));
         assertThat(dbConfig.getDeploymentType(), is(DeploymentType.SINGLE_AZ));
     }

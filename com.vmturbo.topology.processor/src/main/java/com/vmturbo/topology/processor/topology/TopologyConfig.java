@@ -4,6 +4,7 @@ import java.util.concurrent.Executors;
 
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.matrix.component.external.MatrixInterface;
+import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
 import com.vmturbo.topology.processor.ncm.MatrixConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,7 +15,6 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
 import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
 import com.vmturbo.topology.processor.controllable.ControllableConfig;
@@ -63,7 +63,8 @@ import com.vmturbo.topology.processor.workflow.WorkflowConfig;
     CloudCostConfig.class,
     MatrixConfig.class,
     HistoryAggregationConfig.class,
-    LicenseCheckClientConfig.class
+    LicenseCheckClientConfig.class,
+    TopologyProcessorDBConfig.class
 })
 public class TopologyConfig {
 
@@ -119,7 +120,7 @@ public class TopologyConfig {
     private CloudCostConfig cloudCostConfig;
 
     @Autowired
-    private SQLDatabaseConfig sqlDatabaseConfig;
+    private TopologyProcessorDBConfig topologyProcessorDBConfig;
 
     @Autowired
     private MatrixConfig matrixConfig;
@@ -280,7 +281,7 @@ public class TopologyConfig {
 
     @Bean
     public HistoricalUtilizationDatabase historicalUtilizationDatabase() {
-        return new HistoricalUtilizationDatabase(sqlDatabaseConfig.dsl());
+        return new HistoricalUtilizationDatabase(topologyProcessorDBConfig.dsl());
     }
 
     @Bean

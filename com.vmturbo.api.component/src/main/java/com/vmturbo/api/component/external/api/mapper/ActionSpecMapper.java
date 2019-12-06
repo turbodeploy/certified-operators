@@ -99,7 +99,6 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
-import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
@@ -1492,11 +1491,11 @@ public class ActionSpecMapper {
         EntityFilter entityFilter = EntityFilter.newBuilder().addEntityId(entityUuid).build();
         GetCloudCostStatsRequest cloudCostStatsRequest = GetCloudCostStatsRequest
                 .newBuilder()
-                .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
                 .setStartDate(System.currentTimeMillis())
                 .setRequestProjected(true)
                 .setEntityFilter(entityFilter)
-                .build()).build();
+                .setGroupBy(GetCloudCostStatsRequest.GroupByType.COSTCOMPONENT)
+                .build();
         GetCloudCostStatsResponse response = costServiceBlockingStub.getCloudCostStats(cloudCostStatsRequest);
         int statRecordListSize = response.getCloudStatRecordList().size();
         if (statRecordListSize == 2) {

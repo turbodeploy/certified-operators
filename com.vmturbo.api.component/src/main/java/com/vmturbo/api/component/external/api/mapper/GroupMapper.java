@@ -43,7 +43,6 @@ import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
-import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
@@ -343,11 +342,10 @@ public class GroupMapper {
         if (environmentType == EnvironmentType.CLOUD) {
             final GetCloudCostStatsResponse cloudCostStatsResponse =
                     costServiceBlockingStub.getCloudCostStats(GetCloudCostStatsRequest.newBuilder()
-                            .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
                             .setEntityFilter(Cost.EntityFilter.newBuilder()
                                     .addAllEntityId(groupAndMembers.members())
                                     .build())
-                            .build()).build());
+                            .build());
             final List<CloudCostStatRecord> costStatRecordList =
                     cloudCostStatsResponse.getCloudStatRecordList();
             if (!costStatRecordList.isEmpty()) {
