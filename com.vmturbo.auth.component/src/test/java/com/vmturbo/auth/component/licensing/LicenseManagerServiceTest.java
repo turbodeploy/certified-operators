@@ -18,6 +18,7 @@ import com.google.protobuf.Empty;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -147,6 +148,7 @@ public class LicenseManagerServiceTest {
     }
 
     @Test
+    @Ignore("See https://vmturbo.atlassian.net/browse/OM-53335")
     public void testStoreAndRetrieveCWOMLicense() throws IOException {
         LicenseDTO workloadLicense = LicenseDTOUtils.iLicenseToLicenseDTO(
                 LicenseDeserializer.deserialize(LicenseLocalStoreTest.C1_LICENSE, "test.file"));
