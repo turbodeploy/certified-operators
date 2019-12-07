@@ -25,6 +25,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
+import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
@@ -458,6 +459,23 @@ public class ActionDTOUtilTest {
 
         assertSame(vm, ActionDTOUtil.getPrimaryEntity(scale, true));
         assertSame(vm, ActionDTOUtil.getPrimaryEntity(scale, false));
+    }
+
+    /**
+     * Test for invocation of {@link ActionDTOUtil#getPrimaryEntity(Action)} method for
+     * Buy RI action.
+     *
+     * @throws UnsupportedActionException in case of unknown action type.
+     */
+    @Test
+    public void testGetPrimaryEntityForBuyRI() throws UnsupportedActionException {
+        final ActionEntity computeTier = createActionEntity(33, EntityType.COMPUTE_TIER_VALUE);
+        final ActionInfo buyRiInfo = ActionInfo.newBuilder()
+                .setBuyRi(BuyRI.newBuilder().setComputeTier(computeTier))
+                .build();
+        final Action buyRi = createAction(buyRiInfo);
+
+        assertSame(computeTier, ActionDTOUtil.getPrimaryEntity(buyRi));
     }
 
     /**
