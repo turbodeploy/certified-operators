@@ -806,17 +806,11 @@ public class ScenarioMapper {
 
     @Nonnull
     private List<ScenarioChange> checkAndCreateDefaultAutomationSettingsForPlan(@Nonnull final ScenarioApiDTO dto) {
-        boolean hasStorageSuspendSetting = false;
         boolean hasPMProvisionSetting = false;
         final ImmutableList.Builder<ScenarioChange> changes = ImmutableList.builder();
         if (dto.getConfigChanges() != null && dto.getConfigChanges().getAutomationSettingList() != null) {
             List<SettingApiDTO<String>> automationSettingList = dto.getConfigChanges().getAutomationSettingList();
             for(SettingApiDTO setting : automationSettingList) {
-                if (setting.getEntityType() != null && setting.getUuid() != null
-                                && UIEntityType.fromString(setting.getEntityType()).typeNumber() == EntityType.STORAGE_VALUE
-                                && setting.getUuid().equalsIgnoreCase(EntitySettingSpecs.Suspend.name())) {
-                    hasStorageSuspendSetting = true;
-                }
                 if (setting.getEntityType() != null && setting.getUuid() != null
                                 && UIEntityType.fromString(setting.getEntityType()).typeNumber() == EntityType.PHYSICAL_MACHINE_VALUE
                                 && setting.getUuid().equalsIgnoreCase(EntitySettingSpecs.Provision.getSettingName())) {
@@ -832,15 +826,6 @@ public class ScenarioMapper {
                             .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(DISABLED)))
                     .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE);
             changes.add(ScenarioChange.newBuilder().setSettingOverride(settingOverride).build());
-        }
-        // All plans will have storage suspension disabled as default
-        if (!hasStorageSuspendSetting) {
-            final SettingOverride.Builder settingOverride = SettingOverride.newBuilder()
-                    .setSetting(Setting.newBuilder()
-                            .setSettingSpecName(EntitySettingSpecs.Suspend.getSettingName())
-                            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(DISABLED)))
-                    .setEntityType(EntityType.STORAGE_VALUE);
-           changes.add(ScenarioChange.newBuilder().setSettingOverride(settingOverride).build());
         }
         return changes.build();
     }
