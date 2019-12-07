@@ -226,7 +226,7 @@ public class ActionDTOUtil {
             case DELETE:
                 return actionInfo.getDelete().getTarget();
             case BUYRI:
-                return actionInfo.getBuyRi().getRegion();
+                return actionInfo.getBuyRi().getComputeTier();
             default:
                 throw new UnsupportedActionException(actionId, actionInfo);
         }
