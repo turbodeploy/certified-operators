@@ -109,6 +109,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -180,6 +181,9 @@ public class ActionSpecMapper {
 
     private final RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub riStub;
 
+    private final ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub
+            reservedInstanceUtilizationCoverageServiceBlockingStub;
+
     private final CostServiceBlockingStub costServiceBlockingStub;
 
     private final ReservedInstanceBoughtServiceBlockingStub reservedInstanceBoughtServiceBlockingStub;
@@ -207,6 +211,7 @@ public class ActionSpecMapper {
                             @Nonnull final CostServiceBlockingStub costServiceBlockingStub,
                             @Nonnull final StatsQueryExecutor statsQueryExecutor,
                             @Nonnull final UuidMapper uuidMapper,
+                            @Nonnull final ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub reservedInstanceUtilizationCoverageServiceBlockingStub,
                             @Nonnull final ReservedInstanceBoughtServiceBlockingStub reservedInstanceBoughtServiceBlockingStub,
                             @Nonnull final RepositoryApi repositoryApi,
                             final long realtimeTopologyContextId) {
@@ -216,6 +221,7 @@ public class ActionSpecMapper {
         this.reservedInstanceMapper = Objects.requireNonNull(reservedInstanceMapper);
         this.costServiceBlockingStub = Objects.requireNonNull(costServiceBlockingStub);
         this.riStub = riStub;
+        this.reservedInstanceUtilizationCoverageServiceBlockingStub = reservedInstanceUtilizationCoverageServiceBlockingStub;
         this.statsQueryExecutor = statsQueryExecutor;
         this.uuidMapper = uuidMapper;
         this.reservedInstanceBoughtServiceBlockingStub = reservedInstanceBoughtServiceBlockingStub;
@@ -1576,41 +1582,62 @@ public class ActionSpecMapper {
      * @param cloudResizeActionDetailsApiDTO - cloud resize action details DTO
      */
     private void setRiCoverage(long entityUuid, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
-        /* current/real-time RI coverage of target entity */
-        final StatApiInputDTO cvgRequest = new StatApiInputDTO();
-        cvgRequest.setName(StringConstants.RI_COUPON_COVERAGE);
-        final StatPeriodApiInputDTO statInput = new StatPeriodApiInputDTO();
-        statInput.setStatistics(Collections.singletonList(cvgRequest));
-        try {
-            final Optional<StatApiDTO> optRiCoverage =
-                    statsQueryExecutor.getAggregateStats(uuidMapper.fromOid(entityUuid), statInput)
-                            .stream()
-                            // Exclude projected snapshot
-                            .filter(snapshot -> DateTimeUtil.parseTime(snapshot.getDate()) < System.currentTimeMillis())
-                            // Get the snapshot with the most recent date assuming that it represents
-                            // current state
-                            .max((snapshot1, snapshot2) -> CommonComparators.longNumber().compare(
-                                    DateTimeUtil.parseTime(snapshot1.getDate()), DateTimeUtil.parseTime(snapshot2.getDate())))
-                            .flatMap(snapshot -> snapshot.getStatistics().stream().findFirst());
-            optRiCoverage.ifPresent(riCoverage -> {
-                // set riCoverage
-                cloudResizeActionDetailsApiDTO.setRiCoverageBefore(optRiCoverage.get());
-            });
-        } catch (OperationFailedException e) {
-            logger.error("Failed to get RI coverage for entity {} : {}",
-                    entityUuid, e.getMessage());
+        // get latest RI coverage for target entity
+        Cost.GetEntityReservedInstanceCoverageRequest reservedInstanceCoverageRequest =
+                Cost.GetEntityReservedInstanceCoverageRequest
+                .newBuilder()
+                .build();
+        Cost.GetEntityReservedInstanceCoverageResponse reservedInstanceCoverageResponse =
+                reservedInstanceUtilizationCoverageServiceBlockingStub
+                        .getEntityReservedInstanceCoverage(reservedInstanceCoverageRequest);
+
+        Map<Long, Cost.EntityReservedInstanceCoverage> coverageMap = reservedInstanceCoverageResponse.getCoverageByEntityIdMap();
+        if (coverageMap.containsKey(entityUuid)) {
+            Cost.EntityReservedInstanceCoverage latestCoverage = coverageMap.get(entityUuid);
+            StatValueApiDTO latestCoverageCapacityDTO = new StatValueApiDTO();
+            latestCoverageCapacityDTO.setAvg((float)latestCoverage.getEntityCouponCapacity());
+
+            StatApiDTO latestCoverageStatDTO = new StatApiDTO();
+            // set coupon capacity
+            latestCoverageStatDTO.setCapacity(latestCoverageCapacityDTO);
+            // set coupon usage
+            latestCoverageStatDTO.setValue((float)latestCoverage.getCouponsCoveredByRiCount());
+            cloudResizeActionDetailsApiDTO.setRiCoverageBefore(latestCoverageStatDTO);
+        } else {
+            logger.debug("Failed to retrieve current RI coverage for entity with ID: {}", entityUuid);
         }
 
-        // set RI coverage after (projection)
-        // todo: projection data will be available after OM-51301 & OM-51296
-        // return empty DTO
-        StatValueApiDTO capacityStatValueDTO = new StatValueApiDTO();
-        capacityStatValueDTO.setAvg(0f);
-        StatApiDTO couponsStatApiDTOAfter = new StatApiDTO();
-        couponsStatApiDTOAfter.setCapacity(capacityStatValueDTO);
-        // no ri coverage; used coupons = 0
-        couponsStatApiDTOAfter.setValue(0f);
-        cloudResizeActionDetailsApiDTO.setRiCoverageAfter(couponsStatApiDTOAfter);
+        // get projected RI coverage for target entity
+        EntityFilter entityFilter = EntityFilter.newBuilder().addEntityId(entityUuid).build();
+
+        Cost.GetProjectedEntityReservedInstanceCoverageRequest projectedEntityReservedInstanceCoverageRequest =
+                Cost.GetProjectedEntityReservedInstanceCoverageRequest
+                .newBuilder()
+                .setEntityFilter(entityFilter)
+                .build();
+
+        Cost.GetProjectedEntityReservedInstanceCoverageResponse projectedEntityReservedInstanceCoverageResponse =
+                reservedInstanceUtilizationCoverageServiceBlockingStub
+                    .getProjectedEntityReservedInstanceCoverageStats(projectedEntityReservedInstanceCoverageRequest);
+
+        Map<Long, Cost.EntityReservedInstanceCoverage> projectedCoverageMap = projectedEntityReservedInstanceCoverageResponse
+                .getCoverageByEntityIdMap();
+
+        if (projectedCoverageMap.containsKey(entityUuid)) {
+            // set projected RI coverage
+            Cost.EntityReservedInstanceCoverage projectedRiCoverage = projectedCoverageMap.get(entityUuid);
+            StatValueApiDTO projectedCoverageCapacityDTO = new StatValueApiDTO();
+            projectedCoverageCapacityDTO.setAvg((float)projectedRiCoverage.getEntityCouponCapacity());
+
+            StatApiDTO projectedCoverageStatDTO = new StatApiDTO();
+            // set coupon capacity
+            projectedCoverageStatDTO.setCapacity(projectedCoverageCapacityDTO);
+            // set coupon usage
+            projectedCoverageStatDTO.setValue((float)projectedRiCoverage.getCouponsCoveredByRiCount());
+            cloudResizeActionDetailsApiDTO.setRiCoverageAfter(projectedCoverageStatDTO);
+        } else {
+            logger.debug("Failed to retrieve projected RI coverage for entity with ID: {}", entityUuid);
+        }
     }
 
     /**

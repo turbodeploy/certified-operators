@@ -48,6 +48,7 @@ import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
@@ -158,10 +159,12 @@ public class CompoundMoveTest {
                 CostServiceGrpc.newBlockingStub(grpcServer.getChannel());
         ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub reservedInstanceBoughtServiceBlockingStub =
                 ReservedInstanceBoughtServiceGrpc.newBlockingStub(grpcServer.getChannel());
-
+        ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub
+                reservedInstanceUtilizationCoverageServiceBlockingStub =
+                ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(grpcServer.getChannel());
         mapper = new ActionSpecMapper(actionSpecMappingContextFactory, serviceEntityMapper,
             mock(ReservedInstanceMapper.class), riBuyContextFetchServiceStub, costServiceBlockingStub,
-                statsQueryExecutor, uuidMapper,
+                statsQueryExecutor, uuidMapper, reservedInstanceUtilizationCoverageServiceBlockingStub,
                 reservedInstanceBoughtServiceBlockingStub, repositoryApi, REAL_TIME_TOPOLOGY_CONTEXT_ID);
         IdentityGenerator.initPrefix(0);
 
