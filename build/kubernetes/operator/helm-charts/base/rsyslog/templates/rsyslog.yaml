@@ -36,12 +36,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ .Chart.Name }}
-{{- if .Values.global }}
-  {{- with .Values.global.annotations }}
-  annotations:
-{{- toYaml . | nindent 4 }}
-  {{- end }}
-{{- end }}
   labels:
     zone: internal
     app.kubernetes.io/name: {{ .Chart.Name }}
@@ -53,6 +47,12 @@ spec:
     type: Recreate
   template:
     metadata:
+{{- if .Values.global }}
+  {{- with .Values.global.annotations }}
+      annotations:
+{{- toYaml . | nindent 8 }}
+  {{- end }}
+{{- end }}
       labels:
         zone: internal
         app.kubernetes.io/name: {{ .Chart.Name }}
