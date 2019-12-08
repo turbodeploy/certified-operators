@@ -77,12 +77,12 @@ public class CostRpcServiceTest {
 
     public static final double ACCOUNT_EXPENSE1 = 10.0;
     public static final double ACCOUNT_EXPENSE2 = 5.0;
-    private static final long ASSOCIATED_ACCOUNT_ID = 1111l;
+    private static final long ASSOCIATED_ACCOUNT_ID = 1111L;
     private static final double DISCOUNT_PERCENTAGE2 = 20.0;
     private static final double DISCOUNT_PERCENTAGE1 = 10.0;
     private static final long id = 1234L;
     private static final long id2 = 1235L;
-    private static final long ASSOCIATED_SERVICE_ID = 4l;
+    private static final long ASSOCIATED_SERVICE_ID = 4L;
     final DiscountInfo discountInfo1 = DiscountInfo.newBuilder()
             .setAccountLevelDiscount(DiscountInfo
                     .AccountLevelDiscount
@@ -584,49 +584,53 @@ public class CostRpcServiceTest {
         assertThat(exceptionCaptor.getValue(), GrpcExceptionMatcher.hasCode(Code.NOT_FOUND).anyDescription());
     }
 
-    @Test
-    public void testGetAveragedEntityStatsGroupByCSPWithEmptyBusinessAccountHelperMap() throws Exception {
-        final GetCloudExpenseStatsRequest request = GetCloudExpenseStatsRequest.newBuilder()
-                .setGroupBy(GroupByType.CSP)
-                .setEntityTypeFilter(EntityTypeFilter.newBuilder().addEntityTypeId(EntityType.CLOUD_SERVICE_VALUE).build())
-                .build();
-
-        final StreamObserver<GetCloudCostStatsResponse> mockObserver =
-                mock(StreamObserver.class);
-        final Map<Long, AccountExpenses> accountIdToExpenseMap = ImmutableMap.of(2l,
-                AccountExpenses.newBuilder()
-                        .setAssociatedAccountId(3l) // 3 is missing in the BusinessAccountHelp map.
-                        .setAccountExpensesInfo(accountExpensesInfo)
-                        .build());
-        final Map<Long, Map<Long, AccountExpenses>> snapshotToAccountExpensesMap = ImmutableMap.of(1l, accountIdToExpenseMap);
-        given(accountExpenseStore.getLatestExpenses(anySet(), anySet())).willReturn(snapshotToAccountExpensesMap);
-        given(accountExpenseStore.getAccountExpenses(any())).willReturn(snapshotToAccountExpensesMap);
-        final CloudCostStatRecord.StatRecord.Builder statRecordBuilder = CloudCostStatRecord.StatRecord.newBuilder();
-        final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
-        statRecordBuilder.setName(StringConstants.COST_PRICE);
-        statRecordBuilder.setUnits("$/h");
-        //  statRecordBuilder.setAssociatedEntityId(expectedEntityTypeId);
-        CloudCostStatRecord.StatRecord.StatValue.Builder statValueBuilder = CloudCostStatRecord.StatRecord.StatValue.newBuilder();
-
-        // the associated entity id should be 0 (missing) due to business account id (3) is not in the BusinessAccountHelp map.
-        statRecordBuilder.setAssociatedEntityId(0l);
-        statRecordBuilder.setAssociatedEntityType(EntityType.CLOUD_SERVICE_VALUE);
-        statValueBuilder.setAvg(7.5f);
-
-        statValueBuilder.setTotal(15.0f);
-        statValueBuilder.setMax(10.0f);
-        statValueBuilder.setMin(5.0f);
-
-        statRecordBuilder.setValues(statValueBuilder.build());
-        final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
-                .setSnapshotDate(1)
-                .addStatRecords(statRecordBuilder.build())
-                .build();
-        builder.addCloudStatRecord(cloudStatRecord);
-        costRpcService.getAccountExpenseStats(request, mockObserver);
-        verify(mockObserver).onNext(builder.build());
-        verify(mockObserver).onCompleted();
-    }
+    // TODO: uncomment once the Cost Breakdown by Cloud Provider is implemented, GroupBy = CSP is
+    //  not supported yet
+//    @Test
+//    public void testGetAveragedEntityStatsGroupByCSPWithEmptyBusinessAccountHelperMap() throws Exception {
+//        final GetCloudExpenseStatsRequest request = GetCloudExpenseStatsRequest.newBuilder()
+//                .setGroupBy(GroupByType.CSP)
+//                .setEntityTypeFilter(EntityTypeFilter.newBuilder().addEntityTypeId(EntityType.CLOUD_SERVICE_VALUE).build())
+//                .build();
+//
+//        final StreamObserver<GetCloudCostStatsResponse> mockObserver =
+//                mock(StreamObserver.class);
+//        final Map<Long, AccountExpenses> accountIdToExpenseMap = ImmutableMap.of(2l,
+//                AccountExpenses.newBuilder()
+//                        .setAssociatedAccountId(3l) // 3 is missing in the BusinessAccountHelp map.
+//                        .setAccountExpensesInfo(accountExpensesInfo)
+//                        .build());
+//        final Map<Long, Map<Long, AccountExpenses>> snapshotToAccountExpensesMap =
+//                ImmutableMap.of(1l, accountIdToExpenseMap);
+//        given(accountExpenseStore.getLatestAccountExpensesWithConditions(Collections.emptyList()))
+//                .willReturn(snapshotToAccountExpensesMap);
+//        given(accountExpenseStore.getAccountExpenses(any())).willReturn(snapshotToAccountExpensesMap);
+//        final CloudCostStatRecord.StatRecord.Builder statRecordBuilder = CloudCostStatRecord.StatRecord.newBuilder();
+//        final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
+//        statRecordBuilder.setName(StringConstants.COST_PRICE);
+//        statRecordBuilder.setUnits("$/h");
+//        //  statRecordBuilder.setAssociatedEntityId(expectedEntityTypeId);
+//        CloudCostStatRecord.StatRecord.StatValue.Builder statValueBuilder = CloudCostStatRecord.StatRecord.StatValue.newBuilder();
+//
+//        // the associated entity id should be 0 (missing) due to business account id (3) is not in the BusinessAccountHelp map.
+//        statRecordBuilder.setAssociatedEntityId(0l);
+//        statRecordBuilder.setAssociatedEntityType(EntityType.CLOUD_SERVICE_VALUE);
+//        statValueBuilder.setAvg(7.5f);
+//
+//        statValueBuilder.setTotal(15.0f);
+//        statValueBuilder.setMax(10.0f);
+//        statValueBuilder.setMin(5.0f);
+//
+//        statRecordBuilder.setValues(statValueBuilder.build());
+//        final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
+//                .setSnapshotDate(1)
+//                .addStatRecords(statRecordBuilder.build())
+//                .build();
+//        builder.addCloudStatRecord(cloudStatRecord);
+//        costRpcService.getAccountExpenseStats(request, mockObserver);
+//        verify(mockObserver).onNext(builder.build());
+//        verify(mockObserver).onCompleted();
+//    }
 
     @Test
     public void testGetAccountExpensesStatsWithFilterGroupByUnknown() throws Exception {
@@ -634,8 +638,8 @@ public class CostRpcServiceTest {
                 mock(StreamObserver.class);
         final GetCloudExpenseStatsRequest request = GetCloudExpenseStatsRequest.newBuilder()
                 .setEntityTypeFilter(EntityTypeFilter.newBuilder().addEntityTypeId(EntityType.CLOUD_SERVICE_VALUE).build())
-                .setStartDate(1l)
-                .setEndDate(1l)
+                .setStartDate(1L)
+                .setEndDate(1L)
                 .setEntityTypeFilter(EntityTypeFilter.newBuilder().build())
                 .build();
 
@@ -653,17 +657,17 @@ public class CostRpcServiceTest {
 
         final StreamObserver<GetCloudCostStatsResponse> mockObserver =
                 mock(StreamObserver.class);
-        final Map<Long, EntityCost> accountIdToExpenseMap = ImmutableMap.of(2l,
+        final Map<Long, EntityCost> accountIdToExpenseMap = ImmutableMap.of(2L,
                 entityCost);
         final Map<Long, Map<Long, EntityCost>> snapshotToAccountExpensesMap = new HashMap<>();
-        snapshotToAccountExpensesMap.put(1l, accountIdToExpenseMap);
+        snapshotToAccountExpensesMap.put(1L, accountIdToExpenseMap);
         given(entityCostStore.getLatestEntityCost(anySet(), anySet())).willReturn(snapshotToAccountExpensesMap);
 
         final CloudCostStatRecord.StatRecord.Builder statRecordBuilder = CloudCostStatRecord.StatRecord.newBuilder();
         final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
         statRecordBuilder.setName(StringConstants.COST_PRICE);
         statRecordBuilder.setUnits("$/h");
-        statRecordBuilder.setAssociatedEntityId(4l);
+        statRecordBuilder.setAssociatedEntityId(4L);
         statRecordBuilder.setAssociatedEntityType(1);
         statRecordBuilder.setCategory(CostCategory.ON_DEMAND_COMPUTE);
         CloudCostStatRecord.StatRecord.StatValue.Builder statValueBuilder = CloudCostStatRecord.StatRecord.StatValue.newBuilder();
@@ -688,8 +692,8 @@ public class CostRpcServiceTest {
     @Test
     public void testGetCloudCostStatsWithWorkload() throws Exception {
         final GetCloudCostStatsRequest request = GetCloudCostStatsRequest.newBuilder()
-            .setStartDate(1l)
-            .setEndDate(1l)
+            .setStartDate(1L)
+            .setEndDate(1L)
             .setRequestProjected(true)
             .build();
 
@@ -697,16 +701,16 @@ public class CostRpcServiceTest {
         final StreamObserver<GetCloudCostStatsResponse> mockObserver =
                 mock(StreamObserver.class);
         final Map<Long, EntityCost> accountIdToExpenseMap = new HashMap<>();
-        accountIdToExpenseMap.put(2l, entityCost);
+        accountIdToExpenseMap.put(2L, entityCost);
         final Map<Long, Map<Long, EntityCost>> snapshotToAccountExpensesMap = new HashMap<>();
-        snapshotToAccountExpensesMap.put(1l, accountIdToExpenseMap);
+        snapshotToAccountExpensesMap.put(1L, accountIdToExpenseMap);
         final Map<Long, EntityCost> projectedEntityCostMap =
-                ImmutableMap.of(3l, entityCost1);
+                ImmutableMap.of(3L, entityCost1);
         given(entityCostStore.getEntityCosts(any())).willReturn(snapshotToAccountExpensesMap);
         given(projectedEntityCostStore.getAllProjectedEntitiesCosts()).willReturn(projectedEntityCostMap);
 
         final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
-        builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost), 1l));
+        builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost), 1L));
         // the Projected stats will be 1 hour ahead
         builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost1),
                 1 + TimeUnit.HOURS.toMillis(1)));
@@ -836,8 +840,8 @@ public class CostRpcServiceTest {
     @Test
     public void testGetCloudCostStatsWithWorkloadWithEntityTypeFilter() throws Exception {
         final GetCloudCostStatsRequest request = GetCloudCostStatsRequest.newBuilder()
-            .setStartDate(1l)
-            .setEndDate(1l)
+            .setStartDate(1L)
+            .setEndDate(1L)
             .setRequestProjected(true)
             .setEntityTypeFilter(EntityTypeFilter.newBuilder().build())
             .build();
@@ -845,15 +849,15 @@ public class CostRpcServiceTest {
         final StreamObserver<GetCloudCostStatsResponse> mockObserver =
                 mock(StreamObserver.class);
         final Map<Long, EntityCost> accountIdToExpenseMap = new HashMap<>();
-        accountIdToExpenseMap.put(2l, entityCost);
+        accountIdToExpenseMap.put(2L, entityCost);
         final Map<Long, Map<Long, EntityCost>> snapshotToAccountExpensesMap = new HashMap<>();
-        snapshotToAccountExpensesMap.put(1l, accountIdToExpenseMap);
+        snapshotToAccountExpensesMap.put(1L, accountIdToExpenseMap);
         final Map<Long, EntityCost> projectedEntityCostMap =
-                ImmutableMap.of(3l, entityCost1);
+                ImmutableMap.of(3L, entityCost1);
         given(entityCostStore.getEntityCosts(any())).willReturn(snapshotToAccountExpensesMap);
         given(projectedEntityCostStore.getAllProjectedEntitiesCosts()).willReturn(projectedEntityCostMap);
         final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
-        builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost), 1l));
+        builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost), 1L));
         // the Projected stats will be 1 hour ahead
         builder.addCloudStatRecord(createCloudStatRecord(ImmutableList.of(entityCost1),
                 1 + TimeUnit.HOURS.toMillis(1)));
@@ -887,8 +891,8 @@ public class CostRpcServiceTest {
     @Test
     public void testGetCloudCostStatsWithWorkloadMultipleCategories() throws Exception {
         final GetCloudCostStatsRequest request = GetCloudCostStatsRequest.newBuilder()
-            .setStartDate(1l)
-            .setEndDate(1000l)
+            .setStartDate(1L)
+            .setEndDate(1000L)
             .setRequestProjected(true)
             .build();
 
@@ -896,15 +900,15 @@ public class CostRpcServiceTest {
         final StreamObserver<GetCloudCostStatsResponse> mockObserver =
                 mock(StreamObserver.class);
         final Map<Long, EntityCost> accountIdToExpenseMap1 = new HashMap<>();
-        accountIdToExpenseMap1.put(2l, entityCost);
+        accountIdToExpenseMap1.put(2L, entityCost);
         accountIdToExpenseMap1.put(3L, entityCost1);
         final Map<Long, EntityCost> accountIdToExpenseMap2 = new HashMap<>();
-        accountIdToExpenseMap2.put(2l, entityCost1);
+        accountIdToExpenseMap2.put(2L, entityCost1);
         accountIdToExpenseMap2.put(3L, entityCost2);
 
         final Map<Long, Map<Long, EntityCost>> snapshotToAccountExpensesMap = new HashMap<>();
-        snapshotToAccountExpensesMap.put(1l, accountIdToExpenseMap1);
-        snapshotToAccountExpensesMap.put(500l, accountIdToExpenseMap2);
+        snapshotToAccountExpensesMap.put(1L, accountIdToExpenseMap1);
+        snapshotToAccountExpensesMap.put(500L, accountIdToExpenseMap2);
         given(entityCostStore.getEntityCosts(any())).willReturn(snapshotToAccountExpensesMap);
 
         final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
@@ -933,7 +937,7 @@ public class CostRpcServiceTest {
         final CloudCostStatRecord.StatRecord.Builder statRecordBuilder = CloudCostStatRecord.StatRecord.newBuilder();
         statRecordBuilder.setName(StringConstants.COST_PRICE);
         statRecordBuilder.setUnits("$/h");
-        statRecordBuilder.setAssociatedEntityId(4l);
+        statRecordBuilder.setAssociatedEntityId(4L);
         statRecordBuilder.setAssociatedEntityType(1);
         statRecordBuilder.setCategory(costCategory);
         CloudCostStatRecord.StatRecord.StatValue.Builder statValueBuilder = CloudCostStatRecord.StatRecord.StatValue.newBuilder();
@@ -953,13 +957,13 @@ public class CostRpcServiceTest {
         final StreamObserver<GetCloudCostStatsResponse> mockObserver =
                 mock(StreamObserver.class);
         final GetCloudExpenseStatsRequest request = GetCloudExpenseStatsRequest.newBuilder()
-                .setStartDate(1l)
-                .setEndDate(1l)
+                .setStartDate(1L)
+                .setEndDate(1L)
                 .setEntityTypeFilter(EntityTypeFilter.newBuilder().build())
                 .setGroupBy(GroupByType.CSP)
                 .build();
 
-        performAccountExpenseTests(mockObserver, request, 2l);
+        performAccountExpenseTests(mockObserver, request, 2L);
     }
 
     @Test
@@ -969,12 +973,12 @@ public class CostRpcServiceTest {
         final GetCloudExpenseStatsRequest request = GetCloudExpenseStatsRequest.newBuilder()
                 .setGroupBy(GroupByType.CSP)
                 .setEntityTypeFilter(EntityTypeFilter.newBuilder().addEntityTypeId(EntityType.CLOUD_SERVICE_VALUE).build())
-                .setStartDate(1l)
-                .setEndDate(1l)
+                .setStartDate(1L)
+                .setEndDate(1L)
                 .setEntityTypeFilter(EntityTypeFilter.newBuilder().build())
                 .build();
 
-        performAccountExpenseTests(mockObserver, request, 2l);
+        performAccountExpenseTests(mockObserver, request, 2L);
     }
 
     @Test
@@ -984,12 +988,12 @@ public class CostRpcServiceTest {
         final GetCloudExpenseStatsRequest request = GetCloudExpenseStatsRequest.newBuilder()
                 .setGroupBy(GroupByType.TARGET)
                 .setEntityTypeFilter(EntityTypeFilter.newBuilder().addEntityTypeId(EntityType.CLOUD_SERVICE_VALUE).build())
-                .setStartDate(1l)
-                .setEndDate(1l)
+                .setStartDate(1L)
+                .setEndDate(1L)
                 .setEntityTypeFilter(EntityTypeFilter.newBuilder().build())
                 .build();
 
-        performAccountExpenseTests(mockObserver, request, 2l);
+        performAccountExpenseTests(mockObserver, request, 2L);
     }
 
     @Test
@@ -999,24 +1003,26 @@ public class CostRpcServiceTest {
         final GetCloudExpenseStatsRequest request = GetCloudExpenseStatsRequest.newBuilder()
                 .setGroupBy(GroupByType.CLOUD_SERVICE)
                 .setEntityTypeFilter(EntityTypeFilter.newBuilder().addEntityTypeId(EntityType.CLOUD_SERVICE_VALUE).build())
-                .setStartDate(1l)
-                .setEndDate(1l)
+                .setStartDate(1L)
+                .setEndDate(1L)
                 .setEntityTypeFilter(EntityTypeFilter.newBuilder().build())
                 .build();
 
-        performAccountExpenseTests(mockObserver, request, 4l);
+        performAccountExpenseTests(mockObserver, request, 4L);
     }
 
     private void performAccountExpenseTests(final StreamObserver<GetCloudCostStatsResponse> mockObserver,
                                             final GetCloudExpenseStatsRequest request,
                                             final long expectedEntityTypeId) throws DbException {
-        final Map<Long, AccountExpenses> accountIdToExpenseMap = ImmutableMap.of(2l,
+        final Map<Long, AccountExpenses> accountIdToExpenseMap = ImmutableMap.of(2L,
                 AccountExpenses.newBuilder()
-                        .setAssociatedAccountId(2l)
+                        .setAssociatedAccountId(2L)
                         .setAccountExpensesInfo(accountExpensesInfo)
                         .build());
-        final Map<Long, Map<Long, AccountExpenses>> snapshotToAccountExpensesMap = ImmutableMap.of(1l, accountIdToExpenseMap);
-        given(accountExpenseStore.getLatestExpenses(anySet(), anySet())).willReturn(snapshotToAccountExpensesMap);
+        final Map<Long, Map<Long, AccountExpenses>> snapshotToAccountExpensesMap =
+                ImmutableMap.of(1L, accountIdToExpenseMap);
+        given(accountExpenseStore.getLatestAccountExpensesWithConditions(Collections.emptyList()))
+                .willReturn(snapshotToAccountExpensesMap);
         given(accountExpenseStore.getAccountExpenses(any())).willReturn(snapshotToAccountExpensesMap);
         final CloudCostStatRecord.StatRecord.Builder statRecordBuilder = CloudCostStatRecord.StatRecord.newBuilder();
         final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();

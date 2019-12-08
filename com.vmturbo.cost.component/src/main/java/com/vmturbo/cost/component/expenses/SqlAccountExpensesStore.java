@@ -8,19 +8,15 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 
 import org.apache.logging.log4j.LogManager;
@@ -30,9 +26,9 @@ import org.jooq.Condition;
 import org.jooq.Configuration;
 import org.jooq.DSLContext;
 import org.jooq.Field;
-import org.jooq.Record1;
 import org.jooq.Record6;
 import org.jooq.Result;
+import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
@@ -77,7 +73,6 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
     /**
      * {@inheritDoc}
      */
-    @Nonnull
     @Override
     public void persistAccountExpenses(final long associatedAccountId,
                                        @Nonnull final AccountExpensesInfo accountExpensesInfo)
@@ -148,35 +143,6 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
                         .set(ACCOUNT_EXPENSES.AMOUNT, BigDecimal.valueOf(0)));
     }
 
-    @VisibleForTesting
-    Optional<LocalDateTime> findRecentSnapshot() {
-        // Find the most recent snapshot, but if we're in the process of saving another batch
-        // don't return the time of that batch (since it is not completely written to the DB yet).
-        LocalDateTime inProgressTime = inProgressBatchTime.get();
-        if (inProgressTime == null) {
-            inProgressTime = LocalDateTime.now(clock);
-        }
-
-        // First find the most recent snapshot time.
-        final Optional<LocalDateTime> recentSnapshotTime =
-            dsl.selectDistinct(ACCOUNT_EXPENSES.SNAPSHOT_TIME)
-                .from(ACCOUNT_EXPENSES)
-                .where(ACCOUNT_EXPENSES.SNAPSHOT_TIME.lessThan(inProgressTime))
-                .orderBy(ACCOUNT_EXPENSES.SNAPSHOT_TIME.desc())
-                .limit(1)
-                .fetch()
-                .stream()
-                .findFirst()
-                .map(Record1::value1);
-
-        if (!recentSnapshotTime.isPresent()) {
-            logger.warn("No recent snapshot found with time less than {} " +
-                "for current account expense query", inProgressTime);
-        }
-
-        return recentSnapshotTime;
-    }
-
     /**
      * {@inheritDoc}
      */
@@ -184,40 +150,57 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
     @Override
     public Collection<AccountExpenses> getCurrentAccountExpenses(@Nonnull final AccountExpenseQueryScope queryScope)
             throws DbException {
-        try {
-            Optional<LocalDateTime> recentSnapshotTime = findRecentSnapshot();
-            if (!recentSnapshotTime.isPresent()) {
-                return Collections.emptyList();
-            }
-
-            final List<Condition> conditions = new ArrayList<>();
-            conditions.add(ACCOUNT_EXPENSES.SNAPSHOT_TIME.eq(recentSnapshotTime.get()));
-            if (!queryScope.getAll()) {
-                conditions.add(ACCOUNT_EXPENSES.ASSOCIATED_ACCOUNT_ID.in(
+        final List<Condition> conditions = new ArrayList<>();
+        if (!queryScope.getAll()) {
+            conditions.add(ACCOUNT_EXPENSES.ASSOCIATED_ACCOUNT_ID.in(
                     queryScope.getSpecificAccounts().getAccountIdsList()));
-            }
+        }
 
+        final Map<Long, Map<Long, Cost.AccountExpenses>> expensesByTimeAndAccountId =
+                getLatestAccountExpensesWithConditions(conditions);
+
+        final List<AccountExpenses> result = new ArrayList<>();
+        expensesByTimeAndAccountId.values().forEach(accountExpensesMap ->
+                result.addAll(accountExpensesMap.values()));
+        return result;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Map<Long, Map<Long, Cost.AccountExpenses>> getLatestAccountExpensesWithConditions(
+            List<Condition> conditions) throws DbException {
+        try {
+            // The query does the following:
+            // 1. Intersect these 2 tables:
+            //      - the account expenses table
+            //      - a temp table which contains one record per account and has the fields:
+            //          associated_account_id and snapshot_time (which is populated by DSL.max method)
+            //      Do the intersection using the fields associated_account_id and snapshot_time
+            //      (which are the only ones that exist in both tables)
+            // 2. From the records we got as a result of the intersection (which are the latest
+            //      records for each account), get these fields for each record:
+            //      associated_account_id, snapshot_time, associated_entity_id, entity_type,
+            //      currency and amount.
             final Result<Record6<Long, LocalDateTime, Long, Integer, Integer, BigDecimal>> records = dsl
                     .select(ACCOUNT_EXPENSES.ASSOCIATED_ACCOUNT_ID,
-                        ACCOUNT_EXPENSES.SNAPSHOT_TIME, ACCOUNT_EXPENSES.ASSOCIATED_ENTITY_ID,
-                        ACCOUNT_EXPENSES.ENTITY_TYPE, ACCOUNT_EXPENSES.CURRENCY, ACCOUNT_EXPENSES.AMOUNT)
-                    .from(ACCOUNT_EXPENSES)
+                            ACCOUNT_EXPENSES.SNAPSHOT_TIME,
+                            ACCOUNT_EXPENSES.ASSOCIATED_ENTITY_ID,
+                            ACCOUNT_EXPENSES.ENTITY_TYPE,
+                            ACCOUNT_EXPENSES.CURRENCY,
+                            ACCOUNT_EXPENSES.AMOUNT)
+                    .from(ACCOUNT_EXPENSES.innerJoin(dsl
+                                .select(ACCOUNT_EXPENSES.ASSOCIATED_ACCOUNT_ID,
+                                        DSL.max(ACCOUNT_EXPENSES.SNAPSHOT_TIME).as(ACCOUNT_EXPENSES.SNAPSHOT_TIME))
+                                .from(ACCOUNT_EXPENSES)
+                                .groupBy(ACCOUNT_EXPENSES.ASSOCIATED_ACCOUNT_ID))
+                            .using(ACCOUNT_EXPENSES.ASSOCIATED_ACCOUNT_ID,
+                                   ACCOUNT_EXPENSES.SNAPSHOT_TIME))
                     .where(conditions)
                     .fetch();
-            final Map<Long, Map<Long, Cost.AccountExpenses>> expensesByTimeAndAccountId =
-                constructExpensesMap(records);
 
-            if (expensesByTimeAndAccountId.size() != 1) {
-                // This shouldn't happen, since we know the snapshot is in the database, and
-                // we ask for it by SNAPSHOT_TIME!
-                logger.warn("Expense map didn't return exactly one record with " +
-                    "expected timestamp: {}. Expense Map: {}", recentSnapshotTime.get(),
-                    expensesByTimeAndAccountId);
-            }
-            return expensesByTimeAndAccountId.values().stream()
-                .findFirst()
-                .map(Map::values)
-                .orElse(Collections.emptyList());
+            return constructExpensesMap(records);
         } catch (DataAccessException dataAccessException) {
             throw new DbException(dataAccessException.getMessage());
         }
@@ -241,30 +224,27 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
         }
     }
 
+    @Nonnull
     @Override
-    public Map<Long, Map<Long, AccountExpenses>> getAccountExpenses(@Nonnull final CostFilter filter) throws DbException {
+    public Map<Long, Map<Long, AccountExpenses>> getAccountExpenses(@Nonnull final CostFilter filter)
+            throws DbException {
+        Table<?> table = filter.getTable();
         try {
-            final Field<Long> entityId = (Field<Long>) filter
-                    .getTable()
+            final Field<Long> entityId = (Field<Long>)table
                     .field(ACCOUNT_EXPENSES.ASSOCIATED_ENTITY_ID.getName());
-            final Field<LocalDateTime> createdTime = (Field<LocalDateTime>) filter
-                    .getTable()
+            final Field<LocalDateTime> createdTime = (Field<LocalDateTime>)table
                     .field(ACCOUNT_EXPENSES.SNAPSHOT_TIME.getName());
-            final Field<Long> acccountId = (Field<Long>) filter
-                    .getTable()
+            final Field<Long> accountId = (Field<Long>)table
                     .field(ACCOUNT_EXPENSES.ASSOCIATED_ACCOUNT_ID.getName());
-            final Field<Integer> entityType = (Field<Integer>) filter
-                    .getTable()
+            final Field<Integer> entityType = (Field<Integer>)table
                     .field(ACCOUNT_EXPENSES.ENTITY_TYPE.getName());
-            final Field<Integer> currency = (Field<Integer>) filter
-                    .getTable()
+            final Field<Integer> currency = (Field<Integer>)table
                     .field(ACCOUNT_EXPENSES.CURRENCY.getName());
-            final Field<BigDecimal> amount = (Field<BigDecimal>) filter
-                    .getTable()
+            final Field<BigDecimal> amount = (Field<BigDecimal>)table
                     .field(ACCOUNT_EXPENSES.AMOUNT.getName());
             final Result<Record6<Long, LocalDateTime, Long, Integer, Integer, BigDecimal>> records = dsl
-                    .select(acccountId, createdTime, entityId, entityType, currency, amount)
-                    .from(filter.getTable())
+                    .select(accountId, createdTime, entityId, entityType, currency, amount)
+                    .from(table)
                     .where(filter.getConditions())
                     .fetch();
             return constructExpensesMap(records);
@@ -272,7 +252,6 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
             throw new DbException("Failed to get entity costs from DB" + e.getMessage());
         }
     }
-
 
     /**
      * {@inheritDoc}
@@ -284,44 +263,6 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
             return dsl.selectFrom(ACCOUNT_EXPENSES).fetch().map(this::toDTO);
         } catch (DataAccessException dataAccessException) {
             throw new DbException(dataAccessException.getMessage());
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Map<Long, Map<Long, Cost.AccountExpenses>> getLatestExpenses(@Nonnull final Set<Long> entityIds,
-                                                                        @Nonnull final Set<Integer> entityTypeIds) throws DbException {
-        try {
-            final List<Condition> conditions = new ArrayList<>();
-            if (!entityTypeIds.isEmpty()) {
-                conditions.add(ACCOUNT_EXPENSES.field(ACCOUNT_EXPENSES.ENTITY_TYPE.getName()).in(entityTypeIds));
-            }
-
-            if (!entityIds.isEmpty()) {
-                conditions.add(ACCOUNT_EXPENSES.field(ACCOUNT_EXPENSES.ASSOCIATED_ENTITY_ID.getName()).in(entityIds));
-            }
-
-
-            final Result<Record6<Long, LocalDateTime, Long, Integer, Integer, BigDecimal>> results = dsl.select(
-                    ACCOUNT_EXPENSES.ASSOCIATED_ACCOUNT_ID,
-                    ACCOUNT_EXPENSES.SNAPSHOT_TIME,
-                    ACCOUNT_EXPENSES.ASSOCIATED_ENTITY_ID,
-                    ACCOUNT_EXPENSES.ENTITY_TYPE,
-                    ACCOUNT_EXPENSES.CURRENCY,
-                    ACCOUNT_EXPENSES.AMOUNT)
-                    .from(ACCOUNT_EXPENSES)
-                    .where(conditions.toArray(new Condition[conditions.size()]))
-                    .and(ACCOUNT_EXPENSES.SNAPSHOT_TIME.eq(dsl.select(ACCOUNT_EXPENSES.SNAPSHOT_TIME
-                            .max())
-                            .from(ACCOUNT_EXPENSES)
-                            .where(conditions.toArray(new Condition[conditions.size()]))))
-
-                    .fetch();
-            return constructExpensesMap(results);
-        } catch (DataAccessException e) {
-            throw new DbException("Failed to get entity costs from DB" + e.getMessage());
         }
     }
 
@@ -352,8 +293,8 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
     }
 
     private AccountExpenses toDTO(final RecordWrapper recordWrapper) {
-        final boolean isCloudSerivce = EntityType.CLOUD_SERVICE_VALUE == recordWrapper.getAssociatedEntityType();
-        AccountExpensesInfo info = isCloudSerivce ? AccountExpensesInfo.newBuilder()
+        final boolean isCloudService = EntityType.CLOUD_SERVICE_VALUE == recordWrapper.getAssociatedEntityType();
+        AccountExpensesInfo info = isCloudService ? AccountExpensesInfo.newBuilder()
                 .addServiceExpenses(ServiceExpenses.newBuilder()
                         .setAssociatedServiceId(recordWrapper.getAssociatedEntityId())
                         .setExpenses(CurrencyAmount.newBuilder()

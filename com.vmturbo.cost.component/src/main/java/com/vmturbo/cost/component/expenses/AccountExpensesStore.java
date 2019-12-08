@@ -13,6 +13,7 @@ import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo
 import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest.AccountExpenseQueryScope;
 import com.vmturbo.cost.component.util.CostFilter;
 import com.vmturbo.sql.utils.DbException;
+import org.jooq.Condition;
 
 /**
  * This class is used to manage the account expenses table. Currently billing probe will discover
@@ -50,17 +51,16 @@ public interface AccountExpensesStore {
     Collection<AccountExpenses> getCurrentAccountExpenses(AccountExpenseQueryScope queryScope) throws DbException;
 
     /**
-     * Get the latest account expenses.
+     * Get the most recent expenses per account.
+     * Each account may have a different timestamp as its latest timestamp.
      * It returns Map with entry (timestamp -> (associatedAccountId -> AccountExpenses)).
      * In a timestamp/snapshot, the account expenses with same ids will be combined to one account expense.
-     * @Param entityIds entity ids
-     * @Param entityTypeIds entity type ids
+     * @param conditions a list of conditions to search by
      * @return Map with entry (timestamp -> (associatedAccountId -> AccountExpenses))
      * @throws DbException if anything goes wrong in the database
      */
-    @Nonnull
-    Map<Long, Map<Long, Cost.AccountExpenses>> getLatestExpenses(@Nonnull final Set<Long> entityIds,
-                                                                 @Nonnull final Set<Integer> entityTypeIds) throws DbException;
+    Map<Long, Map<Long, Cost.AccountExpenses>> getLatestAccountExpensesWithConditions(List<Condition> conditions)
+            throws DbException;
 
     /**
      * Delete account expense by associated account id.

@@ -3,6 +3,7 @@ package com.vmturbo.cost.component.rpc;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -28,6 +29,7 @@ import javax.annotation.Nullable;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.Condition;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
@@ -35,6 +37,8 @@ import com.google.common.collect.Lists;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+
+import static com.vmturbo.cost.component.db.tables.AccountExpenses.ACCOUNT_EXPENSES;
 
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
@@ -381,14 +385,36 @@ public class CostRpcService extends CostServiceImplBase {
         if (request.hasGroupBy()) {
             try {
                 final TimeFrame timeFrame = timeFrameCalculator.millis2TimeFrame(request.getStartDate());
-                final Set<Long> filterIds = request.getEntityFilter().getEntityIdList().stream().collect(Collectors.toSet());
-                final Set<Integer> entityTypeFilterIds = request.getEntityTypeFilter().getEntityTypeIdList().stream().collect(Collectors.toSet());
+
+                // entity and entity type conditions
+                final Set<Long> filterIds = new HashSet<>(request.getEntityFilter().getEntityIdList());
+                final Set<Integer> entityTypeFilterIds = new HashSet<>(request.getEntityTypeFilter()
+                        .getEntityTypeIdList());
+                final List<Condition> conditions = new ArrayList<>();
+                if (!filterIds.isEmpty()) {
+                    conditions.add(ACCOUNT_EXPENSES.field(ACCOUNT_EXPENSES.ASSOCIATED_ENTITY_ID.getName())
+                            .in(entityTypeFilterIds));
+                } else {
+                    // In case there is no filter on entity IDs, ignore records where the
+                    // associated entity ID is 0.
+                    // This can happen when the expense is for a cloud service which wasn't
+                    // discovered because it doesn't appear in the CloudService enum.
+                    conditions.add(ACCOUNT_EXPENSES.ASSOCIATED_ENTITY_ID.notEqual(0L));
+                }
+                if (!entityTypeFilterIds.isEmpty()) {
+                    conditions.add(ACCOUNT_EXPENSES.field(ACCOUNT_EXPENSES.ENTITY_TYPE.getName())
+                            .in(filterIds));
+                }
+
+                // entity, entity type and times filters
                 final CostFilter entityCostFilter =
                         new AccountExpensesFilter(filterIds, entityTypeFilterIds, request.getStartDate(), request.getEndDate(), timeFrame);
-                final Map<Long, Map<Long, AccountExpenses>> snapshotToExpenseMap =
+
+                // get relevant expenses
+                final Map<Long, Map<Long, AccountExpenses>> expensesByTimeAndAccountId =
                         (request.hasStartDate() && request.hasEndDate()) ?
                                 accountExpensesStore.getAccountExpenses(entityCostFilter) :
-                                accountExpensesStore.getLatestExpenses(filterIds, entityTypeFilterIds);
+                                accountExpensesStore.getLatestAccountExpensesWithConditions(conditions);
 
                 // Mapping from AccountId -> {Timestamp -> Stat Value}
                 Map<Long, Map<Long, Float>> historicData = new HashMap<>();
@@ -396,7 +422,7 @@ public class CostRpcService extends CostServiceImplBase {
                 final List<CloudCostStatRecord> cloudStatRecords = Lists.newArrayList();
                 boolean isCloudServiceRequest = request.getGroupBy().equals(GroupByType.CLOUD_SERVICE);
                 boolean isGroupByTargetRequest  = request.getGroupBy().equals(GroupByType.TARGET);
-                snapshotToExpenseMap.forEach((snapshotTime, accountIdToExpensesMap) -> {
+                expensesByTimeAndAccountId.forEach((snapshotTime, accountIdToExpensesMap) -> {
                     final CloudCostStatRecord.Builder snapshotBuilder = CloudCostStatRecord.newBuilder();
                     snapshotBuilder.setSnapshotDate(snapshotTime);
                     final List<AccountExpenseStat> accountExpenseStats = Lists.newArrayList();
@@ -413,23 +439,24 @@ public class CostRpcService extends CostServiceImplBase {
                             } else {
                                 businessAccountHelper
                                         .resolveTargetId(accountExpenses.getAssociatedAccountId())
-                                        .forEach(associatedServiceId -> updateAccountExpenses(accountExpenseStats,
+                                        .forEach(targetId -> updateAccountExpenses(accountExpenseStats,
                                                 historicData,
                                                 accountIdToEntitiesMap,
                                                 snapshotTime,
-                                                associatedServiceId, amount));
+                                                targetId, amount));
                             }
                         });
 
+                        // TODO: understand what is the use-case for group by target
                         if (isGroupByTargetRequest) {
                             accountExpenses.getAccountExpensesInfo()
                                     .getTierExpensesList().forEach(tierExpenses -> {
                                 businessAccountHelper
                                         .resolveTargetId(accountExpenses.getAssociatedAccountId())
-                                        .forEach(associatedServiceId -> {
+                                        .forEach(targetId -> {
                                             double existingStatAmount = 0.0f;
-                                            if (historicData.containsKey(associatedServiceId)) {
-                                                existingStatAmount = historicData.get(associatedServiceId)
+                                            if (historicData.containsKey(targetId)) {
+                                                existingStatAmount = historicData.get(targetId)
                                                         .getOrDefault(snapshotTime, 0.0f);
                                             }
                                             final double amount = tierExpenses.getExpenses()
@@ -438,12 +465,11 @@ public class CostRpcService extends CostServiceImplBase {
                                                     historicData,
                                                     accountIdToEntitiesMap,
                                                     snapshotTime,
-                                                    associatedServiceId, amount);
+                                                    targetId, amount);
                                         });
                             });
                         }
                     });
-
 
                     snapshotBuilder.addAllStatRecords(aggregateStatRecords(accountExpenseStats));
                     cloudStatRecords.add(snapshotBuilder.build());
@@ -510,8 +536,6 @@ public class CostRpcService extends CostServiceImplBase {
                             + ", currently only group by CSP, CloudService and target (Account) are supported")
                     .asException());
         }
-
-
     }
 
     private void updateAccountExpenses(@Nonnull final List<AccountExpenseStat> accountExpenseStats,
