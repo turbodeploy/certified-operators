@@ -2,6 +2,12 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ .Chart.Name }}
+{{- if .Values.global }}
+  {{- with .Values.global.annotations }}
+  annotations:
+{{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
   labels:
     zone: internal
     app.kubernetes.io/name: {{ .Chart.Name }}
@@ -38,10 +44,16 @@ spec:
         ports:
           - containerPort: 8080
           - containerPort: 9001
+        livenessProbe:
+          httpGet:
+            port: 8080
+            path: /health
+          periodSeconds: 60
+          failureThreshold: 60
         readinessProbe:
           httpGet:
             port: 8080
-            path: /
+            path: /health
         resources:
 {{ toYaml .Values.resources | indent 12 }}
         securityContext:
@@ -60,6 +72,18 @@ spec:
       imagePullSecrets:
       - name: turbocred
   {{- end -}}
+  {{- with .Values.global.nodeSelector }}
+      nodeSelector:
+{{- toYaml . | nindent 8 }}
+  {{- end }}
+  {{- with .Values.global.affinity }}
+      affinity:
+{{- toYaml . | nindent 8 }}
+  {{- end }}
+  {{- with .Values.global.tolerations }}
+      tolerations:
+{{- toYaml . | nindent 8 }}
+  {{- end }}
 {{- end }}
       restartPolicy: Always
       volumes:

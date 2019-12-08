@@ -42,9 +42,3 @@ env:
 resources:
   limits:
     memory: 512Mi
-
-nodeSelector: {}
-
-tolerations: []
-
-affinity: {}

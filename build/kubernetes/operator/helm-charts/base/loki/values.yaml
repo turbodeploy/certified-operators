@@ -67,7 +67,7 @@ config:
 
 image:
   repository: grafana/loki
-  tag: v1.0.0
+  tag: v1.1.0
   pullPolicy: IfNotPresent
 
 fullnameOverride: loki
@@ -155,6 +155,7 @@ service:
 serviceAccount:
   create: true
   name:
+  annotations: {}
 
 terminationGracePeriodSeconds: 4800
 
