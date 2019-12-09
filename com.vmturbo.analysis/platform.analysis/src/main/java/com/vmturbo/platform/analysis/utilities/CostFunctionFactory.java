@@ -463,7 +463,8 @@ public class CostFunctionFactory {
      * @return the cost given by {@link CostFunction}
      */
     public static MutableQuote calculateDiscountedComputeCost(ShoppingList buyer, Trader seller,
-                    CbtpCostDTO cbtpResourceBundle, UnmodifiableEconomy economy) {
+                                                              CbtpCostDTO cbtpResourceBundle,
+                                                              UnmodifiableEconomy economy) {
         long groupFactor = buyer.getGroupFactor();
 
         final com.vmturbo.platform.analysis.economy.Context buyerContext = buyer.getBuyer()
@@ -546,8 +547,10 @@ public class CostFunctionFactory {
         // If seller is the CBTP that the VM is currently on, check how many coupons are already covered.
         // TODO SS: check if we need to update the couponsCovered in the context
         // TODO SS: check if we want to use couponCount * groupFactor
-        long currentCoverage = (seller == buyer.getSupplier()) ?
-                buyer.getBuyer().getSettings().getContext().getTotalAllocatedCoupons() : 0;
+        double currentCoverage = 0L;
+        if (seller == buyer.getSupplier()) {
+            currentCoverage = buyer.getTotalAllocatedCoupons(economy, seller);
+        }
         // if the currentCouponCoverage satisfies the requestedAmount for the new template, request 0 coupons
         double requestedCoupons = Math.max(0, couponCommSoldByTp.getCapacity() * (groupFactor > 0 ? groupFactor : 1));
 
@@ -778,8 +781,7 @@ public class CostFunctionFactory {
             // in order to make CSG VMs always shop
             discountedCost = Double.POSITIVE_INFINITY;
         } else {
-            // TODO: find the right TP from the CBTP. How to use the tierId to get the Trader?
-            long totalRequestedCoupons = buyer.getBuyer().getSettings().getContext().getTotalRequestedCoupons();
+            double totalRequestedCoupons = buyer.getTotalRequestedCoupons(economy, cbtp);
             if (totalRequestedCoupons != 0) {
                 int indexOfCouponCommSoldByCbtp = cbtp.getBasketSold().indexOfBaseType(cbtpResourceBundle.getCouponBaseType());
                 CommoditySpecification couponCommSpec = cbtp.getBasketSold().get(indexOfCouponCommSoldByCbtp);
@@ -804,7 +806,7 @@ public class CostFunctionFactory {
                     double singleVmTemplateCost = currentTemplateCostForBuyer / (groupFactor > 0 ? groupFactor : 1);
                     final CostTuple costTuple = cbtpResourceBundle.getCostTuple();
                     // TODO SS: Check if we need to consider groupFactor for couponsCovered
-                    long couponsCovered = buyer.getBuyer().getSettings().getContext().getTotalAllocatedCoupons();
+                    double couponsCovered = buyer.getTotalAllocatedCoupons(economy, matchingTP);
                     if (couponCommSoldByTp.getCapacity() != 0) {
                         double templateCostPerCoupon = singleVmTemplateCost / couponCommSoldByTp.getCapacity();
                         // Assuming 100% discount for the portion of requested coupons satisfied by the CBTP

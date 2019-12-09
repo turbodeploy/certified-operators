@@ -20,6 +20,7 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CoverageEntry;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactory.DependentResourcePair;
 
 /**
@@ -369,8 +370,9 @@ public abstract class Quote {
                 BalanceAccountDTO balanceAccount = BalanceAccountDTO.newBuilder()
                         .setId(context.getBalanceAccount().getId()).build();
                 builder.setBalanceAccount(balanceAccount);
-                builder.setTotalRequestedCoupons(requestedCoupons);
-                builder.setTotalAllocatedCoupons(allocatedCoupons);
+                builder.addFamilyBasedCoverage(CoverageEntry.newBuilder()
+                    .setTotalRequestedCoupons(requestedCoupons)
+                    .setTotalAllocatedCoupons(allocatedCoupons));
                 moveContext = builder.build();
             }
         }

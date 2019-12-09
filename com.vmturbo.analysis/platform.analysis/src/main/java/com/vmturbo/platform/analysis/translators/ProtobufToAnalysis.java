@@ -291,12 +291,13 @@ public final class ProtobufToAnalysis {
      * Populates the fields of a {@link TraderSettings} instance from information in a
      * {@link TraderSettingsTO}.
      *
-     * @param source The {@link TraderSettingsTO} from which to get the settings.
+     * @param input The {@link TraderTO} from which to get the settings.
      * @param destination The {@link TraderSettings} instance to put the settings to.
      */
     public static void populateTraderSettings(@NonNull Topology topology,
-                                              @NonNull TraderSettingsTO source,
+                                              @Nonnull TraderTO input,
                                               @NonNull TraderSettings destination) {
+        @NonNull TraderSettingsTO source = input.getSettings();
         destination.setControllable(source.getControllable());
         destination.setCloneable(source.getClonable());
         destination.setSuspendable(source.getSuspendable());
@@ -318,7 +319,7 @@ public final class ProtobufToAnalysis {
                             CostFunctionFactory.createCostFunction(source.getQuoteFunction().getRiskBased().getCloudCost()));
         }
         if (source.hasCurrentContext() && source.getCurrentContext().hasBalanceAccount()) {
-            populateCloudSpent(topology, source, destination);
+            populateCloudSpent(topology, input, destination);
         }
     }
 
@@ -369,7 +370,9 @@ public final class ProtobufToAnalysis {
         @NonNull Trader output = topology.addTrader(input.getOid(), input.getType(), traderState(input.getState()),
                                                     basketSold, input.getCliquesList());
         output.setDebugInfoNeverUseInCode(input.getDebugInfoNeverUseInCode());
-        populateTraderSettings(topology, input.getSettings(), output.getSettings());
+        final String scalingGroupId = input.getScalingGroupId();
+        output.setScalingGroupId(scalingGroupId);
+        populateTraderSettings(topology, input, output.getSettings());
         output.setDebugEnabled(input.getDebugEnabled());
         for (CommoditySoldTO commoditySold : input.getCommoditiesSoldList()) {
             populateCommoditySold(commoditySold,
@@ -378,8 +381,6 @@ public final class ProtobufToAnalysis {
                                   input);
         }
 
-        final String scalingGroupId = input.getScalingGroupId();
-        output.setScalingGroupId(scalingGroupId);
         if (input.getState() == TraderStateTO.IDLE || input.getPreferentialPlacement()) {
             for (ShoppingListTO sl : input.getShoppingListsList()) {
                 if (!sl.getCommoditiesBoughtList().isEmpty()) {
@@ -550,12 +551,13 @@ public final class ProtobufToAnalysis {
      * Construct balance account map for a trader and save it in economy.
      *
      * @param topology the topology holding the economy
-     * @param source the TraderSettingsTO
+     * @param input the TraderTO holding the settings
      * @param destination the TraderSettings to be created based on source
      */
     public static void populateCloudSpent(@NonNull Topology topology,
-                                          @NonNull TraderSettingsTO source,
+                                          @Nonnull TraderTO input,
                                           @NonNull TraderSettings destination) {
+        @NonNull TraderSettingsTO source = input.getSettings();
         BalanceAccount balanceAccount = topology.getEconomy().getBalanceAccountMap()
                         .get(source.getCurrentContext().getBalanceAccount().getId());
         if (balanceAccount == null) {
@@ -567,12 +569,15 @@ public final class ProtobufToAnalysis {
                                                              balanceAccount);
         }
         // In the case where a region id is not present we want to set it to -1
-        final long regionId = source.getCurrentContext().hasRegionId() ? source.getCurrentContext()
-                .getRegionId() : -1L;
         final EconomyDTOs.Context sourceContext = source.getCurrentContext();
+        final long regionId = sourceContext.hasRegionId() ? sourceContext.getRegionId() : -1L;
         // TODO SS: populate the couponCount and the currentTier
-        final Context context = new Context(regionId, sourceContext.getZoneId(), balanceAccount,
-                (long)sourceContext.getTotalRequestedCoupons(), (long)sourceContext.getTotalAllocatedCoupons());
+        final Context context = new Context(0L, regionId, sourceContext.getZoneId(), balanceAccount,
+                sourceContext.getFamilyBasedCoverageList());
+        // XLTODO testing.  Save all Contexts for each scaling group to a map in the Economy
+        if (input.hasScalingGroupId()) {
+            topology.addContext(input.getScalingGroupId(), context);
+        }
         destination.setContext(context);
     }
 

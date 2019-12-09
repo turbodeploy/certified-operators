@@ -8,13 +8,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.vmturbo.platform.analysis.economy.Context;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Multimap;
+
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.Basket;
@@ -373,4 +377,15 @@ public final class Topology implements Serializable {
         return economy_.getCommsToAdjustOverhead().add(cs);
     }
 
+    public void addContext(String scalingGroupId, Context context) {
+        economy_.getContexts().put(scalingGroupId, context);
+    }
+
+    public void mergeScalingGroupContexts() {
+        economy_.mergeScalingGroupContexts();
+    }
+
+    public Long getTraderOid(Trader trader) {
+        return trader == null ? null : traderOids_.get(trader);
+    }
 } // end Topology class

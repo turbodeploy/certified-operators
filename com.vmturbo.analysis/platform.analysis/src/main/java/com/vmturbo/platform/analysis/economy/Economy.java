@@ -36,6 +36,7 @@ import org.checkerframework.dataflow.qual.SideEffectFree;
 
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
+import com.vmturbo.platform.analysis.economy.Context.CoverageEntry;
 import com.vmturbo.platform.analysis.ede.ActionClassifier;
 import com.vmturbo.platform.analysis.ede.Placement;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
@@ -92,6 +93,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     private Map<UUID, String> shoppingListToScalingGroup = new HashMap<UUID, String>();
     // Map from shopping list ID to peer shopping lists in scaling group
     private Multimap<String, ShoppingList> scalingGroupToPeers = ArrayListMultimap.create();
+    private Multimap<String, Context> contexts_ = ArrayListMultimap.create();
+
     // Cached data
 
     // Cached unmodifiable view of the markets_.values() collection.
@@ -277,6 +280,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
             populateMarketWithSellers(market);
         }
         marketsPopulated = true;
+        mergeScalingGroupContexts();
     }
 
     /**
@@ -1154,5 +1158,35 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         return allPeers.stream()
             .filter(sl -> sl.getShoppingListId() != shoppingListId)
             .collect(Collectors.toList());
+    }
+
+    public Multimap<String, Context> getContexts() {
+        return this.contexts_;
+    }
+
+    public void mergeScalingGroupContexts() {
+        scalingGroupToPeers.asMap().values().forEach(sls -> {
+            Map<Long, CoverageEntry> coverageMap = new HashMap<>();
+            // Build a merged coverage entry map for all members of the scaling group and attach
+            // it to each member's Context.
+            for (ShoppingList sl : sls) {
+                Context context = sl.getBuyer().getSettings().getContext();
+                if (context == null) {
+                    continue;
+                }
+                Long oid = getTopology().getTraderOid(sl.getSupplier());
+                if (oid != null) {
+                    CoverageEntry coverageEntry = coverageMap.get(oid);
+                    if (coverageEntry == null) {
+                        coverageEntry = new CoverageEntry(0.0f, 0.0f);
+                        coverageMap.put(oid, coverageEntry);
+                    }
+                    coverageEntry
+                        .addTotalAllocatedCoupons(context.getTotalAllocatedCoupons(0L).get())
+                        .addTotalRequestedCoupons(context.getTotalRequestedCoupons(0L).get());
+                }
+                context.setCoverageEntryMap(coverageMap);
+            }
+        });
     }
 } // end class Economy

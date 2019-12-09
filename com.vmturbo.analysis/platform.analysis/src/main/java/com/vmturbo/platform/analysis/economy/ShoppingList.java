@@ -22,20 +22,15 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 /**
  * One of the shopping lists of a given trader in a given market.
  *
- * <p>
- *  A given trader can participate multiple times as a buyer in a single market. (e.g. if it buys
+ * <p>A given trader can participate multiple times as a buyer in a single market. (e.g. if it buys
  *  form multiple storages) We call each of those participations a ShoppingList.
  * </p>
  *
- * <p>
- *  If a buyer stops participating in the market, the corresponding shopping list is
+ * <p>If a buyer stops participating in the market, the corresponding shopping list is
  *  invalidated.
  * </p>
  */
 public class ShoppingList implements Serializable {
-    /**
-     *
-     */
     private static final long serialVersionUID = -3998819999266896549L;
     // Fields
     private final @NonNull Trader buyer_; // @see #getBuyer().
@@ -436,5 +431,29 @@ public class ShoppingList implements Serializable {
      */
     public Optional<Context> getContext() {
         return Optional.ofNullable(moveContext);
+    }
+
+    /**
+     * Return the total allocated coupons from the context set on the shopping list.
+     * @param economy the economy
+     * @param seller trader whose compute tier family to use
+     * @return the total allocated coupons for the seller's family, or zero if not available
+     */
+    public double getTotalAllocatedCoupons(UnmodifiableEconomy economy, Trader seller) {
+            return this.getBuyer().getSettings().getContext()
+                .getTotalAllocatedCoupons(economy.getTopology().getTraderOids().get(seller))
+                .orElse(0.0);
+    }
+
+    /**
+     * Return the total requested coupons from the context set on the shopping list.
+     * @param economy the economy
+     * @param seller trader whose compute tier family to use
+     * @return the total allocated coupons for the seller's family, or zero if not available
+     */
+    public double getTotalRequestedCoupons(UnmodifiableEconomy economy, Trader seller) {
+        return this.getBuyer().getSettings().getContext()
+            .getTotalRequestedCoupons(economy.getTopology().getTraderOids().get(seller))
+            .orElse(0.0);
     }
 } // end ShoppingList class

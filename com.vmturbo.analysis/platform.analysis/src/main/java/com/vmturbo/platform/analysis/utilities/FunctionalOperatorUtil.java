@@ -113,6 +113,7 @@ public class FunctionalOperatorUtil {
         FunctionalOperator UPDATE_COUPON_COMM = (buyer, boughtIndex, commSold, seller, economy, take, overhead)
                         -> {
             Context c = buyer.getBuyer().getSettings().getContext();
+            long oid = economy.getTopology().getTraderOid(seller);
             if (!seller.getCustomers().contains(buyer)) {
                 // consumer moving out of CBTP. Relinquish coupons and update the coupon bought
                 // and the usage of sold coupon
@@ -120,8 +121,8 @@ public class FunctionalOperatorUtil {
                 buyer.setQuantity(boughtIndex, 0);
                 // unplacing the buyer completely. Clearing up the context that contains complete
                 // coverage information for the scalingGroup/individualVM
-                c.setTotalAllocatedCoupons((long)(c.getTotalAllocatedCoupons() - couponsBought));
-                return new double[] {Math.max(0, commSold.getQuantity()) - couponsBought, 0.0};
+                c.setTotalAllocatedCoupons(oid, c.getTotalAllocatedCoupons(oid).orElse(0.0) - couponsBought);
+                return new double[] {Math.max(0.0, commSold.getQuantity()) - couponsBought, 0.0};
             } else {
                 // consumer moving into CBTP. Use coupons and update the coupon bought
                 // and the usage of sold coupon
@@ -203,8 +204,9 @@ public class FunctionalOperatorUtil {
                     buyer.setQuantity(boughtIndex, totalAllocatedCoupons);
                     // TODO SS: consider updating tier in context
                     // tier information is updated here indirectly through TotalRequestedCoupons update
-                    c.setTotalAllocatedCoupons((long) (c.getTotalAllocatedCoupons() + totalAllocatedCoupons))
-                            .setTotalRequestedCoupons((long) requestedCoupons);
+                    c.setTotalAllocatedCoupons(oid, c.getTotalAllocatedCoupons(oid).orElse(0.0)
+                            + totalAllocatedCoupons)
+                        .setTotalRequestedCoupons(oid, requestedCoupons);
                     // buyer.getBuyer().getSettings().getContext().setTier();
                     discountedCost = ((1 - discountCoefficient) * templateCost) + (discountCoefficient
                             * ((1 - cbtpResourceBundle.getDiscountPercentage()) * templateCost));
