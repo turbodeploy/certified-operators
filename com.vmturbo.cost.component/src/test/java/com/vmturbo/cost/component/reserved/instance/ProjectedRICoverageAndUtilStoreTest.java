@@ -91,10 +91,8 @@ public class ProjectedRICoverageAndUtilStoreTest {
     @Test
     public void testUpdateAndGet() {
         store.updateProjectedRICoverage(topoInfo, Arrays.asList(ENTITY_RI_COVERAGE));
-        final Map<Long, Map<Long, Double>> retCostMap = store.getAllProjectedEntitiesRICoverages();
-        assertThat(retCostMap, is(ImmutableMap.of(
-                        ENTITY_RI_COVERAGE.getEntityId(),
-                        ENTITY_RI_COVERAGE.getCouponsCoveredByRiMap())));
+        final Map<Long, EntityReservedInstanceCoverage> retCostMap = store.getAllProjectedEntitiesRICoverages();
+        assertThat(retCostMap, is(ImmutableMap.of(ENTITY_RI_COVERAGE.getEntityId(), ENTITY_RI_COVERAGE)));
     }
 
     /**
@@ -113,11 +111,10 @@ public class ProjectedRICoverageAndUtilStoreTest {
         // Scope to VM_2_ID only
         when(repositoryClient.getEntityOidsByType(any(), any(), any())).thenReturn(scopedOids);
         // Get the scoped Map
-        final Map<Long, Map<Long, Double>> retCostMap =
+        final Map<Long, EntityReservedInstanceCoverage> retCostMap =
                         store.getScopedProjectedEntitiesRICoverages(filter);
         // Map should only contain VM_2_ID's data
-        assertThat(retCostMap, is(ImmutableMap.of(SECOND_RI_COVERAGE.getEntityId(),
-                        SECOND_RI_COVERAGE.getCouponsCoveredByRiMap())));
+        assertThat(retCostMap, is(ImmutableMap.of(SECOND_RI_COVERAGE.getEntityId(), SECOND_RI_COVERAGE)));
     }
 
     /**

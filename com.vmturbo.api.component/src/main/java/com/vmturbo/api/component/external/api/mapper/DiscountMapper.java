@@ -301,7 +301,6 @@ public class DiscountMapper {
      */
     private List<EntityPriceDTO> generateEntityDiscountDTO(@Nonnull final List<RelatedEntity> connectedEntityList) {
         return getTopologyEntityDTOS(connectedEntityList)
-                .filter(entity -> entity.getEntityType() == EntityType.REGION_VALUE)
                 .map(tpDTO -> {
                     EntityPriceDTO entityPriceDTO = new EntityPriceDTO();
                     // TODO add entity price

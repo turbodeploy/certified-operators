@@ -39,7 +39,6 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Stage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.StageResult;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Status;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.TopologyPipelineException;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory.CachedTopology;
 
 public class TopologyPipelineTest {
     private final TopologyPipelineContext context = mock(TopologyPipelineContext.class);

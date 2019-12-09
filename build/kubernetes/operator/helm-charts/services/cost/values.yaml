@@ -42,9 +42,3 @@ resources:
     memory: 2Gi
   requests:
     memory: 384Mi
-
-nodeSelector: {}
-
-tolerations: []
-
-affinity: {}

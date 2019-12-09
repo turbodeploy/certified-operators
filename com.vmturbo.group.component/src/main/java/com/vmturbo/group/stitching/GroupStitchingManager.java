@@ -89,16 +89,17 @@ public class GroupStitchingManager {
         final DataMetricTimer executionTimer =
                 GROUP_STITCHING_EXECUTION_DURATION_SUMMARY.startTimer();
         final Collection<DiscoveredGroupId> existingDiscoveredGroups = groupStore.getDiscoveredGroupsIds();
-        final GroupIdProvider rgIdProvider = new CrossTargetStitcher(existingDiscoveredGroups);
-        final GroupIdProvider defIdProvider = new TargetLocalStitcher(existingDiscoveredGroups);
+        final GroupIdProvider crossTargetIdProvider = new CrossTargetStitcher(existingDiscoveredGroups);
+        final GroupIdProvider targetLocalIdProvider = new TargetLocalStitcher(existingDiscoveredGroups);
         final Map<String, StitchingGroup> stitchingGroups = new HashMap<>();
         final Map<Long, Collection<UploadedGroup>> targetsToGroups =
                 stitchingContext.getUploadedGroupsMap();
         for (Long targetId : getTargetsSorted(stitchingContext.getTargetIdToProbeType())) {
             for (UploadedGroup group : targetsToGroups.get(targetId)) {
                 final GroupIdProvider idProvider =
-                        group.getDefinition().getType() == GroupType.RESOURCE ? rgIdProvider :
-                                defIdProvider;
+                        (group.getDefinition().getType() == GroupType.RESOURCE ||
+                                group.getDefinition().getType() == GroupType.BILLING_FAMILY) ?
+                                crossTargetIdProvider : targetLocalIdProvider;
                 final String stitchKey = idProvider.getStitchingKey(targetId, group);
                 final StitchingGroup foundGroup = stitchingGroups.get(stitchKey);
                 if (foundGroup != null) {
@@ -134,8 +135,9 @@ public class GroupStitchingManager {
                 .map(StitchingGroup::getOid)
                 .collect(Collectors.toList()));
         // These are groups that we know about, but they are related to targets, that are not
-        // discovered yet. We simply do not touch them.
-        if (!stitchingContext.getUndiscoveredTargets().isEmpty()) {
+        // discovered yet. We simply do not touch them and remove them from groupToDelete set when
+        // it is not empty.
+        if (!stitchingContext.getUndiscoveredTargets().isEmpty() && !groupsToDelete.isEmpty()) {
             groupsToDelete.removeAll(
                     groupStore.getGroupsByTargets(stitchingContext.getUndiscoveredTargets()));
         }

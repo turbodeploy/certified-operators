@@ -14,6 +14,7 @@ import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.serviceinterfaces.ITagsService;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
@@ -59,7 +60,7 @@ public class TagsService implements ITagsService {
     public List<TagApiDTO> getTags(
             @Nullable final List<String> scopes,
             @Nullable final String entityType,
-            @Nullable final EnvironmentType envType) throws Exception {
+            @Nullable final EnvironmentType envType) throws OperationFailedException {
 
         // We don't currently support tags on nested group types (e.g. clusters), so short-circuit
         // here.
@@ -104,7 +105,7 @@ public class TagsService implements ITagsService {
                         .append(UIEntityType.fromString(entityType))
                         .append(". ");
             }
-            throw new Exception(msgBuilder.toString(), e);
+            throw new OperationFailedException(msgBuilder.toString(), e);
         }
 
         // convert to desired format

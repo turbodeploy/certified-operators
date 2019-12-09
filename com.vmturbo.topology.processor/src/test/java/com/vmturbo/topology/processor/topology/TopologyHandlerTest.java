@@ -2,17 +2,13 @@ package com.vmturbo.topology.processor.topology;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.util.Collections;
-import java.util.List;
 import java.util.Optional;
-
-import javax.annotation.Nonnull;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -22,7 +18,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -30,8 +25,8 @@ import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
+import com.vmturbo.topology.processor.topology.pipeline.LivePipelineFactory;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory;
 
 /**
  * Unit test for {@link TopologyHandler}.
@@ -48,7 +43,7 @@ public class TopologyHandlerTest {
 
     private final long clockTime = 77L;
 
-    private final TopologyPipelineFactory pipelineFactory = mock(TopologyPipelineFactory.class);
+    private final LivePipelineFactory livePipelineFactory = mock(LivePipelineFactory.class);
 
     private final Clock clock = mock(Clock.class);
 
@@ -74,7 +69,7 @@ public class TopologyHandlerTest {
 
     @Before
     public void init() {
-        topologyHandler = new TopologyHandler(realtimeTopologyContextId, pipelineFactory,
+        topologyHandler = new TopologyHandler(realtimeTopologyContextId, livePipelineFactory,
                 identityProvider, entityStore, probeStore, targetStore, clock);
         when(identityProvider.generateTopologyId()).thenReturn(topologyId);
         when(clock.millis()).thenReturn(clockTime);
@@ -91,7 +86,7 @@ public class TopologyHandlerTest {
                 (TopologyPipeline<EntityStore, TopologyBroadcastInfo>)mock(TopologyPipeline.class);
         TopologyBroadcastInfo broadcastInfo = mock(TopologyBroadcastInfo.class);
         when(pipeline.run(eq(entityStore))).thenReturn(broadcastInfo);
-        when(pipelineFactory.liveTopology(eq(realtimeTopologyInfo), eq(Collections.emptyList()),
+        when(livePipelineFactory.liveTopology(eq(realtimeTopologyInfo), eq(Collections.emptyList()),
                 eq(journalFactory)))
             .thenReturn(pipeline);
 

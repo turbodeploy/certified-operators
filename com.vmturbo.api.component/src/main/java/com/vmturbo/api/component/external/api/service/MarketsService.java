@@ -343,7 +343,7 @@ public class MarketsService implements IMarketsService {
         final ApiId apiId = uuidMapper.fromUuid(uuid);
         if (apiId.isRealtimeMarket()) {
            return createRealtimeMarketApiDTO();
-        } else {
+        } else if (apiId.isPlan()) {
             OptionalPlanInstance response = planRpcService.getPlan(PlanId.newBuilder()
                     .setPlanId(Long.valueOf(uuid))
                     .build());
@@ -363,6 +363,10 @@ public class MarketsService implements IMarketsService {
 
             return planDto;
         }
+
+        // The UUID doesn't belong to a plan or real-time market.
+        throw new UnknownObjectException("The ID " + uuid
+                + " doesn't belong to a plan or a real-time market.");
     }
 
     @Override

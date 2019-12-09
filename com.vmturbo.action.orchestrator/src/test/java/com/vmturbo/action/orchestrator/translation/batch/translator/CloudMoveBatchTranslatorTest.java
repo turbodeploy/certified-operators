@@ -31,6 +31,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderEx
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
+import com.vmturbo.common.protobuf.action.ActionDTO.RIReallocation;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -249,10 +250,10 @@ public class CloudMoveBatchTranslatorTest {
     }
 
     /**
-     * Tests {@link CloudMoveBatchTranslator#translate(List, EntitiesAndSettingsSnapshot)} method.
+     * Tests translation of Cloud Move action to Scale action.
      */
     @Test
-    public void testTranslate() {
+    public void testTranslateToScale() {
         // Arrange
         final List<Action> actionsToTranslate = ImmutableList.of(cloudMoveAction);
         final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
@@ -270,5 +271,56 @@ public class CloudMoveBatchTranslatorTest {
         assertTrue(explanation.hasScale());
         final ScaleExplanation scaleExplanation = explanation.getScale();
         assertEquals(2, scaleExplanation.getChangeProviderExplanationCount());
+    }
+
+    /**
+     * Tests translation of Cloud Move action to RI Reallocation action.
+     */
+    @Test
+    public void testTranslateToRIReallocation() {
+        // Arrange
+        final ActionEntity vm = ActionEntity.newBuilder()
+                .setId(1)
+                .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .build();
+        final ActionEntity computeTier = ActionEntity.newBuilder()
+                .setId(2)
+                .setType(EntityType.COMPUTE_TIER_VALUE)
+                .build();
+        final ActionDTO.Action riReallocationActionDto = ActionDTO.Action.newBuilder()
+                .setId(1)
+                .setDeprecatedImportance(0)
+                .setInfo(ActionInfo.newBuilder()
+                        .setMove(Move.newBuilder()
+                                .setTarget(vm)
+                                .addChanges(ChangeProvider.newBuilder()
+                                        .setSource(computeTier)
+                                        .setDestination(computeTier)
+                                        .build())
+                                .build())
+                        .build())
+                .setExplanation(Explanation.getDefaultInstance())
+                .build();
+        final Action riReallocationAction = mock(Action.class);
+        when(riReallocationAction.getRecommendation()).thenReturn(riReallocationActionDto);
+        final ActionTranslation actionTranslation = new ActionTranslation(riReallocationActionDto);
+        when(riReallocationAction.getActionTranslation()).thenReturn(actionTranslation);
+        final List<Action> actionsToTranslate = ImmutableList.of(riReallocationAction);
+        final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
+
+        // Act
+        final List<Action> translatedActions = translator.translate(actionsToTranslate, snapshot)
+                .collect(Collectors.toList());
+
+        // Assert
+        assertEquals(1, translatedActions.size());
+        assertEquals(TranslationStatus.TRANSLATION_SUCCEEDED, actionTranslation.getTranslationStatus());
+        final ActionDTO.Action translatedAction = actionTranslation.getTranslationResultOrOriginal();
+        assertTrue(translatedAction.getInfo().hasRiReallocation());
+        final RIReallocation riReallocation = translatedAction.getInfo().getRiReallocation();
+        assertEquals(vm, riReallocation.getTarget());
+        assertEquals(computeTier, riReallocation.getWorkloadTier());
+        final Explanation explanation = translatedAction.getExplanation();
+        assertTrue(explanation.hasRiReallocation());
     }
 }

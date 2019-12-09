@@ -19,12 +19,14 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -42,6 +44,7 @@ import org.junit.Test;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.service.SupplyChainTestUtils;
 import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
@@ -608,6 +611,93 @@ public class SupplyChainFetcherFactoryTest {
                 result.getSeMap().get(VM).getInstances().get("2").getSeverity());
         Assert.assertEquals(Severity.MAJOR.name(),
                 result.getSeMap().get(PM).getInstances().get("5").getSeverity());
+    }
+
+    /**
+     * Tests expanding scopes of entities like region and zones.
+     * 0: is a region (expansion needed) which has
+     *  VM with oid 3
+     *  DB with oid 4
+     *  Volume with oid 5
+     * 1: is a zone (expansion needed)
+     *  VM with oid 6
+     *  DB with oid 7
+     *  Volume with oid 8
+     * 2: is a VM (no expansion needed)
+     */
+    @Test
+    public void testExpandGroupingServiceEntities() {
+        MinimalEntity regionMinimalEntity = MinimalEntity.newBuilder()
+            .setOid(0L)
+            .setEntityType(UIEntityType.REGION.typeNumber())
+            .build();
+        MinimalEntity zoneMinimalEntity = MinimalEntity.newBuilder()
+            .setOid(1L)
+            .setEntityType(UIEntityType.AVAILABILITY_ZONE.typeNumber())
+            .build();
+
+        SearchRequest searchRequest = mock(SearchRequest.class);
+        when(searchRequest.getMinimalEntities()).thenReturn(Stream.of(
+            regionMinimalEntity, zoneMinimalEntity));
+
+        when(repositoryApiBackend.newSearchRequest(any()))
+            .thenReturn(searchRequest);
+
+        when(groupExpander.getGroupWithMembers(any())).thenReturn(Optional.empty());
+        when(groupExpander.expandUuids(Sets.newHashSet("0"))).thenReturn(Sets.newHashSet(0L));
+        when(groupExpander.expandUuids(Sets.newHashSet("1"))).thenReturn(Sets.newHashSet(1L));
+        when(groupExpander.expandUuids(Sets.newHashSet("2"))).thenReturn(Sets.newHashSet(2L));
+
+        Map<Long, GetSupplyChainResponse> responseMap = ImmutableMap.of(
+            0L, GetSupplyChainResponse.newBuilder()
+                .setSupplyChain(SupplyChain.newBuilder()
+                    .addSupplyChainNodes(SupplyChainNode.newBuilder()
+                        .setEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr())
+                        .putMembersByState(0, MemberList.newBuilder()
+                            .addMemberOids(6L)
+                            .build())
+                        .build())
+                    .addSupplyChainNodes(SupplyChainNode.newBuilder()
+                        .setEntityType(UIEntityType.DATABASE.apiStr())
+                        .putMembersByState(0, MemberList.newBuilder()
+                            .addMemberOids(7L)
+                            .build())
+                        .build())
+                    .addSupplyChainNodes(SupplyChainNode.newBuilder()
+                        .setEntityType(UIEntityType.VIRTUAL_VOLUME.apiStr())
+                        .putMembersByState(0, MemberList.newBuilder()
+                            .addMemberOids(8L)
+                            .build())
+                        .build())
+                    .build())
+                .build(),
+            1L, GetSupplyChainResponse.newBuilder()
+                .setSupplyChain(SupplyChain.newBuilder()
+                    .addSupplyChainNodes(SupplyChainNode.newBuilder()
+                        .setEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr())
+                        .putMembersByState(0, MemberList.newBuilder()
+                            .addMemberOids(3L)
+                            .build())
+                        .build())
+                    .addSupplyChainNodes(SupplyChainNode.newBuilder()
+                        .setEntityType(UIEntityType.DATABASE.apiStr())
+                        .putMembersByState(0, MemberList.newBuilder()
+                            .addMemberOids(4L)
+                            .build())
+                        .build())
+                    .addSupplyChainNodes(SupplyChainNode.newBuilder()
+                        .setEntityType(UIEntityType.VIRTUAL_VOLUME.apiStr())
+                        .putMembersByState(0, MemberList.newBuilder()
+                            .addMemberOids(5L)
+                            .build())
+                        .build())
+                    .build())
+                .build());
+        when(supplyChainServiceBackend.getSupplyChain(any())).thenAnswer(invocationOnMock ->
+            responseMap.get(invocationOnMock.getArgumentAt(0, GetSupplyChainRequest.class).getScope().getStartingEntityOid(0)));
+
+        Set<Long> actual = supplyChainFetcherFactory.expandGroupingServiceEntities(Arrays.asList(0L, 1L, 2L));
+        Assert.assertEquals(new HashSet<>(Arrays.asList(2L, 3L, 4L, 5L, 6L, 7L, 8L)), actual);
     }
 
     private int getSeveritySize(@Nonnull final SupplychainApiDTO src, @Nonnull String objType,

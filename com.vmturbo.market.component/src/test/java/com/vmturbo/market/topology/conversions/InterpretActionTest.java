@@ -47,13 +47,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
@@ -633,7 +633,7 @@ public class InterpretActionTest {
                 .setMove(MoveTO.newBuilder()
                         .setShoppingListToMove(5)
                         .setSource(1)
-                        .setMoveContext(Context.newBuilder().setRegionId(15)
+                        .setMoveContext(Context.newBuilder().setRegionId(region.getOid())
                                 .setBalanceAccount(BalanceAccountDTO.newBuilder().setId(17438L).build()).build())
                         .setDestination(2)
                         .setMoveExplanation(MoveExplanation.getDefaultInstance())).build();
@@ -644,11 +644,12 @@ public class InterpretActionTest {
                 vm.getOid(), entity(vm),
                 m1Large.getOid(), entity(m1Large),
                 m1Medium.getOid(), entity(m1Medium));
-        TopologyEntityCloudTopology mockedOriginalTopology = mock(TopologyEntityCloudTopology.class);
-        when(mockedOriginalTopology.getConnectedRegion(vm.getOid())).thenReturn(Optional.ofNullable(region));
-        originalTopology.put(15L, region);
+        final TopologyEntityCloudTopology originalCloudTopology =
+                new TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory()
+                        .newCloudTopology(originalTopology.values().stream());
         Optional<Action> action = interpreter.interpretAction(actionTO, projectedTopology,
-                mockedOriginalTopology, projectedCosts, mockTopologyCostCalculator);
+                                                              originalCloudTopology, projectedCosts,
+                                                              mockTopologyCostCalculator);
 
         assertEquals(3, action.get().getSavingsPerHour().getAmount(), 0.0001);
         assertThat(action.get().getInfo().getMove().getChanges(0).getSource().getId(), is(m1Large.getOid()));

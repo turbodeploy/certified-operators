@@ -139,7 +139,7 @@ public class ReservedInstanceCoverageUpdateTest {
             .addConnectedEntityList(ConnectedEntity.newBuilder()
                     .setConnectedEntityType(REGION.getEntityType())
                     .setConnectedEntityId(REGION.getOid())
-                    .setConnectionType(ConnectionType.NORMAL_CONNECTION))
+                    .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
             .build();
 
     private final EntityRICoverageUpload entityRICoverageOne =
@@ -171,7 +171,8 @@ public class ReservedInstanceCoverageUpdateTest {
                             .setTenancy(Tenancy.DEFAULT)))
             .addConnectedEntityList(ConnectedEntity.newBuilder()
                     .setConnectedEntityType(REGION.getEntityType())
-                    .setConnectedEntityId(REGION.getOid()))
+                    .setConnectedEntityId(REGION.getOid())
+                    .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
             .build();
 
     private final TopologyEntityDTO VMTwo = TopologyEntityDTO.newBuilder()
@@ -191,7 +192,8 @@ public class ReservedInstanceCoverageUpdateTest {
                             .setTenancy(Tenancy.DEFAULT)))
             .addConnectedEntityList(ConnectedEntity.newBuilder()
                     .setConnectedEntityType(AZ.getEntityType())
-                    .setConnectedEntityId(AZ.getOid()))
+                    .setConnectedEntityId(AZ.getOid())
+                    .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
             .build();
 
     private final TopologyEntityDTO BUSINESS_ACCOUNT = TopologyEntityDTO.newBuilder()

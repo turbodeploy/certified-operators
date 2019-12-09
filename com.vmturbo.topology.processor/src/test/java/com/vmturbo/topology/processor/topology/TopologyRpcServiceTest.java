@@ -50,13 +50,13 @@ import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
+import com.vmturbo.topology.processor.topology.pipeline.LivePipelineFactory;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Stage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.StageResult;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory;
 
 public class TopologyRpcServiceTest {
 
@@ -64,7 +64,7 @@ public class TopologyRpcServiceTest {
 
     private TopologyHandler topologyHandler = mock(TopologyHandler.class);
 
-    private final TopologyPipelineFactory topologyPipelineFactory = mock(TopologyPipelineFactory.class);
+    private final LivePipelineFactory livePipelineFactory = mock(LivePipelineFactory.class);
     private final IdentityProvider identityProvider = mock(IdentityProvider.class);
     private final EntityStore entityStore = mock(EntityStore.class);
     private final long realtimeTopologyContextId = 1234567L;
@@ -72,7 +72,7 @@ public class TopologyRpcServiceTest {
     private final Scheduler scheduler = mock(Scheduler.class);
 
     private TopologyRpcService topologyRpcServiceBackend = new TopologyRpcService(topologyHandler,
-        topologyPipelineFactory, identityProvider, entityStore, scheduler,
+        livePipelineFactory, identityProvider, entityStore, scheduler,
         StitchingJournalFactory.emptyStitchingJournalFactory(), realtimeTopologyContextId, clock);
 
     @Rule
@@ -234,7 +234,7 @@ public class TopologyRpcServiceTest {
                 .build();
         };
 
-        when(topologyPipelineFactory.liveTopology(any(TopologyInfo.class), any(),
+        when(livePipelineFactory.liveTopology(any(TopologyInfo.class), any(),
                 any(StitchingJournalFactory.class))).thenAnswer(answer);
 
         Iterable<Topology> topologyIter =
@@ -312,7 +312,7 @@ public class TopologyRpcServiceTest {
 
     @Test
     public void testBroadcastAndReturnTopologyException() throws Exception {
-        when(topologyPipelineFactory.liveTopology(any(TopologyInfo.class), any(),
+        when(livePipelineFactory.liveTopology(any(TopologyInfo.class), any(),
                 any(StitchingJournalFactory.class))).thenThrow(new RuntimeException("foo"));
 
         try {

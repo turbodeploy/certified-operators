@@ -26,8 +26,8 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
+import com.vmturbo.topology.processor.topology.pipeline.PlanPipelineFactory;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.TopologyPipelineException;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory;
 
 /**
  * See: topology/AnalysisDTO.proto.
@@ -40,7 +40,7 @@ public class AnalysisRpcService extends AnalysisServiceImplBase {
 
     private final Clock clock;
 
-    private TopologyPipelineFactory topologyPipelineFactory;
+    private PlanPipelineFactory planPipelineFactory;
 
     private final TopologyHandler topologyHandler;
 
@@ -48,13 +48,13 @@ public class AnalysisRpcService extends AnalysisServiceImplBase {
 
     private final StitchingJournalFactory journalFactory;
 
-    public AnalysisRpcService(@Nonnull final TopologyPipelineFactory topologyPipelineFactory,
-                              @Nonnull final TopologyHandler topologyHandler,
-                              @Nonnull final IdentityProvider identityProvider,
-                              @Nonnull final EntityStore entityStore,
-                              @Nonnull final StitchingJournalFactory journalFactory,
-                              @Nonnull final Clock clock) {
-        this.topologyPipelineFactory = Objects.requireNonNull(topologyPipelineFactory);
+    AnalysisRpcService(@Nonnull final PlanPipelineFactory planPipelineFactory,
+                       @Nonnull final TopologyHandler topologyHandler,
+                       @Nonnull final IdentityProvider identityProvider,
+                       @Nonnull final EntityStore entityStore,
+                       @Nonnull final StitchingJournalFactory journalFactory,
+                       @Nonnull final Clock clock) {
+        this.planPipelineFactory = Objects.requireNonNull(planPipelineFactory);
         this.topologyHandler = topologyHandler;
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.entityStore = Objects.requireNonNull(entityStore);
@@ -95,11 +95,11 @@ public class AnalysisRpcService extends AnalysisServiceImplBase {
             final TopologyBroadcastInfo broadcastInfo;
 
             if (request.hasTopologyId()) {
-                broadcastInfo = topologyPipelineFactory.planOverOldTopology(topologyInfo,
+                broadcastInfo = planPipelineFactory.planOverOldTopology(topologyInfo,
                         request.getScenarioChangeList(), request.getPlanScope())
                     .run(request.getTopologyId());
             } else {
-                broadcastInfo = topologyPipelineFactory.planOverLiveTopology(topologyInfo,
+                broadcastInfo = planPipelineFactory.planOverLiveTopology(topologyInfo,
                         request.getScenarioChangeList(), request.getPlanScope(), journalFactory)
                     .run(entityStore);
             }

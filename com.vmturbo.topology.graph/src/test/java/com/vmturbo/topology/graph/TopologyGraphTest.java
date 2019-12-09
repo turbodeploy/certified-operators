@@ -335,26 +335,6 @@ public class TopologyGraphTest {
         final TestGraphEntity computeTier = graph.getEntity(SimpleCloudTopologyUtil.CT_ID).get();
         final TestGraphEntity storageTier = graph.getEntity(SimpleCloudTopologyUtil.ST_ID).get();
 
-        // check outgoing connections: this includes connections to owned and aggregated objects
-        assertEquals(
-                ImmutableSet.of(zone, computeTier, storageTier),
-                graph.getConnectedToEntities(region).collect(Collectors.toSet()));
-        assertEquals(Collections.emptySet(), graph.getConnectedToEntities(vm).collect(Collectors.toSet()));
-        assertEquals(
-                Collections.singleton(storageTier),
-                graph.getConnectedToEntities(computeTier).collect(Collectors.toSet()));
-
-        // check ingoing connections: this includes connections to owner and aggregators
-        assertEquals(
-                Collections.emptySet(),
-                graph.getConnectedFromEntities(region).collect(Collectors.toSet()));
-        assertEquals(
-                Collections.singleton(zone),
-                graph.getConnectedFromEntities(vm).collect(Collectors.toSet()));
-        assertEquals(
-                ImmutableSet.of(region, computeTier),
-                graph.getConnectedFromEntities(storageTier).collect(Collectors.toSet()));
-
         // check owned and aggregated entities
         assertEquals(
                 ImmutableSet.of(zone, computeTier, storageTier),

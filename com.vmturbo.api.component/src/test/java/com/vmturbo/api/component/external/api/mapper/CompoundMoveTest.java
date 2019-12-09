@@ -24,6 +24,7 @@ import org.mockito.Mockito;
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
@@ -47,6 +48,7 @@ import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
@@ -145,6 +147,8 @@ public class CompoundMoveTest {
             .newBlockingStub(supplyChainGrpcServer.getChannel());
 
         repositoryApi = mock(RepositoryApi.class);
+        final SearchRequest emptySearchReq = ApiTestUtils.mockEmptySearchReq();
+        when(repositoryApi.getRegion(any())).thenReturn(emptySearchReq);
 
         actionSpecMappingContextFactory = new ActionSpecMappingContextFactory(policyService,
                 Executors.newCachedThreadPool(new ThreadFactoryBuilder().build()), repositoryApi,
@@ -155,10 +159,12 @@ public class CompoundMoveTest {
                 CostServiceGrpc.newBlockingStub(grpcServer.getChannel());
         ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub reservedInstanceBoughtServiceBlockingStub =
                 ReservedInstanceBoughtServiceGrpc.newBlockingStub(grpcServer.getChannel());
-
+        ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub
+                reservedInstanceUtilizationCoverageServiceBlockingStub =
+                ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(grpcServer.getChannel());
         mapper = new ActionSpecMapper(actionSpecMappingContextFactory, serviceEntityMapper,
             mock(ReservedInstanceMapper.class), riBuyContextFetchServiceStub, costServiceBlockingStub,
-                statsQueryExecutor, uuidMapper,
+                statsQueryExecutor, uuidMapper, reservedInstanceUtilizationCoverageServiceBlockingStub,
                 reservedInstanceBoughtServiceBlockingStub, repositoryApi, REAL_TIME_TOPOLOGY_CONTEXT_ID);
         IdentityGenerator.initPrefix(0);
 

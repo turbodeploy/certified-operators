@@ -38,6 +38,7 @@ import org.stringtemplate.v4.ST;
 
 import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -142,7 +143,7 @@ public class CostJournal<ENTITY_CLASS> {
                     TraxNumber aggregateHourly = trax(0);
                     for (JournalEntry<ENTITY_CLASS> entry: priceEntries) {
                         TraxNumber cost = entry.calculateHourlyCost(infoExtractor, discountApplicator, this::getHourlyCostFilterEntries);
-                        CostSource costSource = entry.getCostSource().orElse(CostSource.UNKNOWN);
+                        CostSource costSource = entry.getCostSource().orElse(CostSource.UNCLASSIFIED);
                         if (finalCostsByCategoryAndSource.get(category, costSource) != null) {
                             TraxNumber existing = finalCostsByCategoryAndSource.get(category, costSource);
                             cost = cost.plus(existing).compute("Total cost for {}" + costSource);

@@ -89,7 +89,7 @@ else
     echo '+++ MariaDB upgrade process successful.' 2>&1 | logger --tag mariadb -u /tmp/log.sock
 fi
 
-/change_buffer_pool_size.sh $MYSQL_CONF  2>&1 | logger --tag mariadb -u /tmp/log.sock
+/customize_my_cnf.sh $MYSQL_CONF  2>&1 | logger --tag mariadb -u /tmp/log.sock
 
 # Start the database server
 exec /usr/sbin/mysqld --defaults-file=$MYSQL_CONF --user=mysql --datadir=/var/lib/mysql --lc-messages-dir=/usr/share/mysql > >(logger --tag mariadb -u /tmp/log.sock) 2>&1

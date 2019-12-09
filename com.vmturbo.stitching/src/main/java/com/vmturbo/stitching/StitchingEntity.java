@@ -166,9 +166,6 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
 
     /**
      * Get the stitching errors encountered by this specific entity during stitching.
-     * <p>
-     * Note: if you want to get the total errors encountered by this entity and any merged entities,
-     * use {@link StitchingEntity#entityErrors()}.
      */
     @Nonnull
     StitchingErrors getStitchingErrors();

@@ -10,6 +10,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -160,8 +161,8 @@ public class ScenarioMapperTest {
 
         ScenarioInfo info = getScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
         assertEquals(SCENARIO_NAME, info.getName());
-        assertEquals(2, info.getChangesCount());
-        List<ScenarioChange> change = excludeDefaultStorageSuspensionSetting(info.getChangesList());
+        assertEquals(1, info.getChangesCount());
+        List<ScenarioChange> change = info.getChangesList();
         assertEquals(DetailsCase.TOPOLOGY_ADDITION, change.get(0).getDetailsCase());
 
         TopologyAddition addition = change.get(0).getTopologyAddition();
@@ -324,8 +325,8 @@ public class ScenarioMapperTest {
         ScenarioInfo info = getScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
 
         assertEquals(SCENARIO_NAME, info.getName());
-        assertEquals(2, info.getChangesCount());
-        List<ScenarioChange> change = excludeDefaultStorageSuspensionSetting(info.getChangesList());
+        assertEquals(1, info.getChangesCount());
+        List<ScenarioChange> change = info.getChangesList();
         assertEquals(DetailsCase.TOPOLOGY_ADDITION, change.get(0).getDetailsCase());
 
         TopologyAddition addition = change.get(0).getTopologyAddition();
@@ -345,8 +346,8 @@ public class ScenarioMapperTest {
 
         ScenarioInfo info = getScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
         assertEquals(SCENARIO_NAME, info.getName());
-        assertEquals(2, info.getChangesCount());
-        List<ScenarioChange> change = excludeDefaultStorageSuspensionSetting(info.getChangesList());
+        assertEquals(1, info.getChangesCount());
+        List<ScenarioChange> change = info.getChangesList();
         assertEquals(DetailsCase.TOPOLOGY_REMOVAL, change.get(0).getDetailsCase());
 
         TopologyRemoval removal = change.get(0).getTopologyRemoval();
@@ -374,9 +375,9 @@ public class ScenarioMapperTest {
 
         ScenarioInfo info = getScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
         assertEquals(SCENARIO_NAME, info.getName());
-        assertEquals(2, info.getChangesCount());
+        assertEquals(1, info.getChangesCount());
 
-        List<ScenarioChange> change = excludeDefaultStorageSuspensionSetting(info.getChangesList());
+        List<ScenarioChange> change = info.getChangesList();
         assertEquals(DetailsCase.TOPOLOGY_REPLACE, change.get(0).getDetailsCase());
         TopologyReplace replace = change.get(0).getTopologyReplace();
         assertEquals(5, replace.getChangeApplicationDay());
@@ -400,9 +401,9 @@ public class ScenarioMapperTest {
         topoChanges.setRemoveList(Collections.singletonList(removeDto));
 
         ScenarioInfo info = getScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
-        assertEquals(3, info.getChangesCount());
+        assertEquals(2, info.getChangesCount());
 
-        List<ScenarioChange> change = excludeDefaultStorageSuspensionSetting(info.getChangesList());
+        List<ScenarioChange> change = info.getChangesList();
         assertEquals(DetailsCase.TOPOLOGY_ADDITION, change.get(0).getDetailsCase());
         TopologyAddition addition = change.get(0).getTopologyAddition();
         assertEquals(1, addition.getEntityId());
@@ -425,8 +426,8 @@ public class ScenarioMapperTest {
                     .build()));
 
         final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.singletonList(setting), null);
-        assertThat(scenarioInfo.getChangesCount(), is(2));
-        final List<ScenarioChange> change = excludeDefaultStorageSuspensionSetting(scenarioInfo.getChangesList());
+        assertThat(scenarioInfo.getChangesCount(), is(1));
+        final List<ScenarioChange> change = scenarioInfo.getChangesList();
         assertTrue(change.get(0).hasSettingOverride());
         assertTrue(change.get(0).getSettingOverride().hasSetting());
         final Setting overridenSetting = change.get(0).getSettingOverride().getSetting();
@@ -448,8 +449,8 @@ public class ScenarioMapperTest {
                         .build()));
 
         final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.singletonList(setting), null);
-        assertThat(scenarioInfo.getChangesCount(), is(2));
-        final List<ScenarioChange> change = excludeDefaultStorageSuspensionSetting(scenarioInfo.getChangesList());
+        assertThat(scenarioInfo.getChangesCount(), is(1));
+        final List<ScenarioChange> change = scenarioInfo.getChangesList();
         assertTrue(change.get(0).hasSettingOverride());
         assertTrue(change.get(0).getSettingOverride().hasSetting());
         final Setting overridenSetting = change.get(0).getSettingOverride().getSetting();
@@ -458,17 +459,11 @@ public class ScenarioMapperTest {
         assertThat(overridenSetting.getNumericSettingValue().getValue(), is(1.2f));
     }
 
-    private List<ScenarioChange> excludeDefaultStorageSuspensionSetting(List<ScenarioChange> changes) {
-        return changes.stream().filter(c -> c.getSettingOverride()!= null
-            && c.getSettingOverride().getEntityType() != EntityType.STORAGE_VALUE)
-            .collect(Collectors.toList());
-    }
-
     @Test
     public void testSettingOverrideUnknownSetting() {
         final SettingApiDTO<String> setting = createStringSetting("unknown", "value");
         final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.singletonList(setting), null);
-        assertThat(scenarioInfo.getChangesCount(), is(1));
+        assertThat(scenarioInfo.getChangesCount(), is(0));
     }
 
     /**
@@ -497,7 +492,7 @@ public class ScenarioMapperTest {
         final ScenarioApiDTO dto = new ScenarioApiDTO();
         dto.setConfigChanges(null);
         final ScenarioInfo scenarioInfo = getScenarioInfo("name", dto);
-        Assert.assertTrue(excludeDefaultStorageSuspensionSetting(scenarioInfo.getChangesList()).isEmpty());
+        Assert.assertTrue(scenarioInfo.getChangesList().isEmpty());
     }
 
     /**
@@ -506,7 +501,7 @@ public class ScenarioMapperTest {
     @Test
     public void testToScenarioInfoWithEmptyConfigChanges() {
         final ScenarioInfo scenarioInfo = getScenarioInfo((List<SettingApiDTO<String>>)null, null);
-        Assert.assertTrue(excludeDefaultStorageSuspensionSetting(scenarioInfo.getChangesList()).isEmpty());
+        Assert.assertTrue(scenarioInfo.getChangesList().isEmpty());
     }
 
     /**
@@ -514,28 +509,11 @@ public class ScenarioMapperTest {
      */
     @Test
     public void testToScenarioInfoWithEmptyAutomationSettingsList() {
-        final ScenarioApiDTO customPlanDto = new ScenarioApiDTO();
-        customPlanDto.setConfigChanges(null);
-        customPlanDto.setType(CUSTOM_SCENARIO_TYPE);
-        final ScenarioInfo customScenarioInfo = getScenarioInfo("custom plan", customPlanDto);
-        Assert.assertTrue(customScenarioInfo.getChangesList().size() == 1);
-        SettingOverride sts1 = customScenarioInfo.getChangesList().get(0).getSettingOverride();
-        Assert.assertTrue(sts1.getEntityType() == EntityType.STORAGE_VALUE);
-        Assert.assertTrue(sts1.getSetting().getSettingSpecName()
-            .equalsIgnoreCase(EntitySettingSpecs.Suspend.getSettingName()));
-        Assert.assertTrue(sts1.getSetting().getEnumSettingValue().getValue().equals(DISABLED));
         final ScenarioApiDTO decommissionHostPlanDto = new ScenarioApiDTO();
         decommissionHostPlanDto.setConfigChanges(null);
         decommissionHostPlanDto.setType(DECOMMISSION_HOST_SCENARIO_TYPE);
         final ScenarioInfo decommissionScenarioInfo = getScenarioInfo("decommission plan", decommissionHostPlanDto);
-        Assert.assertTrue(decommissionScenarioInfo.getChangesList().size() == 2);
-        List<SettingOverride> sts2 = decommissionScenarioInfo.getChangesList().stream()
-            .map(ScenarioChange::getSettingOverride)
-            .filter(s -> s.getEntityType() == EntityType.STORAGE_VALUE)
-            .collect(Collectors.toList());
-        Assert.assertTrue(sts2.get(0).getSetting().getSettingSpecName()
-            .equalsIgnoreCase(EntitySettingSpecs.Suspend.getSettingName()));
-        Assert.assertTrue(sts2.get(0).getSetting().getEnumSettingValue().getValue().equals(DISABLED));
+        Assert.assertTrue(decommissionScenarioInfo.getChangesList().size() == 1);
         List<SettingOverride> pmp = decommissionScenarioInfo.getChangesList().stream()
             .map(ScenarioChange::getSettingOverride)
             .filter(s -> s.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
@@ -687,7 +665,7 @@ public class ScenarioMapperTest {
     public void testToScenarioInfoUtilizationLevelEmptyLoadChanges() {
         final LoadChangesApiDTO loadChanges = new LoadChangesApiDTO();
         final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.emptyList(), loadChanges);
-        Assert.assertEquals(1, scenarioInfo.getChangesList().size());
+        Assert.assertEquals(0, scenarioInfo.getChangesList().size());
     }
 
 
@@ -1038,8 +1016,8 @@ public class ScenarioMapperTest {
         dto.setTopologyChanges(topologyChanges);
         final ScenarioInfo scenarioInfo = getScenarioInfo("", dto);
 
-        Assert.assertEquals(2, scenarioInfo.getChangesList().size());
-        List<ScenarioChange> changes = excludeDefaultStorageSuspensionSetting(scenarioInfo.getChangesList());
+        Assert.assertEquals(1, scenarioInfo.getChangesList().size());
+        List<ScenarioChange> changes = scenarioInfo.getChangesList();
         final ScenarioChange firstAddtion = changes.get(0);
         Assert.assertTrue(firstAddtion.hasTopologyAddition());
         Assert.assertEquals(1, firstAddtion.getTopologyAddition().getGroupId());
@@ -1073,6 +1051,29 @@ public class ScenarioMapperTest {
     }
 
     /**
+     * Tests user disabling storage suspension in plan configuration.
+     */
+    @Test
+    public void testStorageSuspensionDisabledScenario() {
+        String suspendStorageSetting = "suspendDS";
+        String suspendStorageSettingFalse = "false";
+        final ConfigChangesApiDTO configChanges = new ConfigChangesApiDTO();
+        SettingApiDTO<String> automationSetting = new SettingApiDTO<>();
+        automationSetting.setUuid(suspendStorageSetting);
+        automationSetting.setValue(suspendStorageSettingFalse);
+        configChanges.setAutomationSettingList(Lists.newArrayList(automationSetting));
+        ScenarioApiDTO dto = new ScenarioApiDTO();
+        dto.setConfigChanges(configChanges);
+
+        // assert that there is an automation settings change
+        Assert.assertFalse(dto.getConfigChanges().getAutomationSettingList().isEmpty());
+        assertSame(dto.getConfigChanges().getAutomationSettingList().get(0).getUuid(),
+                        suspendStorageSetting);
+        assertSame(dto.getConfigChanges().getAutomationSettingList().get(0).getValue(),
+                        suspendStorageSettingFalse);
+    }
+
+    /**
      * Tests converting of ScenarioApiDto to ScenarioInfo for alleviate pressure plan.
      */
     @Test
@@ -1086,7 +1087,7 @@ public class ScenarioMapperTest {
         // Merge Policy Change, Ignore constraints on hot cluster
         // and disable 4 (suspend, provision, resize, reconfigure) actions.
         final List<ScenarioChange> scenarioChanges = scenarioInfo.getChangesList();
-        assertEquals(7, scenarioChanges.size());
+        assertEquals(6, scenarioChanges.size());
 
         // Contains Merge Policy
         ScenarioChange mergePolicyChange = scenarioChanges.stream()

@@ -26,11 +26,17 @@ metadata:
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: 1
   strategy:
     type: Recreate
   template:
     metadata:
+{{- if .Values.global }}
+  {{- with .Values.global.annotations }}
+      annotations:
+{{- toYaml . | nindent 8 }}
+  {{- end }}
+{{- end }}
       labels:
         zone: internal
         app.kubernetes.io/name: {{ .Chart.Name }}
@@ -45,6 +51,11 @@ spec:
 {{ toYaml .Values.env | indent 8 -}}
         ports:
           - containerPort: 9092
+        livenessProbe:
+          tcpSocket:
+            port: 9092
+          periodSeconds: 60
+          failureThreshold: 60
         readinessProbe:
           tcpSocket:
             port: 9092
@@ -66,10 +77,24 @@ spec:
       imagePullSecrets:
       - name: turbocred
   {{- end -}}
+  {{- with .Values.global.nodeSelector }}
+      nodeSelector:
+{{- toYaml . | nindent 8 }}
+  {{- end }}
+  {{- with .Values.global.affinity }}
+      affinity:
+{{- toYaml . | nindent 8 }}
+  {{- end }}
+  {{- with .Values.global.tolerations }}
+      tolerations:
+{{- toYaml . | nindent 8 }}
+  {{- end }}
+  {{- with .Values.global.securityContext }}
+      securityContext:
+{{- toYaml . | nindent 8 }}
+  {{- end }}
 {{- end }}
       restartPolicy: Always
-      securityContext:
-        fsGroup: 2000
       volumes:
       - name: kafka-log
         persistentVolumeClaim:

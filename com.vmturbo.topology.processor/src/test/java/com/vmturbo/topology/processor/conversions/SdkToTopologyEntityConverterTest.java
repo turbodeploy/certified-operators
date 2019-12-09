@@ -29,6 +29,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.platform.common.builders.EntityBuilders;
@@ -492,6 +493,42 @@ public class SdkToTopologyEntityConverterTest {
             .get();
         // check that original percentage used is used if no matching commodity on provider side
         assertEquals(appVcpuUsed, appVCPU1.getUsed(), DELTA);
+    }
+
+    /**
+     * Tests that {@link SdkToTopologyEntityConverter} preserves
+     * the connections between cloud entities correctly.
+     */
+    @Test
+    public void testConnections() {
+        final long vmId = 1L;
+        final long regId = 2L;
+
+        final EntityDTO.Builder vmBuilder = EntityDTO.newBuilder()
+                                                .setEntityType(EntityType.VIRTUAL_MACHINE)
+                                                .setId(Long.toString(vmId));
+        final EntityDTO.Builder regBuilder = EntityDTO.newBuilder()
+                                                .setEntityType(EntityType.REGION)
+                                                .setId(Long.toString(regId));
+        final TopologyStitchingEntity vm = new TopologyStitchingEntity(
+                                            StitchingEntityData.newBuilder(vmBuilder).oid(vmId).build());
+        final TopologyStitchingEntity reg = new TopologyStitchingEntity(
+                                            StitchingEntityData.newBuilder(regBuilder).oid(regId).build());
+        vm.addConnectedTo(ConnectionType.AGGREGATED_BY_CONNECTION, reg);
+        vm.addConnectedFrom(ConnectionType.AGGREGATED_BY_CONNECTION, reg);
+
+        final TopologyEntityDTO.Builder vmTopologyEntityBuilder =
+                SdkToTopologyEntityConverter.newTopologyEntityDTO(vm);
+        final TopologyEntityDTO.Builder regTopologyEntityBuilder =
+                SdkToTopologyEntityConverter.newTopologyEntityDTO(reg);
+
+        assertEquals(1, vmTopologyEntityBuilder.getConnectedEntityListCount());
+        assertEquals(regId, vmTopologyEntityBuilder.getConnectedEntityList(0).getConnectedEntityId());
+        assertEquals(EntityType.REGION_VALUE,
+                     vmTopologyEntityBuilder.getConnectedEntityList(0).getConnectedEntityType());
+        assertEquals(ConnectionType.AGGREGATED_BY_CONNECTION,
+                     vmTopologyEntityBuilder.getConnectedEntityList(0).getConnectionType());
+        assertEquals(0, regTopologyEntityBuilder.getConnectedEntityListCount());
     }
 
     private static boolean isAccessCommodity(CommoditySoldDTO comm) {

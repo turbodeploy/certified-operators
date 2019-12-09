@@ -44,6 +44,7 @@ import org.mockito.Mockito;
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMappingContextFactory.ActionSpecMappingContext;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
@@ -53,11 +54,6 @@ import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
-import com.vmturbo.api.dto.statistic.StatApiDTO;
-import com.vmturbo.api.dto.statistic.StatApiInputDTO;
-import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
-import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
-import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.enums.EntityState;
@@ -106,6 +102,7 @@ import com.vmturbo.common.protobuf.cost.CostMoles;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
@@ -127,7 +124,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartial
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -177,13 +173,17 @@ public class ActionSpecMapperTest {
     private SupplyChainProtoMoles.SupplyChainServiceMole supplyChainMole =
         spy(new SupplyChainServiceMole());
 
+    private CostMoles.ReservedInstanceUtilizationCoverageServiceMole reservedInstanceUtilizationCoverageServiceMole =
+            spy(new CostMoles.ReservedInstanceUtilizationCoverageServiceMole());
+
     private CostMoles.CostServiceMole costServiceMole = spy(new CostMoles.CostServiceMole());
 
     private CostMoles.ReservedInstanceBoughtServiceMole reservedInstanceBoughtServiceMole =
             spy(new CostMoles.ReservedInstanceBoughtServiceMole());
 
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(policyMole, costServiceMole, reservedInstanceBoughtServiceMole);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(policyMole, costServiceMole,
+            reservedInstanceBoughtServiceMole, reservedInstanceUtilizationCoverageServiceMole);
 
     @Rule
     public GrpcTestServer supplyChainGrpcServer = GrpcTestServer.newServer(supplyChainMole);
@@ -235,17 +235,23 @@ public class ActionSpecMapperTest {
             DATACENTER2_ID)))
             .thenReturn(datacenterReq);
 
+        final SearchRequest emptySearchReq = ApiTestUtils.mockEmptySearchReq();
+        when(repositoryApi.getRegion(any())).thenReturn(emptySearchReq);
+
         CostServiceGrpc.CostServiceBlockingStub costServiceBlockingStub =
                 CostServiceGrpc.newBlockingStub(grpcServer.getChannel());
         ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub reservedInstanceBoughtServiceBlockingStub =
                 ReservedInstanceBoughtServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub
+                reservedInstanceUtilizationCoverageServiceBlockingStub =
+                ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(grpcServer.getChannel());
         actionSpecMappingContextFactory = new ActionSpecMappingContextFactory(policyService,
                 Executors.newCachedThreadPool(new ThreadFactoryBuilder().build()), repositoryApi,
                 mock(EntityAspectMapper.class), volumeAspectMapper, REAL_TIME_TOPOLOGY_CONTEXT_ID,
                 null, null, serviceEntityMapper, supplyChainService);
         mapper = new ActionSpecMapper(actionSpecMappingContextFactory,
             serviceEntityMapper, reservedInstanceMapper, riBuyContextFetchServiceStub, costServiceBlockingStub,
-                statsQueryExecutor, uuidMapper,
+                statsQueryExecutor, uuidMapper, reservedInstanceUtilizationCoverageServiceBlockingStub,
                 reservedInstanceBoughtServiceBlockingStub, repositoryApi, REAL_TIME_TOPOLOGY_CONTEXT_ID);
     }
 
@@ -637,25 +643,27 @@ public class ActionSpecMapperTest {
                 .build();
         when(costServiceMole.getCloudCostStats(any())).thenReturn(serviceResult);
 
-        // mock stats response
-        final StatApiInputDTO cvgRequest = new StatApiInputDTO();
-        cvgRequest.setName(StringConstants.RI_COUPON_COVERAGE);
-        final StatPeriodApiInputDTO statInput = new StatPeriodApiInputDTO();
-        statInput.setStatistics(Collections.singletonList(cvgRequest));
-        StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
-        StatApiDTO statApiDTO = new StatApiDTO();
-        statApiDTO.setValue(10f);
-        StatValueApiDTO statValueApiDTO = new StatValueApiDTO();
-        statValueApiDTO.setAvg(20f);
-        statApiDTO.setCapacity(statValueApiDTO);
-        List<StatApiDTO> statSnapshotApiDTOS = new ArrayList<>();
-        statSnapshotApiDTOS.add(statApiDTO);
-        statSnapshotApiDTO.setStatistics(statSnapshotApiDTOS);
-        statSnapshotApiDTO.setDate(Long.toString(0L));
-        List<StatSnapshotApiDTO> statSnapshotApiDTOList = new ArrayList<>();
-        statSnapshotApiDTOList.add(statSnapshotApiDTO);
-        when(statsQueryExecutor.getAggregateStats(uuidMapper.fromOid(1L), statInput))
-                .thenReturn(statSnapshotApiDTOList);
+        // test RI coverage before/after
+        // mock responses
+        Cost.EntityReservedInstanceCoverage mockCoverage = Cost.EntityReservedInstanceCoverage
+                .newBuilder()
+                .setEntityCouponCapacity(4)
+                .putCouponsCoveredByRi(1, 1)
+                .setEntityId(1)
+                .build();
+        Cost.GetEntityReservedInstanceCoverageResponse currentResponse = Cost.GetEntityReservedInstanceCoverageResponse
+                .newBuilder().putCoverageByEntityId(1, mockCoverage).build();
+        Cost.GetProjectedEntityReservedInstanceCoverageResponse projectedResponse =
+                Cost.GetProjectedEntityReservedInstanceCoverageResponse.newBuilder()
+                        .putCoverageByEntityId(1, mockCoverage).build();
+
+        // mock call
+        when(reservedInstanceUtilizationCoverageServiceMole
+                .getEntityReservedInstanceCoverage(any()))
+                .thenReturn(currentResponse);
+        when(reservedInstanceUtilizationCoverageServiceMole
+                .getProjectedEntityReservedInstanceCoverageStats(any()))
+                .thenReturn(projectedResponse);
 
         // act
         CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO = mapper.createCloudResizeActionDetailsDTO(targetId);
@@ -669,8 +677,10 @@ public class ActionSpecMapperTest {
         assertEquals(cloudResizeActionDetailsApiDTO.getOnDemandRateBefore(), 0f ,0);
         assertEquals(cloudResizeActionDetailsApiDTO.getOnDemandRateAfter(), 0f ,0);
         // ri coverage
-        assertEquals(cloudResizeActionDetailsApiDTO.getRiCoverageBefore().getValue(), 10f ,0);
-        assertEquals(cloudResizeActionDetailsApiDTO.getRiCoverageAfter().getValue(), 0f ,0);
+        assertEquals(cloudResizeActionDetailsApiDTO.getRiCoverageBefore().getValue(), 1f, 0);
+        assertEquals(cloudResizeActionDetailsApiDTO.getRiCoverageBefore().getCapacity().getAvg(), 4f , 0);
+        assertEquals(cloudResizeActionDetailsApiDTO.getRiCoverageAfter().getValue(), 1f, 0);
+        assertEquals(cloudResizeActionDetailsApiDTO.getRiCoverageAfter().getCapacity().getAvg(), 4f, 0);
     }
 
     @Test

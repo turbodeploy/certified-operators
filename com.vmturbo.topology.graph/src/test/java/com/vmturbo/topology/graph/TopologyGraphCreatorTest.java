@@ -37,9 +37,8 @@ public class TopologyGraphCreatorTest {
         final TestGraphEntity.Builder dbBuilder = TestGraphEntity.newBuilder(dbId, UIEntityType.DATABASE);
 
         rgBuilder.addConnectedEntity(azId, ConnectionType.OWNS_CONNECTION);
-        azBuilder.addConnectedEntity(vmId, ConnectionType.AGGREGATES_CONNECTION);
-        azBuilder.addConnectedEntity(dbId, ConnectionType.AGGREGATES_CONNECTION);
-        dbBuilder.addProviderId(vmId);
+        vmBuilder.addConnectedEntity(azId, ConnectionType.AGGREGATED_BY_CONNECTION);
+        dbBuilder.addProviderId(vmId).addConnectedEntity(azId, ConnectionType.AGGREGATED_BY_CONNECTION);
 
         final TopologyGraph<TestGraphEntity> topologyGraph =
                 new TopologyGraphCreator<TestGraphEntity.Builder, TestGraphEntity>()

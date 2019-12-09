@@ -128,9 +128,9 @@ public class TopologyGraphCreator<BUILDER extends TopologyGraphEntity.Builder<BU
                                 entity.addOutboundAssociation(connected);
                                 connected.addInboundAssociation(entity);
                                 break;
-                            case AGGREGATES_CONNECTION:
-                                entity.addAggregatedEntity(connected);
-                                connected.addAggregator(entity);
+                            case AGGREGATED_BY_CONNECTION:
+                                entity.addAggregator(connected);
+                                connected.addAggregatedEntity(entity);
                                 break;
                             case OWNS_CONNECTION:
                                 entity.addOwnedEntity(connected);

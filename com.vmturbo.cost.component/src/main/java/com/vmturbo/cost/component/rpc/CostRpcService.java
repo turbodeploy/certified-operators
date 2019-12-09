@@ -3,6 +3,7 @@ package com.vmturbo.cost.component.rpc;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -24,6 +25,10 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -31,13 +36,11 @@ import com.google.common.collect.Lists;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.CreateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.CreateDiscountResponse;
 import com.vmturbo.common.protobuf.cost.Cost.DeleteDiscountRequest;
@@ -53,6 +56,8 @@ import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest.GroupBy
 import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetDiscountRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesResponse;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceImplBase;
@@ -174,6 +179,53 @@ public class CostRpcService extends CostServiceImplBase {
         }
     }
 
+    @Override
+    public void getTierPriceForEntities(GetTierPriceForEntitiesRequest request, StreamObserver<GetTierPriceForEntitiesResponse> responseObserver) {
+        Long oid = request.getOid();
+        CostCategory category = request.getCostCategory();
+        try {
+            Map<Long, EntityCost> beforeEntityCostbyOid = entityCostStore.getLatestEntityCost(oid, category,
+                    new HashSet<>(Arrays.asList(CostSource.ON_DEMAND_RATE)));
+            Map<Long, EntityCost> afterEntityCostbyOid = projectedEntityCostStore.getProjectedEntityCosts(new HashSet<>(Arrays.asList(oid)));
+            Map<Long, CurrencyAmount> beforeCurrencyAmountByOid = new HashMap<>();
+            Map<Long, CurrencyAmount> afterCurrencyAmountByOid = new HashMap<>();
+            for (Map.Entry<Long, EntityCost> entry : beforeEntityCostbyOid.entrySet()) {
+                Long id = entry.getKey();
+                EntityCost cost = entry.getValue();
+                if (!CollectionUtils.isEmpty(cost.getComponentCostList())) {
+                    // Since the entity cost here is queried via the request cost category and
+                    // the on demand rate cost source, the firs index in the component cost list
+                    // should give us the correct cost for the category and in demand rate,
+                    CurrencyAmount amount = cost.getComponentCost(0).getAmount();
+                    beforeCurrencyAmountByOid.put(id, amount);
+                } else {
+                    logger.error("No costs could be retrieved from database for entity having oid {}" +
+                            " .This may result in the on demand rate not being displayed on the UI.", oid);
+                }
+            }
+            for (Map.Entry<Long, EntityCost> entry : afterEntityCostbyOid.entrySet()) {
+                Long id = entry.getKey();
+                EntityCost cost = entry.getValue();
+                // Since we don't query the cost here via any cost category or cost source filters, we
+                // need to filter out for the on Demand rate source and the cost category of the input request.
+                ComponentCost componentCost = cost.getComponentCostList().stream().filter(s -> s.getCategory().equals(category)
+                        && s.getCostSource().equals(CostSource.ON_DEMAND_RATE)).findFirst().orElse(null);
+                if (componentCost != null) {
+                    afterCurrencyAmountByOid.put(id, componentCost.getAmount());
+                } else {
+                    logger.error("Projected costs could not be found for entity having oid {}." +
+                            " This may result in the on demand rate not being displayed on the UI.", oid);
+                }
+            }
+            responseObserver.onNext(GetTierPriceForEntitiesResponse.newBuilder()
+                    .putAllBeforeTierPriceByEntityOid(beforeCurrencyAmountByOid).putAllAfterTierPriceByEntityOid(afterCurrencyAmountByOid).build());
+            responseObserver.onCompleted();
+        } catch (DbException e) {
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription(e.getMessage())
+                    .asException());
+        }
+    }
     /**
      * {@inheritDoc}
      */
@@ -504,7 +556,9 @@ public class CostRpcService extends CostServiceImplBase {
                                   StreamObserver<GetCloudCostStatsResponse> responseObserver) {
         try {
             if (!request.hasCostCategoryFilter()) {
-                final TimeFrame timeFrame = timeFrameCalculator.millis2TimeFrame(request.getStartDate());
+                final TimeFrame timeFrame =
+                    request.hasStartDate() ?
+                        timeFrameCalculator.millis2TimeFrame(request.getStartDate()) : TimeFrame.LATEST;
                 final Set<Long> filterIds = request.getEntityFilter().getEntityIdList().stream().collect(Collectors.toSet());
                 final Set<Integer> entityTypeFilterIds = request.getEntityTypeFilter().getEntityTypeIdList().stream().collect(Collectors.toSet());
 

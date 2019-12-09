@@ -10,6 +10,7 @@
         "tenancy": "DEFAULT"
       }
     },
+    "environmentType": "CLOUD",
     "oid": "72623594843359",
     "displayName": "TestVM1",
     "commoditySoldList": [],
@@ -153,7 +154,7 @@
       {
         "connectedEntityId": "72556027335398",
         "connectedEntityType": 54,
-        "connectionType": "NORMAL_CONNECTION"
+        "connectionType": "AGGREGATED_BY_CONNECTION"
       }
     ],
     "tags": {}
@@ -163,6 +164,7 @@
     "typeSpecificInfo": {},
     "oid": "72593321343488",
     "displayName": "m1.large",
+    "environmentType": "CLOUD",
     "commoditySoldList": [
       {
         "commodityType": {
@@ -374,7 +376,7 @@
       {
         "connectedEntityId": "72556027335398",
         "connectedEntityType": 54,
-        "connectionType": "NORMAL_CONNECTION"
+        "connectionType": "AGGREGATED_BY_CONNECTION"
       },
       {
         "connectedEntityId": "72618271320786",
@@ -389,6 +391,7 @@
     "typeSpecificInfo": {},
     "oid": "72593321343487",
     "displayName": "m1.medium",
+    "environmentType": "CLOUD",
     "commoditySoldList": [
       {
         "commodityType": {
@@ -600,7 +603,7 @@
       {
         "connectedEntityId": "72556027335398",
         "connectedEntityType": 54,
-        "connectionType": "NORMAL_CONNECTION"
+        "connectionType": "AGGREGATED_BY_CONNECTION"
       },
       {
         "connectedEntityId": "72618271320786",
@@ -615,6 +618,7 @@
     "typeSpecificInfo": {},
     "oid": "72618271320786",
     "displayName": "HDD",
+    "environmentType": "CLOUD",
     "commoditySoldList": [
       {
         "commodityType": {
@@ -699,7 +703,7 @@
       {
         "connectedEntityId": "72556027335398",
         "connectedEntityType": 54,
-        "connectionType": "NORMAL_CONNECTION"
+        "connectionType": "AGGREGATED_BY_CONNECTION"
       }
     ],
     "tags": {}
@@ -709,6 +713,7 @@
     "typeSpecificInfo": {},
     "oid": "72556027335398",
     "displayName": "aws-US East (N. Virginia)",
+    "environmentType": "CLOUD",
     "commoditySoldList": [],
     "commoditiesBoughtFromProviders": [],
     "entityState": "POWERED_ON",

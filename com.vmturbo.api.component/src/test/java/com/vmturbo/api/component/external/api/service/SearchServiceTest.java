@@ -11,6 +11,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -31,10 +32,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
+
+import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -58,6 +61,8 @@ import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
+import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase;
+import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase.GroupUseCaseCriteria;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
@@ -65,8 +70,6 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
-import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
-import com.vmturbo.api.component.external.api.util.ImmutableGroupAndMembers;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -98,15 +101,11 @@ import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.cost.CostMoles;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.search.Search.ClusterMembershipFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
@@ -125,9 +124,9 @@ import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -152,7 +151,8 @@ public class SearchServiceTest {
     private RepositoryApi repositoryApi = mock(RepositoryApi.class);
     private GroupMapper groupMapper;
     private TopologyProcessor topologyProcessor = mock(TopologyProcessor.class);
-    private final GroupUseCaseParser groupUseCaseParser = mock(GroupUseCaseParser.class);
+    private final GroupUseCaseParser groupUseCaseParser =
+            new GroupUseCaseParser("groupBuilderUsecases.json");
     private final SupplyChainFetcherFactory supplyChainFetcherFactory = mock(SupplyChainFetcherFactory.class);
     private final UuidMapper uuidMapper = mock(UuidMapper.class);
     private final GroupExpander groupExpander = mock(GroupExpander.class);
@@ -585,51 +585,6 @@ public class SearchServiceTest {
         verify(businessAccountRetriever).getBusinessAccountsInScope(scopes);
     }
 
-    @Test
-    public void testClusterFilters() throws Exception {
-        // create a SearchParams for members of Cluster1
-        final PropertyFilter clusterSpecifier = PropertyFilter.newBuilder()
-                .setStringFilter(StringFilter.newBuilder()
-                        .setStringPropertyRegex("Cluster1"))
-                .setPropertyName("displayName")
-                .build();
-        final SearchParameters params = SearchParameters.newBuilder()
-                .addSearchFilter(SearchFilter.newBuilder()
-                        .setClusterMembershipFilter(ClusterMembershipFilter.newBuilder()
-                                .setClusterSpecifier(clusterSpecifier)))
-                .build();
-
-        final GroupAndMembers clusterAndMembers = ImmutableGroupAndMembers.builder()
-                .group(Grouping.newBuilder()
-                        .setId(1L)
-                        .setDefinition(GroupDefinition.newBuilder()
-                                .setType(GroupType.COMPUTE_HOST_CLUSTER)
-                                .setDisplayName("Cluster1")
-                        )
-                        .build())
-                .members(ImmutableSet.of(1L, 2L))
-                // Not needed for clusters
-                .entities(Collections.emptyList())
-                .build();
-
-        when(groupExpander.getGroupsWithMembers(any())).thenReturn(Stream.of(clusterAndMembers));
-
-        SearchParameters resolvedParams = searchService.resolveClusterFilters(params);
-
-        // we should get the members of cluster 1 in the static filter
-        StringFilter stringFilter = resolvedParams.getSearchFilter(0).getPropertyFilter().getStringFilter();
-        assertEquals(
-                ImmutableSet.of("1", "2"),
-                stringFilter.getOptionsList().stream().collect(Collectors.toSet()));
-
-        final ArgumentCaptor<GetGroupsRequest> reqCaptor = ArgumentCaptor.forClass(GetGroupsRequest.class);
-        verify(groupExpander).getGroupsWithMembers(reqCaptor.capture());
-        GetGroupsRequest req = reqCaptor.getValue();
-        assertEquals(GroupType.COMPUTE_HOST_CLUSTER, req.getGroupFilter().getGroupType());
-        assertThat(
-                req.getGroupFilter().getPropertyFilters(0).getStringFilter(),
-                is(clusterSpecifier.getStringFilter()));
-    }
 
     /**
      * Test that search parameters with no cloud provider search filter are left untouched. Test
@@ -826,6 +781,42 @@ public class SearchServiceTest {
         SearchFilter nameFilter = searchParameters.getSearchFilter(0);
         String value = nameFilter.getPropertyFilter().getStringFilter().getStringPropertyRegex();
         assertEquals("^.*\\Q[b\\E.*$", value);
+    }
+
+    /**
+     * Test getMembersBasedOnFilter where Group class is used with and without groupType set.
+     * Verify that the groupsService rpc call is invoked with the correct type parameter.
+     *
+     * @throws Exception in case of error
+     */
+    @Test
+    public void testGetMembersBasedOnFilterWithGroupTypeQuery() throws Exception {
+        final GroupApiDTO requestForVirtualMachineGroups = new GroupApiDTO();
+        requestForVirtualMachineGroups.setGroupType(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        requestForVirtualMachineGroups.setClassName(StringConstants.GROUP);
+        final GroupApiDTO requestForAllGroups = new GroupApiDTO();
+        requestForAllGroups.setClassName(StringConstants.GROUP);
+        final SearchPaginationResponse response = mock(SearchPaginationResponse.class);
+        Mockito.when(groupsService.getPaginatedGroupApiDTOS(any(), any(), any(), any()))
+            .thenReturn(response);
+        final ArgumentCaptor<String> resultCaptor =
+            ArgumentCaptor.forClass((Class)String.class);
+        final SearchPaginationRequest paginationRequest = mock(SearchPaginationRequest.class);
+
+        assertTrue(response == searchService.getMembersBasedOnFilter("foo",
+            requestForVirtualMachineGroups,
+            paginationRequest));
+        assertTrue(response == searchService.getMembersBasedOnFilter("foo",
+            requestForAllGroups,
+            paginationRequest));
+        verify(groupsService, times(2)).getPaginatedGroupApiDTOS(any(), any(), resultCaptor.capture(), any());
+        // verify that first call to groupsService.getPaginatedGroupApiDTOS passed in VirtualMachine
+        // as entityType argument
+        assertEquals(UIEntityType.VIRTUAL_MACHINE.apiStr(),
+            resultCaptor.getAllValues().get(0));
+        // verify that second call to groupsService.getPaginatedGroupApiDTOS had null as
+        // entityType argument
+        assertNull(resultCaptor.getAllValues().get(1));
     }
 
     /**
@@ -1179,6 +1170,33 @@ public class SearchServiceTest {
     }
 
     /**
+     * All cloud provider options should be present in criteria.
+     *
+     * @throws Exception if something is catastrophically wrong.
+     */
+    @Test
+    public void testResourceGroupOptions() throws Exception {
+        final GroupApiDTO resourceGroup1 = new GroupApiDTO();
+        resourceGroup1.setDisplayName("Ravenclaw");
+        resourceGroup1.setUuid("111");
+        final GroupApiDTO resourceGroup2 = new GroupApiDTO();
+        resourceGroup2.setDisplayName("Gryffindor");
+        resourceGroup2.setUuid("222");
+
+        Mockito.when(
+                groupsService.getGroupsByType(GroupType.RESOURCE, null, Collections.emptyList()))
+                .thenReturn(Arrays.asList(resourceGroup1, resourceGroup2));
+        final List<CriteriaOptionApiDTO> result1 =
+                searchService.getCriteriaOptions(EntityFilterMapper.RESROUCE_GROUP_OID, null, null,
+                        null);
+        Assert.assertEquals(2, result1.size());
+        Assert.assertEquals("Ravenclaw", result1.get(0).getDisplayName());
+        Assert.assertEquals("111", result1.get(0).getValue());
+        Assert.assertEquals("Gryffindor", result1.get(1).getDisplayName());
+        Assert.assertEquals("222", result1.get(1).getValue());
+    }
+
+    /**
      * Tests to validate that logic to auto-create a display name matching filter on group searches
      * is working as expected.
      */
@@ -1196,6 +1214,36 @@ public class SearchServiceTest {
 
         // verify that a null filter list but valid search string will give you a singleton list
         Assert.assertEquals(1, searchService.addNameMatcher("match me bro", null, "Type").size());
+    }
+
+    /**
+     * This test ensures that options loading is implemented by the {@link SearchService} for all
+     * the search criteria declaring that options have to be loaded from the server.
+     *
+     * @throws Exception on exceptions occur
+     */
+    @Test
+    public void testCriteriaLoadOptions() throws Exception {
+        for (Entry<String, GroupUseCase> useCaseEntry : groupUseCaseParser.getUseCases()
+                .entrySet()) {
+            final String entityType = useCaseEntry.getKey();
+            for (GroupUseCaseCriteria criteria: useCaseEntry.getValue().getCriteria()) {
+                if (criteria.isLoadOptions()) {
+                    testCriteriaLoadOptions(entityType, criteria.getElements());
+                }
+            }
+        }
+    }
+
+    private void testCriteriaLoadOptions(@Nonnull String entityType, @Nonnull String criteriaKey) {
+        try {
+            searchService.getCriteriaOptions(criteriaKey, null, entityType, null);
+        } catch (UnknownObjectException e) {
+            Assert.fail("Loading options for entity type " + entityType +
+                    " is not supported for criteria " + criteriaKey);
+        } catch (Exception e) {
+            // It is Ok to have it here.
+        }
     }
 
     private List<ApiPartialEntity> setupEntitiesForMemberQuery() {

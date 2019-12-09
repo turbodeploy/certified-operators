@@ -20,9 +20,3 @@ env:
     value: "2"
 
 resources: {}
-
-nodeSelector: {}
-
-tolerations: []
-
-affinity: {}

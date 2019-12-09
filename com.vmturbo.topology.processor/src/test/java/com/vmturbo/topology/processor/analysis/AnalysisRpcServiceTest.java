@@ -36,8 +36,8 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
+import com.vmturbo.topology.processor.topology.pipeline.PlanPipelineFactory;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory;
 
 /**
  * Unit tests for the {@link AnalysisRpcService}.
@@ -50,7 +50,7 @@ public class AnalysisRpcServiceTest {
 
     private EntityStore entityStore = mock(EntityStore.class);
 
-    private TopologyPipelineFactory pipelineFactory = mock(TopologyPipelineFactory.class);
+    private PlanPipelineFactory pipelineFactory = mock(PlanPipelineFactory.class);
 
     private final TopologyHandler topologyHandler = mock(TopologyHandler.class);
 

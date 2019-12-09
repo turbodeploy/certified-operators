@@ -12,6 +12,7 @@
     },
     "oid": "72623594843359",
     "displayName": "TestVM1",
+    "environmentType": "CLOUD",
     "commoditySoldList": [
       {
         "commodityType": {
@@ -218,7 +219,7 @@
       {
         "connectedEntityId": "72556027335467",
         "connectedEntityType": 55,
-        "connectionType": "NORMAL_CONNECTION"
+        "connectionType": "AGGREGATED_BY_CONNECTION"
       }
     ],
     "tags": {}
@@ -228,6 +229,7 @@
     "typeSpecificInfo": {},
     "oid": "72556027335467",
     "displayName": "aws-us-east-1a",
+    "environmentType": "CLOUD",
     "commoditySoldList": [],
     "commoditiesBoughtFromProviders": [],
     "entityState": "POWERED_ON",
@@ -256,6 +258,7 @@
     "entityType": 57,
     "typeSpecificInfo": {},
     "oid": "72618271320786",
+    "environmentType": "CLOUD",
     "displayName": "HDD",
     "commoditySoldList": [
       {
@@ -341,7 +344,7 @@
       {
         "connectedEntityId": "72556027335398",
         "connectedEntityType": 54,
-        "connectionType": "NORMAL_CONNECTION"
+        "connectionType": "AGGREGATED_BY_CONNECTION"
       }
     ],
     "tags": {}
@@ -351,6 +354,7 @@
     "typeSpecificInfo": {},
     "oid": "72556027335398",
     "displayName": "aws-US East (N. Virginia)",
+    "environmentType": "CLOUD",
     "commoditySoldList": [
       {
         "commodityType": {
@@ -395,6 +399,7 @@
     "typeSpecificInfo": {},
     "oid": "72593321343488",
     "displayName": "m1.large",
+    "environmentType": "CLOUD",
     "commoditySoldList": [
       {
         "commodityType": {
@@ -606,7 +611,7 @@
       {
         "connectedEntityId": "72556027335398",
         "connectedEntityType": 54,
-        "connectionType": "NORMAL_CONNECTION"
+        "connectionType": "AGGREGATED_BY_CONNECTION"
       },
       {
         "connectedEntityId": "72618271320786",
@@ -621,6 +626,7 @@
     "typeSpecificInfo": {},
     "oid": "72593321343487",
     "displayName": "m1.medium",
+    "environmentType": "CLOUD",
     "commoditySoldList": [
       {
         "commodityType": {
@@ -832,7 +838,7 @@
       {
         "connectedEntityId": "72556027335398",
         "connectedEntityType": 54,
-        "connectionType": "NORMAL_CONNECTION"
+        "connectionType": "AGGREGATED_BY_CONNECTION"
       },
       {
         "connectedEntityId": "72618271320786",
@@ -847,6 +853,7 @@
     "typeSpecificInfo": {},
     "oid": "72623594586160",
     "displayName": "TestBusinessAccount",
+    "environmentType": "CLOUD",
     "commoditySoldList": [],
     "commoditiesBoughtFromProviders": [],
     "entityState": "POWERED_ON",
@@ -884,6 +891,7 @@
     "typeSpecificInfo": {},
     "oid": "72611718658577",
     "displayName": "GuestLoad [i-0ac619881a44290c0]",
+    "environmentType": "CLOUD",
     "commoditySoldList": [
       {
         "commodityType": {
@@ -959,6 +967,7 @@
     "typeSpecificInfo": {},
     "oid": "72593321343497",
     "displayName": "db.m3.large",
+    "environmentType": "CLOUD",
     "commoditySoldList": [
       {
         "commodityType": {
@@ -1055,7 +1064,7 @@
       {
         "connectedEntityId": "72556027335398",
         "connectedEntityType": 54,
-        "connectionType": "NORMAL_CONNECTION"
+        "connectionType": "AGGREGATED_BY_CONNECTION"
       }
     ],
     "tags": {}
@@ -1065,6 +1074,7 @@
     "typeSpecificInfo": {},
     "oid": "72593321343498",
     "displayName": "db.m3.medium",
+    "environmentType": "CLOUD",
     "commoditySoldList": [
       {
         "commodityType": {
@@ -1161,7 +1171,7 @@
       {
         "connectedEntityId": "72556027335398",
         "connectedEntityType": 54,
-        "connectionType": "NORMAL_CONNECTION"
+        "connectionType": "AGGREGATED_BY_CONNECTION"
       }
     ],
     "tags": {}
@@ -1170,11 +1180,12 @@
     "entityType": 46,
     "typeSpecificInfo": {
       "database": {
-        "edition": "SQL_SERVER_ENTERPRISE"
+        "edition": "ENTERPRISE"
       }
     },
     "oid": "72623594843399",
     "displayName": "TestAwsDb",
+    "environmentType": "CLOUD",
     "commoditySoldList": [
       {
         "commodityType": {
@@ -1313,7 +1324,7 @@
       {
         "connectedEntityId": "72556027335467",
         "connectedEntityType": 55,
-        "connectionType": "NORMAL_CONNECTION"
+        "connectionType": "AGGREGATED_BY_CONNECTION"
       }
     ],
     "tags": {}

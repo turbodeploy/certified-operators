@@ -32,9 +32,13 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -84,9 +88,7 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search;
@@ -160,6 +162,9 @@ public class SearchService implements ISearchService {
     private final ServiceEntityMapper serviceEntityMapper;
 
     private final EntityFilterMapper entityFilterMapper;
+    private final SearchServiceFilterResolver filterResolver;
+
+    private static Map<String, CriteriaOptionProvider> criteriaOptionProviders;
 
     SearchService(@Nonnull final RepositoryApi repositoryApi,
                   @Nonnull final MarketsService marketsService,
@@ -199,6 +204,24 @@ public class SearchService implements ISearchService {
         this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
         this.entityFilterMapper = Objects.requireNonNull(entityFilterMapper);
         this.entityAspectMapper = Objects.requireNonNull(entityAspectMapper);
+
+        this.filterResolver = new SearchServiceFilterResolver(groupExpander);
+        criteriaOptionProviders = ImmutableMap.<String, CriteriaOptionProvider>builder().put(STATE,
+                (a, b, c) -> getStateOptions())
+                .put(StringConstants.TAGS_ATTR, this::getSTagAttributeOptions)
+                .put("ConsistsOf:PhysicalMachine:MemberOf:Cluster:tags",
+                        this::getSTagAttributeOptions)
+                .put(ACCOUNT_OID, (a, b, c) -> getAccountOptions())
+                .put("BusinessAccount:oid",  (a, b, c) -> getAccountOptions())
+                .put(VOLUME_ATTACHMENT_STATE_FILTER_PATH,
+                        (a, b, c) -> getVolumeAttachmentStateOptions())
+                .put(CONNECTED_STORAGE_TIER_FILTER_PATH,
+                        (a, b, c) -> getConnectionStorageTierOptions())
+                .put(REGION_FILTER_PATH, (a, b, c) -> getRegionFilterOptions())
+                .put(SearchableProperties.CLOUD_PROVIDER, (a, b, c) -> getCloudProviderOptions())
+                .put(EntityFilterMapper.RESROUCE_GROUP_OID, (a, b, c) -> getResourceGroupsOptions())
+                .build();
+
     }
 
     @Override
@@ -216,10 +239,8 @@ public class SearchService implements ISearchService {
             // not a group or cluster...fall through
         }
 
-        /*
-         * Search for business units next. We cannot use Repository API entity request call
-         * because BusinessUnitApiDTO doesn't inherit from ServiceEntityApiDTO class.
-         */
+        // Search for business units next. We cannot use Repository API entity request call
+        // because BusinessUnitApiDTO doesn't inherit from ServiceEntityApiDTO class.
         try {
             return businessAccountRetriever.getBusinessAccount(uuidString);
         } catch (InvalidOperationException | UnknownObjectException ex) {
@@ -429,7 +450,7 @@ public class SearchService implements ISearchService {
         if (GROUP.equals(className)) {
             return groupsService.getPaginatedGroupApiDTOS(
                 addNameMatcher(query, inputDTO.getCriteriaList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
-                paginationRequest, null, inputDTO.getEnvironmentType());
+                paginationRequest,  inputDTO.getGroupType(), inputDTO.getEnvironmentType());
         } else if (GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.containsKey(className)) {
             // TODO(OM-49616): return the proper search filters and handle the query string properly
             GroupType groupType = GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.get(className);
@@ -530,7 +551,7 @@ public class SearchService implements ISearchService {
         List<SearchParameters> searchParameters = entityFilterMapper.convertToSearchParameters(
                 inputDTO.getCriteriaList(), entityTypes, updatedQuery).stream()
                 // Convert any cluster membership filters to property filters.
-                .map(this::resolveClusterFilters)
+                .map(filterResolver::resolveGroupFilters)
                 .map(this::resolveCloudProviderFilters)
                 .collect(Collectors.toList());
 
@@ -561,38 +582,49 @@ public class SearchService implements ISearchService {
             allEntityOids = expandedIds;
         }
 
-        if (paginationRequest.getOrderBy().equals(SearchOrderBy.SEVERITY)) {
-            final SearchEntityOidsRequest searchOidsRequest = SearchEntityOidsRequest.newBuilder()
-                    .addAllSearchParameters(searchParameters)
-                    .addAllEntityOid(allEntityOids)
-                    .build();
-            return getServiceEntityPaginatedWithSeverity(inputDTO, updatedQuery, paginationRequest,
-                    allEntityOids, searchOidsRequest);
-        } else if (paginationRequest.getOrderBy().equals(SearchOrderBy.UTILIZATION)) {
-            final SearchEntityOidsRequest searchOidsRequest = SearchEntityOidsRequest.newBuilder()
-                    .addAllSearchParameters(searchParameters)
-                    .addAllEntityOid(allEntityOids)
-                    .build();
-            return getServiceEntityPaginatedWithUtilization(inputDTO, updatedQuery, paginationRequest,
-                    allEntityOids, searchOidsRequest, isGlobalScope);
-        } else {
-            // We don't use the RepositoryAPI utility because we do pagination,
-            // and want to handle the pagination parameters.
-            final SearchEntitiesRequest searchEntitiesRequest = SearchEntitiesRequest.newBuilder()
-                .addAllSearchParameters(searchParameters)
-                .addAllEntityOid(allEntityOids)
-                .setReturnType(PartialEntity.Type.API)
-                .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
-                .build();
-            final SearchEntitiesResponse response = searchServiceRpc.searchEntities(searchEntitiesRequest);
-            List<ServiceEntityApiDTO> entities = response.getEntitiesList().stream()
-                    .map(PartialEntity::getApi)
-                    .map(serviceEntityMapper::toServiceEntityApiDTO)
-                    .collect(Collectors.toList());
-            severityPopulator.populate(realtimeContextId, entities);
-            return buildPaginationResponse(entities,
-                    response.getPaginationResponse(), paginationRequest);
+        try {
+            if (paginationRequest.getOrderBy().equals(SearchOrderBy.SEVERITY)) {
+                final SearchEntityOidsRequest searchOidsRequest = SearchEntityOidsRequest.newBuilder()
+                        .addAllSearchParameters(searchParameters)
+                        .addAllEntityOid(allEntityOids)
+                        .build();
+                return getServiceEntityPaginatedWithSeverity(inputDTO, updatedQuery, paginationRequest,
+                        allEntityOids, searchOidsRequest);
+            } else if (paginationRequest.getOrderBy().equals(SearchOrderBy.UTILIZATION)) {
+                final SearchEntityOidsRequest searchOidsRequest = SearchEntityOidsRequest.newBuilder()
+                        .addAllSearchParameters(searchParameters)
+                        .addAllEntityOid(allEntityOids)
+                        .build();
+                return getServiceEntityPaginatedWithUtilization(inputDTO, updatedQuery, paginationRequest,
+                        allEntityOids, searchOidsRequest, isGlobalScope);
+            }
+        } catch (RuntimeException e) {
+            if (e instanceof StatusRuntimeException) {
+                // This is a gRPC StatusRuntimeException
+                Status status = ((StatusRuntimeException)e).getStatus();
+                logger.warn("Unable to search entities ordered by {}: {} caused by {}.",
+                        paginationRequest.getOrderBy(), status.getDescription(), status.getCause());
+            } else {
+                logger.error("Error when searching entities ordered by {}.",
+                        paginationRequest.getOrderBy(), e);
+            }
         }
+        // We don't use the RepositoryAPI utility because we do pagination,
+        // and want to handle the pagination parameters.
+        final SearchEntitiesRequest searchEntitiesRequest = SearchEntitiesRequest.newBuilder()
+            .addAllSearchParameters(searchParameters)
+            .addAllEntityOid(allEntityOids)
+            .setReturnType(PartialEntity.Type.API)
+            .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
+            .build();
+        final SearchEntitiesResponse response = searchServiceRpc.searchEntities(searchEntitiesRequest);
+        List<ServiceEntityApiDTO> entities = response.getEntitiesList().stream()
+                .map(PartialEntity::getApi)
+                .map(serviceEntityMapper::toServiceEntityApiDTO)
+                .collect(Collectors.toList());
+        severityPopulator.populate(realtimeContextId, entities);
+        return buildPaginationResponse(entities,
+                response.getPaginationResponse(), paginationRequest);
     }
 
     /**
@@ -812,33 +844,6 @@ public class SearchService implements ISearchService {
     }
 
     /**
-     * Provided an input SearchParameters object, resolve any cluster membership filters contained
-     * inside and return a new SearchParameters object with the resolved filters. If there are no
-     * cluster membership filters inside, return the original object.
-     *
-     * @param searchParameters A SearchParameters object that may contain cluster filters.
-     * @return A SearchParameters object that has had any cluster filters in it resolved. Will be the
-     * original object if there were no group filters inside.
-     */
-    @VisibleForTesting
-    SearchParameters resolveClusterFilters(SearchParameters searchParameters) {
-        // return the original object if no cluster member filters inside
-        if (!searchParameters.getSearchFilterList().stream()
-                .anyMatch(SearchFilter::hasClusterMembershipFilter)) {
-            return searchParameters;
-        }
-        // We have one or more Cluster Member Filters to resolve. Rebuild the SearchParameters.
-        SearchParameters.Builder searchParamBuilder = SearchParameters.newBuilder(searchParameters);
-        // we will rebuild the search filters, resolving any cluster member filters we encounter.
-        searchParamBuilder.clearSearchFilter();
-        for (SearchFilter sf : searchParameters.getSearchFilterList()) {
-            searchParamBuilder.addSearchFilter(convertClusterMemberFilter(sf));
-        }
-
-        return searchParamBuilder.build();
-    }
-
-    /**
      * For any Cloud Provider filter within the given search parameters, convert it to a
      * Discovered By Target filter. Fetch the ids of all targets belonging to the cloud provider(s)
      * indicated in the original filter, and add them to the converted filter as options.
@@ -879,161 +884,177 @@ public class SearchService implements ISearchService {
             .build();
     }
 
-    /**
-     * Convert a cluster member filter to a static property filter. If the input filter does not
-     * contain a cluster member filter, the input filter will be returned, unchanged.
-     *
-     * @param inputFilter The ClusterMemberFilter to convert.
-     * @return A new SearchFilter with any ClusterMemberFilters converted to property filters. If
-     * there weren't any ClusterMemberFilters to convert, the original filter is returned.
-     */
-    private SearchFilter convertClusterMemberFilter(SearchFilter inputFilter) {
-        if (!inputFilter.hasClusterMembershipFilter()) {
-            return inputFilter;
-        }
-
-        // find matching groups using the group service
-        final Collection<String> oids =
-            groupExpander.getGroupsWithMembers(
-                    GetGroupsRequest.newBuilder()
-                        .setGroupFilter(GroupFilter.newBuilder()
-                            .setGroupType(GroupType.COMPUTE_HOST_CLUSTER)
-                            .addPropertyFilters(inputFilter
-                                            .getClusterMembershipFilter().getClusterSpecifier()))
-                        .build())
-                .flatMap(groupAndMembers -> groupAndMembers.members().stream())
-                .distinct()
-                .map(id -> Long.toString(id))
-                .collect(Collectors.toList());
-        return
-            SearchFilter.newBuilder()
-                .setPropertyFilter(
-                    SearchProtoUtil.stringPropertyFilterExact(SearchableProperties.OID, oids))
-                .build();
-    }
-
     @Override
     public Map<String, Object> getGroupBuilderUsecases() {
         return groupUseCaseParser.getUseCases().entrySet().stream()
                 .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
     }
 
+    @Nonnull
+    private static List<CriteriaOptionApiDTO> getStateOptions() {
+        final List<CriteriaOptionApiDTO> optionApiDTOs = new ArrayList<>();
+        // options should be all possible states
+        Arrays.stream(UIEntityState.values())
+                .forEach(option -> {
+                    final CriteriaOptionApiDTO optionApiDTO = new CriteriaOptionApiDTO();
+                    optionApiDTO.setValue(option.apiStr());
+                    optionApiDTOs.add(optionApiDTO);
+                });
+        return optionApiDTOs;
+    }
+
+    @Nonnull
+    private List<CriteriaOptionApiDTO> getSTagAttributeOptions(final List<String> scopes,
+            final String entityType,
+            final EnvironmentType envType) throws OperationFailedException {
+        final List<CriteriaOptionApiDTO> optionApiDTOs = new ArrayList<>();
+        if (GroupMapper.GROUP_CLASSES.contains(entityType)) {
+            // retrieve tags from the group service
+            final Map<String, TagValuesDTO> tags =
+                    groupServiceRpc.getTags(
+                            GetTagsRequest.newBuilder().build())
+                            .getTags().getTagsMap();
+
+            // map to desired output
+            tags.entrySet().forEach(tagEntry -> {
+                final CriteriaOptionApiDTO criteriaOptionApiDTO = new CriteriaOptionApiDTO();
+                criteriaOptionApiDTO.setValue(tagEntry.getKey());
+                criteriaOptionApiDTO.setSubValues(tagEntry.getValue().getValuesList());
+                optionApiDTOs.add(criteriaOptionApiDTO);
+            });
+        } else {
+            // retrieve relevant tags from the tags service
+            final List<TagApiDTO> tags = tagsService.getTags(scopes, entityType, envType);
+
+            // convert into a map
+            final Map<String, List<TagApiDTO>> tagsAsMap =
+                    tags.stream().collect(Collectors.groupingBy(TagApiDTO::getKey));
+
+            // translate tags as criteria options in the result
+            tagsAsMap.entrySet().forEach(e -> {
+                final CriteriaOptionApiDTO criteriaOptionApiDTO = new CriteriaOptionApiDTO();
+                criteriaOptionApiDTO.setValue(e.getKey());
+                criteriaOptionApiDTO.setSubValues(
+                        e.getValue()
+                                .stream()
+                                .flatMap(tagApiDTO -> tagApiDTO.getValues().stream())
+                                .collect(Collectors.toList())
+                );
+                optionApiDTOs.add(criteriaOptionApiDTO);
+            });
+        }
+        return optionApiDTOs;
+    }
+
+    @Nonnull
+    private List<CriteriaOptionApiDTO> getAccountOptions() {
+        final List<CriteriaOptionApiDTO> optionApiDTOs = new ArrayList<>();
+        // get all business accounts
+        repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
+                SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT.apiStr()))
+                .build())
+                .getMinimalEntities()
+                .forEach(ba -> {
+                    // convert each business account to criteria option
+                    CriteriaOptionApiDTO crOpt = new CriteriaOptionApiDTO();
+                    crOpt.setDisplayName(ba.getDisplayName());
+                    crOpt.setValue(String.valueOf(ba.getOid()));
+                    optionApiDTOs.add(crOpt);
+                });
+        return optionApiDTOs;
+    }
+
+    @Nonnull
+    private static List<CriteriaOptionApiDTO> getVolumeAttachmentStateOptions() {
+        final List<CriteriaOptionApiDTO> optionApiDTOs = new ArrayList<>();
+        Arrays.stream(AttachmentState.values())
+                .forEach(option -> {
+                    final CriteriaOptionApiDTO optionApiDTO = new CriteriaOptionApiDTO();
+                    optionApiDTO.setValue(option.name());
+                    optionApiDTOs.add(optionApiDTO);
+                });
+        return optionApiDTOs;
+    }
+
+    @Nonnull
+    private List<CriteriaOptionApiDTO> getConnectionStorageTierOptions() {
+        final List<CriteriaOptionApiDTO> optionApiDTOs = new ArrayList<>();
+        repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
+                SearchProtoUtil.entityTypeFilter(UIEntityType.STORAGE_TIER.apiStr()))
+                .build())
+                .getMinimalEntities()
+                .forEach(tier -> {
+                    CriteriaOptionApiDTO crOpt = new CriteriaOptionApiDTO();
+                    crOpt.setDisplayName(tier.getDisplayName());
+                    crOpt.setValue(String.valueOf(tier.getOid()));
+                    optionApiDTOs.add(crOpt);
+                });
+        return optionApiDTOs;
+    }
+
+    @Nonnull
+    private List<CriteriaOptionApiDTO> getRegionFilterOptions() {
+        final List<CriteriaOptionApiDTO> optionApiDTOs = new ArrayList<>();
+        repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
+                SearchProtoUtil.entityTypeFilter(UIEntityType.REGION.apiStr()))
+                .build())
+                .getMinimalEntities()
+                .forEach(region -> {
+                    CriteriaOptionApiDTO crOpt = new CriteriaOptionApiDTO();
+                    crOpt.setDisplayName(region.getDisplayName());
+                    crOpt.setValue(String.valueOf(region.getOid()));
+                    optionApiDTOs.add(crOpt);
+                });
+        return optionApiDTOs;
+    }
+
+    @Nonnull
+    private List<CriteriaOptionApiDTO> getCloudProviderOptions() {
+        final List<CriteriaOptionApiDTO> optionApiDTOs = new ArrayList<>();
+        targetsService.getProbes().stream()
+                .map(probe -> CloudType.fromProbeType(probe.getType())).distinct()
+                .forEach(providerType -> {
+                    CriteriaOptionApiDTO crOpt = new CriteriaOptionApiDTO();
+                    crOpt.setValue(providerType.name());
+                    optionApiDTOs.add(crOpt);
+                });
+        return optionApiDTOs;
+    }
+
+    @Nonnull
+    private List<CriteriaOptionApiDTO> getResourceGroupsOptions() throws OperationFailedException {
+        final List<GroupApiDTO> resourceGroups =
+                groupsService.getGroupsByType(GroupType.RESOURCE, null, Collections.emptyList());
+        final List<CriteriaOptionApiDTO> result = new ArrayList<>(resourceGroups.size());
+        for (GroupApiDTO group: resourceGroups) {
+            final CriteriaOptionApiDTO option = new CriteriaOptionApiDTO();
+            option.setDisplayName(group.getDisplayName());
+            option.setValue(group.getUuid());
+            result.add(option);
+        }
+        return Collections.unmodifiableList(result);
+    }
+
+    /**
+     * Get available option by criteria.
+     * @param criteriaKey criteria key to query for
+     * @param scopes scopes to apply
+     * @param entityType entity type criteria is requested for
+     * @param envType environment type
+     * @return list of criteria options
+     * @throws OperationFailedException if something failed executing
+     * @throws UnknownObjectException if options loading is not supported for the criteria
+     */
     @Override
     public List<CriteriaOptionApiDTO> getCriteriaOptions(final String criteriaKey,
-                                                         final List<String> scopes,
-                                                         final String entityType,
-                                                         final EnvironmentType envType) throws Exception {
-        final List<CriteriaOptionApiDTO> optionApiDTOs = new ArrayList<>();
-
-        switch (criteriaKey) {
-            case STATE:
-                // options should be all possible states
-                Arrays.stream(UIEntityState.values())
-                    .forEach(option -> {
-                        final CriteriaOptionApiDTO optionApiDTO = new CriteriaOptionApiDTO();
-                        optionApiDTO.setValue(option.apiStr());
-                        optionApiDTOs.add(optionApiDTO);
-                    });
-                break;
-
-            case StringConstants.TAGS_ATTR:
-                if (GroupMapper.GROUP_CLASSES.contains(entityType)) {
-                    // retrieve tags from the group service
-                    final Map<String, TagValuesDTO> tags =
-                            groupServiceRpc.getTags(
-                                    GetTagsRequest.newBuilder().build())
-                                .getTags().getTagsMap();
-
-                    // map to desired output
-                    tags.entrySet().forEach(tagEntry -> {
-                        final CriteriaOptionApiDTO criteriaOptionApiDTO = new CriteriaOptionApiDTO();
-                        criteriaOptionApiDTO.setValue(tagEntry.getKey());
-                        criteriaOptionApiDTO.setSubValues(tagEntry.getValue().getValuesList());
-                        optionApiDTOs.add(criteriaOptionApiDTO);
-                     });
-                } else {
-                    // retrieve relevant tags from the tags service
-                    final List<TagApiDTO> tags = tagsService.getTags(scopes, entityType, envType);
-
-                    // convert into a map
-                    final Map<String, List<TagApiDTO>> tagsAsMap =
-                            tags.stream().collect(Collectors.groupingBy(TagApiDTO::getKey));
-
-                    // translate tags as criteria options in the result
-                    tagsAsMap.entrySet().forEach(e -> {
-                        final CriteriaOptionApiDTO criteriaOptionApiDTO = new CriteriaOptionApiDTO();
-                        criteriaOptionApiDTO.setValue(e.getKey());
-                        criteriaOptionApiDTO.setSubValues(
-                                e.getValue()
-                                        .stream()
-                                        .flatMap(tagApiDTO -> tagApiDTO.getValues().stream())
-                                        .collect(Collectors.toList())
-                        );
-                        optionApiDTOs.add(criteriaOptionApiDTO);
-                    });
-                }
-                break;
-
-            case ACCOUNT_OID:
-                // get all business accounts
-                repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
-                            SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT.apiStr()))
-                        .build())
-                    .getMinimalEntities()
-                    .forEach(ba -> {
-                        // convert each business account to criteria option
-                        CriteriaOptionApiDTO crOpt = new CriteriaOptionApiDTO();
-                        crOpt.setDisplayName(ba.getDisplayName());
-                        crOpt.setValue(String.valueOf(ba.getOid()));
-                        optionApiDTOs.add(crOpt);
-                    });
-                break;
-            case VOLUME_ATTACHMENT_STATE_FILTER_PATH:
-                Arrays.stream(AttachmentState.values())
-                    .forEach(option -> {
-                        final CriteriaOptionApiDTO optionApiDTO = new CriteriaOptionApiDTO();
-                        optionApiDTO.setValue(option.name());
-                        optionApiDTOs.add(optionApiDTO);
-                    });
-                break;
-            case CONNECTED_STORAGE_TIER_FILTER_PATH:
-                repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
-                    SearchProtoUtil.entityTypeFilter(UIEntityType.STORAGE_TIER.apiStr()))
-                    .build())
-                    .getMinimalEntities()
-                    .forEach(tier -> {
-                        CriteriaOptionApiDTO crOpt = new CriteriaOptionApiDTO();
-                        crOpt.setDisplayName(tier.getDisplayName());
-                        crOpt.setValue(String.valueOf(tier.getOid()));
-                        optionApiDTOs.add(crOpt);
-                    });
-                break;
-            case REGION_FILTER_PATH:
-                repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
-                    SearchProtoUtil.entityTypeFilter(UIEntityType.REGION.apiStr()))
-                    .build())
-                    .getMinimalEntities()
-                    .forEach(region -> {
-                        CriteriaOptionApiDTO crOpt = new CriteriaOptionApiDTO();
-                        crOpt.setDisplayName(region.getDisplayName());
-                        crOpt.setValue(String.valueOf(region.getOid()));
-                        optionApiDTOs.add(crOpt);
-                    });
-                break;
-            case SearchableProperties.CLOUD_PROVIDER:
-                targetsService.getProbes().stream()
-                    .map(probe -> CloudType.fromProbeType(probe.getType())).distinct()
-                    .forEach(providerType -> {
-                        CriteriaOptionApiDTO crOpt = new CriteriaOptionApiDTO();
-                        crOpt.setValue(providerType.name());
-                        optionApiDTOs.add(crOpt);
-                    });
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown criterion key: " + criteriaKey);
+            final List<String> scopes, final String entityType, final EnvironmentType envType)
+            throws OperationFailedException, UnknownObjectException {
+        final CriteriaOptionProvider optionsProvider = criteriaOptionProviders.get(criteriaKey);
+        if (optionsProvider == null) {
+            throw new UnknownObjectException("Unknown criterion key: " + criteriaKey);
+        } else {
+            return optionsProvider.getOptions(scopes, entityType, envType);
         }
-
-        return optionApiDTOs;
     }
 
     /**
@@ -1048,5 +1069,14 @@ public class SearchService implements ISearchService {
         }
         // mark the pattern as a literal
         return Pattern.quote(queryPattern);
+    }
+
+    /**
+     * Interface of an object providing options for the search criteria values to select from.
+     */
+    private interface CriteriaOptionProvider {
+        @Nonnull
+        List<CriteriaOptionApiDTO> getOptions(List<String> scopes, String entityType,
+                EnvironmentType envType) throws OperationFailedException;
     }
 }

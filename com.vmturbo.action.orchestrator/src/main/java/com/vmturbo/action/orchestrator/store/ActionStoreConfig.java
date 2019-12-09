@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.action.orchestrator.ActionOrchestratorDBConfig;
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDaoImpl;
@@ -22,13 +23,12 @@ import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 /**
  * Configuration for the ActionStore package.
  */
 @Configuration
-@Import({SQLDatabaseConfig.class,
+@Import({ActionOrchestratorDBConfig.class,
     ActionOrchestratorGlobalConfig.class,
     ActionExecutionConfig.class,
     GroupClientConfig.class,
@@ -39,7 +39,7 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
 public class ActionStoreConfig {
 
     @Autowired
-    private SQLDatabaseConfig databaseConfig;
+    private ActionOrchestratorDBConfig databaseConfig;
 
     @Autowired
     private ActionOrchestratorGlobalConfig actionOrchestratorGlobalConfig;

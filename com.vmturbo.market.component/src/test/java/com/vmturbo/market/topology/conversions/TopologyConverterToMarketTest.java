@@ -28,13 +28,13 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.protobuf.util.JsonFormat;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.junit.Assert;
 import org.junit.Before;
@@ -1109,7 +1109,7 @@ public class TopologyConverterToMarketTest {
                         .CommodityType.DATACENTER_VALUE)));
         final TopologyEntityDTO vm = entity(EntityType.VIRTUAL_MACHINE_VALUE, vmId, on,
                 Collections.singletonList(createConnectedEntity(regionId,
-                        ConnectionType.NORMAL_CONNECTION, EntityType.REGION_VALUE)),
+                        ConnectionType.AGGREGATED_BY_CONNECTION, EntityType.REGION_VALUE)),
                 null);
         final TopologyEntityDTO ba = entity(EntityType.BUSINESS_ACCOUNT_VALUE, baId, on,
                 Collections.singletonList(createConnectedEntity(vmId,
@@ -1152,7 +1152,7 @@ public class TopologyConverterToMarketTest {
                         .CommodityType.DATACENTER_VALUE)));
         final TopologyEntityDTO vm = entity(EntityType.VIRTUAL_MACHINE_VALUE, vmId, on,
                 Collections.singletonList(createConnectedEntity(zoneId,
-                        ConnectionType.NORMAL_CONNECTION, EntityType.AVAILABILITY_ZONE_VALUE)),
+                        ConnectionType.AGGREGATED_BY_CONNECTION, EntityType.AVAILABILITY_ZONE_VALUE)),
                 null);
         final TopologyEntityDTO ba = entity(EntityType.BUSINESS_ACCOUNT_VALUE, baId, on,
                 Collections.singletonList(createConnectedEntity(vmId,

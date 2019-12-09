@@ -6,9 +6,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
@@ -22,7 +19,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWith
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.TypeSpecificPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 
@@ -31,9 +28,6 @@ import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
  * appropriate detail levels.
  */
 public class PartialEntityConverter {
-
-    private final Logger logger = LogManager.getLogger();
-
     /**
      * Create a {@link PartialEntity} from a {@link RepoGraphEntity}.
      */
@@ -70,15 +64,7 @@ public class PartialEntityConverter {
                     EntityWithConnections.newBuilder()
                         .setOid(repoGraphEntity.getOid())
                         .setDisplayName(repoGraphEntity.getDisplayName());
-                repoGraphEntity.getConnectedToEntitiesByConnectionType()
-                    .forEach((connectionType, connectedEntities) -> {
-                        connectedEntities.forEach(connectedEntity -> {
-                            withConnectionsBuilder.addConnectedEntities(ConnectedEntity.newBuilder()
-                                .setConnectedEntityId(connectedEntity.getOid())
-                                .setConnectedEntityType(connectedEntity.getEntityType())
-                                .setConnectionType(connectionType));
-                        });
-                    });
+                withConnectionsBuilder.addAllConnectedEntities(repoGraphEntity.getBroadcastConnections());
                 partialEntityBldr.setWithConnections(withConnectionsBuilder);
                 break;
             case ACTION:
@@ -127,12 +113,9 @@ public class PartialEntityConverter {
                     }
                     apiBldr.putDiscoveredTargetData(id, info.build());
                 });
-                repoGraphEntity.getConnectedToEntities().forEach(connectedTo -> {
-                    apiBldr.addConnectedTo(relatedEntity(connectedTo));
-                });
-                repoGraphEntity.getProviders().forEach(provider -> {
-                    apiBldr.addProviders(relatedEntity(provider));
-                });
+                apiBldr.addAllConnectedTo(repoGraphEntity.getBroadcastRelatedEntities());
+                repoGraphEntity.getProviders().forEach(provider ->
+                        apiBldr.addProviders(relatedEntity(provider)));
                 partialEntityBldr.setApi(apiBldr);
                 break;
             default:
@@ -200,7 +183,7 @@ public class PartialEntityConverter {
                         comm.getCommodityType().getType()))
                     .forEach(actionEntityBldr::addCommoditySold);
                 List<Integer> providerEntityTypes = topoEntity.getCommoditiesBoughtFromProvidersList().stream()
-                    .map(commBoughtFromProvider -> commBoughtFromProvider.getProviderEntityType())
+                    .map(CommoditiesBoughtFromProvider::getProviderEntityType)
                     .collect(Collectors.toList());
                 Optional<Integer> primaryProviderIndex = TopologyDTOUtil.getPrimaryProviderIndex(
                     topoEntity.getEntityType(), topoEntity.getOid(), providerEntityTypes);
@@ -223,17 +206,16 @@ public class PartialEntityConverter {
                     .putAllDiscoveredTargetData(topoEntity.getOrigin()
                                     .getDiscoveryOrigin().getDiscoveredTargetDataMap());
 
-                topoEntity.getConnectedEntityListList().forEach(connectedEntity -> {
-                    apiBldr.addConnectedTo(RelatedEntity.newBuilder()
-                        .setOid(connectedEntity.getConnectedEntityId())
-                        .setEntityType(connectedEntity.getConnectedEntityType()));
-                });
-                topoEntity.getCommoditiesBoughtFromProvidersList().forEach(commBoughtFromProvider -> {
-                    apiBldr.addProviders(RelatedEntity.newBuilder()
-                        .setOid(commBoughtFromProvider.getProviderId())
-                        .setEntityType(commBoughtFromProvider.getProviderEntityType())
-                        .build());
-                });
+                topoEntity.getConnectedEntityListList().forEach(connectedEntity ->
+                        apiBldr.addConnectedTo(RelatedEntity.newBuilder()
+                                                .setOid(connectedEntity.getConnectedEntityId())
+                                                .setEntityType(connectedEntity.getConnectedEntityType())));
+                topoEntity.getCommoditiesBoughtFromProvidersList().forEach(commBoughtFromProvider ->
+                        apiBldr.addProviders(RelatedEntity.newBuilder()
+                                                .setOid(commBoughtFromProvider.getProviderId())
+                                                .setEntityType(commBoughtFromProvider
+                                                                    .getProviderEntityType())
+                                                .build()));
                 partialEntityBldr.setApi(apiBldr);
                 break;
             default:

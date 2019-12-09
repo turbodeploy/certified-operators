@@ -14,14 +14,14 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.EnvironmentTypeMapper;
@@ -51,6 +51,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEnt
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
@@ -157,29 +158,22 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
      */
     private EntityAspect mapStorageTiers(@Nonnull List<TopologyEntityDTO> entities) {
         final Map<Long, TopologyEntityDTO> storageTierById = Maps.newHashMap();
-        final Set<Long> storageTierIds = Sets.newHashSet();
         final Set<Long> regionIds = Sets.newHashSet();
-
-        for (TopologyEntityDTO storageTier : entities) {
-            storageTierById.put(storageTier.getOid(), storageTier);
-            storageTierIds.add(storageTier.getOid());
-            regionIds.addAll(storageTier.getConnectedEntityListList().stream()
-                .filter(connectedEntity -> connectedEntity.getConnectedEntityType() ==
-                        EntityType.REGION_VALUE)
-                .map(ConnectedEntity::getConnectedEntityId)
-                .collect(Collectors.toSet()));
-        }
-
-        // entities are a list of storage tiers, find all volumes connected to these storage tiers
-        List<TopologyEntityDTO> volumes = storageTierIds.stream()
-            .flatMap(id -> repositoryApi.newSearchRequest(
-                SearchProtoUtil.neighborsOfType(id, TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_VOLUME))
-                    .getFullEntities())
-            .collect(Collectors.toList());
-
-        // find all regions for the given storage tiers
         final Map<Long, ApiPartialEntity> regionByZoneId = Maps.newHashMap();
         final Map<Long, ApiPartialEntity> regionById = Maps.newHashMap();
+
+        // find ids of all regions associated with the storage tiers
+        for (TopologyEntityDTO storageTier : entities) {
+            storageTierById.put(storageTier.getOid(), storageTier);
+            storageTier.getConnectedEntityListList().stream()
+                    .filter(c -> c.getConnectionType() == ConnectionType.AGGREGATED_BY_CONNECTION
+                            && c.getConnectedEntityType() == EntityType.REGION_VALUE)
+                    .map(ConnectedEntity::getConnectedEntityId)
+                    .forEach(regionIds::add);
+        }
+
+        // find all regions for the given storage tiers
+            // and populate regionByZoneId map
         repositoryApi.entitiesRequest(regionIds).getEntities().forEach(region -> {
             regionById.put(region.getOid(), region);
             region.getConnectedToList().forEach(connectedEntity -> {
@@ -188,6 +182,15 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                 }
             });
         });
+
+        // find all volumes connected to these storage tiers
+        List<TopologyEntityDTO> volumes = storageTierById.values().stream()
+                .map(TopologyEntityDTO::getOid)
+                .flatMap(id ->
+                        repositoryApi.newSearchRequest(SearchProtoUtil.neighborsOfType(
+                                id, TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_VOLUME))
+                                .getFullEntities())
+                .collect(Collectors.toList());
 
         // create mapping from volume id to storage tier and region
         final Map<Long, ServiceEntityApiDTO> storageTierByVolumeId = Maps.newHashMap();
@@ -198,7 +201,9 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                 int connectedEntityType = connectedEntity.getConnectedEntityType();
                 Long connectedEntityId = connectedEntity.getConnectedEntityId();
                 if (connectedEntityType == EntityType.STORAGE_TIER_VALUE) {
-                    storageTierByVolumeId.put(volumeId, ServiceEntityMapper.toBasicEntity(storageTierById.get(connectedEntityId)));
+                    storageTierByVolumeId.put(
+                            volumeId,
+                            ServiceEntityMapper.toBasicEntity(storageTierById.get(connectedEntityId)));
                 } else if (connectedEntityType == EntityType.AVAILABILITY_ZONE_VALUE) {
                     // if zone exists, find region based on zone id (for aws, volume is connected to az)
                     regionByVolumeId.put(volumeId, regionByZoneId.get(connectedEntityId));
@@ -213,7 +218,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         Map<Long, List<StatApiDTO>> volumeCostStatById = getVolumeCostStats(volumes, null);
 
         // get all VMs consuming given storage tiers
-        List<TopologyEntityDTO> vms = storageTierIds.stream()
+        List<TopologyEntityDTO> vms = storageTierById.keySet().stream()
             .flatMap(id -> repositoryApi.newSearchRequest(
                 SearchProtoUtil.neighborsOfType(id, TraversalDirection.PRODUCES, UIEntityType.VIRTUAL_MACHINE)).getFullEntities())
             .collect(Collectors.toList());
@@ -360,7 +365,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                         // get region from zone
                         repositoryApi.newSearchRequest(
                                 SearchProtoUtil.neighborsOfType(connectedEntity.getConnectedEntityId(),
-                                        TraversalDirection.CONNECTED_FROM,
+                                        TraversalDirection.OWNED_BY,
                                         UIEntityType.REGION))
                                 .getEntities()
                                 .forEach(region -> regionByVolumeId.put(vol.getOid(), region));
@@ -605,7 +610,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
 
         repositoryApi.newSearchRequest(
                 SearchProtoUtil.neighborsOfType(volumeId,
-                        TraversalDirection.CONNECTED_FROM,
+                        TraversalDirection.OWNED_BY,
                         UIEntityType.BUSINESS_ACCOUNT))
                 .getSEList()
                 .forEach(businessAccount -> virtualDiskApiDTO.setBusinessAccount(businessAccount));

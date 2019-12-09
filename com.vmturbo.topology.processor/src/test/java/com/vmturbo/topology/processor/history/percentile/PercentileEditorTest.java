@@ -344,13 +344,16 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         final ArgumentCaptor<Long> periodCaptor = ArgumentCaptor.forClass(Long.class);
         Mockito.verify(percentilePersistenceTask, Mockito.atLeastOnce())
                 .save(percentileCountsCaptor.capture(), periodCaptor.capture(), Mockito.any());
-        final PercentileCounts counts = percentileCountsCaptor.getValue();
+        final List<PercentileCounts> capturedCounts = percentileCountsCaptor.getAllValues();
+        final int maintenanceSaveTurn = 1;
+        final List<Long> capturedPeriods = periodCaptor.getAllValues();
+        final PercentileCounts counts = capturedCounts.get(maintenanceSaveTurn);
         final List<PercentileRecord> percentileRecords = counts.getPercentileRecordsList();
         final Set<Long> periods =
                         percentileRecords.stream().filter(Objects::nonNull)
                                         .map(r -> (long)r.getPeriod())
                                         .collect(Collectors.toSet());
-        Assert.assertThat(periodCaptor.getValue(),
+        Assert.assertThat(capturedPeriods.get(maintenanceSaveTurn),
                         CoreMatchers.is(periodMsForTotalBlob));
         Assert.assertThat(percentileRecords.stream()
                                         .sorted(Comparator.comparingLong(PercentileRecord::getEntityOid))
@@ -359,6 +362,18 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         Assert.assertThat(periods.size(), CoreMatchers.is(2));
         Assert.assertThat(periods, Matchers.containsInAnyOrder(NEW_BUSINESS_USER_OBSERVATION_PERIOD,
                         NEW_VIRTUAL_MACHINE_OBSERVATION_PERIOD));
+        final int currentDayInMaintenanceSaveTurn = 2;
+        final PercentileCounts maintenanceCurrentDay =
+                        capturedCounts.get(currentDayInMaintenanceSaveTurn);
+        final List<PercentileRecord> currentDayRecords =
+                        maintenanceCurrentDay.getPercentileRecordsList();
+        final Set<Long> currentDayPeriods = currentDayRecords.stream().filter(Objects::nonNull)
+                        .map(r -> (long)r.getPeriod()).collect(Collectors.toSet());
+        Assert.assertThat(currentDayPeriods.size(), CoreMatchers.is(1));
+        Assert.assertThat(currentDayPeriods, Matchers.containsInAnyOrder(1L));
+        Assert.assertThat(currentDayRecords.stream().map(PercentileRecord::getUtilizationList)
+                                        .flatMap(Collection::stream).collect(Collectors.toSet()),
+                        CoreMatchers.is(Collections.singleton(0)));
     }
 
     private void checkEntityUtilization(List<Integer> utilizations,
@@ -377,10 +392,14 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
      * @throws HistoryCalculationException always
      * @throws InterruptedException when something goes wrong
      */
-    @Test(expected = HistoryCalculationException.class)
+    @Test
     public void testCompleteBroadcastFailsIfObjectIsNotInitialized()
                     throws HistoryCalculationException, InterruptedException {
+        final ArgumentCaptor<Long> periodCaptor = ArgumentCaptor.forClass(Long.class);
         percentileEditor.completeBroadcast();
+        Mockito.verify(percentilePersistenceTask, Mockito.times(1))
+                        .save(Mockito.any(), periodCaptor.capture(), Mockito.any());
+        Assert.assertThat(periodCaptor.getValue(), CoreMatchers.is(43200000L));
     }
 
     /**

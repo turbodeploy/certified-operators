@@ -102,7 +102,6 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Pipelin
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Stage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.StageResult;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Status;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory.CachedTopology;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 
 /**
@@ -415,7 +414,7 @@ public class Stages {
          */
         private final CachedTopology resultCache;
 
-        public CacheWritingConstructTopologyFromStitchingContextStage(
+        CacheWritingConstructTopologyFromStitchingContextStage(
             @Nonnull CachedTopology resultCache) {
             this.resultCache = Objects.requireNonNull(resultCache);
         }
@@ -846,6 +845,20 @@ public class Stages {
             } else {
                 return Status.success(statusMsg.toString());
             }
+        }
+    }
+
+    /**
+     * This stage takes {@link TopologyGraph} as input and produces
+     * {@link GraphWithSettings} with empty settings as output.
+     */
+    public static class DummySettingsResolutionStage extends
+            Stage<TopologyGraph<TopologyEntity>, GraphWithSettings> {
+        @Nonnull
+        @Override
+        public StageResult<GraphWithSettings> execute(@Nonnull final TopologyGraph<TopologyEntity> input) {
+            return StageResult.withResult(new GraphWithSettings(input, Collections.emptyMap(), Collections.emptyMap()))
+                    .andStatus(Status.success());
         }
     }
 

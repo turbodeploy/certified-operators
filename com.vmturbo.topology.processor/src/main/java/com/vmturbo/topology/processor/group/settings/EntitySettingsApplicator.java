@@ -272,7 +272,7 @@ public class EntitySettingsApplicator {
             final Optional<TopologyEntity> vvEntityOpt = topologyGraph.getEntity(vvEntityDto.getOid());
 
             if (vvEntityOpt.isPresent()) {
-                return topologyGraph.getConnectedFromEntities(vvEntityOpt.get())
+                return vvEntityOpt.get().getInboundAssociatedEntities().stream()
                     .filter(connectedEntity -> connectedEntity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
                     .map(TopologyEntity::getTopologyEntityDtoBuilder)
                     .collect(Collectors.toList());

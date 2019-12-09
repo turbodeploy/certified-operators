@@ -21,6 +21,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
@@ -222,7 +223,8 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                 !isGroupByAttachment &&
                 !isGroupByStorageTier) {
                 // have to aggregate as needed.
-                cloudCostStatRecords = recordAggregator.aggregate(cloudCostStatRecords, requestedStats);
+                cloudCostStatRecords = recordAggregator.aggregate(cloudCostStatRecords,
+                    requestedStats, context);
             }
 
 
@@ -814,7 +816,8 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
 
         // aggregate to one StatRecord per related entity type per CloudCostStatRecord
         List<CloudCostStatRecord> aggregate(@Nonnull final List<CloudCostStatRecord> cloudStatRecords,
-                                                    @Nonnull final Set<StatApiInputDTO> requestedStats) {
+                                                    @Nonnull final Set<StatApiInputDTO> requestedStats,
+                                                    @Nonnull final StatsQueryContext context) {
             boolean hasRiCostRequest = requestedStats.stream()
                 .anyMatch(stat -> StringConstants.RI_COST.equalsIgnoreCase(stat.getName()));
             return cloudStatRecords.stream().map(cloudCostStatRecord -> {
@@ -834,18 +837,44 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                     builder.addStatRecords(aggregate(riRecords, Optional.empty(), true));
                 }
 
-                requestedStats.stream()
+                final Set<StatApiInputDTO> statToProcess;
+                if (!requestedStats.isEmpty()) {
+                    statToProcess = requestedStats;
+                } else {
+                    // If we the requested stats is empty we still return the cost
+                    statToProcess =
+                        Collections.singleton(new StatApiInputDTO(StringConstants.COST_PRICE, null,
+                            null, null));
+                }
+
+                statToProcess.stream()
                     .filter(statApiInputDTO -> StringConstants.COST_PRICE.equals(statApiInputDTO.getName()))
-                    .filter(statApiInputDTO -> statApiInputDTO.getRelatedEntityType() != null)
                     .forEach(statApiInputDTO -> {
                         final String relatedEntityType = statApiInputDTO.getRelatedEntityType();
                         final Set<String> filters = CollectionUtils.emptyIfNull(statApiInputDTO.getFilters()).stream()
                             .map(StatFilterApiDTO::getValue).collect(Collectors.toSet());
 
-                        // two types of request for storage:
-                        //   {"name":"costPrice","relatedEntityType":"Storage"}
-                        //   {"filters":[{"type":"costComponent","value":"STORAGE"}]
-                        if ((relatedEntityType.equals(UIEntityType.VIRTUAL_MACHINE.apiStr()) && filters.contains("STORAGE"))
+                        if (relatedEntityType == null) {
+                            final List<CloudCostStatRecord.StatRecord> recordsToAggregate;
+                            // If the scope is business, we don't want to
+                            // count the attached volume cost twice since we considered  it
+                            // both in account vms and volumes cost
+                            if (context.getInputScope().getScopeTypes().isPresent()
+                                && context.getInputScope().getScopeTypes().get()
+                                    .equals(Collections.singleton(UIEntityType.BUSINESS_ACCOUNT))) {
+                                recordsToAggregate = cloudCostStatRecord.getStatRecordsList().stream()
+                                    .filter(this::isStorageCostAssociatedtoVm)
+                                    .collect(Collectors.toList());
+                            } else {
+                                recordsToAggregate = cloudCostStatRecord.getStatRecordsList();
+                            }
+
+                            builder.addStatRecords(aggregate(recordsToAggregate,
+                                Optional.empty(), false));
+                            // two types of request for storage:
+                            //   {"name":"costPrice","relatedEntityType":"Storage"}
+                            //   {"filters":[{"type":"costComponent","value":"STORAGE"}]
+                        } else if ((relatedEntityType.equals(UIEntityType.VIRTUAL_MACHINE.apiStr()) && filters.contains("STORAGE"))
                             || relatedEntityType.equals(UIEntityType.STORAGE.apiStr())) {
                             // for the category storage, only get the record of entity type VM, since
                             // the cost of entity type volume is included in the vm record
@@ -900,6 +929,13 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                     });
                 return builder.build();
             }).collect(Collectors.toList());
+        }
+
+        private boolean isStorageCostAssociatedtoVm(StatRecord statRecord) {
+                return !statRecord.hasAssociatedEntityType()
+                    || !statRecord.hasCategory()
+                    || statRecord.getAssociatedEntityType() != UIEntityType.VIRTUAL_MACHINE.typeNumber()
+                    || statRecord.getCategory() != CostCategory.STORAGE;
         }
 
         /**

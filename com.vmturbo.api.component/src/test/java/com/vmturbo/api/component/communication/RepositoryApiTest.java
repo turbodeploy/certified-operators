@@ -406,7 +406,6 @@ public class RepositoryApiTest {
         assertThat(req.getReturnType(), is(Type.API));
     }
 
-
     @Test
     public void testMultiGetFullEntity() {
         final TopologyEntityDTO ret = full(7L);
@@ -594,7 +593,6 @@ public class RepositoryApiTest {
         assertThat(req.getSearchParametersList(), contains(SEARCH_PARAMS));
         assertThat(req.getReturnType(), is(Type.API));
     }
-
 
     @Test
     public void testSearchFullEntity() {

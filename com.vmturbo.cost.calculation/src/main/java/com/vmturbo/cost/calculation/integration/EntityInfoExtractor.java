@@ -6,6 +6,7 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
@@ -47,6 +48,15 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
     long getId(@Nonnull final ENTITY_CLASS entity);
 
     String getName(@Nonnull final ENTITY_CLASS entity);
+
+    /**
+     * Get the state of an entity.
+     *
+     * @param entity Entity to get the state for.
+     * @return {@link EntityState} of the entity.
+     */
+    @Nonnull
+    EntityState getEntityState(@Nonnull ENTITY_CLASS entity);
 
     /**
      * Get the compute configuration of a particular entity.

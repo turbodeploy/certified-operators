@@ -30,10 +30,12 @@ import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
@@ -417,6 +419,76 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
         return Optional.ofNullable(discoveredTargetData.get(targetId))
                         .filter(PerTargetEntityInformation::hasVendorId)
                         .map(PerTargetEntityInformation::getVendorId).orElse(null);
+    }
+
+    @Nonnull
+    @Override
+    public Stream<String> getAllVendorIds() {
+        return discoveredTargetData.values().stream()
+            .filter(PerTargetEntityInformation::hasVendorId)
+            .map(PerTargetEntityInformation::getVendorId);
+    }
+
+    /**
+     * Returns the list of connections that are broadcast by the topology processor
+     * for this entity.  The list includes the following:
+     * <ul>
+     *     <li>Normal outbound connections of the current entity</li>
+     *     <li>Entities owned by the current entity</li>
+     *     <li>Entities that aggregate the current entity</li>
+     * </ul>
+     *
+     * <p>Note that the list does not include the reverse of the above connections.
+     * For example, the list does not contain the owner of the current entity.
+     * </p>
+     *
+     * @return the list of connections as they are broadcast by the topology processor
+     */
+    public List<ConnectedEntity> getBroadcastConnections() {
+        final ArrayList<ConnectedEntity> result = new ArrayList<>();
+        getOutboundAssociatedEntities()
+            .forEach(e -> result.add(ConnectedEntity.newBuilder()
+                                        .setConnectionType(ConnectionType.NORMAL_CONNECTION)
+                                        .setConnectedEntityType(e.getEntityType())
+                                        .setConnectedEntityId(e.getOid())
+                                        .build()));
+        getOwnedEntities()
+            .forEach(e -> result.add(ConnectedEntity.newBuilder()
+                                        .setConnectionType(ConnectionType.OWNS_CONNECTION)
+                                        .setConnectedEntityType(e.getEntityType())
+                                        .setConnectedEntityId(e.getOid())
+                                        .build()));
+        getAggregators()
+                .forEach(e -> result.add(ConnectedEntity.newBuilder()
+                                        .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION)
+                                        .setConnectedEntityType(e.getEntityType())
+                                        .setConnectedEntityId(e.getOid())
+                                        .build()));
+        return result;
+    }
+
+    /**
+     * Returns a list of {@link RelatedEntity} objects, one for each
+     * connection broadcast by the topology processor
+     * for this entity.  The broadcast connections include the following:
+     * <ul>
+     *     <li>Normal outbound connections of the current entity</li>
+     *     <li>Entities owned by the current entity</li>
+     *     <li>Entities that aggregate the current entity</li>
+     * </ul>
+     *
+     * @return the list of related entities
+     */
+    public List<RelatedEntity> getBroadcastRelatedEntities() {
+        final ArrayList<RelatedEntity> result = new ArrayList<>();
+        Stream.concat(getOutboundAssociatedEntities().stream(),
+                      Stream.concat(getOwnedEntities().stream(), getAggregators().stream()))
+                .forEach(e -> result.add(RelatedEntity.newBuilder()
+                                            .setEntityType(e.getEntityType())
+                                            .setOid(e.getOid())
+                                            .setDisplayName(e.getDisplayName())
+                                            .build()));
+        return result;
     }
 
     /**

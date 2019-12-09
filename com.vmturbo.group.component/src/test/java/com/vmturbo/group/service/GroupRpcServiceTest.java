@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -40,9 +42,9 @@ import io.grpc.stub.StreamObserver;
 
 import org.hamcrest.CoreMatchers;
 import org.jooq.exception.DataAccessException;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -62,6 +64,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
@@ -83,7 +86,14 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsPoliciesS
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupResponse;
 import com.vmturbo.common.protobuf.search.Search;
+import com.vmturbo.common.protobuf.search.Search.GroupMembershipFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
@@ -110,9 +120,7 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 public class GroupRpcServiceTest {
 
     private AtomicReference<List<Long>> mockDataReference = new AtomicReference<>(Collections.emptyList());
-
-    private SearchServiceHandler searchServiceHandler = new SearchServiceHandler(mockDataReference);
-
+    private SearchServiceMole searchServiceMole;
     private TemporaryGroupCache temporaryGroupCache = mock(TemporaryGroupCache.class);
 
     private GroupRpcService groupRpcService;
@@ -123,9 +131,7 @@ public class GroupRpcServiceTest {
 
     private MockTransactionProvider transactionProvider;
     private IGroupStore groupStoreDAO;
-
-    @Rule
-    public GrpcTestServer testServer = GrpcTestServer.newServer(searchServiceHandler);
+    private GrpcTestServer testServer;
 
     private final GroupDefinition testGrouping = GroupDefinition.newBuilder()
                     .setType(GroupType.REGULAR)
@@ -159,6 +165,9 @@ public class GroupRpcServiceTest {
 
     @Before
     public void setUp() throws Exception {
+        searchServiceMole = Mockito.spy(new SearchServiceMole());
+        testServer = GrpcTestServer.newServer(searchServiceMole);
+        testServer.start();
         final IdentityProvider identityProvider = new IdentityProvider(0);
         groupStitchingManager = new GroupStitchingManager(identityProvider);
         SearchServiceBlockingStub searchServiceRpc = SearchServiceGrpc.newBlockingStub(testServer.getChannel());
@@ -172,6 +181,14 @@ public class GroupRpcServiceTest {
         when(temporaryGroupCache.getGrouping(anyLong())).thenReturn(Optional.empty());
         when(temporaryGroupCache.deleteGrouping(anyLong())).thenReturn(Optional.empty());
         MockitoAnnotations.initMocks(this);
+    }
+
+    /**
+     * Cleanup the test environment.
+     */
+    @After
+    public void cleanup() {
+        testServer.close();
     }
 
     /**
@@ -710,7 +727,10 @@ public class GroupRpcServiceTest {
                 mock(StreamObserver.class);
 
         given(groupStoreDAO.getGroup(groupId)).willReturn(Optional.of(group));
-        givenSearchHanderWillReturn(mockSearchResults);
+        Mockito.when(searchServiceMole.searchEntityOids(Mockito.any()))
+                .thenReturn(Search.SearchEntityOidsResponse.newBuilder()
+                        .addAllEntities(mockSearchResults)
+                        .build());
 
         groupRpcService.getMembers(req, mockObserver);
 
@@ -2000,6 +2020,104 @@ public class GroupRpcServiceTest {
 
     }
 
+    /**
+     * Tests search for group members when one of the search filter is group related, i.e. -
+     * should be resolved by a group component.
+     *
+     * @throws Exception on exceptions occur
+     */
+    @Test
+    public void testGroupMembershipFilters() throws Exception {
+        final long groupId = 678L;
+        final long subGroup1Id = 123L;
+        final long subGroup2Id = 234L;
+        final Set<Long> members1 = Sets.newHashSet(345L, 456L);
+        final Set<Long> members2 = Sets.newHashSet(567L, 789L);
+        final EntityFilters filters = EntityFilters.newBuilder()
+                .addEntityFilter(EntityFilter.newBuilder()
+                        .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+                                .addSearchParameters(SearchParameters.newBuilder()
+                                        .addSearchFilter(SearchFilter.newBuilder()
+                                                .setGroupMembershipFilter(
+                                                        GroupMembershipFilter.newBuilder()
+                                                                .setGroupSpecifier(
+                                                                        PropertyFilter.newBuilder()
+                                                                                .setPropertyName(
+                                                                                        "oid")
+                                                                                .setStringFilter(
+                                                                                        StringFilter
+                                                                                                .newBuilder()
+                                                                                                .addOptions(
+                                                                                                        Long.toString(
+                                                                                                                subGroup1Id))
+                                                                                                .addOptions(
+                                                                                                        Long.toString(
+                                                                                                                subGroup2Id)))))))))
+                .build();
+        final Grouping mainGroup = Grouping.newBuilder()
+                .setId(groupId)
+                .setDefinition(GroupDefinition.newBuilder().setEntityFilters(filters))
+                .build();
+        final Grouping subGroup1 = createGrouping(subGroup1Id, members1);
+        final Grouping subGroup2 = createGrouping(subGroup2Id, members2);
+        Mockito.when(groupStoreDAO.getGroups(Mockito.any()))
+                .thenReturn(Arrays.asList(subGroup1, subGroup2));
+        Mockito.when(groupStoreDAO.getGroup(groupId)).thenReturn(Optional.of(mainGroup));
+
+        final Set<Long> searchResults = Sets.newHashSet(111L, 112L, 113L, 114L, 115L, 116L);
+        final Set<Long> members = new HashSet<>();
+        Mockito.when(searchServiceMole.searchEntityOids(Mockito.any()))
+                .thenReturn(SearchEntityOidsResponse.newBuilder()
+                        .addAllEntities(searchResults)
+                        .build());
+        final CountDownLatch latch = new CountDownLatch(1);
+        groupRpcService.getMembers(GetMembersRequest.newBuilder().setId(groupId).build(),
+                new StreamObserver<GetMembersResponse>() {
+                    @Override
+                    public void onNext(GetMembersResponse value) {
+                        members.addAll(value.getMembers().getIdsList());
+                    }
+
+                    @Override
+                    public void onError(Throwable t) {
+                        latch.countDown();
+                    }
+
+                    @Override
+                    public void onCompleted() {
+                        latch.countDown();
+                    }
+                });
+        latch.await(30, TimeUnit.SECONDS);
+        Assert.assertEquals(searchResults, members);
+        final ArgumentCaptor<SearchEntityOidsRequest> searchRequestCaptor =
+                ArgumentCaptor.forClass(SearchEntityOidsRequest.class);
+        Mockito.verify(searchServiceMole).searchEntityOids(searchRequestCaptor.capture());
+        Assert.assertEquals(Sets.newHashSet(345L, 456L, 567L, 789L), new HashSet<>(
+                searchRequestCaptor.getValue()
+                        .getSearchParameters(0)
+                        .getSearchFilter(0)
+                        .getPropertyFilter()
+                        .getStringFilter()
+                        .getOptionsList()
+                        .stream()
+                        .map(Long::parseLong)
+                        .collect(Collectors.toSet())));
+
+        final ArgumentCaptor<GroupFilter> getGroupsCaptor =
+                ArgumentCaptor.forClass(GroupFilter.class);
+        Mockito.verify(groupStoreDAO).getGroups(getGroupsCaptor.capture());
+        Assert.assertEquals(Sets.newHashSet(subGroup1Id, subGroup2Id),
+                getGroupsCaptor.getAllValues()
+                        .get(0)
+                        .getPropertyFilters(0)
+                        .getStringFilter()
+                        .getOptionsList()
+                        .stream()
+                        .map(Long::parseLong)
+                        .collect(Collectors.toSet()));
+    }
+
     private static GroupDefinition createGroupDefinition() {
         return GroupDefinition.newBuilder().setDisplayName("test-group")
                 .setStaticGroupMembers(StaticMembers
@@ -2031,35 +2149,5 @@ public class GroupRpcServiceTest {
                 .build();
 
         return StaticMembers.newBuilder().addMembersByType(staticMembersByType).build();
-    }
-
-
-    private void givenSearchHanderWillReturn(final List<Long> oids) {
-        mockDataReference.set(oids);
-    }
-
-    /**
-     * Mock search service handler.
-     */
-    class SearchServiceHandler extends SearchServiceGrpc.SearchServiceImplBase {
-
-        private final AtomicReference<List<Long>> mockDataReference;
-
-        SearchServiceHandler(final AtomicReference<List<Long>> mockDataReference) {
-            this.mockDataReference = mockDataReference;
-        }
-
-        @Override
-        public void searchEntityOids(final Search.SearchEntityOidsRequest request,
-                                     final StreamObserver<Search.SearchEntityOidsResponse> responseObserver) {
-            final List<Long> mockData = mockDataReference.get();
-
-            final Search.SearchEntityOidsResponse searchResp = Search.SearchEntityOidsResponse.newBuilder()
-                    .addAllEntities(mockData)
-                    .build();
-
-            responseObserver.onNext(searchResp);
-            responseObserver.onCompleted();
-        }
     }
 }

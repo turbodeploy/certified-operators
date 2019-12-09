@@ -298,7 +298,6 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         }
 
         try {
-
             // If we want a specific topology, wait for that topology to become available.
             // If not, wait for SOME topology to be available in the context.
             if (topologyId != null) {

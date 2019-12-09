@@ -38,7 +38,6 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.web.client.RestTemplate;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
-import com.vmturbo.arangodb.ArangoHealthMonitor;
 import com.vmturbo.arangodb.tool.ArangoDump;
 import com.vmturbo.arangodb.tool.ArangoRestore;
 import com.vmturbo.auth.api.SpringSecurityConfig;
@@ -160,7 +159,6 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Autowired
     private SpringSecurityConfig securityConfig;
 
-
     RepositoryProperties repositoryProperties;
 
     FileFolderZipper fileFolderZipper;
@@ -235,12 +233,6 @@ public class RepositoryComponent extends BaseVmtComponent {
 
     @PostConstruct
     private void setup() {
-        logger.info("Setting up connection to ArangoDB...");
-
-        logger.info("Adding ArangoDB health check to the component health monitor.");
-        // add a health monitor for Arango
-        getHealthMonitor().addHealthCheck(
-                new ArangoHealthMonitor(arangoHealthCheckIntervalSeconds, arangoDatabaseFactory()::getArangoDriver));
         getHealthMonitor().addHealthCheck(apiConfig.kafkaHealthMonitor());
     }
 

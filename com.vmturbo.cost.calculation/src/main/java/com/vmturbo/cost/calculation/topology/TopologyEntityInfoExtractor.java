@@ -4,6 +4,7 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
@@ -11,7 +12,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
 
 /**
  * An {@link EntityInfoExtractor} for {@link TopologyEntityDTO}, to be used when running the cost
@@ -32,6 +32,15 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
     @Override
     public String getName(@Nonnull final TopologyEntityDTO entity) {
         return entity.getDisplayName();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Nonnull
+    public EntityState getEntityState(@Nonnull final TopologyEntityDTO entity) {
+        return entity.getEntityState();
     }
 
     @Nonnull
@@ -87,6 +96,7 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
     }
 
     @Override
+    @Nonnull
     public Optional<DatabaseConfig> getDatabaseConfig(
             TopologyEntityDTO entity) {
         if ((entity.getEntityType() == EntityType.DATABASE_SERVER_VALUE

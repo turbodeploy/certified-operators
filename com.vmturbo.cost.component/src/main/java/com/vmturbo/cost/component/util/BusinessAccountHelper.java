@@ -2,14 +2,13 @@ package com.vmturbo.cost.component.util;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
@@ -21,7 +20,7 @@ public class BusinessAccountHelper {
     // Internal concurrent hash map to store business account id to target id.
     // It will be populated when new topology are sent to Cost component.
     //BA OID --> List of TargetID
-    private BiMap<Long, Set<Long>> businessAccountToTargetIdMap = Maps.synchronizedBiMap(HashBiMap.create());
+    private Map<Long, Set<Long>> businessAccountToTargetIdMap = Collections.synchronizedMap(Maps.newHashMap());
 
     /**
      * Store business accountId -> targetId to Map.
@@ -30,14 +29,7 @@ public class BusinessAccountHelper {
      * @param targetIds list of targets used in BA.
      */
     public void storeTargetMapping(final long businessAccountId, @Nonnull final Collection<Long> targetIds) {
-        businessAccountToTargetIdMap.forcePut(businessAccountId, Sets.newHashSet(targetIds));
-    }
-
-    /**
-     * Reset map before we receive new topology data.
-     */
-    public void resetBusinessAccounts() {
-        businessAccountToTargetIdMap.clear();
+        businessAccountToTargetIdMap.put(businessAccountId, Sets.newHashSet(targetIds));
     }
 
     /**
@@ -52,19 +44,25 @@ public class BusinessAccountHelper {
     }
 
     /**
-     * Get only business account id iff they are used in only 1 target id.
+     * List of BAs which does not have any other targets attached to them.
      *
-     * @param targetId target entity.
-     * @return list of businessAccount which are exclusive to the given targetId provided.
+     * @return list of businessAccount which were removed from {@link #businessAccountToTargetIdMap}.
      */
     @Nonnull
-    public Set<Long> getBusinessAccountsExclusiveToTargetId(Long targetId) {
-        return businessAccountToTargetIdMap.inverse().entrySet()
-                .stream()
-                .filter(setLongEntry -> setLongEntry.getKey().size() == 1 &&
-                        setLongEntry.getKey().contains(targetId))
-                .map(Entry::getValue)
-                .collect(Collectors.toSet());
+    public Set<Long> removeBusinessAccountWithNoTargets() {
+        Set<Long> baWithNoAttachedTargets = businessAccountToTargetIdMap.entrySet().stream().filter(baToTargets ->
+                baToTargets.getValue().isEmpty()).map(Entry::getKey).collect(Collectors.toSet());
+        businessAccountToTargetIdMap.keySet().removeAll(baWithNoAttachedTargets);
+        return baWithNoAttachedTargets;
+    }
+
+    /**
+     * Get only business account id iff they are used in only 1 target id.
+     *
+     * @param targetId target entity to be removed from map.
+     */
+    public void removeTargetForBusinessAccount(final long targetId) {
+        businessAccountToTargetIdMap.forEach((key, value) -> value.remove(targetId));
     }
 
     @Nonnull

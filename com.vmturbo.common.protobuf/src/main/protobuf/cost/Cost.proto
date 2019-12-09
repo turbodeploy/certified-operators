@@ -411,6 +411,8 @@ message EntityCost {
 
         // Hourly rate for Cloud entity
         optional common_dto.CurrencyAmount amount = 2;
+
+        optional CostSource costSource = 3;
     }
 }
 
@@ -478,6 +480,19 @@ enum CostCategory {
     // Represents the spot instance cost associated with an entity.
     SPOT = 5;
 
+}
+
+// The cost source represents the source of the cost in the cost category. For example the on Demand Compute cost
+// may have an on demand rate source and an RI discounted rate source.
+enum CostSource {
+
+    ON_DEMAND_RATE = 1;
+
+    RI_INVENTORY_DISCOUNT = 2;
+
+    BUY_RI_DISCOUNT = 3;
+
+    UNCLASSIFIED = 4;
 }
 
 // A request containing a snapshot of cost data to be stored by the cost service.
@@ -915,6 +930,17 @@ message StartBuyRIAnalysisRequest {
     optional common_dto.DemandType demandType = 7;
 }
 
+message GetTierPriceForEntitiesRequest{
+    optional int64 oid = 1;
+    optional CostCategory costCategory = 2;
+}
+
+message GetTierPriceForEntitiesResponse{
+    map <int64, common_dto.CurrencyAmount> before_tier_price_by_entity_oid = 1;
+    map <int64, common_dto.CurrencyAmount> after_tier_price_by_entity_oid = 2;
+}
+
+
 // the RI purchase profile for buy RI recommendations
 message RIPurchaseProfile {
     // the reserved instance type. The type of RIs which will be suggested in the Buy RI results
@@ -1000,6 +1026,8 @@ service BuyRIAnalysisService {
 
 // A service responsible for getting information about cost information in Cloud.
 service CostService {
+
+    rpc GetTierPriceForEntities (GetTierPriceForEntitiesRequest) returns (GetTierPriceForEntitiesResponse);
 
     // Get account discounts by associated account ids
     rpc GetDiscounts(GetDiscountRequest) returns (stream Discount);

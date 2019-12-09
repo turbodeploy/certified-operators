@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -212,10 +213,19 @@ public class ServiceEntityMapper {
     private void setDiscoveredBy(Supplier<Map<Long, PerTargetEntityInformation>> idMapGetter, ServiceEntityApiDTO result) {
         Map<Long, PerTargetEntityInformation> target2data = idMapGetter.get();
         if (!target2data.isEmpty()) {
-            // only one target will be returned
-            thinTargetCache.getTargetInfo(target2data.keySet().iterator().next())
-                .map(this::createTargetApiDto)
-                .ifPresent(result::setDiscoveredBy);
+            // only one target will be returned - preferably any non-hidden, if none then any at all
+            ThinTargetInfo preferredInfo = null;
+            for (Map.Entry<Long, PerTargetEntityInformation> info : target2data.entrySet()) {
+                Optional<ThinTargetInfo> thinInfo = thinTargetCache.getTargetInfo(info.getKey());
+                if (thinInfo.isPresent() && (!thinInfo.get().isHidden() || preferredInfo == null)) {
+                    preferredInfo = thinInfo.get();
+                }
+            }
+            if (preferredInfo != null) {
+                result.setDiscoveredBy(createTargetApiDto(preferredInfo));
+            } else {
+                logger.debug("Failed to locate discoveredBy target information for " + result.getUuid());
+            }
             // convert target ids to strings for api
             // skip targets where vendor ids are unset
             result.setVendorIds(target2data.entrySet().stream()

@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
@@ -30,9 +29,9 @@ public class ProjectedRICoverageAndUtilStore {
     private final Logger logger = LogManager.getLogger();
 
     /**
-     * A map with key: VM/DB OID; value: A map with key: RI_ID; value: Coupons_Covered_By_RI.
+     * A map with key: VM/DB OID; value: EntityReservedInstanceCoverage.
      */
-    private Map<Long, Map<Long, Double>> projectedEntityRICoverageMap = Collections.emptyMap();
+    private Map<Long, EntityReservedInstanceCoverage> projectedEntitiesRICoverage = new HashMap<>();
 
     private final RepositoryClient repositoryClient;
 
@@ -70,26 +69,27 @@ public class ProjectedRICoverageAndUtilStore {
      *
      * @param originalTopologyInfo
      *     The information about the topology used to generate the Coverage, currently unused.
-     * @param entityRICoverage
+     * @param entitiesRICoverage
      *     A stream of the new {@link EntityReservedInstanceCoverage}. These will completely replace
      *     the existing entity RI coverage info.
      */
     public void updateProjectedRICoverage(
                     @Nonnull final TopologyInfo originalTopologyInfo,
-                    @Nonnull final List<EntityReservedInstanceCoverage> entityRICoverage) {
+                    @Nonnull final List<EntityReservedInstanceCoverage> entitiesRICoverage) {
         synchronized (lockObject) {
             Objects.requireNonNull(originalTopologyInfo, "topology info must not be null");
             topologyContextId = originalTopologyInfo.getTopologyContextId();
-            final Map<Long, Map<Long, Double>> newCostsByEntity = entityRICoverage.stream()
-                            .collect(Collectors.toMap(EntityReservedInstanceCoverage::getEntityId,
-                                            EntityReservedInstanceCoverage::getCouponsCoveredByRiMap));
-            projectedEntityRICoverageMap = Collections.unmodifiableMap(newCostsByEntity);
+            // Clear the coverage map before updating.
+            projectedEntitiesRICoverage.clear();
+            for (EntityReservedInstanceCoverage entityRICoverage : entitiesRICoverage) {
+                projectedEntitiesRICoverage.put(entityRICoverage.getEntityId(), entityRICoverage);
+            }
             //TODO: remove this logger or convert to debug
             logger.info("updateProjectedRICoverage topology ID {}, context {} , type {}, size {}",
                             originalTopologyInfo.getTopologyId(),
                             originalTopologyInfo.getTopologyContextId(),
                             originalTopologyInfo.getTopologyType(),
-                            projectedEntityRICoverageMap.size());
+                    projectedEntitiesRICoverage.size());
         }
     }
 
@@ -97,12 +97,12 @@ public class ProjectedRICoverageAndUtilStore {
      * Get the Reserved Instance Coverage Map, which has VM or DB OID key to value which is a Map of
      * RI ID to Coupons covered by that RI.
      *
-     * @return A map with key: VM/DB OID; value: A map with key: RI_ID; value: Coupons_Covered_By_RI
+     * @return A map with key: VM/DB OID; value: EntityReservedInstanceCoverage.
      */
     @Nonnull
-    public Map<Long, Map<Long, Double>> getAllProjectedEntitiesRICoverages() {
+    public Map<Long, EntityReservedInstanceCoverage> getAllProjectedEntitiesRICoverages() {
         synchronized (lockObject) {
-            return projectedEntityRICoverageMap;
+            return Collections.unmodifiableMap(projectedEntitiesRICoverage);
         }
     }
 
@@ -111,12 +111,11 @@ public class ProjectedRICoverageAndUtilStore {
      * ask the repository for the collection of EntityTypes and the OIDs of each of those entity
      * types that are in the scope defined by using the filter's set of entity OIDs as the seed.
      *
-     * @param filter
-     *     The information about the scope to use to filter the Coverage Map
-     * @return A map with key: VM/DB OID; value: A map with key: RI_ID; value: Coupons_Covered_By_RI
+     * @param filter The information about the scope to use to filter the Coverage Map.
+     * @return A map with key: RI_ID; value: EntityReservedInstanceCoverage.
      */
     @Nonnull
-    public Map<Long, Map<Long, Double>>
+    public Map<Long, EntityReservedInstanceCoverage>
                     getScopedProjectedEntitiesRICoverages(ReservedInstanceFilter filter) {
         // Do the RPC before getting the lock, since the RPC can take a long time.
         List<Long> scopeIds = filter.getScopeIds();
@@ -127,19 +126,20 @@ public class ProjectedRICoverageAndUtilStore {
         Set<Long> scopedOids = scopeMap.getOrDefault(EntityType.VIRTUAL_MACHINE, Collections.emptySet());
         //TODO: add support for database VMs, make sure DATABASE is correct EntityType for them
         //scopedOids.addAll(scopeMap.get(EntityType.DATABASE));
-        Map<Long, Map<Long, Double>> filteredMap = new HashMap<>();
+
         synchronized (lockObject) {
             if (scopedOids == null) {
-                logger.debug("projectedEntityRICoverageMap.size() {}, scopeIds.size() {}"
+                logger.debug("projectedEntitiesRICoverage.size() {}, scopeIds.size() {}"
                                 + ", no entities found in scope",
-                                projectedEntityRICoverageMap::size, scopeIds::size);
-                return filteredMap;
+                                projectedEntitiesRICoverage::size, scopeIds::size);
+                return Collections.EMPTY_MAP;
             }
-            logger.debug("projectedEntityRICoverageMap.size() {}, scopeIds.size() {}"
-                            + ", scopedOids.size() {}", projectedEntityRICoverageMap::size,
+            Map<Long, EntityReservedInstanceCoverage> filteredMap = new HashMap<>();
+            logger.debug("projectedEntitiesRICoverage.size() {}, scopeIds.size() {}"
+                            + ", scopedOids.size() {}", projectedEntitiesRICoverage::size,
                             scopeIds::size, scopedOids::size);
             for (Long anOid : scopedOids) {
-                Map<Long, Double> value = projectedEntityRICoverageMap.get(anOid);
+                EntityReservedInstanceCoverage value = projectedEntitiesRICoverage.get(anOid);
                 if (value != null) {
                     filteredMap.put(anOid, value);
                     logger.info("For VM OID {} found projected coverage {}", anOid, value);
@@ -147,7 +147,7 @@ public class ProjectedRICoverageAndUtilStore {
                     logger.info("For VM OID {} no projected coverage found", anOid);
                 }
             }
-            return filteredMap;
+            return Collections.unmodifiableMap(filteredMap);
         }
     }
 }

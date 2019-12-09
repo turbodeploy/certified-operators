@@ -33,182 +33,216 @@ public class TopologyEntityCloudTopologyTest {
 
     private static final String DEFAULT_NAME = "foo";
 
-    private static final TopologyEntityDTO AZ = constructTopologyEntity("this is available",
-        EntityType.AVAILABILITY_ZONE_VALUE)
-        .build();
+    private static final long AZ_ID = 1000L;
+    private static final long REGION_ID = 1001;
+    private static final long COMPUTE_TIER_ID = 1002L;
+    private static final long DB_TIER_ID = 1003L;
+    private static final long DB_SERVER_TIER_ID = 1004L;
+    private static final long STORAGE_TIER_ID = 1005L;
+    private static final long EMPTY_STORAGE_TIER_ID = 1006L;
+    private static final long SERVICE_ID = 1007L;
+    private static final long VOLUME_ID = 1008L;
+    private static final long VM_ID = 1009L;
+    private static final long EMPTY_VM_ID = 1010L;
+    private static final long DB_ID = 1011L;
+    private static final long DB_SERVER_ID = 1012L;
+    private static final long EMPTY_DB_ID = 1013L;
+    private static final long EMPTY_DB_SERVER_ID = 1014L;
+    private static final long ACCOUNT_ID = 1015L;
 
-    private static final TopologyEntityDTO REGION = constructTopologyEntity("region", EntityType.REGION_VALUE)
-        .addConnectedEntityList(ConnectedEntity.newBuilder()
-        .setConnectedEntityType(AZ.getEntityType())
-        .setConnectedEntityId(AZ.getOid())
-        .setConnectionType(ConnectionType.OWNS_CONNECTION))
-        .build();
+    private static final TopologyEntityDTO AZ =
+            constructTopologyEntity(AZ_ID, "this is available", EntityType.AVAILABILITY_ZONE_VALUE)
+                    .build();
 
-    private static final TopologyEntityDTO COMPUTE_TIER = constructTopologyEntity("computeTier",
-        EntityType.COMPUTE_TIER_VALUE).addConnectedEntityList(ConnectedEntity.newBuilder()
-        .setConnectedEntityType(REGION.getEntityType())
-        .setConnectedEntityId(REGION.getOid())
-        .setConnectionType(ConnectionType.NORMAL_CONNECTION))
-        .build();
+    private static final TopologyEntityDTO REGION =
+            constructTopologyEntity(REGION_ID, "region", EntityType.REGION_VALUE)
+                    .addConnectedEntityList(
+                            ConnectedEntity.newBuilder()
+                                .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
+                                .setConnectedEntityId(AZ_ID)
+                                .setConnectionType(ConnectionType.OWNS_CONNECTION))
+                    .build();
 
-    private static final TopologyEntityDTO DATABASE_TIER = constructTopologyEntity("DatabaseTier",
-        EntityType.DATABASE_TIER_VALUE)
-        .addConnectedEntityList(ConnectedEntity.newBuilder()
-            .setConnectedEntityType(REGION.getEntityType())
-            .setConnectedEntityId(REGION.getOid())
-            .setConnectionType(ConnectionType.NORMAL_CONNECTION))
-        .build();
+    private static final TopologyEntityDTO COMPUTE_TIER =
+            constructTopologyEntity(COMPUTE_TIER_ID, "computeTier", EntityType.COMPUTE_TIER_VALUE)
+                    .addConnectedEntityList(ConnectedEntity.newBuilder()
+                                                .setConnectedEntityId(REGION_ID)
+                                                .setConnectedEntityType(EntityType.REGION_VALUE)
+                                                .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
+                    .build();
 
-    private static final TopologyEntityDTO DATABASE_SERVER_TIER = constructTopologyEntity("DatabaseServerTier",
-        EntityType.DATABASE_SERVER_TIER_VALUE)
-        .addConnectedEntityList(ConnectedEntity.newBuilder()
-            .setConnectedEntityType(REGION.getEntityType())
-            .setConnectedEntityId(REGION.getOid())
-            .setConnectionType(ConnectionType.NORMAL_CONNECTION))
-        .build();
+    private static final TopologyEntityDTO DATABASE_TIER =
+            constructTopologyEntity(DB_TIER_ID, "DatabaseTier", EntityType.DATABASE_TIER_VALUE)
+                    .addConnectedEntityList(ConnectedEntity.newBuilder()
+                                                .setConnectedEntityId(REGION_ID)
+                                                .setConnectedEntityType(EntityType.REGION_VALUE)
+                                                .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
+                    .build();
 
-    private static final TopologyEntityDTO STORAGE_TIER = constructTopologyEntity("StorageTier",
-        EntityType.STORAGE_TIER_VALUE)
-        .addConnectedEntityList(ConnectedEntity.newBuilder()
-            .setConnectedEntityType(REGION.getEntityType())
-            .setConnectedEntityId(REGION.getOid())
-            .setConnectionType(ConnectionType.NORMAL_CONNECTION))
-        .build();
+    private static final TopologyEntityDTO DATABASE_SERVER_TIER =
+            constructTopologyEntity(DB_SERVER_TIER_ID, "DatabaseServerTier",
+                                    EntityType.DATABASE_SERVER_TIER_VALUE)
+                    .addConnectedEntityList(ConnectedEntity.newBuilder()
+                                                .setConnectedEntityId(REGION_ID)
+                                                .setConnectedEntityType(EntityType.REGION_VALUE)
+                                                .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
+                    .build();
 
-    private static final TopologyEntityDTO EMPTY_STORAGE_TIER = TopologyEntityDTO.newBuilder()
-        .setOid(EntityType.STORAGE_TIER_VALUE)
-        .setEntityType(EntityType.STORAGE_TIER_VALUE)
-        .build();
+    private static final TopologyEntityDTO STORAGE_TIER =
+            constructTopologyEntity(STORAGE_TIER_ID, "StorageTier", EntityType.STORAGE_TIER_VALUE)
+                    .addConnectedEntityList(ConnectedEntity.newBuilder()
+                                                .setConnectedEntityId(REGION_ID)
+                                                .setConnectedEntityType(EntityType.REGION_VALUE)
+                                                .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
+                    .build();
 
-    private static final TopologyEntityDTO SERVICE = constructTopologyEntity("service",
-        EntityType.CLOUD_SERVICE_VALUE)
-        .addConnectedEntityList(ConnectedEntity.newBuilder()
-            .setConnectedEntityId(COMPUTE_TIER.getOid())
-            .setConnectedEntityType(COMPUTE_TIER.getEntityType())
-            .setConnectionType(ConnectionType.OWNS_CONNECTION))
-        .build();
+    private static final TopologyEntityDTO EMPTY_STORAGE_TIER =
+            TopologyEntityDTO.newBuilder()
+                .setOid(EMPTY_STORAGE_TIER_ID)
+                .setEntityType(EntityType.STORAGE_TIER_VALUE)
+                .build();
 
-    private static final TopologyEntityDTO VOLUME = constructTopologyEntity("VirtualVolume",
-        EntityType.VIRTUAL_VOLUME_VALUE)
-        .addConnectedEntityList(ConnectedEntity.newBuilder()
-            .setConnectedEntityType(AZ.getEntityType())
-            .setConnectedEntityId(AZ.getOid()))
-        .addConnectedEntityList(ConnectedEntity.newBuilder()
-            .setConnectedEntityId(STORAGE_TIER.getOid())
-            .setConnectedEntityType(STORAGE_TIER.getEntityType()))
-        .build();
+    private static final TopologyEntityDTO SERVICE =
+            constructTopologyEntity(SERVICE_ID, "service", EntityType.CLOUD_SERVICE_VALUE)
+                .addConnectedEntityList(
+                        ConnectedEntity.newBuilder()
+                            .setConnectedEntityId(COMPUTE_TIER_ID)
+                            .setConnectedEntityType(EntityType.COMPUTE_TIER_VALUE)
+                            .setConnectionType(ConnectionType.OWNS_CONNECTION))
+                .build();
 
-    private static final TopologyEntityDTO VM = constructTopologyEntity(DEFAULT_NAME,
-        EntityType.VIRTUAL_MACHINE_VALUE)
-        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-            .setProviderId(COMPUTE_TIER.getOid())
-            .setProviderEntityType(COMPUTE_TIER.getEntityType()))
-        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-            .setProviderId(STORAGE_TIER.getOid())
-            .setProviderEntityType(STORAGE_TIER.getEntityType())
-            .setVolumeId(VOLUME.getOid()))
-        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-            .setVirtualMachine(VirtualMachineInfo.newBuilder()
-                .setGuestOsInfo(OS.newBuilder()
-                    .setGuestOsType(OSType.LINUX)
-                    .setGuestOsName(OSType.LINUX.name()))
-                .setTenancy(Tenancy.DEFAULT)))
-        .addConnectedEntityList(ConnectedEntity.newBuilder()
-            .setConnectedEntityType(AZ.getEntityType())
-            .setConnectedEntityId(AZ.getOid()))
-        .addConnectedEntityList(ConnectedEntity.newBuilder()
-            .setConnectedEntityType(VOLUME.getEntityType())
-            .setConnectedEntityId(VOLUME.getOid()))
-        .build();
+    private static final TopologyEntityDTO VOLUME =
+            constructTopologyEntity(VOLUME_ID, "VirtualVolume", EntityType.VIRTUAL_VOLUME_VALUE)
+                .addConnectedEntityList(
+                        ConnectedEntity.newBuilder()
+                            .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
+                            .setConnectedEntityId(AZ_ID))
+                .addConnectedEntityList(
+                        ConnectedEntity.newBuilder()
+                            .setConnectedEntityId(STORAGE_TIER_ID)
+                            .setConnectedEntityType(EntityType.STORAGE_TIER_VALUE))
+                .build();
 
-    private static final TopologyEntityDTO EMPTY_VM = constructTopologyEntity(DEFAULT_NAME,
-        EntityType.VIRTUAL_MACHINE_VALUE)
-        .build();
+    private static final TopologyEntityDTO VM =
+            constructTopologyEntity(VM_ID, DEFAULT_NAME, EntityType.VIRTUAL_MACHINE_VALUE)
+                .addCommoditiesBoughtFromProviders(
+                        CommoditiesBoughtFromProvider.newBuilder()
+                            .setProviderId(COMPUTE_TIER_ID)
+                            .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE))
+                .addCommoditiesBoughtFromProviders(
+                        CommoditiesBoughtFromProvider.newBuilder()
+                            .setProviderId(STORAGE_TIER_ID)
+                            .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                            .setVolumeId(VOLUME_ID))
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                                            .setConnectedEntityId(AZ_ID)
+                                            .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
+                                            .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
+                .setTypeSpecificInfo(
+                        TypeSpecificInfo.newBuilder()
+                            .setVirtualMachine(VirtualMachineInfo.newBuilder()
+                            .setGuestOsInfo(OS.newBuilder()
+                            .setGuestOsType(OSType.LINUX)
+                            .setGuestOsName(OSType.LINUX.name()))
+                            .setTenancy(Tenancy.DEFAULT)))
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                                            .setConnectedEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+                                            .setConnectedEntityId(VOLUME_ID))
+                .build();
 
-    private static final TopologyEntityDTO DATABASE = constructTopologyEntity(DEFAULT_NAME,
-        EntityType.DATABASE_VALUE)
-        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-            .setProviderId(DATABASE_TIER.getOid())
-            .setProviderEntityType(DATABASE_TIER.getEntityType()))
-        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-            .setDatabase(DatabaseInfo.newBuilder()
-                .setEdition(DatabaseEdition.SQL_SERVER_EXPRESS)
-                .setEngine(DatabaseEngine.MARIADB)))
-        .addConnectedEntityList(ConnectedEntity.newBuilder()
-            .setConnectedEntityType(AZ.getEntityType())
-            .setConnectedEntityId(AZ.getOid()))
-        .build();
+    private static final TopologyEntityDTO EMPTY_VM =
+            constructTopologyEntity(EMPTY_VM_ID, DEFAULT_NAME, EntityType.VIRTUAL_MACHINE_VALUE)
+                .build();
 
-    private static final TopologyEntityDTO DATABASE_SERVER = constructTopologyEntity(DEFAULT_NAME,
-        EntityType.DATABASE_SERVER_VALUE)
-        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-            .setProviderId(DATABASE_SERVER_TIER.getOid())
-            .setProviderEntityType(DATABASE_SERVER_TIER.getEntityType()))
-        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-            .setDatabase(DatabaseInfo.newBuilder()
-                .setEdition(DatabaseEdition.SQL_SERVER_EXPRESS)
-                .setEngine(DatabaseEngine.MARIADB)))
-        .addConnectedEntityList(ConnectedEntity.newBuilder()
-            .setConnectedEntityType(AZ.getEntityType())
-            .setConnectedEntityId(AZ.getOid()))
-        .build();
+    private static final TopologyEntityDTO DATABASE =
+            constructTopologyEntity(DB_ID, DEFAULT_NAME, EntityType.DATABASE_VALUE)
+                .addCommoditiesBoughtFromProviders(
+                        CommoditiesBoughtFromProvider.newBuilder()
+                            .setProviderId(DB_TIER_ID)
+                            .setProviderEntityType(EntityType.DATABASE_TIER_VALUE))
+                .setTypeSpecificInfo(
+                        TypeSpecificInfo.newBuilder()
+                            .setDatabase(DatabaseInfo.newBuilder()
+                            .setEdition(DatabaseEdition.EXPRESS)
+                            .setEngine(DatabaseEngine.MARIADB)))
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                                            .setConnectedEntityId(AZ_ID)
+                                            .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
+                                            .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
+                .build();
 
-    private static final TopologyEntityDTO EMPTY_DATABASE = constructTopologyEntity(DEFAULT_NAME,
-        EntityType.DATABASE_VALUE)
-        .build();
+    private static final TopologyEntityDTO DATABASE_SERVER =
+            constructTopologyEntity(DB_SERVER_ID, DEFAULT_NAME, EntityType.DATABASE_SERVER_VALUE)
+                .addCommoditiesBoughtFromProviders(
+                        CommoditiesBoughtFromProvider.newBuilder()
+                            .setProviderId(DB_SERVER_TIER_ID)
+                            .setProviderEntityType(EntityType.DATABASE_SERVER_TIER_VALUE))
+                .setTypeSpecificInfo(
+                        TypeSpecificInfo.newBuilder()
+                            .setDatabase(DatabaseInfo.newBuilder()
+                            .setEdition(DatabaseEdition.EXPRESS)
+                            .setEngine(DatabaseEngine.MARIADB)))
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                                            .setConnectedEntityId(AZ_ID)
+                                            .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
+                                            .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
+                .build();
 
-    private static final TopologyEntityDTO EMPTY_DATABASE_SERVER = constructTopologyEntity(DEFAULT_NAME,
-        EntityType.DATABASE_VALUE)
-        .build();
+    private static final TopologyEntityDTO EMPTY_DATABASE =
+            constructTopologyEntity(EMPTY_DB_ID, DEFAULT_NAME, EntityType.DATABASE_VALUE)
+                .build();
 
-    private static final TopologyEntityDTO BUSINESS_ACCOUNT = constructTopologyEntity("businessAccount",
-        EntityType.BUSINESS_ACCOUNT_VALUE)
-        .addConnectedEntityList(ConnectedEntity.newBuilder()
-            .setConnectedEntityId(VM.getOid())
-            .setConnectedEntityType(VM.getEntityType())
-            .setConnectionType(ConnectionType.OWNS_CONNECTION))
-        .build();
+    private static final TopologyEntityDTO EMPTY_DATABASE_SERVER =
+            constructTopologyEntity(EMPTY_DB_SERVER_ID, DEFAULT_NAME, EntityType.DATABASE_VALUE)
+                .build();
 
-    private static final Stream<TopologyEntityDTO> topologyStream =
-        Stream.of(VM, EMPTY_VM, DATABASE, DATABASE_SERVER, EMPTY_DATABASE, EMPTY_DATABASE_SERVER, AZ, COMPUTE_TIER, DATABASE_TIER,
-            DATABASE_SERVER_TIER, STORAGE_TIER, EMPTY_STORAGE_TIER, VOLUME, REGION, BUSINESS_ACCOUNT, SERVICE);
+    private static final TopologyEntityDTO BUSINESS_ACCOUNT =
+            constructTopologyEntity(ACCOUNT_ID, "businessAccount", EntityType.BUSINESS_ACCOUNT_VALUE)
+                .addConnectedEntityList(
+                        ConnectedEntity.newBuilder()
+                            .setConnectedEntityId(VM_ID)
+                            .setConnectedEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                            .setConnectionType(ConnectionType.OWNS_CONNECTION))
+                .build();
 
-    private static final TopologyEntityCloudTopology cloudTopology = new TopologyEntityCloudTopology(topologyStream);
-    private static long globalOid = 1000;
+    private static final Stream<TopologyEntityDTO> TOPOLOGY_STREAM =
+        Stream.of(VM, EMPTY_VM, DATABASE, DATABASE_SERVER, EMPTY_DATABASE, EMPTY_DATABASE_SERVER, AZ,
+                  COMPUTE_TIER, DATABASE_TIER, DATABASE_SERVER_TIER, STORAGE_TIER, EMPTY_STORAGE_TIER,
+                  VOLUME, REGION, BUSINESS_ACCOUNT, SERVICE);
 
-    private static long getNextOid(){
-        return ++globalOid;
-    }
+    private static final TopologyEntityCloudTopology CLOUD_TOPOLOGY =
+            new TopologyEntityCloudTopology(TOPOLOGY_STREAM);
 
-    private static Builder constructTopologyEntity(String displayName, int eType){
+    private static Builder constructTopologyEntity(long oid, String displayName, int eType) {
         return TopologyEntityDTO.newBuilder()
-            .setOid(getNextOid())
+            .setOid(oid)
             .setDisplayName(displayName)
             .setEntityType(eType);
     }
+
     @Test
     public void testGetEntityOid() {
-        assertThat(cloudTopology.getEntity(VM.getOid()), is(Optional.of(VM)));
+        assertThat(CLOUD_TOPOLOGY.getEntity(VM.getOid()), is(Optional.of(VM)));
     }
 
     @Test
     public void testGetEntityComputeTier() {
-        assertThat(cloudTopology.getComputeTier(VM.getOid()), is(Optional.of(COMPUTE_TIER)));
+        assertThat(CLOUD_TOPOLOGY.getComputeTier(VM.getOid()), is(Optional.of(COMPUTE_TIER)));
     }
 
     @Test
     public void testGetEmptyEntityComputeTier() {
-        Assert.assertFalse(cloudTopology.getComputeTier(EMPTY_VM.getOid()).isPresent());
+        Assert.assertFalse(CLOUD_TOPOLOGY.getComputeTier(EMPTY_VM.getOid()).isPresent());
     }
 
     @Test
     public void testGetEntityDatabaseTier() {
-        assertThat(cloudTopology.getDatabaseTier(DATABASE.getOid()), is(Optional.of(DATABASE_TIER)));
+        assertThat(CLOUD_TOPOLOGY.getDatabaseTier(DATABASE.getOid()), is(Optional.of(DATABASE_TIER)));
     }
 
     @Test
     public void testGetEmptyEntityDatabaseTier() {
-        Assert.assertFalse(cloudTopology.getDatabaseTier(EMPTY_DATABASE.getOid()).isPresent());
+        Assert.assertFalse(CLOUD_TOPOLOGY.getDatabaseTier(EMPTY_DATABASE.getOid()).isPresent());
     }
 
     /**
@@ -216,7 +250,7 @@ public class TopologyEntityCloudTopologyTest {
      */
     @Test
     public void testGetEntityDatabaseServerTier() {
-        assertThat(cloudTopology.getDatabaseServerTier(DATABASE_SERVER.getOid()), is(Optional.of(DATABASE_SERVER_TIER)));
+        assertThat(CLOUD_TOPOLOGY.getDatabaseServerTier(DATABASE_SERVER.getOid()), is(Optional.of(DATABASE_SERVER_TIER)));
     }
 
     /**
@@ -224,73 +258,73 @@ public class TopologyEntityCloudTopologyTest {
      */
     @Test
     public void testGetEmptyEntityDatabaseServerTier() {
-        Assert.assertFalse(cloudTopology.getDatabaseTier(EMPTY_DATABASE_SERVER.getOid()).isPresent());
+        Assert.assertFalse(CLOUD_TOPOLOGY.getDatabaseTier(EMPTY_DATABASE_SERVER.getOid()).isPresent());
     }
 
     @Test
     public void testGetEntityRegionViaAZ() {
-        assertThat(cloudTopology.getConnectedRegion(VM.getOid()), is(Optional.of(REGION)));
+        assertThat(CLOUD_TOPOLOGY.getConnectedRegion(VM.getOid()), is(Optional.of(REGION)));
     }
 
     @Test
     public void testGetEntityAZ() {
-        assertThat(cloudTopology.getConnectedAvailabilityZone(VM.getOid()), is(Optional.of(AZ)));
+        assertThat(CLOUD_TOPOLOGY.getConnectedAvailabilityZone(VM.getOid()), is(Optional.of(AZ)));
     }
 
     @Test
     public void testGetRegionDirectly() {
-        assertThat(cloudTopology.getConnectedRegion(COMPUTE_TIER.getOid()), is(Optional.of(REGION)));
+        assertThat(CLOUD_TOPOLOGY.getConnectedRegion(COMPUTE_TIER.getOid()), is(Optional.of(REGION)));
     }
 
     @Test
     public void testGetOwnedBy() {
-        assertThat(cloudTopology.getOwner(VM.getOid()), is(Optional.of(BUSINESS_ACCOUNT)));
+        assertThat(CLOUD_TOPOLOGY.getOwner(VM.getOid()), is(Optional.of(BUSINESS_ACCOUNT)));
     }
 
     @Test
     public void testGetService() {
-        assertThat(cloudTopology.getConnectedService(COMPUTE_TIER.getOid()), is(Optional.of(SERVICE)));
+        assertThat(CLOUD_TOPOLOGY.getConnectedService(COMPUTE_TIER.getOid()), is(Optional.of(SERVICE)));
     }
 
     @Test
     public void testGetServiceWithService() {
-        assertThat(cloudTopology.getConnectedService(SERVICE.getOid()), is(Optional.of(SERVICE)));
+        assertThat(CLOUD_TOPOLOGY.getConnectedService(SERVICE.getOid()), is(Optional.of(SERVICE)));
     }
 
     @Test
     public void testGetConnectedVolumes() {
-        assertThat(cloudTopology.getConnectedVolumes(VM.getOid()), is(Collections.singletonList(VOLUME)));
+        assertThat(CLOUD_TOPOLOGY.getConnectedVolumes(VM.getOid()), is(Collections.singletonList(VOLUME)));
     }
 
     @Test
     public void testGetVmStorageTier() {
-        assertThat(cloudTopology.getStorageTier(VM.getOid()).get().getEntityType(),
+        assertThat(CLOUD_TOPOLOGY.getStorageTier(VM.getOid()).get().getEntityType(),
             is(Optional.of(STORAGE_TIER).get().getEntityType()));
     }
 
     @Test
     public void testGetVolumeStorageTier() {
-        assertThat(cloudTopology.getStorageTier(VOLUME.getOid()).get().getEntityType(),
+        assertThat(CLOUD_TOPOLOGY.getStorageTier(VOLUME.getOid()).get().getEntityType(),
             is(Optional.of(STORAGE_TIER).get().getEntityType()));
     }
 
     @Test
     public void testGetEmptyEntityStorageTier() {
-        Assert.assertFalse(cloudTopology.getStorageTier(EMPTY_STORAGE_TIER.getOid()).isPresent());
+        Assert.assertFalse(CLOUD_TOPOLOGY.getStorageTier(EMPTY_STORAGE_TIER.getOid()).isPresent());
     }
 
     @Test
     public void testGetAllEntities() {
-        final List<TopologyEntityDTO> allRegions = cloudTopology.getAllRegions();
+        final List<TopologyEntityDTO> allRegions = CLOUD_TOPOLOGY.getAllRegions();
         Assert.assertEquals(1, allRegions.size());
-        final List<TopologyEntityDTO> allVMs = cloudTopology
+        final List<TopologyEntityDTO> allVMs = CLOUD_TOPOLOGY
             .getAllEntitiesOfType(EntityType.VIRTUAL_MACHINE_VALUE);
         Assert.assertEquals(2, allVMs.size());
         Set<Integer> entityTypeSet = Sets.newHashSet(EntityType.VIRTUAL_MACHINE_VALUE,
             EntityType.STORAGE_VALUE);
-        final List<TopologyEntityDTO> allEntitesOfTypes = cloudTopology.getAllEntitiesOfType(entityTypeSet);
+        final List<TopologyEntityDTO> allEntitesOfTypes = CLOUD_TOPOLOGY.getAllEntitiesOfType(entityTypeSet);
         Assert.assertEquals(2, allEntitesOfTypes.size());
         // testing the number of entities defined in the test
-        Assert.assertEquals(16, cloudTopology.size());
+        Assert.assertEquals(16, CLOUD_TOPOLOGY.size());
     }
 }

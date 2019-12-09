@@ -136,7 +136,7 @@ public class CostDTOCreatorTest {
         Mockito.doReturn(netCommSpecTO).when(converter)
                 .commoditySpecification(netTpCommType);
         AccountPricingData accountPricingData = Mockito.mock(AccountPricingData.class);
-        DatabasePriceBundle databasePriceBundle = DatabasePriceBundle.newBuilder().addPrice(BA_ID, DatabaseEngine.MYSQL, DatabaseEdition.ORACLE_STANDARD,
+        DatabasePriceBundle databasePriceBundle = DatabasePriceBundle.newBuilder().addPrice(BA_ID, DatabaseEngine.MYSQL, DatabaseEdition.STANDARD,
                 DeploymentType.MULTI_AZ, LicenseModel.BRING_YOUR_OWN_LICENSE, 0.4).build();
         when(marketPriceTable.getDatabasePriceBundle(TIER_ID, REGION_ID, accountPricingData)).thenReturn(databasePriceBundle);
         ComputePriceBundle computeBundle = ComputePriceBundle.newBuilder()

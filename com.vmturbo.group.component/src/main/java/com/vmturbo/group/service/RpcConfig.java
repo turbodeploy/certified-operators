@@ -13,29 +13,32 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTOREST.GroupServiceController;
 import com.vmturbo.common.protobuf.group.PolicyDTOREST.PolicyServiceController;
+import com.vmturbo.common.protobuf.schedule.ScheduleProtoREST.ScheduleServiceController;
 import com.vmturbo.common.protobuf.setting.SettingProtoREST.SettingPolicyServiceController;
 import com.vmturbo.common.protobuf.setting.SettingProtoREST.SettingServiceController;
+import com.vmturbo.group.GroupComponentDBConfig;
 import com.vmturbo.group.IdentityProviderConfig;
 import com.vmturbo.group.group.GroupConfig;
 import com.vmturbo.group.policy.PolicyConfig;
+import com.vmturbo.group.schedule.ScheduleConfig;
 import com.vmturbo.group.setting.SettingConfig;
 import com.vmturbo.group.stitching.GroupStitchingManager;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
 @Import({ActionOrchestratorClientConfig.class,
+        GroupComponentDBConfig.class,
         GroupConfig.class,
         IdentityProviderConfig.class,
         PolicyConfig.class,
         RepositoryClientConfig.class,
         SettingConfig.class,
-        SQLDatabaseConfig.class,
+        ScheduleConfig.class,
         UserSessionConfig.class})
 public class RpcConfig {
 
     @Autowired
-    private SQLDatabaseConfig databaseConfig;
+    private GroupComponentDBConfig databaseConfig;
 
     @Autowired
     private GroupConfig groupConfig;
@@ -48,6 +51,9 @@ public class RpcConfig {
 
     @Autowired
     private SettingConfig settingConfig;
+
+    @Autowired
+    private ScheduleConfig scheduleConfig;
 
     @Autowired
     private RepositoryClientConfig repositoryClientConfig;
@@ -143,4 +149,13 @@ public class RpcConfig {
         return new SettingPolicyServiceController(settingPolicyService());
     }
 
+    @Bean
+    public ScheduleRpcService scheduleService() {
+        return new ScheduleRpcService(scheduleConfig.scheduleStore());
+    }
+
+    @Bean
+    public ScheduleServiceController scheduleServiceController() {
+        return new ScheduleServiceController(scheduleService());
+    }
 }

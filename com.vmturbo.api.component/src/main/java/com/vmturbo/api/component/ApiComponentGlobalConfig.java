@@ -18,8 +18,10 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
+import com.vmturbo.api.component.external.api.interceptor.DevFreemiumInterceptor;
 import com.vmturbo.api.component.external.api.interceptor.LicenseInterceptor;
 import com.vmturbo.api.component.external.api.interceptor.TracingInterceptor;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
 import com.vmturbo.api.interceptors.TelemetryInterceptor;
 import com.vmturbo.api.serviceinterfaces.IAppVersionInfo;
@@ -97,6 +99,23 @@ public class ApiComponentGlobalConfig extends WebMvcConfigurerAdapter {
             // exclude "/" so that redirection from "/" to "/app/index.html" works
             // as defined in ExternalApiConfig
             .excludePathPatterns("/");
+        registry.addInterceptor(devFreemiumInterceptor())
+            .addPathPatterns("/actions/**")
+            .addPathPatterns("/businessunits/**")
+            .addPathPatterns("/deploymentprofiles/**")
+            .addPathPatterns("/entities/*/actions/**")
+            .addPathPatterns("/groups/*/actions/**")
+            .addPathPatterns("/markets/**")
+            .addPathPatterns("/plandestinations/**")
+            .addPathPatterns("/policies/**")
+            .addPathPatterns("/pricelists/**")
+            .addPathPatterns("/reports/**")
+            .addPathPatterns("/reservations/**")
+            .addPathPatterns("/search/" + UuidMapper.UI_REAL_TIME_MARKET_STR + "/**")
+            .addPathPatterns("/settings/**")
+            .addPathPatterns("/settingspolicies/**")
+            .addPathPatterns("/stats/**")
+            .addPathPatterns("/templates/**");
         registry.addInterceptor(restTracingInterceptor());
     }
 
@@ -142,6 +161,15 @@ public class ApiComponentGlobalConfig extends WebMvcConfigurerAdapter {
         return new LicenseInterceptor(licenseCheckClientConfig.licenseCheckClient());
     }
 
+    /**
+     * Create an interceptor to check if the current request is allowed based on the license used.
+     *
+     * @return A {@link DevFreemiumInterceptor} instance.
+     */
+    @Bean
+    public DevFreemiumInterceptor devFreemiumInterceptor() {
+        return new DevFreemiumInterceptor(licenseCheckClientConfig.licenseCheckClient());
+    }
     /**
      * Implement the {@link IAppVersionInfo} to provide version info to the {@link TelemetryInterceptor}.
      */

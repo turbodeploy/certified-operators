@@ -204,6 +204,17 @@ public class TopologyEntity implements TopologyGraphEntity<TopologyEntity>, Jour
 
     @Nonnull
     @Override
+    public Stream<String> getAllVendorIds() {
+        return hasDiscoveryOrigin() ?
+            entityBuilder.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap().values()
+                .stream()
+                .filter(PerTargetEntityInformation::hasVendorId)
+                .map(PerTargetEntityInformation::getVendorId) :
+            Stream.empty();
+    }
+
+    @Nonnull
+    @Override
     public Map<Integer, CommoditySoldDTO> soldCommoditiesByType() {
         return entityBuilder.getCommoditySoldListList().stream()
             .collect(Collectors.toMap(commSold -> commSold.getCommodityType().getType(), Function.identity()));

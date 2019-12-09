@@ -7,10 +7,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
+
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -25,7 +28,6 @@ import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeveri
 
 public class SeverityPopulator {
     private static final Logger logger = LogManager.getLogger();
-
     private final EntitySeverityServiceBlockingStub severityService;
 
     public SeverityPopulator(@Nonnull final EntitySeverityServiceBlockingStub severityService) {
@@ -35,37 +37,45 @@ public class SeverityPopulator {
     /**
      * Populate the severity for a single service entity.
      * If the AO has no action information for an entity, its severity will be set to NORMAL.
-     * If the ActionOrchestrator is unreachable, severity will not be populated.
+     * If the ActionOrchestrator is unreachable for any reason, severity will be set to NORMAL.
      *
      * @param topologyContextId The ID of the topology context from which to retrieve the severity.
      * @param entity The DTO whose severity should be updated.
-     * @return The updated DTOs.
+     * @return The updated DTO.
      */
+    @Nonnull
     public ServiceEntityApiDTO populate(final long topologyContextId,
                                         @Nonnull final ServiceEntityApiDTO entity) {
         return populate(topologyContextId, Collections.singleton(entity)).iterator().next();
     }
 
+    /**
+     * Populate the severity for a list of service entities.
+     * If the AO has no action information for an entity, its severity will be set to NORMAL.
+     * If the ActionOrchestrator is unreachable for any reason, severity will be set to NORMAL.
+     *
+     * @param topologyContextId The ID of the topology context from which to retrieve the severity.
+     * @param entityDtos A collection of {@link ServiceEntityApiDTO} whose severity should be updated.
+     * @return The updated DTOs.
+     */
     @Nonnull
     public Collection<ServiceEntityApiDTO> populate(final long topologyContextId,
         @Nonnull final Collection<ServiceEntityApiDTO> entityDtos) {
-        try {
-            final SeverityMap severityMap = new SeverityMap(getSeverities(
-                entityDtos.stream().map(ServiceEntityApiDTO::getUuid).map(Long::parseLong).collect(Collectors.toList()),
-                topologyContextId));
-            entityDtos.forEach(entityDto -> entityDto.setSeverity(
-                severityMap.getSeverity(Long.parseLong(entityDto.getUuid()))));
-        } catch (RuntimeException e) {
-            logger.error("Error requesting severity from action orchestrator: {}", e);
-        }
-
+        final SeverityMap severityMap = new SeverityMap(calculateSeverities(
+            topologyContextId,
+            entityDtos.stream()
+                .map(ServiceEntityApiDTO::getUuid)
+                .map(Long::parseLong)
+                .collect(Collectors.toList())));
+        entityDtos.forEach(entityDto -> entityDto.setSeverity(
+            severityMap.getSeverity(Long.parseLong(entityDto.getUuid()))));
         return entityDtos;
     }
 
     /**
      * Populate the severities for all entities in the SupplyChain. If the action orchestrator cannot
      * find a severity for an entity in the SupplyChain, its Severity will be set to NORMAL.
-     * If the ActionOrchestrator is unreachable, the severity will not be populated.
+     * If the ActionOrchestrator is unreachable any reason, the severity will be set to NORMAL.
      *
      * @param topologyContextId The ID of the topology context from which to retrieve the severity.
      * @param supplychainApiDTO The supply chain whose entities should be populated.
@@ -74,26 +84,22 @@ public class SeverityPopulator {
     @Nonnull
     public SupplychainApiDTO populate(final long topologyContextId,
                                       @Nonnull final SupplychainApiDTO supplychainApiDTO) {
-        try {
-            final Set<Long> supplyChainEntityIds = supplychainApiDTO.getSeMap().values().stream()
-                .filter(Objects::nonNull)
-                .flatMap(supplychainEntryDTO ->
-                    supplychainEntryDTO.getInstances().keySet().stream().map(Long::parseLong))
-                .collect(Collectors.toSet());
+        final Set<Long> supplyChainEntityIds = supplychainApiDTO.getSeMap().values().stream()
+            .filter(Objects::nonNull)
+            .flatMap(supplychainEntryDTO ->
+                supplychainEntryDTO.getInstances().keySet().stream().map(Long::parseLong))
+            .collect(Collectors.toSet());
 
-            final SeverityMap severityMap = new SeverityMap(getSeverities(supplyChainEntityIds, topologyContextId));
+        final SeverityMap severityMap = new SeverityMap(calculateSeverities(
+            topologyContextId, supplyChainEntityIds));
 
-            supplychainApiDTO.getSeMap().forEach((entityType, supplychainEntryDTO) -> {
-                if (supplychainEntryDTO != null) {
-                    supplychainEntryDTO.getInstances().forEach((id, serviceEntityDTO) -> {
-                        serviceEntityDTO.setSeverity(severityMap.getSeverity(Long.parseLong(id)));
-                    });
-                }
-            });
-        } catch (RuntimeException e) {
-            logger.error("Error requesting severity from action orchestrator: {}", e);
-        }
-
+        supplychainApiDTO.getSeMap().forEach((entityType, supplychainEntryDTO) -> {
+            if (supplychainEntryDTO != null) {
+                supplychainEntryDTO.getInstances().forEach((id, serviceEntityDTO) -> {
+                    serviceEntityDTO.setSeverity(severityMap.getSeverity(Long.parseLong(id)));
+                });
+            }
+        });
         return supplychainApiDTO;
     }
 
@@ -105,8 +111,9 @@ public class SeverityPopulator {
      * @return a mapping between entity id and corresponding severity.
      */
     @Nonnull
-    public Map<Long, Severity> calculateSeverities(final long topologyContextId,
+    public Map<Long, Optional<Severity>> calculateSeverities(final long topologyContextId,
                                                 @Nonnull final Collection<Long> entityOids) {
+        try {
             return severityService.getEntitySeverities(
                 MultiEntityRequest.newBuilder()
                     .setTopologyContextId(topologyContextId)
@@ -114,7 +121,21 @@ public class SeverityPopulator {
                     .build())
                 .getEntitySeverityList().stream()
                 .collect(Collectors.toMap(EntitySeverity::getEntityId,
-                    EntitySeverity::getSeverity));
+                    entitySeverity -> entitySeverity.hasSeverity() ?
+                        Optional.of(entitySeverity.getSeverity()) : Optional.empty()));
+        } catch (RuntimeException e) {
+            if (e instanceof StatusRuntimeException) {
+                // This is a gRPC StatusRuntimeException
+                Status status = ((StatusRuntimeException)e).getStatus();
+                logger.warn("Unable to fetch severities: {} caused by {}.",
+                        status.getDescription(), status.getCause());
+            } else {
+                logger.error("Error when fetching severities: ", e);
+            }
+        }
+        return entityOids.stream()
+                .collect(Collectors.toMap(Function.identity(),
+                        id -> Optional.of(Severity.NORMAL)));
     }
 
     /**
@@ -140,19 +161,26 @@ public class SeverityPopulator {
             // Calculate the highest severity based on enum value: NORMAL(1), MINOR(2), MAJOR(3), CRITICAL(4)
             return Optional.ofNullable(severitiesList
                     .stream()
-                    .map(entitySeverity -> entitySeverity.getSeverity())
+                    .map(EntitySeverity::getSeverity)
                     .reduce(Severity.NORMAL, (first, second)
                             -> first.getNumber() > second.getNumber() ? first : second));
         } catch (RuntimeException e) {
-            logger.error("Error requesting severity from action orchestrator: {}", e);
+            if (e instanceof StatusRuntimeException) {
+                // This is a gRPC StatusRuntimeException
+                Status status = ((StatusRuntimeException)e).getStatus();
+                logger.warn("Unable to fetch severities: {} caused by {}.",
+                        status.getDescription(), status.getCause());
+            } else {
+                logger.error("Error when fetching severities: ", e);
+            }
         }
-        return Optional.empty();
+        return Optional.of(Severity.NORMAL);
     }
 
     /**
      * Populate a map of entity ids to their corresponding optional ServiceEntityApiDTOs.
      * If the AO has no action information for an entity, its severity will be set to NORMAL.
-     * If the ActionOrchestrator is unreachable, the severity will not be populated.
+     * If the ActionOrchestrator is unreachable, the severity will be set to NORMAL.
      *
      * @param topologyContextId The ID of the topology context from which to retrieve the severity.
      * @param entityDTOs A map of ids -> corresponding ServiceEntityApiDTO whose severities should be populated.
@@ -161,14 +189,9 @@ public class SeverityPopulator {
     @Nonnull
     public Map<Long, ServiceEntityApiDTO> populate(final long topologyContextId,
                                                    @Nonnull final Map<Long, ServiceEntityApiDTO> entityDTOs) {
-        try {
-            final SeverityMap severityMap = new SeverityMap(getSeverities(
-                entityDTOs.keySet(), topologyContextId));
-            entityDTOs.forEach((entityId, dto) -> dto.setSeverity(severityMap.getSeverity(entityId)));
-        } catch (RuntimeException e) {
-            logger.error("Error requesting severity from action orchestrator: {}", e);
-        }
-
+        final SeverityMap severityMap = new SeverityMap(calculateSeverities(
+            topologyContextId, entityDTOs.keySet()));
+        entityDTOs.forEach((entityId, dto) -> dto.setSeverity(severityMap.getSeverity(entityId)));
         return entityDTOs;
     }
 
@@ -198,20 +221,4 @@ public class SeverityPopulator {
         }
     }
 
-    private Map<Long, Optional<Severity>> getSeverities(@Nonnull final Collection<Long> entityIds,
-                                                               final long topologyContextId)
-    {
-        List<EntitySeverity> severitiesList = severityService.getEntitySeverities(
-                MultiEntityRequest.newBuilder()
-                        .setTopologyContextId(topologyContextId)
-                        .addAllEntityIds(entityIds)
-                        .build())
-                .getEntitySeverityList();
-
-        return StreamSupport.stream(severitiesList.spliterator(), false)
-            .collect(Collectors.toMap(
-                EntitySeverity::getEntityId,
-                entitySeverity -> entitySeverity.hasSeverity() ? Optional.of(entitySeverity.getSeverity()) : Optional.empty()
-            ));
-    }
 }

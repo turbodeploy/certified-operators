@@ -168,11 +168,18 @@ public class SdkToProbeActionsConverter {
     private static ProbeActionCapability.ActionCapabilityElement convertSdkPolicyElementToXl(
             @Nonnull ActionPolicyDTO.ActionPolicyElement sdkPolicyElement) {
         Objects.requireNonNull(sdkPolicyElement);
-        final ActionCapabilityElement.Builder builder =
-                CAPABILITY_CREATORS.get(sdkPolicyElement.getActionType()).get();
-        if (builder.getActionType() == ActionType.NONE) {
-            logger.debug(sdkPolicyElement.getActionType() + " was mapped into ActionType.NONE! " +
-                    "Sdk policy element: " + sdkPolicyElement);
+        ActionCapabilityElement.Builder builder;
+        if (sdkPolicyElement.getActionType() == null ||
+                CAPABILITY_CREATORS.get(sdkPolicyElement.getActionType()) == null) {
+            logger.warn("Failed to get action capability for action type: " +
+                    sdkPolicyElement.getActionType());
+            builder = CAPABILITY_CREATORS.get(ActionItemDTO.ActionType.NONE).get();
+        } else {
+            builder = CAPABILITY_CREATORS.get(sdkPolicyElement.getActionType()).get();
+            if (builder.getActionType() == ActionType.NONE) {
+                logger.debug(sdkPolicyElement.getActionType() + " was mapped into ActionType.NONE! " +
+                        "Sdk policy element: " + sdkPolicyElement);
+            }
         }
         builder.setActionCapability(convert(sdkPolicyElement.getActionCapability()));
         return builder.build();

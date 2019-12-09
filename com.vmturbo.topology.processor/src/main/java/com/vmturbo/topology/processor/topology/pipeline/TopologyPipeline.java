@@ -24,9 +24,10 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
 /**
  * A {@link TopologyPipeline} captures the different stages required to build and broadcast
  * a topology out of the topology processor. {@link TopologyPipeline}s are built in the
- * {@link TopologyPipelineFactory}.
- * <p>
- * The pipeline consists of a set of {@link Stage}s. The output of one stage becomes the input
+ * {@link LivePipelineFactory} for realtime pipelines, and {@link PlanPipelineFactory} for
+ * plan pipelines.
+ *
+ * <p>The pipeline consists of a set of {@link Stage}s. The output of one stage becomes the input
  * to the next {@link Stage}. There is some (minimal) shared state between the stages, represented
  * by the {@link TopologyPipelineContext}. The stages are executed one at a time. In the future
  * we can add parallel execution of certain subsets of the pipeline, but that's not necessary

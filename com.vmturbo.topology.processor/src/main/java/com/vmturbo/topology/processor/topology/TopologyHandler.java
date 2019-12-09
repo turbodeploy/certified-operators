@@ -25,8 +25,8 @@ import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
+import com.vmturbo.topology.processor.topology.pipeline.LivePipelineFactory;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.TopologyPipelineException;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory;
 
 /**
  * Stores topology snapshots per-target and broadcasts the results to listening components.
@@ -47,7 +47,7 @@ public class TopologyHandler {
 
     private final TargetStore targetStore;
 
-    private TopologyPipelineFactory topologyPipelineFactory;
+    private LivePipelineFactory livePipelineFactory;
 
     private final Set<String> wastedFilesProbeTypes =
         ImmutableSet.of(SDKProbeType.AZURE_STORAGE_BROWSE.getProbeType(),
@@ -55,7 +55,7 @@ public class TopologyHandler {
             SDKProbeType.VC_STORAGE_BROWSE.getProbeType());
 
     public TopologyHandler(final long realtimeTopologyContextId,
-                           @Nonnull final TopologyPipelineFactory topologyPipelineFactory,
+                           @Nonnull final LivePipelineFactory livePipelineFactory,
                            @Nonnull final IdentityProvider identityProvider,
                            @Nonnull final EntityStore entityStore,
                            @Nonnull final ProbeStore probeStore,
@@ -63,7 +63,7 @@ public class TopologyHandler {
                            @Nonnull final Clock clock) {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.identityProvider = Objects.requireNonNull(identityProvider);
-        this.topologyPipelineFactory = Objects.requireNonNull(topologyPipelineFactory);
+        this.livePipelineFactory = Objects.requireNonNull(livePipelineFactory);
         this.entityStore = Objects.requireNonNull(entityStore);
         this.probeStore = Objects.requireNonNull(probeStore);
         this.targetStore = Objects.requireNonNull(targetStore);
@@ -93,7 +93,7 @@ public class TopologyHandler {
             tinfo.addAnalysisType(AnalysisType.WASTED_FILES);
         }
 
-        return topologyPipelineFactory.liveTopology(tinfo.build(), Collections.emptyList(), journalFactory)
+        return livePipelineFactory.liveTopology(tinfo.build(), Collections.emptyList(), journalFactory)
                 .run(entityStore);
     }
 

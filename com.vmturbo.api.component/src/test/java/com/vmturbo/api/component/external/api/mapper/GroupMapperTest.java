@@ -80,8 +80,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
-import com.vmturbo.common.protobuf.search.Search.ClusterMembershipFilter;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
+import com.vmturbo.common.protobuf.search.Search.GroupMembershipFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
@@ -463,11 +463,11 @@ public class GroupMapperTest {
         assertEquals(1, parameters.size());
         SearchParameters param = parameters.get(0);
         // verify that the Cluster Membership Filter was created
-        assertTrue(param.getSearchFilter(0).hasClusterMembershipFilter());
-        ClusterMembershipFilter clusterMembershipFilter =
-                        param.getSearchFilter(0).getClusterMembershipFilter();
+        assertTrue(param.getSearchFilter(0).hasGroupMembershipFilter());
+        final GroupMembershipFilter clusterMembershipFilter =
+                        param.getSearchFilter(0).getGroupMembershipFilter();
         // verify that we are looking for clusters with name FOO
-        assertEquals("^" + FOO + "$", clusterMembershipFilter.getClusterSpecifier()
+        assertEquals("^" + FOO + "$", clusterMembershipFilter.getGroupSpecifier()
                         .getStringFilter().getStringPropertyRegex());
 
         // test conversion from GroupApiDTO back to FilterApiDTO

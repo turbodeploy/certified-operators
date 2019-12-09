@@ -2165,7 +2165,8 @@ public class TopologyConverter {
 
             TopologyEntityDTO region = cloudTc.getRegionOfCloudConsumer(topologyEntity);
             if (providerTopologyEntity.getEntityType() == EntityType.COMPUTE_TIER_VALUE &&
-                    coverage.isPresent() && region != null) {
+                    coverage.isPresent() && !coverage.get().getCouponsCoveredByRiMap().isEmpty()
+                    && region != null) {
                 long riId = coverage.get().getCouponsCoveredByRiMap().keySet().iterator().next();
                 final ReservedInstanceData riData = cloudTc.getRiDataById(riId);
                 final TopologyEntityDTO computeTier =
@@ -2220,6 +2221,13 @@ public class TopologyConverter {
             usedQuantity = 0;
         }
         usedQuantity *= topologyCommBought.getScalingFactor();
+
+        // Bought Flow-0 commodity must have quantity of 1.
+        if (topologyCommBought.getCommodityType().getType() ==
+            CommodityDTO.CommodityType.FLOW_VALUE &&
+            "FLOW-0".equals(topologyCommBought.getCommodityType().getKey())) {
+            usedQuantity = 1D;
+        }
 
         if (peakQuantity < 0) {
             // We don't want to log every time we get peak = -1 because mediation

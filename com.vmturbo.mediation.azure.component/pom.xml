@@ -41,6 +41,17 @@
                                     <outputDirectory>${project.build.directory}/probe-jars/probe</outputDirectory>
                                     <version>${project.version}</version>
                                 </artifactItem>
+                                <artifactItem>
+                                    <!-- Azure mediation artifact (.zip) contains a resource folder that must be
+                                    placed into 'probe-jars/probe' folder as well. -->
+                                    <groupId>com.vmturbo</groupId>
+                                    <artifactId>com.vmturbo.mediation.azure</artifactId>
+                                    <version>${project.version}</version>
+                                    <type>zip</type>
+                                    <overWrite>false</overWrite>
+                                    <outputDirectory>${project.build.directory}/probe-jars/probe</outputDirectory>
+                                    <excludes>**/*.jar,**/*.xml</excludes>
+                                </artifactItem>
                             </artifactItems>
                         </configuration>
                     </execution>

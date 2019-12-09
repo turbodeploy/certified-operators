@@ -5,18 +5,15 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import jdk.nashorn.internal.ir.annotations.Immutable;
-
+import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
-import com.vmturbo.cost.component.identity.IdentityProvider;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
-@Import({SQLDatabaseConfig.class, IdentityProviderConfig.class})
+@Import({CostDBConfig.class, IdentityProviderConfig.class})
 public class DiscountConfig {
 
     @Autowired
-    private SQLDatabaseConfig databaseConfig;
+    private CostDBConfig databaseConfig;
 
     @Autowired
     private IdentityProviderConfig identityProviderConfig;

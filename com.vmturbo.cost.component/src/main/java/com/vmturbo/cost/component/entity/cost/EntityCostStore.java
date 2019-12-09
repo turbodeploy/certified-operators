@@ -7,11 +7,12 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.cost.component.util.CostFilter;
-import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.sql.utils.DbException;
 
 /**
@@ -84,4 +85,19 @@ public interface EntityCostStore {
      */
     Map<Long,Map<Long,EntityCost>> getLatestEntityCost(@Nonnull final Set<Long> entityIds,
                                                        @Nonnull final Set<Integer> entityTypeIds) throws DbException;
+
+
+    /**
+     * Get the latest cost based on a cost category and a set of cost sources.
+     *
+     * @param entityId The entity oid.
+     * @param category The cost category ie On Demand Compute, Storage etc.
+     * @param costSources Set of cost sources.
+     *
+     * @return map of entity oid to entity cost.
+     *
+     * @throws DbException if anything goes wrong in the database
+     */
+    Map<Long, EntityCost> getLatestEntityCost(@Nonnull Long entityId, @Nonnull CostCategory category,
+                                              @Nonnull Set<CostSource> costSources) throws DbException;
 }

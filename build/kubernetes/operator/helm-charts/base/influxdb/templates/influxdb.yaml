@@ -42,11 +42,17 @@ metadata:
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: 1
   strategy:
     type: Recreate
   template:
     metadata:
+{{- if .Values.global }}
+  {{- with .Values.global.annotations }}
+      annotations:
+{{- toYaml . | nindent 8 }}
+  {{- end }}
+{{- end }}
       labels:
         zone: secure
         app.kubernetes.io/name: {{ .Chart.Name }}
@@ -62,6 +68,11 @@ spec:
         ports:
           - containerPort: 8086
           - containerPort: 8088
+        livenessProbe:
+          tcpSocket:
+            port: 8086
+          periodSeconds: 60
+          failureThreshold: 60
         readinessProbe:
           tcpSocket:
             port: 8086
@@ -84,10 +95,20 @@ spec:
       imagePullSecrets:
       - name: turbocred
   {{- end -}}
+  {{- with .Values.global.nodeSelector }}
+      nodeSelector:
+{{- toYaml . | nindent 8 }}
+  {{- end }}
+  {{- with .Values.global.affinity }}
+      affinity:
+{{- toYaml . | nindent 8 }}
+  {{- end }}
+  {{- with .Values.global.tolerations }}
+      tolerations:
+{{- toYaml . | nindent 8 }}
+  {{- end }}
 {{- end }}
       restartPolicy: Always
-      securityContext:
-        fsGroup: 2000
       volumes:
       - name: influxdb
         persistentVolumeClaim:

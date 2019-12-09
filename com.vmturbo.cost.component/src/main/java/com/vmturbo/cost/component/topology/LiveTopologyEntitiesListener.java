@@ -125,8 +125,6 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
 
     // store the mapping between business account id to discovered target id
     private void storeBusinessAccountIdToTargetIdMapping(@Nonnull final Map<Long, TopologyEntityDTO> cloudEntities) {
-        //clean up old businessAccounts.
-        businessAccountHelper.resetBusinessAccounts();
         for (TopologyEntityDTO entityDTO : cloudEntities.values()) {
             // If the entity is a business account, store the discovered target id.
             if (entityDTO.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE) {

@@ -15,9 +15,11 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.jooq.Query;
 import org.jooq.Record;
 import org.jooq.Result;
 import org.jooq.Table;
+import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
@@ -83,7 +85,15 @@ public class ReservedInstanceUtilizationStore {
                         .map(ri -> createReservedInstanceUtilizationRecord(context, ri, currentTime,
                                 riSpecIdToRegionMap, riUsedCouponsMap))
                         .collect(Collectors.toList());
-        context.batchInsert(riUtilizationRecords).execute();
+
+        final Query[] insertsWithDuplicates = riUtilizationRecords.stream().map(
+                                       record -> DSL.using(context.configuration())
+                                           .insertInto(Tables.RESERVED_INSTANCE_UTILIZATION_LATEST)
+                                           .set(record)
+                                           .onDuplicateKeyUpdate()
+                                           .set(record))
+                               .toArray(Query[]::new);
+        context.batch(insertsWithDuplicates).execute();
     }
 
     /**

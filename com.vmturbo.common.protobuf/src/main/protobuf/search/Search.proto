@@ -7,6 +7,7 @@ import "common/EnvironmentTypeEnum.proto";
 import "common/Pagination.proto";
 import "topology/TopologyDTO.proto";
 import "tag/Tag.proto";
+import "CommonDTO.proto";
 
 // A search definition that needs to be performed on a topology, represented as a DAG.
 message SearchParameters {
@@ -39,14 +40,12 @@ message SearchFilter {
     // There are 3 types of filters.
     // - traversal filter: used to traverse graph relationship
     // - property filter: used to specify specific criteria on properties of the element
-    // - cluster membership filter: this is a special-case filter that will target members of
-    // a cluster or set of clusters. This means storages or pm's. When you combine cluster filters
-    // with other filter types, take care to ensure that the input to cluster filters
-    // are storages or pm's, or you may get unexpected results (probably no results at all!).
+    // - group membership filter: this is a special-case filter that will target members of
+    // a group or set of groups.
     oneof filterType {
         TraversalFilter traversal_filter = 1;
         PropertyFilter property_filter = 2;
-        ClusterMembershipFilter cluster_membership_filter = 3;
+        GroupMembershipFilter group_membership_filter = 3;
     }
 }
 
@@ -228,22 +227,23 @@ message PropertyFilter {
     }
 }
 
-// used to check if entities are part of a cluster.
+// used to check if entities are part of a group.
 //
 // This filter gets special handling in SearchService, where the group information is resolved in a
 // separate step from the other filtering mechanisms and then is translated to a String RegEx filter
-// for checking if an entity id is part of the cluster.
+// for checking if an entity id is part of the group.
 //
 // This is due to the group membership information being stored in a separate arango database from
 // the topology information and disallowing "joining" the topology documents with group info
 // documents. Perhaps, in the future, we can unify these in a way that allows the group filter to
 // be handled in a way that is consistent with the other search filters, e.g. direct graph
-// traversals in a single database/context. We could also generalize this to a "Group" filter if
-// the need ever arises.
+// traversals in a single database/context.
 //
-message ClusterMembershipFilter {
+message GroupMembershipFilter {
     // Specifies the group(s) to filter membership based on.
-    optional PropertyFilter cluster_specifier = 1;
+    optional PropertyFilter group_specifier = 1;
+    // Type of a group requested. If not specified, query will not distinguish between group types.
+    optional common_dto.GroupDTO.GroupType group_type = 2;
 }
 
 enum ComparisonOperator {

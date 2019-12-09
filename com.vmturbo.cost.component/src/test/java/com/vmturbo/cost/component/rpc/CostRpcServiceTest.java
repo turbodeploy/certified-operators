@@ -18,6 +18,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import org.junit.Before;
+import org.junit.Test;
+import org.mockito.ArgumentCaptor;
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -26,16 +30,13 @@ import io.grpc.Status.Code;
 import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
 
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.ArgumentCaptor;
-
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo.ServiceExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.CreateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.CreateDiscountResponse;
 import com.vmturbo.common.protobuf.cost.Cost.DeleteDiscountRequest;
@@ -51,6 +52,8 @@ import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest.GroupByType;
 import com.vmturbo.common.protobuf.cost.Cost.GetDiscountRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesResponse;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountResponse;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
@@ -180,6 +183,7 @@ public class CostRpcServiceTest {
     private final ComponentCost componentCost = ComponentCost.newBuilder()
             .setAmount(CurrencyAmount.newBuilder().setAmount(ACCOUNT_EXPENSE1).setCurrency(1))
             .setCategory(CostCategory.ON_DEMAND_COMPUTE)
+            .setCostSource(CostSource.ON_DEMAND_RATE)
             .build();
     private final EntityCost entityCost = EntityCost.newBuilder()
             .setAssociatedEntityId(ASSOCIATED_SERVICE_ID)
@@ -804,6 +808,27 @@ public class CostRpcServiceTest {
         builder.addCloudStatRecord(createCloudStatRecord(Collections.EMPTY_LIST,
                         1 + TimeUnit.HOURS.toMillis(1)));
         costRpcService.getCloudCostStats(request, mockObserver);
+        verify(mockObserver).onNext(builder.build());
+        verify(mockObserver).onCompleted();
+    }
+
+    @Test
+    public void testGetTierPriceForEntities() throws DbException {
+        final GetTierPriceForEntitiesRequest request = GetTierPriceForEntitiesRequest.newBuilder()
+                .setOid(2L).setCostCategory(CostCategory.ON_DEMAND_COMPUTE).build();
+        final StreamObserver<GetTierPriceForEntitiesResponse> mockObserver =
+                mock(StreamObserver.class);
+        Map<Long, EntityCost> beforeEntityCostbyOid = new HashMap<>();
+        beforeEntityCostbyOid.put(2L, entityCost);
+        Map<Long, EntityCost> afterEntityCostbyOid = new HashMap<>();
+        afterEntityCostbyOid.put(2L, entityCost);
+        given(projectedEntityCostStore.getProjectedEntityCosts(anySet())).willReturn(afterEntityCostbyOid);
+        given(entityCostStore.getLatestEntityCost(any(),any(),anySet())).willReturn(beforeEntityCostbyOid);
+
+        final GetTierPriceForEntitiesResponse.Builder builder = GetTierPriceForEntitiesResponse.newBuilder();
+        builder.putAfterTierPriceByEntityOid(2L,CurrencyAmount.newBuilder().setAmount(10.0).setCurrency(1).build());
+        builder.putBeforeTierPriceByEntityOid(2L, CurrencyAmount.newBuilder().setAmount(10.0).setCurrency(1).build());
+        costRpcService.getTierPriceForEntities(request, mockObserver);
         verify(mockObserver).onNext(builder.build());
         verify(mockObserver).onCompleted();
     }

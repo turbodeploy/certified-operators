@@ -26,7 +26,6 @@ import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerTierConver
 import com.vmturbo.mediation.conversion.cloud.converter.DiskArrayConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.LoadBalancerConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.RegionConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.StorageConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
 import com.vmturbo.mediation.conversion.util.CloudService;

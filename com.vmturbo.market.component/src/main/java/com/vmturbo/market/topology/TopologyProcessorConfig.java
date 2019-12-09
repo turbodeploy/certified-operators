@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.market.runner.MarketRunnerConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
@@ -20,7 +21,8 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Top
 @Configuration
 @Import({
     MarketRunnerConfig.class,
-    TopologyProcessorClientConfig.class
+    TopologyProcessorClientConfig.class,
+    LicenseCheckClientConfig.class
 })
 public class TopologyProcessorConfig {
 
@@ -29,6 +31,9 @@ public class TopologyProcessorConfig {
 
     @Autowired
     private TopologyProcessorClientConfig tpConfig;
+
+    @Autowired
+    private LicenseCheckClientConfig licenseCheckClientConfig;
 
     @Value("${maxPlacementIterations}")
     private int maxPlacementIterations;
@@ -50,7 +55,8 @@ public class TopologyProcessorConfig {
     public TopologyEntitiesListener topologyEntitiesListener() {
         final TopologyEntitiesListener topologyEntitiesListener = new TopologyEntitiesListener(
                 marketRunnerConfig.marketRunner(), maxPlacementsOverride(),
-                rightsizeLowerWatermark, rightsizeUpperWatermark);
+                rightsizeLowerWatermark, rightsizeUpperWatermark,
+                licenseCheckClientConfig.licenseCheckClient());
         topologyProcessor().addLiveTopologyListener(topologyEntitiesListener);
         topologyProcessor().addPlanTopologyListener(topologyEntitiesListener);
         return topologyEntitiesListener;

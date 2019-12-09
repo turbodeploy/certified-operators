@@ -14,8 +14,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
-import org.apache.log4j.Logger;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.gson.Gson;
@@ -25,11 +23,15 @@ import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
 import com.google.protobuf.util.JsonFormat;
 
+import org.apache.commons.lang.StringUtils;
+import org.apache.log4j.Logger;
+
 import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.crosstier.common.TargetUtil;
 import com.vmturbo.platform.common.dto.Discovery;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue.PropertyValueList;
+import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.PrimitiveValue;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
@@ -235,10 +237,33 @@ public class Target {
                                     @Nonnull final ProbeStore probeStore)
         throws InvalidTargetException {
         TargetInfo targetInfo = info.targetInfo;
+        ProbeInfo probeInfo = probeStore.getProbe(targetInfo.getSpec().getProbeId())
+            .orElseThrow(() -> new InvalidTargetException("ProbeInfo not found for probe with ID "
+                + targetInfo.getSpec().getProbeId() + " for target ID " + targetInfo.getId()));
+
+        // Create a set of account definition keys that represent numeric or boolean fields.  We
+        // treat empty or null string values for these fields as signifying that the account value
+        // should be removed.  If we didn't remove it, we would have trouble later trying to parse
+        // them into numeric or boolean values when the probe received them.
+        Set<String> numericAndBooleanFieldKeys = probeInfo.getAccountDefinitionList().stream()
+            .filter(acctDef -> acctDef.hasCustomDefinition()
+                && acctDef.getCustomDefinition().hasPrimitiveValue()
+                && (acctDef.getCustomDefinition().getPrimitiveValue() == PrimitiveValue.BOOLEAN
+                || acctDef.getCustomDefinition().getPrimitiveValue() == PrimitiveValue.NUMERIC))
+            .map(acctDef -> acctDef.getCustomDefinition().getName())
+            .collect(Collectors.toSet());
+
+        // Filter out any account values that are boolean or numeric type and have empty values.
+        // These represent fields the user has removed from the list of account values.
+        Collection<TopologyProcessorDTO.AccountValue> filteredMergedAccountVals =
+            mergeUpdatedAccountValues(targetInfo.getSpec().getAccountValueList(), updatedFields)
+                .stream()
+                .filter(acctVal -> StringUtils.isNotEmpty(acctVal.getStringValue())
+                    || !numericAndBooleanFieldKeys.contains(acctVal.getKey()))
+                .collect(Collectors.toList());
 
         final TargetSpec.Builder newSpec = createTargetSpecBuilder(targetInfo,
-                mergeUpdatedAccountValues(
-                    targetInfo.getSpec().getAccountValueList(), updatedFields),
+                filteredMergedAccountVals,
                 targetInfo.getSpec().getDerivedTargetIdsList()
         );
         return new Target(getId(), probeStore, newSpec.build(), true);

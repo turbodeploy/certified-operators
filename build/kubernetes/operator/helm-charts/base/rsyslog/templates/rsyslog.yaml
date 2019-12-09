@@ -35,18 +35,24 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  name: {{ .Chart.Name }}
   labels:
     zone: internal
     app.kubernetes.io/name: {{ .Chart.Name }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
-  name: {{ .Chart.Name }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: 1
   strategy:
     type: Recreate
   template:
     metadata:
+{{- if .Values.global }}
+  {{- with .Values.global.annotations }}
+      annotations:
+{{- toYaml . | nindent 8 }}
+  {{- end }}
+{{- end }}
       labels:
         zone: internal
         app.kubernetes.io/name: {{ .Chart.Name }}
@@ -64,6 +70,11 @@ spec:
         ports:
         - containerPort: 2514
         - containerPort: 8080
+        livenessProbe:
+          tcpSocket:
+            port: 2514
+          periodSeconds: 60
+          failureThreshold: 60
         readinessProbe:
           tcpSocket:
             port: 2514
@@ -84,10 +95,24 @@ spec:
       imagePullSecrets:
       - name: turbocred
   {{- end -}}
+  {{- with .Values.global.nodeSelector }}
+      nodeSelector:
+{{- toYaml . | nindent 8 }}
+  {{- end }}
+  {{- with .Values.global.affinity }}
+      affinity:
+{{- toYaml . | nindent 8 }}
+  {{- end }}
+  {{- with .Values.global.tolerations }}
+      tolerations:
+{{- toYaml . | nindent 8 }}
+  {{- end }}
+  {{- with .Values.global.securityContext }}
+      securityContext:
+{{- toYaml . | nindent 8 }}
+  {{- end }}
 {{- end }}
       restartPolicy: Always
-      securityContext:
-        fsGroup: 1000
       volumes:
       - name: rsyslog-syslogdata
         persistentVolumeClaim:

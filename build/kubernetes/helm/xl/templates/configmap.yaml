@@ -37,6 +37,7 @@ data:
             reportingHost: reporting
             repositoryHost: repository
             topologyProcessorHost: topology-processor
+            arangoDBNamespace : {{ .Release.Namespace }}
             # Auth
             authRetryDelaySecs: 10
             # Consul Key/Value and Service Discovery Utility

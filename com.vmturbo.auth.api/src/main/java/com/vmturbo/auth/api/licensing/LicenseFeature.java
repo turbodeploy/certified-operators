@@ -43,7 +43,11 @@ public enum LicenseFeature {
     CLOUD_COST("cloud_cost"),
     API2("API2"),
     CUSTOM_POLICIES("custom_policies"),
-    ASSESSMENT("assessment");
+    ASSESSMENT("assessment"),
+    /**
+     * visibility_only feature indicates a developer freemium license.
+     */
+    VISIBILITY_ONLY("visibility_only");
 
     private String key;
 

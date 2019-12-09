@@ -91,7 +91,7 @@ class AzureAllocationTopologyTest {
             .addConnectedEntityList(ConnectedEntity.newBuilder()
                     .setConnectedEntityId(REGION.getOid())
                     .setConnectedEntityType(EntityType.REGION_VALUE)
-                    .setConnectionType(ConnectionType.NORMAL_CONNECTION))
+                    .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
             .setOrigin(Origin.newBuilder()
                     .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
                             .addDiscoveringTargetIds(OID_PROVIDER.incrementAndGet())

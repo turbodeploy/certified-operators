@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeTierConfig;
@@ -59,6 +60,8 @@ public final class TestEntityClass {
 
         private int type = -1;
 
+        private EntityState state = EntityState.POWERED_ON;
+
         private Optional<ComputeConfig> computeConfig = Optional.empty();
 
         private Optional<DatabaseConfig> databaseConfig = Optional.empty();
@@ -78,6 +81,12 @@ public final class TestEntityClass {
         @Nonnull
         public Builder setType(final int type) {
             this.type = type;
+            return this;
+        }
+
+        @Nonnull
+        public Builder setEntityState(final EntityState state) {
+            this.state = state;
             return this;
         }
 
@@ -116,6 +125,7 @@ public final class TestEntityClass {
             final TestEntityClass ret = new TestEntityClass(id, type, computeConfig);
             when(infoExtractor.getId(ret)).thenReturn(id);
             when(infoExtractor.getName(ret)).thenReturn(Long.toString(id));
+            when(infoExtractor.getEntityState(ret)).thenReturn(state);
             when(infoExtractor.getVolumeConfig(ret)).thenReturn(volumeConfig);
             when(infoExtractor.getComputeConfig(ret)).thenReturn(computeConfig);
             when(infoExtractor.getComputeTierConfig(ret)).thenReturn(computeTierConfig);

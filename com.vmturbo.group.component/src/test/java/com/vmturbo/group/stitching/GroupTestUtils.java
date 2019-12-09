@@ -48,4 +48,21 @@ public class GroupTestUtils {
                         .setStaticGroupMembers(builder))
                 .build();
     }
+
+    /**
+     * Create an {@link UploadedGroup}.
+     *
+     * @param groupType type of the group
+     * @param groupSourceId source id of the group
+     * @param membersByType members of the group
+     * @param displayName displayName of the group
+     * @return {@link UploadedGroup}
+     */
+    public static UploadedGroup createUploadedGroupWithDisplayName(@Nonnull GroupType groupType,
+            @Nonnull String groupSourceId, @Nonnull Map<Integer, Set<Long>> membersByType,
+            @Nonnull String displayName) {
+        final UploadedGroup initialGroup = createUploadedGroup(groupType, groupSourceId, membersByType);
+        final GroupDefinition updatedGroupDefinition = initialGroup.getDefinition().toBuilder().setDisplayName(displayName).build();
+        return initialGroup.toBuilder().setDefinition(updatedGroupDefinition).build();
+    }
 }

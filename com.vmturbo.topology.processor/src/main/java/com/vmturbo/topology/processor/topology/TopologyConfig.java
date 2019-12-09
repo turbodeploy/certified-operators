@@ -2,7 +2,9 @@ package com.vmturbo.topology.processor.topology;
 
 import java.util.concurrent.Executors;
 
+import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.matrix.component.external.MatrixInterface;
+import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
 import com.vmturbo.topology.processor.ncm.MatrixConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,7 +15,6 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
-import com.vmturbo.sql.utils.SQLDatabaseConfig;
 import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
 import com.vmturbo.topology.processor.controllable.ControllableConfig;
@@ -33,7 +34,9 @@ import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidationConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.template.TemplateConfig;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory;
+import com.vmturbo.topology.processor.topology.pipeline.CachedTopology;
+import com.vmturbo.topology.processor.topology.pipeline.LivePipelineFactory;
+import com.vmturbo.topology.processor.topology.pipeline.PlanPipelineFactory;
 import com.vmturbo.topology.processor.workflow.WorkflowConfig;
 
 /**
@@ -59,7 +62,9 @@ import com.vmturbo.topology.processor.workflow.WorkflowConfig;
     HistoryClientConfig.class,
     CloudCostConfig.class,
     MatrixConfig.class,
-    HistoryAggregationConfig.class
+    HistoryAggregationConfig.class,
+    LicenseCheckClientConfig.class,
+    TopologyProcessorDBConfig.class
 })
 public class TopologyConfig {
 
@@ -115,7 +120,7 @@ public class TopologyConfig {
     private CloudCostConfig cloudCostConfig;
 
     @Autowired
-    private SQLDatabaseConfig sqlDatabaseConfig;
+    private TopologyProcessorDBConfig topologyProcessorDBConfig;
 
     @Autowired
     private MatrixConfig matrixConfig;
@@ -123,13 +128,16 @@ public class TopologyConfig {
     @Autowired
     private HistoryAggregationConfig historyAggregationConfig;
 
+    @Autowired
+    private LicenseCheckClientConfig licenseCheckClientConfig;
+
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
     @Bean
     public TopologyHandler topologyHandler() {
         return new TopologyHandler(realtimeTopologyContextId(),
-                topologyPipelineFactory(),
+                livePipelineFactory(),
                 identityProviderConfig.identityProvider(),
                 entityConfig.entityStore(),
                 probeConfig.probeStore(),
@@ -176,8 +184,18 @@ public class TopologyConfig {
     }
 
     @Bean
-    public TopologyPipelineFactory topologyPipelineFactory() {
-        return new TopologyPipelineFactory(apiConfig.topologyProcessorNotificationSender(),
+    public CachedTopology cachedTopology() {
+        return new CachedTopology();
+    }
+
+    /**
+     * A bean configuration to instantiate a live pipeline factory.
+     *
+     * @return A {@link LivePipelineFactory} instance.
+     */
+    @Bean
+    public LivePipelineFactory livePipelineFactory() {
+        return new LivePipelineFactory(apiConfig.topologyProcessorNotificationSender(),
                 groupConfig.policyManager(),
                 stitchingConfig.stitchingManager(),
                 planConfig.discoveredTemplatesUploader(),
@@ -187,8 +205,6 @@ public class TopologyConfig {
                 groupConfig.settingsManager(),
                 groupConfig.entitySettingsApplicator(),
                 environmentTypeInjector(),
-                topologyEditor(),
-                repositoryConfig.repository(),
                 groupConfig.searchResolver(),
                 groupConfig.groupServiceBlockingStub(),
                 reservationConfig.reservationManager(),
@@ -199,11 +215,41 @@ public class TopologyConfig {
                 groupConfig.discoveredClusterConstraintCache(),
                 applicationCommodityKeyChanger(),
                 controllableConfig.controllableManager(),
+                historicalEditor(),
+                matrixInterface(),
+                cachedTopology(),
+                probeActionCapabilitiesApplicatorEditor(),
+                historyAggregationConfig.historyAggregationStage(),
+                licenseCheckClientConfig.licenseCheckClient()
+        );
+    }
+
+    /**
+     * A bean configuration to instantiate a plan pipeline factory.
+     *
+     * @return A {@link PlanPipelineFactory} instance.
+     */
+    @Bean
+    public PlanPipelineFactory planPipelineFactory() {
+        return new PlanPipelineFactory(apiConfig.topologyProcessorNotificationSender(),
+                groupConfig.policyManager(),
+                stitchingConfig.stitchingManager(),
+                groupConfig.settingsManager(),
+                groupConfig.entitySettingsApplicator(),
+                environmentTypeInjector(),
+                topologyEditor(),
+                repositoryConfig.repository(),
+                groupConfig.searchResolver(),
+                groupConfig.groupServiceBlockingStub(),
+                reservationConfig.reservationManager(),
+                entityConfig.entityValidator(),
+                groupConfig.discoveredClusterConstraintCache(),
+                applicationCommodityKeyChanger(),
                 commoditiesEditor(),
                 planTopologyScopeEditor(),
                 historicalEditor(),
                 matrixInterface(),
-                probeActionCapabilitiesApplicatorEditor(),
+                cachedTopology(),
                 historyAggregationConfig.historyAggregationStage(),
                 dmandOverriddenCommodityEditor()
         );
@@ -235,7 +281,7 @@ public class TopologyConfig {
 
     @Bean
     public HistoricalUtilizationDatabase historicalUtilizationDatabase() {
-        return new HistoricalUtilizationDatabase(sqlDatabaseConfig.dsl());
+        return new HistoricalUtilizationDatabase(topologyProcessorDBConfig.dsl());
     }
 
     @Bean

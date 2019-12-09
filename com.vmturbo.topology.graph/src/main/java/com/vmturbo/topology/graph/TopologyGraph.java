@@ -20,7 +20,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  *
  * The graph is constructed by following consumes/provides relations established by the commodities
  * bought and sold among the entities in the topology, as well as the explicit
- * connected-to/connected-from relationships in the topology.
+ * connection relationships in the topology.
  *
  * The graph does NOT permit parallel edges. That is, an entity consuming multiple commodities
  * from the same provider results in only a single edge between the two in the graph.
@@ -191,28 +191,6 @@ public class TopologyGraph<ENTITY extends TopologyGraphEntity<ENTITY>> {
     @Nonnull
     public Stream<ENTITY> getProviders(@Nonnull final ENTITY topologyEntity) {
         return topologyEntity.getProviders().stream();
-    }
-
-    /**
-     * Get the entities that are connected to a given {@link TopologyGraphEntity} in the graph.
-     *
-     * @param topologyEntity The {@link TopologyGraphEntity} whose connectedFromEntities should be retrieved.
-     * @return The entities that are connected to a {@link TopologyGraphEntity} in the graph.
-     */
-    @Nonnull
-    public Stream<ENTITY> getConnectedFromEntities(@Nonnull final ENTITY topologyEntity) {
-        return topologyEntity.getConnectedFromEntities().stream();
-    }
-
-    /**
-     * Get the entities that given {@link TopologyGraphEntity} in the graph are connected to.
-     *
-     * @param topologyEntity The {@link TopologyGraphEntity} whose connectedToEntities should be retrieved.
-     * @return The entities that {@link TopologyGraphEntity} are connected to in the graph.
-     */
-    @Nonnull
-    public Stream<ENTITY> getConnectedToEntities(@Nonnull final ENTITY topologyEntity) {
-        return topologyEntity.getConnectedToEntities().stream();
     }
 
     /**
