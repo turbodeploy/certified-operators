@@ -42,7 +42,7 @@ public class AwsConversionProbeTest extends AwsConversionProbe {
     // including original AWS probe entity types.
     private static final Set<EntityType> AWS_CONVERSION_PROBE_ENTITY_TYPES =
             TestUtils.getCloudEntityTypes(
-                    AWS_PROBE_SUPPLY_CHAIN, NEW_SHARED_ENTITY_TYPES, NEW_NON_SHARED_ENTITY_TYPES
+                    AWS_PROBE_SUPPLY_CHAIN, NEW_ENTITY_TYPES
     );
 
     @Test

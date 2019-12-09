@@ -7,22 +7,18 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.mediation.conversion.cloud.CloudDiscoveryConverter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryContextDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
-import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
-import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.ReturnType;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO;
-import com.vmturbo.platform.sdk.common.supplychain.MergedEntityMetadataBuilder;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainNodeBuilder;
 
 /**
@@ -34,36 +30,20 @@ public class AzureConversionProbe extends AzureProbe {
     private final Logger logger = LogManager.getLogger();
 
     /**
-     * List of new cloud entity types to create supply chain node for, which don't exist in
-     * original Azure probe discovery response.
-     * Shared entity is an entity that is stitched with entities discovered by other targets of
-     * {@code this} probe type. e.g. a region discovered by Azure target A is stitched with a region
-     * discovered by Azure target B.
+     * List of new cloud entity types to create supply chain nodes for, which don't
+     * exist in original Azure probe supply chain definition.
      */
     @VisibleForTesting
-    protected static Set<EntityType> NEW_SHARED_ENTITY_TYPES = ImmutableSet.of(
+    protected static final Set<EntityType> NEW_ENTITY_TYPES = ImmutableSet.of(
             EntityType.CLOUD_SERVICE,
             EntityType.COMPUTE_TIER,
             EntityType.STORAGE_TIER,
             EntityType.DATABASE_TIER,
-            EntityType.REGION
-    );
-
-    /**
-     * List of new non-shared cloud entity types to create supply chain nodes for, which don't
-     * exist in original Azure probe supply chain definition.
-     * Non-shared entity is an entity that can only stitch with entities discovered by targets of
-     * another probe type. e.g. in Azure, virtual volumes discovered by Azure volume probe stitch
-     * with virtual volumes discovered by Azure conversion probe. Non-shared entity types don't
-     * necessarily stitch. e.g. in AWS, virtual volumes are only discovered by a single probe: AWS
-     * conversion probe.
-     */
-    @VisibleForTesting
-    protected static Set<EntityType> NEW_NON_SHARED_ENTITY_TYPES = ImmutableSet.of(
+            EntityType.REGION,
             EntityType.VIRTUAL_VOLUME
     );
 
-    @Nonnull
+   @Nonnull
     @Override
     public DiscoveryResponse discoverTarget(@Nonnull AzureAccount azureAccount,
             @Nullable DiscoveryContextDTO discoveryContext) throws InterruptedException {
@@ -94,37 +74,13 @@ public class AzureConversionProbe extends AzureProbe {
     public Set<TemplateDTO> getSupplyChainDefinition() {
         final Set<TemplateDTO> sc = Sets.newHashSet(super.getSupplyChainDefinition());
 
-        // create supply chain nodes for new shared entities and add stitching metadata
-        for (EntityType entityType : NEW_SHARED_ENTITY_TYPES) {
-            sc.add(new SupplyChainNodeBuilder()
-                    .entity(entityType)
-                    .mergedBy(createMergedEntityMetadata())
-                    .buildEntity());
-        }
-
-        // create supply chain nodes for new non-shared entities
-        for (EntityType entityType : NEW_NON_SHARED_ENTITY_TYPES) {
+        // create supply chain nodes for new entity types
+        for (EntityType entityType : NEW_ENTITY_TYPES) {
             sc.add(new SupplyChainNodeBuilder()
                     .entity(entityType)
                     .buildEntity());
         }
 
         return sc;
-    }
-
-    /**
-     * Create MergedEntityMetadata for supply chain node used for stitching. Cloud entities are
-     * shared across different targets, and only one set should be kept in topology. This metadata
-     * matches based on id of the EntityDTO.
-     *
-     * @return MergedEntityMetadata for use by stitching
-     */
-    private static MergedEntityMetadata createMergedEntityMetadata() {
-        return new MergedEntityMetadataBuilder()
-                .internalMatchingField("id", Lists.newArrayList())
-                .internalMatchingType(ReturnType.STRING)
-                .externalMatchingField("id", Lists.newArrayList())
-                .externalMatchingType(ReturnType.STRING)
-                .build();
     }
 }

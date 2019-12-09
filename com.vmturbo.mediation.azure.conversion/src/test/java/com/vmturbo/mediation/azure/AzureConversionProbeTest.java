@@ -43,7 +43,7 @@ public class AzureConversionProbeTest extends AzureConversionProbe {
     // including original Azure probe entity types.
     private static final Set<EntityType> AZURE_CONVERSION_PROBE_ENTITY_TYPES =
             TestUtils.getCloudEntityTypes(
-                AZURE_PROBE_SUPPLY_CHAIN, NEW_SHARED_ENTITY_TYPES, NEW_NON_SHARED_ENTITY_TYPES
+                AZURE_PROBE_SUPPLY_CHAIN, NEW_ENTITY_TYPES
     );
 
     @Test
@@ -122,27 +122,11 @@ public class AzureConversionProbeTest extends AzureConversionProbe {
         assertEquals(oldResponse.getDiscoveryContext(), newResponse.getDiscoveryContext());
     }
 
-    private Set<EntityType> getEntityTypesWithMergedEntityMetaData(Set<TemplateDTO> supplyChain) {
-        return supplyChain.stream()
-            .filter(TemplateDTO::hasMergedEntityMetaData)
-            .map(TemplateDTO::getTemplateClass)
-            .collect(Collectors.toSet());
-    }
-
     @Test
     public void testGetSupplyChainDefinition() {
         AzureConversionProbe probe = new AzureConversionProbe();
-        AzureProbe azureProbe = new AzureProbe();
 
         Set<TemplateDTO> entitiesInSupplyChain = probe.getSupplyChainDefinition();
-        Set<EntityType> entitiesWithMergeData =
-            getEntityTypesWithMergedEntityMetaData(entitiesInSupplyChain);
-
-        // check that we have merged entity metadata for the entity types in NEW_SHARED_ENTITY_TYPES
-        // and for any types that already had merged entity metadata from the super class
-        assertEquals(Sets.union(NEW_SHARED_ENTITY_TYPES,
-            getEntityTypesWithMergedEntityMetaData(azureProbe.getSupplyChainDefinition())),
-            entitiesWithMergeData);
 
         assertTrue(
             TestUtils.verifyEntityTypes(entitiesInSupplyChain, AZURE_CONVERSION_PROBE_ENTITY_TYPES)
