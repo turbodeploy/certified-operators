@@ -56,37 +56,43 @@ public class CostComponentProjectedEntityCostListener implements ProjectedEntity
         final List<EntityCost> costList = new ArrayList<>();
         long costCount = 0;
         int chunkCount = 0;
-        while (entityCosts.hasNext()) {
-            try {
-                final Collection<EntityCost> nextChunk = entityCosts.nextChunk();
-                for (EntityCost cost : nextChunk) {
-                    costCount++;
-                    costList.add(cost);
+        try {
+            while (entityCosts.hasNext()) {
+                try {
+                    final Collection<EntityCost> nextChunk = entityCosts.nextChunk();
+                    for (EntityCost cost : nextChunk) {
+                        costCount++;
+                        costList.add(cost);
+                    }
+                    chunkCount++;
+                } catch (InterruptedException e) {
+                    logger.error("Interrupted while waiting for processing projected entity costs chunk." +
+                            "Processed " + chunkCount + " chunks so far.", e);
+                } catch (TimeoutException e) {
+                    logger.error("Timed out waiting for next entity costs chunk." +
+                            " Processed " + chunkCount + " chunks so far.", e);
+                } catch (CommunicationException e) {
+                    logger.error("Connection error when waiting for next entity costs chunk." +
+                            " Processed " + chunkCount + " chunks so far.", e);
                 }
-                chunkCount++;
-                // TODO (OM-51227): Handle the error properly. If one of the chunks fails.
-            } catch (InterruptedException e) {
-                logger.error("Interrupted while waiting for processing projected entity costs chunk." +
-                        "Processed " + chunkCount + " chunks so far.", e);
-            } catch (TimeoutException e) {
-                logger.error("Timed out waiting for next entity costs chunk." +
-                        " Processed " + chunkCount + " chunks so far.", e);
-            } catch (CommunicationException e) {
-                logger.error("Connection error when waiting for next entity costs chunk." +
-                        " Processed " + chunkCount + " chunks so far.", e);
             }
+            if (TopologyType.PLAN.equals(originalTopologyInfo.getTopologyType())) {
+                planProjectedEntityCostStore.updatePlanProjectedEntityCostsTableForPlan(
+                        originalTopologyInfo, costList);
+            } else {
+                projectedEntityCostStore.updateProjectedEntityCosts(costList);
+            }
+            // Send the projected cost status notification.
+            sendProjectedCostNotification(buildProjectedCostNotification(originalTopologyInfo,
+                    Status.SUCCESS));
+            logger.debug("Finished processing projected entity costs. Got costs for {} entities, " +
+                    "delivered in {} chunks.", costCount, chunkCount);
+        } catch (Exception e) {
+            logger.error("Error in processing the projected cost. Processed " +
+                    chunkCount + " chunks so far.", e);
+            sendProjectedCostNotification(buildProjectedCostNotification(originalTopologyInfo,
+                    Status.FAIL));
         }
-        if (TopologyType.PLAN.equals(originalTopologyInfo.getTopologyType())) {
-            planProjectedEntityCostStore.updatePlanProjectedEntityCostsTableForPlan(
-                    originalTopologyInfo, costList);
-        } else {
-            projectedEntityCostStore.updateProjectedEntityCosts(costList);
-        }
-        // Send the projected cost status notification.
-        sendProjectedCostNotification(buildProjectedCostNotification(originalTopologyInfo,
-                Status.SUCCESS));
-        logger.debug("Finished processing projected entity costs. Got costs for {} entities, " +
-                "delivered in {} chunks.", costCount, chunkCount);
     }
 
     /**

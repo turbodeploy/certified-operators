@@ -314,7 +314,6 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
             final long planId = costNotification.getStatusUpdate().getTopologyContextId();
             if (planId != realtimeTopologyContextId) {
                 try {
-                    // TODO: (OM-51227) Plan exception should be reflected in the status of the plan.
                     if (statusUpdate.getType() == StatusUpdateType.PROJECTED_COST_UPDATE) {
 
                         planDao.updatePlanInstance(planId, p -> {

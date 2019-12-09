@@ -56,43 +56,49 @@ public class ProjectedRICoverageListener implements ProjectedReservedInstanceCov
         final List<EntityReservedInstanceCoverage> riCoverageList = new ArrayList<>();
         long coverageCount = 0;
         int chunkCount = 0;
-        while (riCoverageIterator.hasNext()) {
-            try {
-                final Collection<EntityReservedInstanceCoverage> nextChunk = riCoverageIterator.nextChunk();
-                for (EntityReservedInstanceCoverage riCoverage : nextChunk) {
-                    coverageCount++;
-                    riCoverageList.add(riCoverage);
+        try {
+            while (riCoverageIterator.hasNext()) {
+                try {
+                    final Collection<EntityReservedInstanceCoverage> nextChunk = riCoverageIterator.nextChunk();
+                    for (EntityReservedInstanceCoverage riCoverage : nextChunk) {
+                        coverageCount++;
+                        riCoverageList.add(riCoverage);
+                    }
+                    chunkCount++;
+                } catch (InterruptedException e) {
+                    logger.error("Interrupted while waiting for processing projected RI coverage chunk." +
+                            "Processed " + chunkCount + " chunks so far.", e);
+                } catch (TimeoutException e) {
+                    logger.error("Timed out waiting for next entity RI coverage chunk." +
+                            " Processed " + chunkCount + " chunks so far.", e);
+                } catch (CommunicationException e) {
+                    logger.error("Connection error when waiting for next entity RI coverage chunk." +
+                            " Processed " + chunkCount + " chunks so far.", e);
                 }
-                chunkCount++;
-                // TODO (OM-51227): Handle the error properly. If one of the chunks fails.
-            } catch (InterruptedException e) {
-                logger.error("Interrupted while waiting for processing projected RI coverage chunk." +
-                                "Processed " + chunkCount + " chunks so far.", e);
-            } catch (TimeoutException e) {
-                logger.error("Timed out waiting for next entity RI coverage chunk." +
-                                " Processed " + chunkCount + " chunks so far.", e);
-            } catch (CommunicationException e) {
-                logger.error("Connection error when waiting for next entity RI coverage chunk." +
-                                " Processed " + chunkCount + " chunks so far.", e);
             }
+            if (originalTopologyInfo.getTopologyType() == TopologyType.PLAN) {
+                planProjectedRICoverageAndUtilStore.updateProjectedEntityToRIMappingTableForPlan(originalTopologyInfo,
+                        riCoverageList);
+                planProjectedRICoverageAndUtilStore.updateProjectedRICoverageTableForPlan(projectedTopologyId,
+                        originalTopologyInfo,
+                        riCoverageList);
+                planProjectedRICoverageAndUtilStore.updateProjectedRIUtilTableForPlan(originalTopologyInfo,
+                        riCoverageList);
+            } else {
+                projectedRICoverageAndUtilStore.updateProjectedRICoverage(originalTopologyInfo,
+                        riCoverageList);
+            }
+            // Send the projected RI coverage status notification.
+            sendProjectedRiCoverageNotification(buildProjectedRiCoverageNotification(
+                    originalTopologyInfo, Status.SUCCESS));
+            logger.debug("Finished processing projected RI coverage info. Got RI coverage for {} entities, " +
+                    "delivered in {} chunks.", coverageCount, chunkCount);
+        } catch (Exception e) {
+            logger.error("Error in processing the projected RI coverage. Processed " +
+                    chunkCount + " chunks so far.", e);
+            sendProjectedRiCoverageNotification(buildProjectedRiCoverageNotification(
+                    originalTopologyInfo, Status.FAIL));
         }
-        if (originalTopologyInfo.getTopologyType() == TopologyType.PLAN) {
-            planProjectedRICoverageAndUtilStore.updateProjectedEntityToRIMappingTableForPlan(originalTopologyInfo,
-                                                                                             riCoverageList);
-            planProjectedRICoverageAndUtilStore.updateProjectedRICoverageTableForPlan(projectedTopologyId,
-                                                                                      originalTopologyInfo,
-                                                                                      riCoverageList);
-            planProjectedRICoverageAndUtilStore.updateProjectedRIUtilTableForPlan(originalTopologyInfo,
-                                                                                  riCoverageList);
-        } else {
-            projectedRICoverageAndUtilStore.updateProjectedRICoverage(originalTopologyInfo,
-                            riCoverageList);
-        }
-        // Send the projected RI coverage status notification.
-        sendProjectedRiCoverageNotification(buildProjectedRiCoverageNotification(
-                originalTopologyInfo, Status.SUCCESS));
-        logger.debug("Finished processing projected RI coverage info. Got RI coverage for {} entities, " +
-                "delivered in {} chunks.", coverageCount, chunkCount);
     }
 
     /**
