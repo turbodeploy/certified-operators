@@ -3,7 +3,11 @@ package com.vmturbo.auth.api.authorization.jwt;
 import static io.grpc.Metadata.ASCII_STRING_MARSHALLER;
 
 import java.util.List;
+import java.util.Set;
 
+import com.google.common.collect.Sets;
+
+import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
 import io.grpc.Context;
 import io.grpc.Metadata;
 
@@ -58,9 +62,39 @@ public class SecurityConstant {
     public static final String ROLE_STRING = "ROLE_";
 
     /**
-     * The role for the ADMINISTRATOR user.
+     * The role for the ADMINISTRATOR.
      */
     public static final String ADMINISTRATOR = "administrator";
+
+    /**
+     * The role for observer.
+     */
+    public static final String OBSERVER = "OBSERVER";
+
+    /**
+     * The role for automator user.
+     */
+    public static final String AUTOMATOR = "AUTOMATOR";
+
+    /**
+     * The role for deployer.
+     */
+    public static final String DEPLOYER = "DEPLOYER";
+
+    /**
+     * The role for advisor.
+     */
+    public static final String ADVISOR = "ADVISOR";
+
+    /**
+     * The role for site_admin.
+     */
+    public static final String SITE_ADMIN = "SITE_ADMIN";
+
+    /**
+     * The legacy customer type.
+     */
+    public static final String DEDICATED_CUSTOMER = "DedicatedCustomer";
 
     /**
      * The HTTP turbo JWT token header.
@@ -81,4 +115,15 @@ public class SecurityConstant {
      * Default credential.
      */
     public static final String CREDENTIALS = "***";
+
+    /**
+     * These are predefined external groups for all the roles in XL.
+     */
+    public static final Set<SecurityGroupDTO> PREDEFINED_SECURITY_GROUPS_SET =
+            Sets.newHashSet(new SecurityGroupDTO(ADMINISTRATOR, DEDICATED_CUSTOMER, ADMINISTRATOR),
+                    new SecurityGroupDTO(AUTOMATOR, DEDICATED_CUSTOMER, AUTOMATOR),
+                    new SecurityGroupDTO(DEPLOYER, DEDICATED_CUSTOMER, DEPLOYER),
+                    new SecurityGroupDTO(ADVISOR, DEDICATED_CUSTOMER, ADVISOR),
+                    new SecurityGroupDTO(OBSERVER, DEDICATED_CUSTOMER, OBSERVER),
+                    new SecurityGroupDTO(SITE_ADMIN, DEDICATED_CUSTOMER, SITE_ADMIN));
 }

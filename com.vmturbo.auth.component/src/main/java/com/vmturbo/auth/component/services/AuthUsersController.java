@@ -63,7 +63,7 @@ public class AuthUsersController {
      * @return The user resource URL if successful.
      * @throws Exception In case of an error adding user.
      */
-    @ApiOperation(value = "Initialize admin user")
+    @ApiOperation(value = "Initialize admin user and create predefined external groups for all roles in XL")
     @RequestMapping(path = "initAdmin",
                     method = RequestMethod.POST,
                     consumes = {MediaType.APPLICATION_JSON_VALUE},

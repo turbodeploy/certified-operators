@@ -3,7 +3,7 @@ package com.vmturbo.auth.component.store;
 import static com.vmturbo.auth.api.authorization.IAuthorizationVerifier.SCOPE_CLAIM;
 import static com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier.IP_ADDRESS_CLAIM;
 import static com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier.UUID_CLAIM;
-import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADMINISTRATOR;
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.*;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -406,9 +406,9 @@ public class AuthProvider {
     }
 
     /**
-     * Initializes an admin user.
+     * Initializes an admin user and creates predefined external groups for all roles in XL.
      * When the XL first starts up, there is no user defined in the XL.
-     * The first required step is to instantiate an admin user.
+     * The first required step is to instantiate an admin user and creates predefined external groups for all roles in XL.
      * This should only be called once. If it is called more than once, this method will return
      * {@code false}.
      *
@@ -436,12 +436,13 @@ public class AuthProvider {
                                  .signWith(SignatureAlgorithm.ES256, privateKey_)
                                  .compact();
 
-            // Persist the intialization status.
+            // Persist the initialization status.
             Files.write(encryptionFile,
                         CryptoFacility.encrypt(compact).getBytes(CHARSET_CRYPTO));
             try {
                 String adminUser = addImpl(AuthUserDTO.PROVIDER.LOCAL, userName, password,
                     ImmutableList.of(ADMINISTRATOR), null);
+                createPredefinedExternalGroups();
                 return !adminUser.isEmpty();
             }  catch (IllegalArgumentException e) {
                 return false;
@@ -449,6 +450,10 @@ public class AuthProvider {
         } catch (IOException e) {
             throw new SecurityException(e);
         }
+    }
+
+    private void createPredefinedExternalGroups() {
+        PREDEFINED_SECURITY_GROUPS_SET.forEach(securityGroup -> addSecurityGroupImpl(securityGroup));
     }
 
     /**
@@ -1263,6 +1268,11 @@ public class AuthProvider {
             throw new SecurityException("Creating active directory group which already exists: " + adGroupName);
         }
 
+        return addSecurityGroupImpl(adGroupInputDto);
+    }
+
+    private SecurityGroupDTO addSecurityGroupImpl(@Nonnull final SecurityGroupDTO adGroupInputDto) {
+        String adGroupName = adGroupInputDto.getDisplayName();
         try {
             ssoUtil.putSecurityGroup(adGroupName, adGroupInputDto);
             SecurityGroupDTO g = new SecurityGroupDTO(adGroupName,

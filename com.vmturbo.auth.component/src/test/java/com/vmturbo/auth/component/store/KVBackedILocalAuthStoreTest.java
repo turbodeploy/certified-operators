@@ -1,13 +1,15 @@
 package com.vmturbo.auth.component.store;
 
+import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.PREDEFINED_SECURITY_GROUPS_SET;
 import static com.vmturbo.auth.component.store.AuthProviderRoleTest.getAuthentication;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.spy;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableTable;
@@ -119,27 +121,40 @@ public class KVBackedILocalAuthStoreTest {
                 .setAuthentication(getAuthentication("ROLE_OBSERVER", "OBSERVER"));
     }
 
+    /**
+     * Test check initAdmin method.
+     */
     @Test
-    public void testAdminCheckInitColdStart() throws Exception {
+    public void testAdminCheckInitColdStart() {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
         Assert.assertFalse(store.checkAdminInit());
+        Assert.assertEquals(0, store.getSecurityGroups().size());
     }
 
+    /**
+     * Test initAdmin cold start.
+     */
     @Test
-    public void testAdminInitColdStart() throws Exception {
+    public void testAdminInitColdStart() {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
-        Assert.assertTrue(store.initAdmin("admin", "password0"));
-        Assert.assertTrue(store.checkAdminInit());
+        assertTrue(store.initAdmin("admin", "password0"));
+        assertTrue(store.checkAdminInit());
+        assertCreatedPredefinedSecurityGroups(store);
     }
 
-    @Test
-    public void testAdminInitWarmStart() throws Exception {
-        KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
-        Assert.assertTrue(store.initAdmin("admin", "password0"));
-        Assert.assertTrue(store.checkAdminInit());
+    private void assertCreatedPredefinedSecurityGroups(final AuthProvider store) {
+        final List<SecurityGroupDTO> securityGroupDTOList = store.getSecurityGroups();
+        // currently there are six predefined external group, but more might be added.
+        assertTrue(securityGroupDTOList.size() >= 6);
+        // SecurityGroupDTO is value object, we are comparing it's properties.
+        assertThat(securityGroupDTOList.stream().map(SecurityGroupDTO::getDisplayName).collect(Collectors.toSet()),
+                is(PREDEFINED_SECURITY_GROUPS_SET.stream().map(SecurityGroupDTO::getDisplayName).collect(Collectors.toSet())));
+        assertThat(securityGroupDTOList.stream().map(SecurityGroupDTO::getRoleName).collect(Collectors.toSet()),
+                is(PREDEFINED_SECURITY_GROUPS_SET.stream().map(SecurityGroupDTO::getRoleName).collect(Collectors.toSet())));
+        assertThat(securityGroupDTOList.stream().map(SecurityGroupDTO::getType).collect(Collectors.toSet()),
+                is(PREDEFINED_SECURITY_GROUPS_SET.stream().map(SecurityGroupDTO::getType).collect(Collectors.toSet())));
     }
 
     @Test
