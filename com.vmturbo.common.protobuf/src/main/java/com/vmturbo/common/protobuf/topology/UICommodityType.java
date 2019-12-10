@@ -173,6 +173,56 @@ public enum UICommodityType {
     VSTORAGE("VStorage", CommodityType.VSTORAGE, "VStorage"),
     /** The commodity ZONE. */
     ZONE("Zone", CommodityType.ZONE, "Zone"),
+    /** The commodity LICENSE_COMMODITY. */
+    LICENSE_COMMODITY("LicenseCommodity", CommodityType.LICENSE_COMMODITY, "License Commodity"),
+    /** The commodity Q3_VCPU. */
+    Q3_VCPU("Q3VCPU", CommodityType.Q3_VCPU, "Q3 VCPU"),
+    /** The commodity NUMBER_CONSUMERS_PM. */
+    NUMBER_CONSUMERS_PM("NumberConsumersPM", CommodityType.NUMBER_CONSUMERS_PM, "Number Consumers PM"),
+    /** The commodity Q6_VCPU. */
+    Q6_VCPU("Q6VCPU", CommodityType.Q6_VCPU, "Q6 VCPU"),
+    /** The commodity Q7_VCPU. */
+    Q7_VCPU("Q7VCPU", CommodityType.Q7_VCPU, "Q7 VCPU"),
+    /** The commodity QN_VCPU. */
+    QN_VCPU("QNVCPU", CommodityType.QN_VCPU, "QN VCPU"),
+    /** The commodity RIGHT_SIZE_SVC. */
+    RIGHT_SIZE_SVC("RightSizeSVC", CommodityType.RIGHT_SIZE_SVC, "Right Size SVC"),
+    /** The commodity RIGHT_SIZE_DOWN. */
+    RIGHT_SIZE_DOWN("RightSizeDown", CommodityType.RIGHT_SIZE_DOWN, "Right Size Down"),
+    /** The commodity MOVE. */
+    MOVE("Move", CommodityType.MOVE, "Move"),
+    /** The commodity Q5_VCPU. */
+    Q5_VCPU("Q5VCPU", CommodityType.Q5_VCPU, "Q5 VCPU"),
+    /** The commodity STORAGE. */
+    STORAGE("Storage", CommodityType.STORAGE, "Storage"),
+    /** The commodity NUMBER_CONSUMERS_STORAGE. */
+    NUMBER_CONSUMERS_STORAGE("NumberConsumersStorage", CommodityType.NUMBER_CONSUMERS_STORAGE, "Number Consumers Storage"),
+    /** The commodity ACCESS. */
+    ACCESS("Access", CommodityType.ACCESS, "Access"),
+    /** The commodity RIGHT_SIZE_UP. */
+    RIGHT_SIZE_UP("RightSizeUp", CommodityType.RIGHT_SIZE_UP, "Right Size Up"),
+    /** The commodity VAPP_ACCESS. */
+    VAPP_ACCESS("VAppAccess", CommodityType.VAPP_ACCESS, "VApp Access"),
+    /** The commodity HOT_STORAGE. */
+    HOT_STORAGE("HotStorage", CommodityType.HOT_STORAGE, "Hot Storage"),
+    /** The commodity HA_COMMODITY. */
+    HA_COMMODITY("HACommodity", CommodityType.HA_COMMODITY, "HA Commodity"),
+    /** The commodity NETWORK_POLICY. */
+    NETWORK_POLICY("NetworkPolicy", CommodityType.NETWORK_POLICY, "Network Policy"),
+    /** The commodity SERVICE_LEVEL_CLUSTER. */
+    SERVICE_LEVEL_CLUSTER("ServiceLevelCluster", CommodityType.SERVICE_LEVEL_CLUSTER, "Service Level Cluster"),
+    /** The commodity PROCESSING_UNITS. */
+    PROCESSING_UNITS("ProcessingUnits", CommodityType.PROCESSING_UNITS, "Processing Units"),
+    /** The commodity TENANCY_ACCESS. */
+    TENANCY_ACCESS("TenancyAccess", CommodityType.TENANCY_ACCESS, "Tenancy Access"),
+    /** The commodity TEMPLATE_ACCESS. */
+    TEMPLATE_ACCESS("TemplateAccess", CommodityType.TEMPLATE_ACCESS, "Template Access"),
+    /** The commodity BURST_BALANCE. */
+    BURST_BALANCE("BurstBalance", CommodityType.BURST_BALANCE, "Burst Balance"),
+    /** The commodity DESIRED_COUPON. */
+    DESIRED_COUPON("DesiredCoupon", CommodityType.DESIRED_COUPON, "Desired Coupon"),
+    /** The commodity NETWORK_INTERFACE_COUNT. */
+    NETWORK_INTERFACE_COUNT("NetworkInterfaceCount", CommodityType.NETWORK_INTERFACE_COUNT, "Network Interface Count"),
     /** The commodity UNKNOWN. */
     UNKNOWN("Unknown", CommodityType.UNKNOWN, "Unknown");
 
