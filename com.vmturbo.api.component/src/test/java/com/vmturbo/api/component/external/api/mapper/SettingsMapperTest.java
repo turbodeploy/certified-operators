@@ -18,6 +18,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -127,6 +131,7 @@ public class SettingsMapperTest {
     private final long startTimestamp = 1564507800425L;
     private final long endTimestamp = 1564522200425L;
     private final long endDatestamp = 1564506000425L;
+    private final long endDatestampEOD = 1564545599999L;
 
     private final int minutePeriod = 240;
 
@@ -657,9 +662,10 @@ public class SettingsMapperTest {
         final SettingsPolicyApiDTO settingsPolicyApiDTO = makeSettingsPolicyApiDto();
 
         final int entityType = EntityType.VIRTUAL_MACHINE.getNumber();
-
+        LocalDate endDate = Instant.ofEpochMilli(endDatestamp).atZone(ZoneId.systemDefault()).toLocalDate();
         final ScheduleApiDTO dailyLastDay = makeBasicScheduleDTO();
-        dailyLastDay.setEndDate(Long.toString(endDatestamp));
+        dailyLastDay.setEndDate(endDate);
+        dailyLastDay.setTimeZone(TimeZone.getDefault().getID());
         final RecurrenceApiDTO dailyRec = new RecurrenceApiDTO();
         dailyRec.setType(RecurrenceType.DAILY);
         dailyLastDay.setRecurrence(dailyRec);
@@ -671,7 +677,7 @@ public class SettingsMapperTest {
         verifyBasicSchedule(schedule);
         assertTrue(schedule.hasDaily());
         assertTrue(schedule.hasLastDate());
-        assertEquals(schedule.getLastDate(), endDatestamp);
+        assertEquals(schedule.getLastDate(), endDatestampEOD);
 
     }
 
@@ -811,9 +817,10 @@ public class SettingsMapperTest {
 
     private ScheduleApiDTO makeBasicScheduleDTO() {
         ScheduleApiDTO scheduleApiDTO = new ScheduleApiDTO();
-        scheduleApiDTO.setEndTime(Long.toString(endTimestamp));
-        scheduleApiDTO.setStartTime(Long.toString(startTimestamp));
-        scheduleApiDTO.setStartDate(Long.toString(startTimestamp));
+        scheduleApiDTO.setEndTime(Instant.ofEpochMilli(endTimestamp).atZone(ZoneId.systemDefault()).toLocalDateTime());
+        scheduleApiDTO.setStartTime(Instant.ofEpochMilli(startTimestamp).atZone(ZoneId.systemDefault()).toLocalDateTime());
+        scheduleApiDTO.setStartDate(Instant.ofEpochMilli(startTimestamp).atZone(ZoneId.systemDefault()).toLocalDateTime());
+        scheduleApiDTO.setTimeZone(TimeZone.getDefault().getID());
         return scheduleApiDTO;
     }
 
@@ -991,7 +998,8 @@ public class SettingsMapperTest {
 
         final ScheduleApiDTO scheduleApiDTO = retDto.getSchedule();
         verifyBasicScheduleDTO(scheduleApiDTO);
-        assertEquals(scheduleApiDTO.getEndDate(), endDateString);
+        ZoneOffset offset = ZoneId.of(scheduleApiDTO.getTimeZone()).getRules().getOffset(Instant.now());
+        assertEquals(scheduleApiDTO.getEndDate(), LocalDateTime.ofInstant(Instant.ofEpochMilli(endTimestamp), offset).toLocalDate());
         assertEquals(scheduleApiDTO.getRecurrence().getType(), RecurrenceType.DAILY);
     }
 
@@ -1134,9 +1142,11 @@ public class SettingsMapperTest {
 
     private void verifyBasicScheduleDTO(ScheduleApiDTO scheduleApiDTO) {
         assertNotEquals(scheduleApiDTO, null);
-        assertEquals(scheduleApiDTO.getStartDate(), startDateString);
-        assertEquals(scheduleApiDTO.getStartTime(), startDateString);
-        assertEquals(scheduleApiDTO.getEndTime(), endTimeString);
+
+        ZoneOffset offset = ZoneId.of(scheduleApiDTO.getTimeZone()).getRules().getOffset(Instant.now());
+        assertEquals(scheduleApiDTO.getStartTime(), LocalDateTime.ofInstant(Instant.ofEpochMilli(startTimestamp), offset));
+        assertEquals(scheduleApiDTO.getEndTime(), LocalDateTime.ofInstant(Instant.ofEpochMilli(endTimestamp), offset));
+        assertEquals(scheduleApiDTO.getTimeZone(), TimeZone.getDefault().getID());
     }
 
     @Test

@@ -1,8 +1,11 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -16,6 +19,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -515,16 +519,17 @@ public class SettingsMapper {
      */
     private Schedule convertScheduleApiDTO(ScheduleApiDTO apiSchedule) {
         final Schedule.Builder scheduleBuilder = Schedule.newBuilder();
-        final long startTimestamp = DateTimeUtil.parseTime(apiSchedule.getStartTime());
-        final Date startDateTime = new Date(startTimestamp);
+
+        final long startTimestamp = apiSchedule.getStartTime().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        final long endTimeStamp = apiSchedule.getEndTime().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
         scheduleBuilder.setStartTime(startTimestamp)
-                .setEndTime(DateTimeUtil.parseTime(apiSchedule.getEndTime()));
+                .setEndTime(endTimeStamp);
 
         if (apiSchedule.getRecurrence() == null || apiSchedule.getRecurrence().getType() == null) {
             scheduleBuilder.setOneTime(Schedule.OneTime.newBuilder().build());
         } else {
             if (apiSchedule.getEndDate() != null) {
-                scheduleBuilder.setLastDate(DateTimeUtil.parseTime(apiSchedule.getEndDate()));
+                scheduleBuilder.setLastDate(apiSchedule.getEndDate().atTime(LocalTime.MAX).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli());
             } else {
                 scheduleBuilder.setPerpetual(Schedule.Perpetual.newBuilder().build());
             }
@@ -536,9 +541,7 @@ public class SettingsMapper {
                     final Schedule.Weekly.Builder weeklyBuilder = Schedule.Weekly.newBuilder();
                     final List<DayOfWeek> apiDays = apiSchedule.getRecurrence().getDaysOfWeek();
                     if (apiDays == null || apiDays.isEmpty()) {
-                        final int weekdayNumber = startDateTime.toInstant()
-                                        .atZone(ZoneId.systemDefault())
-                                        .toLocalDate().getDayOfWeek().getValue();
+                        final int weekdayNumber = apiSchedule.getStartTime().getDayOfWeek().getValue();
                         weeklyBuilder.addDaysOfWeek(Schedule.DayOfWeek.forNumber(weekdayNumber));
                     } else {
                         weeklyBuilder.addAllDaysOfWeek(apiDays.stream()
@@ -551,9 +554,7 @@ public class SettingsMapper {
                     final Schedule.Monthly.Builder monthlyBuilder = Schedule.Monthly.newBuilder();
                     final List<Integer> daysMonth = apiSchedule.getRecurrence().getDaysOfMonth();
                     if (daysMonth == null || daysMonth.isEmpty()) {
-                        monthlyBuilder.addDaysOfMonth(startDateTime.toInstant()
-                                        .atZone(ZoneId.systemDefault())
-                                        .toLocalDate().getDayOfMonth());
+                        monthlyBuilder.addDaysOfMonth(apiSchedule.getStartTime().getDayOfMonth());
                     } else {
                         monthlyBuilder.addAllDaysOfMonth(daysMonth);
                     }
@@ -848,23 +849,25 @@ public class SettingsMapper {
 
             final long startTimestamp = schedule.getStartTime();
             final Date startDateTime = new Date(startTimestamp);
-            final String startTimeString = DateTimeUtil.toString(startTimestamp);
+            LocalDateTime startTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(schedule.getStartTime()), OffsetDateTime.now().getOffset());
 
-            scheduleApiDTO.setStartDate(startTimeString);
-            scheduleApiDTO.setStartTime(startTimeString);
+            scheduleApiDTO.setStartDate(startTime);
+            scheduleApiDTO.setStartTime(startTime);
+            scheduleApiDTO.setTimeZone(TimeZone.getDefault().getID());
 
             switch (schedule.getDurationCase()) {
                 case MINUTES:
-                    final Date endDateTime = Date.from(startDateTime.toInstant().plus(schedule.getMinutes(), ChronoUnit.MINUTES));
-                    scheduleApiDTO.setEndTime(DateTimeUtil.toString(endDateTime));
+                    final LocalDateTime endDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(startDateTime.getTime()), OffsetDateTime.now().getOffset()).plusMinutes(schedule.getMinutes());
+
+                    scheduleApiDTO.setEndTime(endDateTime);
                     break;
                 case END_TIME:
-                    scheduleApiDTO.setEndTime(DateTimeUtil.toString(schedule.getEndTime()));
+                    scheduleApiDTO.setEndTime(LocalDateTime.ofInstant(Instant.ofEpochMilli(schedule.getEndTime()), OffsetDateTime.now().getOffset()));
                     break;
             }
 
             if (schedule.hasLastDate()) {
-                scheduleApiDTO.setEndDate(DateTimeUtil.toString(schedule.getLastDate()));
+                scheduleApiDTO.setEndDate(LocalDateTime.ofInstant(Instant.ofEpochMilli(schedule.getLastDate()), OffsetDateTime.now().getOffset()).toLocalDate());
             }
 
             final RecurrenceApiDTO recurrenceApiDTO = new RecurrenceApiDTO();
