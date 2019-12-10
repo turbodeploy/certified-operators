@@ -225,7 +225,7 @@ public class CostJournalTest {
                        .recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, payee, computePrice, trax(1))
                        .recordOnDemandCost(CostCategory.ON_DEMAND_LICENSE, payee, licensePrice, trax(1))
                        .recordRiCost(riData, trax(1), trax(25))
-                       .recordRIDiscountedCost(CostCategory.ON_DEMAND_COMPUTE, riData, trax(25))
+                       .recordRIDiscountedCost(CostCategory.ON_DEMAND_COMPUTE, riData, trax(0.25))
                        .build();
        CostSourceFilter filter = (costSource -> costSource.equals(CostSource.ON_DEMAND_RATE));
        TraxNumber ans = journal.getHourlyCostFilterEntries(CostCategory.ON_DEMAND_COMPUTE, filter);

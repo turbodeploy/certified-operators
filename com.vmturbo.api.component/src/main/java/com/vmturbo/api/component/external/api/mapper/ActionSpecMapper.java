@@ -1543,8 +1543,8 @@ public class ActionSpecMapper {
                     .stream()
                     .filter(s -> s.getCategory() == Cost.CostCategory.ON_DEMAND_COMPUTE || s.getCategory() == CostCategory.ON_DEMAND_LICENSE)
                     .collect(Collectors.toList());
-            Double onDemandCostBefore = realTimeCostRecords.stream().mapToDouble(s -> s.getValues().getAvg()).sum();
-            Double onDemandCostAfter = projectedTimeCostRecords.stream().mapToDouble(s -> s.getValues().getAvg()).sum();
+            Double onDemandCostBefore = realTimeCostRecords.stream().mapToDouble(s -> s.getValues().getTotal()).sum();
+            Double onDemandCostAfter = projectedTimeCostRecords.stream().mapToDouble(s -> s.getValues().getTotal()).sum();
             // set on-demand costs
             cloudResizeActionDetailsApiDTO.setOnDemandCostBefore(onDemandCostBefore.floatValue());
             cloudResizeActionDetailsApiDTO.setOnDemandCostAfter(onDemandCostAfter.floatValue());

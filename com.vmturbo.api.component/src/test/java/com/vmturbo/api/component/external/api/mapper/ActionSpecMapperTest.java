@@ -625,9 +625,9 @@ public class ActionSpecMapperTest {
         final long targetId = 1;
         // mock on-demand cost response from cost service
         Cost.CloudCostStatRecord.StatRecord.StatValue statValueDto1 =
-                Cost.CloudCostStatRecord.StatRecord.StatValue.newBuilder().setAvg(10f).build();
+                Cost.CloudCostStatRecord.StatRecord.StatValue.newBuilder().setAvg(10f).setTotal(10f).build();
         Cost.CloudCostStatRecord.StatRecord.StatValue statValueDto2 =
-                Cost.CloudCostStatRecord.StatRecord.StatValue.newBuilder().setAvg(20f).build();
+                Cost.CloudCostStatRecord.StatRecord.StatValue.newBuilder().setAvg(20f).setTotal(20f).build();
         Cost.CloudCostStatRecord.StatRecord statRecord1 = Cost.CloudCostStatRecord.StatRecord.newBuilder().setValues(statValueDto1).build();
         Cost.CloudCostStatRecord.StatRecord statRecord2 = Cost.CloudCostStatRecord.StatRecord.newBuilder().setValues(statValueDto2).build();
         Cost.CloudCostStatRecord record1 = Cost.CloudCostStatRecord.newBuilder()

@@ -252,10 +252,16 @@ public class CostJournal<ENTITY_CLASS> {
             .setTotalAmount(CurrencyAmount.newBuilder()
                 .setAmount(getTotalHourlyCost().getValue()));
         getCategories().forEach(category -> {
-            costBuilder.addComponentCost(ComponentCost.newBuilder()
-                .setCategory(category)
-                .setAmount(CurrencyAmount.newBuilder()
-                    .setAmount(getHourlyCostForCategory(category).getValue())));
+            for (CostSource source: CostSource.values()) {
+                TraxNumber costBySource = getHourlyCostBySourceAndCategory(category, Optional.of(source));
+                if (costBySource != null) {
+                    costBuilder.addComponentCost(ComponentCost.newBuilder()
+                            .setCategory(category)
+                            .setCostSource(source)
+                            .setAmount(CurrencyAmount.newBuilder()
+                                    .setAmount(costBySource.getValue())));
+                }
+            }
         });
         return costBuilder.build();
     }
@@ -575,7 +581,7 @@ public class CostJournal<ENTITY_CLASS> {
                     .minus(discountPercentage)
                     .compute("full price portion");
             onDemandRate = rateExtractor.lookupCostWithFilter(targetCostCategory, costSource1 -> costSource1.equals(CostSource.ON_DEMAND_RATE));
-            onDemandRate = trax(riBoughtPercentage.dividedBy(100).compute().times(-1).getValue())
+            onDemandRate = trax(riBoughtPercentage.dividedBy(1).compute().times(-1).getValue())
                     .times(onDemandRate).compute();
             return onDemandRate.times(fullPricePercentage).compute("RI discounted {} cost", targetCostCategory.getDescriptorForType().getFullName());
         }
