@@ -124,7 +124,7 @@ public class DeleteContextTest {
         assertFalse(actionExecutionContext.getActionItems().isEmpty());
 
         // The primary entity being acted upon should be among those listed as affected entities
-        assertTrue(actionExecutionContext.getAffectedEntities().contains(destinationEntityId));
+        assertTrue(actionExecutionContext.getControlAffectedEntities().contains(destinationEntityId));
 
         assertEquals(ActionType.DELETE, actionExecutionContext.getSDKActionType());
 

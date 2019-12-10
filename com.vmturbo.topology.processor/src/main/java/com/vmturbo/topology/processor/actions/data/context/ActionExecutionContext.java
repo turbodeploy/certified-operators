@@ -82,7 +82,7 @@ public interface ActionExecutionContext {
      * @return a Set of entities involved in the action
      */
     @Nonnull
-    Set<Long> getAffectedEntities();
+    Set<Long> getControlAffectedEntities();
 
     /**
      * Get the ID of the secondary target involved in this action, or null if no secondary target is

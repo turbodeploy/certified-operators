@@ -71,7 +71,7 @@ public abstract class ChangeProviderContext extends AbstractActionExecutionConte
      */
     @Override
     @Nonnull
-    public Set<Long> getAffectedEntities() {
+    public Set<Long> getControlAffectedEntities() {
         final ActionEntity targetEntity;
         try {
             targetEntity = ActionDTOUtil.getPrimaryEntity(getActionId(), getActionInfo(), true);

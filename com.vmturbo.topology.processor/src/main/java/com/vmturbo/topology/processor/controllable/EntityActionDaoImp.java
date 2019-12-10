@@ -60,9 +60,6 @@ public class EntityActionDaoImp implements EntityActionDao {
                              @Nonnull final ActionItemDTO.ActionType actionType,
                              @Nonnull final Set<Long> entityIds)
             throws IllegalArgumentException {
-        if (entityIds.isEmpty()) {
-            return;
-        }
         logger.info("Start transaction to insert action into controllable table. actionId: {}," +
                         " actionType: {}, numEntities: {}", actionId, actionType, entityIds.size());
         dsl.transaction(configuration -> {

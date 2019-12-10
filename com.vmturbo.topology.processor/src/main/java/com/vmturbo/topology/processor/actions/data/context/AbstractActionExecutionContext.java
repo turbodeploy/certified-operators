@@ -192,7 +192,7 @@ public abstract class AbstractActionExecutionContext implements ActionExecutionC
      * @return a Set of entities involved in the action
      */
     @Override
-    public Set<Long> getAffectedEntities() {
+    public Set<Long> getControlAffectedEntities() {
         return Collections.singleton(getPrimaryEntityId());
     }
 

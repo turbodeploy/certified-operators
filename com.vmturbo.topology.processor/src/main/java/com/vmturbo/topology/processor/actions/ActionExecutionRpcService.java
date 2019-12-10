@@ -88,7 +88,7 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
                     actionExecutionContext.getSecondaryTargetId(),
                     actionType,
                     sdkActions,
-                    actionExecutionContext.getAffectedEntities(),
+                    actionExecutionContext.getControlAffectedEntities(),
                     workflowOptional);
 
             logger.info("ExecuteActionRequest completed for action: {}", actionId);

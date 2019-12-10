@@ -203,7 +203,7 @@ public interface IOperationManager {
      *                          target is involved
      * @param actionType The type of the overarching action
      * @param actionDtos A list of {@link ActionExecution.ActionItemDTO}s describing the action(s) to execute.
-     * @param affectedEntities A set of entities directly affected by this action
+     * @param controlAffectedEntities A set of entities directly affected by this action
      * @param workflowInfo the Workflow that will override the handling of this action, if one is
      *                     specified in a Setting
      * @return The {@link Action} requested for the target.
@@ -218,7 +218,7 @@ public interface IOperationManager {
                           @Nullable Long secondaryTargetId,
                           @Nonnull final ActionType actionType,
                           @Nonnull List<ActionExecution.ActionItemDTO> actionDtos,
-                          @Nonnull Set<Long> affectedEntities,
+                          @Nonnull Set<Long> controlAffectedEntities,
                           @Nonnull Optional<WorkflowDTO.WorkflowInfo> workflowInfo)
             throws ProbeException, TargetNotFoundException, CommunicationException,
             InterruptedException;

@@ -108,7 +108,7 @@ public class ActionExecutionContextTest {
         Assert.assertEquals(1, actionExecutionContext.getActionItems().size());
 
         // The primary entity being acted upon should be among those listed as affected entities
-        Assert.assertTrue(actionExecutionContext.getAffectedEntities().contains(entityId));
+        Assert.assertTrue(actionExecutionContext.getControlAffectedEntities().contains(entityId));
 
         Assert.assertEquals(ActionType.START, actionExecutionContext.getSDKActionType());
 
@@ -171,7 +171,7 @@ public class ActionExecutionContextTest {
         Assert.assertEquals(1, actionExecutionContext.getActionItems().size());
 
         // The primary entity being acted upon should be among those listed as affected entities
-        Assert.assertTrue(actionExecutionContext.getAffectedEntities().contains(entityId));
+        Assert.assertTrue(actionExecutionContext.getControlAffectedEntities().contains(entityId));
 
         Assert.assertEquals(ActionType.SUSPEND, actionExecutionContext.getSDKActionType());
 
@@ -256,7 +256,7 @@ public class ActionExecutionContextTest {
         Assert.assertEquals(1, actionExecutionContext.getActionItems().size());
 
         // The primary entity being acted upon should be among those listed as affected entities
-        Assert.assertTrue(actionExecutionContext.getAffectedEntities().contains(entityId));
+        Assert.assertTrue(actionExecutionContext.getControlAffectedEntities().contains(entityId));
 
         // TODO Update this after addressing the TODO in ResizeContext relating to the discrepancy
         //      between RESIZE vs RIGHT_SIZE. Some probes expect one, while others expect the other.
@@ -341,7 +341,7 @@ public class ActionExecutionContextTest {
         Assert.assertEquals(1, actionExecutionContext.getActionItems().size());
 
         // The primary entity being acted upon should be among those listed as affected entities
-        Assert.assertTrue(actionExecutionContext.getAffectedEntities().contains(entityId));
+        Assert.assertTrue(actionExecutionContext.getControlAffectedEntities().contains(entityId));
 
         Assert.assertEquals(ActionType.PROVISION, actionExecutionContext.getSDKActionType());
 

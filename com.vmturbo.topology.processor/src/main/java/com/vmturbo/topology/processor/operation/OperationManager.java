@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.operation;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -191,6 +192,12 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     private final EntityActionDao entityActionDao;
 
+    /**
+     * Map that contain an action id with the respective affected entities. This is used only for
+     * controllable actions, other actions should not have an entry in this map.
+     */
+    private final HashMap<Long, Set<Long>> actionToControlAffectedEntities = new HashMap<>();
+
     private static final ImmutableSet<ActionItemDTO.ActionType> CONTROLLABLE_OR_SUSPENDABLE_ACTION_TYPES
             = ImmutableSet.of(ActionItemDTO.ActionType.MOVE, ActionItemDTO.ActionType.CHANGE,
             ActionItemDTO.ActionType.CROSS_TARGET_MOVE, ActionItemDTO.ActionType.MOVE_TOGETHER,
@@ -302,7 +309,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                               @Nullable Long secondaryTargetId,
                                               @Nonnull final ActionType actionType,
                                               @Nonnull final List<ActionItemDTO> actionDtos,
-                                              @Nonnull Set<Long> affectedEntities,
+                                              @Nonnull Set<Long> controlAffectedEntities,
                                               @Nonnull Optional<WorkflowDTO.WorkflowInfo> workflowInfoOpt)
             throws ProbeException, TargetNotFoundException, CommunicationException, InterruptedException {
         final Target target = targetStore.getTarget(targetId)
@@ -341,10 +348,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 remoteMediationServer.getMessageHandlerExpirationClock(),
                 actionTimeoutMs);
 
-        logger.info("Insert controllable flag for action {} which is of type {}", actionId,
-                        actionType);
         // Update the ENTITY_ACTION table in preparation for executing the action
-        insertControllableAndSuspendableState(actionId, actionType, affectedEntities);
+        insertControllableAndSuspendableState(actionId, actionType, controlAffectedEntities);
 
         logger.info("Sending action {} execution request to probe", actionId);
         remoteMediationServer.sendActionRequest(target.getProbeId(),
@@ -854,7 +859,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             @Nonnull final ActionResult message) {
         resultExecutor.execute(() -> {
             processActionResponse(operation, message);
-            if (shouldUpdateEntityActionTable(operation.getActionType())) {
+            if (shouldUpdateEntityActionTable(operation)) {
                 updateControllableAndSuspendableState(operation);
             }
         });
@@ -867,7 +872,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 Action action = (Action)operation;
                 action.updateProgress(message.getActionProgress().getResponse());
                 operationListener.notifyOperationState(operation);
-                if (shouldUpdateEntityActionTable(action.getActionType())) {
+                if (shouldUpdateEntityActionTable(action)) {
                     updateControllableAndSuspendableState(action);
                 }
             });
@@ -1201,12 +1206,19 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      * The ENTITY_ACTION table is used in {@link com.vmturbo.topology.processor.controllable.ControllableManager}
      * to decide the suspendable and controllable flags on
      * {@link com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO}.
+     *
+     * @param actionId The id of the action that is going to be stored.
+     * @param actionType The action type of the action that is going to be stored.
+     * @param entities The set of entities affected by the action
      */
     private void insertControllableAndSuspendableState(final long actionId,
                                          @Nonnull final ActionItemDTO.ActionType actionType,
                                          @Nonnull final Set<Long> entities) {
         try {
-            if (shouldUpdateEntityActionTable(actionType)) {
+            if (shouldInsertEntityActionTable(actionType, entities)) {
+                logger.info("Insert controllable flag for action {} which is of type {}", actionId,
+                    actionType);
+                actionToControlAffectedEntities.put(actionId, entities);
                 entityActionDao.insertAction(actionId, actionType, entities);
             }
         } catch (DataAccessException | IllegalArgumentException e) {
@@ -1217,14 +1229,27 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     /**
      * Check if the sdk action type is START, MOVE, CHANGE, CROSS_TARGET_MOVE or MOVE_TOGETHER.
+     * @param actionType The action type of the action that is going to be stored.
+     * @param entities The set of entities affected by the action
+     * @return if the action should be stored.
      */
-    private boolean shouldUpdateEntityActionTable(ActionType actionType) {
-        return CONTROLLABLE_OR_SUSPENDABLE_ACTION_TYPES.contains(actionType);
+    private boolean shouldInsertEntityActionTable(ActionType actionType, Set<Long> entities) {
+        return CONTROLLABLE_OR_SUSPENDABLE_ACTION_TYPES.contains(actionType) && entities.size() > 0;
+    }
+
+    /**
+     * Check if the sdk action type is START, MOVE, CHANGE, CROSS_TARGET_MOVE or MOVE_TOGETHER.
+     * @param action The action that is going to be updated.
+     * @return if the action should be updated.
+     */
+    private boolean shouldUpdateEntityActionTable(Action action) {
+        return CONTROLLABLE_OR_SUSPENDABLE_ACTION_TYPES.contains(action.getActionType())
+            && this.actionToControlAffectedEntities.containsKey(action.getActionId());
     }
 
     /**
      * Update action status for records in ENTITY_ACTION table in topology processor component.
-     *
+     * @param action The action that is going to be updated.
      * {@link com.vmturbo.topology.processor.controllable.ControllableManager}
      */
     private void updateControllableAndSuspendableState(@Nonnull final Action action) {
@@ -1237,8 +1262,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             logger.error("Failed to update controllable table for action {}: {}",
                     action.getActionId(), e.getMessage());
         } catch (ControllableRecordNotFoundException e) {
-            logger.error("Action with id {} does not exist. Failed to update controllable table." ,
-                    action.getActionId());
+            logger.error("Action with id {} does not exist. Failed to update controllable table.", action.getActionId());
         }
     }
 

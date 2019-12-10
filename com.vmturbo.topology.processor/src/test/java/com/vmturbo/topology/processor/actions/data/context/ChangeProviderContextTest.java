@@ -134,7 +134,7 @@ public class ChangeProviderContextTest {
         Assert.assertFalse(actionExecutionContext.getActionItems().isEmpty());
 
         // The primary entity being acted upon should be among those listed as affected entities
-        Assert.assertTrue(actionExecutionContext.getAffectedEntities().contains(entityId));
+        Assert.assertTrue(actionExecutionContext.getControlAffectedEntities().contains(entityId));
 
         Assert.assertEquals(ActionType.MOVE, actionExecutionContext.getSDKActionType());
 
@@ -203,7 +203,7 @@ public class ChangeProviderContextTest {
         Assert.assertFalse(actionExecutionContext.getActionItems().isEmpty());
 
         // The primary entity being acted upon should be among those listed as affected entities
-        Assert.assertTrue(actionExecutionContext.getAffectedEntities().contains(entityId));
+        Assert.assertTrue(actionExecutionContext.getControlAffectedEntities().contains(entityId));
 
         // Probes expect a storage move action to be reported as a CHANGE.
         // This is the key difference between this test and the normal move context test above
@@ -311,7 +311,7 @@ public class ChangeProviderContextTest {
         Assert.assertEquals(String.valueOf(storageEntityId), storageActionItem.getNewSE().getId());
 
         // The primary entity being acted upon should be among those listed as affected entities
-        Assert.assertTrue(actionExecutionContext.getAffectedEntities().contains(entityId));
+        Assert.assertTrue(actionExecutionContext.getControlAffectedEntities().contains(entityId));
 
         // The XL ActionType does not have a separate entry for CROSS_TARGET_MOVE like the SDK one does
         Assert.assertEquals(ActionType.CROSS_TARGET_MOVE, actionExecutionContext.getSDKActionType());
@@ -427,7 +427,7 @@ public class ChangeProviderContextTest {
             actionExecutionContextFactory.getActionExecutionContext(request);
 
         // The primary entity being acted upon should be among those listed as affected entities
-        Assert.assertTrue(actionExecutionContext.getAffectedEntities().contains(entityId));
+        Assert.assertTrue(actionExecutionContext.getControlAffectedEntities().contains(entityId));
 
         // The XL ActionType does not have a separate entry for CROSS_TARGET_MOVE like the SDK one does
         Assert.assertEquals(ActionType.CROSS_TARGET_MOVE, actionExecutionContext.getSDKActionType());
@@ -539,7 +539,7 @@ public class ChangeProviderContextTest {
             actionExecutionContextFactory.getActionExecutionContext(request);
 
         // The primary entity being acted upon should be among those listed as affected entities
-        Assert.assertTrue(actionExecutionContext.getAffectedEntities().contains(entityId));
+        Assert.assertTrue(actionExecutionContext.getControlAffectedEntities().contains(entityId));
 
         // The XL ActionType does not have a separate entry for CROSS_TARGET_MOVE like the SDK one does
         Assert.assertEquals(ActionType.CROSS_TARGET_MOVE, actionExecutionContext.getSDKActionType());
@@ -728,7 +728,7 @@ public class ChangeProviderContextTest {
         final ActionExecutionContext actionExecutionContext =
                 actionExecutionContextFactory.getActionExecutionContext(request);
         Assert.assertFalse(actionExecutionContext.getActionItems().isEmpty());
-        Assert.assertTrue(actionExecutionContext.getAffectedEntities().contains(entityId));
+        Assert.assertTrue(actionExecutionContext.getControlAffectedEntities().contains(entityId));
         Assert.assertEquals(ActionType.MOVE, actionExecutionContext.getSDKActionType());
         Assert.assertEquals(actionId, actionExecutionContext.getActionId());
         Assert.assertEquals(targetId, actionExecutionContext.getTargetId());
@@ -788,7 +788,7 @@ public class ChangeProviderContextTest {
         Assert.assertFalse(actionExecutionContext.getActionItems().isEmpty());
 
         // The primary entity being acted upon should be among those listed as affected entities
-        Assert.assertTrue(actionExecutionContext.getAffectedEntities().contains(entityId));
+        Assert.assertTrue(actionExecutionContext.getControlAffectedEntities().contains(entityId));
 
         Assert.assertEquals(ActionType.SCALE, actionExecutionContext.getSDKActionType());
 
