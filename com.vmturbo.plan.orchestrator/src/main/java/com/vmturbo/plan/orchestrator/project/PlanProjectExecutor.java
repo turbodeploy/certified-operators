@@ -315,15 +315,25 @@ public class PlanProjectExecutor {
                                            throws IntegrityException {
         final PlanScope.Builder planScopeBuilder = PlanScope.newBuilder();
 
-        for (Grouping cluster : clusters) {
-            boolean addScopeEntry = true;
+        // TODO (roman, Dec 5 2017): Project-type-specific logic should not be in the main
+        // executor class. We should refactor this to separate the general and type-specific
+        // processing steps.
+        if (type.equals(PlanProjectType.CLUSTER_HEADROOM)) {
+            // Get the default cluster headroom template.
+            Optional<Template> defaultHeadroomTemplate = templatesDao
+                .getFilteredTemplates(TemplatesFilter.newBuilder()
+                    .addTemplateName(StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME).build())
+                .stream().filter(template -> template.getType().equals(Type.SYSTEM))
+                .findFirst();
 
-            // The failure for a single cluster should not fail the entire plan.
-            if (type.equals(PlanProjectType.CLUSTER_HEADROOM)) {
+            for (Grouping cluster : clusters) {
+                // The failure for a single cluster should not fail the entire plan.
+                boolean addScopeEntry = true;
+
                 try {
-                    updateClusterHeadroomTemplate(cluster);
+                    updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate);
                 } catch (NoSuchObjectException | IllegalTemplateOperationException |
-                         DuplicateTemplateException e) {
+                    DuplicateTemplateException e) {
                     addScopeEntry = false;
                     if (logger.isTraceEnabled()) {
                         logger.trace("Failed to update headroom template for cluster name {}, id {}: {}",
@@ -333,14 +343,14 @@ public class PlanProjectExecutor {
                     logger.error("Failed to retrieve system load of cluster name {}, id {}: {}",
                         cluster.getDefinition().getDisplayName(), cluster.getId(), e.getMessage());
                 }
-            }
 
-            // If exception was encountered during pre-processing, don't add to the scope entry list.
-            if (addScopeEntry) {
-                planScopeBuilder.addScopeEntries(PlanScopeEntry.newBuilder()
-                    .setScopeObjectOid(cluster.getId())
-                    .setClassName("Cluster")
-                    .build());
+                // If exception was encountered during pre-processing, don't add to the scope entry list.
+                if (addScopeEntry) {
+                    planScopeBuilder.addScopeEntries(PlanScopeEntry.newBuilder()
+                        .setScopeObjectOid(cluster.getId())
+                        .setClassName("Cluster")
+                        .build());
+                }
             }
         }
 
@@ -362,123 +372,105 @@ public class PlanProjectExecutor {
     }
 
     /**
-     * Create or update the headroom template of a cluster.
-     * if headroomTemplateInfo exists:
-     *     if cluster has clusterHeadroomTemplateId:
-     *         update the associated headroom template using headroomTemplateInfo
+     * Create or update the headroom template for a cluster.
+     *
+     * <p>Here's the logic:
+     * if the cluster has sufficient system load records:
+     *     if cluster template exists in the db:
+     *         if the associated template is avg template:
+     *             update this existing avg template
+     *         else if the associated template is default headroom template:
+     *             create a new avg template
+     *             newClusterHeadroomTemplateId = id of the new avg template
      *     else:
-     *         create a new headroom template using headroomTemplateInfo
+     *         create a new avg template
+     *         newClusterHeadroomTemplateId = id of the new avg template
      * else:
-     *     use the default headroom template
-     * update the clusterHeadroomTemplateId of the cluster
+     *     if cluster template doesn't exist in the db:
+     *         newClusterHeadroomTemplateId = default headroom template id
+     * Send a request to group component to update the clusterHeadroomTemplateId of the cluster.
+     *
+     * <p>Note that sometimes a cluster has an associated template id, but the corresponding template
+     * doesn't exist in the db, e.g. when loading group diags.
+     * This has never happened at a customer.
      *
      * @param cluster the cluster whose headroom template will be updated
-     * @throws NoSuchObjectException if can not find system load records for this cluster or an existing template
+     * @param defaultHeadroomTemplate an Optional of default cluster headroom template
+     * @throws NoSuchObjectException if default cluster headroom template not found
      * @throws IllegalTemplateOperationException if the operation is not allowed created template
      * @throws DuplicateTemplateException if there are errors when a user tries to create templates
      */
-    private void updateClusterHeadroomTemplate(@Nonnull Grouping cluster)
+    @VisibleForTesting
+    void updateClusterHeadroomTemplate(@Nonnull final Grouping cluster,
+                                       @Nonnull final Optional<Template> defaultHeadroomTemplate)
                 throws NoSuchObjectException, IllegalTemplateOperationException,
                        DuplicateTemplateException {
-        List<SystemLoadRecord> systemLoadRecordList = new ArrayList<>();
+        final List<SystemLoadRecord> systemLoadRecordList = new ArrayList<>();
         statsHistoryService.getSystemLoadInfo(
                 SystemLoadInfoRequest.newBuilder().addClusterId(cluster.getId()).build())
             .forEachRemaining(response -> systemLoadRecordList.addAll(response.getRecordList()));
 
-        if (systemLoadRecordList.isEmpty()) {
-            throw new NoSuchObjectException("No system load records found for cluster : "
-                + cluster.getDefinition().getDisplayName());
-        }
-
-        SystemLoadProfileCreator profiles = new SystemLoadProfileCreator(
-            cluster, systemLoadRecordList, LOOPBACK_DAYS);
-        Map<Operation, SystemLoadCalculatedProfile> profilesMap = profiles.createAllProfiles();
-        SystemLoadCalculatedProfile calculatedAvgProfileForToday = profilesMap.get(Operation.AVG);
-        Optional<TemplateInfo> calculatedAvgTemplateInfo = calculatedAvgProfileForToday.getHeadroomTemplateInfo();
-
-        // TODO (roman, Dec 5 2017): Project-type-specific logic should not be in the main
-        // executor class. We should refactor this to separate the general and type-specific
-        // processing steps.
-        Template usedTemplate = null;
-        long clusterHRoomTemplateId = 0L;
-
-        Optional<Template> clusterHRoomTemplate =
+        Optional<Long> newClusterHeadroomTemplateId = Optional.empty();
+        Optional<Template> headroomTemplate =
             templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId());
-        if (clusterHRoomTemplate.isPresent()) {
-            clusterHRoomTemplateId = clusterHRoomTemplate.get().getId();
-        }
 
-        // Case 1: When user has not selected anything and no data in DB to calculate average
-        // Case 2: When user has not selected anything and we have data in DB to calculate average
-        // Case 3: The user or the system has chosen the average template for the cluster
-        // Case 4: The user has chosen the default headroom template
-        // Case 5: The user has chosen another template (not average or default)
-        if (clusterHRoomTemplateId > 0) {
-            if (isHeadroomVmOrAverageTemplate(calculatedAvgProfileForToday.getProfileName(), clusterHRoomTemplate)) {
-                if (clusterHRoomTemplate.get().getTemplateInfo().getName().equals(StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME)) {
-                    // Set usedTemplate to default template when the user has selected the default template
-                    logger.debug("Updating template for : " + cluster.getDefinition().getDisplayName() +
-                            " with default headroom template");
-                    usedTemplate = templatesDao.getFilteredTemplates(TemplatesFilter.newBuilder()
-                            .addTemplateName(StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME)
-                            .build()).stream()
-                            .filter(template -> template.getType().equals(Type.SYSTEM))
-                            .findFirst()
-                            .orElseThrow(() -> new IllegalStateException("No system headroom VM found!"));
-                } else {
-                    if (calculatedAvgTemplateInfo.isPresent()) {
-                        // The user has selected the average template
-                        logger.debug("Updating template for : " + cluster.getDefinition().getDisplayName() +
-                                " with template id : " + clusterHRoomTemplateId);
-                        // if template Id already exists, update template with new values
-                        templatesDao.editTemplate(clusterHRoomTemplateId, calculatedAvgTemplateInfo.get());
+        if (!systemLoadRecordList.isEmpty()) {
+            // Cluster has sufficient system load data.
+            // Create avg template info.
+            SystemLoadProfileCreator profileCreator = new SystemLoadProfileCreator(
+                cluster, systemLoadRecordList, LOOPBACK_DAYS);
+            Map<Operation, SystemLoadCalculatedProfile> profiles = profileCreator.createAllProfiles();
+            SystemLoadCalculatedProfile avgProfile = profiles.get(Operation.AVG);
+            // In this case, avgTemplateInfo exists for sure.
+            TemplateInfo avgTemplateInfo = avgProfile.getHeadroomTemplateInfo().get();
+
+            if (headroomTemplate.isPresent()) {
+                // Cluster has sufficient system load data and has associated headroom template.
+                if (headroomTemplate.get().hasTemplateInfo() &&
+                    headroomTemplate.get().getTemplateInfo().hasName()) {
+                    if (headroomTemplate.get().getTemplateInfo().getName()
+                        .equals(avgProfile.getProfileName())) {
+                        // Associated headroom template is avg template.
+                        logger.info("Updating existing avg template for cluster {}, id {}",
+                            cluster.getDefinition().getDisplayName(), cluster.getId());
+                        templatesDao.editTemplate(headroomTemplate.get().getId(), avgTemplateInfo);
+                    } else if (headroomTemplate.get().getTemplateInfo().getName()
+                        .equals(StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME)) {
+                        // Associated headroom template is default template.
+                        // Switch from default template to avg template.
+                        logger.info("Creating avg template for cluster {}, id {}. Switch from default " +
+                            "template to avg template.", cluster.getDefinition().getDisplayName(), cluster.getId());
+                        newClusterHeadroomTemplateId =
+                            Optional.of(templatesDao.createTemplate(avgTemplateInfo).getId());
+                    } else {
+                        // Create or update AVG template even though current template is not AVG template.
+                        templatesDao.createTemplate(avgTemplateInfo);
                     }
                 }
+            } else {
+                // Cluster has sufficient system load data but doesn't have associated headroom template.
+                logger.info("Creating avg template for cluster {}, id {}",
+                    cluster.getDefinition().getDisplayName(), cluster.getId());
+                newClusterHeadroomTemplateId =
+                    Optional.of(templatesDao.createTemplate(avgTemplateInfo).getId());
             }
         } else {
-            if (calculatedAvgTemplateInfo.isPresent()) {
-                // The user has not selected a template and average template is calculated
-                // Create template using template info and set it as headroomTemplate
-                logger.debug("Creating template for : " + cluster.getDefinition().getDisplayName() +
-                        " with the calculated average template");
-                usedTemplate = templatesDao.createTemplate(calculatedAvgTemplateInfo.get());
-
-            } else {
-                // The user has not selected a template and average template does not exist
-                // Set headroomTemplate  to default template
-                logger.debug("Updating template for : " + cluster.getDefinition().getDisplayName() +
-                        " with default headroom template");
-                usedTemplate = templatesDao.getFilteredTemplates(TemplatesFilter.newBuilder()
-                        .addTemplateName(StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME)
-                        .build()).stream()
-                        .filter(template -> template.getType().equals(Type.SYSTEM))
-                        .findFirst()
-                        .orElseThrow(() -> new IllegalStateException("No system headroom VM found!"));
-            }
-        }
-        if (usedTemplate != null) {
-            // Update template with current headroomTemplate
-            templatesDao.setOrUpdateHeadroomTemplateForCluster(cluster.getId(), usedTemplate.getId());
-        }
-    }
-
-    private boolean isHeadroomVmOrAverageTemplate(String profileName, Optional<Template> clusterHeadroomTemplate) {
-        String headroomVMName = StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME;
-        if (clusterHeadroomTemplate != null) {
-            if (clusterHeadroomTemplate.isPresent()) {
-                Template template = clusterHeadroomTemplate.get();
-                if (template.hasTemplateInfo()) {
-                    TemplateInfo templateInfo = template.getTemplateInfo();
-                    if (templateInfo.hasName()) {
-                        String name = templateInfo.getName();
-                        if (name.equals(profileName) || (name.equals(headroomVMName))) {
-                            return true;
-                        }
-                    }
+            if (!headroomTemplate.isPresent()) {
+                // Cluster doesn't have sufficient system load data and associated headroom template.
+                if (defaultHeadroomTemplate.isPresent()) {
+                    newClusterHeadroomTemplateId = Optional.of(defaultHeadroomTemplate.get().getId());
+                    logger.info("No system load records found for cluster {}, id {}. " +
+                        "Use default headroom template.", cluster.getDefinition().getDisplayName(), cluster.getId());
+                } else {
+                    throw new NoSuchObjectException("Default cluster headroom template not found for cluster " +
+                        cluster.getDefinition().getDisplayName() + ", id " + cluster.getId());
                 }
             }
         }
-        return false;
+
+        // Update cluster with new clusterHeadroomTemplateId.
+        newClusterHeadroomTemplateId.ifPresent(headroomTemplateId ->
+            templatesDao.setOrUpdateHeadroomTemplateForCluster(cluster.getId(), headroomTemplateId));
     }
 
     /**

@@ -7,6 +7,7 @@ import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -44,6 +45,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template.Type;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
@@ -56,10 +58,13 @@ import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.plan.orchestrator.templates.exceptions.DuplicateTemplateException;
+import com.vmturbo.plan.orchestrator.templates.exceptions.IllegalTemplateOperationException;
 
 /**
  * Tests for the {@link com.vmturbo.plan.orchestrator.project.PlanProjectExecutor} class.
@@ -96,16 +101,6 @@ public class PlanProjectExecutorTest {
                     .setTemplateInfo(TemplateInfo.newBuilder()
                         .setName(StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME))
                     .build()));
-        when(statsHistoryServiceMole.getSystemLoadInfo(any()))
-            .thenReturn(Collections.singletonList(SystemLoadInfoResponse.newBuilder()
-                .addRecord(SystemLoadRecord.newBuilder()
-                    .setPropertyType("VCPU")
-                    .setAvgValue(10)
-                    .setRelationType(0))
-                .build()));
-
-        when(templatesDao.getClusterHeadroomTemplateForGroup(anyLong()))
-            .thenReturn(Optional.empty());
     }
 
     @Test
@@ -145,6 +140,8 @@ public class PlanProjectExecutorTest {
                             .build()))
                 .build());
 
+        when(templatesDao.getClusterHeadroomTemplateForGroup(anyLong())).thenReturn(Optional.empty());
+
         ReflectionTestUtils.setField(planProjectExecutor, "headroomCalculationForAllClusters", false);
         planProjectExecutor.executePlan(planProject);
 
@@ -181,6 +178,8 @@ public class PlanProjectExecutorTest {
                 .setStatus(PlanStatus.READY)
                 .build());
 
+        when(templatesDao.getClusterHeadroomTemplateForGroup(anyLong())).thenReturn(Optional.empty());
+
         PlanProjectOuterClass.PlanProject planProject = createHeadroomPlanProjectWithTwoScenarios();
         planProjectExecutor.executePlan(planProject);
 
@@ -199,6 +198,14 @@ public class PlanProjectExecutorTest {
      */
     @Test
     public void testCreatePlanInstanceWithClusterSelectedTemplate() throws Exception {
+        when(statsHistoryServiceMole.getSystemLoadInfo(any()))
+            .thenReturn(Collections.singletonList(SystemLoadInfoResponse.newBuilder()
+                .addRecord(SystemLoadRecord.newBuilder()
+                    .setPropertyType("VCPU")
+                    .setAvgValue(10)
+                    .setRelationType(0))
+                .build()));
+
         long selectedTemplateId = 3333;
         Grouping groupWithHeadroomTemplateId = Grouping.newBuilder()
         .setId(12345)
@@ -208,7 +215,8 @@ public class PlanProjectExecutorTest {
         .build();
 
 
-        when(templatesDao.getTemplate(selectedTemplateId)).thenReturn(Optional.of(Template.getDefaultInstance()));
+        when(templatesDao.getClusterHeadroomTemplateForGroup(groupWithHeadroomTemplateId.getId()))
+            .thenReturn(Optional.of(Template.getDefaultInstance()));
 
         planProjectExecutor.createClusterPlanInstance(Collections.singleton(groupWithHeadroomTemplateId),
                 PlanProjectScenario.getDefaultInstance(), PlanProjectType.CLUSTER_HEADROOM);
@@ -216,13 +224,9 @@ public class PlanProjectExecutorTest {
         // The use selects a template which is not a headroomVM or an average template and the code regarding
         // headroomVM or average is not executed, thus editTemplate() and getFilteredTemplates() are not called
         verify(templatesDao, never()).editTemplate(eq(selectedTemplateId), any());
-        verify(templatesDao, never()).getFilteredTemplates(any());
-        // usedTemplate is not updated, thus the part of the code where usedTemplate != null
-        // is not executed and updateClusterHeadroomTemplate() is not called
+        verify(templatesDao).getFilteredTemplates(any());
         verify(templatesDao, never()).setOrUpdateHeadroomTemplateForCluster(anyLong(), anyLong());
     }
-
-
 
     /**
      * When calling createPlanInstanceWithClusterHeadroomTemplate and the group has a selected
@@ -234,6 +238,14 @@ public class PlanProjectExecutorTest {
      */
     @Test
     public void testCreatePlanInstanceWithClusterHeadroomTemplate() throws Exception {
+        when(statsHistoryServiceMole.getSystemLoadInfo(any()))
+            .thenReturn(Collections.singletonList(SystemLoadInfoResponse.newBuilder()
+                .addRecord(SystemLoadRecord.newBuilder()
+                    .setPropertyType("VCPU")
+                    .setAvgValue(10)
+                    .setRelationType(0))
+                .build()));
+
         long averageTemplateId = 3333;
         Grouping groupWithHeadroomTemplateId = Grouping.newBuilder()
             .setId(12345L)
@@ -262,13 +274,10 @@ public class PlanProjectExecutorTest {
         // The user selects a template which is an average one thus the respective code is executed (where
         // headroomTemplateInfo.isPresent) and editTemplate() is called while getFilteredTemplates() is not called
         verify(templatesDao).editTemplate(eq(averageTemplateId), any());
-        verify(templatesDao, never()).getFilteredTemplates(any());
-        // usedTemplate is not updated, thus the part of code where usedTemplate != null is not executed and
-        // setOrUpdateHeadroomTemplateForCluster() is not called
+        verify(templatesDao).getFilteredTemplates(TemplatesFilter.newBuilder()
+            .addTemplateName(StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME).build());
         verify(templatesDao, never()).setOrUpdateHeadroomTemplateForCluster(anyLong(), anyLong());
     }
-
-
 
     /**
      *  When calling createPlanInstanceWithClusterHeadroomTemplate, and the group does not have
@@ -286,6 +295,7 @@ public class PlanProjectExecutorTest {
                             .setType(GroupType.COMPUTE_HOST_CLUSTER))
             .build();
 
+        when(templatesDao.getClusterHeadroomTemplateForGroup(anyLong())).thenReturn(Optional.empty());
         when(templatesDao.createTemplate(any())).thenReturn(Template.getDefaultInstance());
 
         planProjectExecutor.createClusterPlanInstance(Collections.singleton(groupWithoutHeadroomClusterInfo),
@@ -300,13 +310,24 @@ public class PlanProjectExecutorTest {
      */
     @Test
     public void testCreatePlanInstanceWithoutClusterHeadroomTemplate() throws Exception {
+        when(statsHistoryServiceMole.getSystemLoadInfo(any()))
+            .thenReturn(Collections.singletonList(SystemLoadInfoResponse.newBuilder()
+                .addRecord(SystemLoadRecord.newBuilder()
+                    .setPropertyType("VCPU")
+                    .setAvgValue(10)
+                    .setRelationType(0))
+                .build()));
+
         Grouping groupWithHeadroomTemplateId = Grouping.newBuilder()
-                        .setId(12345)
-                        .addExpectedTypes(MemberType.newBuilder().setEntity(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
-                        .setDefinition(GroupDefinition.newBuilder()
-                                        .setType(GroupType.COMPUTE_HOST_CLUSTER))
-                        .build();
+            .setId(12345)
+            .addExpectedTypes(MemberType.newBuilder().setEntity(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
+            .setDefinition(GroupDefinition.newBuilder()
+                .setType(GroupType.COMPUTE_HOST_CLUSTER))
+            .build();
+
         when(templatesDao.createTemplate(any())).thenReturn(Template.getDefaultInstance());
+
+        when(templatesDao.getClusterHeadroomTemplateForGroup(anyLong())).thenReturn(Optional.empty());
 
         planProjectExecutor.createClusterPlanInstance(Collections.singleton(groupWithHeadroomTemplateId),
                 PlanProjectScenario.getDefaultInstance(), PlanProjectType.CLUSTER_HEADROOM);
@@ -406,5 +427,197 @@ public class PlanProjectExecutorTest {
         assertTrue(groupSet1.containsAll(groupSet2));
         assertEquals(numberOfClusters, groupSet1.size());
         assertEquals(numberOfClusters, groupSet2.size());
+    }
+
+    /**
+     * Test {@link PlanProjectExecutor#updateClusterHeadroomTemplate(Grouping, Optional)}
+     * with sufficient systemLoad data.
+     *
+     * @throws NoSuchObjectException if default cluster headroom template not found
+     * @throws IllegalTemplateOperationException if the operation is not allowed created template
+     * @throws DuplicateTemplateException if there are errors when a user tries to create templates
+     */
+    @Test
+    public void testUpdateClusterHeadroomTemplateWithSufficientSystemLoadData()
+        throws NoSuchObjectException, IllegalTemplateOperationException, DuplicateTemplateException {
+
+        when(statsHistoryServiceMole.getSystemLoadInfo(any()))
+            .thenReturn(Collections.singletonList(SystemLoadInfoResponse.newBuilder()
+                .addRecord(SystemLoadRecord.newBuilder()
+                    .setPropertyType("VCPU")
+                    .setAvgValue(10)
+                    .setRelationType(0))
+                .build()));
+
+        final long defaultHeadroomTemplateId = 100;
+        final Optional<Template> defaultHeadroomTemplate = Optional.of(
+            Template.newBuilder().setId(defaultHeadroomTemplateId)
+                .setTemplateInfo(TemplateInfo.newBuilder()
+                    .setName(StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME)).build());
+
+        final long avgHeadroomTemplateId = 101;
+        final Template avgHeadroomTemplate = Template.newBuilder().setId(avgHeadroomTemplateId)
+            .setTemplateInfo(TemplateInfo.newBuilder()
+                .setName("AVG:test_cluster for last 10 days")).build();
+
+        final Grouping cluster = Grouping.newBuilder().setId(123)
+            .addExpectedTypes(MemberType.newBuilder().setEntity(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
+            .setDefinition(GroupDefinition.newBuilder()
+                .setDisplayName("test_cluster")
+                .setType(GroupType.COMPUTE_HOST_CLUSTER))
+            .build();
+
+        // 1. cluster template exists in the db
+        // 1.1. associated template is avg template
+        when(templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId()))
+            .thenReturn(Optional.of(avgHeadroomTemplate));
+        planProjectExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate);
+
+        verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
+        verify(templatesDao).editTemplate(eq(avgHeadroomTemplateId), any());
+        verify(templatesDao, never()).createTemplate(any());
+        verify(templatesDao, never()).setOrUpdateHeadroomTemplateForCluster(anyLong(), anyLong());
+
+        // 1.2. associated template is default headroom template
+        reset(templatesDao);
+        reset(groupServiceMole);
+        when(templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId()))
+            .thenReturn(defaultHeadroomTemplate);
+        when(templatesDao.createTemplate(any())).thenReturn(avgHeadroomTemplate);
+        planProjectExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate);
+
+        verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
+        verify(templatesDao, never()).editTemplate(anyLong(), any());
+        verify(templatesDao).createTemplate(any());
+        verify(templatesDao).setOrUpdateHeadroomTemplateForCluster(cluster.getId(), avgHeadroomTemplateId);
+
+        // 1.3. associated template is not avg template or default headroom template
+        reset(templatesDao);
+        reset(groupServiceMole);
+        when(templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId()))
+            .thenReturn(Optional.of(Template.newBuilder().setId(1)
+                .setTemplateInfo(TemplateInfo.newBuilder()
+                    .setName("associated template is not avg template")).build()));
+        planProjectExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate);
+
+        verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
+        verify(templatesDao, never()).editTemplate(anyLong(), any());
+        verify(templatesDao).createTemplate(any());
+        verify(templatesDao, never()).setOrUpdateHeadroomTemplateForCluster(anyLong(), anyLong());
+
+        // 2. associated template doesn't exist in the db
+        reset(templatesDao);
+        reset(groupServiceMole);
+        when(templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId()))
+            .thenReturn(Optional.empty());
+        when(templatesDao.createTemplate(any())).thenReturn(avgHeadroomTemplate);
+        planProjectExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate);
+
+        verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
+        verify(templatesDao, never()).editTemplate(anyLong(), any());
+        verify(templatesDao).createTemplate(any());
+        verify(templatesDao).setOrUpdateHeadroomTemplateForCluster(cluster.getId(), avgHeadroomTemplateId);
+
+        // 3. cluster doesn't have clusterHeadroomTemplateId (by default it will be 0)
+        reset(templatesDao);
+        reset(groupServiceMole);
+        when(templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId())).thenReturn(Optional.empty());
+        when(templatesDao.createTemplate(any())).thenReturn(avgHeadroomTemplate);
+        planProjectExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate);
+
+        verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
+        verify(templatesDao, never()).editTemplate(anyLong(), any());
+        verify(templatesDao).createTemplate(any());
+        verify(templatesDao).setOrUpdateHeadroomTemplateForCluster(cluster.getId(), avgHeadroomTemplateId);
+    }
+
+    /**
+     * Test {@link PlanProjectExecutor#updateClusterHeadroomTemplate(Grouping, Optional)}
+     * with insufficient systemLoad data.
+     *
+     * @throws NoSuchObjectException if default cluster headroom template not found
+     * @throws IllegalTemplateOperationException if the operation is not allowed created template
+     * @throws DuplicateTemplateException if there are errors when a user tries to create templates
+     */
+    @Test
+    public void testUpdateClusterHeadroomTemplateWithInsufficientSystemLoadData()
+        throws NoSuchObjectException, IllegalTemplateOperationException, DuplicateTemplateException {
+
+        when(statsHistoryServiceMole.getSystemLoadInfo(any())).thenReturn(Collections.emptyList());
+
+        final long defaultHeadroomTemplateId = 100;
+        final Optional<Template> defaultHeadroomTemplate = Optional.of(
+            Template.newBuilder().setId(defaultHeadroomTemplateId)
+                .setTemplateInfo(TemplateInfo.newBuilder()
+                    .setName(StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME)).build());
+
+        final Grouping cluster = Grouping.newBuilder().setId(123)
+            .addExpectedTypes(MemberType.newBuilder().setEntity(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
+            .setDefinition(GroupDefinition.newBuilder()
+                .setType(GroupType.COMPUTE_HOST_CLUSTER))
+            .build();
+
+        // cluster template exists in the db, updateClusterHeadroomTemplate will not be invoked
+        when(templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId()))
+            .thenReturn(Optional.of(Template.getDefaultInstance()));
+        planProjectExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate);
+
+        verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
+        verify(templatesDao, never()).editTemplate(anyLong(), any());
+        verify(templatesDao, never()).createTemplate(any());
+        verify(templatesDao, never()).setOrUpdateHeadroomTemplateForCluster(anyLong(), anyLong());
+
+        // cluster template doesn't exist in the db
+        reset(templatesDao);
+        reset(groupServiceMole);
+        when(templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId()))
+            .thenReturn(Optional.empty());
+        planProjectExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate);
+
+        verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
+        verify(templatesDao, never()).editTemplate(anyLong(), any());
+        verify(templatesDao, never()).createTemplate(any());
+        verify(templatesDao).setOrUpdateHeadroomTemplateForCluster(cluster.getId(), defaultHeadroomTemplateId);
+
+        // cluster doesn't have clusterHeadroomTemplateId (by default it will be 0)
+        reset(templatesDao);
+        reset(groupServiceMole);
+        when(templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId()))
+            .thenReturn(Optional.empty());
+        planProjectExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate);
+
+        verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
+        verify(templatesDao, never()).editTemplate(anyLong(), any());
+        verify(templatesDao, never()).createTemplate(any());
+        verify(templatesDao).setOrUpdateHeadroomTemplateForCluster(cluster.getId(), defaultHeadroomTemplateId);
+    }
+
+    /**
+     * Test {@link PlanProjectExecutor#updateClusterHeadroomTemplate(Grouping, Optional)}
+     * with insufficient systemLoad data and with no default headroom template.
+     *
+     * @throws NoSuchObjectException if default cluster headroom template not found
+     * @throws IllegalTemplateOperationException if the operation is not allowed created template
+     * @throws DuplicateTemplateException if there are errors when a user tries to create templates
+     */
+    @Test(expected = NoSuchObjectException.class)
+    public void testUpdateClusterHeadroomTemplateNoDefaultHeadroomTemplate()
+        throws NoSuchObjectException, IllegalTemplateOperationException, DuplicateTemplateException {
+
+        when(statsHistoryServiceMole.getSystemLoadInfo(any())).thenReturn(Collections.emptyList());
+
+        when(templatesDao.getClusterHeadroomTemplateForGroup(anyLong())).thenReturn(Optional.empty());
+
+        final Grouping cluster = Grouping.newBuilder().setId(123)
+            .addExpectedTypes(MemberType.newBuilder().setEntity(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
+            .setDefinition(GroupDefinition.newBuilder()
+                .setType(GroupType.COMPUTE_HOST_CLUSTER))
+            .build();
+        planProjectExecutor.updateClusterHeadroomTemplate(cluster, Optional.empty());
+
+        verify(templatesDao, never()).getClusterHeadroomTemplateForGroup(anyLong());
+        verify(templatesDao, never()).editTemplate(anyLong(), any());
+        verify(templatesDao, never()).createTemplate(any());
+        verify(templatesDao, never()).setOrUpdateHeadroomTemplateForCluster(anyLong(), anyLong());
     }
 }

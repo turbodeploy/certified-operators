@@ -129,7 +129,7 @@ public class TemplatesDaoImpl implements TemplatesDao {
     }
 
     /**
-     * Create a new template.
+     * Create a new template. If a template with the same name exists, update it.
      *
      * @param templateInfo describe the contents of one template
      * @return new created template
@@ -161,7 +161,7 @@ public class TemplatesDaoImpl implements TemplatesDao {
     }
 
     /**
-     * Create a new template.
+     * Create a new template. If a template with the same name exists, update it.
      *
      * @param context the transaction context
      * @param templateInfo describes the contents of one template
