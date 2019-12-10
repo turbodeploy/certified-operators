@@ -2,10 +2,9 @@ package com.vmturbo.topology.processor.plan;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -49,4 +48,26 @@ public interface DiscoveredTemplateDeploymentProfileNotifier {
      * @param targetId Id of target object.
      */
     void deleteTemplateDeploymentProfileByTarget(long targetId);
+
+    /**
+     * Get the generated profile oid by the external string id.
+     * This information will only be available upon successful completion of sendTemplateDeploymentProfileData().
+     *
+     * @param targetId target identifier
+     * @param profileVendorId profile external identifier
+     * @return null if not found
+     */
+    @Nullable
+    Long getProfileId(long targetId, @Nonnull String profileVendorId);
+
+    /**
+     * Get the generated deployment profile oid by the external string id.
+     * This information will only be available upon successful completion of sendTemplateDeploymentProfileData().
+     *
+     * @param targetId target identifier
+     * @param deploymentProfileVendorId deployment profile external identifier
+     * @return null if not found
+     */
+    @Nullable
+    Long getDeploymentProfileId(long targetId, @Nonnull String deploymentProfileVendorId);
 }

@@ -232,8 +232,12 @@ public class ServiceEntityMapper {
                 .filter(target2id -> target2id.getValue().hasVendorId() && !StringUtils
                                 .isEmpty(target2id.getValue().getVendorId()))
                 .collect(Collectors
-                        .toMap(target2id -> String.valueOf(target2id.getKey()),
-                               target2id -> target2id.getValue().getVendorId())));
+                                .toMap(target2id -> thinTargetCache
+                                                .getTargetInfo(target2id.getKey())
+                                                .map(ThinTargetInfo::displayName)
+                                                .orElse(String.valueOf(target2id.getKey())),
+                                       target2id -> target2id.getValue().getVendorId(),
+                                       (d1, d2) -> d1)));
         }
     }
 

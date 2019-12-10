@@ -11,6 +11,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -32,6 +33,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.EntityProfileToDeploymentProfile;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.UpdateDiscoveredTemplateDeploymentProfileResponse;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.UpdateDiscoveredTemplateDeploymentProfileResponse.TargetProfileIdentities;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.UpdateTargetDiscoveredTemplateDeploymentProfileRequest;
 import com.vmturbo.common.protobuf.plan.DiscoveredTemplateDeploymentProfileServiceGrpc.DiscoveredTemplateDeploymentProfileServiceStub;
 import com.vmturbo.communication.CommunicationException;
@@ -83,6 +85,13 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
     // not happen, but right now, we allow this case and keep them in database.
     @GuardedBy("storeLock")
     private final Map<Long, Set<DeploymentProfileInfo>> orphanedDeploymentProfile = new HashMap<>();
+
+    // per-target mapping of external to internal profile identifiers
+    // maintained across all discoveries and never expiring
+    private final Map<Long, Map<String, Long>> target2profileId2oid = new ConcurrentHashMap<>();
+
+    // per-target mapping of external to internal deployment profile identifiers
+    private final Map<Long, Map<String, Long>> target2deploymentProfileId2oid = new ConcurrentHashMap<>();
 
     /**
      * Constructs templates deployment profile uploader.
@@ -243,6 +252,16 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
             new StreamObserver<UpdateDiscoveredTemplateDeploymentProfileResponse>() {
                 @Override
                 public void onNext(final UpdateDiscoveredTemplateDeploymentProfileResponse response) {
+                    for (TargetProfileIdentities identities : response.getTargetProfileIdentitiesList()) {
+                       target2profileId2oid
+                                       .computeIfAbsent(identities.getTargetOid(),
+                                                        key -> new ConcurrentHashMap<>())
+                                       .putAll(identities.getProfileIdToOidMap());
+                       target2deploymentProfileId2oid
+                                       .computeIfAbsent(identities.getTargetOid(),
+                                                        key -> new ConcurrentHashMap<>())
+                                       .putAll(identities.getDeploymentProfileIdToOidMap());
+                    }
                 }
 
                 @Override
@@ -328,6 +347,20 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
             DiscoveredTemplateToDeploymentProfile.remove(targetId);
             orphanedDeploymentProfile.remove(targetId);
         }
+        target2deploymentProfileId2oid.remove(targetId);
+        target2profileId2oid.remove(targetId);
+    }
+
+    @Override
+    public Long getProfileId(long targetId, String profileVendorId) {
+        return target2profileId2oid.getOrDefault(targetId, Collections.emptyMap())
+                        .get(profileVendorId);
+    }
+
+    @Override
+    public Long getDeploymentProfileId(long targetId, String deploymentProfileVendorId) {
+        return target2deploymentProfileId2oid.getOrDefault(targetId, Collections.emptyMap())
+                        .get(deploymentProfileVendorId);
     }
 
     /**

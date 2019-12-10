@@ -22,6 +22,8 @@ import org.jooq.DSLContext;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.UpdateDiscoveredTemplateDeploymentProfileResponse;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.UpdateDiscoveredTemplateDeploymentProfileResponse.TargetProfileIdentities;
 import com.vmturbo.common.protobuf.plan.TemplateDTO;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -50,13 +52,17 @@ public class DiscoveredTemplateDeploymentProfileDaoImpl {
      * @param targetMap Map contains all targets discovered templates and deployment profiles.
      * @param orphanedDeploymentProfileMap Contains a list of discovered deployment profile which
      *                                        have no reference template.
+     * @return external to internal identity mapping
      */
-    public void setDiscoveredTemplateDeploymentProfile(
+    public UpdateDiscoveredTemplateDeploymentProfileResponse setDiscoveredTemplateDeploymentProfile(
         @Nonnull Map<Long, TemplateInfoToDeploymentProfileMap> targetMap,
         @Nonnull Map<Long, List<DeploymentProfileInfo>> orphanedDeploymentProfileMap) {
         Set<Long> discoveredTargetIds = targetMap.entrySet().stream()
             .map(Entry::getKey)
             .collect(Collectors.toSet());
+        UpdateDiscoveredTemplateDeploymentProfileResponse.Builder response =
+            UpdateDiscoveredTemplateDeploymentProfileResponse
+                       .newBuilder();
 
         dsl.transaction(configuration -> {
             DSLContext transactionDsl = DSL.using(configuration);
@@ -74,11 +80,13 @@ public class DiscoveredTemplateDeploymentProfileDaoImpl {
             transactionDsl.batchDelete(missingTargetDeployprofileRecords).execute();
 
             for (Long targetId : discoveredTargetIds) {
-                setDiscoveredTemplateDeploymentProfileByTarget(targetId, transactionDsl,
-                    targetMap.get(targetId), orphanedDeploymentProfileMap.get(targetId));
+                TargetProfileIdentities identities = setDiscoveredTemplateDeploymentProfileByTarget(targetId,
+                    transactionDsl, targetMap.get(targetId), orphanedDeploymentProfileMap.get(targetId));
+                response.addTargetProfileIdentities(identities);
             }
-
         });
+
+        return response.build();
     }
 
     /**
@@ -89,8 +97,9 @@ public class DiscoveredTemplateDeploymentProfileDaoImpl {
      * @param profileMap Contains relationship between templates to list of attached deployment profiles.
      * @param orphanedDeploymentProfile Contains a list of discovered deployment profile which
      *                                        have no reference template.
+     * @return generated identities
      */
-    private void setDiscoveredTemplateDeploymentProfileByTarget(@Nonnull long targetId,
+    private TargetProfileIdentities setDiscoveredTemplateDeploymentProfileByTarget(@Nonnull long targetId,
                                                                 @Nonnull DSLContext transactionDsl,
                                                                 @Nonnull TemplateInfoToDeploymentProfileMap profileMap,
                                                                 @Nonnull List<DeploymentProfileInfo> orphanedDeploymentProfile) {
@@ -107,6 +116,9 @@ public class DiscoveredTemplateDeploymentProfileDaoImpl {
             setDiscoveredDeploymentProfileByTarget(targetId, transactionDsl, deploymentProfileInfos);
         updateTemplateToDeploymentProfileTable(profileMap, transactionDsl, templateInfoIdMap,
             deploymentProfileIdMap);
+        return TargetProfileIdentities.newBuilder().setTargetOid(targetId)
+                        .putAllProfileIdToOid(templateInfoIdMap)
+                        .putAllDeploymentProfileIdToOid(deploymentProfileIdMap).build();
     }
 
     /**

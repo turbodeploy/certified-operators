@@ -13,6 +13,7 @@ import java.util.Set;
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -25,6 +26,8 @@ import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfile;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.UpdateDiscoveredTemplateDeploymentProfileResponse;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.UpdateDiscoveredTemplateDeploymentProfileResponse.TargetProfileIdentities;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
@@ -85,29 +88,34 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
         final long targetId = 123;
         final Map<Long, TemplateInfoToDeploymentProfileMap> uploadMap = new HashMap<>();
         final Map<Long, List<DeploymentProfileInfo>> noReferenceMap = new HashMap<>();
+        final String templateId1 = "probe-template-1";
+        final String templateId2 = "probe-template-2";
+        final String templateId3 = "probe-template-3";
+        final String depId1 = "probe-dp-1";
+        final String depId2 = "probe-dp-2";
 
         TemplateInfoToDeploymentProfileMap testMap = new TemplateInfoToDeploymentProfileMap();
 
         TemplateInfo firstTemplateInfo = TemplateInfo.newBuilder()
-            .setProbeTemplateId("probe-template-1")
+            .setProbeTemplateId(templateId1)
             .setName("first-template")
             .build();
         TemplateInfo secondTemplateInfo = TemplateInfo.newBuilder()
-            .setProbeTemplateId("probe-template-2")
+            .setProbeTemplateId(templateId2)
             .setName("second-template")
             .build();
         TemplateInfo thirdTemplateInfo = TemplateInfo.newBuilder()
-            .setProbeTemplateId("probe-template-3")
+            .setProbeTemplateId(templateId3)
             .setName("third-template")
             .build();
 
         DeploymentProfileInfo firstDeploymentProfile = DeploymentProfileInfo.newBuilder()
             .setName("first-deployment-profile")
-            .setProbeDeploymentProfileId("probe-dp-1")
+            .setProbeDeploymentProfileId(depId1)
             .build();
         DeploymentProfileInfo secondDeploymentProfile = DeploymentProfileInfo.newBuilder()
             .setName("second-deployment-profile")
-            .setProbeDeploymentProfileId("probe-dp-2")
+            .setProbeDeploymentProfileId(depId2)
             .build();
 
         testMap.put(firstTemplateInfo, Collections.singletonList(firstDeploymentProfile));
@@ -117,7 +125,10 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
         uploadMap.put(targetId, testMap);
         noReferenceMap.put(targetId, new ArrayList<>());
 
-        discoveredTemplateDeploymentProfileDao.setDiscoveredTemplateDeploymentProfile(uploadMap, noReferenceMap);
+        final UpdateDiscoveredTemplateDeploymentProfileResponse response =
+               discoveredTemplateDeploymentProfileDao
+                               .setDiscoveredTemplateDeploymentProfile(uploadMap,
+                                                                       noReferenceMap);
 
         final Set<Template> allTemplates =
             templatesDao.getFilteredTemplates(TemplatesFilter.getDefaultInstance());
@@ -136,6 +147,18 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
             deploymentProfile.getDeployInfo().getName().equals("first-deployment-profile")));
         assertTrue(allDeploymentProfiles.stream().anyMatch(deploymentProfile ->
             deploymentProfile.getDeployInfo().getName().equals("second-deployment-profile")));
+
+        Assert.assertNotNull(response);
+        Assert.assertEquals(1, response.getTargetProfileIdentitiesCount());
+        TargetProfileIdentities identities = response.getTargetProfileIdentities(0);
+        Assert.assertEquals(targetId, identities.getTargetOid());
+        Assert.assertEquals(3, identities.getProfileIdToOidCount());
+        Assert.assertTrue(identities.containsProfileIdToOid(templateId1));
+        Assert.assertTrue(identities.containsProfileIdToOid(templateId2));
+        Assert.assertTrue(identities.containsProfileIdToOid(templateId3));
+        Assert.assertEquals(2, identities.getDeploymentProfileIdToOidCount());
+        Assert.assertTrue(identities.containsDeploymentProfileIdToOid(depId1));
+        Assert.assertTrue(identities.containsDeploymentProfileIdToOid(depId2));
 
         // Following upload to replace discovered template and deployment profile
         TemplateInfo needToReplaceTemplateInfo = TemplateInfo.newBuilder()

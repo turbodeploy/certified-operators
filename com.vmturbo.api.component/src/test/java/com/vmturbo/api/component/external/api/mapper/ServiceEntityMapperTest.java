@@ -120,7 +120,7 @@ public class ServiceEntityMapperTest {
 
         Map<String, String> target2id = serviceEntityApiDTO.getVendorIds();
         Assert.assertNotNull(target2id);
-        Assert.assertEquals(localName, target2id.get(String.valueOf(TARGET_ID)));
+        Assert.assertEquals(localName, target2id.get(TARGET_DISPLAY_NAME));
 
         checkDiscoveredBy(serviceEntityApiDTO.getDiscoveredBy());
     }

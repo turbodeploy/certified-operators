@@ -112,8 +112,18 @@ service DeploymentProfileService {
     rpc DeleteDeploymentProfile(DeleteDeploymentProfileRequest) returns (DeploymentProfile);
 }
 
-// Response for set target's templates and deployment profiles RPC call.
+// Response for setting one single target's templates and deployment profiles RPC call.
 message UpdateDiscoveredTemplateDeploymentProfileResponse {
+    repeated TargetProfileIdentities target_profile_identities = 1;
+    // internal identities are generated during processing of UpdateDiscoveredTemplateDeploymentProfile
+    message TargetProfileIdentities {
+        // target identity
+        required int64 target_oid = 1;
+        // profile vendor identities to internal identities
+        map<string, int64> profile_id_to_oid = 2;
+        // deployment profile vendor identities to internal identities
+        map<string, int64> deployment_profile_id_to_oid = 3;
+    }
 }
 
 // Contains A dsicovered entity profile(template) and a list of deployment profile attached to it.
