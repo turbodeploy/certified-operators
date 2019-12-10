@@ -39,9 +39,13 @@ import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest.Ac
 import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest.AccountExpenseQueryScope.IdList;
 import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
@@ -75,15 +79,19 @@ public class BusinessAccountRetriever {
      *
      * @param repositoryApi Utility class to access the repository for searches.
      * @param groupExpander The group expander used to get the group members details.
+     * @param groupService Stub to get information about groups.
      * @param costService Stub to get cost/expense information.
      * @param thinTargetCache Utility that cashes target-related information we need on each
      *                        business account.
      */
     public BusinessAccountRetriever(@Nonnull final RepositoryApi repositoryApi,
                                     @Nonnull final GroupExpander groupExpander,
+                                    @Nonnull final GroupServiceBlockingStub groupService,
                                     @Nonnull final CostServiceBlockingStub costService,
                                     @Nonnull final ThinTargetCache thinTargetCache) {
-        this(repositoryApi, groupExpander, thinTargetCache, new BusinessAccountMapper(thinTargetCache, new SupplementaryDataFactory(costService)));
+        this(repositoryApi, groupExpander, thinTargetCache,
+                new BusinessAccountMapper(thinTargetCache,
+                        new SupplementaryDataFactory(costService, groupService)));
     }
 
     @VisibleForTesting
@@ -246,18 +254,25 @@ public class BusinessAccountRetriever {
      * Container class for all data from other components required to decorate the output
      * {@link BusinessUnitApiDTO}s.
      */
-    @VisibleForTesting
     static class SupplementaryData {
 
         private final Map<Long, Float> costsByAccountId;
+        private final Map<Long, Integer> countOfGroupsOwnedByAccount;
 
-        private SupplementaryData(final Map<Long, Float> costsByAccountId) {
+        private SupplementaryData(final Map<Long, Float> costsByAccountId,
+                @Nonnull Map<Long, Integer> countOfGroupsOwnedByAccount) {
             this.costsByAccountId = costsByAccountId;
+            this.countOfGroupsOwnedByAccount = Objects.requireNonNull(countOfGroupsOwnedByAccount);
         }
 
         @Nonnull
         Float getCostPrice(@Nonnull final Long accountId) {
             return costsByAccountId.getOrDefault(accountId, 0.0f);
+        }
+
+        @Nonnull
+        Integer getResourceGroupCount(@Nonnull final Long accountId) {
+            return countOfGroupsOwnedByAccount.getOrDefault(accountId, 0);
         }
     }
 
@@ -269,28 +284,50 @@ public class BusinessAccountRetriever {
      *
      * <p>Also helps unit test the {@link BusinessAccountRetriever} more manageably.
      */
-    @VisibleForTesting
     static class SupplementaryDataFactory {
         private final CostServiceBlockingStub costService;
+        private final GroupServiceBlockingStub groupService;
 
-        @VisibleForTesting
-        SupplementaryDataFactory(final CostServiceBlockingStub costServiceBlockingStub) {
+        SupplementaryDataFactory(final CostServiceBlockingStub costServiceBlockingStub,
+                GroupServiceBlockingStub groupServiceBlockingStub) {
             this.costService = costServiceBlockingStub;
+            this.groupService = groupServiceBlockingStub;
         }
 
         /**
          * Create a new {@link SupplementaryData} instance.
          *
-         * @param specificAccountIds If empty, request supplementary data for all accounts in
-         *                           the system. If set, request supplementary data for only
-         *                           the specified accounts. Using an optional around a set to
-         *                           prevent accidental uses of "empty" to indicate "all".
+         * @param accountIds set of accountIds
+         * @param allAccounts A hint to say whether these accounts represent ALL accounts. This
+         * allows us to optimize queries for related data, if necessary.
          * @return The {@link SupplementaryData}.
          */
-        @VisibleForTesting
-        SupplementaryData newSupplementaryData(Optional<Set<Long>> specificAccountIds) {
+        SupplementaryData newSupplementaryData(@Nonnull Set<Long> accountIds, boolean allAccounts) {
+            final Optional<Set<Long>> specificAccountIds =
+                    allAccounts ? Optional.empty() : Optional.of(accountIds);
             final Map<Long, Float> costsByAccount = getCostsByAccount(specificAccountIds);
-            return new SupplementaryData(costsByAccount);
+            final Map<Long, Integer> groupsCountOwnedByAccount =
+                    getResourceGroupsCountOwnedByAccount(accountIds);
+            return new SupplementaryData(costsByAccount, groupsCountOwnedByAccount);
+        }
+
+        @Nonnull
+        private Map<Long, Integer> getResourceGroupsCountOwnedByAccount(@Nonnull Set<Long> accountIds) {
+            final Map<Long, Integer> groupsCountOwnedByAccount = new HashMap<>(accountIds.size());
+            accountIds.forEach(account -> {
+                final Integer groupsCount = groupService.countGroups(
+                        GetGroupsRequest.newBuilder()
+                                .setGroupFilter(GroupFilter.newBuilder()
+                                        .addPropertyFilters(
+                                                SearchProtoUtil.stringPropertyFilterExact(
+                                                        SearchableProperties.BUSINESS_ACCOUNT_INFO_ACCOUNT_ID,
+                                                        Collections.singletonList(
+                                                                account.toString())))
+                                        .build())
+                                .build()).getCount();
+                groupsCountOwnedByAccount.put(account, groupsCount);
+            });
+            return groupsCountOwnedByAccount;
         }
 
         @Nonnull
@@ -362,12 +399,10 @@ public class BusinessAccountRetriever {
                 return Collections.emptyList();
             }
 
+            final Set<Long> accountIds =
+                    entities.stream().map(TopologyEntityDTO::getOid).collect(Collectors.toSet());
             final SupplementaryData supplementaryData =
-                supplementaryDataFactory.newSupplementaryData(
-                    allAccounts ? Optional.empty() :
-                        Optional.of(entities.stream()
-                        .map(TopologyEntityDTO::getOid)
-                        .collect(Collectors.toSet())));
+                    supplementaryDataFactory.newSupplementaryData(accountIds, allAccounts);
 
             return entities.stream()
                 .map(entity -> buildDiscoveredBusinessUnitApiDTO(entity, supplementaryData))
@@ -384,14 +419,17 @@ public class BusinessAccountRetriever {
         private BusinessUnitApiDTO buildDiscoveredBusinessUnitApiDTO(@Nonnull final TopologyEntityDTO businessAccount,
                                                              @Nonnull final SupplementaryData supplementaryData) {
             final BusinessUnitApiDTO businessUnitApiDTO = new BusinessUnitApiDTO();
+            final long businessAccountOid = businessAccount.getOid();
             businessUnitApiDTO.setBusinessUnitType(BusinessUnitType.DISCOVERED);
-            businessUnitApiDTO.setUuid(Long.toString(businessAccount.getOid()));
+            businessUnitApiDTO.setUuid(Long.toString(businessAccountOid));
             businessUnitApiDTO.setEnvironmentType(EnvironmentType.CLOUD);
             businessUnitApiDTO.setClassName(UIEntityType.BUSINESS_ACCOUNT.apiStr());
             businessUnitApiDTO.setBudget(new StatApiDTO());
 
             businessUnitApiDTO.setCostPrice(
-                supplementaryData.getCostPrice(businessAccount.getOid()));
+                    supplementaryData.getCostPrice(businessAccountOid));
+            businessUnitApiDTO.setResourceGroupsCount(
+                    supplementaryData.getResourceGroupCount(businessAccountOid));
             // discovered account doesn't have discount (yet)
             businessUnitApiDTO.setDiscount(0.0f);
 

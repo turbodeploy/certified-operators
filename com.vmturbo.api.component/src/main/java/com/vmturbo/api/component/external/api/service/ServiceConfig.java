@@ -229,6 +229,7 @@ public class ServiceConfig {
     public BusinessAccountRetriever businessAccountRetriever() {
         return new BusinessAccountRetriever(communicationConfig.repositoryApi(),
             communicationConfig.groupExpander(),
+            communicationConfig.groupRpcService(),
             communicationConfig.costServiceBlockingStub(),
             communicationConfig.thinTargetCache());
     }

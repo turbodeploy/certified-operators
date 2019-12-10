@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -22,6 +23,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -46,9 +48,12 @@ import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest.Ac
 import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest.AccountExpenseQueryScope.IdList;
 import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesResponse;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupDTO.CountGroupsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
-import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
@@ -89,11 +94,13 @@ public class BusinessAccountRetrieverTest {
 
     private CostServiceMole costBackend = spy(CostServiceMole.class);
 
+    private GroupServiceMole groupServiceMole = spy(GroupServiceMole.class);
+
     /**
      * gRPC server to mock out any calls to other components.
      */
     @Rule
-    public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(costBackend);
+    public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(costBackend, groupServiceMole);
 
     private RepositoryApi repositoryApi = mock(RepositoryApi.class);
 
@@ -415,7 +422,8 @@ public class BusinessAccountRetrieverTest {
     public void testSupplementaryDataFactorySpecificAccountsCostPrice() {
         // ARRANGE
         final SupplementaryDataFactory supplementaryDataFactory =
-            new SupplementaryDataFactory(CostServiceGrpc.newBlockingStub(grpcTestServer.getChannel()));
+            new SupplementaryDataFactory(CostServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+                    GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel()));
         final Set<Long> targetAccounts = Sets.newHashSet(1L);
         final float svc1Price = 1;
         final float svc2Price = 2;
@@ -436,7 +444,7 @@ public class BusinessAccountRetrieverTest {
 
         // ACT
         final SupplementaryData data = supplementaryDataFactory.newSupplementaryData(
-            Optional.of(targetAccounts));
+            targetAccounts, false);
 
         // ASSERT
         verify(costBackend).getCurrentAccountExpenses(GetCurrentAccountExpensesRequest.newBuilder()
@@ -448,16 +456,32 @@ public class BusinessAccountRetrieverTest {
     }
 
     /**
-     * Test the "all" case of {@link SupplementaryDataFactory#newSupplementaryData(Optional)}.
+     * Test supplementary data contains count of resource groups owned by account.
+     */
+    @Test
+    public void testSupplementaryDataFactoryGroupsOwnedByAccount() {
+        final SupplementaryDataFactory supplementaryDataFactory = new SupplementaryDataFactory(
+                CostServiceGrpc.newBlockingStub(grpcTestServer.getChannel()), GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel()));
+        final Integer countGroupsOwnedByAccount = 5;
+        final Long accountID = 1L;
+        final Set<Long> accountIds = Sets.newHashSet(accountID);
+        when(groupServiceMole.countGroups(any())).thenReturn(CountGroupsResponse.newBuilder().setCount(countGroupsOwnedByAccount).build());
+        final SupplementaryData data =
+                supplementaryDataFactory.newSupplementaryData(accountIds, false);
+        Assert.assertEquals(countGroupsOwnedByAccount, data.getResourceGroupCount(accountID));
+    }
+
+    /**
+     * Test the "all" case of {@link SupplementaryDataFactory#newSupplementaryData(Set, boolean)}.
      */
     @Test
     public void testSupplementaryDataAllAccountsCostPrice() {
         // ARRANGE
         final SupplementaryDataFactory supplementaryDataFactory =
-            new SupplementaryDataFactory(CostServiceGrpc.newBlockingStub(grpcTestServer.getChannel()));
+            new SupplementaryDataFactory(CostServiceGrpc.newBlockingStub(grpcTestServer.getChannel()), GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel()));
 
         // ACT
-        supplementaryDataFactory.newSupplementaryData(Optional.empty());
+        supplementaryDataFactory.newSupplementaryData(Collections.emptySet(), true);
 
         // ASSERT
         // Checking that we set the query scope properly.
@@ -524,7 +548,7 @@ public class BusinessAccountRetrieverTest {
 
         final SupplementaryDataFactory supplementaryDataFactory = mock(SupplementaryDataFactory.class);
         final SupplementaryData supplementaryData = mock(SupplementaryData.class);
-        when(supplementaryDataFactory.newSupplementaryData(any())).thenReturn(supplementaryData);
+        when(supplementaryDataFactory.newSupplementaryData(any(), eq(false))).thenReturn(supplementaryData);
         final float costPrice = 11.0f;
         when(supplementaryData.getCostPrice(any())).thenReturn(costPrice);
         final BusinessAccountMapper businessAccountMapper =
@@ -551,8 +575,8 @@ public class BusinessAccountRetrieverTest {
                 .stream().findFirst().get();
 
         // ASSERT
-        verify(supplementaryDataFactory)
-            .newSupplementaryData(Optional.of(Collections.singleton(entity.getOid())));
+        verify(supplementaryDataFactory).newSupplementaryData(
+                Collections.singleton(entity.getOid()), false);
         verify(supplementaryData).getCostPrice(entity.getOid());
 
         assertThat(businessUnitDTO.getBusinessUnitType(), is(BusinessUnitType.DISCOVERED));
