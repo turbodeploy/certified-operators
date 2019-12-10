@@ -20,6 +20,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entityaspect.CloudAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
+import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.common.protobuf.VirtualMachineProtoUtil;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
@@ -250,7 +251,7 @@ public class CloudAspectMapper extends AbstractAspectMapper {
 
     @Override
     @Nonnull
-    public String getAspectName() {
-        return StringConstants.CLOUD_ASPECT_NAME;
+    public AspectName getAspectName() {
+        return AspectName.CLOUD;
     }
 }

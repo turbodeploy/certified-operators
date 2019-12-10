@@ -43,6 +43,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.Matchers;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -57,6 +58,7 @@ import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
 import com.vmturbo.api.dto.entityaspect.VirtualDisksAspectApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
+import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
@@ -189,6 +191,7 @@ public class SupplyChainFetcherFactoryTest {
         final String volumeName = "vol1";
         final Set<String> searchUuidSet = Sets.newHashSet(searchUuids);
         final String virtualVolume = "VirtualVolume";
+        final String virtualVolumeAspect = "virtualDisksAspect";
 
         GroupAndMembers groupAndMembers = mock(GroupAndMembers.class);
         when(groupAndMembers.group()).thenReturn(Grouping.newBuilder()
@@ -239,9 +242,9 @@ public class SupplyChainFetcherFactoryTest {
         virtualDiskApiDTO.setUuid(volumeName);
         virtualDisksAspectApiDTO.setVirtualDisks(Lists.newArrayList(virtualDiskApiDTO));
 
-        Map<Long, Map<String, EntityAspect>> entityAspectMap = new HashMap<Long, Map<String, EntityAspect>>() {{
-            put(1L, new HashMap<String, EntityAspect>() {{
-                put(virtualVolume, virtualDisksAspectApiDTO);
+        Map<Long, Map<AspectName, EntityAspect>> entityAspectMap = new HashMap<Long, Map<AspectName, EntityAspect>>() {{
+            put(1L, new HashMap<AspectName, EntityAspect>() {{
+                put(AspectName.fromString(virtualVolumeAspect), virtualDisksAspectApiDTO);
             }});
         }};
 
@@ -252,7 +255,8 @@ public class SupplyChainFetcherFactoryTest {
                         .build())
                 .build();
 
-        when(entityAspectMapperMock.getAspectsByEntities(Lists.newArrayList(virtualVolumeTopologyEntity))).thenReturn(entityAspectMap);
+        when(entityAspectMapperMock.getAspectsByEntities(Matchers.anyList(), any()))
+            .thenReturn(entityAspectMap);
 
         when(groupExpander.expandUuids(searchUuidSet)).thenReturn(ImmutableSet.of(1L));
 
@@ -282,9 +286,10 @@ public class SupplyChainFetcherFactoryTest {
 
         Map.Entry<String, EntityAspect> mapEntry = resultEntityAspectMap.entrySet().iterator().next();
 
-        assertEquals(mapEntry.getKey(), virtualVolume);
-        assertEquals(mapEntry.getValue().getType(), "VirtualDisksAspectApiDTO");
-        assertEquals(((VirtualDisksAspectApiDTO)mapEntry.getValue()).getVirtualDisks().get(0), virtualDiskApiDTO);
+        assertEquals(virtualVolumeAspect, mapEntry.getKey());
+        assertEquals("VirtualDisksAspectApiDTO", mapEntry.getValue().getType());
+        assertEquals(virtualDiskApiDTO,
+            ((VirtualDisksAspectApiDTO)mapEntry.getValue()).getVirtualDisks().get(0));
     }
 
     /**

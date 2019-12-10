@@ -29,6 +29,7 @@ import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
+import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.auth.api.Pair;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -221,7 +222,7 @@ public class ActionSpecMappingContextFactory {
         final Map<Long, EntityAspect> cloudAspects = new HashMap<>();
         for (ApiPartialEntity entity : entitiesById.values()) {
             final EntityAspect cloudAspect =
-                    entityAspectMapper.getAspectByEntity(entity, StringConstants.CLOUD_ASPECT_NAME);
+                    entityAspectMapper.getAspectByEntity(entity, AspectName.CLOUD);
             if (cloudAspect != null) {
                 cloudAspects.put(entity.getOid(), cloudAspect);
             }
@@ -250,7 +251,7 @@ public class ActionSpecMappingContextFactory {
             .forEach(cloudVmFullEntity -> {
                 final EntityAspect vmAspect =
                         entityAspectMapper.getAspectByEntity(cloudVmFullEntity,
-                                StringConstants.VM_ASPECT_NAME);
+                            AspectName.VIRTUAL_MACHINE);
                 vmAspects.put(cloudVmFullEntity.getOid(), vmAspect);
             });
 

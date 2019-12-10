@@ -67,6 +67,7 @@ import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
+import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.RelationType;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
@@ -697,15 +698,18 @@ public class EntitiesService implements IEntitiesService {
         final TopologyEntityDTO entityDTO = repositoryApi.entityRequest(Long.parseLong(uuid))
             .getFullEntity()
             .orElseThrow(() -> new UnknownObjectException(uuid));
-        return entityAspectMapper.getAspectsByEntity(entityDTO);
+        return entityAspectMapper.getAspectsByEntity(entityDTO, null)
+            .entrySet().stream()
+            .collect(Collectors.toMap(entry -> entry.getKey().getApiName(), Entry::getValue));
     }
 
     @Override
     public EntityAspect getAspectByEntityUuid(String uuid, String aspectTag) throws UnauthorizedObjectException, UnknownObjectException {
+        AspectName aspectName = AspectName.fromString(aspectTag);
         final TopologyEntityDTO entityDTO = repositoryApi.entityRequest(Long.parseLong(uuid))
             .getFullEntity()
             .orElseThrow(() -> new UnknownObjectException(uuid));
-        return entityAspectMapper.getAspectByEntity(entityDTO, aspectTag);
+        return entityAspectMapper.getAspectByEntity(entityDTO, aspectName);
     }
 
     @Override

@@ -28,6 +28,7 @@ import com.vmturbo.api.dto.statistic.PortChannelApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
+import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -310,7 +311,7 @@ public class PortsAspectMapper extends AbstractAspectMapper {
 
     @Nonnull
     @Override
-    public String getAspectName() {
-        return "portsAspect";
+    public AspectName getAspectName() {
+        return AspectName.PORTS;
     }
 }

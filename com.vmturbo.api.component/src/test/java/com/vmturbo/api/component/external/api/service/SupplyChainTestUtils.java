@@ -9,6 +9,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -53,6 +54,8 @@ public class SupplyChainTestUtils {
         when(supplyChainFetcherOperationBuilderMock.apiEnvironmentType(any(EnvironmentType.class)))
             .thenReturn(supplyChainFetcherOperationBuilderMock);
         when(supplyChainFetcherOperationBuilderMock.entityDetailType(any(EntityDetailType.class)))
+            .thenReturn(supplyChainFetcherOperationBuilderMock);
+        when(supplyChainFetcherOperationBuilderMock.aspectsToInclude(any(Collection.class)))
             .thenReturn(supplyChainFetcherOperationBuilderMock);
         when(supplyChainFetcherOperationBuilderMock.entityAspectMapper(any(EntityAspectMapper.class)))
             .thenReturn(supplyChainFetcherOperationBuilderMock);

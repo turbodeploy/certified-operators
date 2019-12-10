@@ -5,6 +5,7 @@ import javax.annotation.Nullable;
 
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.RegionAspectApiDTO;
+import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.GeoDataInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
@@ -47,7 +48,7 @@ public class RegionAspectMapper extends AbstractAspectMapper {
      */
     @Override
     @Nonnull
-    public String getAspectName() {
-        return StringConstants.REGION_ASPECT_NAME;
+    public AspectName getAspectName() {
+        return AspectName.REGION;
     }
 }

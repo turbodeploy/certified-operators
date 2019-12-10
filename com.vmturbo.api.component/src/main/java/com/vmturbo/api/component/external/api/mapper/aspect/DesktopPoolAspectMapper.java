@@ -8,6 +8,7 @@ import javax.annotation.Nullable;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.dto.entityaspect.DesktopPoolEntityAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
+import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.DesktopPoolAssignmentType;
 import com.vmturbo.api.enums.DesktopPoolCloneType;
 import com.vmturbo.api.enums.DesktopPoolProvisionType;
@@ -143,7 +144,7 @@ public class DesktopPoolAspectMapper extends AbstractAspectMapper {
 
     @Nonnull
     @Override
-    public String getAspectName() {
-        return StringConstants.DESKTOP_POOL_ASPECT_NAME;
+    public AspectName getAspectName() {
+        return AspectName.DESKTOP_POOL;
     }
 }

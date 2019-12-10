@@ -34,6 +34,7 @@ import com.vmturbo.api.dto.entityaspect.VirtualDisksAspectApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
+import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
@@ -103,8 +104,8 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
     }
 
     @Override
-    public @Nonnull String getAspectName() {
-        return StringConstants.VIRTUAL_VOLUME_ASPECT_NAME;
+    public @Nonnull AspectName getAspectName() {
+        return AspectName.VIRTUAL_VOLUME;
     }
 
     @Override

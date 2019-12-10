@@ -11,6 +11,7 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.VMEntityAspectApiDTO;
 import com.vmturbo.api.dto.user.BusinessUserSessionApiDTO;
+import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
@@ -117,7 +118,7 @@ public class VirtualMachineAspectMapper extends AbstractAspectMapper {
 
     @Nonnull
     @Override
-    public String getAspectName() {
-        return StringConstants.VM_ASPECT_NAME;
+    public AspectName getAspectName() {
+        return AspectName.VIRTUAL_MACHINE;
     }
 }

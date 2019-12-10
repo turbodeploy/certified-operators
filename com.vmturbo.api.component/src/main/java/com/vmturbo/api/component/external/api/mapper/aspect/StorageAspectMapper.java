@@ -7,6 +7,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.STEntityAspectApiDTO;
+import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
 
@@ -33,7 +34,7 @@ public class StorageAspectMapper extends AbstractAspectMapper {
 
     @Nonnull
     @Override
-    public String getAspectName() {
-        return "storageAspect";
+    public AspectName getAspectName() {
+        return AspectName.STORAGE;
     }
 }

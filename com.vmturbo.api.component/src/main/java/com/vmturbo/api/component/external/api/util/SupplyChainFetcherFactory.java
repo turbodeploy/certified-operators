@@ -41,6 +41,7 @@ import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
+import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
@@ -288,6 +289,7 @@ public class SupplyChainFetcherFactory {
      */
     public class SupplychainApiDTOFetcherBuilder extends SupplyChainFetcherBuilder<SupplychainApiDTOFetcherBuilder, SupplychainApiDTO> {
         protected EntityDetailType entityDetailType;
+        protected Collection<String> aspectsToInclude;
         protected Boolean includeHealthSummary = false;
         protected EntityAspectMapper entityAspectMapper = null;
 
@@ -302,13 +304,29 @@ public class SupplyChainFetcherFactory {
          */
         @Nonnull
         public SupplychainApiDTOFetcherBuilder entityDetailType(
-                @Nullable final EntityDetailType entityDetailType) {
+            @Nullable final EntityDetailType entityDetailType) {
             this.entityDetailType = entityDetailType;
             return this;
         }
 
         /**
-         * Assign an {@link EntityAspectMapper} to map aspects to supply chain SEs
+         * Specify a list of aspects to include in the result.
+         *
+         * <p>Only applies if entityDetailType is set to 'aspects'. Defaults to including all
+         * aspects, if null or not set.</p>
+         *
+         * @param aspectsToInclude the aspects to include, or null to include all aspects
+         * @return the flow-style OperationBuilder for this SupplyChainFetcher
+         */
+        @Nonnull
+        public SupplychainApiDTOFetcherBuilder aspectsToInclude(
+            @Nullable final Collection<String> aspectsToInclude) {
+            this.aspectsToInclude = aspectsToInclude;
+            return this;
+        }
+
+        /**
+         * Assign an {@link EntityAspectMapper} to map aspects to supply chain SEs.
          *
          * @param entityAspectMapper an {@link EntityAspectMapper} to use for assigning aspects to supply chain SEs
          * @return the flow-style OperationBuilder for this SupplyChainFetcher
@@ -341,9 +359,10 @@ public class SupplyChainFetcherFactory {
         public SupplychainApiDTO fetch() throws OperationFailedException, InterruptedException {
             try {
                 final SupplychainApiDTO dto = new SupplychainApiDTOFetcher(topologyContextId,
-                    seedUuids, entityTypes, environmentType, entityDetailType, includeHealthSummary,
-                    supplyChainRpcService, severityRpcService, repositoryApi, groupExpander, entityAspectMapper,
-                    enforceUserScope).fetch();
+                    seedUuids, entityTypes, environmentType, entityDetailType, aspectsToInclude,
+                    includeHealthSummary, supplyChainRpcService, severityRpcService, repositoryApi,
+                    groupExpander, entityAspectMapper, enforceUserScope)
+                    .fetch();
                 return dto;
             } catch (ExecutionException | TimeoutException e) {
                 throw new OperationFailedException("Failed to fetch supply chain! Error: "
@@ -357,9 +376,10 @@ public class SupplyChainFetcherFactory {
             try {
                 return
                     new SupplychainApiDTOFetcher(
-                            topologyContextId, seedUuids, entityTypes, environmentType,
-                            entityDetailType, includeHealthSummary, supplyChainRpcService,
-                            severityRpcService, repositoryApi, groupExpander, entityAspectMapper, enforceUserScope)
+                        topologyContextId, seedUuids, entityTypes, environmentType,
+                        entityDetailType, aspectsToInclude, includeHealthSummary,
+                        supplyChainRpcService, severityRpcService, repositoryApi, groupExpander,
+                        entityAspectMapper, enforceUserScope)
                         .fetchEntityIds();
             } catch (ExecutionException | TimeoutException e) {
                 throw new OperationFailedException("Failed to fetch supply chain! Error: "
@@ -374,7 +394,7 @@ public class SupplyChainFetcherFactory {
             try {
                 return new SupplychainApiDTOFetcher(
                     topologyContextId, seedUuids, entityTypes, environmentType,
-                    entityDetailType, includeHealthSummary, supplyChainRpcService,
+                    entityDetailType, aspectsToInclude, includeHealthSummary, supplyChainRpcService,
                     severityRpcService, repositoryApi, groupExpander, entityAspectMapper, enforceUserScope)
                         .fetchStats(groupBy);
             } catch (StatusRuntimeException e) {
@@ -969,6 +989,8 @@ public class SupplyChainFetcherFactory {
 
         private final EntityDetailType entityDetailType;
 
+        private final Set<AspectName> aspectsToInclude;
+
         private final EntitySeverityServiceBlockingStub severityRpcService;
 
         private final Boolean includeHealthSummary;
@@ -984,6 +1006,7 @@ public class SupplyChainFetcherFactory {
                                          @Nullable final Set<String> entityTypes,
                                          @Nonnull final Optional<EnvironmentType> environmentType,
                                          @Nullable final EntityDetailType entityDetailType,
+                                         @Nullable final Collection<String> aspectsToInclude,
                                          final boolean includeHealthSummary,
                                          @Nonnull final SupplyChainServiceBlockingStub supplyChainRpcService,
                                          @Nonnull final EntitySeverityServiceBlockingStub severityRpcService,
@@ -994,6 +1017,9 @@ public class SupplyChainFetcherFactory {
             super(topologyContextId, seedUuids, entityTypes, environmentType, supplyChainRpcService,
                     groupExpander, enforceUserScope, repositoryApi);
             this.entityDetailType = entityDetailType;
+            this.aspectsToInclude = aspectsToInclude == null ? null : aspectsToInclude.stream()
+                .map(AspectName::fromString)
+                .collect(Collectors.toSet());
             this.includeHealthSummary = includeHealthSummary;
             this.severityRpcService = Objects.requireNonNull(severityRpcService);
             this.entityAspectMapper = entityAspectMapper;
@@ -1003,7 +1029,7 @@ public class SupplyChainFetcherFactory {
         }
 
         /**
-         * Handle on supplychain response from the SupplyChain service. Tabulate the OIDs;
+         * Handle one supplychain response from the SupplyChain service. Tabulate the OIDs;
          * if requested, fetch the entity details from the Repository; also fetch the
          * Severity information.
          *
@@ -1079,7 +1105,7 @@ public class SupplyChainFetcherFactory {
                 // List<VirtualVolumeAspect> list = map.get("VirtualVolume").get("virtualDisksAspect");
                 // Note: This is a performance optimization to enable processing of TopologyEntityDTO lists-
                 // by doing this, cluster network requests can be batched
-                Map<String, Map<String, Map<String, EntityAspect>>> entityTypeToUuidAspectMap = entityTypeToSeList
+                Map<String, Map<String, Map<AspectName, EntityAspect>>> entityTypeToUuidAspectMap = entityTypeToSeList
                     .entrySet().stream()
                     .collect(Collectors.toMap(
                         entityTypeEntry -> entityTypeEntry.getKey(),
@@ -1089,11 +1115,11 @@ public class SupplyChainFetcherFactory {
                                     .map(se -> Long.valueOf(se.getUuid()))
                                     .collect(Collectors.toSet()))
                             .getFullEntities()
-                            .collect(Collectors.toList()))));
+                            .collect(Collectors.toList()), aspectsToInclude)));
 
                 List<ServiceEntityApiDTO> serviceEntityApiDTOs = Lists.newArrayList();
                 entityTypeToUuidAspectMap.entrySet().forEach(entry -> {
-                    Map<String, Map<String, EntityAspect>> aspectToUuidMap = entry.getValue();
+                    Map<String, Map<AspectName, EntityAspect>> aspectToUuidMap = entry.getValue();
                     List<ServiceEntityApiDTO> entityTypeServiceEntityApiDTOs = entityTypeToSeList.get(entry.getKey());
                     // If this map is empty, all aspect mappers corresponding to the type do not support fetching a
                     // single aspect for a group of entities, and expanding that aspect one-to-many
@@ -1103,8 +1129,10 @@ public class SupplyChainFetcherFactory {
                     if (aspectToUuidMap.isEmpty()) {
                         serviceEntityApiDTOs.addAll(entityTypeServiceEntityApiDTOs);
                     } else {
-                        entityTypeServiceEntityApiDTOs.forEach(entityTypeServiceEntityApiDTO ->
-                            entityTypeServiceEntityApiDTO.setAspects(aspectToUuidMap.get(entityTypeServiceEntityApiDTO.getUuid())));
+                        entityTypeServiceEntityApiDTOs.forEach(entityTypeServiceEntityApiDTO -> {
+                            entityTypeServiceEntityApiDTO.setAspectsByName(
+                                aspectToUuidMap.get(entityTypeServiceEntityApiDTO.getUuid()));
+                        });
                     }
                 });
 
@@ -1116,13 +1144,16 @@ public class SupplyChainFetcherFactory {
                         .collect(Collectors.toSet());
 
                     // Get the entity aspects, mapped from entity UUID to aspect map
-                    Map<Long, Map<String, EntityAspect>> entityAspectMap = entityAspectMapper.getAspectsByEntities(
-                        repositoryApi.entitiesRequest(uuids)
-                            .getFullEntities()
-                            .collect(Collectors.toList()));
+                    Map<Long, Map<AspectName, EntityAspect>> entityAspectMap =
+                        entityAspectMapper.getAspectsByEntities(
+                            repositoryApi.entitiesRequest(uuids)
+                                .getFullEntities()
+                                .collect(Collectors.toList()),
+                            aspectsToInclude);
 
-                    serviceEntityApiDTOs.forEach(serviceEntityApiDTO -> serviceEntityApiDTO.setAspects(
-                        entityAspectMap.get(Long.valueOf(serviceEntityApiDTO.getUuid()))));
+                    serviceEntityApiDTOs.forEach(serviceEntityApiDTO ->
+                        serviceEntityApiDTO.setAspectsByName(
+                            entityAspectMap.get(Long.valueOf(serviceEntityApiDTO.getUuid()))));
                 }
             }
             return resultApiDTO;

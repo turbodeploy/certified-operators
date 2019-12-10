@@ -6,6 +6,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
+import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 
@@ -65,7 +66,7 @@ public interface IAspectMapper {
      * @return the name of the aspect
      */
     @Nonnull
-    String getAspectName();
+    AspectName getAspectName();
 
     /**
      * Defines whether or not this aspect mapper supports group aspect. If this is true, then

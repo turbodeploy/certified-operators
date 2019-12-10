@@ -16,6 +16,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
@@ -116,12 +117,14 @@ public class SupplyChainsService implements ISupplyChainsService {
     }
 
     @Override
-    public SupplychainApiDTO getSupplyChainByUuids(List<String> uuids,
-                                                   List<String> entityTypes,
-                                                   List<EntityState> entityStates,
-                                                   EnvironmentType environmentType,
-                                                   EntityDetailType entityDetailType,
-                                                   Boolean includeHealthSummary) throws Exception {
+    public SupplychainApiDTO getSupplyChainByUuids(@Nonnull List<String> uuids,
+                                                   @Nullable List<String> entityTypes,
+                                                   @Nullable List<EntityState> entityStates,
+                                                   @Nullable EnvironmentType environmentType,
+                                                   @Nullable EntityDetailType entityDetailType,
+                                                   @Nullable List<String> aspectNames,
+                                                   @Nullable Boolean includeHealthSummary)
+                                                   throws Exception {
         if (uuids.isEmpty()) {
             throw new RuntimeException("UUIDs list is empty");
         }
@@ -132,6 +135,7 @@ public class SupplyChainsService implements ISupplyChainsService {
                 .entityTypes(entityTypes)
                 .apiEnvironmentType(environmentType)
                 .entityDetailType(entityDetailType)
+                .aspectsToInclude(aspectNames)
                 .entityAspectMapper(entityAspectMapper)
                 .includeHealthSummary(includeHealthSummary);
 

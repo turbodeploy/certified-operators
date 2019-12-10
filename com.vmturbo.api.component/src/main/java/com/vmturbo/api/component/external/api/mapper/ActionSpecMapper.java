@@ -69,6 +69,7 @@ import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.ActionMode;
 import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.api.enums.ActionType;
+import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.CommonComparators;
@@ -518,12 +519,12 @@ public class ActionSpecMapper {
         final Long targetEntityId = Long.valueOf(targetEntityUuid);
 
         // add aspects to targetEntity
-        final Map<String, EntityAspect> aspects = new HashMap<>();
+        final Map<AspectName, EntityAspect> aspects = new HashMap<>();
         context.getCloudAspect(targetEntityId).map(cloudAspect -> aspects.put(
-            StringConstants.CLOUD_ASPECT_NAME, cloudAspect));
+            AspectName.CLOUD, cloudAspect));
         context.getVMAspect(targetEntityId).map(vmAspect -> aspects.put(
-            StringConstants.VM_ASPECT_NAME, vmAspect));
-        targetEntity.setAspects(aspects);
+            AspectName.VIRTUAL_MACHINE, vmAspect));
+        targetEntity.setAspectsByName(aspects);
 
         // add more info for cloud actions
         if (newEntity != null && CLOUD_ACTIONS_TIER_VALUES.contains(newEntity.getClassName())) {
@@ -929,10 +930,10 @@ public class ActionSpecMapper {
             setCurrentAndNewLocation(target.getId(), context, wrapperDto);
 
             // set cloud aspects to target entity
-            final Map<String, EntityAspect> aspects = new HashMap<>();
+            final Map<AspectName, EntityAspect> aspects = new HashMap<>();
             context.getCloudAspect(target.getId()).map(cloudAspect -> aspects.put(
-                    StringConstants.CLOUD_ASPECT_NAME, cloudAspect));
-            wrapperDto.getTarget().setAspects(aspects);
+                AspectName.CLOUD, cloudAspect));
+            wrapperDto.getTarget().setAspectsByName(aspects);
         }
     }
 
@@ -1130,10 +1131,10 @@ public class ActionSpecMapper {
             // set location, which is the region
             setCurrentAndNewLocation(resize.getTarget().getId(), context, actionApiDTO);
             // set cloud aspects to target entity
-            final Map<String, EntityAspect> aspects = new HashMap<>();
+            final Map<AspectName, EntityAspect> aspects = new HashMap<>();
             context.getCloudAspect(resize.getTarget().getId()).map(cloudAspect -> aspects.put(
-                    StringConstants.CLOUD_ASPECT_NAME, cloudAspect));
-            actionApiDTO.getTarget().setAspects(aspects);
+                AspectName.CLOUD, cloudAspect));
+            actionApiDTO.getTarget().setAspectsByName(aspects);
         }
     }
 

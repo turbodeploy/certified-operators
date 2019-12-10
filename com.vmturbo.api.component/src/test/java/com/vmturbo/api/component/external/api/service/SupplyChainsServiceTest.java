@@ -109,7 +109,7 @@ public class SupplyChainsServiceTest {
 
         final List<String> uuids = Collections.singletonList("Abcdef123");
 
-        service.getSupplyChainByUuids(uuids, null, null, null, null, false);
+        service.getSupplyChainByUuids(uuids, null, null, null, null, null, false);
 
         verify(supplyChainMock).topologyContextId(LIVE_TOPOLOGY_CONTEXT_ID);
         verify(supplyChainMock).addSeedUuids(uuids);
@@ -121,7 +121,7 @@ public class SupplyChainsServiceTest {
 
         final List<String> uuids = Arrays.asList("Abcdef123", "123456789");
 
-        service.getSupplyChainByUuids(uuids, null, null, null, null, false);
+        service.getSupplyChainByUuids(uuids, null, null, null, null, null, false);
 
         verify(supplyChainMock).topologyContextId(LIVE_TOPOLOGY_CONTEXT_ID);
         verify(supplyChainMock).addSeedUuids(uuids);
@@ -140,7 +140,7 @@ public class SupplyChainsServiceTest {
         when(planServiceMole.getPlan(planIdObj)).thenReturn(planInstance);
 
         service.getSupplyChainByUuids(Collections.singletonList(Long.toString(planId)),
-                null, null, null, null, false);
+            null, null, null, null, null, false);
 
         verify(supplyChainMock).topologyContextId(planId);
     }
@@ -157,7 +157,7 @@ public class SupplyChainsServiceTest {
 
         when(planServiceMole.getPlan(planIdObj)).thenReturn(planInstance);
 
-        service.getSupplyChainByUuids(uuids, null, null, null, null, false);
+        service.getSupplyChainByUuids(uuids, null, null, null, null, null, false);
 
         verify(supplyChainMock).topologyContextId(LIVE_TOPOLOGY_CONTEXT_ID);
         verify(supplyChainMock).addSeedUuids(uuids);
@@ -186,7 +186,7 @@ public class SupplyChainsServiceTest {
         SecurityContextHolder.getContext().setAuthentication(auth);
         // we should get access to the plan supply chain since we are the creator id
         service.getSupplyChainByUuids(Collections.singletonList(Long.toString(planId)),
-                null, null, null, null, false);
+            null, null, null, null, null, false);
 
         verify(supplyChainMock).topologyContextId(planId);
         SecurityContextHolder.getContext().setAuthentication(null);
@@ -215,7 +215,7 @@ public class SupplyChainsServiceTest {
         SecurityContextHolder.getContext().setAuthentication(auth);
         // we should get denied access to the plan supply chain
         service.getSupplyChainByUuids(Collections.singletonList(Long.toString(planId)),
-                null, null, null, null, false);
+            null, null, null, null, null, false);
         SecurityContextHolder.getContext().setAuthentication(null);
     }
 
@@ -242,7 +242,7 @@ public class SupplyChainsServiceTest {
         SecurityContextHolder.getContext().setAuthentication(auth);
         // we should get access to the plan supply chain since we are an admin
         service.getSupplyChainByUuids(Collections.singletonList(Long.toString(planId)),
-                null, null, null, null, false);
+                null, null, null, null, null, false);
 
         verify(supplyChainMock).topologyContextId(planId);
         SecurityContextHolder.getContext().setAuthentication(null);
@@ -269,7 +269,7 @@ public class SupplyChainsServiceTest {
 
         when(planServiceMole.getPlan(planIdObj)).thenReturn(planInstance);
 
-        service.getSupplyChainByUuids(uuids, null, null, null, null, false);
+        service.getSupplyChainByUuids(uuids, null, null, null, null, null, false);
 
         verify(supplyChainMock).topologyContextId(123456789);
         verify(supplyChainMock).addSeedUuid("1");

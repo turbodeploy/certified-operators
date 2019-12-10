@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.MasterImageEntityAspectApiDTO;
+import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
@@ -127,7 +128,7 @@ public class MasterImageEntityAspectMapper extends AbstractAspectMapper {
 
     @Nonnull
     @Override
-    public String getAspectName() {
-        return StringConstants.MASTER_IMAGE_ASPECT_NAME;
+    public AspectName getAspectName() {
+        return AspectName.MASTER_IMAGE;
     }
 }

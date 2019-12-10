@@ -5,6 +5,7 @@ import javax.annotation.Nullable;
 
 import com.vmturbo.api.dto.entityaspect.DBEntityAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
+import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
 
@@ -33,7 +34,7 @@ public class DatabaseAspectMapper extends AbstractAspectMapper {
 
     @Nonnull
     @Override
-    public String getAspectName() {
-        return "dbAspect";
+    public AspectName getAspectName() {
+        return AspectName.DATABASE;
     }
 }
