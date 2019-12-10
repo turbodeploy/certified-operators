@@ -11,8 +11,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -65,7 +67,6 @@ import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 /**
  * Sub-query responsible for getting top down and bottom-up costs from the cost component.
@@ -180,8 +181,13 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         final Map<Long, List<StatApiDTO>> retStats;
         if (isTopDownRequest(requestGroupBySet)) {
             retStats = new HashMap<>();
-            final Function<ThinTargetInfo, String> valueFunction = getValueFunction(requestGroupBySet);
-            final Function<ThinTargetInfo, String> typeFunction = getTypeFunction(requestGroupBySet);
+
+            // get the type function and value function according to the "groupBy" part of the query.
+            // they will be used to populate the filters in StatApiDTO
+            final Supplier<String> typeFunction = getTypeFunction(requestGroupBySet);
+            final BiFunction<Long, Map<Long, MinimalEntity>, Optional<String>> valueFunction =
+                    getValueFunction(requestGroupBySet);
+
             // for group by Cloud services, we need to find all the services and
             // stitch with expenses in Cost component
             final Map<Long, MinimalEntity> cloudServiceDTOs = requestGroupBySet.contains(CLOUD_SERVICE) ?
@@ -641,7 +647,8 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     }
 
     @Nonnull
-    private List<CloudCostStatRecord> getCloudExpensesRecordList(@Nonnull final Set<String> requestGroupBySet,
+    @VisibleForTesting
+    List<CloudCostStatRecord> getCloudExpensesRecordList(@Nonnull final Set<String> requestGroupBySet,
                                                                  @Nonnull final Set<Long> entities,
                                                                  @Nonnull final StatsQueryContext context) {
         final GetCloudExpenseStatsRequest.Builder builder = GetCloudExpenseStatsRequest.newBuilder();
@@ -666,7 +673,8 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     }
 
     // Search discovered Cloud services.
-    private Map<Long, MinimalEntity> getDiscoveredServiceDTO() {
+    @VisibleForTesting
+    Map<Long, MinimalEntity> getDiscoveredServiceDTO() {
         // find all cloud services
         return repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
             SearchProtoUtil.entityTypeFilter(UIEntityType.CLOUD_SERVICE)).build())
@@ -680,79 +688,95 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             || requestGroupBySet.contains(CLOUD_SERVICE);
     }
 
-    // function to populate the statistics -> filters -> type for API DTO
-    private static Function<ThinTargetInfo, String> getTypeFunction(@Nonnull final Set<String> requestGroupBySet) {
-        if (requestGroupBySet.contains(TARGET)) return s -> TARGET;
-        if (requestGroupBySet.contains(CSP)) return s -> CSP;
-        if (requestGroupBySet.contains(CLOUD_SERVICE)) return s -> CLOUD_SERVICE;
+    /**
+     * Return a type function which returns the filter type according to the "groupBy" part of the query.
+     *
+     * @param requestGroupBySet the "groupBy" value (Target/CSP/CloudService)
+     * @return a type function which returns the relevant filter type
+     */
+    private Supplier<String> getTypeFunction(@Nonnull final Set<String> requestGroupBySet) {
+        if (requestGroupBySet.contains(TARGET)) return () -> TARGET;
+        if (requestGroupBySet.contains(CSP)) return () -> CSP;
+        if (requestGroupBySet.contains(CLOUD_SERVICE)) return () -> CLOUD_SERVICE;
         throw ApiUtils.notImplementedInXL();
     }
 
-    // function to populate the statistics -> filters -> value for API DTO
-    private static Function<ThinTargetInfo, String> getValueFunction(@Nonnull final Set<String> requestGroupBySet) {
-        if (requestGroupBySet.contains(TARGET)) return ThinTargetInfo::displayName;
-        if (requestGroupBySet.contains(CSP)) return info -> info.probeInfo().type();
-        if (requestGroupBySet.contains(CLOUD_SERVICE)) return s -> CLOUD_SERVICE;
+    /**
+     * The returned value function receives an associatedEntityID (the associated entity type is
+     * different in each case) and a set of cloudServicesDTO (used only when grouping by
+     * CSP/CloudService) and returns the relevant filter value.
+     *
+     * e.g:
+     *      When grouping by cloud type, the filter should look like: {cloudService, "AWS_EC2"}
+     *      When grouping by CSP, the filter should look like: {CSP, "Azure"}
+     *
+     * @param requestGroupBySet the "groupBy" value (Target/CSP/CloudService)
+     * @return a value function which calculates the filter value according to the filter type and
+     * the relevant entityID
+     */
+    private BiFunction<Long, Map<Long, MinimalEntity>, Optional<String>> getValueFunction(
+            @Nonnull final Set<String> requestGroupBySet) {
+
+        // When grouping by target, the filter's value should be the target's display name.
+        // in this case the associated entity is a target, so just get its display name from the
+        // thin targets cache.
+        if (requestGroupBySet.contains(TARGET))
+            return (associatedEntityId, cloudServiceDTOs) ->
+                    thinTargetCache.getTargetInfo(associatedEntityId)
+                            .flatMap(thinTargetInfo -> Optional.of(thinTargetInfo.displayName()));
+
+        // When grouping by cloud provider, the filter's value should be the cloud provider name.
+        // TODO: implement
+        if (requestGroupBySet.contains(CSP))
+            return (associatedEntityId, cloudServiceDTOs) -> Optional.empty();
+
+        // When grouping by cloud service, the filter's value should be the cloud service name.
+        // Since the associated entity is a cloud service, just get the entity's display name from
+        // the cloud service entities that we got from the repository before.
+        if (requestGroupBySet.contains(CLOUD_SERVICE))
+            return (associatedEntityId, cloudServiceDTOs) ->
+                    Optional.ofNullable(cloudServiceDTOs.get(associatedEntityId))
+                            .flatMap(entityDTO -> Optional.of(entityDTO.getDisplayName()));
+
         throw ApiUtils.notImplementedInXL();
     }
 
     @Nonnull
     public StatSnapshotApiDTO toStatSnapshotApiDTO(@Nonnull final CloudCostStatRecord statSnapshot,
-                                                   @Nonnull final Function<ThinTargetInfo, String> typeFunction,
-                                                   @Nonnull final Function<ThinTargetInfo, String> valueFunction,
-                                                   @Nonnull final Map<Long, MinimalEntity> cloudServiceDTOs) {
+           @Nonnull final Supplier<String> typeFunction,
+           @Nonnull final BiFunction<Long, Map<Long, MinimalEntity>, Optional<String>> valueFunction,
+           @Nonnull final Map<Long, MinimalEntity> cloudServiceDTOs) {
         final StatSnapshotApiDTO dto = new StatSnapshotApiDTO();
         if (statSnapshot.hasSnapshotDate()) {
             dto.setDate(DateTimeUtil.toString(statSnapshot.getSnapshotDate()));
         }
-        // for Cloud service, search for all the discovered Cloud services ,and match the expenses
-        if (!cloudServiceDTOs.isEmpty()) {
-            dto.setStatistics(statSnapshot.getStatRecordsList().stream()
-                .map(statApiDTO -> toStatApiDtoWithTargets(statApiDTO,
-                    typeFunction,
-                    valueFunction,
-                    cloudServiceDTOs))
-                .collect(Collectors.toList()));
-        } else {
-            // for groupBy CSP and target
-            dto.setStatistics(statSnapshot.getStatRecordsList().stream()
-                .filter(statRecord -> thinTargetCache.getTargetInfo(statRecord.getAssociatedEntityId()).isPresent())
-                .map(statApiDTO ->
-                    toStatApiDtoWithTargets(statApiDTO,
+        dto.setStatistics(statSnapshot.getStatRecordsList().stream()
+                .map(statApiDTO -> toStatApiDto(statApiDTO,
                         typeFunction,
                         valueFunction,
-                        Collections.emptyMap()))
+                        cloudServiceDTOs))
                 .collect(Collectors.toList()));
-        }
         return dto;
     }
 
-    private StatApiDTO toStatApiDtoWithTargets(@Nonnull final CloudCostStatRecord.StatRecord statRecord,
-                                               @Nonnull final Function<ThinTargetInfo, String> typeFunction,
-                                               @Nonnull final Function<ThinTargetInfo, String> valueFunction,
-                                               @Nonnull final Map<Long, MinimalEntity> cloudServiceDTOs) {
+    private StatApiDTO toStatApiDto(@Nonnull final CloudCostStatRecord.StatRecord statRecord,
+           @Nonnull final Supplier<String> typeFunction,
+           @Nonnull final BiFunction<Long, Map<Long, MinimalEntity>, Optional<String>> valueFunction,
+           @Nonnull final Map<Long, MinimalEntity> cloudServiceDTOs) {
         final StatApiDTO statApiDTO = toStatApiDTO(statRecord.getName(), statRecord);
-
+        final long associatedEntityId = statRecord.getAssociatedEntityId();
 
         final BaseApiDTO provider = new BaseApiDTO();
-        provider.setUuid(String.valueOf(statRecord.getAssociatedEntityId()));
-
+        provider.setUuid(String.valueOf(associatedEntityId));
         statApiDTO.setRelatedEntity(provider);
 
         // Build filters
         final List<StatFilterApiDTO> filters = new ArrayList<>();
-        final Optional<ThinTargetInfo> targetInfo =
-            thinTargetCache.getTargetInfo(statRecord.getAssociatedEntityId());
-        if (targetInfo.isPresent()) {
+        Optional<String> filterValue = valueFunction.apply(associatedEntityId, cloudServiceDTOs);
+        if (filterValue.isPresent()) {
             final StatFilterApiDTO resultsTypeFilter = new StatFilterApiDTO();
-            resultsTypeFilter.setType(typeFunction.apply(targetInfo.get()));
-            if (cloudServiceDTOs.isEmpty()) {
-                resultsTypeFilter.setValue(valueFunction.apply(targetInfo.get()));
-            } else {
-                resultsTypeFilter.setValue(Optional.ofNullable(cloudServiceDTOs.get(statRecord.getAssociatedEntityId()))
-                    .map(MinimalEntity::getDisplayName)
-                    .orElse(StringConstants.UNKNOWN));
-            }
+            resultsTypeFilter.setType(typeFunction.get());
+            resultsTypeFilter.setValue(filterValue.get());
             filters.add(resultsTypeFilter);
         }
         statApiDTO.setFilters(filters);
