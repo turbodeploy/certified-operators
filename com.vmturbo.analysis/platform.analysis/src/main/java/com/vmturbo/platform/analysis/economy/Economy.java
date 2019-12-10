@@ -1174,16 +1174,17 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
                 if (context == null) {
                     continue;
                 }
-                Long oid = getTopology().getTraderOid(sl.getSupplier());
+                Long oid = sl.getSupplier() != null ? getTopology().getTraderOid(sl.getSupplier()) : null;
                 if (oid != null) {
-                    CoverageEntry coverageEntry = coverageMap.get(oid);
-                    if (coverageEntry == null) {
-                        coverageEntry = new CoverageEntry(0.0f, 0.0f);
-                        coverageMap.put(oid, coverageEntry);
+                    if (context.getTotalAllocatedCoupons(oid).isPresent()) {
+                        CoverageEntry coverageEntry = coverageMap.get(oid);
+                        if (coverageEntry == null) {
+                            coverageEntry = new CoverageEntry(0.0f, 0.0f);
+                            coverageMap.put(oid, coverageEntry);
+                        }
+                        coverageEntry.addTotalAllocatedCoupons(context.getTotalAllocatedCoupons(oid).get())
+                                     .addTotalRequestedCoupons(context.getTotalRequestedCoupons(oid).get());
                     }
-                    coverageEntry
-                        .addTotalAllocatedCoupons(context.getTotalAllocatedCoupons(0L).get())
-                        .addTotalRequestedCoupons(context.getTotalRequestedCoupons(0L).get());
                 }
                 context.setCoverageEntryMap(coverageMap);
             }

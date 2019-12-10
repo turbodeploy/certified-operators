@@ -1,20 +1,12 @@
 package com.vmturbo.platform.analysis.economy;
 
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CoverageEntry;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CoverageEntry.Builder;
 
-import javax.annotation.Nonnull;
-
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
-
-import com.google.common.collect.ImmutableMap;
 
 /**
  * A class representing the context which includes the balance account and region.
@@ -57,22 +49,6 @@ public class Context {
             new CoverageEntry(totalAllocatedCoupons, totalRequestedCoupons));
     }
 
-
-    //    /**
-//     * This version is used for testing only
-//     * @param regionId
-//     * @param zoneId
-//     * @param balanceAccount
-//     * @param totalAllocatedCoupons initial total allocated coupons
-//     * @param totalRequestedCoupons initial total requested coupons
-//     */
-//    public Context(long providerId, long regionId, long zoneId, BalanceAccount balanceAccount,
-//                   double totalAllocatedCoupons, double totalRequestedCoupons) {
-//        this(regionId, zoneId, balanceAccount, new ArrayList<>());
-//        List<CoverageEntry> coverageEntries = ;
-//        coverageEntries.add(new CoverageEntry(totalAllocatedCoupons, totalRequestedCoupons));
-//    }
-//
     public long getRegionId() {
         return regionId_;
     }
@@ -97,18 +73,26 @@ public class Context {
 
     public Context setTotalAllocatedCoupons(final long providerId, double numCoupons) {
         CoverageEntry coverageEntry = coverageEntryMap_.get(providerId);
-        if (coverageEntry != null) {
-            coverageEntry.setTotalAllocatedCoupons(numCoupons);
+        if (coverageEntry == null) {
+            coverageEntry = createEntryAndRegisterInContext(providerId);
         }
+        coverageEntry.setTotalAllocatedCoupons(numCoupons);
         return this;
     }
 
     public Context setTotalRequestedCoupons(final long providerId, double numCoupons) {
         CoverageEntry coverageEntry = coverageEntryMap_.get(providerId);
-        if (coverageEntry != null) {
-            coverageEntry.setTotalRequestedCoupons(numCoupons);
+        if (coverageEntry == null) {
+            coverageEntry = createEntryAndRegisterInContext(providerId);
         }
+        coverageEntry.setTotalRequestedCoupons(numCoupons);
         return this;
+    }
+
+    public CoverageEntry createEntryAndRegisterInContext(final long providerId) {
+        CoverageEntry coverageEntry = new CoverageEntry(0, 0);
+        coverageEntryMap_.put(providerId, coverageEntry);
+        return coverageEntry;
     }
 
     public BalanceAccount getBalanceAccount() {

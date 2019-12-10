@@ -379,7 +379,7 @@ public abstract class Quote {
 
         @Override
         public Optional<Context> getContext() {
-            return Optional.of(moveContext);
+            return Optional.ofNullable(moveContext);
         }
     }
 

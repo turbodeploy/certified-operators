@@ -15,8 +15,6 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CoverageEntry;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
@@ -182,8 +180,6 @@ public class CloudActionsIntegtationTest {
 
         economy.getSettings().setEstimatesEnabled(false);
 
-        economy.populateMarketsWithSellers();
-
         economy.setTopology(topology);
         try {
             Field traderOidField = Topology.class.getDeclaredField("traderOids_");
@@ -253,12 +249,15 @@ public class CloudActionsIntegtationTest {
         ShoppingList slVM2 = getSl(e, vms[1]);
         slVM1.move(sellers[0]);
         slVM2.move(sellers[0]);
+
+        e.populateMarketsWithSellers();
+
         Placement.generateShopAlonePlacementDecisions(e, slVM1);
         Placement.generateShopAlonePlacementDecisions(e, slVM2);
         // moving each VM to CBTP consuming 8 coupons each
-        assertEquals(sellers[2].getCommoditySold(COUPON).getQuantity(), 16, 0);
-        assertEquals(slVM1.getQuantity(1), 8, 0);
-        assertEquals(slVM2.getQuantity(1), 8, 0);
+        assertEquals(16, sellers[2].getCommoditySold(COUPON).getQuantity(), 0);
+        assertEquals(8, slVM1.getQuantity(1), 0);
+        assertEquals(8, slVM2.getQuantity(1), 0);
     }
 
     @Test
@@ -273,11 +272,14 @@ public class CloudActionsIntegtationTest {
         ShoppingList slVM2 = getSl(e, vms[1]);
         slVM1.move(sellers[0]);
         slVM2.move(sellers[0]);
+
+        e.populateMarketsWithSellers();
+
         Placement.generateShopAlonePlacementDecisions(e, slVM1);
         Placement.generateShopAlonePlacementDecisions(e, slVM2);
         // moving each VM to CBTP consuming 8 coupons each
         // there is an overhead of 10
-        assertEquals(sellers[2].getCommoditySold(COUPON).getQuantity(), 26, 0);
+        assertEquals(26, sellers[2].getCommoditySold(COUPON).getQuantity(), 0);
     }
 
     // when there is a partially covered VM on a CBTP, if there is some other VM that shops before it,
@@ -298,32 +300,35 @@ public class CloudActionsIntegtationTest {
         e.getCommodityBought(slVM1, COUPON).setQuantity(8);
         e.getCommodityBought(slVM1, CPU).setQuantity(60);
         e.getCommodityBought(slVM2, CPU).setQuantity(60);
-        Context context = makeContext(t.getTraderOid(sellers[2]), 16, 8);
+        Context context = makeContext(t.getTraderOid(sellers[2]), 8, 16);
         vms[0].getSettings().setContext(context);
+
+        e.populateMarketsWithSellers();
+
         Move move2 = new Move(e, slVM2, sellers[2]).take();
         // new VM requests 16 coupons but gets partial 8 coupons from CBTP1
-        assertEquals(sellers[2].getCommoditySold(COUPON).getQuantity(), 16, 0);
+        assertEquals(16, sellers[2].getCommoditySold(COUPON).getQuantity(), 0);
         // This following is a case that was failing before.
         // This has been fixed now that we have changed the way couponUpdatingFunction works.
         // coupons will be used by the VM that is moving in
-        assertEquals(slVM2.getQuantity(1), 8, 0);
+        assertEquals(8, slVM2.getQuantity(1), 0);
 
         // VM2's context got updated after move
-        assertEquals(vms[1].getSettings().getContext().getTotalRequestedCoupons(
-                t.getTraderOid(sellers[2])).get(), 16, 0);
-        assertEquals(vms[1].getSettings().getContext().getTotalAllocatedCoupons(
-            t.getTraderOid(sellers[2])).get(), 8, 0);
+        assertEquals(16, vms[1].getSettings().getContext().getTotalRequestedCoupons(
+                t.getTraderOid(sellers[2])).get(), 0);
+        assertEquals(8, vms[1].getSettings().getContext().getTotalAllocatedCoupons(
+            t.getTraderOid(sellers[2])).get(), 0);
         // now say we trigger an actual placement instead of forcing the move
         Placement.generateShopAlonePlacementDecisions(e, slVM2);
         // new VM requests 16 coupons and gets all from CBTP2 and returns 8 back to CBTP1
-        assertEquals(sellers[2].getCommoditySold(COUPON).getQuantity(), 8, 0);
-        assertEquals(sellers[3].getCommoditySold(COUPON).getQuantity(), 16, 0);
-        assertEquals(slVM1.getQuantity(1), 8, 0);
-        assertEquals(slVM2.getQuantity(1), 16, 0);
+        assertEquals(8, sellers[2].getCommoditySold(COUPON).getQuantity(), 0);
+        assertEquals(16, sellers[3].getCommoditySold(COUPON).getQuantity(), 0);
+        assertEquals(8, slVM1.getQuantity(1), 0);
+        assertEquals(16, slVM2.getQuantity(1), 0);
         Placement.generateShopAlonePlacementDecisions(e, slVM1);
         // VM1 uses up the relinquished coupons
-        assertEquals(sellers[2].getCommoditySold(COUPON).getQuantity(), 16, 0);
-        assertEquals(slVM1.getQuantity(1), 16, 0);
+        assertEquals(16, sellers[2].getCommoditySold(COUPON).getQuantity(), 0);
+        assertEquals(16, slVM1.getQuantity(1), 0);
     }
 
     private Context makeContext(final long providerId,
@@ -350,18 +355,16 @@ public class CloudActionsIntegtationTest {
         e.getCommodityBought(slVM1, CPU).setQuantity(60);
         Context context = makeContext(t.getTraderOid(sellers[2]), 8, 8);
         vms[0].getSettings().setContext(context);
-        EconomyDTOs.Context quoteContext = EconomyDTOs.Context.newBuilder()
-            .addFamilyBasedCoverage(CoverageEntry.newBuilder()
-                .setTotalRequestedCoupons(16d)
-                .setTotalAllocatedCoupons(8d))
-            .build();
+
+        e.populateMarketsWithSellers();
+
         // the following will effectively do
         // new Move(e, slVM1, sellers[2], sellers[2], Optional.of(quoteContext)).take();
         Placement.generateShopAlonePlacementDecisions(e, slVM1);
         // VM now requests 16 coupons
-        assertEquals(sellers[2].getCommoditySold(COUPON).getQuantity(), 16, 0);
+        assertEquals(16, sellers[2].getCommoditySold(COUPON).getQuantity(), 0);
         // All 16 coupons will be allocated
-        assertEquals(slVM1.getQuantity(1), 16, 0);
+        assertEquals(16, slVM1.getQuantity(1), 0);
     }
 
     // scale down on CBTP and different VM using the coupons
@@ -375,29 +378,27 @@ public class CloudActionsIntegtationTest {
         sellers[2].getCommoditySold(COUPON).setCapacity(16).setQuantity(16);
         ShoppingList slVM1 = getSl(e, vms[0]);
         ShoppingList slVM2 = getSl(e, vms[1]);
-        slVM1.move(sellers[2]);
         // VM scales on the CBTP alone without any co-customers
         e.getCommodityBought(slVM1, COUPON).setQuantity(16);
         e.getCommodityBought(slVM1, CPU).setQuantity(10);
+        slVM1.move(sellers[2]);
         Context context = makeContext(t.getTraderOid(sellers[2]), 16L, 16L);
         vms[0].getSettings().setContext(context);
-        EconomyDTOs.Context quoteContext = EconomyDTOs.Context.newBuilder()
-            .addFamilyBasedCoverage(CoverageEntry.newBuilder()
-                .setTotalRequestedCoupons(8d)
-                .setTotalAllocatedCoupons(8d))
-            .build();
+
+        e.populateMarketsWithSellers();
+
         Placement.generateShopAlonePlacementDecisions(e, slVM1);
         // VM now requests 8 coupons since it is scaling down
-        assertEquals(sellers[2].getCommoditySold(COUPON).getQuantity(), 8, 0);
+        assertEquals(8, sellers[2].getCommoditySold(COUPON).getQuantity(), 0);
         // 8 coupons will be allocated
-        assertEquals(slVM1.getQuantity(1), 8, 0);
+        assertEquals(8, slVM1.getQuantity(1), 0);
         slVM2.move(sellers[0]);
         Placement.generateShopAlonePlacementDecisions(e, slVM2);
         // VM's now requests 8 coupons each
-        assertEquals(sellers[2].getCommoditySold(COUPON).getQuantity(), 16, 0);
+        assertEquals(16, sellers[2].getCommoditySold(COUPON).getQuantity(), 0);
         // 8 coupons will be allocated
-        assertEquals(slVM1.getQuantity(1), 8, 0);
-        assertEquals(slVM2.getQuantity(1), 8, 0);
+        assertEquals(8, slVM1.getQuantity(1), 0);
+        assertEquals(8, slVM2.getQuantity(1), 0);
     }
 
     // moving from 1 cbtp to another
@@ -412,23 +413,26 @@ public class CloudActionsIntegtationTest {
         sellers[3].getCommoditySold(COUPON).setCapacity(16);
         ShoppingList slVM1 = getSl(e, vms[0]);
         ShoppingList slVM2 = getSl(e, vms[1]);
-        slVM1.move(sellers[2]);
-        slVM2.move(sellers[2]);
         // VM scales on the CBTP alone without any co-customers
         e.getCommodityBought(slVM1, COUPON).setQuantity(8);
         e.getCommodityBought(slVM1, CPU).setQuantity(10);
         e.getCommodityBought(slVM2, COUPON).setQuantity(8);
         e.getCommodityBought(slVM2, CPU).setQuantity(60);
+        slVM1.move(sellers[2]);
+        slVM2.move(sellers[2]);
         Context context = makeContext(t.getTraderOid(sellers[2]), 8, 8);
         vms[0].getSettings().setContext(context);
+
+        e.populateMarketsWithSellers();
+
         Placement.generateShopAlonePlacementDecisions(e, slVM2);
         // VM1 now requests 8 coupons from CBTP1
-        assertEquals(sellers[2].getCommoditySold(COUPON).getQuantity(), 8, 0);
+        assertEquals(8, sellers[2].getCommoditySold(COUPON).getQuantity(), 0);
         // VM2 now requests 16 coupons from CBTP2
-        assertEquals(sellers[3].getCommoditySold(COUPON).getQuantity(), 16, 0);
+        assertEquals(16, sellers[3].getCommoditySold(COUPON).getQuantity(), 0);
         // All 16 coupons will be allocated
-        assertEquals(slVM1.getQuantity(1), 8, 0);
-        assertEquals(slVM2.getQuantity(1), 16, 0);
+        assertEquals(8, slVM1.getQuantity(1), 0);
+        assertEquals(16, slVM2.getQuantity(1), 0);
     }
 
     // CSG's
@@ -443,22 +447,63 @@ public class CloudActionsIntegtationTest {
         ShoppingList slVM1 = getSl(e, vms[0]);
         ShoppingList slVM2 = getSl(e, vms[1]);
         slVM1.move(sellers[0]);
+
+        e.populateMarketsWithSellers();
+
         // move group leader to CBTP1
         PlacementResults results = Placement.generateShopAlonePlacementDecisions(e, slVM1);
         // Move move1 = new Move(e, slVM1, sellers[2]).take();
-        assertEquals(results.getActions().get(0).getSubsequentActions().size(), 1);
+        assertEquals(1, results.getActions().get(0).getSubsequentActions().size(), 0);
         // moving each VM to CBTP consuming 8 coupons each
-        assertEquals(sellers[2].getCommoditySold(COUPON).getQuantity(), 16, 0);
+        assertEquals(16, sellers[2].getCommoditySold(COUPON).getQuantity(), 0);
         // assert that both VMs pick the same CBTP getting full coverage
-        assertEquals(slVM1.getQuantity(1), 8, 0);
-        assertEquals(slVM2.getQuantity(1), 8, 0);
+        assertEquals(8, slVM1.getQuantity(1), 0);
+        assertEquals(8, slVM2.getQuantity(1), 0);
     }
 
     @Test
     public void testCouponUpdationOnMoves_8() {
         Economy e = new Economy();
         Topology t = new Topology();
+        Trader[] vms = setupConsumersInCSG(e, 3, "id1", 0, 8);//new double[] {8, 16});
+        Trader[] sellers = setupProviders(e, t, 0);
+        sellers[2].getCommoditySold(COUPON).setCapacity(12).setQuantity(4);
+        sellers[3].getCommoditySold(COUPON).setCapacity(4).setQuantity(4);
+        ShoppingList slVM1 = getSl(e, vms[0]);
+        ShoppingList slVM2 = getSl(e, vms[1]);
+        ShoppingList slVM3 = getSl(e, vms[2]);
+        // VM1 on TP1
+        slVM1.move(sellers[0]);
+        // VM2 is on CBTP1 consuming 2 coupons
+        slVM2.setQuantity(1, 4);
+        vms[1].getSettings().setContext(new Context(t.getTraderOid(sellers[2]), REGION, ZONE,
+                new Context.BalanceAccount(0, 10000, BA, 0), 4, 8));
+        slVM2.move(sellers[2]);
+        // VM3 on CBTP2 consuming 4 coupons
+        slVM3.setQuantity(1, 4);
+        vms[2].getSettings().setContext(new Context(t.getTraderOid(sellers[3]), REGION, ZONE,
+                new Context.BalanceAccount(0, 10000, BA, 0), 4, 8));
+        slVM3.move(sellers[3]);
 
+        e.populateMarketsWithSellers();
+
+        // move group leader to CBTP1 and hence move all peers to CBTP1 or TP1
+        PlacementResults results = Placement.generateShopAlonePlacementDecisions(e, slVM1);
+        // this test will fail because we generate an action from CBTP1 to CBTP1 for VM2 that already is covered by 4 coupons
+        // 4 is the max coverage that VM2 can get from CBTP1
+        assertEquals(1, results.getActions().get(0).getSubsequentActions().size(), 0);
+        // moving each VM to CBTP consuming 8 coupons each
+        assertEquals(12, sellers[2].getCommoditySold(COUPON).getQuantity(), 0);
+        assertEquals(8, slVM1.getQuantity(1), 0);
+        // assert that first follower VM picks the CBTP and uses up the remaining 4 coupons
+        assertEquals(sellers[2], ((Move)results.getActions().get(0).getSubsequentActions().get(0)).getDestination());
+        assertEquals(4, slVM2.getQuantity(1), 0);
+        // assert that second follower VM picks TP once the CBTP is out of coupons
+        assertEquals(((Move)results.getActions().get(0).getSubsequentActions().get(1)).getDestination(), sellers[0]);
+        // VM3 moves to TP1 with 0 coverage. VM3 relinquishes coupons back to CBTP2.
+        assertEquals(0, slVM3.getQuantity(1), 0);
+        // assert coupons have been relinquished
+        assertEquals(0, sellers[3].getCommoditySold(COUPON).getQuantity(), 0);
     }
 
     @Test
@@ -467,31 +512,34 @@ public class CloudActionsIntegtationTest {
         Topology t = new Topology();
         Trader[] vms = setupConsumersInCSG(e, 3, "id1", 0, 8);//new double[] {8, 16});
         Trader[] sellers = setupProviders(e, t, 0);
+        Context context = new Context(t.getTraderOid(sellers[3]), REGION, ZONE, new Context.BalanceAccount(0, 10000, BA, 0),
+                4, 8);
         sellers[2].getCommoditySold(COUPON).setCapacity(12);
         sellers[3].getCommoditySold(COUPON).setCapacity(4).setQuantity(4);
         ShoppingList slVM1 = getSl(e, vms[0]);
         ShoppingList slVM2 = getSl(e, vms[1]);
         ShoppingList slVM3 = getSl(e, vms[2]);
-        slVM1.move(sellers[0]);
-        slVM2.move(sellers[1]);
         // VM3 on CBTP2 with full coverage
-        slVM3.setQuantity(1, 4);
-        slVM3.move(sellers[3]);
+        // same setup as 8. Except that VM1 is on CBTP2 consuming 4 coupons with the right context
+        vms[0].getSettings().setContext(context);
+        slVM1.setQuantity(1, 4);
+        slVM1.move(sellers[3]);
+        slVM2.move(sellers[1]);
+        slVM3.move(sellers[0]);
+
+        e.populateMarketsWithSellers();
+
         // move group leader to CBTP1 and hence move all peers to CBTP1 or TP1
         PlacementResults results = Placement.generateShopAlonePlacementDecisions(e, slVM1);
-        assertEquals(results.getActions().get(0).getSubsequentActions().size(), 2);
+        assertEquals(1, results.getActions().get(0).getSubsequentActions().size());
         // moving each VM to CBTP consuming 8 coupons each
         assertEquals(sellers[2].getCommoditySold(COUPON).getQuantity(), 12, 0);
-        assertEquals(slVM1.getQuantity(1), 8, 0);
+        assertEquals(8, slVM1.getQuantity(1), 0);
         // assert that first follower VM picks the CBTP and uses up the remaining 4 coupons
-        assertEquals(((Move)results.getActions().get(0).getSubsequentActions().get(1)).getDestination(), sellers[2]);
-        assertEquals(slVM2.getQuantity(1), 4, 0);
-        // assert that second follower VM picks TP once the CBTP is out of coupons
-        assertEquals(((Move)results.getActions().get(0).getSubsequentActions().get(0)).getDestination(), sellers[0]);
-        // VM3 moves to TP1 with 0 coverage. VM3 relinquishes coupons back to CBTP2.
-        assertEquals(slVM3.getQuantity(1), 0, 0);
-        // assert coupons have been relinquished
-        assertEquals(sellers[3].getCommoditySold(COUPON).getQuantity(), 0, 0);
+        assertEquals(sellers[2], ((Move)results.getActions().get(0).getSubsequentActions().get(0)).getDestination());
+        assertEquals(4, slVM2.getQuantity(1), 0);
+        // VM3 is already on TP1 with 0 coverage. So no relinquishing needed
+        assertEquals(0, sellers[3].getCommoditySold(COUPON).getQuantity(), 0);
     }
 
     @Test
@@ -509,9 +557,12 @@ public class CloudActionsIntegtationTest {
         ShoppingList slVM1 = getSl(e, vms[0]);
         slVM1.move(sellers[0]);
         e.getCommodityBought(slVM1, CPU).setQuantity(cpuUsed);
+
+        e.populateMarketsWithSellers();
+
         Placement.generateShopAlonePlacementDecisions(e, slVM1);
-        assertEquals(sellers[2].getCommoditySold(COUPON).getQuantity(), couponSoldUsed + couponAllocated, 0);
-        assertEquals(slVM1.getQuantity(1), couponAllocated, 0);
+        assertEquals(couponSoldUsed + couponAllocated, sellers[2].getCommoditySold(COUPON).getQuantity(), 0);
+        assertEquals(couponAllocated, slVM1.getQuantity(1), 0);
     }
 
     @SuppressWarnings("unused") // it is used reflectively
@@ -552,13 +603,16 @@ public class CloudActionsIntegtationTest {
             slVM1.move(sellers[0]);
         }
         e.getCommodityBought(slVM2, CPU).setQuantity(cpuUsed2);
+
+        e.populateMarketsWithSellers();
+
         Placement.generateShopAlonePlacementDecisions(e, slVM2);
 
         // couponSoldUsed already captures usage of VM1 and overhead
         // we just add the usage of VM2
         assertEquals(sellers[2].getCommoditySold(COUPON).getQuantity(), couponSoldUsed + couponAlloc2, 0);
-        assertEquals(slVM1.getQuantity(1), couponAlloc1, 0);
-        assertEquals(slVM2.getQuantity(1), couponAlloc2, 0);
+        assertEquals(couponAlloc1, slVM1.getQuantity(1), 0);
+        assertEquals(couponAlloc2, slVM2.getQuantity(1), 0);
 
     }
 

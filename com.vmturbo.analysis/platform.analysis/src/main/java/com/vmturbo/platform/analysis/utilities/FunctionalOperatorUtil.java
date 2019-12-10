@@ -3,7 +3,6 @@ package com.vmturbo.platform.analysis.utilities;
 import java.util.Optional;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
 import com.vmturbo.platform.analysis.economy.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -152,18 +151,6 @@ public class FunctionalOperatorUtil {
                             .collect(Collectors.toList()));
                     return new double[]{commSold.getQuantity(), 0};
                 }
-                // if we plan on simulating moves for every CSG member, maybe we dont have to consider the
-                // groupFactor here. Especially since all the VMs are going to scale
-                if (overhead < 0) {
-                    logger.error("The overhead for CouponComm on CBTP " + seller.getDebugInfoNeverUseInCode()
-                            + " containing " + seller.getCustomers().size() + " is " + overhead);
-                    overhead = 0;
-                }
-                // copy the sold commodity's old used into the quantity attribute when
-                // the attribute was reset while using explicit combinator
-                if (commSold.getQuantity() == 0) {
-                    commSold.setQuantity(overhead);
-                }
 
                 // The capacity of coupon commodity sold by the matching tp holds the
                 // number of coupons associated with the template. This is the number of
@@ -204,9 +191,11 @@ public class FunctionalOperatorUtil {
                     buyer.setQuantity(boughtIndex, totalAllocatedCoupons);
                     // TODO SS: consider updating tier in context
                     // tier information is updated here indirectly through TotalRequestedCoupons update
-                    c.setTotalAllocatedCoupons(oid, c.getTotalAllocatedCoupons(oid).orElse(0.0)
-                            + totalAllocatedCoupons)
-                        .setTotalRequestedCoupons(oid, requestedCoupons);
+                    if (buyer.getGroupFactor() > 0) {
+                        // group leader updates the coupon allocated for the group
+                        c.setTotalAllocatedCoupons(oid,  Math.min(requestedCoupons * buyer.getGroupFactor(), availableCoupons))
+                                .setTotalRequestedCoupons(oid, requestedCoupons * buyer.getGroupFactor());
+                    }
                     // buyer.getBuyer().getSettings().getContext().setTier();
                     discountedCost = ((1 - discountCoefficient) * templateCost) + (discountCoefficient
                             * ((1 - cbtpResourceBundle.getDiscountPercentage()) * templateCost));

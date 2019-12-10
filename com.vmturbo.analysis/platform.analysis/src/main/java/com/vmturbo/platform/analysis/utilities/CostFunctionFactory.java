@@ -7,7 +7,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
-import com.vmturbo.platform.analysis.economy.*;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -548,9 +547,9 @@ public class CostFunctionFactory {
         // TODO SS: check if we need to update the couponsCovered in the context
         // TODO SS: check if we want to use couponCount * groupFactor
         double currentCoverage = 0L;
-        if (seller == buyer.getSupplier()) {
-            currentCoverage = buyer.getTotalAllocatedCoupons(economy, seller);
-        }
+//        if (seller == buyer.getSupplier()) {
+        currentCoverage = buyer.getTotalAllocatedCoupons(economy, seller);
+//        }
         // if the currentCouponCoverage satisfies the requestedAmount for the new template, request 0 coupons
         double requestedCoupons = Math.max(0, couponCommSoldByTp.getCapacity() * (groupFactor > 0 ? groupFactor : 1));
 
@@ -559,8 +558,10 @@ public class CostFunctionFactory {
                         .indexOfBaseType(cbtpResourceBundle.getCouponBaseType());
         CommoditySold couponCommSoldByCbtp =
                         seller.getCommoditiesSold().get(indexOfCouponCommByCbtp);
+
+        // if the groupLeader is asking for cost, reqlinquish all coupons and provide quote for the group
         double availableCoupons =
-                        couponCommSoldByCbtp.getCapacity() - couponCommSoldByCbtp.getQuantity() + currentCoverage;
+                couponCommSoldByCbtp.getCapacity() - couponCommSoldByCbtp.getQuantity() + (groupFactor > 0 ? currentCoverage : 0);
 
         double singleVmTemplateCost = templateCostForBuyer / (groupFactor > 0 ? groupFactor : 1);
 
@@ -587,9 +588,15 @@ public class CostFunctionFactory {
             // no discount on tp of the matching template.
             discountedCost = Double.POSITIVE_INFINITY;
         }
-        double totalCoverage = requestedCoupons + currentCoverage;
-        return new CommodityCloudQuote(seller, discountedCost, context.get(),
-                totalCoverage, totalCoverage - numCouponsToPayFor);
+        // coverage in the moveContext is on the group level for the group leader
+        if (buyer.getGroupFactor() > 0) {
+            double totalCoverage = requestedCoupons + currentCoverage;
+            return new CommodityCloudQuote(seller, discountedCost, context.get(),
+                    totalCoverage, totalCoverage - numCouponsToPayFor);
+        } else {
+            return new CommodityCloudQuote(seller, discountedCost, context.get(),
+                    requestedCoupons, requestedCoupons - numCouponsToPayFor);
+        }
     }
 
     private static boolean isBuyerInLocationScope(final CostTuple costTuple,
