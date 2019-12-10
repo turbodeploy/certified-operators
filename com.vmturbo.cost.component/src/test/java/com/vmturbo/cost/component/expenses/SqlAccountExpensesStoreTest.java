@@ -280,9 +280,8 @@ public class SqlAccountExpensesStoreTest {
     @Test
     public void tesGetAccountExpenseFilter() throws DbException, AccountExpenseNotFoundException, InterruptedException {
         // get by date
-        final LocalDateTime now = LocalDateTime.now(clock);
         long startTime = clock.instant().minus(1, ChronoUnit.DAYS).toEpochMilli();
-        long endTime =  clock.millis();
+        long endTime = clock.instant().plus(1, ChronoUnit.DAYS).toEpochMilli();
 
         final AccountExpensesFilter entityCostFilter1 = AccountExpenseFilterBuilder
                 .newBuilder(TimeFrame.LATEST)
@@ -318,7 +317,7 @@ public class SqlAccountExpensesStoreTest {
         TimeUnit.SECONDS.sleep(1);
         expensesStore.persistAccountExpenses(ACCOUNT_ID_1, accountExpensesInfo1);
 
-        // get latest account expenses for entityID = 1, entityType = 43, timeframe = now until tomorrow
+        // get latest account expenses for entityID = 1, entityType = 43, timeframe = yesterday until tomorrow
         final Map<Long, Map<Long, AccountExpenses>> accountExpenses1 = expensesStore.getAccountExpenses(entityCostFilter1);
         assertEquals(1, accountExpenses1.size());
         assertEquals(ACCOUNT_ID_1, accountExpenses1.values().stream()
@@ -327,19 +326,19 @@ public class SqlAccountExpensesStoreTest {
                 .get(ACCOUNT_ID_1)
                 .getAssociatedAccountId());
 
-        // get latest account expenses for entityID = 1, entityType = any, timeframe = now until tomorrow
+        // get latest account expenses for entityID = 1, entityType = any, timeframe = yesterday until tomorrow
         final Map<Long, Map<Long, AccountExpenses>> accountExpenses2 = expensesStore.getAccountExpenses(entityCostFilter2);
         assertEquals(1, accountExpenses2.size());
 
-        // get latest account expenses for entityID = any, entityType = 43, timeframe = now until tomorrow
+        // get latest account expenses for entityID = any, entityType = 43, timeframe = yesterday until tomorrow
         final Map<Long, Map<Long, AccountExpenses>> accountExpenses3 = expensesStore.getAccountExpenses(entityCostFilter3);
         assertEquals(1, accountExpenses3.size());
 
-        // get latest account expenses for entityID = maxValue, entityType = maxValue, timeframe = now until tomorrow
+        // get latest account expenses for entityID = maxValue, entityType = maxValue, timeframe = yesterday until tomorrow
         final Map<Long, Map<Long, AccountExpenses>> accountExpenses4 = expensesStore.getAccountExpenses(entityCostFilter4);
         assertEquals(0, accountExpenses4.size());
 
-        // get latest account expenses for entityID = any, entityType = any, timeframe = now until tomorrow
+        // get latest account expenses for entityID = any, entityType = any, timeframe = yesterday until tomorrow
         final Map<Long, Map<Long, AccountExpenses>> accountExpenses5 = expensesStore.getAccountExpenses(entityCostFilter5);
         assertEquals(1, accountExpenses5.size());
 
