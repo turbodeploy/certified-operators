@@ -53,6 +53,7 @@ import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainResponse;
@@ -71,7 +72,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEnt
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
+import com.vmturbo.commons.Pair;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO;
 
 /**
  * A factory class for various {@link SupplychainFetcher}s.
@@ -662,31 +665,39 @@ public class SupplyChainFetcherFactory {
          */
         final List<SupplyChainNode> fetchSupplyChainNodes()
                 throws InterruptedException, ExecutionException, TimeoutException {
-
-            // START Mad(ish) Hax.
-            // Handle a very particular special case where we are asking for the supply chain
-            // of a group, restricted to the entity type of the group (e.g. give me the supply
-            // chain of Group 1 of PhysicalMachines, containing only PhysicalMachine nodes).
-            // The request is, essentially, asking for the members of the group, so we don't need
-            // to do any supply chain queries.
-            //
-            // The reason this even happens is because some information (e.g. grouped severities
-            // for supply chain stats, or aspects for entities) is only available via the
-            // supply chain API. In the long term there should be a better API to retrieve this
-            // (e.g. some sort of "entity counts" API for grouped severities,
-            //       and/or options on the /search API for aspects)
             if (UuidMapper.hasLimitedScope(seedUuids) &&
-                    seedUuids.size() == 1 && CollectionUtils.size(entityTypes) > 0) {
+                seedUuids.size() == 1) {
                 final String groupUuid = seedUuids.iterator().next();
                 final Optional<GroupAndMembers> groupWithMembers =
                     groupExpander.getGroupWithMembers(groupUuid);
+
                 if (groupWithMembers.isPresent()) {
                     final Grouping group = groupWithMembers.get().group();
-                    final List<String> groupTypes =  GroupProtoUtil
-                        .getEntityTypes(group)
-                        .stream()
-                        .map(UIEntityType::apiStr)
-                        .collect(Collectors.toList());
+
+                    // If the scope is RG or group of RG build supply chain
+                    // such that it only has only RG entities and regions
+                    if (isResourceGroupOrGroupOfResourceGroup(group)) {
+                        return createSupplyChainForResourceGroup(groupWithMembers.get());
+                    }
+
+                    // START Mad(ish) Hax.
+                    // Handle a very particular special case where we are asking for the supply chain
+                    // of a group, restricted to the entity type of the group (e.g. give me the supply
+                    // chain of Group 1 of PhysicalMachines, containing only PhysicalMachine nodes).
+                    // The request is, essentially, asking for the members of the group, so we don't need
+                    // to do any supply chain queries.
+                    //
+                    // The reason this even happens is because some information (e.g. grouped severities
+                    // for supply chain stats, or aspects for entities) is only available via the
+                    // supply chain API. In the long term there should be a better API to retrieve this
+                    // (e.g. some sort of "entity counts" API for grouped severities,
+                    //       and/or options on the /search API for aspects)
+                    if (CollectionUtils.size(entityTypes) > 0) {
+                        final List<String> groupTypes = GroupProtoUtil
+                            .getEntityTypes(group)
+                            .stream()
+                            .map(UIEntityType::apiStr)
+                            .collect(Collectors.toList());
 
                         if (groupTypes.containsAll(entityTypes)) {
                             if (groupWithMembers.get().entities().isEmpty()) {
@@ -700,14 +711,15 @@ public class SupplyChainFetcherFactory {
                                 .stream()
                                 .map(type -> createSupplyChainNode(type,
                                     typeToMembers.get(UIEntityType.fromString(type)),
-                                    group))
+                                    group, null, null))
                                 .filter(Optional::isPresent)
                                 .map(Optional::get)
                                 .collect(Collectors.toList());
                         }
+                        // END Mad(ish) Hax.
                     }
                 }
-                // END Mad(ish) Hax.
+            }
 
             Optional<SupplyChainScope> scope = createSupplyChainScope();
             if (!scope.isPresent()) {
@@ -729,9 +741,126 @@ public class SupplyChainFetcherFactory {
             return response.getSupplyChain().getSupplyChainNodesList();
         }
 
+        /**
+         * Gets a group and check if it is a resource group or group of resource group.
+         * @param group the input group.
+         * @return true if this a resource group or groups of resource groups.
+         */
+        private boolean isResourceGroupOrGroupOfResourceGroup(Grouping group) {
+            final GroupDTO.GroupDefinition definition = group.getDefinition();
+
+            // If group is static
+            if (definition.hasStaticGroupMembers()) {
+                if (definition.getType() == CommonDTO.GroupDTO.GroupType.RESOURCE) {
+                    return true;
+                }
+
+                final GroupDTO.StaticMembers statMembers = definition.getStaticGroupMembers();
+
+                return statMembers.getMembersByTypeCount() == 1
+                        && statMembers.getMembersByType(0).getType().hasGroup()
+                        && statMembers.getMembersByType(0)
+                    .getType().getGroup() == CommonDTO.GroupDTO.GroupType.RESOURCE;
+            }
+
+            // If the group is dynamic nested group
+            if (definition.hasGroupFilters()) {
+                return definition.getGroupFilters().getGroupFilterCount() == 1
+                    && definition.getGroupFilters().getGroupFilter(0).getGroupType()
+                            == CommonDTO.GroupDTO.GroupType.RESOURCE;
+            }
+
+            return false;
+        }
+
+        /**
+         * Gets a resource group or group of resource groups and build
+         * a supply chain for it only including entities insides resource groups
+         * and underlying regions.
+         *
+         * @param groupAndMembers the input group.
+         * @return the list of supply chain nodes.
+         */
+        private List<SupplyChainNode> createSupplyChainForResourceGroup(
+            GroupAndMembers groupAndMembers) {
+            final Set<Long> entities = new HashSet<>(groupAndMembers.entities());
+            final Map<UIEntityType, Set<String>> connectionsProvider = new HashMap<>();
+            final Map<UIEntityType, Set<String>> connectionsConsumer = new HashMap<>();
+            final Map<UIEntityType, Set<Long>> entitiesMap = new HashMap<>();
+            final boolean limitedTypes = CollectionUtils.isNotEmpty(entityTypes);
+
+            repositoryApi.entitiesRequest(entities).getFullEntities()
+                .forEach(entity -> {
+                    if (limitedTypes && !entityTypes.contains(entity.getEntityType())) {
+                        return;
+                    }
+
+                    entitiesMap.computeIfAbsent(UIEntityType.fromType(entity.getEntityType()),
+                        t -> new HashSet<>()).add(entity.getOid());
+
+                    // initialize providers with the set of provider of
+                    // entity commodities
+                    Set<Pair<Long, UIEntityType>> providers =
+                        entity.getCommoditiesBoughtFromProvidersList().stream()
+                        .filter(c -> c.hasProviderEntityType() && c.hasProviderId())
+                        .map(c -> new Pair<>(c.getProviderId(),
+                            UIEntityType.fromType(c.getProviderEntityType())))
+                        .collect(Collectors.toSet());
+
+                    // add those entities that are entities connected to
+                    // to the list of providers.
+                    entity.getConnectedEntityListList()
+                        .forEach(ce -> providers.add(new Pair<>(ce.getConnectedEntityId(),
+                            UIEntityType.fromType(ce.getConnectedEntityType()))));
+
+                    // create a required relations for each provider
+                    providers
+                        .forEach(p -> {
+                            // If the type is not part of requested entity continue
+                            if (limitedTypes && !entityTypes.contains(p.second)) {
+                                return;
+                            }
+
+                            final boolean isRegion = (UIEntityType.REGION == p.second);
+                            // If it is region add it to supply chain
+                            if (isRegion) {
+                                entitiesMap.computeIfAbsent(UIEntityType.REGION,
+                                    t -> new HashSet<>()).add(p.first);
+                            }
+
+                            // we only care about connection of current entity to those
+                            // entities are part that are part of the resource group
+                            // or those that are region
+                            if ((entities.contains(p.first) || isRegion)) {
+                                final UIEntityType consumerType =
+                                    UIEntityType.fromType(entity.getEntityType());
+                                final UIEntityType providerType = p.second;
+                                connectionsProvider
+                                    .computeIfAbsent(consumerType, t -> new HashSet<>())
+                                    .add(providerType.apiStr());
+                                connectionsConsumer
+                                    .computeIfAbsent(providerType, t -> new HashSet<>())
+                                    .add(consumerType.apiStr());
+                            }
+                        });
+                });
+
+            return entitiesMap.entrySet()
+                .stream()
+                .map(e -> createSupplyChainNode(e.getKey().apiStr(), e.getValue(),
+                    groupAndMembers.group(), connectionsProvider.get(e.getKey()),
+                    connectionsConsumer.get(e.getKey())))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toList());
+        }
+
         private Optional<SupplyChainNode> createSupplyChainNode(String type,
                                                                 Set<Long> entities,
-                                                                final Grouping group) {
+                                                                final Grouping group,
+                                                                final Set<String> providerSet,
+                                                                final Set<String> consumerSet
+        ) {
             if (CollectionUtils.isEmpty(entities)) {
                 return Optional.empty();
             }
@@ -759,14 +888,22 @@ public class SupplyChainFetcherFactory {
             } else {
                 filteredMembers = entities;
             }
-
-            return Optional.of(SupplyChainNode.newBuilder()
+            final SupplyChainNode.Builder nodeBuilder = SupplyChainNode.newBuilder()
                 .setEntityType(type)
                 .putMembersByState(EntityState.POWERED_ON_VALUE,
                     MemberList.newBuilder()
                         .addAllMemberOids(filteredMembers)
-                        .build())
-                .build());
+                        .build());
+
+            if (providerSet != null) {
+                nodeBuilder.addAllConnectedProviderTypes(providerSet);
+            }
+
+            if (consumerSet != null) {
+                nodeBuilder.addAllConnectedConsumerTypes(consumerSet);
+            }
+
+            return Optional.of(nodeBuilder.build());
         }
 
         protected long getTopologyContextId() {

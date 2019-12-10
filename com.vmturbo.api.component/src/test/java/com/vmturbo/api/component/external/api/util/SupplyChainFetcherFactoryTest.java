@@ -8,6 +8,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -37,6 +38,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -146,6 +148,24 @@ public class SupplyChainFetcherFactoryTest {
         // arrange
         final ImmutableList<String> supplyChainSeedUuids = ImmutableList.of("x");
         final Set<String> supplyChainSeedUuidSet = Sets.newHashSet(supplyChainSeedUuids);
+        GroupAndMembers groupAndMembers = mock(GroupAndMembers.class);
+        when(groupAndMembers.group()).thenReturn(Grouping.newBuilder()
+            .setId(1)
+            .setDefinition(GroupDefinition.newBuilder()
+                .setType(GroupType.REGULAR)
+                .setStaticGroupMembers(StaticMembers.newBuilder()
+                    .addMembersByType(StaticMembersByType
+                        .newBuilder()
+                        .setType(MemberType.newBuilder()
+                            .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+                        )))
+            .addExpectedTypes(MemberType.newBuilder()
+                .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+            .build());
+        when(groupAndMembers.members()).thenReturn(Collections.emptySet());
+        when(groupAndMembers.entities()).thenReturn(Collections.emptySet());
+        when(groupExpander.getGroupWithMembers("x")).thenReturn(Optional.of(groupAndMembers));
+
 
         // act
         SupplychainApiDTO result = supplyChainFetcherFactory.newApiDtoFetcher()
@@ -169,6 +189,23 @@ public class SupplyChainFetcherFactoryTest {
         final String volumeName = "vol1";
         final Set<String> searchUuidSet = Sets.newHashSet(searchUuids);
         final String virtualVolume = "VirtualVolume";
+
+        GroupAndMembers groupAndMembers = mock(GroupAndMembers.class);
+        when(groupAndMembers.group()).thenReturn(Grouping.newBuilder()
+            .setId(1)
+            .setDefinition(GroupDefinition.newBuilder()
+                .setType(GroupType.REGULAR)
+                .setStaticGroupMembers(StaticMembers.newBuilder()
+                    .addMembersByType(StaticMembersByType
+                        .newBuilder()
+                        .setType(MemberType.newBuilder()
+                            .setEntity(UIEntityType.VIRTUAL_VOLUME.typeNumber()))
+                    )))
+            .addExpectedTypes(MemberType.newBuilder()
+                .setEntity(UIEntityType.VIRTUAL_VOLUME.typeNumber()))
+            .build());
+        when(groupExpander.getGroupWithMembers(searchUuids.get(0)))
+            .thenReturn(Optional.of(groupAndMembers));
 
         // Set up to return a VirtualVolume
         SupplychainApiDTO answer = new SupplychainApiDTO();
@@ -698,6 +735,104 @@ public class SupplyChainFetcherFactoryTest {
 
         Set<Long> actual = supplyChainFetcherFactory.expandGroupingServiceEntities(Arrays.asList(0L, 1L, 2L));
         Assert.assertEquals(new HashSet<>(Arrays.asList(2L, 3L, 4L, 5L, 6L, 7L, 8L)), actual);
+    }
+
+    /**
+     * Test the case where we get the supply chain for resource group. For resource groups we should
+     * only get the entities inside the resource group and their regions.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testGetSupplyChainForResourceGroup() throws Exception {
+        // ARRANGE
+        final long rgOid = 63L;
+        final long rgAppOid = 49L;
+        final long rgVmOid = 64L;
+        final long appUnderlyingVmOid = 83L;
+        final long region1Oid = 32L;
+        final String rgOidStr = "63";
+
+        final TopologyDTO.TopologyEntityDTO vmEntity = TopologyDTO.TopologyEntityDTO.newBuilder()
+            .setOid(rgVmOid)
+            .setDisplayName("vm1")
+            .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+            .addConnectedEntityList(TopologyDTO.TopologyEntityDTO.ConnectedEntity
+                .newBuilder()
+                .setConnectedEntityId(region1Oid)
+                .setConnectedEntityType(UIEntityType.REGION.typeNumber())
+            )
+            .build();
+
+        final TopologyDTO.TopologyEntityDTO appEntity = TopologyDTO.TopologyEntityDTO.newBuilder()
+            .setOid(rgAppOid)
+            .setDisplayName("app1")
+            .setEntityType(UIEntityType.APPLICATION.typeNumber())
+            .addCommoditiesBoughtFromProviders(TopologyDTO.TopologyEntityDTO
+                .CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(appUnderlyingVmOid)
+                .setProviderEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                .build())
+            .build();
+
+        final Grouping rgGroup = Grouping.newBuilder()
+            .setId(rgOid)
+            .addExpectedTypes(MemberType.newBuilder()
+                .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()).build())
+            .addExpectedTypes(MemberType.newBuilder()
+                .setEntity(UIEntityType.APPLICATION.typeNumber()).build())
+            .setDefinition(GroupDefinition.newBuilder()
+                .setType(GroupType.RESOURCE)
+                .setDisplayName("rg1")
+                .setStaticGroupMembers(StaticMembers.newBuilder()
+                    .addMembersByType(StaticMembersByType.newBuilder()
+                        .setType(MemberType.newBuilder()
+                            .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()).build())
+                        .addMembers(rgVmOid)
+                        .build())
+                    .addMembersByType(StaticMembersByType.newBuilder()
+                        .setType(MemberType.newBuilder()
+                            .setEntity(UIEntityType.APPLICATION.typeNumber()).build())
+                        .addMembers(rgAppOid)
+                        .build())
+                    .build())
+                .build())
+            .build();
+
+        GroupAndMembers groupAndMembers = mock(GroupAndMembers.class);
+        when(groupAndMembers.group()).thenReturn(rgGroup);
+        when(groupAndMembers.members()).thenReturn(Arrays.asList(rgAppOid, rgVmOid));
+        when(groupAndMembers.entities()).thenReturn(Arrays.asList(rgAppOid, rgVmOid));
+
+        when(groupExpander.getGroupWithMembers(rgOidStr))
+            .thenReturn(Optional.of(groupAndMembers));
+
+        RepositoryApi.MultiEntityRequest multiEntityRequest = mock(RepositoryApi.MultiEntityRequest.class);
+        when(repositoryApiBackend.entitiesRequest(any())).thenReturn(multiEntityRequest);
+        when(multiEntityRequest.getFullEntities()).thenReturn(Stream.of(vmEntity, appEntity));
+
+
+        // ACT
+        SupplychainApiDTO result = supplyChainFetcherFactory.newApiDtoFetcher()
+            .addSeedUuids(Collections.singleton(rgOidStr))
+            .fetch();
+
+        // ASSERT
+        assertThat(result.getSeMap().size(), is(3));
+        assertThat(result.getSeMap().get(UIEntityType.VIRTUAL_MACHINE.apiStr()).getEntitiesCount(),
+            is(1));
+        assertThat(result.getSeMap().get(UIEntityType.VIRTUAL_MACHINE.apiStr()).getConnectedProviderTypes(),
+            containsInAnyOrder(UIEntityType.REGION.apiStr()));
+
+        assertThat(result.getSeMap().get(UIEntityType.APPLICATION.apiStr()).getEntitiesCount(),
+            is(1));
+        assertTrue(CollectionUtils.isEmpty(result.getSeMap()
+            .get(UIEntityType.APPLICATION.apiStr()).getConnectedProviderTypes()));
+
+        assertThat(result.getSeMap().get(UIEntityType.REGION.apiStr()).getEntitiesCount(),
+            is(1));
+        assertTrue(CollectionUtils.isEmpty(result.getSeMap()
+            .get(UIEntityType.REGION.apiStr()).getConnectedProviderTypes()));
     }
 
     private int getSeveritySize(@Nonnull final SupplychainApiDTO src, @Nonnull String objType,
