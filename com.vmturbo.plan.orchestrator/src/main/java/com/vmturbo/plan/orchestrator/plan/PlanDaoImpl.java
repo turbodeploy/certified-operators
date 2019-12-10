@@ -438,7 +438,7 @@ public class PlanDaoImpl implements PlanDao {
                                 "Plan with id " + planId + " not found while trying to " +
                                         "update it"));
                 // do not update plan status if the plan has been stopped
-                if (src.getStatus() != PlanStatus.STOPPED) {
+                if (src.getStatus() != PlanStatus.STOPPED && src.getStatus() != PlanStatus.FAILED) {
                     final PlanDTO.PlanInstance.Builder newBuilder =
                             PlanDTO.PlanInstance.newBuilder(src);
                     updater.accept(newBuilder);
