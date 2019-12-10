@@ -148,7 +148,6 @@ public class LicenseManagerServiceTest {
     }
 
     @Test
-    @Ignore("See https://vmturbo.atlassian.net/browse/OM-53335")
     public void testStoreAndRetrieveCWOMLicense() throws IOException {
         LicenseDTO workloadLicense = LicenseDTOUtils.iLicenseToLicenseDTO(
                 LicenseDeserializer.deserialize(LicenseLocalStoreTest.C1_LICENSE, "test.file"));
