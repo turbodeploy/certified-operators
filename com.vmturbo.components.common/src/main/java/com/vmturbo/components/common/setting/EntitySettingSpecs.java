@@ -784,7 +784,15 @@ public enum EntitySettingSpecs {
                 EntityType.PHYSICAL_MACHINE,
                 EntityType.STORAGE,
                 EntityType.VIRTUAL_MACHINE),
-            string(), true);
+            string(), true),
+    /**
+     * Enforce instance store aware scaling actions for {@link EntityType#VIRTUAL_MACHINE}s.
+     */
+    InstanceStoreAwareScaling("instanceStoreAwareScaling", "Instance Store Aware Scaling",
+                    Collections.singletonList(
+                                    CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+                    SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
+                    new BooleanSettingDataType(false), true);
 
     private static final ImmutableSet<String> AUTOMATION_SETTINGS =
         ImmutableSet.of(
