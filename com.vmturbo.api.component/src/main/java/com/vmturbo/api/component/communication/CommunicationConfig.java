@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.communication;
 
 import java.net.URISyntaxException;
+import java.time.Clock;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
@@ -481,7 +482,17 @@ public class CommunicationConfig {
     public ServiceEntityMapper serviceEntityMapper() {
         // Normally this would be in MapperConfig, but RepositoryApi needs it and we don't want
         // to introduce a circular dependency.
-        return new ServiceEntityMapper(thinTargetCache());
+        return new ServiceEntityMapper(thinTargetCache(), costServiceBlockingStub(), clock());
+    }
+
+    /**
+     * Shared clock to be used by all beans in the api component.
+     *
+     * @return The {@link Clock}.
+     */
+    @Bean
+    public Clock clock() {
+        return Clock.systemUTC();
     }
 
     @Bean

@@ -3,21 +3,32 @@ package com.vmturbo.api.component.external.api.mapper;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.cost.CostMoles;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
+import com.vmturbo.common.protobuf.group.PolicyDTOMoles;
+import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -30,6 +41,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Discov
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
 import com.vmturbo.topology.processor.api.util.ImmutableThinTargetInfo;
@@ -50,6 +62,20 @@ public class ServiceEntityMapperTest {
     private final static String PROVIDER_DISPLAY_NAME = "Standard_D2";
     private final static long PROVIDER_OID = 132L;
 
+    private final PolicyDTOMoles.PolicyServiceMole policyMole = spy(new PolicyServiceMole());
+
+    private final CostMoles.CostServiceMole costServiceMole = spy(new CostMoles.CostServiceMole());
+
+    private final CostMoles.ReservedInstanceBoughtServiceMole reservedInstanceBoughtServiceMole =
+                    spy(new CostMoles.ReservedInstanceBoughtServiceMole());
+    /**
+     * Rule to provide GRPC server and channels for GRPC services for test purposes.
+     */
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(policyMole, costServiceMole, reservedInstanceBoughtServiceMole);
+    private Cache<Long, Float> priceCache;
+    private Clock clock;
+
     @Before
     public void setup() {
         final ThinTargetInfo thinTargetInfo = ImmutableThinTargetInfo.builder()
@@ -63,11 +89,14 @@ public class ServiceEntityMapperTest {
             .isHidden(false)
             .build();
         when(targetCache.getTargetInfo(TARGET_ID)).thenReturn(Optional.of(thinTargetInfo));
+        priceCache = CacheBuilder.newBuilder().expireAfterWrite(10, TimeUnit.MINUTES).build();
+        clock = Clock.systemUTC();
     }
 
     @Test
     public void testApiToServiceEntity() {
-        final ServiceEntityMapper mapper = new ServiceEntityMapper(targetCache);
+        final ServiceEntityMapper mapper = new ServiceEntityMapper(targetCache,
+                        CostServiceGrpc.newBlockingStub(grpcServer.getChannel()), clock);
 
         final String displayName = "entity display name";
         final long oid = 152L;
@@ -169,7 +198,8 @@ public class ServiceEntityMapperTest {
      */
     @Test
     public void testToServiceEntityApiDTO() throws Exception {
-        final ServiceEntityMapper mapper = new ServiceEntityMapper(targetCache);
+        final ServiceEntityMapper mapper = new ServiceEntityMapper(targetCache,
+                        CostServiceGrpc.newBlockingStub(grpcServer.getChannel()), clock);
 
         final String displayName = "entity display name";
         final long oid = 152L;
@@ -221,7 +251,8 @@ public class ServiceEntityMapperTest {
 
     @Test
     public void testToServiceEntityApiDTOWithEmptyDisplayName() {
-        final ServiceEntityMapper mapper = new ServiceEntityMapper(targetCache);
+        final ServiceEntityMapper mapper = new ServiceEntityMapper(targetCache,
+                        CostServiceGrpc.newBlockingStub(grpcServer.getChannel()), clock);
 
         final String displayName = "";
         final long oid = 152L;
