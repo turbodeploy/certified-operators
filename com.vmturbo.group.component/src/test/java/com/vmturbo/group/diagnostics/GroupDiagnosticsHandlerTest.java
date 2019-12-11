@@ -38,7 +38,7 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.Diags;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
-import com.vmturbo.group.group.GroupDAO;
+import com.vmturbo.group.group.GroupDaoDiagnostics;
 import com.vmturbo.group.policy.PolicyStore;
 import com.vmturbo.group.schedule.ScheduleStore;
 import com.vmturbo.group.setting.SettingStore;
@@ -52,7 +52,7 @@ public class GroupDiagnosticsHandlerTest {
 
     private DiagnosticsWriter diagnosticsWriter = mock(DiagnosticsWriter.class);
 
-    private GroupDAO groupStore;
+    private GroupDaoDiagnostics groupDaoDiagnostics;
 
     private PolicyStore policyStore;
 
@@ -67,7 +67,7 @@ public class GroupDiagnosticsHandlerTest {
 
     @Before
     public void setUp() throws Exception {
-        groupStore = mock(GroupDAO.class);
+        groupDaoDiagnostics = mock(GroupDaoDiagnostics.class);
         policyStore = mock(PolicyStore.class);
         settingStore = mock(SettingStore.class);
         scheduleStore = mock(ScheduleStore.class);
@@ -78,7 +78,7 @@ public class GroupDiagnosticsHandlerTest {
         setupDump();
 
         final GroupDiagnosticsHandler handler =
-            new GroupDiagnosticsHandler(groupStore, policyStore, settingStore, scheduleStore,
+            new GroupDiagnosticsHandler(groupDaoDiagnostics, policyStore, settingStore, scheduleStore,
                 zipReaderFactory, diagnosticsWriter);
         final ZipOutputStream zos = mock(ZipOutputStream.class);
         handler.dump(zos);
@@ -106,13 +106,13 @@ public class GroupDiagnosticsHandlerTest {
     public void testDumpException() throws DiagnosticsException {
         setupDump();
 
-        when(groupStore.collectDiagsStream())
+        when(groupDaoDiagnostics.collectDiagsStream())
             .thenThrow(new DiagnosticsException(Collections.singletonList("GROUP ERRORS")));
         when(policyStore.collectDiagsStream())
             .thenThrow(new DiagnosticsException(Collections.singletonList("POLICY ERRORS")));
 
         final GroupDiagnosticsHandler handler =
-            new GroupDiagnosticsHandler(groupStore, policyStore, settingStore, scheduleStore,
+            new GroupDiagnosticsHandler(groupDaoDiagnostics, policyStore, settingStore, scheduleStore,
                 zipReaderFactory, diagnosticsWriter);
         final ZipOutputStream zos = mock(ZipOutputStream.class);
         final List<String> errors = handler.dump(zos);
@@ -165,18 +165,18 @@ public class GroupDiagnosticsHandlerTest {
         setupRestore(policyDiags, groupDiags, settingDiags, scheduleDiags);
 
         final GroupDiagnosticsHandler handler =
-            new GroupDiagnosticsHandler(groupStore, policyStore, settingStore, scheduleStore,
+            new GroupDiagnosticsHandler(groupDaoDiagnostics, policyStore, settingStore, scheduleStore,
                 zipReaderFactory, diagnosticsWriter);
         List<String> errors = handler.restore(mock(ZipInputStream.class));
         assertTrue(errors.isEmpty());
 
         // Groups need to be restored before policies, because policies reference groups.
-        final InOrder policySettingOrder = Mockito.inOrder(groupStore, policyStore);
-        policySettingOrder.verify(groupStore).restoreDiags(eq(groupLines));
+        final InOrder policySettingOrder = Mockito.inOrder(groupDaoDiagnostics, policyStore);
+        policySettingOrder.verify(groupDaoDiagnostics).restoreDiags(eq(groupLines));
         policySettingOrder.verify(policyStore).restoreDiags(eq(policyLines));
 
-        final InOrder groupSettingOrder = Mockito.inOrder(groupStore, settingStore);
-        groupSettingOrder.verify(groupStore).restoreDiags(eq(groupLines));
+        final InOrder groupSettingOrder = Mockito.inOrder(groupDaoDiagnostics, settingStore);
+        groupSettingOrder.verify(groupDaoDiagnostics).restoreDiags(eq(groupLines));
         groupSettingOrder.verify(settingStore).restoreDiags(eq(settingLines));
 
         final InOrder scheduleSettingOrder = Mockito.inOrder(settingStore, scheduleStore);
@@ -191,7 +191,7 @@ public class GroupDiagnosticsHandlerTest {
      * throw an exception) can do that setup after calling this method.
      */
     private void setupDump() throws DiagnosticsException {
-        doReturn(groupLines.stream()).when(groupStore).collectDiagsStream();
+        doReturn(groupLines.stream()).when(groupDaoDiagnostics).collectDiagsStream();
         doReturn(policyLines.stream()).when(policyStore).collectDiagsStream();
         doReturn(settingLines.stream()).when(settingStore).collectDiagsStream();
         doReturn(scheduleLines.stream()).when(scheduleStore).collectDiagsStream();

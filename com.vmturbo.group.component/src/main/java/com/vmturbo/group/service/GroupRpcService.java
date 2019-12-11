@@ -72,6 +72,7 @@ import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.TemporaryGroupCache;
 import com.vmturbo.group.group.TemporaryGroupCache.InvalidTempGroupException;
+import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.service.TransactionProvider.Stores;
 import com.vmturbo.group.stitching.GroupStitchingContext;
 import com.vmturbo.group.stitching.GroupStitchingManager;
@@ -95,6 +96,7 @@ public class GroupRpcService extends GroupServiceImplBase {
     private final TransactionProvider transactionProvider;
 
     private final GroupStitchingManager groupStitchingManager;
+    private final IdentityProvider identityProvider;
 
     /**
      * Constructs group gRPC service.
@@ -103,17 +105,20 @@ public class GroupRpcService extends GroupServiceImplBase {
      * @param userSessionContext user session context
      * @param groupStitchingManager groups stitching manager
      * @param transactionProvider transaction provider
+     * @param identityProvider identity provider to assign OIDs to user groups
      */
     public GroupRpcService(@Nonnull final TemporaryGroupCache tempGroupCache,
                            @Nonnull final SearchServiceBlockingStub searchServiceRpc,
                            @Nonnull final UserSessionContext userSessionContext,
                            @Nonnull final GroupStitchingManager groupStitchingManager,
-            @Nonnull TransactionProvider transactionProvider) {
+            @Nonnull TransactionProvider transactionProvider,
+            @Nonnull IdentityProvider identityProvider) {
         this.tempGroupCache = Objects.requireNonNull(tempGroupCache);
         this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
         this.groupStitchingManager = Objects.requireNonNull(groupStitchingManager);
         this.transactionProvider = Objects.requireNonNull(transactionProvider);
+        this.identityProvider = Objects.requireNonNull(identityProvider);
     }
 
     @Override
@@ -456,8 +461,8 @@ public class GroupRpcService extends GroupServiceImplBase {
                                 getGroupMembers(groupStore, groupDef, true));
             }
 
-                long groupOid = groupStore
-                    .createGroup(request.getOrigin(), groupDef, expectedTypes,
+            long groupOid = identityProvider.next();
+            groupStore.createGroup(groupOid, request.getOrigin(), groupDef, expectedTypes,
                                     supportsMemberReverseLookup);
                 createdGroup = Grouping
                                 .newBuilder()

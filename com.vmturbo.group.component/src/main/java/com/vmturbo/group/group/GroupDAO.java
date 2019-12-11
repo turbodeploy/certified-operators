@@ -34,13 +34,11 @@ import javax.annotation.concurrent.Immutable;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
-import com.google.gson.reflect.TypeToken;
 import com.google.protobuf.InvalidProtocolBufferException;
 
 import io.grpc.Status;
 
 import org.apache.commons.lang.math.NumberUtils;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
@@ -68,7 +66,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType.TypeCase;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
-import com.vmturbo.common.protobuf.group.GroupDTO.Origin.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.OriginFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
@@ -78,12 +75,8 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
-import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.components.common.diagnostics.Diagnosable;
-import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.group.common.DuplicateNameException;
-import com.vmturbo.group.db.Tables;
 import com.vmturbo.group.db.tables.pojos.GroupDiscoverTargets;
 import com.vmturbo.group.db.tables.pojos.GroupExpectedMembersEntities;
 import com.vmturbo.group.db.tables.pojos.GroupExpectedMembersGroups;
@@ -93,7 +86,6 @@ import com.vmturbo.group.db.tables.pojos.GroupTags;
 import com.vmturbo.group.db.tables.pojos.Grouping;
 import com.vmturbo.group.db.tables.records.GroupDiscoverTargetsRecord;
 import com.vmturbo.group.db.tables.records.GroupingRecord;
-import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.Pair;
@@ -101,8 +93,11 @@ import com.vmturbo.proactivesupport.DataMetricCounter;
 
 /**
  * DAO implementing {@link IGroupStore} - CRUD operations with groups.
+ * This class does not implement any transaction processing. In order to use transactions,
+ * you have to create a DSL context with transaction opened and pass the context to a
+ * constructor.
  */
-public class GroupDAO implements IGroupStore, Diagnosable {
+public class GroupDAO implements IGroupStore {
 
     private static final String GET_LABEL = "get";
 
@@ -133,8 +128,6 @@ public class GroupDAO implements IGroupStore, Diagnosable {
     private static final Map<String, Function<PropertyFilter, Optional<Condition>>>
             PROPETY_FILTER_CONDITION_CREATORS;
 
-    private final IdentityProvider identityProvider;
-
     private final DSLContext dslContext;
 
     private final Collection<Consumer<Long>> deleteCallbacks = new CopyOnWriteArrayList<>();
@@ -157,19 +150,17 @@ public class GroupDAO implements IGroupStore, Diagnosable {
      * Constructs group DAO.
      *
      * @param dslContext DB context to execute SQL operations on
-     * @param identityProvider identity provider to fetch groups' new OIDs.
      */
-    public GroupDAO(@Nonnull final DSLContext dslContext,
-            @Nonnull final IdentityProvider identityProvider) {
+    public GroupDAO(@Nonnull final DSLContext dslContext) {
         this.dslContext = Objects.requireNonNull(dslContext);
-        this.identityProvider = Objects.requireNonNull(identityProvider);
     }
 
     @Override
-    public long createGroup(@Nonnull Origin origin,
+    public void createGroup(long oid, @Nonnull Origin origin,
             @Nonnull GroupDefinition groupDefinition, @Nonnull Set<MemberType> expectedMemberTypes,
             boolean supportReverseLookup) throws StoreOperationException {
-        final Grouping pojo = createPojoForNewGroup(origin, groupDefinition, supportReverseLookup);
+        final Grouping pojo =
+                createPojoForNewGroup(oid, origin, groupDefinition, supportReverseLookup);
         try {
             createGroup(dslContext, pojo, groupDefinition, expectedMemberTypes);
         } catch (DataAccessException e) {
@@ -179,7 +170,6 @@ public class GroupDAO implements IGroupStore, Diagnosable {
             }
             throw e;
         }
-        return pojo.getId();
     }
 
     private void createGroup(@Nonnull DSLContext context, @Nonnull Grouping groupPojo,
@@ -227,11 +217,11 @@ public class GroupDAO implements IGroupStore, Diagnosable {
     }
 
     @Nonnull
-    private Grouping createPojoForNewGroup(@Nonnull Origin origin,
+    private Grouping createPojoForNewGroup(long oid, @Nonnull Origin origin,
             @Nonnull GroupDefinition groupDefinition, boolean supportReverseLookup)
             throws StoreOperationException {
         final Grouping pojo = createGroupFromDefinition(groupDefinition);
-        pojo.setId(identityProvider.next());
+        pojo.setId(oid);
         pojo.setSupportsMemberReverseLookup(supportReverseLookup);
         switch (origin.getCreationOriginCase()) {
             case SYSTEM:
@@ -1318,107 +1308,9 @@ public class GroupDAO implements IGroupStore, Diagnosable {
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Nonnull
     @Override
-    public Stream<String> collectDiagsStream() throws DiagnosticsException {
-        try {
-            final Collection<GroupDTO.Grouping> discovered = getGroups(
-                    GroupDTO.GroupFilter.newBuilder()
-                            .setOriginFilter(
-                                    OriginFilter.newBuilder().addOrigin(Origin.Type.DISCOVERED))
-                            .build());
-            // We need to sort all the groups so that dependent groups will go after the groups
-            // they depend on. Otherwise, loading these groups will throw an exception.
-            final List<GroupDTO.Grouping> notDiscovered = CollectionUtils.sortWithDependencies(
-                    getGroups(GroupDTO.GroupFilter.newBuilder()
-                            .setOriginFilter(OriginFilter.newBuilder()
-                                    .addOrigin(Type.USER)
-                                    .addOrigin(Type.SYSTEM))
-                            .build()), GroupDTO.Grouping::getId,
-                    grouping -> getGroupStaticSubGroups(grouping.getDefinition()));
-            logger.info("Collected diags for {} discovered groups and {} created groups.",
-                    discovered.size(), notDiscovered.size());
-
-            return Stream.of(ComponentGsonFactory.createGsonNoPrettyPrint().toJson(discovered),
-                    ComponentGsonFactory.createGsonNoPrettyPrint().toJson(notDiscovered));
-        } catch (DataAccessException e) {
-            throw new DiagnosticsException(e);
-        }
-    }
-
-    private Set<Long> getGroupStaticSubGroups(@Nonnull GroupDefinition group) {
-        if (!group.hasStaticGroupMembers()) {
-            return Collections.emptySet();
-        } else {
-            final Set<Long> children = new HashSet<>();
-            for (StaticMembersByType membersByType: group.getStaticGroupMembers().getMembersByTypeList()) {
-                if (membersByType.getType().hasGroup()) {
-                    children.addAll(membersByType.getMembersList());
-                }
-            }
-            return children;
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void restoreDiags(@Nonnull List<String> collectedDiags) throws DiagnosticsException {
-        // Replace all existing groups with the ones in the collected diags.
-        final Collection<GroupDTO.Grouping> discoveredGroups =
-                ComponentGsonFactory.createGsonNoPrettyPrint()
-                        .fromJson(collectedDiags.get(0),
-                                new TypeToken<Collection<GroupDTO.Grouping>>() {}.getType());
-        final Collection<GroupDTO.Grouping> nonDiscoveredGroups =
-                ComponentGsonFactory.createGsonNoPrettyPrint()
-                        .fromJson(collectedDiags.get(1),
-                                new TypeToken<Collection<GroupDTO.Grouping>>() {}.getType());
-        logger.info(
-                "Attempting to restore {} discovered groups and {} non-discovered groups from diagnostics.",
-                discoveredGroups.size(), nonDiscoveredGroups.size());
-
-        try {
-            dslContext.transaction(configuration -> {
-                final DSLContext context = DSL.using(configuration);
-                final int affectedRows = context.deleteFrom(Tables.GROUPING).execute();
-                logger.info("Removed {} groups.", affectedRows);
-                final Collection<DiscoveredGroup> discoveredGroupsConverted =
-                        new ArrayList<>(discoveredGroups.size());
-                final Map<String, Long> srcId2oid = new HashMap<>(discoveredGroups.size());
-                for (GroupDTO.Grouping group: discoveredGroups) {
-                    final Origin.Discovered origin = group.getOrigin().getDiscovered();
-                    final DiscoveredGroup discoveredGroup =
-                            new DiscoveredGroup(group.getId(), group.getDefinition(),
-                                    origin.getSourceIdentifier(),
-                                    new HashSet<>(origin.getDiscoveringTargetIdList()),
-                                    group.getExpectedTypesList(),
-                                    group.getSupportsMemberReverseLookup());
-                    srcId2oid.put(origin.getSourceIdentifier(), group.getId());
-                    discoveredGroupsConverted.add(discoveredGroup);
-                }
-                updateDiscoveredGroups(context, discoveredGroupsConverted, Collections.emptyList(), Collections.emptySet());
-                for (GroupDTO.Grouping group: nonDiscoveredGroups) {
-                    final Grouping pojo =
-                            createPojoForNewGroup(group.getOrigin(), group.getDefinition(),
-                                    group.getSupportsMemberReverseLookup());
-                    pojo.setId(group.getId());
-                    createGroup(context, pojo, group.getDefinition(),
-                            new HashSet<>(group.getExpectedTypesList()));
-                }
-            });
-        } catch (DataAccessException e) {
-            throw new DiagnosticsException(Collections.singletonList(e.getMessage() + ": " +
-                    ExceptionUtils.getStackTrace(e)));
-        }
-    }
-
-    @Override
-    public void subscribeUserGroupRemoved(@Nonnull Consumer<Long> consumer) {
-        deleteCallbacks.add(Objects.requireNonNull(consumer));
+    public void deleteAllGroups() {
+        dslContext.deleteFrom(GROUPING).execute();
     }
 
     /**
