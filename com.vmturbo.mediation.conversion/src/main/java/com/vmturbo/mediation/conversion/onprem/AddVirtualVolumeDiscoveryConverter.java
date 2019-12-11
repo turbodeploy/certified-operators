@@ -245,15 +245,18 @@ public class AddVirtualVolumeDiscoveryConverter {
                             final EntityDTO volume = createVirtualVolume(vmId, storageId);
                             // set up layeredOver from vm to volume
                             vmDTO.addLayeredOver(volume.getId());
-                            // associate the commodity bought with this volume
-                            final CommodityBought.Builder commodityBought =
-                                vmToStorageCommodityBought.get(vmId, storageId);
-                            if (commodityBought != null) {
-                                commodityBought.setSubDivision(SubDivisionData.newBuilder()
-                                    .setSubDivisionId(volume.getId()));
-                            } else {
-                                logger.error("VM {} is not buying commodity from storage {}",
-                                    vmDTO.getId(), storageId);
+                            // if it's not storage browsing, also try to associate the commodity
+                            // bought with this volume
+                            if (!isStorageBrowsing) {
+                                final CommodityBought.Builder commodityBought =
+                                        vmToStorageCommodityBought.get(vmId, storageId);
+                                if (commodityBought != null) {
+                                    commodityBought.setSubDivision(SubDivisionData.newBuilder()
+                                            .setSubDivisionId(volume.getId()));
+                                } else {
+                                    logger.error("VM {} is not buying commodity from storage {}",
+                                            vmDTO.getId(), storageId);
+                                }
                             }
                             return volume;
                         });
