@@ -2,12 +2,15 @@ package com.vmturbo.mediation.conversion.cloud.converter;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.anyInt;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Lists;
@@ -34,8 +37,12 @@ public class VirtualMachineConverterTest {
     private static final String REGION_ID = "testRegionId";
     private static final String VM_ID = "testVmId";
     private static final String VM_PROFILE_ID = "testVmProfileId";
+    private static final String ZONE_ID = "Zone111";
+    private static final String VOLUME_ID = "Volume_Ephemeral0";
+    private static final String STORAGE_TIER_ID = "aws::st::SSD";
     private  CloudDiscoveryConverter cloudDiscoveryConverter;
     private VirtualMachineConverter converter;
+    private VirtualMachineConverter awsConverter;
 
     /**
      * Initializes instance of {@link VirtualMachineConverter}.
@@ -44,6 +51,7 @@ public class VirtualMachineConverterTest {
     public void setUp() {
         converter = new VirtualMachineConverter(SDKProbeType.AZURE);
         cloudDiscoveryConverter = mock(CloudDiscoveryConverter.class);
+        awsConverter = new VirtualMachineConverter(SDKProbeType.AWS);
     }
 
     /**
@@ -86,6 +94,29 @@ public class VirtualMachineConverterTest {
         assertEquals("UNKNOWN", licenseNames.iterator().next());
     }
 
+    /**
+     * tests the instance store to volume conversion.
+     */
+    @Test
+    public void testInstanceStoreConversion() {
+        final EntityDTO.Builder entityToConvert = setupEntityToConvert(null);
+        entityToConvert.getVirtualMachineDataBuilder().setNumEphemeralStorages(1);
+        EntityDTO.Builder volume = EntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_VOLUME)
+                .setId(VOLUME_ID);
+        when(cloudDiscoveryConverter.getAvailabilityZone(entityToConvert))
+                .thenReturn(Optional.of(ZONE_ID));
+        when(cloudDiscoveryConverter.createEphemeralVolumeId(anyInt(), anyString(), anyString()))
+                .thenReturn(VOLUME_ID);
+        when(cloudDiscoveryConverter.getStorageTierId(anyString()))
+                .thenReturn(STORAGE_TIER_ID);
+        when(cloudDiscoveryConverter.getNewEntityBuilder(anyString())).thenReturn(volume);
+        boolean result = awsConverter.convert(entityToConvert, cloudDiscoveryConverter);
+        assertTrue(result);
+        assertEquals(1, entityToConvert.getLayeredOverList().stream()
+                .filter(id -> id.equals(VOLUME_ID)).count());
+    }
+
     private EntityDTO.Builder setupEntityToConvert(final String guestOsName) {
         final CommodityBought commodityBought = CommodityBought.newBuilder()
             .setProviderId(COMM_PROVIDER_ID)
@@ -116,7 +147,7 @@ public class VirtualMachineConverterTest {
             .thenReturn(EntityDTO.newBuilder()
                 .setId(VM_ID)
                 .setEntityType(EntityType.VIRTUAL_MACHINE)
-                .addAllCommoditiesBought(Lists.newArrayList())
+                .addAllCommoditiesBought(Arrays.asList(commodityBought))
                 .build());
         when(cloudDiscoveryConverter.getRawEntityDTO(COMM_PROVIDER_ID))
             .thenReturn(EntityDTO.newBuilder()

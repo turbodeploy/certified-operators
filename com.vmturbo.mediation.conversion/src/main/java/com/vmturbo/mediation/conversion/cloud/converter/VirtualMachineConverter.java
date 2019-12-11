@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.mediation.conversion.cloud.CloudDiscoveryConverter;
@@ -17,6 +18,7 @@ import com.vmturbo.mediation.hybrid.cloud.common.OsType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.VMProfileDTO;
@@ -167,6 +169,11 @@ public class VirtualMachineConverter implements IEntityConverter {
             }
             newCommodityBoughtList.add(cbBuilder.build());
         }
+        azId.ifPresent(az -> {
+            if (probeType == SDKProbeType.AWS) {
+                connectEphemeralVolumes(entity, vmProfileDTO, az, converter);
+            }
+        });
 
         // for AWS, create a new CommodityBought for VM which buys ZONE access commodity from
         // AZ, and the commodity key is AZ id
@@ -190,5 +197,32 @@ public class VirtualMachineConverter implements IEntityConverter {
         converter.ownedByBusinessAccount(entity.getId());
 
         return true;
+    }
+
+    /**
+     * Connects an ephemeral volume it to the respective storage and zone for every instance store
+     * in an AWS virtual machine.
+     *
+     * @param entity the virtual machine attached to instance stores.
+     * @param vmProfileDTO the underlying profile DTO.
+     * @param zone  the virtual machine zone
+     * @param converter the cloudDiscovery converter
+     */
+    private void connectEphemeralVolumes(final Builder entity,
+                                         final VMProfileDTO vmProfileDTO,
+                                         final String zone,
+                                         final CloudDiscoveryConverter converter) {
+        if (entity.hasVirtualMachineData()) {
+                int numInstanceStores = entity.getVirtualMachineData().getNumEphemeralStorages();
+                String diskType = vmProfileDTO.getInstanceDiskType().toString();
+                String storageId = converter.getStorageTierId(diskType);
+                for (int i = 0; i < numInstanceStores; i++) {
+                    String vId = converter.createEphemeralVolumeId(i, zone, diskType );
+                    EntityDTO.Builder volume = converter.getNewEntityBuilder(vId);
+                    entity.addLayeredOver(vId);
+                    volume.addLayeredOver(zone);
+                    volume.addLayeredOver(storageId);
+                }
+        }
     }
 }

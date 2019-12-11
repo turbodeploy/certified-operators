@@ -156,17 +156,23 @@ public class AwsCloudDiscoveryConverterTest {
                     .map(CommodityBought::getSubDivision)
                     .collect(Collectors.toMap(SubDivisionData::getSubDivisionId, k -> k));
 
-            if (oldSubDivisionById.isEmpty()) {
+            if (oldSubDivisionById.isEmpty() && vm.hasVirtualMachineData() &&
+                    vm.getVirtualMachineData().getNumEphemeralStorages() == 0) {
                 // not connected to volume
                 assertNull(layeredOver.get(EntityType.VIRTUAL_VOLUME));
             } else {
                 // connected to volume
                 assertThat(layeredOver.get(EntityType.VIRTUAL_VOLUME).stream()
+                                .filter(v -> v.hasVirtualVolumeData() &&
+                                            !v.getVirtualVolumeData().getIsEphemeral())
                                 .map(EntityDTO.Builder::getId).collect(Collectors.toList()),
                         containsInAnyOrder(oldSubDivisionById.keySet().toArray()));
 
                 // check volumes
-                layeredOver.get(EntityType.VIRTUAL_VOLUME).forEach(volume -> {
+                layeredOver.get(EntityType.VIRTUAL_VOLUME).stream()
+                        .filter(v -> v.hasVirtualVolumeData() &&
+                                !v.getVirtualVolumeData().getIsEphemeral())
+                        .forEach(volume -> {
                     SubDivisionData subDivisionData = oldSubDivisionById.get(volume.getId());
                     // check volume properties
                     assertEquals(subDivisionData.getDisplayName(), volume.getDisplayName());
@@ -188,6 +194,17 @@ public class AwsCloudDiscoveryConverterTest {
 
             // check vm owned by BusinessAccount
             assertThat(ba.getConsistsOfList(), hasItem(vmId));
+
+            // check if volumes are attached to VM with ephemeralStorage count > 0
+            if (vm.hasVirtualMachineData() &&
+                    vm.getVirtualMachineData().getNumEphemeralStorages() > 0) {
+                long ephemeralVolumeCount = layeredOver.get(EntityType.VIRTUAL_VOLUME).stream()
+                        .filter(e -> e.hasVirtualVolumeData()
+                                && e.getVirtualVolumeData().getIsEphemeral())
+                        .count();
+                assertEquals(vm.getVirtualMachineData().getNumEphemeralStorages(), ephemeralVolumeCount);
+
+            }
         });
     }
 

@@ -170,21 +170,6 @@ public class ComputeTierConverter implements IEntityConverter {
         // NUM_DISK
         soldCommodities.add(createCommodityDTO(CommodityType.NUM_DISK, numDiskSize));
 
-        // INSTANCE_DISK_TYPE
-        if (vmProfileDTO.hasInstanceDiskType() &&
-            vmProfileDTO.getInstanceDiskType() != InstanceDiskType.NONE) {
-            soldCommodities.add(createCommodityDTO(
-                // Set the capacity of INSTANCE_DISK_TYPE to the enum number.
-                // Then an entity can only be moved to a better disk.
-                CommodityType.INSTANCE_DISK_TYPE, vmProfileDTO.getInstanceDiskType().getNumber()));
-        }
-
-        // INSTANCE_DISK_SIZE
-        if (vmProfileDTO.hasInstanceDiskSize()) {
-            soldCommodities.add(createCommodityDTO(
-                CommodityType.INSTANCE_DISK_SIZE, vmProfileDTO.getInstanceDiskSize()));
-        }
-
         // LICENSE_ACCESS
         // todo: currently we collect all licenses for all regions and add commodity for each
         // distinct license, we may need to change it if we want to store different licenses for

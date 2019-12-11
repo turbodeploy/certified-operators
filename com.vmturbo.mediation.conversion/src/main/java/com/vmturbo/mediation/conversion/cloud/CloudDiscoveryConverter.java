@@ -11,8 +11,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.annotations.VisibleForTesting;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -64,6 +64,11 @@ public class CloudDiscoveryConverter {
 
     protected final CloudProviderConversionContext conversionContext;
 
+    /**
+     * Suffix appended to the ephemeral volume id.
+     */
+    public static final String EPHEMERAL = "_Ephemeral";
+
     public CloudDiscoveryConverter(@Nonnull DiscoveryResponse discoveryResponse,
                      @Nonnull CloudProviderConversionContext conversionContext) {
         this.discoveryResponseBuilder = discoveryResponse.toBuilder();
@@ -90,10 +95,10 @@ public class CloudDiscoveryConverter {
      */
     @VisibleForTesting
     public void preProcess() {
-        // initial loop through entities list, prepare for entity type specific converter later
-        discoveryResponseBuilder.getEntityDTOList().forEach(this::preProcessEntityDTO);
         // create tiers (ComputeTier and DatabaseTier) from profiles
         discoveryResponseBuilder.getEntityProfileList().forEach(this::createEntityDTOFromProfile);
+        // initial loop through entities list, prepare for entity type specific converter later
+        discoveryResponseBuilder.getEntityDTOList().forEach(this::preProcessEntityDTO);
         // create cloud service entity
         // todo: convert NonMarketEntityDTO to cloud service? but not discovered for sub accounts
         createCloudServices();
@@ -197,6 +202,29 @@ public class CloudDiscoveryConverter {
                     EntityDTO.newBuilder().setEntityType(EntityType.VIRTUAL_VOLUME).setId(volumeId));
             updateVolumeDTO(volume, subDivisionData);
         });
+        // Create volumes for each instance store attached to a VM.
+        if (entityDTO.hasVirtualMachineData()) {
+            int numInstanceStores = entityDTO.getVirtualMachineData().getNumEphemeralStorages();
+            EntityProfileDTO profileDTO = this.profileDTOsById.get(entityDTO.getProfileId());
+            if (profileDTO != null && profileDTO.hasVmProfileDTO()) {
+                final String diskType = profileDTO.getVmProfileDTO().getInstanceDiskType().toString();
+                final Optional<String> zone = entityDTO.getCommoditiesBoughtList().stream()
+                        .filter(c -> c.getProviderType() == EntityType.PHYSICAL_MACHINE)
+                        .map(c -> c.getProviderId())
+                        .findAny();
+                for (int i = 0; i < numInstanceStores; i++) {
+                    final int index = i;
+                    zone.ifPresent(zoneId -> {
+                        final String id = createEphemeralVolumeId(index, zoneId, diskType);
+                        final Builder volume = newEntityBuildersById.computeIfAbsent(id, k ->
+                                EntityDTO.newBuilder().setEntityType(EntityType.VIRTUAL_VOLUME).setId(id));
+                        volume.setDisplayName(id);
+                        volume.setMonitored(false);
+                        volume.getVirtualVolumeDataBuilder().setIsEphemeral(true);
+                    });
+                }
+            }
+        }
     }
 
     /**
@@ -485,5 +513,18 @@ public class CloudDiscoveryConverter {
 
     public Optional<String> getAvailabilityZone(final Builder entity) {
         return conversionContext.getAvailabilityZone(entity);
+    }
+
+    /**
+     * Constructs the volume id for ephemeral volumes.
+     * @param i - the volume index
+     * @param zone - the availability zone for the VM that the volume is attached to.
+     * @param diskType - the disk type.
+     * @return - volume id
+     */
+    public String createEphemeralVolumeId(final int i, final String zone,
+                                                    final String diskType) {
+        String suffix = EPHEMERAL + i;
+        return getVolumeId(zone, diskType + suffix).orElse(suffix);
     }
 }
