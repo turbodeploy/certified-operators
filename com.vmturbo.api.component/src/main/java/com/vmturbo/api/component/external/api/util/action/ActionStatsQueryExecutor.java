@@ -83,7 +83,7 @@ public class ActionStatsQueryExecutor {
             userSessionContext,
             uuidMapper,
             new HistoricalQueryMapper(actionSpecMapper),
-            new CurrentQueryMapper(actionSpecMapper, groupExpander, supplyChainFetcherFactory, userSessionContext),
+            new CurrentQueryMapper(actionSpecMapper, groupExpander, supplyChainFetcherFactory, userSessionContext, repositoryApi),
             new ActionStatsMapper(clock, actionSpecMapper),
             repositoryApi);
     }

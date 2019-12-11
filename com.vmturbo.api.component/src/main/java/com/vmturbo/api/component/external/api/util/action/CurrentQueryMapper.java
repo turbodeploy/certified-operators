@@ -21,6 +21,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
@@ -36,7 +37,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.Grou
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter.EntityScope;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter.GlobalScope;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
 
@@ -57,11 +58,12 @@ class CurrentQueryMapper {
     CurrentQueryMapper(@Nonnull final ActionSpecMapper actionSpecMapper,
                        @Nonnull final GroupExpander groupExpander,
                        @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
-                       @Nonnull final UserSessionContext userSessionContext) {
+                       @Nonnull final UserSessionContext userSessionContext,
+                       @Nonnull final RepositoryApi repositoryApi) {
         this(new ActionGroupFilterExtractor(actionSpecMapper),
             new GroupByExtractor(),
             new ScopeFilterExtractor(userSessionContext,
-                new EntityScopeFactory(groupExpander, supplyChainFetcherFactory)));
+                new EntityScopeFactory(groupExpander, supplyChainFetcherFactory, repositoryApi)));
     }
 
     @VisibleForTesting
@@ -162,10 +164,14 @@ class CurrentQueryMapper {
 
         private final SupplyChainFetcherFactory supplyChainFetcherFactory;
 
+        private final RepositoryApi repositoryApi;
+
         EntityScopeFactory(@Nonnull final GroupExpander groupExpander,
-                           @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory) {
+                           @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
+                           @Nonnull final RepositoryApi repositoryApi) {
             this.groupExpander = groupExpander;
             this.supplyChainFetcherFactory = supplyChainFetcherFactory;
+            this.repositoryApi = repositoryApi;
         }
 
         /**
@@ -183,15 +189,23 @@ class CurrentQueryMapper {
         @Nonnull
         EntityScope createEntityScope(@Nonnull final Set<Long> oids,
                   @Nonnull final Set<Integer> relatedEntityTypes,
-                  @Nonnull final Optional<EnvironmentTypeEnum.EnvironmentType> environmentType,
+                  @Nonnull final Optional<EnvironmentType> environmentType,
                   @Nonnull final EntityAccessScope userScope) throws OperationFailedException {
             final Set<Long> allEntitiesInScope;
             if (relatedEntityTypes.isEmpty()) {
-                // The scope may still be a group, in which case we need to expand the group.
-                //
-                // TODO (roman, Feb 8 2019): GroupExpander should accept an environment type,
-                // so that we can filter the members of a group by environment type.
-                allEntitiesInScope = groupExpander.expandOids(oids);
+                // Expand groups that are in scope
+                // And then filter entities by environment type
+                Set<Long> unFilteredEntities = groupExpander.expandOids(oids);
+                if (environmentType.isPresent() && environmentType.get() != EnvironmentType.HYBRID) {
+                    // Need to get repos data to get the environment type to allow filtering
+                    allEntitiesInScope = repositoryApi.entitiesRequest(unFilteredEntities)
+                            .getMinimalEntities()
+                            .filter(minimalEntity -> minimalEntity.getEnvironmentType() == environmentType.get())
+                            .map(minimalEntity -> minimalEntity.getOid())
+                            .collect(Collectors.toSet());
+                } else {
+                    allEntitiesInScope = unFilteredEntities;
+                }
             } else {
                 // TODO (roman, Feb 14 2019): The scope object is being expanded to allow
                 // looking up in-scope entities by type, so we can avoid the supply
