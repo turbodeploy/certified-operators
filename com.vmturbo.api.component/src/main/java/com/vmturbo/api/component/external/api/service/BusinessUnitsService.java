@@ -305,12 +305,14 @@ public class BusinessUnitsService implements IBusinessUnitsService {
                                                   @Nullable final List<String> types,
                                                   @Nullable final List<EntityState> entityStates,
                                                   @Nullable final EntityDetailType detailTypes,
+                                                  @Nullable final List<String> aspectNames,
                                                   @Nullable final Boolean healthSummary) throws Exception {
         return supplyChainFetcherFactory.newApiDtoFetcher()
                         .topologyContextId(realtimeTopologyContextId)
                         .addSeedUuids(Lists.newArrayList(uuid))
                         .includeHealthSummary(false)
                         .entityDetailType(EntityDetailType.entity)
+                        .aspectsToInclude(aspectNames)
                         .fetch();
     }
 
