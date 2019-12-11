@@ -49,6 +49,8 @@ import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.IAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
 import com.vmturbo.api.component.external.api.service.SupplyChainTestUtils;
 import com.vmturbo.api.component.external.api.util.GroupExpander.GroupAndMembers;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
@@ -242,11 +244,8 @@ public class SupplyChainFetcherFactoryTest {
         virtualDiskApiDTO.setUuid(volumeName);
         virtualDisksAspectApiDTO.setVirtualDisks(Lists.newArrayList(virtualDiskApiDTO));
 
-        Map<Long, Map<AspectName, EntityAspect>> entityAspectMap = new HashMap<Long, Map<AspectName, EntityAspect>>() {{
-            put(1L, new HashMap<AspectName, EntityAspect>() {{
-                put(AspectName.fromString(virtualVolumeAspect), virtualDisksAspectApiDTO);
-            }});
-        }};
+        Map<String, Map<AspectName, EntityAspect>> entityAspectMap = Collections.singletonMap(
+            String.valueOf(1L), Collections.singletonMap(AspectName.fromString(virtualVolumeAspect), virtualDisksAspectApiDTO));
 
         final SupplyChainNode virtualVolumes = SupplyChainNode.newBuilder()
                 .setEntityType(VV)
@@ -255,8 +254,16 @@ public class SupplyChainFetcherFactoryTest {
                         .build())
                 .build();
 
-        when(entityAspectMapperMock.getAspectsByEntities(Matchers.anyList(), any()))
+        final List<TopologyDTO.TopologyEntityDTO> volumes = Lists.newArrayList(virtualVolumeTopologyEntity);
+        final VirtualVolumeAspectMapper virtualVolumeAspectMapperMock = mock(VirtualVolumeAspectMapper.class);
+        final List<IAspectMapper> volumeAspectMapperMocks = Lists.newArrayList(virtualVolumeAspectMapperMock);
+        when(entityAspectMapperMock.getGroupMemberMappers(volumes))
+            .thenReturn(volumeAspectMapperMocks);
+
+        when(entityAspectMapperMock.getExpandedAspectsByGroupUsingMappers(volumes, volumeAspectMapperMocks))
             .thenReturn(entityAspectMap);
+
+        when(virtualVolumeAspectMapperMock.supportsGroupAspectExpansion()).thenReturn(true);
 
         when(groupExpander.expandUuids(searchUuidSet)).thenReturn(ImmutableSet.of(1L));
 

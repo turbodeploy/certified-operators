@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -116,10 +117,17 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         return mapEntitiesToAspect(Lists.newArrayList(entity));
     }
 
+    /**
+     * Only homogeneous {@param entities} collections are supported, so checking the type of the first is sufficient
+     * to determine the appropriate method of aspect composition.
+     *
+     * @param entities list of entities to get aspect for, which are members of a group
+     * @return an {@link EntityAspect} of type {@link VirtualDisksAspectApiDTO} representing the details of {@param entities}
+     */
     @Nullable
     @Override
     public EntityAspect mapEntitiesToAspect(@Nonnull List<TopologyEntityDTO> entities) {
-        if (entities.size() == 0) {
+        if (CollectionUtils.isEmpty(entities)) {
             return null;
         }
         final int entityType = entities.get(0).getEntityType();
@@ -137,20 +145,51 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         }
     }
 
+    /**
+     * Only homogeneous {@param entities} collections are supported, so checking the type of the first is sufficient
+     * to determine the appropriate method of aspect composition. The type of {@param entities} determines how the key
+     * of the returned value is computed. For instance, if {@param entities} is a collection of VirtualMachines,
+     * the UUIDs of the returned map are those of the {@link VirtualDiskApiDTO} attachedVirtualMachine.
+     *
+     * @param entities list of entities for which to compute {@link EntityAspect}s
+     * @param entityAspect a single {@link EntityAspect} representing multiple {@link EntityAspect} instances
+     * @return a map of UUID to {@link EntityAspect}, representing the details of {@param entities}
+     */
     @Nullable
     @Override
-    public Map<String, EntityAspect> mapOneToManyAspects(@Nullable EntityAspect entityAspect) {
+    public Map<String, EntityAspect> mapOneToManyAspects(@Nullable List<TopologyEntityDTO> entities, @Nullable EntityAspect entityAspect) {
         if (Objects.isNull(entityAspect) || !entityAspect.getType().equals("VirtualDisksAspectApiDTO")) {
             return null;
         }
-        return ((VirtualDisksAspectApiDTO)entityAspect).getVirtualDisks().stream()
-            .collect(Collectors.toMap(
-                virtualDiskApiDTO -> virtualDiskApiDTO.getUuid(),
-                virtualDiskApiDTO -> {
+        Function<VirtualDiskApiDTO, String> getIdentifier;
+        final int entityType = entities.get(0).getEntityType();
+        switch (entityType) {
+            case EntityType.VIRTUAL_VOLUME_VALUE:
+                getIdentifier = (entity) -> entity.getUuid();
+                break;
+            case EntityType.STORAGE_TIER_VALUE:
+                getIdentifier = (entity) -> entity.getTier();
+                break;
+            case EntityType.VIRTUAL_MACHINE_VALUE:
+                getIdentifier = (entity) -> entity.getAttachedVirtualMachine() != null
+                    ? entity.getAttachedVirtualMachine().getUuid() : null;
+                break;
+            case EntityType.STORAGE_VALUE:
+                getIdentifier = (entity) -> entity.getUuid();
+                break;
+            default:
+                return null;
+        }
+
+        Map<String, EntityAspect> uuidToMergedAspect = new HashMap<>();
+        ((VirtualDisksAspectApiDTO)entityAspect).getVirtualDisks().stream()
+                .collect(Collectors.groupingBy(getIdentifier))
+                .forEach((identifier, virtualDiskApiDTOList) -> {
                     final VirtualDisksAspectApiDTO aspect = new VirtualDisksAspectApiDTO();
-                    aspect.setVirtualDisks(Lists.newArrayList(virtualDiskApiDTO));
-                    return aspect;
-                }));
+                    aspect.setVirtualDisks(virtualDiskApiDTOList);
+                    uuidToMergedAspect.put(identifier, aspect);
+                });
+        return uuidToMergedAspect;
     }
 
     /**

@@ -310,7 +310,7 @@ public class RepositoryApiTest {
         assertThat(req.getReturnType(), is(Type.FULL));
 
         verify(serviceEntityMapper).toServiceEntityApiDTO(ret);
-        verify(aspectMapper).getAspectsByEntity(ret, null);
+        verify(aspectMapper).getAspectsByEntity(ret);
         verify(severityPopulator).populate(realtimeContextId, Collections.singletonList(se));
     }
 
@@ -550,7 +550,7 @@ public class RepositoryApiTest {
         assertThat(req.getReturnType(), is(Type.FULL));
 
         verify(serviceEntityMapper).toServiceEntityApiDTO(ret);
-        verify(aspectMapper).getAspectsByEntity(ret, null);
+        verify(aspectMapper).getAspectsByEntity(ret);
         verify(severityPopulator).populate(realtimeContextId, Collections.singletonList(se));
     }
 
@@ -691,7 +691,7 @@ public class RepositoryApiTest {
 
         // Check to make sure we used the aspect mapper.
         verify(serviceEntityMapper).toServiceEntityApiDTO(ret);
-        verify(aspectMapper).getAspectsByEntity(ret, null);
+        verify(aspectMapper).getAspectsByEntity(ret);
         verify(severityPopulator).populate(realtimeContextId, Collections.singletonList(se));
     }
 

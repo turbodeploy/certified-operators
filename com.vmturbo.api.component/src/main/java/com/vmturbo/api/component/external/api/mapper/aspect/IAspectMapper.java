@@ -53,10 +53,14 @@ public interface IAspectMapper {
      * <p>An implementation of this interface should return true for {@link IAspectMapper#supportsGroupAspectExpansion()}
      * IFF this method is implemented.
      *
+     * @param entities the entities for which aspects are being mapped. Based on the type of each, a the resulting
+     *        map can hold OIDs of different objects. For instance, if {@link com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO}
+     *        are generated for a list of VirtualMachines, the attachedVirtualMachine uuid will be used.
      * @param entityAspect a single {@link EntityAspect} representing multiple {@link EntityAspect} instances
      * @return a map of UUID -> {@link EntityAspect} representing the expanded group {@link EntityAspect}
      */
-    default java.util.Map<String, EntityAspect> mapOneToManyAspects(@Nullable final EntityAspect entityAspect) {
+    default java.util.Map<String, EntityAspect> mapOneToManyAspects(@Nullable List<TopologyEntityDTO> entities,
+                                                                    @Nullable final EntityAspect entityAspect) {
         return null;
     }
 

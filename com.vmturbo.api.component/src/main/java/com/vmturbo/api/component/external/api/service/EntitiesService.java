@@ -698,7 +698,7 @@ public class EntitiesService implements IEntitiesService {
         final TopologyEntityDTO entityDTO = repositoryApi.entityRequest(Long.parseLong(uuid))
             .getFullEntity()
             .orElseThrow(() -> new UnknownObjectException(uuid));
-        return entityAspectMapper.getAspectsByEntity(entityDTO, null)
+        return entityAspectMapper.getAspectsByEntity(entityDTO)
             .entrySet().stream()
             .collect(Collectors.toMap(entry -> entry.getKey().getApiName(), Entry::getValue));
     }

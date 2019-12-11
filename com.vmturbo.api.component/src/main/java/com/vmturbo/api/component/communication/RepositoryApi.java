@@ -257,8 +257,7 @@ public class RepositoryApi {
         private ServiceEntityApiDTO entityWithAspects(@Nonnull final TopologyEntityDTO entity,
                                                       @Nonnull EntityAspectMapper aspectMapper) {
             final ServiceEntityApiDTO se = serviceEntityMapper.toServiceEntityApiDTO(entity);
-            // Map all applicable aspects
-            se.setAspectsByName(aspectMapper.getAspectsByEntity(entity, null));
+            se.setAspectsByName(aspectMapper.getAspectsByEntity(entity));
             return se;
         }
 
