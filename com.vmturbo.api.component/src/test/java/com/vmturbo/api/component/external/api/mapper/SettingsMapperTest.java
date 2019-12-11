@@ -21,6 +21,8 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Arrays;
@@ -131,13 +133,8 @@ public class SettingsMapperTest {
     private final long startTimestamp = 1564507800425L;
     private final long endTimestamp = 1564522200425L;
     private final long endDatestamp = 1564506000425L;
-    private final long endDatestampEOD = 1564545599999L;
 
     private final int minutePeriod = 240;
-
-    private final String startDateString = DateTimeUtil.toString(startTimestamp);
-    private final String endTimeString = DateTimeUtil.toString(endTimestamp);
-    private final String endDateString = DateTimeUtil.toString(endDatestamp);
 
     private final String settingSpec1EntityType = "VirtualMachine";
     private final SettingSpec settingSpec1 = SettingSpec.newBuilder()
@@ -677,8 +674,7 @@ public class SettingsMapperTest {
         verifyBasicSchedule(schedule);
         assertTrue(schedule.hasDaily());
         assertTrue(schedule.hasLastDate());
-        assertEquals(schedule.getLastDate(), endDatestampEOD);
-
+        assertEquals(schedule.getLastDate(), endDate.atTime(LocalTime.MAX).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli());
     }
 
     @Test
@@ -722,7 +718,7 @@ public class SettingsMapperTest {
         // to a day of the week
         final Date startDateTime = new Date(startTimestamp);
         final int weekdayNumber = startDateTime.toInstant()
-                        .atOffset(ZoneOffset.UTC).toLocalDate().getDayOfWeek().getValue();
+                        .atOffset(OffsetDateTime.now().getOffset()).toLocalDate().getDayOfWeek().getValue();
 
         final SettingPolicyInfo info = mapper.convertInputPolicy(settingsPolicyApiDTO, entityType);
         assertTrue(info.hasSchedule());
@@ -779,7 +775,7 @@ public class SettingsMapperTest {
         // be set based on the start timestamp.
         final Date startDateTime = new Date(startTimestamp);
         final int dayOfMonth = startDateTime.toInstant()
-                        .atOffset(ZoneOffset.UTC).toLocalDate().getDayOfMonth();
+                        .atOffset(OffsetDateTime.now().getOffset()).toLocalDate().getDayOfMonth();
 
         assertTrue(info.hasSchedule());
         final Schedule schedule = info.getSchedule();
@@ -999,7 +995,7 @@ public class SettingsMapperTest {
         final ScheduleApiDTO scheduleApiDTO = retDto.getSchedule();
         verifyBasicScheduleDTO(scheduleApiDTO);
         ZoneOffset offset = ZoneId.of(scheduleApiDTO.getTimeZone()).getRules().getOffset(Instant.now());
-        assertEquals(scheduleApiDTO.getEndDate(), LocalDateTime.ofInstant(Instant.ofEpochMilli(endTimestamp), offset).toLocalDate());
+        assertEquals(scheduleApiDTO.getEndDate(), LocalDateTime.ofInstant(Instant.ofEpochMilli(endDatestamp), offset).toLocalDate());
         assertEquals(scheduleApiDTO.getRecurrence().getType(), RecurrenceType.DAILY);
     }
 
@@ -1090,7 +1086,7 @@ public class SettingsMapperTest {
         // be set based on the start timestamp.
         final Date startDateTime = new Date(startTimestamp);
         final int dayOfMonth = startDateTime.toInstant()
-                        .atOffset(ZoneOffset.UTC).toLocalDate().getDayOfMonth();
+                        .atOffset(OffsetDateTime.now().getOffset()).toLocalDate().getDayOfMonth();
 
         final ScheduleApiDTO scheduleApiDTO = retDto.getSchedule();
         verifyBasicScheduleDTO(scheduleApiDTO);
