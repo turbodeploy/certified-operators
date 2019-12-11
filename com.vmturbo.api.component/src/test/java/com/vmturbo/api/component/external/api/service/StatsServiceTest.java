@@ -33,6 +33,10 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -42,10 +46,6 @@ import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -78,6 +78,8 @@ import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.CostMoles;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.OptimizationMetadata;
@@ -89,6 +91,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByT
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.PolicyDTOMoles;
+import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -136,7 +140,20 @@ public class StatsServiceTest {
 
     private final ThinTargetCache targetCache = Mockito.mock(ThinTargetCache.class);
 
-    private final ServiceEntityMapper serviceEntityMapper = new ServiceEntityMapper(targetCache);
+    private final PolicyDTOMoles.PolicyServiceMole policyMole = spy(new PolicyServiceMole());
+
+    private final CostMoles.CostServiceMole costServiceMole = spy(new CostMoles.CostServiceMole());
+
+    private final CostMoles.ReservedInstanceBoughtServiceMole reservedInstanceBoughtServiceMole =
+                    spy(new CostMoles.ReservedInstanceBoughtServiceMole());
+    /**
+     * Rule to provide GRPC server and channels for GRPC services for test purposes.
+     */
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(policyMole, costServiceMole, reservedInstanceBoughtServiceMole);
+
+    private final ServiceEntityMapper serviceEntityMapper = new ServiceEntityMapper(targetCache,
+                    CostServiceGrpc.newBlockingStub(grpcServer.getChannel()), Clock.systemUTC());
 
     private StatsService statsService;
 

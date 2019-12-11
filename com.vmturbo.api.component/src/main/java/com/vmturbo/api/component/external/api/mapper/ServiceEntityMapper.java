@@ -1,13 +1,21 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.time.Clock;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.base.Stopwatch;
+import com.google.common.collect.ImmutableSet;
+
+import io.grpc.StatusRuntimeException;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -17,6 +25,11 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
+import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
@@ -29,13 +42,27 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 public class ServiceEntityMapper {
+    private static final Collection<CostCategory> TEMPLATE_PRICE_CATEGORIES =
+                    ImmutableSet.of(CostCategory.ON_DEMAND_COMPUTE, CostCategory.ON_DEMAND_LICENSE);
 
     private final Logger logger = LogManager.getLogger();
 
     private final ThinTargetCache thinTargetCache;
+    private final CostServiceBlockingStub costServiceBlockingStub;
+    private final Clock clock;
 
-    public ServiceEntityMapper(@Nonnull final ThinTargetCache thinTargetCache) {
+    /**
+     * Creates {@link ServiceEntityMapper} instance.
+     *  @param thinTargetCache a cache for simple target information
+     * @param costServiceBlockingStub service which will provide cost information by
+     *                 entities.
+     * @param clock provides time values used to do external API requests.
+     */
+    public ServiceEntityMapper(@Nonnull final ThinTargetCache thinTargetCache,
+                    @Nonnull CostServiceBlockingStub costServiceBlockingStub, @Nonnull Clock clock) {
         this.thinTargetCache = thinTargetCache;
+        this.costServiceBlockingStub = Objects.requireNonNull(costServiceBlockingStub);
+        this.clock = Objects.requireNonNull(clock);
     }
 
 
@@ -127,12 +154,42 @@ public class ServiceEntityMapper {
                     connected.getEntityType()))
             .findAny();
         backupPrimary.map(primaryProvider::orElse).ifPresent(provider -> {
-            TemplateApiDTO template = new TemplateApiDTO();
+            final TemplateApiDTO template = new TemplateApiDTO();
+            template.setUuid(Long.toString(provider.getOid()));
+            template.setPrice(getPrice(apiEntity.getOid()));
             template.setDisplayName(provider.getDisplayName());
             result.setTemplate(template);
         });
 
         return result;
+    }
+
+    private float getPrice(final long oid) {
+        try {
+            final Stopwatch stopwatch = Stopwatch.createStarted();
+            final float result = requestPrice(oid);
+            logger.trace("Price '{}' received for '{}' in '{}' ms.", () -> result, () -> oid,
+                            () -> stopwatch.elapsed(TimeUnit.MILLISECONDS));
+            return result;
+        } catch (StatusRuntimeException ex) {
+            logger.warn("Cannot get price for '{}' entity", oid, ex);
+        }
+        return 0F;
+    }
+
+    private float requestPrice(long entityUuid) {
+        final EntityFilter entityFilter = EntityFilter.newBuilder().addEntityId(entityUuid).build();
+        final GetCloudCostStatsRequest cloudCostStatsRequest =
+                        GetCloudCostStatsRequest.newBuilder().setStartDate(clock.millis())
+                                        .setEntityFilter(entityFilter).build();
+        final GetCloudCostStatsResponse response =
+                        costServiceBlockingStub.getCloudCostStats(cloudCostStatsRequest);
+        return (float)response.getCloudStatRecordList().stream()
+                        .map(record -> record.getStatRecordsList().stream()
+                                        .filter(s -> TEMPLATE_PRICE_CATEGORIES
+                                                        .contains(s.getCategory()))
+                                        .collect(Collectors.toList())).flatMap(Collection::stream)
+                        .mapToDouble(s -> s.getValues().getAvg()).sum();
     }
 
     @Nonnull
