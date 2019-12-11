@@ -34,7 +34,11 @@ env:
     value: "8080"
   - name: kafkaServers
     value: kafka:9092
-
+  - name: kafkaNamespace
+    valueFrom:
+      fieldRef:
+        apiVersion: v1
+        fieldPath: metadata.namespace
 resources:
   limits:
     memory: 512Mi
