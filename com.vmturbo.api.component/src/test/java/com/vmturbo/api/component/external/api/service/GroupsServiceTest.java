@@ -29,17 +29,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
-import com.vmturbo.api.component.external.api.mapper.EntityEnvironment;
-import com.vmturbo.api.component.external.api.mapper.GroupMapper;
-import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
-import com.vmturbo.api.component.external.api.mapper.UuidMapper;
-import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
-import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
-import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
-import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
-import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
-import com.vmturbo.api.enums.CloudType;
-
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -54,7 +43,16 @@ import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
+import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.component.external.api.mapper.EntityEnvironment;
+import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
+import com.vmturbo.api.component.external.api.mapper.GroupMapper;
+import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
+import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
+import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
+import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
@@ -71,10 +69,12 @@ import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
+import com.vmturbo.api.dto.group.ResourceGroupApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.ActionCostType;
+import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -1114,6 +1114,78 @@ public class GroupsServiceTest {
                 Collections.singletonList("111"), Collections.emptyList(),
                 EnvironmentType.UNKNOWN);
         assertThat(groupApiDTOs, empty());
+    }
+
+    /**
+     * Test get Resource groups when scope is group of accounts. Get groups owned by Account.
+     *
+     * @throws OperationFailedException if cannot convert the requested filter criteria.
+     */
+    @Test
+    public void testGetGroupByTypeScopeIsGroupOfAccounts() throws OperationFailedException {
+        final Long groupOfAccountsId = 111L;
+        final Long rgId = 112L;
+        final Long accountId1 = 1L;
+        final Long accountId2 = 2L;
+        final Grouping groupOfAccounts = Grouping.newBuilder()
+                .setId(groupOfAccountsId)
+                .addExpectedTypes(MemberType.newBuilder()
+                        .setEntity(EntityType.BUSINESS_ACCOUNT_VALUE)
+                        .build())
+                .build();
+        final GroupAndMembers groupAndMembers = ImmutableGroupAndMembers.builder()
+                .group(groupOfAccounts)
+                .members(Arrays.asList(accountId1, accountId2))
+                .entities(Arrays.asList(accountId1, accountId2))
+                .build();
+        final ApiId entityApiId = mock(ApiId.class);
+        when(entityApiId.isGroup()).thenReturn(true);
+        when(uuidMapper.fromUuid(groupOfAccountsId.toString())).thenReturn(entityApiId);
+        when(groupExpander.getGroupWithMembers(groupOfAccountsId.toString())).thenReturn(
+                Optional.of(groupAndMembers));
+        final PropertyFilter propertyFilter = PropertyFilter.newBuilder()
+                .setPropertyName("accountID")
+                .setStringFilter(StringFilter.newBuilder()
+                        .addAllOptions(Arrays.asList(String.valueOf(accountId1),
+                                String.valueOf(accountId2)))
+                        .setPositiveMatch(true)
+                        .setCaseSensitive(false)
+                        .build())
+                .build();
+        final GroupDefinition groupDefinitionRg =
+                GroupDefinition.newBuilder().setType(GroupType.RESOURCE).setIsHidden(false).build();
+        final Grouping rg1 = Grouping.newBuilder()
+                .setId(rgId)
+                .addExpectedTypes(
+                        MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE).build())
+                .setDefinition(groupDefinitionRg)
+                .build();
+        final GroupAndMembers rgGroupAndMembers = ImmutableGroupAndMembers.builder()
+                .group(rg1)
+                .members(Arrays.asList(21L, 22L))
+                .entities(Arrays.asList(21L, 22L))
+                .build();
+        when(groupMapper.getEnvironmentAndCloudTypeForGroup(rgGroupAndMembers)).thenReturn(
+                new EntityEnvironment(EnvironmentType.CLOUD, CloudType.UNKNOWN));
+        final ResourceGroupApiDTO groupApiDTO = new ResourceGroupApiDTO();
+        groupApiDTO.setUuid(String.valueOf(rgId));
+        groupApiDTO.setClassName(StringConstants.RESOURCE_GROUP);
+        groupApiDTO.setEnvironmentType(EnvironmentType.CLOUD);
+        groupApiDTO.setParentUuid(String.valueOf(accountId1));
+        when(groupMapper.toGroupApiDto(rgGroupAndMembers, EnvironmentType.CLOUD, CloudType.UNKNOWN,
+                true)).thenReturn(groupApiDTO);
+        when(groupExpander.getGroupsWithMembers(GetGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder().addPropertyFilters(propertyFilter).build())
+                .build())).thenReturn(Stream.of(rgGroupAndMembers));
+        when(groupFilterMapper.apiFilterToGroupFilter(any(), any())).thenReturn(
+                GroupFilter.newBuilder().build());
+        final List<GroupApiDTO> groupsByType = groupsService.getGroupsByType(GroupType.RESOURCE,
+                Collections.singletonList(groupOfAccountsId.toString()), Collections.emptyList(),
+                EnvironmentType.CLOUD);
+        GroupApiDTO groupApiDTO1 = groupsByType.iterator().next();
+        assertEquals(String.valueOf(rgId), groupApiDTO1.getUuid());
+        assertEquals(String.valueOf(accountId1),
+                ((ResourceGroupApiDTO)groupApiDTO1).getParentUuid());
     }
 
     /**

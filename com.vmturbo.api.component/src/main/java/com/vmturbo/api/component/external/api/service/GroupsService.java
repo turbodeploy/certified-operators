@@ -30,7 +30,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
-import com.vmturbo.api.enums.CloudType;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
@@ -41,17 +40,17 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.validation.Errors;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.external.api.mapper.EntityEnvironment;
-import com.vmturbo.api.component.external.api.mapper.GroupMapper;
-import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
-import com.vmturbo.api.component.external.api.mapper.UuidMapper;
-import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
-import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
-import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
-import com.vmturbo.api.component.external.api.mapper.EnvironmentTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
+import com.vmturbo.api.component.external.api.mapper.EntityEnvironment;
+import com.vmturbo.api.component.external.api.mapper.EnvironmentTypeMapper;
+import com.vmturbo.api.component.external.api.mapper.GroupFilterMapper;
+import com.vmturbo.api.component.external.api.mapper.GroupMapper;
+import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
+import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
+import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
@@ -81,6 +80,7 @@ import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
+import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
@@ -131,6 +131,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
@@ -1331,6 +1332,15 @@ public class GroupsService implements IGroupsService {
             .forEach(grAndMem -> {
                 if (isNestedGroupOfType(grAndMem, groupType)) {
                     grAndMem.members().forEach(builder::addId);
+                } else if (grAndMem.group()
+                        .getExpectedTypesList()
+                        .contains(GroupDTO.MemberType.newBuilder()
+                                .setEntity(EntityType.BUSINESS_ACCOUNT_VALUE)
+                                .build())) {
+                    // get resource groups owned by business accounts
+                    builder.addPropertyFilters(
+                            SearchProtoUtil.stringPropertyFilterExact(SearchableProperties.ACCOUNT_ID,
+                                    grAndMem.members().stream().map(Object::toString).collect(Collectors.toList())));
                 } else {
                     builder.addId(grAndMem.group().getId());
                 }
@@ -1433,12 +1443,37 @@ public class GroupsService implements IGroupsService {
             } else {
                 // Note - for now (March 29 2019) we don't have cases where we need to apply the
                 // filter list. But in the future we may need to.
+
+                // get resource groups associated with business account from scope
+                if (groupType.equals(GroupType.RESOURCE)) {
+                    return getResourceGroupsOwnedByAccount(scopes, environmentType);
+                }
                 return getClustersOfEntities(groupType, scopes, environmentType);
             }
         } else {
             return getGroupApiDTOS(getGroupsRequestForFilters(groupType, filterList).build(),
                     true, environmentType);
         }
+    }
+
+    /**
+     * Get resource group owned by account.
+     *
+     * @param scopes list of account ids
+     * @param environmentType type of the environment to include in response, if null, all are
+     * included
+     * @return the list of groups owned by accounts from scope.
+     */
+    @Nonnull
+    private List<GroupApiDTO> getResourceGroupsOwnedByAccount(List<String> scopes,
+            EnvironmentType environmentType) {
+        final GetGroupsRequest.Builder groupsRequest = GetGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder()
+                        .addPropertyFilters(
+                                SearchProtoUtil.stringPropertyFilterExact(SearchableProperties.ACCOUNT_ID,
+                                        scopes))
+                        .build());
+        return getGroupApiDTOS(groupsRequest.build(), true, environmentType);
     }
 
     /**

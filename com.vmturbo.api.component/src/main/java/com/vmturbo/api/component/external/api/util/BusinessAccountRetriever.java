@@ -320,7 +320,7 @@ public class BusinessAccountRetriever {
                                 .setGroupFilter(GroupFilter.newBuilder()
                                         .addPropertyFilters(
                                                 SearchProtoUtil.stringPropertyFilterExact(
-                                                        SearchableProperties.BUSINESS_ACCOUNT_INFO_ACCOUNT_ID,
+                                                        SearchableProperties.ACCOUNT_ID,
                                                         Collections.singletonList(
                                                                 account.toString())))
                                         .build())
