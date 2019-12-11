@@ -100,10 +100,15 @@ public class BuyRIAnalysisRpcService extends BuyRIAnalysisServiceImplBase {
      */
     public void startBuyRIAnalysis(StartBuyRIAnalysisRequest request,
                                    StreamObserver<StartBuyRIAnalysisResponse> responseObserver) {
-        if (request.hasTopologyInfo() && request.getTopologyInfo().hasPlanInfo()) {
-            runPlanBuyRIAnalysis(request, responseObserver);
-        } else {
-            runRealtimeBuyRIAnalysis(request, responseObserver);
+        try {
+            if (request.hasTopologyInfo() && request.getTopologyInfo().hasPlanInfo()) {
+                runPlanBuyRIAnalysis(request, responseObserver);
+            } else {
+                runRealtimeBuyRIAnalysis(request, responseObserver);
+            }
+        } catch (Exception e) {
+            logger.error("Unexpected exception occurred in buy RI analysis.");
+            responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
     }
 
@@ -126,6 +131,8 @@ public class BuyRIAnalysisRpcService extends BuyRIAnalysisServiceImplBase {
                     new ReservedInstanceAnalysisScope(request);
             reservedInstanceAnalyzer.runRIAnalysisAndSendActions(planId,
                     reservedInstanceAnalysisScope, historicalDemandDataType);
+            responseObserver.onNext(StartBuyRIAnalysisResponse.getDefaultInstance());
+            responseObserver.onCompleted();
         } catch (CommunicationException | InterruptedException e) {
             logger.error("Failed to send buy RI action plan to action orchestrator for plan {}", planId);
             responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
@@ -157,15 +164,15 @@ public class BuyRIAnalysisRpcService extends BuyRIAnalysisServiceImplBase {
                 reservedInstanceAnalyzer.runRIAnalysisAndSendActions(realtimeTopologyContextId,
                                                                      reservedInstanceAnalysisScope,
                         ReservedInstanceHistoricalDemandDataType.CONSUMPTION);
+                responseObserver.onNext(StartBuyRIAnalysisResponse.getDefaultInstance());
+                responseObserver.onCompleted();
             } catch (InterruptedException ie) {
                 logger.error("Interrupted publishing of buy RI actions", ie);
                 Thread.currentThread().interrupt();
             } catch (CommunicationException ce) {
                 logger.error("Exception while publishing buy RI actions", ce);
+                responseObserver.onError(Status.INTERNAL.withDescription(ce.getMessage()).asException());
             }
-            responseObserver.onNext(StartBuyRIAnalysisResponse.getDefaultInstance());
-            responseObserver.onCompleted();
-            return;
         });
     }
 }
