@@ -3,6 +3,7 @@ package com.vmturbo.auth.api.licensing;
 import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -76,9 +77,29 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
     }
 
     @Override
-    protected void processMessage(@Nonnull final LicenseSummary message) throws ApiClientException, InterruptedException {
-        logger.info("Got a new license summary generated at {}", message.getGenerationDate());
+    protected void processMessage(@Nonnull final LicenseSummary message) {
+        if (isLicenseDifferent(lastLicenseSummary, message)) {
+            logger.info("Got a new license summary generated at {}", message.getGenerationDate());
+        }
         lastLicenseSummary = message;
         // trigger update
+    }
+
+    /**
+     * Checks to see if the new license is different than the previous one.
+     *
+     * @param before The previous license (possibly null)
+     * @param after The new license
+     *
+     * @return true if the licenses are different in any way.
+     */
+    private static boolean isLicenseDifferent(@Nullable LicenseSummary before, @Nonnull LicenseSummary after) {
+        if (before == null) {
+            // no previous license, this is a change
+            return true;
+        }
+
+        // If any license fields are different, we'll call the license different
+        return !before.equals(after);
     }
 }
