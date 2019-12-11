@@ -45,6 +45,11 @@ public class SearchableProperties {
     public static final String DS_LOCAL = "local";
 
     /**
+     * Account property name used for search groups owned by business account.
+     */
+    public static final String ACCOUNT_ID = "accountID";
+
+    /**
      * Attachment state of a storage volume.
      */
     public static final String VOLUME_ATTACHMENT_STATE = "attachmentState";
