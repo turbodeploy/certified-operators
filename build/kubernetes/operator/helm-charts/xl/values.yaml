@@ -26,6 +26,8 @@ global:
   elk: false
 #  debug: true
   dev_options: "-agentlib:jdwp=transport=dt_socket,address=0.0.0.0:8000,server=y,suspend=n"
+#  storageClassName: default
+#  storageSelector: true
   securityContext:
     fsGroup: 2000
   certmanager:

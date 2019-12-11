@@ -12,6 +12,16 @@ metadata:
 spec:
   accessModes:
   - ReadWriteOnce
+{{- if .Values.global }}
+  {{- if .Values.global.storageSelector }}
+  selector:
+    matchLabels:
+      partition: {{ .Release.Namespace }}-rsyslog-auditlogdata
+  {{- end }}
+  {{- if .Values.global.storageClassName }}
+  storageClassName: {{ .Values.global.storageClassName }}
+  {{- end }}
+{{- end }}
   resources:
     requests:
       storage: {{ .Values.persistence.auditsize }}
@@ -28,6 +38,16 @@ metadata:
 spec:
   accessModes:
   - ReadWriteOnce
+{{- if .Values.global }}
+  {{- if .Values.global.storageSelector }}
+  selector:
+    matchLabels:
+      partition: {{ .Release.Namespace }}-rsyslog-syslogdata
+  {{- end }}
+  {{- if .Values.global.storageClassName }}
+  storageClassName: {{ .Values.global.storageClassName }}
+  {{- end }}
+{{- end }}
   resources:
     requests:
       storage: {{ .Values.persistence.logsize }}

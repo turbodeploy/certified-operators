@@ -10,6 +10,16 @@ metadata:
 spec:
   accessModes:
   - ReadWriteOnce
+{{- if .Values.global }}
+  {{- if .Values.global.storageSelector }}
+  selector:
+    matchLabels:
+      partition: {{ .Release.Namespace }}-api
+  {{- end }}
+  {{- if .Values.global.storageClassName }}
+  storageClassName: {{ .Values.global.storageClassName }}
+  {{- end }}
+{{- end }}
   resources:
     requests:
       storage: 1Gi
@@ -26,6 +36,16 @@ metadata:
 spec:
   accessModes:
   - ReadWriteOnce
+{{- if .Values.global }}
+  {{- if .Values.global.storageSelector }}
+  selector:
+    matchLabels:
+      partition: {{ .Release.Namespace }}-api-certs
+  {{- end }}
+  {{- if .Values.global.storageClassName }}
+  storageClassName: {{ .Values.global.storageClassName }}
+  {{- end }}
+{{- end }}
   resources:
     requests:
       storage: 1Gi

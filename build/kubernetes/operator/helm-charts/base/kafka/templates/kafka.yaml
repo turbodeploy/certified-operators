@@ -12,6 +12,16 @@ metadata:
 spec:
   accessModes:
   - ReadWriteOnce
+{{- if .Values.global }}
+  {{- if .Values.global.storageSelector }}
+  selector:
+    matchLabels:
+      partition: {{ .Release.Namespace }}-kafka-log
+  {{- end }}
+  {{- if .Values.global.storageClassName }}
+  storageClassName: {{ .Values.global.storageClassName }}
+  {{- end }}
+{{- end }}
   resources:
     requests:
       storage: {{ .Values.persistence.size }}

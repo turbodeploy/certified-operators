@@ -371,6 +371,22 @@ dashboards:
       file: dashboards/System Latencies.json
     Topology-Processor-Dashboard:
       file: dashboards/Topology Processor Dashboard.json
+    Top-10-Container-Dashboard:
+      file: dashboards/top-10-container.json
+    Top-10-ContainerPod-Dashboard:
+      file: dashboards/top-10-containerpod.json
+    Top-10-Namespace:
+      file: dashboards/top-10-namespace.json
+    Kubernetes-Node-Resource-Consumption:
+      file: dashboards/kubernetes-node-resource-consumption_rev3.json
+    Kubernetes-Node-Resource-Consumption-Individual:
+      file: dashboards/kubernetes-node-resource-consumption_individual.json
+    Kubernetes-Pods-Individual:
+      file: dashboards/kubernetes-pods_individual.json
+    Namespace-Monitoring-Individual:
+      file: dashboards/namespace-monitoring_individual.json
+    Kubernetes-Dashboard-Lemur:
+      file: dashboards/Kubernetes Cluster Lemur.json
 #    prometheus-stats:
 #      gnetId: 2
 #      revision: 2

@@ -12,6 +12,16 @@ metadata:
 spec:
   accessModes:
   - ReadWriteOnce
+{{- if .Values.global }}
+  {{- if .Values.global.storageSelector }}
+  selector:
+    matchLabels:
+      partition: {{ .Release.Namespace }}-kafka-log
+  {{- end }}
+  {{- if .Values.global.storageClassName }}
+  storageClassName: {{ .Values.global.storageClassName }}
+  {{- end }}
+{{- end }}
   resources:
     requests:
       storage: {{ .Values.persistence.size }}
@@ -48,6 +58,8 @@ spec:
         image: {{ template "image" . }}
         imagePullPolicy: {{ template "pullPolicy" . }}
         env:
+        - name: KAFKA_HEAP_OPTS
+          value: {{ .Values.java.options | quote }}
 {{ toYaml .Values.env | indent 8 -}}
         ports:
           - containerPort: 9092
