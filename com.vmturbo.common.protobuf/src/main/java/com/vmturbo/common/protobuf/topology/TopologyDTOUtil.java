@@ -13,6 +13,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
@@ -45,6 +46,10 @@ public final class TopologyDTOUtil {
      */
     public static final Set<Integer> PRIMARY_TIER_VALUES = ImmutableSet.of(
             EntityType.COMPUTE_TIER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE, EntityType.DATABASE_TIER_VALUE);
+
+    private static final Map<Integer, Integer> PRIMARY_TIER_FOR_CONSUMER_TYPE = ImmutableMap.of(
+        EntityType.VIRTUAL_VOLUME_VALUE, EntityType.STORAGE_TIER_VALUE
+    );
 
     public static final Set<Integer> TIER_VALUES = ImmutableSet.of(
             EntityType.COMPUTE_TIER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE,
@@ -192,6 +197,21 @@ public final class TopologyDTOUtil {
      */
     public static boolean isPrimaryTierEntityType(int entityType) {
         return PRIMARY_TIER_VALUES.contains(entityType);
+    }
+
+    /**
+     * Determine if an entity type plays the role of primary tier for a certain consumer entity.
+     * Some entities (Storage Tiers) play the role of primary tier for some entities (Volumes)
+     * but not for others (VMs).
+     *
+     * @param consumerType type of entity consuming from tier
+     * @param providerType type of entity to be checked
+     * @return true if the checked entity plays the role of primary tier to the consumer entity.
+     */
+    public static boolean isPrimaryTierEntityType(int consumerType, int providerType) {
+        return isPrimaryTierEntityType(providerType) ||
+            PRIMARY_TIER_FOR_CONSUMER_TYPE.getOrDefault(consumerType, EntityType.UNKNOWN_VALUE) ==
+                providerType;
     }
 
     /**

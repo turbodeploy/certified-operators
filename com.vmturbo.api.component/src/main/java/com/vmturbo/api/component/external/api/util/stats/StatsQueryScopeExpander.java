@@ -187,12 +187,13 @@ public class StatsQueryScopeExpander {
 
         final Set<Long> expandedOidsInScope;
 
-        if (!relatedTypes.isEmpty()) {
+        if (shouldConnectedVmBeSeparatelyAdded(scope, relatedTypes)) {
             // case where VM oids need to be added separately to the scope, i.e. for Volume commodity queries
-            if (shouldConnectedVmBeSeparatelyAdded(scope, relatedTypes)) {
-                final Set<Long> connectedVmOids = findConnectedVmOids(immediateOidsInScope);
-                immediateOidsInScope.addAll(connectedVmOids);
-            }
+            final Set<Long> connectedVmOids = findConnectedVmOids(immediateOidsInScope);
+            immediateOidsInScope.addAll(connectedVmOids);
+            expandedOidsInScope = supplyChainFetcherFactory.expandGroupingServiceEntities(
+                immediateOidsInScope);
+        } else if (!relatedTypes.isEmpty()) {
             // We replace the proxy entities after first finding related type entities, so that the
             // supply chain search for related entities has the correct starting point (the original
             // entities in the request, rather than the replacement entities).
@@ -230,7 +231,7 @@ public class StatsQueryScopeExpander {
 
     private boolean shouldConnectedVmBeSeparatelyAdded(@Nonnull final ApiId scope,
                                                        @Nonnull final List<UIEntityType> relatedTypes) {
-        return relatedTypes.contains(UIEntityType.VIRTUAL_MACHINE) &&
+        return relatedTypes.size() == 1 && relatedTypes.contains(UIEntityType.VIRTUAL_MACHINE) &&
             scope.getScopeTypes()
                 .filter(set -> set.contains(UIEntityType.VIRTUAL_VOLUME))
                 .isPresent();

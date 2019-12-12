@@ -18,6 +18,7 @@ import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -90,40 +91,46 @@ public class ServiceEntityMapper {
      * Note: because of the structure of {@link ServiceEntityApiDTO},
      * only one of the discovering targets can be included in the result.
      *
-     * @param topologyEntityDTO the internal {@link ApiPartialEntity} to convert
+     * @param apiEntity the internal {@link ApiPartialEntity} to convert
      * @return an {@link ServiceEntityApiDTO} populated from the given topologyEntity
      */
     @Nonnull
-    public ServiceEntityApiDTO toServiceEntityApiDTO(@Nonnull ApiPartialEntity topologyEntityDTO) {
+    public ServiceEntityApiDTO toServiceEntityApiDTO(@Nonnull ApiPartialEntity apiEntity) {
         // basic information
-        final ServiceEntityApiDTO result = ServiceEntityMapper.toBasicEntity(topologyEntityDTO);
-        if (topologyEntityDTO.hasEntityState()) {
-            result.setState(UIEntityState.fromEntityState(topologyEntityDTO.getEntityState()).apiStr());
+        final ServiceEntityApiDTO result = ServiceEntityMapper.toBasicEntity(apiEntity);
+        if (apiEntity.hasEntityState()) {
+            result.setState(UIEntityState.fromEntityState(apiEntity.getEntityState()).apiStr());
         }
-        if (topologyEntityDTO.hasEnvironmentType()) {
+        if (apiEntity.hasEnvironmentType()) {
             EnvironmentTypeMapper
-                .fromXLToApi(topologyEntityDTO.getEnvironmentType())
+                .fromXLToApi(apiEntity.getEnvironmentType())
                 .ifPresent(result::setEnvironmentType);
         }
 
-        setDiscoveredBy(topologyEntityDTO::getDiscoveredTargetDataMap, result);
+        setDiscoveredBy(apiEntity::getDiscoveredTargetDataMap, result);
 
         //tags
         result.setTags(
-            topologyEntityDTO.getTags().getTagsMap().entrySet().stream()
+            apiEntity.getTags().getTagsMap().entrySet().stream()
                 .collect(
                     Collectors.toMap(Entry::getKey, entry -> entry.getValue().getValuesList())));
 
         // template name
-        topologyEntityDTO.getProvidersList().stream()
-                .filter(provider -> provider.hasDisplayName() &&
-                        TopologyDTOUtil.PRIMARY_TIER_VALUES.contains(provider.getEntityType()))
-                .findAny()
-                .ifPresent(provider -> {
-                    TemplateApiDTO template = new TemplateApiDTO();
-                    template.setDisplayName(provider.getDisplayName());
-                    result.setTemplate(template);
-                });
+        final Optional<RelatedEntity> primaryProvider = apiEntity.getProvidersList().stream()
+            .filter(provider -> provider.hasDisplayName() &&
+                TopologyDTOUtil.isPrimaryTierEntityType(apiEntity.getEntityType(),
+                    provider.getEntityType()))
+            .findAny();
+        final Optional<RelatedEntity> backupPrimary = apiEntity.getConnectedToList().stream()
+            .filter(connected -> connected.hasDisplayName() &&
+                TopologyDTOUtil.isPrimaryTierEntityType(apiEntity.getEntityType(),
+                    connected.getEntityType()))
+            .findAny();
+        backupPrimary.map(primaryProvider::orElse).ifPresent(provider -> {
+            TemplateApiDTO template = new TemplateApiDTO();
+            template.setDisplayName(provider.getDisplayName());
+            result.setTemplate(template);
+        });
 
         return result;
     }

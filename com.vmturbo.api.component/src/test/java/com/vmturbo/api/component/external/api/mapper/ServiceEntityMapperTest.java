@@ -31,7 +31,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
 import com.vmturbo.topology.processor.api.util.ImmutableThinTargetInfo;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
@@ -97,6 +96,16 @@ public class ServiceEntityMapperTest {
                             tagKey,
                             TagValuesDTO.newBuilder().addValues(tagValue).build()))
                 .addProviders(createComputeTierProvider())
+                // non-primary tiers should be ignored
+                // providers should take precedence over connected entities
+                .addProviders(RelatedEntity.newBuilder()
+                    .setDisplayName("storage-tier")
+                    .setEntityType(EntityType.STORAGE_TIER_VALUE)
+                    .setOid(PROVIDER_OID + 10))
+                .addConnectedTo(RelatedEntity.newBuilder()
+                    .setOid(PROVIDER_OID + 20)
+                    .setEntityType(EntityType.COMPUTE_TIER_VALUE)
+                    .setDisplayName("connected-primary-tier"))
                 .build();
 
         final ServiceEntityApiDTO serviceEntityApiDTO =
