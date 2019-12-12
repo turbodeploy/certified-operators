@@ -62,6 +62,9 @@ public class RpcConfig {
     @Value("${actionPaginationMaxLimit}")
     private int actionPaginationMaxLimit;
 
+    @Value("${maxAmountOfEntitiesPerGrpcMessage}")
+    private int maxAmountOfEntitiesPerGrpcMessage;
+
     @Bean
     public ActionsRpcService actionRpcService() {
         return new ActionsRpcService(
@@ -102,7 +105,7 @@ public class RpcConfig {
     @Bean
     public EntitySeverityRpcService entitySeverityRpcService() {
         return new EntitySeverityRpcService(actionStoreConfig.actionStorehouse(),
-                actionPaginationDefaultLimit, actionPaginationMaxLimit);
+                actionPaginationDefaultLimit, actionPaginationMaxLimit, maxAmountOfEntitiesPerGrpcMessage);
     }
 
     @Bean

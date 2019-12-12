@@ -25,6 +25,8 @@ import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesChunk;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesChunk.Builder;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
@@ -191,9 +193,11 @@ public class SeverityPopulatorTest {
             // that this class uses. It's a bit dirty but provides nice ergonomics for mocking
             // out the response from the AO RPC calls.
             Objects.requireNonNull(severitySupplier);
-            EntitySeveritiesResponse.Builder responseBuilder = EntitySeveritiesResponse.newBuilder();
-            severitySupplier.get().forEach(responseBuilder::addEntitySeverity);
-            responseObserver.onNext(responseBuilder.build());
+            Builder chunks = EntitySeveritiesChunk.newBuilder();
+            severitySupplier.get().forEach(entitySeverity -> {
+                chunks.addEntitySeverity(entitySeverity);
+            });
+            responseObserver.onNext(EntitySeveritiesResponse.newBuilder().setEntitySeverity(chunks).build());
             responseObserver.onCompleted();
         }
 

@@ -15,6 +15,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -49,6 +50,8 @@ import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse.TypeCase;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.SeverityCountsResponse;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
@@ -1187,27 +1190,32 @@ public class SupplyChainFetcherFactory {
                                            @Nonnull final Map<String, ServiceEntityApiDTO> serviceEntityApiDTOS,
                                            @Nonnull final Map<Severity, Long> severities) {
             Objects.requireNonNull(entityDetailType);
+            Iterable<EntitySeveritiesResponse> response = () ->
+                severityRpcService.getEntitySeverities(entitySeverityRequest);
+            StreamSupport.stream(response.spliterator(), false)
+                .forEach(chunk -> {
+                    if (chunk.getTypeCase() == TypeCase.ENTITY_SEVERITY) {
+                        chunk.getEntitySeverity().getEntitySeverityList().stream().forEach(entitySeverity -> {
+                            // If no severity is provided by the AO, default to normal
+                            Severity effectiveSeverity = entitySeverity.hasSeverity()
+                                ? entitySeverity.getSeverity()
+                                : Severity.NORMAL;
+                            // if the SE is being collected, update the severity
+                            final String oidString = Long.toString(entitySeverity.getEntityId());
+                            if (serviceEntityApiDTOS.containsKey(oidString)) {
+                                serviceEntityApiDTOS
+                                    // fetch the ServiceEntityApiDTO for this ID
+                                    .get(oidString)
+                                    // update the severity
+                                    .setSeverity(effectiveSeverity.name());
+                            }
 
-            severityRpcService.getEntitySeverities(entitySeverityRequest).getEntitySeverityList()
-                .forEach(entitySeverity -> {
-                    // If no severity is provided by the AO, default to normal
-                    Severity effectiveSeverity = entitySeverity.hasSeverity()
-                        ? entitySeverity.getSeverity()
-                        : Severity.NORMAL;
-                    // if the SE is being collected, update the severity
-                    final String oidString = Long.toString(entitySeverity.getEntityId());
-                    if (serviceEntityApiDTOS.containsKey(oidString)) {
-                        serviceEntityApiDTOS
-                            // fetch the ServiceEntityApiDTO for this ID
-                            .get(oidString)
-                                // update the severity
-                            .setSeverity(effectiveSeverity.name());
-                    }
-
-                    // if healthSummary is being created, increment the count
-                    if (includeHealthSummary) {
-                        severities.put(entitySeverity.getSeverity(), severities
-                            .getOrDefault(entitySeverity.getSeverity(), 0L) + 1L);
+                            // if healthSummary is being created, increment the count
+                            if (includeHealthSummary) {
+                                severities.put(entitySeverity.getSeverity(), severities
+                                    .getOrDefault(entitySeverity.getSeverity(), 0L) + 1L);
+                            }
+                        });
                     }
                 });
         }
