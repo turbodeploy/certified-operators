@@ -27,6 +27,7 @@ import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -84,10 +85,12 @@ import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse.TypeCase;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse.Builder;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -707,25 +710,38 @@ public class SearchService implements ISearchService {
                         .setTopologyContextId(realtimeContextId)
                         .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
                         .build();
-        EntitySeveritiesResponse entitySeveritiesResponse =
-                entitySeverityRpc.getEntitySeverities(multiEntityRequest);
+        List<EntitySeverity> entitySeverityList = new ArrayList<>();
+        Iterable<EntitySeveritiesResponse> entitySeveritiesResponse =
+            () -> entitySeverityRpc.getEntitySeverities(multiEntityRequest);
+        Builder paginationResponse = PaginationResponse.newBuilder();
+        StreamSupport.stream(entitySeveritiesResponse.spliterator(), false)
+            .forEach(chunk -> {
+                if (chunk.getTypeCase() == TypeCase.ENTITY_SEVERITY) {
+                    entitySeverityList.addAll(chunk.getEntitySeverity().getEntitySeverityList());
+                } else {
+                    if (chunk.getPaginationResponse().hasNextCursor()) {
+                        paginationResponse.setNextCursor(chunk.getPaginationResponse().getNextCursor());
+                    }
+                }
+            });
+
         final Map<Long, String> paginatedEntitySeverities =
-                entitySeveritiesResponse.getEntitySeverityList().stream()
+            entitySeverityList.stream()
                         .collect(Collectors.toMap(EntitySeverity::getEntityId,
                                 entitySeverity -> ActionDTOUtil.getSeverityName(entitySeverity.getSeverity())));
         final Map<Long, ServiceEntityApiDTO> serviceEntityMap =
             repositoryApi.entitiesRequest(paginatedEntitySeverities.keySet())
                 .getSEMap();
-        // Should use entitySeveritiesResponse.getEntitySeverityList() here, because it has already contains
-        // paginated entities with correct order.
+        // Should use the entity severities collected from the entitySeverityRpc since they are
+        // already sorted and paginated.
         final List<ServiceEntityApiDTO> entities =
-                entitySeveritiesResponse.getEntitySeverityList().stream()
+            entitySeverityList.stream()
                         .map(EntitySeverity::getEntityId)
                         .filter(serviceEntityMap::containsKey)
                         .map(serviceEntityMap::get)
                         .collect(Collectors.toList());
         return buildPaginationResponse(entities,
-                entitySeveritiesResponse.getPaginationResponse(), paginationRequest);
+            paginationResponse.build(), paginationRequest);
     }
 
     /**

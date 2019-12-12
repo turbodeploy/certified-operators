@@ -67,6 +67,7 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesChunk;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
@@ -611,18 +612,22 @@ public class SupplyChainFetcherFactoryTest {
                 .addEntityIds(1L)
                 .addEntityIds(2L)
                 .build()))
-            .thenReturn(EntitySeveritiesResponse.newBuilder()
+            .thenReturn(Collections.singletonList(EntitySeveritiesResponse.newBuilder().setEntitySeverity(
+                EntitySeveritiesChunk.newBuilder()
                     .addAllEntitySeverity(
                             Arrays.asList(newSeverity(1L, Severity.CRITICAL),
                                     newSeverity(2L, null)))
-                    .build());
+                    .build()).build())
+        );
         when(severityServiceBackend.getEntitySeverities(MultiEntityRequest.newBuilder()
                 .setTopologyContextId(LIVE_TOPOLOGY_ID)
                 .addEntityIds(5L)
                 .build()))
-            .thenReturn(EntitySeveritiesResponse.newBuilder()
+            .thenReturn(Collections.singletonList(EntitySeveritiesResponse.newBuilder().setEntitySeverity(
+                EntitySeveritiesChunk.newBuilder()
                     .addAllEntitySeverity(Collections.singletonList(newSeverity(5L, Severity.MAJOR)))
-                    .build());
+                    .build()).build())
+        );
 
         RepositoryApi.MultiEntityRequest req1and2 = ApiTestUtils.mockMultiSEReq(Lists.newArrayList(
             createServiceEntityApiDTO(1L, VM, Severity.CRITICAL),
