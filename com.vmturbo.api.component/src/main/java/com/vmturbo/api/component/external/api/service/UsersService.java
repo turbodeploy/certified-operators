@@ -284,6 +284,14 @@ public class UsersService implements IUsersService {
         try {
             AuthUserDTO dto = UserMapper.toAuthUserDTO(userApiDTO);
             validateUserInput(userApiDTO);
+            // Only check the password if this is a local users.  Other user types do not require
+            // a password.
+            if (userApiDTO.getLoginProvider() != null &&
+                    LoginProviderMapper.fromApi(userApiDTO.getLoginProvider()).equals(PROVIDER.LOCAL) &&
+                    StringUtils.isBlank(userApiDTO.getPassword())) {
+                throw new IllegalArgumentException("User password is empty.");
+            }
+
             // Perform the call.
             // Make sure that the currently authenticated user's token is present.
             HttpHeaders headers = composeHttpHeaders();
@@ -453,13 +461,6 @@ public class UsersService implements IUsersService {
         }
         if (StringUtils.isBlank(userApiDTO.getType())) {
             throw new IllegalArgumentException("No type specified for user.");
-        }
-        // Only check the password if this is a local users.  Other user types do not require
-        // a password.
-        if (userApiDTO.getLoginProvider() != null &&
-                LoginProviderMapper.fromApi(userApiDTO.getLoginProvider()).equals(PROVIDER.LOCAL) &&
-                StringUtils.isBlank(userApiDTO.getPassword())) {
-            throw new IllegalArgumentException("User password is empty.");
         }
     }
 

@@ -533,9 +533,8 @@ public class UserServiceTest {
      * throw an IllegalArgumentException.
      * @throws Exception when the service fails to create or edit the user.
      */
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testEmptyPassword() throws Exception {
-        final String userId = "1234";
         final String userName = "testUser2";
         final String userType = "DedicatedCustomer";
         final String password = "";
@@ -548,18 +547,8 @@ public class UserServiceTest {
         userApiDTO.setRoleName(userRole);
         userApiDTO.setPassword(password);
         userApiDTO.setLoginProvider(userLoginProvider);
-
-        try {
-            // create user case.
-            usersService.createUser(userApiDTO);
-            fail("the illegal argument exception should throw");
-        } catch (IllegalArgumentException e) {
-            // Catch the exception there, so we can continue to the next test.
-        }
-        // This should throw an illegal argument exception
-        expectedException.expect(IllegalArgumentException.class);
-        // edit user case.
-        usersService.editUser(userId, userApiDTO);
+        // create user case.
+        usersService.createUser(userApiDTO);
     }
 
     /**
@@ -568,7 +557,7 @@ public class UserServiceTest {
      * the same way.
      * @throws Exception when the edit of a user fails, and this is expected.
      */
-    @Test
+    @Test(expected = IllegalArgumentException.class)
     public void testEmptyPassword2() throws Exception {
         final String userId = "1234";
         final String userName = "testUser2";
@@ -583,18 +572,8 @@ public class UserServiceTest {
         userApiDTO.setRoleName(userRole);
         userApiDTO.setPassword(password);
         userApiDTO.setLoginProvider(userLoginProvider);
-
-        try {
-            // create user case.
-            usersService.createUser(userApiDTO);
-            fail("the illegal argument exception should throw");
-        } catch (IllegalArgumentException e) {
-            // Catch the exception there, so we can continue to the next test.
-        }
-        // This should throw an illegal argument exception
-        expectedException.expect(IllegalArgumentException.class);
-        // edit user case.
-        usersService.editUser(userId, userApiDTO);
+        // create user case.
+        usersService.createUser(userApiDTO);
     }
 
     /**
@@ -659,12 +638,26 @@ public class UserServiceTest {
     }
 
     /**
-     * Testing that editing a user returns the modified user
+     * Testing that editing a user with updated password returns the modified user
      * data back.
      * @throws Exception when the service fails to edit the user
      */
     @Test
-    public void testEditUser() throws Exception {
+    public void testEditUserWithPasswordUpdated() throws Exception {
+        verifyEditUser(true);
+    }
+
+    /**
+     * Testing that editing a user without updating password returns the modified user
+     * data back.
+     * @throws Exception when the service fails to edit the user
+     */
+    @Test
+    public void testEditUserWithoutUpdatingPassword() throws Exception {
+        verifyEditUser(false);
+    }
+
+    private void verifyEditUser(boolean passwordChanged) throws Exception {
         final String userName = "test2";
         final String userId = "123456";
         final String userType = "DedicatedCustomer";
@@ -674,10 +667,12 @@ public class UserServiceTest {
         logon("admin");
         UserApiDTO userApiDTO = new UserApiDTO();
         userApiDTO.setUsername(userName);
-        userApiDTO.setPassword(userName);
         userApiDTO.setType(userType);
         userApiDTO.setRoleName(userRole);
         userApiDTO.setLoginProvider(userLoginProvider);
+        if (passwordChanged) {
+            userApiDTO.setPassword(userName);
+        }
 
         final ResponseEntity<String> responseEntity = new ResponseEntity<>( "234256", HttpStatus.OK);
         when(restTemplate.exchange(eq("http://:0/users/setroles"), eq(HttpMethod.PUT), any(), eq(String.class)))
