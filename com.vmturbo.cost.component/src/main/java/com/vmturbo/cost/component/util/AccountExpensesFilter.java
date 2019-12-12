@@ -2,10 +2,18 @@ package com.vmturbo.cost.component.util;
 
 import static com.vmturbo.cost.component.db.Tables.ACCOUNT_EXPENSES;
 
-import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -27,14 +35,19 @@ public class AccountExpensesFilter extends CostFilter {
 
     private static final String CREATED_TIME = ACCOUNT_EXPENSES.SNAPSHOT_TIME.getName();
 
+    private final Set<Long> accountIds;
     private final List<Condition> conditions;
 
-    public AccountExpensesFilter(@Nonnull Set<Long> entityFilter,
-                                 @Nonnull Set<Integer> entityTypeFilter,
-                                 final long startDateMillis,
-                                 final long endDateMillis,
-                                 @Nullable final TimeFrame timeFrame) {
-        super(entityFilter, entityTypeFilter, startDateMillis, endDateMillis, timeFrame, CREATED_TIME);
+    AccountExpensesFilter(@Nullable Set<Long> entityFilter,
+                          @Nullable Set<Integer> entityTypeFilter,
+                          @Nullable final Long startDateMillis,
+                          @Nullable final Long endDateMillis,
+                          @Nullable final TimeFrame timeFrame,
+                          @Nullable final Set<Long> accountIds,
+                          final boolean latestTimeStampRequested) {
+        super(entityFilter, entityTypeFilter, startDateMillis, endDateMillis, timeFrame,
+            CREATED_TIME, latestTimeStampRequested);
+        this.accountIds = accountIds;
         this.conditions = generateConditions();
     }
 
@@ -49,19 +62,36 @@ public class AccountExpensesFilter extends CostFilter {
 
         final Table<?> table = getTable();
 
-        if (startDateMillis > 0 && endDateMillis > 0) {
-            conditions.add(((Field<Timestamp>) table.field(snapshotTime))
-                    .between(new Timestamp(this.startDateMillis), new Timestamp(this.endDateMillis)));
+        if (startDateMillis != null) {
+            LocalDateTime localStart = LocalDateTime.ofInstant(Instant.ofEpochMilli(this.startDateMillis),
+                ZoneId.from(ZoneOffset.UTC));
+            LocalDateTime localEnd =
+                LocalDateTime.ofInstant(Instant.ofEpochMilli(this.endDateMillis),
+                    ZoneId.from(ZoneOffset.UTC));
+            conditions.add(((Field<LocalDateTime>)table.field(snapshotTime))
+                .between(localStart, localEnd));
         }
 
-        if (!entityTypeFilters.isEmpty()) {
+        if (entityTypeFilters != null) {
             conditions.add((table.field(ACCOUNT_EXPENSES.ENTITY_TYPE.getName()))
                     .in(entityTypeFilters));
         }
-        if (!entityFilters.isEmpty()) {
+        if (entityFilters != null) {
             conditions.add((table.field(ACCOUNT_EXPENSES.ASSOCIATED_ENTITY_ID.getName()))
                     .in(entityFilters));
+        } else {
+            // In case there is no filter on entity IDs, ignore records where the
+            // associated entity ID is 0.
+            // This can happen when the expense is for a cloud service which wasn't
+            // discovered because it doesn't appear in the CloudService enum.
+            conditions.add(ACCOUNT_EXPENSES.ASSOCIATED_ENTITY_ID.notEqual(0L));
         }
+
+        if (accountIds != null) {
+            conditions.add((table.field(ACCOUNT_EXPENSES.ASSOCIATED_ACCOUNT_ID.getName()))
+                .in(accountIds));
+        }
+
         return conditions;
     }
 
@@ -80,6 +110,76 @@ public class AccountExpensesFilter extends CostFilter {
             return Tables.ACCOUNT_EXPENSES_BY_DAY;
         } else {
             return Tables.ACCOUNT_EXPENSES_BY_MONTH;
+        }
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj)) {
+            final AccountExpensesFilter other = (AccountExpensesFilter)obj;
+            return Objects.equals(accountIds, other.accountIds);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        Function<Set<?>, Integer> setHashCode = (set) -> (set == null) ? 0 : set.stream()
+            .map(Object::hashCode).collect(Collectors.summingInt(Integer::intValue));
+        return Objects.hash(setHashCode.apply(accountIds), super.hashCode());
+    }
+
+    @Override
+    @Nonnull
+    public String toString() {
+        StringBuilder builder = new StringBuilder(super.toString());
+        builder.append("\n account ids: ");
+        builder.append((accountIds == null) ? "NOT SET" :
+            accountIds.stream().map(String::valueOf).collect(Collectors.joining(",")));
+        builder.append("\n conditions: ");
+        builder.append(
+            conditions.stream().map(Condition::toString).collect(Collectors.joining(" AND ")));
+        return builder.toString();
+    }
+
+    /**
+     * The builder class for {@link AccountExpensesFilter} class.
+     */
+    public static class AccountExpenseFilterBuilder extends CostFilterBuilder<AccountExpenseFilterBuilder,
+        AccountExpensesFilter> {
+        private Set<Long> accountIds;
+
+        private AccountExpenseFilterBuilder(@Nonnull TimeFrame timeFrame) {
+            this.timeFrame = timeFrame;
+        }
+
+        /**
+         * Factory method.
+         * @param timeFrame  the time frame that we are making this query for.
+         * @return a new instance of builder class.
+         */
+        @Nonnull
+        public static AccountExpenseFilterBuilder newBuilder(@Nonnull TimeFrame timeFrame) {
+            return new AccountExpenseFilterBuilder(timeFrame);
+        }
+
+        /**
+         * Sets the account ids to include in the cost.
+         *
+         * @param accountIds the account ids to include in the cost.
+         * @return the builder.
+         */
+        @Nonnull
+        public AccountExpenseFilterBuilder accountIds(@Nonnull Collection<Long> accountIds) {
+            this.accountIds = new HashSet<>(accountIds);
+            return this;
+        }
+
+        @Nonnull
+        @Override
+        public AccountExpensesFilter build() {
+            return new AccountExpensesFilter(entityIds, entityTypeFilters, startDateMillis,
+                endDateMillis, timeFrame, accountIds, latestTimeStampRequested);
         }
     }
 }

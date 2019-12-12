@@ -822,9 +822,21 @@ message GetCloudCostStatsRequest {
     // A property names to aggregate stats over, as in an SQL 'group by' clause.
     optional GroupByType group_by = 6;
 
+    // Filter associated cost based on its source, return cost from all sources if empty.
+    optional CostSourceFilter cost_source_filter = 8;
+
     enum GroupByType {
         // Cloud Cost Component
         COSTCOMPONENT = 1;
+    }
+
+    // The filter used for filtering cost items in a cost query.
+    message CostSourceFilter {
+        // If true the cost sources specified will be excluded. If false, only the cost items that are
+        // in cost sources will be returned.
+        optional bool exclusion_filter = 1 [default = false];
+        // The cost source types that will be used for filtering based on the exclusion filter.
+        repeated CostSource cost_sources = 2;
     }
 }
 

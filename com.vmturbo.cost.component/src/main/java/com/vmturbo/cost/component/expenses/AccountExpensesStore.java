@@ -3,7 +3,6 @@ package com.vmturbo.cost.component.expenses;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -39,28 +38,6 @@ public interface AccountExpensesStore {
      */
     @Nonnull
     List<Cost.AccountExpenses> getAllAccountExpenses() throws DbException;
-
-    /**
-     * Get account expenses by associated account id.
-     *
-     * @param queryScope Describes which accounts to return expenses for.
-     * @return Collection of account expenses match the associated account id
-     * @throws DbException if anything goes wrong in the database
-     */
-    @Nonnull
-    Collection<AccountExpenses> getCurrentAccountExpenses(AccountExpenseQueryScope queryScope) throws DbException;
-
-    /**
-     * Get the most recent expenses per account.
-     * Each account may have a different timestamp as its latest timestamp.
-     * It returns Map with entry (timestamp -> (associatedAccountId -> AccountExpenses)).
-     * In a timestamp/snapshot, the account expenses with same ids will be combined to one account expense.
-     * @param conditions a list of conditions to search by
-     * @return Map with entry (timestamp -> (associatedAccountId -> AccountExpenses))
-     * @throws DbException if anything goes wrong in the database
-     */
-    Map<Long, Map<Long, Cost.AccountExpenses>> getLatestAccountExpensesWithConditions(List<Condition> conditions)
-            throws DbException;
 
     /**
      * Delete account expense by associated account id.

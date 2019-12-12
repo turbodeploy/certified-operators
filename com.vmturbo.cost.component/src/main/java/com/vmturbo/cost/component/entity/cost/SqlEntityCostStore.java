@@ -12,21 +12,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.BatchBindStep;
-import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Record;
 import org.jooq.Record6;
-import org.jooq.Record7;
 import org.jooq.Result;
+import org.jooq.SelectConditionStep;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
@@ -199,31 +196,6 @@ public class SqlEntityCostStore implements EntityCostStore {
                         && entityCost.getComponentCostList().stream().allMatch(ComponentCost::hasAmount));
     }
 
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Map<Long, Map<Long, EntityCost>> getEntityCosts(@Nonnull final LocalDateTime startDate,
-                                                           @Nonnull final LocalDateTime endDate) throws DbException {
-        try {
-            final Result<Record7<Long, LocalDateTime, Integer, Integer, Integer, Integer, BigDecimal>> records = dsl
-                    .select(ENTITY_COST.ASSOCIATED_ENTITY_ID,
-                            ENTITY_COST.CREATED_TIME,
-                            ENTITY_COST.ASSOCIATED_ENTITY_TYPE,
-                            ENTITY_COST.COST_TYPE,
-                            ENTITY_COST.COST_SOURCE,
-                            ENTITY_COST.CURRENCY,
-                            ENTITY_COST.AMOUNT)
-                    .from(ENTITY_COST)
-                    .where(ENTITY_COST.CREATED_TIME.between(startDate, endDate))
-                    .fetch();
-            return constructEntityCostMap(records);
-        } catch (DataAccessException e) {
-            throw new DbException("Failed to get entity costs from DB" + e.getMessage());
-        }
-    }
-
     @Override
     public Map<Long, Map<Long, EntityCost>> getEntityCosts(@Nonnull final CostFilter entityCostFilter) throws DbException {
         try {
@@ -239,11 +211,22 @@ public class SqlEntityCostStore implements EntityCostStore {
             if (entityCostFilter.getTable().equals(ENTITY_COST)) {
                 modifiableList.add(costSource);
             }
-            final Result<? extends Record> records = dsl
-                    .select(modifiableList)
-                    .from(entityCostFilter.getTable())
-                    .where(entityCostFilter.getConditions())
-                    .fetch();
+
+            SelectConditionStep<Record> selectCondition = dsl
+                .select(modifiableList)
+                .from(entityCostFilter.getTable())
+                .where(entityCostFilter.getConditions());
+
+            // If latest timestamp is requested only return the info related to latest timestamp
+            if (entityCostFilter.isLatestTimeStampRequested()) {
+                selectCondition =
+                    selectCondition.and(ENTITY_COST.CREATED_TIME.eq(
+                        dsl.select(DSL.max(ENTITY_COST.CREATED_TIME))
+                    .from(ENTITY_COST)
+                    .where(entityCostFilter.getConditions())));
+            }
+
+            final Result<? extends Record> records = selectCondition.fetch();
             return constructEntityCostMap(records);
         } catch (DataAccessException e) {
             throw new DbException("Failed to get entity costs from DB" + e.getMessage());
@@ -272,105 +255,6 @@ public class SqlEntityCostStore implements EntityCostStore {
                                     .build());
         });
         return records;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Map<Long, Map<Long, EntityCost>> getEntityCosts(@Nonnull final Set<Long> entityIds,
-                                                           @Nonnull final LocalDateTime startDate,
-                                                           @Nonnull final LocalDateTime endDate) throws DbException {
-        try {
-            final Result<Record7<Long, LocalDateTime, Integer, Integer, Integer, Integer, BigDecimal>> records = dsl
-                    .select(ENTITY_COST.ASSOCIATED_ENTITY_ID,
-                            ENTITY_COST.CREATED_TIME,
-                            ENTITY_COST.ASSOCIATED_ENTITY_TYPE,
-                            ENTITY_COST.COST_TYPE,
-                            ENTITY_COST.COST_SOURCE,
-                            ENTITY_COST.CURRENCY,
-                            ENTITY_COST.AMOUNT)
-                    .from(ENTITY_COST)
-                    .where(ENTITY_COST.CREATED_TIME.between(startDate, endDate))
-                    .and(ENTITY_COST.ASSOCIATED_ENTITY_ID.in(entityIds))
-                    .fetch();
-            return constructEntityCostMap(records);
-        } catch (DataAccessException e) {
-            throw new DbException("Failed to get entity costs from DB" + e.getMessage());
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Map<Long, Map<Long, EntityCost>> getLatestEntityCost(@Nonnull final Set<Long> entityIds,
-                                                                @Nonnull final Set<Integer> entityTypeIds) throws DbException {
-        try {
-            final List<Condition> conditions = new ArrayList<>();
-            if (!entityTypeIds.isEmpty()) {
-                conditions.add(ENTITY_COST.field(ENTITY_COST.ASSOCIATED_ENTITY_TYPE.getName()).in(entityTypeIds));
-            }
-
-            if (!entityIds.isEmpty()) {
-                conditions.add(ENTITY_COST.field(ENTITY_COST.ASSOCIATED_ENTITY_ID.getName()).in(entityIds));
-            }
-
-            final Result<Record7<Long, LocalDateTime, Integer, Integer, Integer, Integer, BigDecimal>> records = dsl
-                    .select(ENTITY_COST.ASSOCIATED_ENTITY_ID,
-                            ENTITY_COST.CREATED_TIME,
-                            ENTITY_COST.ASSOCIATED_ENTITY_TYPE,
-                            ENTITY_COST.COST_TYPE,
-                            ENTITY_COST.COST_SOURCE,
-                            ENTITY_COST.CURRENCY,
-                            ENTITY_COST.AMOUNT)
-                    .from(ENTITY_COST)
-                    .where(conditions.toArray(new Condition[conditions.size()]))
-                    .and(ENTITY_COST.CREATED_TIME.eq(dsl.select(ENTITY_COST.CREATED_TIME
-                            .max())
-                            .from(ENTITY_COST)
-                            .where(conditions.toArray(new Condition[conditions.size()]))))
-
-                    .fetch();
-            return constructEntityCostMap(records);
-        } catch (DataAccessException e) {
-            throw new DbException("Failed to get entity costs from DB" + e.getMessage());
-        }
-    }
-
-    @Override
-    public Map<Long, EntityCost> getLatestEntityCost(@Nonnull final Long entityId,
-                                                     @Nonnull final CostCategory category,
-                                                     @Nonnull final Set<CostSource> costSources) throws DbException {
-        try {
-            Set<Integer> numericCostSources = costSources.stream().map(s -> s.getNumber()).collect(Collectors.toSet());
-            Map<Long, EntityCost> entityCostById = new HashMap<>();
-            final List<Condition> conditions = new ArrayList<>();
-            conditions.add(ENTITY_COST.COST_SOURCE.in(numericCostSources));
-            conditions.add(ENTITY_COST.COST_TYPE.eq(category.getNumber()));
-            final Result<Record7<Long, LocalDateTime, Integer, Integer, Integer, Integer, BigDecimal>> records = dsl
-                    .select(ENTITY_COST.ASSOCIATED_ENTITY_ID,
-                            ENTITY_COST.CREATED_TIME,
-                            ENTITY_COST.ASSOCIATED_ENTITY_TYPE,
-                            ENTITY_COST.COST_TYPE,
-                            ENTITY_COST.COST_SOURCE,
-                            ENTITY_COST.CURRENCY,
-                            ENTITY_COST.AMOUNT)
-                    .from(ENTITY_COST)
-                    .where(conditions.toArray(new Condition[conditions.size()]))
-                    .and(ENTITY_COST.ASSOCIATED_ENTITY_ID.eq(entityId))
-                    .and(ENTITY_COST.CREATED_TIME.eq(dsl.select(ENTITY_COST.CREATED_TIME.max())
-                            .from(ENTITY_COST)))
-                            .fetch();
-            records.forEach(entityRecord -> {
-                Long entityOid = entityRecord.value1();
-                EntityCost cost = toEntityCostDTO(new RecordWrapper(entityRecord));
-                entityCostById.put(entityOid, cost);
-                    });
-            return entityCostById;
-        } catch (DataAccessException e) {
-            throw new DbException("Failed to get entity costs from DB" + e.getMessage());
-        }
     }
 
     /**
