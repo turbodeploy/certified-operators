@@ -1629,7 +1629,8 @@ public class ActionSpecMapper {
             // set coupon capacity
             latestCoverageStatDTO.setCapacity(latestCoverageCapacityDTO);
             // set coupon usage
-            latestCoverageStatDTO.setValue((float)latestCoverage.getCouponsCoveredByRiCount());
+            latestCoverageStatDTO.setValue((float)latestCoverage.getCouponsCoveredByRiMap().values()
+                    .stream().mapToDouble(Double::doubleValue).sum());
             cloudResizeActionDetailsApiDTO.setRiCoverageBefore(latestCoverageStatDTO);
         } else {
             logger.debug("Failed to retrieve current RI coverage for entity with ID: {}", entityUuid);
@@ -1661,7 +1662,8 @@ public class ActionSpecMapper {
             // set coupon capacity
             projectedCoverageStatDTO.setCapacity(projectedCoverageCapacityDTO);
             // set coupon usage
-            projectedCoverageStatDTO.setValue((float)projectedRiCoverage.getCouponsCoveredByRiCount());
+            projectedCoverageStatDTO.setValue((float)projectedRiCoverage.getCouponsCoveredByRiMap()
+                    .values().stream().mapToDouble(Double::doubleValue).sum());
             cloudResizeActionDetailsApiDTO.setRiCoverageAfter(projectedCoverageStatDTO);
         } else {
             logger.debug("Failed to retrieve projected RI coverage for entity with ID: {}", entityUuid);
