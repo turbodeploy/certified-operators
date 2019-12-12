@@ -16,6 +16,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
+
 import org.junit.Before;
 import org.junit.Test;
 
@@ -30,6 +32,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
@@ -77,11 +80,22 @@ public class WastedFilesAnalysisTest {
         return TopologyEntityDTO.newBuilder()
             .setOid(oid)
             .setEntityType(entityType.getNumber())
-            .setEnvironmentType(EnvironmentType.ON_PREM);
+            .setEnvironmentType(EnvironmentType.ON_PREM)
+            .setAnalysisSettings(AnalysisSettings.newBuilder()
+                .setDeletable(true)
+                .build());
     }
 
-    private TopologyEntityDTO.Builder createCloudEntity(long oid, EntityType entityType,
-                                                        AttachmentState attachmentState) {
+    private TopologyEntityDTO.Builder createCloudEntity(final long oid,
+                                                        @Nonnull final EntityType entityType,
+                                                        @Nonnull final AttachmentState attachmentState) {
+        return this.createCloudEntity(oid, entityType, attachmentState, true);
+    }
+
+    private TopologyEntityDTO.Builder createCloudEntity(final long oid,
+                                                        @Nonnull final EntityType entityType,
+                                                        @Nonnull final AttachmentState attachmentState,
+                                                        final boolean deletable) {
         if (entityType == EntityType.VIRTUAL_VOLUME) {
             return TopologyEntityDTO.newBuilder()
                 .setOid(oid)
@@ -91,7 +105,10 @@ public class WastedFilesAnalysisTest {
                 .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setVirtualVolume(VirtualVolumeInfo.newBuilder()
                     .setStorageAccessCapacity(10f)
                     .setStorageAmountCapacity(20f)
-                    .setAttachmentState(attachmentState).build()).build());
+                    .setAttachmentState(attachmentState).build()).build())
+                .setAnalysisSettings(AnalysisSettings.newBuilder()
+                    .setDeletable(deletable)
+                    .build());
         } else {
             return TopologyEntityDTO.newBuilder()
                 .setOid(oid)
@@ -159,7 +176,7 @@ public class WastedFilesAnalysisTest {
             .build();
     }
 
-    private Map<Long, TopologyEntityDTO> createTestCloudTopology() {
+    private Map<Long, TopologyEntityDTO> createTestCloudTopology(final boolean includeNondeletable) {
         final long vmOid = 1L;
         final long wastedFileVolume1Oid = 2L;
         final long wastedFileVolume2Oid = 3L;
@@ -170,7 +187,7 @@ public class WastedFilesAnalysisTest {
         final TopologyEntityDTO.Builder wastedFileVolume1 = createCloudEntity(wastedFileVolume1Oid,
             EntityType.VIRTUAL_VOLUME, AttachmentState.UNATTACHED);
         final TopologyEntityDTO.Builder wastedFileVolume2 = createCloudEntity(wastedFileVolume2Oid,
-            EntityType.VIRTUAL_VOLUME, AttachmentState.UNATTACHED);
+            EntityType.VIRTUAL_VOLUME, AttachmentState.UNATTACHED, !includeNondeletable);
         final TopologyEntityDTO.Builder connectedVolume = createCloudEntity(connectedVolumeOid,
             EntityType.VIRTUAL_VOLUME, AttachmentState.ATTACHED);
         final TopologyEntityDTO.Builder unConnectedVolumeInUse = createCloudEntity(unConnectedVolumeInUseOid,
@@ -251,7 +268,7 @@ public class WastedFilesAnalysisTest {
         final CloudTopology<TopologyEntityDTO> originalCloudTopology = mock(CloudTopology.class);
         when(cloudCostCalculatorFactory.newCalculator(topologyInfo, originalCloudTopology)).thenReturn(cloudCostCalculator);
 
-        Map<Long, TopologyEntityDTO> cloudTopology = createTestCloudTopology();
+        Map<Long, TopologyEntityDTO> cloudTopology = createTestCloudTopology(false);
         final WastedFilesAnalysis analysis = new WastedFilesAnalysis(topologyInfo,
             cloudTopology, mockClock, cloudCostCalculator, originalCloudTopology);
 
@@ -280,6 +297,79 @@ public class WastedFilesAnalysisTest {
 
         assertEquals("Ensure Action has the storage tier oid as the source target",
             ImmutableSet.of(6L, 6L),
+            analysis.getActions().stream()
+                .map(Action::getInfo)
+                .map(ActionInfo::getDelete)
+                .map(Delete::getSource)
+                .map(ActionEntity::getId)
+                .collect(Collectors.toSet()));
+
+        Map<Long, Double> costMap = ImmutableMap.<Long, Double>builder()
+            .put(2L, 20d)
+            .put(3L, 30d)
+            .put(4L, 40d)
+            .put(5L, 50d)
+            .build();
+        analysis.getActions().forEach(action ->
+            assertEquals("Ensure action has the right savings",
+                costMap.get(action.getInfo().getDelete().getTarget().getId()),
+                Double.valueOf(action.getSavingsPerHour().getAmount()))
+        );
+
+        // make sure storage tier is the target of each action
+        analysis.getActions().forEach(action -> {
+            assertEquals("Each file path are empty", "", action.getInfo().getDelete().getFilePath());
+
+            ActionEntity target = action.getInfo().getDelete().getTarget();
+            assertEquals(EntityType.VIRTUAL_VOLUME_VALUE, target.getType());
+            assertEquals(EnvironmentType.CLOUD, target.getEnvironmentType());
+
+            ActionEntity source = action.getInfo().getDelete().getSource();
+            assertEquals(EntityType.STORAGE_TIER_VALUE, source.getType());
+            assertEquals(6L, source.getId());
+        });
+    }
+
+    /**
+     * Test Cloud WastedFileAnalysis when there are unattached entity set to be non-deletable.
+     */
+    @Test
+    public void testCloudWastedFilesAnalysisWithEntitySetToNonDeletable() {
+        final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
+
+        final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
+        final CloudTopology<TopologyEntityDTO> originalCloudTopology = mock(CloudTopology.class);
+        when(cloudCostCalculatorFactory.newCalculator(topologyInfo, originalCloudTopology)).thenReturn(cloudCostCalculator);
+
+        Map<Long, TopologyEntityDTO> cloudTopology = createTestCloudTopology(true);
+        final WastedFilesAnalysis analysis = new WastedFilesAnalysis(topologyInfo,
+            cloudTopology, mockClock, cloudCostCalculator, originalCloudTopology);
+
+
+        cloudTopology.values().stream().filter(dto -> dto.getEntityType() == EntityType.VIRTUAL_VOLUME.getNumber())
+            .forEach(dto -> {
+                CostJournal<TopologyEntityDTO> costJournal = mock(CostJournal.class);
+                when(costJournal.getTotalHourlyCost()).thenReturn(trax(10d * dto.getOid()));
+                when(cloudCostCalculator.calculateCostForEntity(any(), eq(dto))).thenReturn(Optional.of(costJournal));
+            });
+
+        assertTrue(analysis.execute());
+        assertFalse(analysis.execute());
+        assertEquals(AnalysisState.SUCCEEDED, analysis.getState());
+
+        assertEquals("There should be one actions for cloud wasted storage", 1, analysis.getActions().size());
+
+        assertEquals("Ensure Action has the virtual volume oid as the delete target",
+            ImmutableSet.of(2L),
+            analysis.getActions().stream()
+                .map(Action::getInfo)
+                .map(ActionInfo::getDelete)
+                .map(Delete::getTarget)
+                .map(ActionEntity::getId)
+                .collect(Collectors.toSet()));
+
+        assertEquals("Ensure Action has the storage tier oid as the source target",
+            ImmutableSet.of(6L),
             analysis.getActions().stream()
                 .map(Action::getInfo)
                 .map(ActionInfo::getDelete)

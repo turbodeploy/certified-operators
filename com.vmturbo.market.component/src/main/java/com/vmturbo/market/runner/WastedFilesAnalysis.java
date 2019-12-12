@@ -152,6 +152,9 @@ public class WastedFilesAnalysis {
                             && !storagesToIgnoreWastedFiles.contains(
                                 connEntity.getConnectedEntityId())
                         ))
+                    // only include those which are "deletable" from setting
+                    .filter(topoEntity -> topoEntity.hasAnalysisSettings() &&
+                                          topoEntity.getAnalysisSettings().getDeletable())
                     .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
                 // remove any VirtualVolumes that have VMs which are connectedTo them
                  topologyDTOs.values().stream()

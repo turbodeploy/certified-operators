@@ -573,6 +573,10 @@ message TopologyEntityDTO {
 
         // Whether a trader's provider should clone when the trader clones
         optional bool provider_must_clone = 9;
+
+        // Whether the Market can delete this entity. Default is true.
+        // If false, Market will not generate Delete Actions.
+        optional bool deletable = 10 [default = true];
     }
 
     optional Origin origin = 10;

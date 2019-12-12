@@ -102,6 +102,7 @@ public class EntitySettingsApplicator {
                 new ProvisionApplicator(),
                 new ResizeApplicator(),
                 new StorageMoveApplicator(),
+                new DeleteApplicator(),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.IoThroughput,
                         CommodityType.IO_THROUGHPUT),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.NetThroughput,
@@ -404,6 +405,23 @@ public class EntitySettingsApplicator {
             // otherwise keep the original value which could be set during converting SDK entityDTO.
             if (setting.getEnumSettingValue().getValue().equals("DISABLED")) {
                 entity.getAnalysisSettingsBuilder().setSuspendable(false);
+            }
+        }
+    }
+
+    /**
+     * Applies the "delete" setting to a {@link TopologyEntityDTO.Builder}.
+     */
+    private static class DeleteApplicator extends SingleSettingApplicator {
+        private DeleteApplicator() {
+            super(EntitySettingSpecs.Delete);
+        }
+
+        @Override
+        protected void apply(@Nonnull final Builder entity,
+                             @Nonnull final Setting setting) {
+            if (ActionMode.DISABLED.name().equals(setting.getEnumSettingValue().getValue())) {
+                entity.getAnalysisSettingsBuilder().setDeletable(false);
             }
         }
     }

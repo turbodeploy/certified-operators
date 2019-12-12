@@ -65,6 +65,16 @@ public class EntitySettingsApplicatorTest {
         .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.RECOMMEND.name()))
         .build();
 
+    private static final Setting DELETE_MANUAL_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.Delete.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()))
+        .build();
+
+    private static final Setting DELETE_DISABLED_SETTING = Setting.newBuilder()
+        .setSettingSpecName(EntitySettingSpecs.Delete.getSettingName())
+        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
+        .build();
+
     private static final Setting RESIZE_DISABLED_SETTING = Setting.newBuilder()
                     .setSettingSpecName(EntitySettingSpecs.Resize.getSettingName())
                     .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
@@ -282,6 +292,50 @@ public class EntitySettingsApplicatorTest {
         applySettings(TOPOLOGY_INFO, vvEntity, vmEntity, applicator, MOVE_RECOMMEND_SETTING);
         assertThat(vmEntity.getCommoditiesBoughtFromProvidersList().size(), is(1));
         assertThat(vmEntity.getCommoditiesBoughtFromProviders(0).getMovable(), is(false));
+    }
+
+    /**
+     * Test Delete Applicator for manual setting.
+     */
+    @Test
+    public void testDeleteApplicatorForManualSetting() {
+        final long vvId = 123456L;
+        final long stId = 345678L;
+        final TopologyEntityDTO.Builder vmEntity = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(PARENT_ID)
+                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                .setVolumeId(stId)
+                .setMovable(false));
+        final TopologyEntityDTO.Builder vvEntity = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+            .setOid(vvId);
+        applySettings(TOPOLOGY_INFO, vvEntity, vmEntity, applicator, DELETE_MANUAL_SETTING);
+
+        assertThat(vvEntity.getAnalysisSettings().getDeletable(), is(true));
+    }
+
+    /**
+     * Test Delete Applicator for disabled setting.
+     */
+    @Test
+    public void testDeleteApplicatorForDisabledSetting() {
+        final long vvId = 123456L;
+        final long stId = 345678L;
+        final TopologyEntityDTO.Builder vmEntity = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(PARENT_ID)
+                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
+                .setVolumeId(stId)
+                .setMovable(false));
+        final TopologyEntityDTO.Builder vvEntity = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+            .setOid(vvId);
+        applySettings(TOPOLOGY_INFO, vvEntity, vmEntity, applicator, DELETE_DISABLED_SETTING);
+
+        assertThat(vvEntity.getAnalysisSettings().getDeletable(), is(false));
     }
 
     @Test
