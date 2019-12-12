@@ -813,12 +813,15 @@ public class SupplyChainFetcherFactory {
 
             repositoryApi.entitiesRequest(entities).getFullEntities()
                 .forEach(entity -> {
-                    if (limitedTypes && !entityTypes.contains(entity.getEntityType())) {
-                        return;
-                    }
+                    final UIEntityType firstEntityType =
+                        UIEntityType.fromType(entity.getEntityType());
+                    final boolean entityInScope =
+                        !limitedTypes || entityTypes.contains(firstEntityType.apiStr());
 
-                    entitiesMap.computeIfAbsent(UIEntityType.fromType(entity.getEntityType()),
-                        t -> new HashSet<>()).add(entity.getOid());
+                    if (entityInScope) {
+                        entitiesMap.computeIfAbsent(UIEntityType.fromType(entity.getEntityType()),
+                            t -> new HashSet<>()).add(entity.getOid());
+                    }
 
                     // initialize providers with the set of provider of
                     // entity commodities
@@ -839,7 +842,7 @@ public class SupplyChainFetcherFactory {
                     providers
                         .forEach(p -> {
                             // If the type is not part of requested entity continue
-                            if (limitedTypes && !entityTypes.contains(p.second)) {
+                            if (limitedTypes && !entityTypes.contains(p.second.apiStr())) {
                                 return;
                             }
 
@@ -853,7 +856,7 @@ public class SupplyChainFetcherFactory {
                             // we only care about connection of current entity to those
                             // entities are part that are part of the resource group
                             // or those that are region
-                            if ((entities.contains(p.first) || isRegion)) {
+                            if ((entities.contains(p.first) || isRegion) && entityInScope) {
                                 final UIEntityType consumerType =
                                     UIEntityType.fromType(entity.getEntityType());
                                 final UIEntityType providerType = p.second;

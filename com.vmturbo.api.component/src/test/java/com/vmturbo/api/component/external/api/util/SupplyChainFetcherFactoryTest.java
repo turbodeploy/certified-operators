@@ -758,6 +758,33 @@ public class SupplyChainFetcherFactoryTest {
     @Test
     public void testGetSupplyChainForResourceGroup() throws Exception {
         // ARRANGE
+        String rgOidStr = setUpForResourceGroupTest();
+
+
+        // ACT
+        SupplychainApiDTO result = supplyChainFetcherFactory.newApiDtoFetcher()
+            .addSeedUuids(Collections.singleton(rgOidStr))
+            .fetch();
+
+        // ASSERT
+        assertThat(result.getSeMap().size(), is(3));
+        assertThat(result.getSeMap().get(UIEntityType.VIRTUAL_MACHINE.apiStr()).getEntitiesCount(),
+            is(1));
+        assertThat(result.getSeMap().get(UIEntityType.VIRTUAL_MACHINE.apiStr()).getConnectedProviderTypes(),
+            containsInAnyOrder(UIEntityType.REGION.apiStr()));
+
+        assertThat(result.getSeMap().get(UIEntityType.APPLICATION.apiStr()).getEntitiesCount(),
+            is(1));
+        assertTrue(CollectionUtils.isEmpty(result.getSeMap()
+            .get(UIEntityType.APPLICATION.apiStr()).getConnectedProviderTypes()));
+
+        assertThat(result.getSeMap().get(UIEntityType.REGION.apiStr()).getEntitiesCount(),
+            is(1));
+        assertTrue(CollectionUtils.isEmpty(result.getSeMap()
+            .get(UIEntityType.REGION.apiStr()).getConnectedProviderTypes()));
+    }
+
+    private String setUpForResourceGroupTest() {
         final long rgOid = 63L;
         final long rgAppOid = 49L;
         final long rgVmOid = 64L;
@@ -823,28 +850,57 @@ public class SupplyChainFetcherFactoryTest {
         when(repositoryApiBackend.entitiesRequest(any())).thenReturn(multiEntityRequest);
         when(multiEntityRequest.getFullEntities()).thenReturn(Stream.of(vmEntity, appEntity));
 
+        return rgOidStr;
+    }
+
+
+    /**
+     * Test the case where we get the supply chain for resource group with virtual machine type.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testGetSupplyChainForResourceGroupForVirtualMachineType() throws Exception {
+        // ARRANGE
+        String rgOidStr = setUpForResourceGroupTest();
 
         // ACT
         SupplychainApiDTO result = supplyChainFetcherFactory.newApiDtoFetcher()
             .addSeedUuids(Collections.singleton(rgOidStr))
+            .entityTypes(Collections.singletonList(UIEntityType.VIRTUAL_MACHINE.apiStr()))
             .fetch();
 
         // ASSERT
-        assertThat(result.getSeMap().size(), is(3));
+        assertThat(result.getSeMap().size(), is(1));
         assertThat(result.getSeMap().get(UIEntityType.VIRTUAL_MACHINE.apiStr()).getEntitiesCount(),
             is(1));
-        assertThat(result.getSeMap().get(UIEntityType.VIRTUAL_MACHINE.apiStr()).getConnectedProviderTypes(),
-            containsInAnyOrder(UIEntityType.REGION.apiStr()));
+        assertTrue(result.getSeMap().get(UIEntityType.VIRTUAL_MACHINE.apiStr())
+            .getConnectedProviderTypes().isEmpty());
+    }
 
-        assertThat(result.getSeMap().get(UIEntityType.APPLICATION.apiStr()).getEntitiesCount(),
-            is(1));
-        assertTrue(CollectionUtils.isEmpty(result.getSeMap()
-            .get(UIEntityType.APPLICATION.apiStr()).getConnectedProviderTypes()));
+    /**
+     * Test the case where we get the supply chain for resource group with region type.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testGetSupplyChainForResourceGroupForRegionType() throws Exception {
+        // ARRANGE
+        String rgOidStr = setUpForResourceGroupTest();
 
+
+        // ACT
+        SupplychainApiDTO result = supplyChainFetcherFactory.newApiDtoFetcher()
+            .addSeedUuids(Collections.singleton(rgOidStr))
+            .entityTypes(Collections.singletonList(UIEntityType.REGION.apiStr()))
+            .fetch();
+
+        // ASSERT
+        assertThat(result.getSeMap().size(), is(1));
         assertThat(result.getSeMap().get(UIEntityType.REGION.apiStr()).getEntitiesCount(),
             is(1));
-        assertTrue(CollectionUtils.isEmpty(result.getSeMap()
-            .get(UIEntityType.REGION.apiStr()).getConnectedProviderTypes()));
+        assertTrue(result.getSeMap().get(UIEntityType.REGION.apiStr())
+            .getConnectedProviderTypes().isEmpty());
     }
 
     private int getSeveritySize(@Nonnull final SupplychainApiDTO src, @Nonnull String objType,
