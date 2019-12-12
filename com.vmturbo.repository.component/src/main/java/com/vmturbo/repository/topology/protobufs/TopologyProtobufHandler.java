@@ -10,6 +10,7 @@ import com.arangodb.entity.BaseDocument;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.arangodb.ArangoError;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 
 /**
@@ -65,7 +66,18 @@ public abstract class TopologyProtobufHandler {
     private synchronized ArangoDatabase database() {
         if (!arangoFactory.getArangoDriver().getDatabases().contains(RAW_TOPOLOGIES_DATABASE_NAME)) {
             logger.info("Creating database {}", RAW_TOPOLOGIES_DATABASE_NAME);
-            arangoFactory.getArangoDriver().createDatabase(RAW_TOPOLOGIES_DATABASE_NAME);
+            try {
+                arangoFactory.getArangoDriver().createDatabase(RAW_TOPOLOGIES_DATABASE_NAME);
+            } catch (ArangoDBException adbe) {
+                // we will treat "duplicate name" errors as harmless -- this means someone else may
+                // have already created our database.
+                if (adbe.getErrorNum() == ArangoError.ERROR_ARANGO_DUPLICATE_NAME) {
+                    logger.info("Database {} already created.", RAW_TOPOLOGIES_DATABASE_NAME);
+                } else {
+                    // we'll re-throw the other errors.
+                    throw adbe;
+                }
+            }
         }
         return arangoFactory.getArangoDriver().db(RAW_TOPOLOGIES_DATABASE_NAME);
     }
