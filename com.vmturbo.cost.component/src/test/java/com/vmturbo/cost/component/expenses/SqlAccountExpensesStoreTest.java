@@ -4,6 +4,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -18,6 +19,7 @@ import java.util.stream.Collectors;
 import org.flywaydb.core.Flyway;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -115,6 +117,15 @@ public class SqlAccountExpensesStoreTest {
     }
 
 
+    /**
+     * Get the latest account expenses from {@link SqlAccountExpensesStore}.
+     * @throws AccountExpenseNotFoundException if the account expense with associated account id
+     * doesn't exist
+     * @throws DbException if anything goes wrong in the database
+     * @throws InterruptedException if thread has been interrupted
+     */
+    //TODO: enable test as part of https://vmturbo.atlassian.net/browse/OM-53119
+    @Ignore
     @Test
     public void testGetLatestExpense() throws AccountExpenseNotFoundException, DbException, InterruptedException {
         expensesStore.persistAccountExpenses(ACCOUNT_ID_1, accountExpensesInfo1);
@@ -127,13 +138,13 @@ public class SqlAccountExpensesStoreTest {
                     .build()
                 );
         assertEquals(1, accountExpenses1.size());
-        assertEquals(1, accountExpenses1.values().size());
         // the expenses map should have one account ID to one set of account expenses (accountExpensesInfo2)
         assertEquals(ACCOUNT_ID_1, accountExpenses1.values().stream()
                 .findFirst()
                 .get()
                 .get(ACCOUNT_ID_1)
                 .getAssociatedAccountId());
+        assertEquals(2, accountExpenses1.get(ACCOUNT_ID_1));
         assertEquals(1, accountExpenses1.values().stream().findAny().get().values().size());
         assertThat(accountExpenses1.values().stream().findAny().get().values().stream()
                 .map(AccountExpenses::getAccountExpensesInfo)
@@ -369,5 +380,44 @@ public class SqlAccountExpensesStoreTest {
         expensesStore.deleteAccountExpensesByAssociatedAccountId(Long.MAX_VALUE);
     }
 
+    /**
+     * Test that duplicate records not being stored in account_expense DB. Instead the record being
+     * updated with the amount and currency values coming from the most recent record.
+     * @throws AccountExpenseNotFoundException if the account expense with associated account id
+     * doesn't exist
+     * @throws DbException if anything goes wrong in the database
+     * @throws InterruptedException if thread has been interrupted
+     */
+    //TODO: enable test as part of https://vmturbo.atlassian.net/browse/OM-53119
+    @Ignore
+    @Test
+    public void testPersistAccountExpensesDuplicateRecordsUpsert() throws InterruptedException,
+            DbException, AccountExpenseNotFoundException {
 
+        // accountExpensesInfo1 and accountExpensesInfo3 are related to the same cloud service, have
+        // the same expense date, but their cost amounts are different.
+        assertNotEquals(COST_AMOUNT_1, COST_AMOUNT_3);
+        expensesStore.persistAccountExpenses(ACCOUNT_ID_1, accountExpensesInfo1);
+        // accountExpensesInfo3 is persisted after accountExpensesInfo1
+        TimeUnit.SECONDS.sleep(2);
+        expensesStore.persistAccountExpenses(ACCOUNT_ID_1, accountExpensesInfo3);
+
+        List<AccountExpenses> allAccountExpenses = expensesStore.getAllAccountExpenses();
+        assertEquals(1, allAccountExpenses.size());
+
+        // The expected values are the values of the the record that was persisted later, that is
+        // the values of accountExpensesInfo3
+        CurrencyAmount cloudServiceExpensesInStore = allAccountExpenses.get(0)
+                .getAccountExpensesInfo().getServiceExpenses(0).getExpenses();
+        CurrencyAmount expectedCloudServiceExpenses = accountExpensesInfo3
+                .getServiceExpenses(0).getExpenses();
+
+        assertEquals(0, Double.compare(expectedCloudServiceExpenses.getAmount(),
+                cloudServiceExpensesInStore.getAmount()));
+        assertEquals(0, Double.compare(expectedCloudServiceExpenses.getCurrency(),
+                cloudServiceExpensesInStore.getCurrency()));
+
+        // cleanup
+        expensesStore.deleteAccountExpensesByAssociatedAccountId(ACCOUNT_ID_1);
+    }
 }

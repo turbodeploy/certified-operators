@@ -4,9 +4,7 @@ import static com.vmturbo.cost.component.db.tables.AccountExpenses.ACCOUNT_EXPEN
 
 import java.math.BigDecimal;
 import java.time.Clock;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.util.Date;
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,8 +55,14 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
 
     private final int chunkSize;
 
-    private final AtomicReference<LocalDateTime> inProgressBatchTime =
+    private final AtomicReference<LocalDate> inProgressBatchTime =
         new AtomicReference<>(null);
+
+    /*
+     * Default value for the aggregated column in the account_expense table. 0 means that a record
+     * not yet aggregated to the monthly rollup table.
+     */
+    private static final byte NOT_AGGREGATED = (byte)0;
 
     public SqlAccountExpensesStore(@Nonnull final DSLContext dsl,
                                    @Nonnull final Clock clock,
@@ -76,74 +80,89 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
                                        @Nonnull final AccountExpensesInfo accountExpensesInfo)
             throws DbException {
         Objects.requireNonNull(accountExpensesInfo);
-        final LocalDateTime curTime = LocalDateTime.now(clock);
-        inProgressBatchTime.set(curTime);
-        try {
-            // We chunk the transactions for speed, and to avoid overloading the DB buffers
-            // on large topologies. Ideally this should be one transaction.
-            //
-            // TODO (Sept 6 2018): Try to handle transaction failure (e.g. by deleting all
-            // committed data).
-            // persist service expenses
-            Lists.partition(accountExpensesInfo.getServiceExpensesList(), chunkSize).forEach(chunk -> {
-                dsl.transaction(transaction -> {
-                    final BatchBindStep batch = getBatchBindStep(curTime, transaction);
+        final LocalDate expenseDate = LocalDate.now(clock);
+        inProgressBatchTime.set(expenseDate);
+            try {
+                // We chunk the transactions for speed, and to avoid overloading the DB buffers
+                // on large topologies. Ideally this should be one transaction.
+                //
+                // TODO (Sept 6 2018): Try to handle transaction failure (e.g. by deleting all
+                // committed data).
+                // persist service expenses
+                Lists.partition(accountExpensesInfo.getServiceExpensesList(), chunkSize).forEach(chunk -> {
+                    dsl.transaction(transaction -> {
+                        final BatchBindStep batch = getBatchBindStep(expenseDate, transaction);
 
-                    // Bind values to the batch insert statement. Each "bind" should have values for
-                    // all fields set during batch initialization.
-                    chunk.forEach(expense ->
-                            batch.bind(curTime,
-                                    associatedAccountId,
-                                    expense.getAssociatedServiceId(), // Service id
-                                    EntityType.CLOUD_SERVICE_VALUE, // Cloud service
-                                    expense.getExpenses().getCurrency(),
-                                    BigDecimal.valueOf(expense.getExpenses().getAmount())));
-                    // Actually execute the batch insert.
-                    batch.execute();
+                        // Bind values to the batch insert statement. Each "bind" should have values for
+                        // all fields set during batch initialization.
+                        chunk.forEach(expense -> {
+                                    int currency = expense.getExpenses().getCurrency();
+                                    double amount = expense.getExpenses().getAmount();
+                                    batch.bind(expenseDate,
+                                            associatedAccountId,
+                                            expense.getAssociatedServiceId(), // Service id
+                                            EntityType.CLOUD_SERVICE_VALUE, // Cloud service
+                                            currency,
+                                            amount,
+                                            NOT_AGGREGATED,
+                                            currency,
+                                            amount,
+                                            NOT_AGGREGATED);
+                                });
+                        // Actually execute the batch insert.
+                        batch.execute();
+                    });
                 });
-            });
 
-            // persist tier expenses
-            Lists.partition(accountExpensesInfo.getTierExpensesList(), chunkSize).forEach(chunk -> {
-                dsl.transaction(transaction -> {
-                    final BatchBindStep batch = getBatchBindStep(curTime, transaction);
-                    chunk.forEach(expense ->
-                            batch.bind(curTime,
-                                    associatedAccountId,
-                                    expense.getAssociatedTierId(), // Tier id
-                                    EntityType.COMPUTE_TIER_VALUE, // computer tier
-                                    expense.getExpenses().getCurrency(),
-                                    BigDecimal.valueOf(expense.getExpenses().getAmount())));
-
-                    // Actually execute the batch insert.
-                    batch.execute();
+                // persist tier expenses
+                Lists.partition(accountExpensesInfo.getTierExpensesList(), chunkSize).forEach(chunk -> {
+                    dsl.transaction(transaction -> {
+                        final BatchBindStep batch = getBatchBindStep(expenseDate, transaction);
+                        chunk.forEach(expense -> {
+                                int currency = expense.getExpenses().getCurrency();
+                                double amount = expense.getExpenses().getAmount();
+                                batch.bind(expenseDate,
+                                        associatedAccountId,
+                                        expense.getAssociatedTierId(), // Tier id
+                                        EntityType.COMPUTE_TIER_VALUE, // computer tier
+                                        currency,
+                                        amount,
+                                        NOT_AGGREGATED,
+                                        currency,
+                                        amount,
+                                        NOT_AGGREGATED);
+                                });
+                        // Actually execute the batch insert.
+                        batch.execute();
+                    });
                 });
-            });
-        } catch (DataAccessException dataAccessException) {
-            throw new DbException(dataAccessException.getMessage());
-        } finally {
-            inProgressBatchTime.set(null);
-        }
+            } catch (DataAccessException dataAccessException) {
+                throw new DbException(dataAccessException.getMessage());
+            } finally {
+                inProgressBatchTime.set(null);
+            }
     }
 
     // build batch bind step
-    private BatchBindStep getBatchBindStep(@Nonnull final LocalDateTime curTime,
+    private BatchBindStep getBatchBindStep(@Nonnull final LocalDate expenseDate,
                                            @Nonnull final Configuration transaction) {
         final DSLContext transactionContext = DSL.using(transaction);
         return transactionContext.batch(
-                //have to provide dummy values for jooq
+                // have to provide dummy values for jooq
                 transactionContext.insertInto(ACCOUNT_EXPENSES)
-                        .set(ACCOUNT_EXPENSES.SNAPSHOT_TIME, curTime)
+                        .set(ACCOUNT_EXPENSES.EXPENSE_DATE, expenseDate)
                         .set(ACCOUNT_EXPENSES.ASSOCIATED_ACCOUNT_ID, 0L)
                         .set(ACCOUNT_EXPENSES.ASSOCIATED_ENTITY_ID, 0L)
                         .set(ACCOUNT_EXPENSES.ENTITY_TYPE, 0)
                         .set(ACCOUNT_EXPENSES.CURRENCY, 0)
-                        .set(ACCOUNT_EXPENSES.AMOUNT, BigDecimal.valueOf(0)));
+                        .set(ACCOUNT_EXPENSES.AMOUNT, BigDecimal.valueOf(0))
+                        .set(ACCOUNT_EXPENSES.AGGREGATED, Byte.valueOf((byte)0))
+                        .onDuplicateKeyUpdate()
+                            .set(ACCOUNT_EXPENSES.CURRENCY, 0)
+                            .set(ACCOUNT_EXPENSES.AMOUNT, BigDecimal.valueOf(0))
+                            .set(ACCOUNT_EXPENSES.AGGREGATED, Byte.valueOf((byte)0)));
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void deleteAccountExpensesByAssociatedAccountId(final long associatedAccountId)
             throws AccountExpenseNotFoundException, DbException {
@@ -167,8 +186,8 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
         try {
             final Field<Long> entityId = (Field<Long>)table
                     .field(ACCOUNT_EXPENSES.ASSOCIATED_ENTITY_ID.getName());
-            final Field<LocalDateTime> createdTime = (Field<LocalDateTime>)table
-                    .field(ACCOUNT_EXPENSES.SNAPSHOT_TIME.getName());
+            final Field<LocalDate> expenseDate = (Field<LocalDate>)table
+                    .field(ACCOUNT_EXPENSES.EXPENSE_DATE.getName());
             final Field<Long> accountId = (Field<Long>)table
                     .field(ACCOUNT_EXPENSES.ASSOCIATED_ACCOUNT_ID.getName());
             final Field<Integer> entityType = (Field<Integer>)table
@@ -178,28 +197,28 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
             final Field<BigDecimal> amount = (Field<BigDecimal>)table
                     .field(ACCOUNT_EXPENSES.AMOUNT.getName());
 
-            SelectSelectStep<Record6<Long, LocalDateTime, Long, Integer, Integer, BigDecimal>> select = dsl
-                .select(accountId, createdTime, entityId, entityType, currency, amount);
+            SelectSelectStep<Record6<Long, LocalDate, Long, Integer, Integer, BigDecimal>> select = dsl
+                .select(accountId, expenseDate, entityId, entityType, currency, amount);
 
-            SelectJoinStep<Record6<Long, LocalDateTime, Long, Integer, Integer, BigDecimal>> selectFrom;
+            SelectJoinStep<Record6<Long, LocalDate, Long, Integer, Integer, BigDecimal>> selectFrom;
 
-            // Since the information about different account can have different timestamp, we
-            // find the latest timestamp for each account and inner join it original select
+            // Since the information about different account can have different expense date, we
+            // find the latest expense date for each account and inner join it original select
             // results. That way, we get latest info for each account.
             if (filter.isLatestTimeStampRequested()) {
                 selectFrom =
                     select.from(table.innerJoin(dsl
                     .select(ACCOUNT_EXPENSES.ASSOCIATED_ACCOUNT_ID,
-                        DSL.max(ACCOUNT_EXPENSES.SNAPSHOT_TIME).as(ACCOUNT_EXPENSES.SNAPSHOT_TIME))
+                        DSL.max(ACCOUNT_EXPENSES.EXPENSE_DATE).as(ACCOUNT_EXPENSES.EXPENSE_DATE))
                     .from(table)
                     .groupBy(ACCOUNT_EXPENSES.ASSOCIATED_ACCOUNT_ID))
                     .using(ACCOUNT_EXPENSES.ASSOCIATED_ACCOUNT_ID,
-                        ACCOUNT_EXPENSES.SNAPSHOT_TIME));
+                        ACCOUNT_EXPENSES.EXPENSE_DATE));
             } else {
                 selectFrom = select.from(table);
             }
 
-            final Result<Record6<Long, LocalDateTime, Long, Integer, Integer, BigDecimal>> records =
+            final Result<Record6<Long, LocalDate, Long, Integer, Integer, BigDecimal>> records =
                 selectFrom.where(filter.getConditions()).fetch();
             return constructExpensesMap(records);
         } catch (DataAccessException e) {
@@ -221,21 +240,21 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
     }
 
     /**
-     * Construct Account expense map. Key is timestamp in long, Values are Map of AccountId -> AccountExpense
-     * It will first group the records by timestamp, and combine the account expense with same id.
+     * Construct Account expense map. Key is expense date in long, Values are Map of AccountId -> AccountExpense
+     * It will first group the records by expense date, and combine the account expense with same id.
      *
      * @param accountExpensesRecords account expense records in db
-     * @return Account expenses map, key is timestamp in long, values are Map of AccountId -> AccountExpense.
+     * @return Account expenses map, key is expense date in long, values are Map of AccountId -> AccountExpense.
      */
     private Map<Long, Map<Long, AccountExpenses>> constructExpensesMap(
-            @Nonnull final Result<Record6<Long, LocalDateTime, Long, Integer, Integer, BigDecimal>> accountExpensesRecords) {
+            @Nonnull final Result<Record6<Long, LocalDate, Long, Integer, Integer, BigDecimal>> accountExpensesRecords) {
         final Map<Long, Map<Long, Cost.AccountExpenses>> records = new HashMap<>();
         accountExpensesRecords.forEach(expense -> {
-            final Map<Long, AccountExpenses> costsForTimestamp = records
-                    .computeIfAbsent(TimeUtil.localDateTimeToMilli(expense.value2(), clock), k -> new HashMap<>());
+            final Map<Long, AccountExpenses> expensesForDate = records
+                    .computeIfAbsent(TimeUtil.localDateToMilli(expense.value2(), clock), k -> new HashMap<>());
             //TODO: optimize to avoid building newExpense
             final AccountExpenses newExpense = toDTO(new RecordWrapper(expense));
-            costsForTimestamp.compute(newExpense.getAssociatedAccountId(),
+            expensesForDate.compute(newExpense.getAssociatedAccountId(),
                     (id, existingExpense) -> existingExpense == null ?
                             newExpense :
                             existingExpense.toBuilder().setAccountExpensesInfo(existingExpense.getAccountExpensesInfo().toBuilder()
@@ -267,12 +286,15 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
                 .build();
         return Cost.AccountExpenses.newBuilder()
                 .setAssociatedAccountId(recordWrapper.gettAssociatedAccountId())
-                .setExpenseReceivedTimestamp(localDateTimeToDate(recordWrapper.getSnapshotTime()))
+                .setExpenseReceivedTimestamp(TimeUtil.localDateToMilli(recordWrapper.getExpenseDate(),
+                        clock))
                 .setAccountExpensesInfo(info)
                 .build();
     }
 
-    //Convert accountExpensesRecord DB record to AccountExpenses proto DTO
+    /**
+     * Convert accountExpensesRecord DB record to AccountExpenses proto DTO.
+     */
     private Cost.AccountExpenses toDTO(@Nonnull final AccountExpensesRecord accountExpensesRecord) {
         final boolean isCloudSerivce = EntityType.CLOUD_SERVICE_VALUE == accountExpensesRecord.getEntityType();
         final Builder accountExpensesInfoBuilder = AccountExpensesInfo.newBuilder();
@@ -294,27 +316,17 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
                 .build();
         return Cost.AccountExpenses.newBuilder()
                 .setAssociatedAccountId(accountExpensesRecord.getAssociatedAccountId())
-                .setExpenseReceivedTimestamp(localDateTimeToDate(accountExpensesRecord.getSnapshotTime()))
+                .setExpenseReceivedTimestamp(TimeUtil.localDateToMilli(accountExpensesRecord.getExpenseDate(),
+                        clock))
                 .setAccountExpensesInfo(info)
                 .build();
     }
 
     /**
-     * Convert local date time to long.
-     *
-     * @param startOfDay start of date with LocalDateTime type.
-     * @return date time in long type.
-     */
-    private long localDateTimeToDate(LocalDateTime startOfDay) {
-        return Date.from(startOfDay.atZone(ZoneId.systemDefault()).toInstant()).getTime();
-    }
-
-
-    /**
      * A wrapper class to wrap {@link Record6} class, to make it more readable
      */
     private class RecordWrapper {
-        final Record6<Long, LocalDateTime, Long, Integer, Integer, BigDecimal> record6;
+        final Record6<Long, LocalDate, Long, Integer, Integer, BigDecimal> record6;
 
         RecordWrapper(Record6 record6) {
             this.record6 = record6;
@@ -324,7 +336,7 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
             return record6.value1();
         }
 
-        LocalDateTime getSnapshotTime() {
+        LocalDate getExpenseDate() {
             return record6.value2();
         }
 

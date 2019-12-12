@@ -1,6 +1,7 @@
 package com.vmturbo.components.api;
 
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Date;
@@ -13,8 +14,10 @@ import javax.annotation.Nonnull;
 public class TimeUtil {
 
     /**
-     * Convert local date time to long.
+     * Convert {@link LocalDateTime} to long.
+     *
      * @param dateTime start of date with LocalDateTime type.
+     * @param clock a clock providing access to the current instant, date and time
      * @return date time in long type.
      */
     public static long localDateTimeToMilli(@Nonnull final LocalDateTime dateTime,
@@ -22,4 +25,15 @@ public class TimeUtil {
         return Date.from(dateTime.atZone(clock.getZone()).toInstant()).getTime();
     }
 
+    /**
+     * Convert {@link LocalDate} to long.
+     *
+     * @param date start of date with LocalDate type
+     * @param clock a clock providing access to the current instant, date and time
+     * @return date in long type
+     */
+    public static long localDateToMilli(@Nonnull final LocalDate date,
+                                            @Nonnull final Clock clock) {
+        return Date.from(date.atStartOfDay(clock.getZone()).toInstant()).getTime();
+    }
 }

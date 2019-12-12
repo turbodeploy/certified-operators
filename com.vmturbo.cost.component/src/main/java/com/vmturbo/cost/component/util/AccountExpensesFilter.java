@@ -18,6 +18,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.Table;
@@ -33,7 +35,9 @@ import com.vmturbo.cost.component.db.Tables;
  */
 public class AccountExpensesFilter extends CostFilter {
 
-    private static final String CREATED_TIME = ACCOUNT_EXPENSES.SNAPSHOT_TIME.getName();
+    private static final Logger logger = LogManager.getLogger();
+
+    private static final String EXPENSE_DATE = ACCOUNT_EXPENSES.EXPENSE_DATE.getName();
 
     private final Set<Long> accountIds;
     private final List<Condition> conditions;
@@ -46,7 +50,7 @@ public class AccountExpensesFilter extends CostFilter {
                           @Nullable final Set<Long> accountIds,
                           final boolean latestTimeStampRequested) {
         super(entityFilter, entityTypeFilter, startDateMillis, endDateMillis, timeFrame,
-            CREATED_TIME, latestTimeStampRequested);
+                EXPENSE_DATE, latestTimeStampRequested);
         this.accountIds = accountIds;
         this.conditions = generateConditions();
     }
@@ -102,14 +106,16 @@ public class AccountExpensesFilter extends CostFilter {
 
     @Override
     public Table<?> getTable() {
-        if (this.timeFrame == null || this.timeFrame.equals(TimeFrame.LATEST)) {
-            return Tables.ACCOUNT_EXPENSES;
-        } else if (this.timeFrame.equals(TimeFrame.HOUR)) {
-            return Tables.ACCOUNT_EXPENSES_BY_HOUR;
-        } else if (this.timeFrame.equals(TimeFrame.DAY)) {
-            return Tables.ACCOUNT_EXPENSES_BY_DAY;
-        } else {
-            return Tables.ACCOUNT_EXPENSES_BY_MONTH;
+        switch (this.timeFrame) {
+            case MONTH:
+                return Tables.ACCOUNT_EXPENSES_BY_MONTH;
+            case LATEST:
+            case DAY:
+                return Tables.ACCOUNT_EXPENSES;
+            default:
+                logger.error("Cannot get account expenses for Timeframe {} getting the daily " +
+                                "expenses", this.timeFrame.name());
+                return Tables.ACCOUNT_EXPENSES;
         }
     }
 
