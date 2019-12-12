@@ -7,11 +7,13 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import org.junit.Ignore;
@@ -25,6 +27,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
+import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
@@ -554,6 +557,28 @@ public class ActionDTOUtilTest {
         final Explanation explanation = Explanation.newBuilder()
             .setProvision(ProvisionExplanation.getDefaultInstance()).build();
         ActionDTOUtil.getChangeProviderExplanationList(explanation);
+    }
+
+    /**
+     * Test handling of Allocate action by {@code  ActionDTOUtil} methods.
+     * @throws UnsupportedActionException in case of unknown action type.
+     */
+    @Test
+    public void testAllocateAction() throws UnsupportedActionException {
+        final ActionEntity vm = createActionEntity(22, EntityType.VIRTUAL_MACHINE_VALUE);
+        final ActionEntity computeTier = createActionEntity(33, EntityType.COMPUTE_TIER_VALUE);
+        final ActionInfo actionInfo = ActionInfo.newBuilder()
+                .setAllocate(Allocate.newBuilder()
+                        .setTarget(vm)
+                        .setWorkloadTier(computeTier)
+                        .build())
+                .build();
+        final Action action = createAction(actionInfo);
+
+        assertSame(vm, ActionDTOUtil.getPrimaryEntity(action));
+        assertEquals(vm.getId(), ActionDTOUtil.getSeverityEntity(action));
+        final List<ActionEntity> involvedEntities = ActionDTOUtil.getInvolvedEntities(action);
+        assertEquals(ImmutableSet.of(vm, computeTier), new HashSet<>(involvedEntities));
     }
 
     private static ActionEntity createActionEntity(long id) {

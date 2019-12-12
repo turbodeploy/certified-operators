@@ -467,8 +467,8 @@ public class ActionModeCalculator {
             case SCALE:
                 // For now we use Move policy for SCALE actions
                 return Stream.of(EntitySettingSpecs.Move);
-            case RIREALLOCATION:
-                // RI Reallocation actions are not executable and are not configurable by the user
+            case ALLOCATE:
+                // Allocate actions are not executable and are not configurable by the user
                 return Stream.empty();
             case RECONFIGURE:
                 return Stream.of(EntitySettingSpecs.Reconfigure);

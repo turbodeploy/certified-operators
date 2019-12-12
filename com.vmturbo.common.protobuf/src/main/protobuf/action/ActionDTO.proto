@@ -23,7 +23,7 @@ message Explanation {
         DeleteExplanation delete = 7;
         BuyRIExplanation buyRI = 8;
         ScaleExplanation scale = 9;
-        RIReallocationExplanation riReallocation = 10;
+        AllocateExplanation allocate = 10;
     }
 
     // A list of explanations for move action.
@@ -214,7 +214,7 @@ message Explanation {
         optional float estimatedOnDemandCost = 3;
     }
 
-    message RIReallocationExplanation {
+    message AllocateExplanation {
         // TODO: Consider adding some details here, e.g. other scaling actions that freed up RI.
     }
 
@@ -397,7 +397,7 @@ message BuyRI {
 // Reserved instance reallocation action (aka Accounting action). These actions are generated
 // for VMs that are moved to reserved instances that became available because some other VMs were
 // moved to different templates.
-message RIReallocation {
+message Allocate {
     // Workload entity that benefits from RI reallocation.
     required ActionEntity target = 1;
 
@@ -421,7 +421,7 @@ message ActionInfo {
         Delete delete = 7;
         BuyRI buyRi = 8;
         Scale scale = 9;
-        RIReallocation riReallocation = 10;
+        Allocate allocate = 10;
     }
 }
 
@@ -646,7 +646,7 @@ enum ActionType {
     // Reserved instance reallocation action (aka Accounting action). These actions are generated
     // for VMs that are moved to reserved instances that became available because some other VMs were
     // moved to different templates.
-    RI_REALLOCATION = 12;
+    ALLOCATE = 12;
 }
 
 // The ActionState describes the current state of an action.

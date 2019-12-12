@@ -1,7 +1,5 @@
 package com.vmturbo.market.component.api;
 
-import java.util.Set;
-
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;

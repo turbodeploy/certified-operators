@@ -11,18 +11,18 @@ import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
+import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.RIReallocationExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.AllocateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
-import com.vmturbo.common.protobuf.action.ActionDTO.RIReallocation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 
 /**
- * This class translates Cloud Move actions to Scale and RI Reallocation actions.
+ * This class translates Cloud Move actions to Scale and Allocate actions.
  */
 public class CloudMoveBatchTranslator implements BatchTranslator {
 
@@ -55,7 +55,7 @@ public class CloudMoveBatchTranslator implements BatchTranslator {
     }
 
     /**
-     * Translates Cloud Move actions to Scale or RI Reallocation (aka Accounting) actions.
+     * Translates Cloud Move actions to Scale or Allocate (aka Accounting) actions.
      *
      * @param moveActions Original Move actions.
      * @param snapshot A snapshot of all the entities and settings involved in the actions.
@@ -74,8 +74,8 @@ public class CloudMoveBatchTranslator implements BatchTranslator {
     private <T extends ActionView> T translate(@Nonnull final T action) {
         final ActionDTO.Action originalAction = action.getRecommendation();
 
-        final ActionDTO.Action translatedAction = isRIReallocationAction(originalAction)
-                ? translateToRIReallocation(originalAction)
+        final ActionDTO.Action translatedAction = isAllocateAction(originalAction)
+                ? translateToAllocate(originalAction)
                 : translateToScale(originalAction);
         action.getActionTranslation().setTranslationSuccess(translatedAction);
 
@@ -100,25 +100,25 @@ public class CloudMoveBatchTranslator implements BatchTranslator {
                 .build();
     }
 
-    private ActionDTO.Action translateToRIReallocation(@Nonnull final ActionDTO.Action actionDto) {
+    private ActionDTO.Action translateToAllocate(@Nonnull final ActionDTO.Action actionDto) {
         final Move move = actionDto.getInfo().getMove();
 
-        final RIReallocation riReallocation = RIReallocation.newBuilder()
+        final Allocate allocate = Allocate.newBuilder()
                 .setTarget(move.getTarget())
                 .setWorkloadTier(ActionDTOUtil.getPrimaryChangeProvider(actionDto).getDestination())
                 .build();
 
-        final RIReallocationExplanation explanation = RIReallocationExplanation.newBuilder().build();
+        final AllocateExplanation explanation = AllocateExplanation.newBuilder().build();
 
         return actionDto.toBuilder()
                 .setExplanation(Explanation.newBuilder()
-                        .setRiReallocation(explanation).build())
+                        .setAllocate(explanation).build())
                 .setInfo(ActionInfo.newBuilder(actionDto.getInfo())
-                        .setRiReallocation(riReallocation).build())
+                        .setAllocate(allocate).build())
                 .build();
     }
 
-    private static boolean isRIReallocationAction(final ActionDTO.Action actionDto) {
+    private static boolean isAllocateAction(final ActionDTO.Action actionDto) {
         final ChangeProvider changeProvider = ActionDTOUtil.getPrimaryChangeProvider(actionDto);
         return changeProvider.hasSource() && changeProvider.hasDestination()
                 && changeProvider.getSource().getId() == changeProvider.getDestination().getId();

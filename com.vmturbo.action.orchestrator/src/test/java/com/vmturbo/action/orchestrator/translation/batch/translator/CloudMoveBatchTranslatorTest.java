@@ -22,6 +22,7 @@ import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
@@ -31,7 +32,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderEx
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
-import com.vmturbo.common.protobuf.action.ActionDTO.RIReallocation;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -274,10 +274,10 @@ public class CloudMoveBatchTranslatorTest {
     }
 
     /**
-     * Tests translation of Cloud Move action to RI Reallocation action.
+     * Tests translation of Cloud Move action to Allocate action.
      */
     @Test
-    public void testTranslateToRIReallocation() {
+    public void testTranslateToAllocate() {
         // Arrange
         final ActionEntity vm = ActionEntity.newBuilder()
                 .setId(1)
@@ -287,7 +287,7 @@ public class CloudMoveBatchTranslatorTest {
                 .setId(2)
                 .setType(EntityType.COMPUTE_TIER_VALUE)
                 .build();
-        final ActionDTO.Action riReallocationActionDto = ActionDTO.Action.newBuilder()
+        final ActionDTO.Action allocateActionDto = ActionDTO.Action.newBuilder()
                 .setId(1)
                 .setDeprecatedImportance(0)
                 .setInfo(ActionInfo.newBuilder()
@@ -301,11 +301,11 @@ public class CloudMoveBatchTranslatorTest {
                         .build())
                 .setExplanation(Explanation.getDefaultInstance())
                 .build();
-        final Action riReallocationAction = mock(Action.class);
-        when(riReallocationAction.getRecommendation()).thenReturn(riReallocationActionDto);
-        final ActionTranslation actionTranslation = new ActionTranslation(riReallocationActionDto);
-        when(riReallocationAction.getActionTranslation()).thenReturn(actionTranslation);
-        final List<Action> actionsToTranslate = ImmutableList.of(riReallocationAction);
+        final Action allocateAction = mock(Action.class);
+        when(allocateAction.getRecommendation()).thenReturn(allocateActionDto);
+        final ActionTranslation actionTranslation = new ActionTranslation(allocateActionDto);
+        when(allocateAction.getActionTranslation()).thenReturn(actionTranslation);
+        final List<Action> actionsToTranslate = ImmutableList.of(allocateAction);
         final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
 
         // Act
@@ -316,11 +316,11 @@ public class CloudMoveBatchTranslatorTest {
         assertEquals(1, translatedActions.size());
         assertEquals(TranslationStatus.TRANSLATION_SUCCEEDED, actionTranslation.getTranslationStatus());
         final ActionDTO.Action translatedAction = actionTranslation.getTranslationResultOrOriginal();
-        assertTrue(translatedAction.getInfo().hasRiReallocation());
-        final RIReallocation riReallocation = translatedAction.getInfo().getRiReallocation();
-        assertEquals(vm, riReallocation.getTarget());
-        assertEquals(computeTier, riReallocation.getWorkloadTier());
+        assertTrue(translatedAction.getInfo().hasAllocate());
+        final Allocate allocate = translatedAction.getInfo().getAllocate();
+        assertEquals(vm, allocate.getTarget());
+        assertEquals(computeTier, allocate.getWorkloadTier());
         final Explanation explanation = translatedAction.getExplanation();
-        assertTrue(explanation.hasRiReallocation());
+        assertTrue(explanation.hasAllocate());
     }
 }

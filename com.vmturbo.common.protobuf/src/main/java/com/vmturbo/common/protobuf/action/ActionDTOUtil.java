@@ -31,6 +31,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
@@ -165,22 +166,16 @@ public class ActionDTOUtil {
                     .map(cp -> cp.getSource().getId())
                     // Otherwise use the source ID of the first provider change
                     .orElse(changes.get(0).getSource().getId());
-            case RESIZE:
-                return actionInfo.getResize().getTarget().getId();
-            case ACTIVATE:
-                return actionInfo.getActivate().getTarget().getId();
-            case DEACTIVATE:
-                return actionInfo.getDeactivate().getTarget().getId();
-            case PROVISION:
-                // The entity to clone is the target of the action. The
-                // newly provisioned entity is the result of the clone.
-                return actionInfo.getProvision().getEntityToClone().getId();
-            case RECONFIGURE:
-                return actionInfo.getReconfigure().getTarget().getId();
-            case DELETE:
-                return actionInfo.getDelete().getTarget().getId();
             case BUYRI:
                 return actionInfo.getBuyRi().getRegion().getId();
+            case ALLOCATE:
+            case PROVISION:
+            case RESIZE:
+            case ACTIVATE:
+            case DEACTIVATE:
+            case RECONFIGURE:
+            case DELETE:
+                return getPrimaryEntityId(action);
             default:
                 throw new UnsupportedActionException(action);
         }
@@ -213,9 +208,13 @@ public class ActionDTOUtil {
                         : actionInfo.getMove().getTarget();
             case SCALE:
                 return actionInfo.getScale().getTarget();
+            case ALLOCATE:
+                return actionInfo.getAllocate().getTarget();
             case RECONFIGURE:
                 return actionInfo.getReconfigure().getTarget();
             case PROVISION:
+                // The entity to clone is the target of the action. The
+                // newly provisioned entity is the result of the clone.
                 return actionInfo.getProvision().getEntityToClone();
             case RESIZE:
                 return actionInfo.getResize().getTarget();
@@ -372,14 +371,14 @@ public class ActionDTOUtil {
                     retList.add(change.getDestination());
                 }
                 return retList;
+            case ALLOCATE:
+                final Allocate allocate = actionInfo.getAllocate();
+                return Arrays.asList(allocate.getTarget(), allocate.getWorkloadTier());
             case RESIZE:
-                return Collections.singletonList(actionInfo.getResize().getTarget());
             case ACTIVATE:
-                return Collections.singletonList(actionInfo.getActivate().getTarget());
             case DEACTIVATE:
-                return Collections.singletonList(actionInfo.getDeactivate().getTarget());
             case PROVISION:
-                return Collections.singletonList(actionInfo.getProvision().getEntityToClone());
+                return Collections.singletonList(getPrimaryEntity(action));
             case RECONFIGURE:
                 final ActionDTO.Reconfigure reconfigure = actionInfo.getReconfigure();
                 if (reconfigure.hasSource()) {
@@ -454,6 +453,8 @@ public class ActionDTOUtil {
                 return ActionType.MOVE;
             case SCALE:
                 return ActionType.SCALE;
+            case ALLOCATE:
+                return ActionType.ALLOCATE;
             case RECONFIGURE:
                 return ActionType.RECONFIGURE;
             case PROVISION:

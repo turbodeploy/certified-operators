@@ -39,8 +39,7 @@ public class ActionTypeMapper {
                 .put(ActionDTO.ActionType.START, ActionType.START)
                 .put(ActionDTO.ActionType.MOVE, ActionType.MOVE)
                 .put(ActionDTO.ActionType.SCALE, ActionType.SCALE)
-                // TODO: (OM-51317) Add RI_REALLOCATION type to API
-                .put(ActionDTO.ActionType.RI_REALLOCATION, ActionType.NONE)
+                .put(ActionDTO.ActionType.ALLOCATE, ActionType.ALLOCATE)
                 .put(ActionDTO.ActionType.SUSPEND, ActionType.SUSPEND)
                 .put(ActionDTO.ActionType.PROVISION, ActionType.PROVISION)
                 .put(ActionDTO.ActionType.RECONFIGURE, ActionType.RECONFIGURE)
