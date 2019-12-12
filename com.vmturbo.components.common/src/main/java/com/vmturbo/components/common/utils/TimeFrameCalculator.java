@@ -33,8 +33,13 @@ public class TimeFrameCalculator {
      */
     @Nonnull
     public TimeFrame millis2TimeFrame(final long millis) {
-        final Duration timeBack = Duration.between(Instant.ofEpochMilli(millis), clock.instant());
 
+        // no start date was mentioned - use latest
+        if (millis == 0) {
+            return TimeFrame.LATEST;
+        }
+
+        final Duration timeBack = Duration.between(Instant.ofEpochMilli(millis), clock.instant());
         final RetentionPeriods retentionPeriods = retentionPeriodFetcher.getRetentionPeriods();
 
         if (timeBack.toMinutes() <= retentionPeriods.latestRetentionMinutes()) {
@@ -53,9 +58,25 @@ public class TimeFrameCalculator {
     }
 
     public enum TimeFrame {
-        LATEST,
-        HOUR,
-        DAY,
-        MONTH,
+        LATEST("$/h", 1),
+        HOUR("$/h", 1),
+        DAY("$/day", 24),
+        MONTH("$/mo", 730);
+
+        private final String units;
+        private final double multiplier;
+
+        TimeFrame(String units, double multiplier) {
+            this.units = units;
+            this.multiplier = multiplier;
+        }
+
+        public String getUnits() {
+            return this.units;
+        }
+
+        public double getMultiplier() {
+            return this.multiplier;
+        }
     }
 }

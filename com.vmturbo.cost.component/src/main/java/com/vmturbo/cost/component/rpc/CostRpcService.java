@@ -22,6 +22,7 @@ import java.util.TimeZone;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -30,6 +31,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -405,6 +407,8 @@ public class CostRpcService extends CostServiceImplBase {
                                           StreamObserver<GetCloudCostStatsResponse> responseObserver) {
         if (request.hasGroupBy()) {
             try {
+                final TimeFrame timeFrame = timeFrameCalculator.millis2TimeFrame(request.getStartDate());
+
                 final AccountExpenseFilterBuilder filterBuilder =
                     createAccountExpenseFilter(request);
                 final CostFilter accountCostFilter = filterBuilder.build();
@@ -467,7 +471,7 @@ public class CostRpcService extends CostServiceImplBase {
                         }
                     });
 
-                    snapshotBuilder.addAllStatRecords(aggregateStatRecords(accountExpenseStats));
+                    snapshotBuilder.addAllStatRecords(aggregateStatRecords(accountExpenseStats, timeFrame));
                     cloudStatRecords.add(snapshotBuilder.build());
                 });
 
@@ -508,7 +512,7 @@ public class CostRpcService extends CostServiceImplBase {
                             return;
                         }
                     }
-                    projectedSnapshotBuilder.addAllStatRecords(aggregateStatRecords(accountExpenseStats));
+                    projectedSnapshotBuilder.addAllStatRecords(aggregateStatRecords(accountExpenseStats, timeFrame));
                     cloudStatRecords.add(projectedSnapshotBuilder.build());
                 }
 
@@ -582,25 +586,48 @@ public class CostRpcService extends CostServiceImplBase {
     }
 
     // aggregate account expense stats based to either targetId, or serviceId
-    private Iterable<? extends StatRecord> aggregateStatRecords(@Nonnull final List<AccountExpenseStat> accountExpenseStats) {
+    @VisibleForTesting
+    Iterable<? extends StatRecord> aggregateStatRecords(
+            @Nonnull final List<AccountExpenseStat> accountExpenseStats, TimeFrame timeFrame) {
+        String costUnits = timeFrame.getUnits();
+        double costMultiplier = timeFrame.getMultiplier();
         final Map<Long, List<AccountExpenseStat>> aggregatedMap = accountExpenseStats.stream()
-                .collect(Collectors.groupingBy(statRecord -> statRecord.getAssociatedEntityId()));
+                .collect(Collectors.groupingBy(AccountExpenseStat::getAssociatedEntityId));
         final List<StatRecord> aggregatedStatRecords = Lists.newArrayList();
         aggregatedMap.forEach((id, stats) -> {
             final CloudCostStatRecord.StatRecord.Builder statRecordBuilder = CloudCostStatRecord.StatRecord.newBuilder()
                     .setName(StringConstants.COST_PRICE);
             statRecordBuilder.setAssociatedEntityId(id);
             statRecordBuilder.setAssociatedEntityType(EntityType.CLOUD_SERVICE_VALUE);
-            statRecordBuilder.setUnits("$/h");
+            statRecordBuilder.setUnits(costUnits);
             statRecordBuilder.setValues(CloudCostStatRecord.StatRecord.StatValue.newBuilder()
-                    .setAvg((float)stats.stream().map(AccountExpenseStat::getValue).mapToDouble(v -> v).average().orElse(0f))
-                    .setMax((float)stats.stream().map(AccountExpenseStat::getValue).mapToDouble(v -> v).max().orElse(0f))
-                    .setMin((float)stats.stream().map(AccountExpenseStat::getValue).mapToDouble(v -> v).min().orElse(0f))
-                    .setTotal((float)stats.stream().map(AccountExpenseStat::getValue).mapToDouble(v -> v).sum())
+                    .setAvg((float)getAmountsStream(stats, costMultiplier).average().orElse(0f))
+                    .setMax((float)getAmountsStream(stats, costMultiplier).max().orElse(0f))
+                    .setMin((float)getAmountsStream(stats, costMultiplier).min().orElse(0f))
+                    .setTotal((float)getAmountsStream(stats, costMultiplier).sum())
                     .build());
             aggregatedStatRecords.add(statRecordBuilder.build());
         });
         return aggregatedStatRecords;
+    }
+
+    /**
+     * This method returns a stream of costs, after being converted to the correct amount for
+     * the time frame.
+     * The amounts in all tables (daily/monthly) is stored in "/h" units, so for example:
+     * if we got the records from the account_expenses_by_month table, we need to convert
+     * the amount to a monthly price.
+     * This stream is used later for calculating average, max, min and sum.
+     *
+     * @param accountExpenseStats a list of stats
+     * @param costMultiplier the multiplier to use, based on the time frame
+     * @return a stream of doubles
+     */
+    private DoubleStream getAmountsStream(List<AccountExpenseStat> accountExpenseStats,
+                                          double costMultiplier) {
+        return accountExpenseStats.stream()
+                .map(accountExpenseStat -> accountExpenseStat.getValue() * costMultiplier)
+                .mapToDouble(v -> v);
     }
 
     @Override
@@ -887,7 +914,8 @@ public class CostRpcService extends CostServiceImplBase {
     /**
      * Helper class to do account expense aggregation calculation per timestamp.
      */
-    private class AccountExpenseStat {
+    @VisibleForTesting
+    static class AccountExpenseStat {
         private final long associatedEntityId;
         private final double value;
 
