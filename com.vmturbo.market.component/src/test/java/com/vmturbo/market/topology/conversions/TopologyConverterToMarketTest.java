@@ -424,11 +424,12 @@ public class TopologyConverterToMarketTest {
         entityDTO = entityDTOBuilder.build();
 
         final TopologyConverter converter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, AnalysisUtil.QUOTE_FACTOR,
-                AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, MarketAnalysisUtils.QUOTE_FACTOR,
+                MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable,
                 ccd,
-                CommodityIndex.newFactory());
+                CommodityIndex.newFactory(),
+                tierExcluderFactory);
         Set<TraderTO> vmTrader = converter.convertToMarket(ImmutableMap.of(entityDTO.getOid(), entityDTO));
 
         TraderTO vm = vmTrader.iterator().next();
