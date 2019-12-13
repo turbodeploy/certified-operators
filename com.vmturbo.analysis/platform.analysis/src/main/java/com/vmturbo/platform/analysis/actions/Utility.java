@@ -229,9 +229,10 @@ public final class Utility {
         Basket neededCommsBasket = new Basket(commSpecs);
         return economy.getMarketsAsBuyer(seller).keySet().stream()
             .anyMatch(sl ->
-            sl.getSupplier() != null
-            && neededCommsBasket.isSatisfiedBy(sl.getSupplier().getBasketSold()))
-                && sellerCommoditiesAreResizable(commSpecs, seller);
+                sl.getSupplier() != null
+                && sl.getSupplier().getSettings().isCloneable()
+                && neededCommsBasket.isSatisfiedBy(sl.getSupplier().getBasketSold()))
+            && sellerCommoditiesAreResizable(commSpecs, seller);
     }
 
     /**
@@ -281,7 +282,7 @@ public final class Utility {
         for (ShoppingList shoppingList : economy.getMarketsAsBuyer(seller).keySet()) {
             // shopping list suppliers can be null if for example the entity is in maintenenace/uknown/failover/not_monitored state.
             // This is because such entites are not sent to the market.
-            if (shoppingList.getSupplier() == null) {
+            if (shoppingList.getSupplier() == null || !shoppingList.getSupplier().getSettings().isCloneable()) {
                 continue;
             }
             if (infiniteCommsBasket.isSatisfiedBy(shoppingList.getSupplier().getBasketSold())) {
