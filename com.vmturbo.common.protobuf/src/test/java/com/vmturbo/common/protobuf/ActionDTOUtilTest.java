@@ -55,6 +55,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -213,6 +214,38 @@ public class ActionDTOUtilTest {
         assertEquals(SOURCE_2, ActionDTOUtil.getSeverityEntity(action));
         // When all sources are STORAGEs, severity entity is SOURCE_1
         assertEquals(SOURCE_1, ActionDTOUtil.getSeverityEntity(action));
+    }
+
+    /**
+     * Verify that the severity entity for Move and Scale actions is the target identifier
+     * in Cloud environment.
+     *
+     * @throws UnsupportedActionException is not supposed to happen
+     */
+    @Test
+    public void testGetSeverityCloudEntityForMoveAndScale() throws UnsupportedActionException {
+        ActionEntity target = createActionEntity(TARGET, EntityType.VIRTUAL_MACHINE_VALUE, EnvironmentTypeEnum.EnvironmentType.CLOUD);
+        ChangeProvider changeProvider = ChangeProvider.newBuilder()
+                .setSource(createActionEntity(SOURCE_1, EntityType.COMPUTE_TIER_VALUE, EnvironmentTypeEnum.EnvironmentType.CLOUD))
+                .setDestination(createActionEntity(DEST_1, EntityType.COMPUTE_TIER_VALUE, EnvironmentTypeEnum.EnvironmentType.CLOUD))
+                .build();
+        ActionInfo moveInfo = ActionInfo.newBuilder()
+                .setMove(Move.newBuilder()
+                        .setTarget(target)
+                        .addChanges(changeProvider)
+                        .build())
+                .build();
+        ActionInfo scaleInfo = ActionInfo.newBuilder()
+                .setScale(Scale.newBuilder()
+                        .setTarget(target)
+                        .addChanges(changeProvider)
+                        .build())
+                .build();
+        Action cloudMoveAction = createAction(moveInfo);
+        Action cloudScaleAction = createAction(scaleInfo);
+
+        assertEquals(TARGET, ActionDTOUtil.getSeverityEntity(cloudMoveAction));
+        assertEquals(TARGET, ActionDTOUtil.getSeverityEntity(cloudScaleAction));
     }
 
     @Test
@@ -590,6 +623,14 @@ public class ActionDTOUtilTest {
         return ActionEntity.newBuilder()
                 .setId(id)
                 .setType(type)
+                .build();
+    }
+
+    private static ActionEntity createActionEntity(long id, int type, EnvironmentTypeEnum.EnvironmentType environmentType) {
+        return ActionEntity.newBuilder()
+                .setId(id)
+                .setType(type)
+                .setEnvironmentType(environmentType)
                 .build();
     }
 
