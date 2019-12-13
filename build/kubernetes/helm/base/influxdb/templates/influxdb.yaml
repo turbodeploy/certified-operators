@@ -111,9 +111,16 @@ spec:
         - mountPath: /tmp
           name: influxdb-tmpfs0
 {{- if .Values.global }}
-  {{- if and .Values.global.registry .Values.global.imageUsername .Values.global.imagePassword }}
+  {{- if .Values.global.registry }}
+    {{- if .Values.global.imagePullSecret }}
+      imagePullSecrets:
+      - name: {{ .Values.global.imagePullSecret }}
+    {{- else -}}
+      {{- if and .Values.global.imageUsername .Values.global.imagePassword }}
       imagePullSecrets:
       - name: turbocred
+      {{- end -}}
+    {{- end -}}
   {{- end -}}
   {{- with .Values.global.nodeSelector }}
       nodeSelector:
@@ -125,6 +132,10 @@ spec:
   {{- end }}
   {{- with .Values.global.tolerations }}
       tolerations:
+{{- toYaml . | nindent 8 }}
+  {{- end }}
+  {{- with .Values.global.securityContext }}
+      securityContext:
 {{- toYaml . | nindent 8 }}
   {{- end }}
 {{- end }}
