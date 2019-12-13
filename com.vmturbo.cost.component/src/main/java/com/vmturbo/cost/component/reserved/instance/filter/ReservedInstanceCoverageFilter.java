@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.reserved.instance.filter;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -35,7 +36,7 @@ public class ReservedInstanceCoverageFilter extends ReservedInstanceStatsFilter 
      * @param timeFrame The timeframe for which to obtain stats.
      */
     private ReservedInstanceCoverageFilter(@Nonnull final Set<Long> scopeIds,
-                                           final int scopeEntityType,
+                                           final Optional<Integer> scopeEntityType,
                                            final long startDateMillis,
                                            final long endDateMillis,
                                            @Nullable final TimeFrame timeFrame) {
@@ -70,7 +71,7 @@ public class ReservedInstanceCoverageFilter extends ReservedInstanceStatsFilter 
         // The set of scope oids.
         private Set<Long> scopeIds = new HashSet<>();
         // The scope's entity type.
-        private int scopeEntityType = EntityType.UNKNOWN_VALUE;
+        private Integer scopeEntityType;
         private long startDateMillis = 0;
         private long endDateMillis = 0;
         private TimeFrame timeFrame = null;
@@ -78,7 +79,7 @@ public class ReservedInstanceCoverageFilter extends ReservedInstanceStatsFilter 
         private Builder() {}
 
         public ReservedInstanceCoverageFilter build() {
-            return new ReservedInstanceCoverageFilter(scopeIds, scopeEntityType,
+            return new ReservedInstanceCoverageFilter(scopeIds, getScopeEntityType(),
                                               startDateMillis, endDateMillis, timeFrame);
         }
 
@@ -102,7 +103,7 @@ public class ReservedInstanceCoverageFilter extends ReservedInstanceStatsFilter 
          * @return Builder for this class.
          */
         @Nonnull
-        public Builder setScopeEntityType(final int entityType) {
+        public Builder setScopeEntityType(@Nullable final Integer entityType) {
             this.scopeEntityType = entityType;
             return this;
         }
@@ -123,6 +124,11 @@ public class ReservedInstanceCoverageFilter extends ReservedInstanceStatsFilter 
         public ReservedInstanceCoverageFilter.Builder setTimeFrame(final TimeFrame timeFrame) {
             this.timeFrame = timeFrame;
             return this;
+        }
+
+        @Nonnull
+        public Optional<Integer> getScopeEntityType() {
+            return Optional.ofNullable(scopeEntityType);
         }
     }
 }

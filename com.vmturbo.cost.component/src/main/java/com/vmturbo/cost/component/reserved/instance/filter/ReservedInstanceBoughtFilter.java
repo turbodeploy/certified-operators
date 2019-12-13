@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component.reserved.instance.filter;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -26,7 +27,7 @@ public class ReservedInstanceBoughtFilter extends ReservedInstanceBoughtTableFil
      * @param joinWithSpecTable True if any filter needs to get from reserved instance spec table.
      */
     private ReservedInstanceBoughtFilter(@Nonnull final Set<Long> scopeIds,
-                                         final int scopeEntityType,
+                                         final Optional<Integer> scopeEntityType,
                                          @Nonnull final Map<EntityType, Set<Long>> cloudScopesTuple,
                                          final boolean joinWithSpecTable) {
         super(scopeIds, scopeEntityType, cloudScopesTuple, joinWithSpecTable);
