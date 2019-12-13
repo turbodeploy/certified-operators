@@ -20,8 +20,37 @@
     <build>
         <plugins>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>copy</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>copy</goal>
+                        </goals>
+                        <configuration>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>com.vmturbo</groupId>
+                                    <artifactId>com.vmturbo.mediation.hyperv</artifactId>
+                                    <version>${project.version}</version>
+                                    <classifier>identity-metadata</classifier>
+                                    <type>yml</type>
+                                    <destFileName>identity-metadata.yml</destFileName>
+                                </artifactItem>
+                            </artifactItems>
+                            <outputDirectory>${project.build.directory}</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>vmturbo-sdk-plugin</artifactId>
+                <configuration>
+                    <identityMetadataFile>${project.build.directory}/identity-metadata.yml</identityMetadataFile>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
