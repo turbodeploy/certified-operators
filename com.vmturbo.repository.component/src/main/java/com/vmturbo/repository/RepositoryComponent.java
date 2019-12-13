@@ -210,11 +210,7 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Value("${numberOfExpectedRealtimeProjectedDB}")
     private int numberOfExpectedRealtimeProjectedDB;
 
-    // we are defaulting to 25 entities per chunk. Serialized entities were in the 1 ~ 5k
-    // range in a quick anecdotal test, and this would put the message chunk size at 25 - 125k range.
-    // This overlaps reasonably with the rumored optimal message size seems to be 16-64k as per
-    // https://github.com/grpc/grpc.github.io/issues/371
-    @Value("${repositoryMaxEntitiesPerChunk:10}")
+    @Value("${repositoryMaxEntitiesPerChunk}")
     private int maxEntitiesPerChunk;
 
     private final SetOnce<ArangoDB> arangoDB = new SetOnce<>();
