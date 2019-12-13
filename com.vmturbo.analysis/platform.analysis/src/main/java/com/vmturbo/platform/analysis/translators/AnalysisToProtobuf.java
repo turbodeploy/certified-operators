@@ -224,7 +224,7 @@ public final class AnalysisToProtobuf {
             Trader newSupplier = origSupplier;
             if (!newSupplier.getCliques().isEmpty()) {
                 Trader supplier = replaceNewSupplier(shoppingList, economy, newSupplier);
-                if (supplier != null && !supplier.getCliques().isEmpty()) {
+                if (supplier != null && supplier != origSupplier && !supplier.getCliques().isEmpty()) {
                     newSupplier = supplier;
                     // Set the couponId to the CBTPs id
                     builder.setCouponId(traderToOidMap.get(origSupplier));
