@@ -62,7 +62,7 @@ message ShoppingListTO {
     optional float storage_move_cost = 5;
 
     // Multiplier indicating membership in consistent resizing groups
-    optional int64 groupFactor = 6;
+    optional int64 groupFactor = 6 [default = 1];
 
     // The coupon ID. If a projected shopping list is supplied by a CBTP, then in AnalysisToProtobuf
     // we switch the supplier to the TP and this field will hold the id of the CBTP.

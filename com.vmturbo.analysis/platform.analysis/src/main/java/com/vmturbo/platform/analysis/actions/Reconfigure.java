@@ -6,19 +6,18 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
+import com.google.common.hash.Hashing;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
-import com.google.common.collect.Lists;
-import com.google.common.hash.Hashing;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.Placement;
-import com.vmturbo.platform.analysis.ede.QuoteMinimizer;
 
 /**
  * An action to reconfigure a {@link ShoppingList}.
@@ -36,7 +35,7 @@ public class Reconfigure extends MoveBase implements Action { // inheritance for
      * @param target The shopping list of the trader that needs reconfiguration.
      */
     public Reconfigure(@NonNull Economy economy, @NonNull ShoppingList target) {
-        super(economy,target,target.getSupplier());
+        super(economy, target, target.getSupplier());
     }
 
 
@@ -63,14 +62,12 @@ public class Reconfigure extends MoveBase implements Action { // inheritance for
     public @NonNull Reconfigure take() {
         internalTake();
         Economy economy = getEconomy();
-        List<ShoppingList> peers = economy.getPeerShoppingLists(getTarget().getShoppingListId());
+        List<ShoppingList> peers = economy.getPeerShoppingLists(getTarget());
         for (ShoppingList shoppingList : peers) {
             logger.info("Synthesizing Reconfigure for {} in scaling group {}",
                 shoppingList.getBuyer(), shoppingList.getBuyer().getScalingGroupId());
-            // Insert Reconfigure at front of subsequent actions list so that they can be rolled back
-            // in reverse order.
             Reconfigure reconfigure = new Reconfigure(economy, shoppingList);
-            getSubsequentActions().add(0, reconfigure.internalTake()
+            getSubsequentActions().add(reconfigure.internalTake()
                 .setImportance(Double.POSITIVE_INFINITY));
         }
         return this;
@@ -84,7 +81,7 @@ public class Reconfigure extends MoveBase implements Action { // inheritance for
 
     @Override
     public @NonNull Reconfigure rollback() {
-        Lists.reverse(getSubsequentActions())
+        getSubsequentActions()
             .forEach(reconfigure -> ((Reconfigure)reconfigure).internalRollback());
         internalRollback();
         getSubsequentActions().clear();
@@ -156,7 +153,7 @@ public class Reconfigure extends MoveBase implements Action { // inheritance for
      */
     @Override
     @Pure
-    public boolean equals(@ReadOnly Reconfigure this,@ReadOnly Object other) {
+    public boolean equals(@ReadOnly Reconfigure this, @ReadOnly Object other) {
         if (other == null || !(other instanceof Reconfigure)) {
             return false;
         }

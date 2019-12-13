@@ -191,6 +191,9 @@ public class Placement {
         if (economy.getForceStop()) {
             return PlacementResults.empty();
         }
+        if (shoppingList.getGroupFactor() > 1) {
+            System.out.println("something to break on");
+        }
         // if there are no sellers in the market, the buyer is misconfigured
         final @NonNull List<@NonNull Trader> sellers =
                         economy.getMarket(shoppingList).getActiveSellersAvailableForPlacement();

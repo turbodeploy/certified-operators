@@ -198,7 +198,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
      */
     @Override
     public @NonNull Move rollback() {
-        Lists.reverse(getSubsequentActions()).forEach(move -> ((Move)move).internalRollback());
+        getSubsequentActions().forEach(move -> ((Move)move).internalRollback());
         internalRollback();
         getSubsequentActions().clear();
         return this;
@@ -564,7 +564,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
 
     /**
      * Get all valid sellers for peers in a scaling group.  Valid sellers in this case are the
-     * set of all valid TPs that produce a consistently sized group.
+     * set of all valid TPs that sell the basket that the consumer requests
      */
     static List<Trader> getPeerSellers(Economy economy, Trader seller, ShoppingList buyer) {
         List<Trader> mutableSellers = new ArrayList<>();

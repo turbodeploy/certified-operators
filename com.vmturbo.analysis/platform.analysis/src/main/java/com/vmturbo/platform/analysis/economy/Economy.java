@@ -280,7 +280,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
             populateMarketWithSellers(market);
         }
         marketsPopulated = true;
-        mergeScalingGroupContexts();
+        // mergeScalingGroupContexts();
     }
 
     /**
@@ -1141,13 +1141,19 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
 
     /**
      * Return the peer shopping lists in a scaling group
-     * @param shoppingListId UUID of a shopping list in scaling group.  This must always be the
-     *                       group leader.
+     * @param shoppingList A shopping list in scaling group.  This must always be the group leader.
      * @return List of all peer ShoppingLists in the scaling group.  Return an empty list if the
      * shopping list is not in a scaling group or the shopping list UUID is invalid.  This returns
      * only the peers of the group leader, which means the group leader's ShoppingList itself
      * will not be in the returned collection.
      */
+    public List<ShoppingList> getPeerShoppingLists(ShoppingList shoppingList) {
+        if (shoppingList == null) {
+            return Collections.emptyList();
+        }
+        return getPeerShoppingLists(shoppingList.getShoppingListId());
+    }
+
     public List<ShoppingList> getPeerShoppingLists(UUID shoppingListId) {
         if (shoppingListId == null) {
             return Collections.emptyList();

@@ -1,14 +1,19 @@
 package com.vmturbo.platform.analysis.economy;
 
+import static com.vmturbo.platform.analysis.testUtilities.TestUtils.VM_TYPE;
 import static org.junit.Assert.*;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
@@ -242,6 +247,15 @@ public class EconomyTest {
             assertNotNull(economy.getSettings());
         }
 
+        @Test
+        public void testGetPeerShoppingLists() {
+            int[] config = {2, 4};
+            Economy economy = new Economy();
+            Trader[] traders = makeTraders(economy, config);
+            // traders[0] is in sg-1 and traders[2] is in sg-2
+            assertEquals(1, economy.getPeerShoppingLists(getSl(economy, traders[0])).size());
+            assertEquals(3, economy.getPeerShoppingLists(getSl(economy, traders[2])).size());
+        }
     } // end TestEconomy class
 
     public static class TraderAndPopulateTests {
@@ -610,4 +624,56 @@ public class EconomyTest {
         }
     } // end Clear class
 
+    /*
+     * Support routines for scaling group tests
+     */
+    private static ShoppingList getSl(Economy economy, Trader trader) {
+        // Return the first (and only) ShoppingList for buyer
+        return economy.getMarketsAsBuyer(trader).keySet().iterator().next();
+    }
+
+    private static Trader makeTrader(Economy economy, int id, String groupName, int groupFactor) {
+        Trader trader = economy.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY);
+        trader.setDebugInfoNeverUseInCode("buyer-" + (id + 1));
+        trader.setScalingGroupId(groupName);
+        trader.getSettings().setQuoteFactor(0.999).setMoveCostFactor(0);
+        ShoppingList shoppingList = economy.addBasketBought(trader, PM_ANY).setMovable(true);
+        shoppingList.setGroupFactor(groupFactor);
+        economy.registerShoppingListWithScalingGroup(groupName, shoppingList);
+        return trader;
+    }
+
+    /**
+     * Create a group of Traders in a scaling group.
+     * @param economy the economy
+     * @param baseId base trader ID
+     * @param numTraders number of Traders
+     * @param groupNumber scaling group number, for naming purposes
+     * @return list of Traders
+     */
+    private static List<Trader> makeGroupOfTraders(Economy economy, int baseId,
+                                            int numTraders, int groupNumber) {
+        String groupName = "sg=" + groupNumber;
+        return IntStream.range(0, numTraders)
+            .mapToObj(tn -> makeTrader(economy, baseId + tn, groupName, numTraders))
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Create some traders in some number of different scaling groups.
+     * @param economy economy
+     * @param traderList list of traders.  Each element of the list will represent the number of
+     *                  traders in each scaling group.  Each trader is named "trader-n" and each
+     *                   scaling group is named "sg-n".
+     */
+    private static Trader[] makeTraders(Economy economy, int[] traderList) {
+        int groupNum = 1;
+        int baseId = 0;
+        List<Trader> traders = new ArrayList<>();
+        for (int groupSize : traderList) {
+            traders.addAll(makeGroupOfTraders(economy, baseId, groupSize, groupNum++));
+            baseId += groupSize;
+        }
+        return traders.toArray(new Trader[0]);
+    }
 } // end EconomyTest class

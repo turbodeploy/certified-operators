@@ -31,7 +31,7 @@ public class Context {
         coverageEntryMap_ = new HashMap<>();
     }
 
-    public Context(long providerId, long regionId, long zoneId, BalanceAccount balanceAccount,
+    public Context(Long providerId, long regionId, long zoneId, BalanceAccount balanceAccount,
                    final List<EconomyDTOs.CoverageEntry> familyBasedCoverageList) {
         this(regionId, zoneId, balanceAccount);  // XLTODO this is broken for multiple entries
         for (EconomyDTOs.CoverageEntry ce : familyBasedCoverageList) {
@@ -41,7 +41,7 @@ public class Context {
         }
     }
 
-    public Context(final long providerId, final long regionId, final long zoneId,
+    public Context(final Long providerId, final long regionId, final long zoneId,
                    final BalanceAccount balanceAccount, final double totalAllocatedCoupons,
                    final double totalRequestedCoupons) {
         this(regionId, zoneId, balanceAccount);
@@ -57,39 +57,43 @@ public class Context {
         return zoneId_;
     }
 
-    public Optional<Double> getTotalRequestedCoupons(long providerId) {
+    public Optional<Double> getTotalRequestedCoupons(Long providerId) {
         CoverageEntry coverageEntry = coverageEntryMap_.get(providerId);
         return coverageEntry != null
             ? Optional.of(coverageEntry.getTotalRequestedCoupons())
             : Optional.empty();
     }
 
-    public Optional<Double> getTotalAllocatedCoupons(final long providerId) {
+    public Optional<Double> getTotalAllocatedCoupons(final Long providerId) {
         final CoverageEntry coverageEntry = coverageEntryMap_.get(providerId);
         return coverageEntry != null
             ? Optional.of(coverageEntry.getTotalAllocatedCoupons())
             : Optional.empty();
     }
 
-    public Context setTotalAllocatedCoupons(final long providerId, double numCoupons) {
-        CoverageEntry coverageEntry = coverageEntryMap_.get(providerId);
-        if (coverageEntry == null) {
-            coverageEntry = createEntryAndRegisterInContext(providerId);
+    public Context setTotalAllocatedCoupons(final Long providerId, double numCoupons) {
+        if (providerId != null) {
+            CoverageEntry coverageEntry = coverageEntryMap_.get(providerId);
+            if (coverageEntry == null) {
+                coverageEntry = createEntryAndRegisterInContext(providerId);
+            }
+            coverageEntry.setTotalAllocatedCoupons(numCoupons);
         }
-        coverageEntry.setTotalAllocatedCoupons(numCoupons);
         return this;
     }
 
-    public Context setTotalRequestedCoupons(final long providerId, double numCoupons) {
-        CoverageEntry coverageEntry = coverageEntryMap_.get(providerId);
-        if (coverageEntry == null) {
-            coverageEntry = createEntryAndRegisterInContext(providerId);
+    public Context setTotalRequestedCoupons(final Long providerId, double numCoupons) {
+        if (providerId != null) {
+            CoverageEntry coverageEntry = coverageEntryMap_.get(providerId);
+            if (coverageEntry == null) {
+                coverageEntry = createEntryAndRegisterInContext(providerId);
+            }
+            coverageEntry.setTotalRequestedCoupons(numCoupons);
         }
-        coverageEntry.setTotalRequestedCoupons(numCoupons);
         return this;
     }
 
-    public CoverageEntry createEntryAndRegisterInContext(final long providerId) {
+    public CoverageEntry createEntryAndRegisterInContext(final Long providerId) {
         CoverageEntry coverageEntry = new CoverageEntry(0, 0);
         coverageEntryMap_.put(providerId, coverageEntry);
         return coverageEntry;
@@ -206,7 +210,7 @@ public class Context {
         return String.format("[region id: %s, zone id: %s]", regionId_, zoneId_);
     }
 
-    static class CoverageEntry {
+    public static class CoverageEntry {
         private double totalRequestedCoupons_;
         private double totalAllocatedCoupons_;
 
