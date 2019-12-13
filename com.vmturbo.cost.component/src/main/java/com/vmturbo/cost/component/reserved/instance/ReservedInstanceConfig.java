@@ -33,6 +33,8 @@ import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
+import com.vmturbo.reserved.instance.coverage.allocator.RICoverageAllocatorFactory;
+import com.vmturbo.reserved.instance.coverage.allocator.RICoverageAllocatorFactory.DefaultRICoverageAllocatorFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopologyFactory;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
@@ -287,8 +289,14 @@ public class ReservedInstanceConfig {
     }
 
     @Bean
+    public RICoverageAllocatorFactory riCoverageAllocatorFactory() {
+        return new DefaultRICoverageAllocatorFactory();
+    }
+
+    @Bean
     public SupplementalRICoverageAnalysisFactory supplementalRICoverageAnalysisFactory() {
         return new SupplementalRICoverageAnalysisFactory(
+                riCoverageAllocatorFactory(),
                 coverageTopologyFactory(),
                 reservedInstanceBoughtStore(),
                 reservedInstanceSpecConfig.reservedInstanceSpecStore(),

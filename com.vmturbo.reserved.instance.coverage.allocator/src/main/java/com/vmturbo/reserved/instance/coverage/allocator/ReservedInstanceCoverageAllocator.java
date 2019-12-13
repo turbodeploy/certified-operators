@@ -17,11 +17,14 @@ import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.immutables.value.Value;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Queues;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageJournal.CoverageJournalEntry;
@@ -74,27 +77,34 @@ public class ReservedInstanceCoverageAllocator {
     private final AtomicBoolean coverageAllocated = new AtomicBoolean(false);
 
 
-    private ReservedInstanceCoverageAllocator(Builder builder) {
+    /**
+     * Constructs an instance of {@link ReservedInstanceCoverageAllocator}, based on the configuration
+     * passed in.
+     * @param config The {@link RICoverageAllocatorConfig} instance, used to configure a newly created
+     *               {@link ReservedInstanceCoverageAllocator} instance.
+     */
+    public ReservedInstanceCoverageAllocator(@Nonnull RICoverageAllocatorConfig config) {
 
+        Preconditions.checkNotNull(config);
 
-        this.coverageTopology = Objects.requireNonNull(builder.coverageTopology);
-        this.metricsCollector = new RICoverageAllocationMetricsCollector(builder.metricsProvider);
-        this.validateCoverages = builder.validateCoverages;
+        this.coverageTopology = config.coverageTopology();
+        this.metricsCollector = new RICoverageAllocationMetricsCollector(config.metricsProvider());
+        this.validateCoverages = config.validateCoverages();
 
         final ReservedInstanceCoverageProvider coverageProvider =
-                Objects.requireNonNull(builder.coverageProvider);
+                Objects.requireNonNull(config.coverageProvider());
         this.coverageJournal = ReservedInstanceCoverageJournal.createJournal(
                 coverageProvider.getAllCoverages(),
                 coverageTopology);
         this.firstPassFilter = new FirstPassCoverageFilter(coverageTopology,
-                builder.accountFilter,
-                builder.entityFilter,
+                config.accountFilter(),
+                config.entityFilter(),
                 coverageJournal);
 
         final ThreadFactory threadFactory = new ThreadFactoryBuilder()
                 .setNameFormat("ReservedInstanceCoverageAllocator-%d")
                 .build();
-        this.executorService = builder.concurrentProcessing ?
+        this.executorService = config.concurrentProcessing() ?
                 Executors.newCachedThreadPool(threadFactory) :
                 MoreExecutors.newDirectExecutorService();
 
@@ -135,14 +145,6 @@ public class ReservedInstanceCoverageAllocator {
         return ReservedInstanceCoverageAllocation.from(
                 coverageJournal.getCoverages(),
                 coverageJournal.getCoverageFromJournalEntries());
-    }
-
-    /**
-     * Creates a new builder
-     * @return A new {@link Builder} instance
-     */
-    public static Builder newBuilder() {
-        return new Builder();
     }
 
     /**
@@ -266,134 +268,73 @@ public class ReservedInstanceCoverageAllocator {
     }
 
     /**
-     * Builds an instance of {@link ReservedInstanceCoverageAllocator}
+     * A configuration of an instance of {@link ReservedInstanceCoverageAllocator}
      */
-    public static class Builder {
+    @Value.Immutable
+    public interface RICoverageAllocatorConfig {
 
+        /**
+         * The {@link ReservedInstanceCoverageProvider} used to configure an {@link ReservedInstanceCoverageAllocator}
+         * instance. The coverage provider provides the basis for RI coverage & utilization, which the allocator
+         * will build upon.
+         * @return The {@link ReservedInstanceCoverageProvider} instance.
+         */
+        ReservedInstanceCoverageProvider coverageProvider();
 
-        @Nonnull
-        private ReservedInstanceCoverageProvider coverageProvider;
+        /**
+         * The {@link CoverageTopology} instance, containing both entities and RIs to analyze in
+         * allocating coverage.
+         * @return The {@link CoverageTopology} instance.
+         */
+        CoverageTopology coverageTopology();
 
+        /**
+         * An optional {@link AccountFilter}, used to scope the analysis to a subset of the
+         * {@link CoverageTopology}.
+         * @return An optional {@link AccountFilter} or null if no filter is configured.
+         */
         @Nullable
-        private AccountFilter accountFilter;
+        Cost.AccountFilter accountFilter();
 
+        /**
+         * An optional {@link EntityFilter}, used to scope the analysis to a subset of the
+         * {@link CoverageTopology}.
+         * @return An optional {@link EntityFilter} or null if no filter is configured.
+         */
         @Nullable
-        private EntityFilter entityFilter;
-
-        @Nonnull
-        private CoverageTopology coverageTopology;
-
-        @Nonnull
-        private RICoverageAllocationMetricsProvider metricsProvider =
-                RICoverageAllocationMetricsProvider.EMPTY_PROVIDER;
-
-        private boolean validateCoverages = false;
-
-        private boolean concurrentProcessing = true;
+        Cost.EntityFilter entityFilter();
 
         /**
-         * Set the {@link ReservedInstanceCoverageProvider}, which is used for initial coverage/utilization
-         * of the topology.
-         *
-         * <p>
-         * Note: The {@code coverageProvider} is required
-         *
-         * @param coverageProvider An instance of {@link ReservedInstanceCoverageProvider}
-         * @return The instance of {@link Builder} for method chaining
+         * An optional metrics provider (a default provider will be used if none are configured), used
+         * in collecting metrics. Only metrics provided by the {@link RICoverageAllocationMetricsProvider}
+         * instance will be collected.
+         * @return The {@link RICoverageAllocationMetricsProvider} instance.
          */
-        @Nonnull
-        public Builder coverageProvider(@Nonnull ReservedInstanceCoverageProvider coverageProvider) {
-            this.coverageProvider = Objects.requireNonNull(coverageProvider);
-            return this;
+        @Value.Default
+        default RICoverageAllocationMetricsProvider metricsProvider() {
+            return RICoverageAllocationMetricsProvider.EMPTY_PROVIDER;
         }
 
         /**
-         * Set the {@link CoverageTopology}, which contains the valid topology entities (potentially
-         * additionally filtered) and {@link com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought}
-         * instnaces in scope for coverage allocation
-         *
-         * <p>
-         * Note: The {@code coverageTopology} is required
-         *
-         * @param coverageTopology An {@link CoverageTopology} instance
-         * @return The instance of {@link Builder} for method chaining
+         * Determines whether validation of allocated coverage should occur after analysis. The default
+         * is false.
+         * @return A boolean flag indicating whether to validate coverage.
          */
-        @Nonnull
-        public Builder coverageTopology(@Nonnull CoverageTopology coverageTopology) {
-            this.coverageTopology = Objects.requireNonNull(coverageTopology);
-            return this;
+        @Value.Default
+        default boolean validateCoverages() {
+            return false;
         }
 
         /**
-         * Set an (optional) metrics provider for collecting metrics on runtime duration and allocated
-         * coverage.
-         * @param metricsProvider The metrics provider. If specific metrics are not present in the provider,
-         *                        metrics for those stages will not be collected
-         * @return The instance of {@link Builder} for method chaining
+         * Determines whether concurrent analysis s enabled. If true, where possible (e.g. across
+         * cloud providers, within a rule with disjoint groups), the allocator will concurrently
+         * process units of work.
+         * @return A boolean flag indicating whether concurrent processing is enabled. The default
+         * is true.
          */
-        @Nonnull
-        public Builder metricsProvider(@Nullable RICoverageAllocationMetricsProvider metricsProvider) {
-            this.metricsProvider = metricsProvider == null ?
-                    RICoverageAllocationMetricsProvider.EMPTY_PROVIDER :
-                    metricsProvider;
-            return this;
-        }
-
-        /**
-         * Set an (optional) account filter for filtering coverable entities from the {@link CoverageTopology}
-         * @param accountFilter An instance of {@link AccountFilter}
-         * @return The instance of {@link Builder} for method chaining
-         */
-        @Nonnull
-        public Builder accountFilter(@Nullable AccountFilter accountFilter) {
-            this.accountFilter = accountFilter;
-            return this;
-        }
-
-        /**
-         * Set an (optional) entity filter for filtering coverable entities from the {@link CoverageTopology}
-         * @param entityFilter An instance of {@link EntityFilter}
-         * @return The instance of {@link Builder} for method chaining
-         */
-        @Nonnull
-        public Builder entityFilter(@Nullable EntityFilter entityFilter) {
-            this.entityFilter = entityFilter;
-            return this;
-        }
-
-        /**
-         * Set whether to validate coverage assignments after allocation. Validation will entail checking
-         * whether any entities are covered over their capacity or any RIs are allocated above their
-         * capacity
-         *
-         * @param validateCoverages A boolean indicating whether coverage validation is enabled
-         * @return The instance of {@link Builder} for method chaining
-         */
-        @Nonnull
-        public Builder validateCoverages(boolean validateCoverages) {
-            this.validateCoverages = validateCoverages;
-            return this;
-        }
-
-        /**
-         * Set whether concurrent processing is enabled. If true, where possible (e.g. across cloud providers,
-         * within a rule with disjoint groups), the allocator will concurrently process units of work.
-         *
-         * @param concurrentProcessing A boolean indicating whether concurrent processing is enabled
-         * @return The instance of {@link Builder} for method chaining
-         */
-        @Nonnull
-        public Builder concurrentProcessing(boolean concurrentProcessing) {
-            this.concurrentProcessing = concurrentProcessing;
-            return this;
-        }
-
-        /**
-         * @return A newly created instance of {@link ReservedInstanceCoverageAllocator}
-         */
-        @Nonnull
-        public ReservedInstanceCoverageAllocator build() {
-            return new ReservedInstanceCoverageAllocator(this);
+        @Value.Default
+        default boolean concurrentProcessing() {
+            return true;
         }
     }
 }

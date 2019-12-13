@@ -4,7 +4,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -13,10 +12,6 @@ import java.util.List;
 
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.powermock.api.mockito.PowerMockito;
-import org.powermock.core.classloader.annotations.PrepareForTest;
-import org.powermock.modules.junit4.PowerMockRunner;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableTable;
@@ -30,14 +25,16 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
+import com.vmturbo.reserved.instance.coverage.allocator.RICoverageAllocatorFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageAllocation;
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageAllocator;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopologyFactory;
 
-@RunWith(PowerMockRunner.class)
-@PrepareForTest({ReservedInstanceCoverageAllocator.class})
 public class SupplementalRICoverageAnalysisTest {
+
+    private final RICoverageAllocatorFactory allocatorFactory =
+            mock(RICoverageAllocatorFactory.class);
 
     private final CoverageTopologyFactory coverageTopologyFactory =
             mock(CoverageTopologyFactory.class);
@@ -48,26 +45,13 @@ public class SupplementalRICoverageAnalysisTest {
     private final ReservedInstanceSpecStore reservedInstanceSpecStore =
             mock(ReservedInstanceSpecStore.class);
 
-    private final ReservedInstanceCoverageAllocator.Builder riCoverageAllocatorBuilder =
-            mock(ReservedInstanceCoverageAllocator.Builder.class);
     private final ReservedInstanceCoverageAllocator riCoverageAllocator =
             mock(ReservedInstanceCoverageAllocator.class);
     private final CoverageTopology coverageTopology = mock(CoverageTopology.class);
 
     @Before
     public void setup() {
-        PowerMockito.mockStatic(ReservedInstanceCoverageAllocator.class);
-        when(ReservedInstanceCoverageAllocator.newBuilder()).thenReturn(riCoverageAllocatorBuilder);
-
-        // The version of mockito we use currently doesn't support RETURNS_SELF
-        when(riCoverageAllocatorBuilder.coverageProvider(any())).thenReturn(riCoverageAllocatorBuilder);
-        when(riCoverageAllocatorBuilder.coverageTopology(any())).thenReturn(riCoverageAllocatorBuilder);
-        when(riCoverageAllocatorBuilder.metricsProvider(any())).thenReturn(riCoverageAllocatorBuilder);
-        when(riCoverageAllocatorBuilder.concurrentProcessing(anyBoolean()))
-                .thenReturn(riCoverageAllocatorBuilder);
-        when(riCoverageAllocatorBuilder.validateCoverages(anyBoolean()))
-                .thenReturn(riCoverageAllocatorBuilder);
-        when(riCoverageAllocatorBuilder.build()).thenReturn(riCoverageAllocator);
+        when(allocatorFactory.createAllocator(any())).thenReturn(riCoverageAllocator);
     }
 
     @Test
@@ -153,6 +137,7 @@ public class SupplementalRICoverageAnalysisTest {
          */
         final SupplementalRICoverageAnalysisFactory factory =
                 new SupplementalRICoverageAnalysisFactory(
+                        allocatorFactory,
                         coverageTopologyFactory,
                         reservedInstanceBoughtStore,
                         reservedInstanceSpecStore,

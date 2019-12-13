@@ -130,6 +130,10 @@
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
+            <artifactId>reserved-instance-coverage-allocator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
             <artifactId>trax</artifactId>
         </dependency>
         <dependency>

@@ -50,6 +50,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.MarketNotificationSender;
+import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
@@ -130,13 +131,15 @@ public class MarketRunnerTest {
             when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(mock(TopologyEntityCloudTopology.class));
             final WastedFilesAnalysisFactory wastedFilesAnalysisFactory =
                 mock(WastedFilesAnalysisFactory.class);
+            final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory =
+                    mock(BuyRIImpactAnalysisFactory.class);
             when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
 
             return new Analysis(topologyInfo, entities,
                     GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                     Clock.systemUTC(), configBuilder.build(),
                     cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
-                    wastedFilesAnalysisFactory, tierExcluderFactory,
+                    wastedFilesAnalysisFactory, buyRIImpactAnalysisFactory, tierExcluderFactory,
                     mock(AnalysisRICoverageListener.class));
         }).when(analysisFactory).newAnalysis(any(), any(), any());
     }

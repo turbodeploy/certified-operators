@@ -335,6 +335,9 @@ public class CoverageTopologyImpl implements CoverageTopology {
         return cloudTopology.getAllEntitiesOfType(entityTypes);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public long getRICoverageCapacityForEntity(final long entityId) {
         return cloudTopology.getRICoverageCapacityForEntity(entityId);

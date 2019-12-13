@@ -144,6 +144,11 @@ public interface CloudCostDataProvider {
             return Collections.unmodifiableCollection(allRiData);
         }
 
+        @Nonnull
+        public Collection<ReservedInstanceData> getAllBuyRIs() {
+            return Collections.unmodifiableCollection(buyRIBoughtDataById.values());
+        }
+
         /**
          * Utility method to create an empty {@link CloudCostData}. Useful in testing, mocking,
          * or to continue operations after {@link CloudCostDataProvider#getCloudCostData()} throws

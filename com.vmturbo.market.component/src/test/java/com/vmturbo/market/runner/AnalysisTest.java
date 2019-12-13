@@ -69,6 +69,8 @@ import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCost
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.market.AnalysisRICoverageListener;
+import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis;
+import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
@@ -97,6 +99,7 @@ public class AnalysisTest {
             .setTopologyId(topologyId)
             .setTopologyType(topologyType)
             .addAnalysisType(AnalysisType.MARKET_ANALYSIS)
+            .addAnalysisType(AnalysisType.BUY_RI_IMPACT_ANALYSIS)
             .addAnalysisType(AnalysisType.WASTED_FILES)
             .build();
 
@@ -126,6 +129,10 @@ public class AnalysisTest {
 
     private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
 
+    private BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory =
+            mock(BuyRIImpactAnalysisFactory.class);
+    private BuyRIImpactAnalysis buyRIImpactAnalysis = mock(BuyRIImpactAnalysis.class);
+
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService,
                      testSettingPolicyService);
@@ -140,6 +147,8 @@ public class AnalysisTest {
         when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
         listener = mock(AnalysisRICoverageListener.class);
         cloudTopology = mock(TopologyEntityCloudTopology.class);
+        when(buyRIImpactAnalysisFactory.createAnalysis(eq(topologyInfo), any(), any(), any()))
+                .thenReturn(buyRIImpactAnalysis);
     }
 
     private Map<String, Setting> getRateOfResizeSettingMap(float resizeValue) {
@@ -176,6 +185,8 @@ public class AnalysisTest {
         when(cloudTopologyFactory.newCloudTopology(any())).thenReturn(cloudTopology);
         final WastedFilesAnalysisFactory wastedFilesAnalysisFactory =
             mock(WastedFilesAnalysisFactory.class);
+        final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory =
+                mock(BuyRIImpactAnalysisFactory.class);
         final WastedFilesAnalysis wastedFilesAnalysis = mock(WastedFilesAnalysis.class);
         when(wastedFilesAnalysisFactory.newWastedFilesAnalysis(any(),any(), any(), any(), any()))
                 .thenReturn(wastedFilesAnalysis);
@@ -185,7 +196,7 @@ public class AnalysisTest {
         return new Analysis(topoInfo, topologySet,
             groupServiceClient, mockClock, analysisConfig,
             cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
-            wastedFilesAnalysisFactory, tierExcluderFactory,
+            wastedFilesAnalysisFactory, buyRIImpactAnalysisFactory, tierExcluderFactory,
                 listener);
     }
     /**

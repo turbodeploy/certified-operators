@@ -57,6 +57,7 @@ import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCost
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.market.AnalysisRICoverageListener;
+import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.rpc.MarketDebugRpcService;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
@@ -266,13 +267,15 @@ public class AnalysisDebuggingTest {
         when(priceTableFactory.newPriceTable(any(), eq(CloudCostData.empty()))).thenReturn(mock(MarketPriceTable.class));
         final WastedFilesAnalysisFactory wastedFilesAnalysisFactory =
             mock(WastedFilesAnalysisFactory.class);
+        final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory =
+                mock(BuyRIImpactAnalysisFactory.class);
 
         final Analysis analysis = new Analysis(analysisInput.getTopologyInfo(),
             Sets.newHashSet(analysisInput.getEntitiesList()),
             GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
             Clock.systemUTC(),
             analysisConfig.build(), cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
-            wastedFilesAnalysisFactory, tierExcluderFactory,
+            wastedFilesAnalysisFactory, buyRIImpactAnalysisFactory, tierExcluderFactory,
                 mock(AnalysisRICoverageListener.class));
         return analysis;
     }

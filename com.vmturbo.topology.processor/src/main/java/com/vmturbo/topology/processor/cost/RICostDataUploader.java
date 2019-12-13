@@ -140,7 +140,7 @@ public class RICostDataUploader {
         // is expected to change each iteration.
         long requestHash = requestBuilder.build().hashCode();
         if (requestHash != lastProcessedHash) {
-            // set the topology id after calculating the hash, so it doesn't affect the hash calc
+            // set the topology ID after calculating the hash, so it doesn't affect the hash calc
             requestBuilder.setTopologyId(topologyInfo.getTopologyId());
             requestBuilder.setChecksum(requestHash);
             requestBuilder.setCreatedTime(System.currentTimeMillis());

@@ -62,11 +62,14 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.cost.calculation.CostJournal;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.market.AnalysisRICoverageListener;
+import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysis;
+import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
@@ -125,6 +128,17 @@ public class Analysis {
             .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
             .withMaxAgeSeconds(60 * 10) // 10 mins.
             .withAgeBuckets(5) // 5 buckets, so buckets get switched every 4 minutes.
+            .build()
+            .register();
+
+    private static final DataMetricSummary BUY_RI_IMPACT_ANALYSIS_SUMMARY = DataMetricSummary.builder()
+            .withName("mkt_buy_ri_impact_analysis_duration_seconds")
+            .withHelp("Time for buy RI impact analysis to run. This includes the execution of the RI coverage allocator.")
+            .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
+            .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
+            .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
+            .withMaxAgeSeconds(60 * 60) // 60 mins.
+            .withAgeBuckets(10) // 10 buckets, so buckets get switched every 6 minutes.
             .build()
             .register();
 
@@ -189,6 +203,8 @@ public class Analysis {
 
     private final WastedFilesAnalysisFactory wastedFilesAnalysisFactory;
 
+    private final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory;
+
     private final AnalysisRICoverageListener listener;
 
     // a set of on-prem application entity type
@@ -211,6 +227,7 @@ public class Analysis {
      * @param cloudCostCalculatorFactory cost calculation factory
      * @param priceTableFactory price table factory
      * @param wastedFilesAnalysisFactory wasted file analysis handler
+     * @param buyRIImpactAnalysisFactory  buy RI impact analysis factory
      * @param tierExcluderFactory the tier excluder factory
      * @param listener that receives entity ri coverage information availability.
      */
@@ -223,6 +240,7 @@ public class Analysis {
                     @Nonnull final TopologyCostCalculatorFactory cloudCostCalculatorFactory,
                     @Nonnull final MarketPriceTableFactory priceTableFactory,
                     @Nonnull final WastedFilesAnalysisFactory wastedFilesAnalysisFactory,
+                    @Nonnull final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory,
                     @Nonnull final TierExcluderFactory tierExcluderFactory,
                     @Nonnull final AnalysisRICoverageListener listener) {
         this.topologyInfo = topologyInfo;
@@ -240,6 +258,7 @@ public class Analysis {
         this.cloudTopologyFactory = cloudTopologyFactory;
         this.originalCloudTopology = this.cloudTopologyFactory.newCloudTopology(topologyDTOs.stream());
         this.wastedFilesAnalysisFactory = wastedFilesAnalysisFactory;
+        this.buyRIImpactAnalysisFactory = buyRIImpactAnalysisFactory;
         this.topologyCostCalculatorFactory = cloudCostCalculatorFactory;
         this.marketPriceTableFactory = priceTableFactory;
         this.tierExcluderFactory = tierExcluderFactory;
@@ -446,7 +465,6 @@ public class Analysis {
                     } else {
                         projectedTraderDTO = results.getProjectedTopoEntityTOList();
                     }
-
                 projectedEntities = converter.convertFromMarket(
                     projectedTraderDTO,
                     topologyDTOs,
@@ -463,6 +481,13 @@ public class Analysis {
                             cloudTopologyFactory.newCloudTopology(projectedEntities.values().stream()
                                     .filter(ProjectedTopologyEntity::hasEntity)
                                     .map(ProjectedTopologyEntity::getEntity));
+
+                    // Invoke buy RI impact analysis after projected entity creation, but prior to
+                    // projected cost calculations
+                    runBuyRIImpactAnalysis(
+                            projectedCloudTopology,
+                            topologyCostCalculator.getCloudCostData());
+
                     // Projected RI coverage has been calculated by convertFromMarket
                     // Get it from TopologyConverter and pass it along to use for calculation of
                     // savings
@@ -627,6 +652,37 @@ public class Analysis {
         return fakeEntityDTOs.stream()
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid,
                         Function.identity()));
+    }
+
+    /**
+     * Runs buy RI impact analysis, if the projected topology is not empty. Currently, analysis is not
+     * stitched back to cost calculation (TODO: OM-51388)
+     * @param projectedCloudTopology The projected cloud topology
+     * @param cloudCostData The {@link CloudCostData}, used to lookup buy RI recommendations in creating
+     *                      an instance of {@link BuyRIImpactAnalysis}
+.     */
+    private void runBuyRIImpactAnalysis(@Nonnull CloudTopology<TopologyEntityDTO> projectedCloudTopology,
+                                        @Nonnull CloudCostData cloudCostData) {
+
+        if (topologyInfo.getAnalysisTypeList().contains(AnalysisType.BUY_RI_IMPACT_ANALYSIS) &&
+                projectedCloudTopology.size() > 0) {
+
+            try (DataMetricTimer timer = BUY_RI_IMPACT_ANALYSIS_SUMMARY.startTimer()) {
+                logger.info("Running buy RI impact analysis (Topo Context ID={}, Topology ID={}",
+                        topologyInfo.getTopologyContextId(), topologyInfo.getTopologyId());
+
+                final BuyRIImpactAnalysis buyRIImpactAnalysis =
+                        buyRIImpactAnalysisFactory.createAnalysis(
+                                topologyInfo,
+                                projectedCloudTopology,
+                                cloudCostData,
+                                converter.getProjectedReservedInstanceCoverage());
+                buyRIImpactAnalysis.createCoverageFromBuyRIImpactAnalysis();
+            } catch (Exception e) {
+                logger.error("Error executing buy RI impact analysis (Context ID={}, Topology ID={})",
+                        topologyInfo.getTopologyContextId(), topologyInfo.getTopologyId(), e);
+            }
+        }
     }
 
     /**

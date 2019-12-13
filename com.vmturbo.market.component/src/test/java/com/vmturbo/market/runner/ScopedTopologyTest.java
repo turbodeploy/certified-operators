@@ -67,6 +67,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.MarketNotificationSender;
+import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
@@ -148,6 +149,8 @@ public class ScopedTopologyTest {
         when(ccd.getExistingRiBought()).thenReturn(new ArrayList<>());
         final WastedFilesAnalysisFactory wastedFilesAnalysisFactory =
             mock(WastedFilesAnalysisFactory.class);
+        final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory =
+                mock(BuyRIImpactAnalysisFactory.class);
         when(tierExcluderFactory.newExcluder(any(), any(), any())).thenReturn(mock(TierExcluder.class));
         testAnalysis = new Analysis(PLAN_TOPOLOGY_INFO,
             Collections.emptySet(),
@@ -158,6 +161,7 @@ public class ScopedTopologyTest {
             cloudCostCalculatorFactory,
             priceTableFactory,
             wastedFilesAnalysisFactory,
+            buyRIImpactAnalysisFactory,
             tierExcluderFactory, mock(AnalysisRICoverageListener.class));
     }
 
@@ -294,6 +298,7 @@ public class ScopedTopologyTest {
         ExecutorService threadPool = Executors.newFixedThreadPool(2);
         AnalysisFactory analysisFactory = mock(AnalysisFactory.class);
         WastedFilesAnalysisFactory wastedFilesAnalysisFactory = mock(WastedFilesAnalysisFactory.class);
+        BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory = mock(BuyRIImpactAnalysisFactory.class);
         TopologyCostCalculatorFactory topologyCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
         TopologyCostCalculator topologyCostCalculator = mock(TopologyCostCalculator.class);
         when(topologyCostCalculator.getCloudCostData()).thenReturn(CloudCostData.empty());
@@ -334,7 +339,7 @@ public class ScopedTopologyTest {
                 return new Analysis(topologyInfo, topologyDTOs,
                         groupServiceClient, Clock.systemUTC(), configBuilder.build(),
                         cloudTopologyFactory, topologyCostCalculatorFactory, priceTableFactory,
-                        wastedFilesAnalysisFactory, tierExcluderFactory,
+                        wastedFilesAnalysisFactory, buyRIImpactAnalysisFactory, tierExcluderFactory,
                         mock(AnalysisRICoverageListener.class));
             });
 

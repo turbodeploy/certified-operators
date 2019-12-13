@@ -23,6 +23,8 @@ import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverag
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage.RICoverageSource;
 import com.vmturbo.proactivesupport.DataMetricSummary;
+import com.vmturbo.reserved.instance.coverage.allocator.ImmutableRICoverageAllocatorConfig;
+import com.vmturbo.reserved.instance.coverage.allocator.RICoverageAllocatorFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageAllocation;
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageAllocator;
 import com.vmturbo.reserved.instance.coverage.allocator.ReservedInstanceCoverageProvider;
@@ -222,6 +224,8 @@ public class SupplementalRICoverageAnalysis {
                     .build()
                     .register();
 
+    private final RICoverageAllocatorFactory allocatorFactory;
+
     private final CoverageTopology coverageTopology;
 
     private final List<EntityRICoverageUpload> entityRICoverageUploads;
@@ -232,6 +236,8 @@ public class SupplementalRICoverageAnalysis {
 
     /**
      * Constructor for creating an instance of {@link SupplementalRICoverageAnalysis}
+     * @param allocatorFactory An instance of {@link RICoverageAllocatorFactory} to create allocator
+     *                         instances
      * @param coverageTopology The {@link CoverageTopology} to pass through to the
      *                         {@link ReservedInstanceCoverageAllocator}
      * @param entityRICoverageUploads The baseline RI coverage entries
@@ -241,11 +247,13 @@ public class SupplementalRICoverageAnalysis {
      *                          validation should be enabled.
      */
     public SupplementalRICoverageAnalysis(
+            @Nonnull RICoverageAllocatorFactory allocatorFactory,
             @Nonnull CoverageTopology coverageTopology,
             @Nonnull List<EntityRICoverageUpload> entityRICoverageUploads,
             boolean allocatorConcurrentProcessing,
             boolean validateCoverages) {
 
+        this.allocatorFactory = allocatorFactory;
         this.coverageTopology = Objects.requireNonNull(coverageTopology);
         this.entityRICoverageUploads = ImmutableList.copyOf(
                 Objects.requireNonNull(entityRICoverageUploads));
@@ -266,15 +274,14 @@ public class SupplementalRICoverageAnalysis {
 
         try {
             final ReservedInstanceCoverageProvider coverageProvider = createCoverageProvider();
-            final ReservedInstanceCoverageAllocator coverageAllocator =
-                    ReservedInstanceCoverageAllocator
-                            .newBuilder()
+            final ReservedInstanceCoverageAllocator coverageAllocator = allocatorFactory.createAllocator(
+                    ImmutableRICoverageAllocatorConfig.builder()
                             .coverageProvider(coverageProvider)
                             .coverageTopology(coverageTopology)
                             .metricsProvider(createMetricsProvider())
                             .concurrentProcessing(allocatorConcurrentProcessing)
                             .validateCoverages(validateCoverages)
-                            .build();
+                            .build());
 
             final ReservedInstanceCoverageAllocation coverageAllocation = coverageAllocator.allocateCoverage();
 

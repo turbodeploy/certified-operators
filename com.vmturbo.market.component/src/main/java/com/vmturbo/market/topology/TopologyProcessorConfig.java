@@ -14,58 +14,30 @@ import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Topic;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Configuration for integration with the Topology Processor.
  */
 @Configuration
 @Import({
-    MarketRunnerConfig.class,
-    TopologyProcessorClientConfig.class,
-    LicenseCheckClientConfig.class
+    TopologyProcessorClientConfig.class
 })
 public class TopologyProcessorConfig {
 
     @Autowired
-    private MarketRunnerConfig marketRunnerConfig;
-
-    @Autowired
     private TopologyProcessorClientConfig tpConfig;
-
-    @Autowired
-    private LicenseCheckClientConfig licenseCheckClientConfig;
-
-    @Value("${maxPlacementIterations}")
-    private int maxPlacementIterations;
-
-    @Value("${rightsizeLowerWatermark}")
-    private float rightsizeLowerWatermark;
-
-    @Value("${rightsizeUpperWatermark}")
-    private float rightsizeUpperWatermark;
-
-    @Bean
-    public Optional<Integer> maxPlacementsOverride() {
-        return maxPlacementIterations > 0
-            ? Optional.of(maxPlacementIterations)
-            : Optional.empty();
-    }
-
-    @Bean
-    public TopologyEntitiesListener topologyEntitiesListener() {
-        final TopologyEntitiesListener topologyEntitiesListener = new TopologyEntitiesListener(
-                marketRunnerConfig.marketRunner(), maxPlacementsOverride(),
-                rightsizeLowerWatermark, rightsizeUpperWatermark,
-                licenseCheckClientConfig.licenseCheckClient());
-        topologyProcessor().addLiveTopologyListener(topologyEntitiesListener);
-        topologyProcessor().addPlanTopologyListener(topologyEntitiesListener);
-        return topologyEntitiesListener;
-    }
-
     @Bean
     public TopologyProcessor topologyProcessor() {
         return tpConfig.topologyProcessor(
             TopologyProcessorSubscription.forTopic(Topic.LiveTopologies),
-            TopologyProcessorSubscription.forTopic(Topic.PlanTopologies));
+            TopologyProcessorSubscription.forTopic(Topic.PlanTopologies),
+            // used by the ThinTargetCache
+            TopologyProcessorSubscription.forTopic(Topic.Notifications));
+    }
+
+    @Bean
+    public ThinTargetCache thinTargetCache() {
+        return new ThinTargetCache(topologyProcessor());
     }
 }

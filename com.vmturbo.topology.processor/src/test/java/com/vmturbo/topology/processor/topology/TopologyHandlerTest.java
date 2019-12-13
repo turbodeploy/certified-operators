@@ -59,6 +59,7 @@ public class TopologyHandlerTest {
             .setCreationTime(clockTime)
             .setTopologyType(TopologyType.REALTIME)
             .addAnalysisType(AnalysisType.MARKET_ANALYSIS)
+            .addAnalysisType(AnalysisType.BUY_RI_IMPACT_ANALYSIS)
             .addAnalysisType(AnalysisType.WASTED_FILES)
             .build();
 

@@ -30,6 +30,7 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.market.AnalysisRICoverageListener;
+import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisFactory;
 import com.vmturbo.market.runner.cost.MarketPriceTableFactory;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
@@ -84,6 +85,8 @@ public interface AnalysisFactory {
 
         private final WastedFilesAnalysisFactory wastedFilesAnalysisFactory;
 
+        private final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory;
+
         private final CloudCostDataProvider cloudCostDataProvider;
 
         private final AnalysisRICoverageListener listener;
@@ -109,6 +112,7 @@ public interface AnalysisFactory {
                   @Nonnull final TopologyEntityCloudTopologyFactory cloudTopologyFactory,
                   @Nonnull final TopologyCostCalculatorFactory topologyCostCalculatorFactory,
                   @Nonnull final WastedFilesAnalysisFactory wastedFilesAnalysisFactory,
+                  @Nonnull final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory,
                   @Nonnull final CloudCostDataProvider cloudCostDataProvider,
                   @Nonnull final Clock clock,
                   final float alleviatePressureQuoteFactor,
@@ -127,6 +131,7 @@ public interface AnalysisFactory {
             this.priceTableFactory = Objects.requireNonNull(marketPriceTableFactory);
             this.topologyCostCalculatorFactory = Objects.requireNonNull(topologyCostCalculatorFactory);
             this.wastedFilesAnalysisFactory = Objects.requireNonNull(wastedFilesAnalysisFactory);
+            this.buyRIImpactAnalysisFactory = Objects.requireNonNull(buyRIImpactAnalysisFactory);
             this.cloudTopologyFactory = Objects.requireNonNull(cloudTopologyFactory);
             this.clock = Objects.requireNonNull(clock);
             this.alleviatePressureQuoteFactor = alleviatePressureQuoteFactor;
@@ -154,10 +159,10 @@ public interface AnalysisFactory {
                 liveMarketMoveCostFactor, this.suspensionsThrottlingConfig, globalSettings);
             configCustomizer.customize(configBuilder);
             return new Analysis(topologyInfo, topologyEntities,
-                groupServiceClient, clock,
-                configBuilder.build(), cloudTopologyFactory,
-                topologyCostCalculatorFactory, priceTableFactory, wastedFilesAnalysisFactory,
-                tierExcluderFactory, listener);
+                    groupServiceClient, clock,
+                    configBuilder.build(), cloudTopologyFactory,
+                    topologyCostCalculatorFactory, priceTableFactory, wastedFilesAnalysisFactory,
+                    buyRIImpactAnalysisFactory, tierExcluderFactory, listener);
         }
 
         /**

@@ -89,7 +89,11 @@ public class AnalysisRpcService extends AnalysisServiceImplBase {
                 .setCreationTime(clock.millis())
                 .setTopologyType(TopologyType.PLAN)
                 .setPlanInfo(planTopologyInfo)
-                .addAllAnalysisType(getAnalysisTypes(request.getPlanType(), topologyHandler)).build();
+                .addAllAnalysisType(getAnalysisTypes(
+                        request.getPlanType(),
+                        request.getPlanSubType(),
+                        topologyHandler))
+                .build();
 
         try {
             final TopologyBroadcastInfo broadcastInfo;
@@ -125,18 +129,28 @@ public class AnalysisRpcService extends AnalysisServiceImplBase {
      * cloud migration plan.
      *
      * @param planType the type of the plan
+     * @param planSubType the sub-type of the plan
      * @param topologyHandler the {@link TopologyHandler} instance
      * @return set of {@link AnalysisType}s
      */
     private Set<AnalysisType> getAnalysisTypes(@Nonnull String planType,
+                                               @Nonnull String planSubType,
                                                @Nonnull TopologyHandler topologyHandler) {
+
+        // Run buy RI impact analysis, if this is OCP with RI buy only
         final Set<AnalysisType> analysisTypes = new HashSet<>();
-        analysisTypes.add(AnalysisType.MARKET_ANALYSIS);
-        // do not run wasted files analysis for Cloud Migration plan or if no related targets
-        if (!StringConstants.CLOUD_MIGRATION_PLAN.equals(planType) &&
-                topologyHandler.includesWastedFiles()) {
-            analysisTypes.add(AnalysisType.WASTED_FILES);
+        if (StringConstants.OPTIMIZE_CLOUD_PLAN.equals(planType) &&
+                StringConstants.OPTIMIZE_CLOUD_PLAN__RIBUY_ONLY.equals(planSubType)) {
+            analysisTypes.add(AnalysisType.BUY_RI_IMPACT_ANALYSIS);
+        } else {
+            analysisTypes.add(AnalysisType.MARKET_ANALYSIS);
+            // do not run wasted files analysis for Cloud Migration plan or if no related targets
+            if (!StringConstants.CLOUD_MIGRATION_PLAN.equals(planType) &&
+                    topologyHandler.includesWastedFiles()) {
+                analysisTypes.add(AnalysisType.WASTED_FILES);
+            }
         }
+
         return analysisTypes;
     }
 }

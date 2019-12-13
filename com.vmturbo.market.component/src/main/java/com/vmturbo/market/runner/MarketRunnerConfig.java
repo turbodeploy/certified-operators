@@ -39,6 +39,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.market.AnalysisRICoverageListener;
 import com.vmturbo.market.api.MarketApiConfig;
+import com.vmturbo.market.reserved.instance.analysis.BuyRIImpactAnalysisConfig;
 import com.vmturbo.market.rpc.MarketRpcConfig;
 import com.vmturbo.market.runner.AnalysisFactory.DefaultAnalysisFactory;
 import com.vmturbo.market.runner.WastedFilesAnalysisFactory.DefaultWastedFilesAnalysisFactory;
@@ -56,7 +57,8 @@ import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory.
 @Import({MarketApiConfig.class,
         GroupClientConfig.class,
         CostClientConfig.class,
-        MarketRpcConfig.class})
+        MarketRpcConfig.class,
+        BuyRIImpactAnalysisConfig.class})
 public class MarketRunnerConfig {
 
     @Autowired
@@ -78,6 +80,9 @@ public class MarketRunnerConfig {
 
     @Autowired
     private MarketRpcConfig marketRpcConfig;
+
+    @Autowired
+    private BuyRIImpactAnalysisConfig buyRIImpactAnalysisConfig;
 
     @Value("${alleviatePressureQuoteFactor}")
     private float alleviatePressureQuoteFactor;
@@ -126,6 +131,7 @@ public class MarketRunnerConfig {
                 cloudTopologyFactory(),
                 topologyCostCalculatorFactory(),
                 wastedFilesAnalysisFactory(),
+                buyRIImpactAnalysisConfig.buyRIImpactAnalysisFactory(),
                 marketCloudCostDataProvider(),
                 Clock.systemUTC(),
                 alleviatePressureQuoteFactor,
@@ -138,6 +144,7 @@ public class MarketRunnerConfig {
     /**
      * Creates a new settingPolicyServiceBlockingStub which can be used to interact with setting
      * policy rpc service in group-component.
+     *
      * @return a new SettingPolicyServiceBlockingStub
      */
     @Bean
@@ -147,6 +154,7 @@ public class MarketRunnerConfig {
 
     /**
      * Creates a new {@link TierExcluderFactory}.
+     *
      * @return a new {@link TierExcluderFactory}
      */
     @Bean

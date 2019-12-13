@@ -43,6 +43,11 @@
         <!-- END Dependencies for coverage journal serialization to readable format -->
 
         <dependency>
+            <groupId>org.immutables</groupId>
+            <artifactId>value</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
         </dependency>

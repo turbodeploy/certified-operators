@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.reserved.instance.recommendationalgorithm;
 
+import java.time.Instant;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -420,11 +421,12 @@ public class ReservedInstanceAnalysisRecommendation {
         }
 
         ReservedInstanceBoughtInfo.Builder riBoughtInfoBuilder = ReservedInstanceBoughtInfo.newBuilder()
-            .setBusinessAccountId(context.getMasterAccountId())
-            .setNumBought(getCount())
-            .setReservedInstanceSpec(getRiSpec().getId())
-            .setReservedInstanceBoughtCost(riBoughtCost)
-            .setReservedInstanceBoughtCoupons(riBoughtCoupons);
+                .setBusinessAccountId(context.getMasterAccountId())
+                .setNumBought(getCount())
+                .setReservedInstanceSpec(getRiSpec().getId())
+                .setReservedInstanceBoughtCost(riBoughtCost)
+                .setReservedInstanceBoughtCoupons(riBoughtCoupons)
+                .setStartTime(Instant.now().toEpochMilli());
         return riBoughtInfoBuilder.build();
     }
 

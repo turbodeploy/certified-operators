@@ -23,7 +23,7 @@ import com.vmturbo.common.protobuf.trax.Trax.TraxTopicConfiguration.Verbosity;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.market.api.MarketApiConfig;
 import com.vmturbo.market.topology.PlanOrchestratorConfig;
-import com.vmturbo.market.topology.TopologyProcessorConfig;
+import com.vmturbo.market.topology.TopologyListenerConfig;
 import com.vmturbo.trax.TraxConfiguration;
 import com.vmturbo.trax.TraxConfiguration.TopicSettings;
 import com.vmturbo.trax.TraxThrottlingLimit;
@@ -34,7 +34,7 @@ import com.vmturbo.trax.TraxThrottlingLimit;
 @Configuration("theComponent")
 @Import({
     MarketGlobalConfig.class,
-    TopologyProcessorConfig.class,
+    TopologyListenerConfig.class,
     PlanOrchestratorConfig.class,
     MarketApiConfig.class,
     SpringSecurityConfig.class

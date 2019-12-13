@@ -88,7 +88,8 @@ public class TopologyHandler {
                 .setTopologyId(identityProvider.generateTopologyId())
                 .setTopologyContextId(realtimeTopologyContextId)
                 .setCreationTime(clock.millis())
-                .addAnalysisType(AnalysisType.MARKET_ANALYSIS);
+                .addAnalysisType(AnalysisType.MARKET_ANALYSIS)
+                .addAnalysisType(AnalysisType.BUY_RI_IMPACT_ANALYSIS);
         if (includesWastedFiles()) {
             tinfo.addAnalysisType(AnalysisType.WASTED_FILES);
         }

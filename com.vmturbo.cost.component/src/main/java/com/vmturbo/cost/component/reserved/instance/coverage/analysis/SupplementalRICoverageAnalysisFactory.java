@@ -19,6 +19,7 @@ import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
+import com.vmturbo.reserved.instance.coverage.allocator.RICoverageAllocatorFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopologyFactory;
 
@@ -51,6 +52,7 @@ public class SupplementalRICoverageAnalysisFactory {
                     .build()
                     .register();
 
+    private final RICoverageAllocatorFactory allocatorFactory;
 
     private final CoverageTopologyFactory coverageTopologyFactory;
 
@@ -64,6 +66,7 @@ public class SupplementalRICoverageAnalysisFactory {
 
     /**
      * Constructs a new instance of {@link SupplementalRICoverageAnalysis}
+     * @param allocatorFactory An instance of {@link RICoverageAllocatorFactory}
      * @param coverageTopologyFactory An instance of {@link CoverageTopologyFactory}
      * @param reservedInstanceBoughtStore An instance of {@link ReservedInstanceSpecStore}
      * @param reservedInstanceSpecStore An instance of {@link ReservedInstanceSpecStore}
@@ -73,12 +76,14 @@ public class SupplementalRICoverageAnalysisFactory {
      *                                       should be enabled in the RI coverage allocator
      */
     public SupplementalRICoverageAnalysisFactory(
+            @Nonnull RICoverageAllocatorFactory allocatorFactory,
             @Nonnull CoverageTopologyFactory coverageTopologyFactory,
             @Nonnull ReservedInstanceBoughtStore reservedInstanceBoughtStore,
             @Nonnull ReservedInstanceSpecStore reservedInstanceSpecStore,
             boolean riCoverageAllocatorValidation,
             boolean concurrentRICoverageAllocation) {
 
+        this.allocatorFactory = Objects.requireNonNull(allocatorFactory);
         this.coverageTopologyFactory = Objects.requireNonNull(coverageTopologyFactory);
         this.reservedInstanceBoughtStore = Objects.requireNonNull(reservedInstanceBoughtStore);
         this.reservedInstanceSpecStore = Objects.requireNonNull(reservedInstanceSpecStore);
@@ -121,6 +126,7 @@ public class SupplementalRICoverageAnalysisFactory {
                 reservedInstances);
 
         return new SupplementalRICoverageAnalysis(
+                allocatorFactory,
                 coverageTopology,
                 entityRICoverageUploads,
                 concurrentRICoverageAllocation,

@@ -94,16 +94,14 @@ public class TopologyRpcService extends TopologyServiceImplBase {
     public void broadcastAndReturnTopology(TopologyBroadcastRequest request,
                                            StreamObserver<Topology> responseObserver) {
         try {
-            final TopologyInfo.Builder topologyInfo = TopologyInfo.newBuilder()
-                                                                  .setTopologyType(
-                                                                      TopologyType.REALTIME)
-                                                                  .setTopologyId(identityProvider
-                                                                                     .generateTopologyId())
-                                                                  .setTopologyContextId(
-                                                                      realtimeTopologyContextId)
-                                                                  .setCreationTime(clock.millis())
-                                                                  .addAnalysisType(
-                                                                      AnalysisType.MARKET_ANALYSIS);
+            final TopologyInfo.Builder topologyInfo =
+                    TopologyInfo.newBuilder()
+                            .setTopologyType(TopologyType.REALTIME)
+                            .setTopologyId(identityProvider.generateTopologyId())
+                            .setTopologyContextId(realtimeTopologyContextId)
+                            .setCreationTime(clock.millis())
+                            .addAnalysisType(AnalysisType.MARKET_ANALYSIS)
+                            .addAnalysisType(AnalysisType.BUY_RI_IMPACT_ANALYSIS);
 
             if (topologyHandler.includesWastedFiles()) {
                 topologyInfo.addAnalysisType(AnalysisType.WASTED_FILES);

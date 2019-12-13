@@ -17,6 +17,7 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
+import com.vmturbo.reserved.instance.coverage.allocator.RICoverageAllocatorFactory.DefaultRICoverageAllocatorFactory;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopology;
 import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopologyFactory;
 import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
@@ -28,6 +29,8 @@ public class AbstractReservedInstanceCoverageAllocatorTest {
 
     protected final TopologyEntityCloudTopologyFactory cloudTopologyFactory =
             new DefaultTopologyEntityCloudTopologyFactory();
+
+    protected final RICoverageAllocatorFactory allocatorFactory = new DefaultRICoverageAllocatorFactory();
 
     protected CoverageTopology generateCoverageTopology(
             SDKProbeType cspType,

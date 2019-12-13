@@ -42,10 +42,11 @@ public class ReservedInstanceCoverageAllocatorAzureFuncTest extends AbstractRese
         /*
          * Invoke SUT
          */
-        final ReservedInstanceCoverageAllocator allocator = ReservedInstanceCoverageAllocator.newBuilder()
-                .coverageTopology(coverageTopology)
-                .coverageProvider(() -> ImmutableTable.of())
-                .build();
+        final ReservedInstanceCoverageAllocator allocator = allocatorFactory.createAllocator(
+                ImmutableRICoverageAllocatorConfig.builder()
+                        .coverageTopology(coverageTopology)
+                        .coverageProvider(() -> ImmutableTable.of())
+                        .build());
 
         final ReservedInstanceCoverageAllocation allocationResult = allocator.allocateCoverage();
 
@@ -84,10 +85,11 @@ public class ReservedInstanceCoverageAllocatorAzureFuncTest extends AbstractRese
         /*
          * Invoke SUT
          */
-        final ReservedInstanceCoverageAllocator allocator = ReservedInstanceCoverageAllocator.newBuilder()
-                .coverageTopology(coverageTopology)
-                .coverageProvider(() -> ImmutableTable.of())
-                .build();
+        final ReservedInstanceCoverageAllocator allocator = allocatorFactory.createAllocator(
+                ImmutableRICoverageAllocatorConfig.builder()
+                        .coverageTopology(coverageTopology)
+                        .coverageProvider(() -> ImmutableTable.of())
+                        .build());
 
         final ReservedInstanceCoverageAllocation allocationResult = allocator.allocateCoverage();
 
