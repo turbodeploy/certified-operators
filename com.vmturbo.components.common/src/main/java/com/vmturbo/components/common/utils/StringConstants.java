@@ -286,6 +286,7 @@ public class StringConstants {
     public static final String CPU_HEADROOM = "CPUHeadroom";
     public static final String MEM_HEADROOM = "MemHeadroom";
     public static final String STORAGE_HEADROOM = "StorageHeadroom";
+    public static final String TOTAL_HEADROOM = "TotalHeadroom";
     public static final String CPU_EXHAUSTION = "CPUExhaustion";
     public static final String MEM_EXHAUSTION = "MemExhaustion";
     public static final String STORAGE_EXHAUSTION = "StorageExhaustion";

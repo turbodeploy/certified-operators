@@ -175,6 +175,7 @@ public class StatsService implements IStatsService {
                     StringConstants.CPU_HEADROOM,
                     StringConstants.MEM_HEADROOM,
                     StringConstants.STORAGE_HEADROOM,
+                    StringConstants.TOTAL_HEADROOM,
                     StringConstants.CPU_EXHAUSTION,
                     StringConstants.MEM_EXHAUSTION,
                     StringConstants.STORAGE_EXHAUSTION,
