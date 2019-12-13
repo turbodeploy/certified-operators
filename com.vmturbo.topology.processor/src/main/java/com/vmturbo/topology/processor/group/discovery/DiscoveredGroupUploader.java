@@ -181,8 +181,8 @@ public class DiscoveredGroupUploader {
             DiscoveredSettingPolicyInfo.Builder policy = DiscoveredSettingPolicyInfo.newBuilder();
             policy.setEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
             policy.addDiscoveredGroupNames(GroupProtoUtil.createIdentifyingKey(group));
-            String name = targetName + " - " + "Cloud Tier Exclusion Policy for "
-                    + group.getDisplayName();
+            String name = String.format("%s - %s - %s (account %d)", targetName,
+                    group.getDisplayName(), "Cloud Compute Tier Exclusion Policy", targetId);
             policy.setDisplayName(name);
             policy.setName(name);
             policy.addSettings(setting);
@@ -196,7 +196,7 @@ public class DiscoveredGroupUploader {
     @Nonnull
     private String getTargetDisplayName(long targetId) {
         Optional<String> name = targetStore.getTargetDisplayName(targetId);
-        return name.isPresent() ? name.get() + " (" + targetId + ")" : "" + targetId;
+        return name.orElseGet(() -> String.valueOf(targetId));
     }
 
     /**
