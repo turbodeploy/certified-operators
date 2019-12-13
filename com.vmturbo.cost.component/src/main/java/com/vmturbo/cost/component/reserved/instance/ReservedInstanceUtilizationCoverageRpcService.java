@@ -34,6 +34,7 @@ import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverag
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceImplBase;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
+import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanceMappingFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtilizationFilter;
@@ -164,11 +165,22 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
                     StreamObserver<GetEntityReservedInstanceCoverageResponse> responseObserver) {
         try {
             logger.debug("Request for Entity RI coverage: {}", request);
+            EntityReservedInstanceMappingFilter filter = EntityReservedInstanceMappingFilter
+                    .newBuilder()
+                    .addAllScopeId(request.getEntityFilter().getEntityIdList())
+                    .addEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                    .build();
+
+            ReservedInstanceCoverageFilter reservedInstanceCoverageFilter = ReservedInstanceCoverageFilter
+                    .newBuilder()
+                    .addAllScopeId(request.getEntityFilter().getEntityIdList())
+                    .build();
+
             final Map<Long, Set<Coverage>> riCoverageByEntity = entityReservedInstanceMappingStore
-                    .getRICoverageByEntity();
+                    .getRICoverageByEntity(filter);
 
             final Map<Long, Double> entitiesCouponCapacity = reservedInstanceCoverageStore
-                    .getEntitiesCouponCapacity();
+                    .getEntitiesCouponCapacity(reservedInstanceCoverageFilter);
 
             final Map<Long, EntityReservedInstanceCoverage> retCoverage = entitiesCouponCapacity.entrySet()
                     .stream()
