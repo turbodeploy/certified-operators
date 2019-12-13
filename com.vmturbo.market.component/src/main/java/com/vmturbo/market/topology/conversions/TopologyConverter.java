@@ -2,7 +2,6 @@ package com.vmturbo.market.topology.conversions;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -398,7 +397,6 @@ public class TopologyConverter {
         // We can have a helper class that will apply the skipped entity logic on the
         // original topology.
         conversionErrorCounts.startPhase(Phase.CONVERT_TO_MARKET);
-        long convertToMarketStartTime = System.currentTimeMillis();
         try {
             for (TopologyDTO.TopologyEntityDTO entity : topology.values()) {
                 int entityType = entity.getEntityType();
@@ -449,9 +447,6 @@ public class TopologyConverter {
         } finally {
             conversionErrorCounts.endPhase();
             tierExcluder.clearStateNeededForConvertToMarket();
-            long convertToMarketEndTime = System.currentTimeMillis();
-            logger.info("Completed converting TopologyEntityDTOs to traderTOs. Time taken = {} seconds",
-                ((double)(convertToMarketEndTime - convertToMarketStartTime)) / 1000);
         }
     }
 
@@ -1858,10 +1853,6 @@ public class TopologyConverter {
                 // TODO: we also skip the sl that consumes AZ which contains Zone commodity because zonal RI is not yet supported
                 .filter(commBoughtGrouping -> includeByType(commBoughtGrouping.getProviderEntityType())
                             && commBoughtGrouping.getProviderEntityType() != EntityType.AVAILABILITY_ZONE_VALUE)
-                // Sort the commBoughtGroupings based on provider type and then by volume id so
-                // that the input into analysis is consistent every cycle
-                .sorted(Comparator.comparing(CommoditiesBoughtFromProvider::getProviderEntityType)
-                    .thenComparing(CommoditiesBoughtFromProvider::getVolumeId))
                 .map(commBoughtGrouping -> createShoppingList(
                         topologyEntity,
                         topologyEntity.getEntityType(),

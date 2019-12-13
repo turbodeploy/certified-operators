@@ -5,9 +5,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
-import java.util.function.Function;
+
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -119,18 +117,12 @@ public class TopologyEntitiesHandler {
                                                   @Nonnull final TopologyDTO.TopologyInfo topologyInfo,
                                                   final AnalysisConfig analysisConfig,
                                                   final Analysis analysis) {
-        // Sort the traderTOs based on their oids so that the input into analysis is consistent every cycle
-        logger.info("Received TOs from marketComponent. Starting sorting of traderTOs.");
-        final long sortStart = System.currentTimeMillis();
-        SortedMap<Long, TraderTO> sortedTraderTOs = traderTOs.stream().collect(Collectors.toMap(
-            TraderTO::getOid, Function.identity(), (oldTrader, newTrader) -> newTrader, TreeMap::new));
-        final long sortEnd = System.currentTimeMillis();
-        logger.info("Completed sorting of traderTOs. Time taken = {} seconds", ((double)(sortEnd - sortStart)) / 1000);
-        logger.info("Starting economy creation on {} traders", sortedTraderTOs.size());
+        logger.info("Received TOs from marketComponent. Starting economy creation on {} traders",
+                traderTOs.size());
         final long start = System.nanoTime();
         final DataMetricTimer buildTimer = ECONOMY_BUILD.startTimer();
         final Topology topology = new Topology();
-        for (final TraderTO traderTO : sortedTraderTOs.values()) {
+        for (final TraderTO traderTO : traderTOs) {
             // If it's a trader that's added specifically for headroom calculation, don't add
             // it to the topology along with the other traders. Add it to a separate list,
             // and the market will use that list to help calculate headroom.
@@ -270,7 +262,7 @@ public class TopologyEntitiesHandler {
         final String contextType = topologyInfo.hasPlanInfo() ? PLAN_CONTEXT_TYPE_LABEL : LIVE_CONTEXT_TYPE_LABEL;
         ANALYSIS_ECONOMY_SIZE
             .labels(scopeType, contextType)
-            .observe((double)sortedTraderTOs.size());
+            .observe((double)traderTOs.size());
 
         logger.info("Completed analysis, with {} actions, and a projected topology of {} traders",
                 results.getActionsCount(), results.getProjectedTopoEntityTOCount());

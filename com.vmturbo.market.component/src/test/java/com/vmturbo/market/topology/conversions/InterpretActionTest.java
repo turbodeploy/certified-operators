@@ -232,9 +232,7 @@ public class InterpretActionTest {
         final Set<TraderTO> traderTOs =
             converter.convertToMarket(ImmutableMap.of(entityDto.getOid(), entityDto));
         final TraderTO vmTraderTO = TopologyConverterToMarketTest.getVmTrader(traderTOs);
-        // We sort the shopping list based on provider entity type, and then based on volume id.
-        // So the index of volume shopping list will be 2 last since its provider id type is the greatest.
-        ShoppingListTO shoppingList = vmTraderTO.getShoppingListsList().get(2);
+        ShoppingListTO shoppingList = vmTraderTO.getShoppingListsList().get(0);
         ShoppingListTO shoppingList1 = vmTraderTO.getShoppingListsList().get(1);
 
         long srcId = 1234;

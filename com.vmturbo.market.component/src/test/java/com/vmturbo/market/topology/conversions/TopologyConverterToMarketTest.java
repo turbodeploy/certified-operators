@@ -258,9 +258,7 @@ public class TopologyConverterToMarketTest {
         ShoppingListTO pmShoppingList = shoppingLists.stream()
                         .filter(sl -> sl.getSupplier() == 102)
                         .findAny().orElseThrow(() -> new RuntimeException("cannot find supplier 102"));
-        // PM shopping list is created last because we sort the commBoughtGroupings by provider
-        // type and then by volume id.
-        assertEquals(1002, pmShoppingList.getOid());
+        assertEquals(1000, pmShoppingList.getOid());
         assertTrue(pmShoppingList.getMovable());
         List<CommodityBoughtTO> commoditiesBoughtList = pmShoppingList.getCommoditiesBoughtList();
         // Buys MEM and CPU
@@ -396,51 +394,6 @@ public class TopologyConverterToMarketTest {
         assertEquals(topologyCommodity2, converter.getCommodityConverter()
                 .economyToTopologyCommodity(economyCommodity2).orElseThrow(() ->
                         new RuntimeException("cannot convert commodity2")));
-    }
-
-    /**
-     * We sort the shopping lists by provider entity type followed by volume id. This test verifies this.
-     * We setup a VM with 3 commBoughtGroupings in this order - PM grouping (provider type 14),
-     * volume 2 grouping (volume id 10, provider type 2), volume 1 SL (volume id 9, , provider type 2)
-     * The trader should be created with shopping lists in the order - volume 1, volume 2, PM
-     * @throws IOException when the file is not found.
-     */
-    @Test
-    public void testShoppingListSorting() throws IOException {
-        TopologyEntityDTO entityDTO = messageFromJsonFile("protobuf/messages/vm-1.dto.json");
-        CommoditiesBoughtFromProvider.Builder pmCommBoughtGrouping = entityDTO
-            .getCommoditiesBoughtFromProvidersList().get(0).toBuilder();
-        CommoditiesBoughtFromProvider.Builder volume1CommBoughtGrouping = entityDTO
-            .getCommoditiesBoughtFromProvidersList().get(1).toBuilder();
-        CommoditiesBoughtFromProvider.Builder volume2CommBoughtGrouping = entityDTO
-            .getCommoditiesBoughtFromProvidersList().get(2).toBuilder();
-        pmCommBoughtGrouping.clearVolumeId();
-        volume1CommBoughtGrouping.setVolumeId(9L);
-        volume2CommBoughtGrouping.setVolumeId(10L);
-        TopologyEntityDTO.Builder entityDTOBuilder = entityDTO.toBuilder();
-        entityDTOBuilder.clearCommoditiesBoughtFromProviders();
-        entityDTOBuilder.addAllCommoditiesBoughtFromProviders(Arrays.asList(pmCommBoughtGrouping.build(),
-            volume2CommBoughtGrouping.build(), volume1CommBoughtGrouping.build()));
-        entityDTO = entityDTOBuilder.build();
-
-        final TopologyConverter converter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, AnalysisUtil.QUOTE_FACTOR,
-                AnalysisUtil.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketPriceTable,
-                ccd,
-                CommodityIndex.newFactory());
-        Set<TraderTO> vmTrader = converter.convertToMarket(ImmutableMap.of(entityDTO.getOid(), entityDTO));
-
-        TraderTO vm = vmTrader.iterator().next();
-        ShoppingListInfo volume1slInfo = converter.getShoppingListOidToInfos().get(
-            vm.getShoppingListsList().get(0).getOid());
-        assertEquals(9L, (long)volume1slInfo.getResourceId().get());
-        ShoppingListInfo volume2slInfo = converter.getShoppingListOidToInfos().get(
-            vm.getShoppingListsList().get(1).getOid());
-        assertEquals(10L, (long)volume2slInfo.getResourceId().get());
-        ShoppingListInfo pmSlInfo = converter.getShoppingListOidToInfos().get(
-            vm.getShoppingListsList().get(2).getOid());
-        assertEquals(14, (int)pmSlInfo.getSellerEntityType().get());
     }
 
     /**
