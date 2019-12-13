@@ -3,7 +3,6 @@ package com.vmturbo.platform.analysis.ede;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map.Entry;
@@ -212,12 +211,12 @@ public class Placement {
             return results;
         }
 
-        QuoteMinimizer minimizer = initiateQuoteMinimizer(economy, sellers, shoppingList, null);
+        final QuoteMinimizer minimizer = initiateQuoteMinimizer(economy, sellers, shoppingList, null);
 
-        double cheapestQuote = minimizer.getTotalBestQuote();
-        Trader cheapestSeller = minimizer.getBestSeller();
-        Trader buyer = shoppingList.getBuyer();
-        double currentQuote = minimizer.getCurrentQuote().getQuoteValue();
+        final double cheapestQuote = minimizer.getTotalBestQuote();
+        final Trader cheapestSeller = minimizer.getBestSeller();
+        final Trader buyer = shoppingList.getBuyer();
+        final double currentQuote = minimizer.getCurrentQuote().getQuoteValue();
 
         boolean isDebugTrader = buyer.isDebugEnabled() || logger.isTraceEnabled();
         boolean isSellersInfoPrinted = buyer.isSellersInfoPrinted();

@@ -3,8 +3,6 @@ package com.vmturbo.platform.analysis.ede;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 
-import java.lang.reflect.Field;
-
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -16,27 +14,30 @@ import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs;
+import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 import com.vmturbo.platform.analysis.utilities.PlacementResults;
+
+import java.lang.reflect.Field;
+
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Test;
-
-import com.vmturbo.platform.analysis.topology.Topology;
 import org.junit.runner.RunWith;
 
 import static com.vmturbo.platform.analysis.testUtilities.TestUtils.PM_TYPE;
 import static com.vmturbo.platform.analysis.testUtilities.TestUtils.VM_TYPE;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 @RunWith(JUnitParamsRunner.class)
-public class CloudActionsIntegtationTest {
+public class CloudActionsIntegrationTest {
 
     private static final CommoditySpecification CPU = new CommoditySpecification(0).setDebugInfoNeverUseInCode("CPU");
     private static final CommoditySpecification COUPON = new CommoditySpecification(1).setDebugInfoNeverUseInCode("COUPON");
@@ -45,7 +46,7 @@ public class CloudActionsIntegtationTest {
     private static final Basket SOLDbyTP = new Basket(CPU, COUPON, FAMILY, LICENSE);
     private static final Basket SOLDbyCBTP = new Basket(CPU, COUPON, LICENSE);
     private static final Basket BOUGHTbyVM = new Basket(CPU, COUPON, LICENSE);
-    static final Logger logger = LogManager.getLogger(CloudActionsIntegtationTest.class);
+    static final Logger logger = LogManager.getLogger(CloudActionsIntegrationTest.class);
 
     private static final long BA = 1, REGION = 2, ZONE = 3;
     private static final double VERY_LOW_PRICE = 2, LOW_PRICE = 5, HIGH_PRICE = 10;
@@ -108,7 +109,7 @@ public class CloudActionsIntegtationTest {
         traderOids.put(cbtp2, startIndex + 7L);
 
         // create costDTOs
-        CostDTOs.CostDTO costDTO_tp1 = CostDTOs.CostDTO.newBuilder()
+        CostDTOs.CostDTO costDtoTp1 = CostDTOs.CostDTO.newBuilder()
                 .setComputeTierCost(CostDTOs.CostDTO.ComputeTierCostDTO.newBuilder()
                         .setCouponBaseType(COUPON.getBaseType())
                         .setLicenseCommodityBaseType(LICENSE.getBaseType())
@@ -119,18 +120,18 @@ public class CloudActionsIntegtationTest {
                                 .setPrice(LOW_PRICE).build())
                         .build())
                 .build();
-        FunctionalOperator ignore = FunctionalOperatorUtil.createIgnoreConsumptionUpdatingFunction(costDTO_tp1, UpdatingFunctionDTOs.UpdatingFunctionTO.newBuilder()
+        FunctionalOperator ignore = FunctionalOperatorUtil.createIgnoreConsumptionUpdatingFunction(costDtoTp1, UpdatingFunctionDTOs.UpdatingFunctionTO.newBuilder()
                 .setIgnoreConsumption(UpdatingFunctionDTOs.UpdatingFunctionTO.IgnoreConsumption.newBuilder()
                         .build())
                 .build());
 
-        tp1.getSettings().setCostFunction(CostFunctionFactory.createCostFunctionForComputeTier(costDTO_tp1.getComputeTierCost()));
+        tp1.getSettings().setCostFunction(CostFunctionFactory.createCostFunctionForComputeTier(costDtoTp1.getComputeTierCost()));
         tp1.getSettings().setQuoteFunction(QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
         tp1.getCommoditySold(CPU).setCapacity(50).getSettings().setUpdatingFunction(ignore);
-        tp1.getCommoditySold(COUPON).setCapacity(8).getSettings().setUpdatingFunction(FunctionalOperatorUtil.createIgnoreConsumptionUpdatingFunction(costDTO_tp1,
+        tp1.getCommoditySold(COUPON).setCapacity(8).getSettings().setUpdatingFunction(FunctionalOperatorUtil.createIgnoreConsumptionUpdatingFunction(costDtoTp1,
                 UpdatingFunctionDTOs.UpdatingFunctionTO.newBuilder().build()));
 
-        CostDTOs.CostDTO costDTO_tp2 = CostDTOs.CostDTO.newBuilder()
+        CostDTOs.CostDTO costDtoTp2 = CostDTOs.CostDTO.newBuilder()
                 .setComputeTierCost(CostDTOs.CostDTO.ComputeTierCostDTO.newBuilder()
                         .setCouponBaseType(COUPON.getBaseType())
                         .setLicenseCommodityBaseType(LICENSE.getBaseType())
@@ -142,13 +143,13 @@ public class CloudActionsIntegtationTest {
                                 .build())
                         .build())
                 .build();
-        tp2.getSettings().setCostFunction(CostFunctionFactory.createCostFunctionForComputeTier(costDTO_tp2.getComputeTierCost()));
+        tp2.getSettings().setCostFunction(CostFunctionFactory.createCostFunctionForComputeTier(costDtoTp2.getComputeTierCost()));
         tp2.getSettings().setQuoteFunction(QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
         tp2.getCommoditySold(CPU).setCapacity(100).getSettings().setUpdatingFunction(ignore);
-        tp2.getCommoditySold(COUPON).setCapacity(16).getSettings().setUpdatingFunction(FunctionalOperatorUtil.createIgnoreConsumptionUpdatingFunction(costDTO_tp2,
+        tp2.getCommoditySold(COUPON).setCapacity(16).getSettings().setUpdatingFunction(FunctionalOperatorUtil.createIgnoreConsumptionUpdatingFunction(costDtoTp2,
                 UpdatingFunctionDTOs.UpdatingFunctionTO.newBuilder().build()));
 
-        CostDTOs.CostDTO costDTO_cbtp1 = CostDTOs.CostDTO.newBuilder()
+        CostDTOs.CostDTO costDtoCbtp1 = CostDTOs.CostDTO.newBuilder()
                 .setCbtpResourceBundle(CostDTOs.CostDTO.CbtpCostDTO.newBuilder()
                         .setCouponBaseType(COUPON.getBaseType())
                         .setDiscountPercentage(0.4)
@@ -161,7 +162,7 @@ public class CloudActionsIntegtationTest {
                         .build())
                 .build();
 
-        CostDTOs.CostDTO costDTO_cbtp2 = CostDTOs.CostDTO.newBuilder()
+        CostDTOs.CostDTO costDtoCbtp2 = CostDTOs.CostDTO.newBuilder()
                 .setCbtpResourceBundle(CostDTOs.CostDTO.CbtpCostDTO.newBuilder()
                         .setCouponBaseType(COUPON.getBaseType())
                         .setDiscountPercentage(0.4)
@@ -173,16 +174,16 @@ public class CloudActionsIntegtationTest {
                                 .build())
                         .build())
                 .build();
-        cbtp1.getSettings().setCostFunction(CostFunctionFactory.createResourceBundleCostFunctionForCbtp(costDTO_cbtp1.getCbtpResourceBundle()));
+        cbtp1.getSettings().setCostFunction(CostFunctionFactory.createResourceBundleCostFunctionForCbtp(costDtoCbtp1.getCbtpResourceBundle()));
         cbtp1.getSettings().setQuoteFunction(QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
         cbtp1.getCommoditySold(CPU).setCapacity(100);
-        cbtp1.getCommoditySold(COUPON).getSettings().setUpdatingFunction(FunctionalOperatorUtil.createCouponUpdatingFunction(costDTO_cbtp1,
+        cbtp1.getCommoditySold(COUPON).getSettings().setUpdatingFunction(FunctionalOperatorUtil.createCouponUpdatingFunction(costDtoCbtp1,
                 UpdatingFunctionDTOs.UpdatingFunctionTO.newBuilder().build()));
 
-        cbtp2.getSettings().setCostFunction(CostFunctionFactory.createResourceBundleCostFunctionForCbtp(costDTO_cbtp2.getCbtpResourceBundle()));
+        cbtp2.getSettings().setCostFunction(CostFunctionFactory.createResourceBundleCostFunctionForCbtp(costDtoCbtp2.getCbtpResourceBundle()));
         cbtp2.getSettings().setQuoteFunction(QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
         cbtp2.getCommoditySold(CPU).setCapacity(100);
-        cbtp2.getCommoditySold(COUPON).getSettings().setUpdatingFunction(FunctionalOperatorUtil.createCouponUpdatingFunction(costDTO_cbtp2,
+        cbtp2.getCommoditySold(COUPON).getSettings().setUpdatingFunction(FunctionalOperatorUtil.createCouponUpdatingFunction(costDtoCbtp2,
                 UpdatingFunctionDTOs.UpdatingFunctionTO.newBuilder().build()));
         // coupon used and cap unset
 
@@ -222,7 +223,6 @@ public class CloudActionsIntegtationTest {
         for (int i = 1; i <= numBuyers; i++) {
             // Create two Traders in a single scaling group.
             Trader trader = economy.addTrader(VM_TYPE, TraderState.ACTIVE, new Basket());
-            Context context = new Context(REGION, ZONE, new Context.BalanceAccount(0, 10000, BA, 0));
             trader.setDebugInfoNeverUseInCode("VirtualMachine|" + (startIndex + i));
             trader.setScalingGroupId(scalingGroupId);
             trader.getSettings().setQuoteFactor(1).setMoveCostFactor(0);
@@ -233,7 +233,8 @@ public class CloudActionsIntegtationTest {
             // First buyer is the group leader
             shoppingList.setGroupFactor(i == 1 ? numBuyers : 0);
             economy.registerShoppingListWithScalingGroup(scalingGroupId, shoppingList);
-            trader.getSettings().setContext(context);
+            trader.getSettings().setContext(new Context(REGION, ZONE,
+                    new Context.BalanceAccount(0, 10000, BA, 0)));
             traders[traderIndex++] = trader;
             traderOids.put(trader, (long)(i + startIndex));
         }
@@ -247,11 +248,10 @@ public class CloudActionsIntegtationTest {
     }
 
     /**
-     *
      * This test verifies that the VM uses the right number of coupons for the template size it picks
      */
     @Test
-    public void testCouponUpdationOnMoves_1() {
+    public void testCouponUpdationOnMoves1() {
         // CBTP has a capacity of 40 coupons
         Economy e = new Economy();
         Topology t = new Topology();
@@ -274,7 +274,7 @@ public class CloudActionsIntegtationTest {
     }
 
     @Test
-    public void testCouponUpdationOnMoves_2() {
+    public void testCouponUpdationOnMoves2() {
         // CBTP has a capacity of 30 coupons
         Economy e = new Economy();
         Topology t = new Topology();
@@ -295,10 +295,12 @@ public class CloudActionsIntegtationTest {
         assertEquals(26, sellers[2].getCommoditySold(COUPON).getQuantity(), 0);
     }
 
-    // when there is a partially covered VM on a CBTP, if there is some other VM that shops before it,
-    // it will try to move but not get any coupons as the partially covered VM will take up all coupons
+    /*
+     * when there is a partially covered VM on a CBTP, if there is some other VM that shops before it,
+     * it will try to move but not get any coupons as the partially covered VM will take up all coupons.
+     */
     @Test
-    public void testCouponUpdationOnMoves_3() {
+    public void testCouponUpdationOnMoves3() {
         Economy e = new Economy();
         Topology t = new Topology();
         Trader[] vms = setupConsumers(e);
@@ -313,8 +315,7 @@ public class CloudActionsIntegtationTest {
         e.getCommodityBought(slVM1, COUPON).setQuantity(8);
         e.getCommodityBought(slVM1, CPU).setQuantity(60);
         e.getCommodityBought(slVM2, CPU).setQuantity(60);
-        Context context = makeContext(t.getTraderOid(sellers[2]), 8, 16);
-        vms[0].getSettings().setContext(context);
+        vms[0].getSettings().setContext(makeContext(t.getTraderOid(sellers[2]), 8, 16));
 
         e.populateMarketsWithSellersAndMergeConsumerCoverage();
 
@@ -352,9 +353,9 @@ public class CloudActionsIntegtationTest {
             totalAllocatedCoupons, totalRequestedCoupons);
     }
 
-    // scale up on CBTP
+    // scale up and use CBTP.
     @Test
-    public void testCouponUpdationOnMoves_4() {
+    public void testCouponUpdationOnMoves4() {
         Economy e = new Economy();
         Topology t = new Topology();
         Trader[] vms = setupConsumers(e);
@@ -381,7 +382,7 @@ public class CloudActionsIntegtationTest {
 
     // scale down on CBTP and different VM using the coupons
     @Test
-    public void testCouponUpdationOnMoves_5() {
+    public void testCouponUpdationOnMoves5() {
         Economy e = new Economy();
         Topology t = new Topology();
         Trader[] vms = setupConsumers(e);
@@ -414,7 +415,7 @@ public class CloudActionsIntegtationTest {
 
     // moving from 1 cbtp to another
     @Test
-    public void testCouponUpdationOnMoves_6() {
+    public void testCouponUpdationOnMoves6() {
         Economy e = new Economy();
         Topology t = new Topology();
         Trader[] vms = setupConsumers(e);
@@ -448,10 +449,10 @@ public class CloudActionsIntegtationTest {
     // CSG's
     // Group leader part of a CSG containing 2 VMs moving to a CBTP
     @Test
-    public void testCouponUpdationOnMoves_7() {
+    public void testCouponUpdationOnMoves7() {
         Economy e = new Economy();
         Topology t = new Topology();
-        Trader[] vms = setupConsumersInCSG(e, 2, "id1", 0, 8);//new double[] {8, 16});
+        Trader[] vms = setupConsumersInCSG(e, 2, "id1", 0, 8);
         Trader[] sellers = setupProviders(e, t, 0);
         sellers[2].getCommoditySold(COUPON).setCapacity(30);
         ShoppingList slVM1 = getSl(e, vms[0]);
@@ -472,7 +473,7 @@ public class CloudActionsIntegtationTest {
     }
 
     @Test
-    public void testCouponUpdationOnMoves_8() {
+    public void testCouponUpdationOnMoves8() {
         // VM1 on TP1
         // VM2 on CBTP1 consuming 4 coupons
         // VM3 on CBTP2 consuming 4 coupons
@@ -525,7 +526,7 @@ public class CloudActionsIntegtationTest {
     }
 
     @Test
-    public void testCouponUpdationOnMoves_9() {
+    public void testCouponUpdationOnMoves9() {
         // VM1 on CBTP2 consuming 4 coupons
         // VM2 on TP2
         // VM3 on TP1
@@ -578,7 +579,7 @@ public class CloudActionsIntegtationTest {
     }
 
     @Test
-    public void testCouponUpdationOnMoves_10() {
+    public void testCouponUpdationOnMoves10() {
         // VM1 on CBTP2 consuming 4 coupons
         // VM2 on CBTP2 consuming 4 coupons
         // VM3 on CBTP2 consuming 4 coupons
@@ -685,8 +686,7 @@ public class CloudActionsIntegtationTest {
         if (cpuUsed1 != 0) {
             e.getCommodityBought(slVM1, CPU).setQuantity(cpuUsed1);
             e.getCommodityBought(slVM1, COUPON).setQuantity(couponAlloc1);
-            Context context = makeContext(t.getTraderOid(sellers[2]), couponAlloc1, couponReq1);
-            vms[0].getSettings().setContext(context);
+            vms[0].getSettings().setContext(makeContext(t.getTraderOid(sellers[2]), couponAlloc1, couponReq1));
             slVM1.move(sellers[0]);
         }
         e.getCommodityBought(slVM2, CPU).setQuantity(cpuUsed2);

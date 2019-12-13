@@ -3,7 +3,11 @@ package com.vmturbo.platform.analysis.utilities;
 import java.util.Optional;
 
 import com.google.common.collect.ImmutableSet;
-import com.vmturbo.platform.analysis.economy.*;
+import com.vmturbo.platform.analysis.economy.CommoditySold;
+import com.vmturbo.platform.analysis.economy.Context;
+import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
+import com.vmturbo.platform.analysis.economy.Trader;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -208,14 +212,12 @@ public class FunctionalOperatorUtil {
                     discountCoefficient = totalAllocatedCoupons / requestedCoupons;
                     // normalize total allocated coupons for a single buyer
                     buyer.setQuantity(boughtIndex, totalAllocatedCoupons);
-                    // TODO SS: consider updating tier in context
                     // tier information is updated here indirectly through TotalRequestedCoupons update
                     c.setTotalAllocatedCoupons(oid, c.getTotalAllocatedCoupons(oid).orElse(0.0) + totalAllocatedCoupons);
                     if (buyer.getGroupFactor() > 0) {
                         // group leader updates the coupon requested for the group
                         c.setTotalRequestedCoupons(oid, requestedCoupons * buyer.getGroupFactor());
                     }
-                    // buyer.getBuyer().getSettings().getContext().setTier();
                     discountedCost = ((1 - discountCoefficient) * templateCost) + (discountCoefficient
                             * ((1 - cbtpResourceBundle.getDiscountPercentage()) * templateCost));
                 }

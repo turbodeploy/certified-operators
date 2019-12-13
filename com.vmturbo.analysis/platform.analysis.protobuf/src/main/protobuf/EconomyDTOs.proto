@@ -94,6 +94,7 @@ message Context {
     // Zone id of the zone to which the holding Trader belongs.
     optional int64 zone_id = 3;
 
+    // contains the coverage on a consumer/scalingGroup on a per provider basis.
     repeated CoverageEntry family_based_coverage = 4;
 
 }

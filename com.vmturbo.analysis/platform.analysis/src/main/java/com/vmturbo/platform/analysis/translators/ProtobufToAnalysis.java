@@ -572,8 +572,7 @@ public final class ProtobufToAnalysis {
         // In the case where a region id is not present we want to set it to -1
         final EconomyDTOs.Context sourceContext = source.getCurrentContext();
         final long regionId = sourceContext.hasRegionId() ? sourceContext.getRegionId() : -1L;
-        // TODO SS: populate the couponCount and the currentTier
-        final Context context = new Context(0L, regionId, sourceContext.getZoneId(), balanceAccount,
+        final Context context = new Context(regionId, sourceContext.getZoneId(), balanceAccount,
                 sourceContext.getFamilyBasedCoverageList());
         destination.setContext(context);
     }

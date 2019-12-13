@@ -272,5 +272,10 @@ public interface UnmodifiableEconomy {
      */
     public List<Trader> getPlacementEntities();
 
-    public List<ShoppingList> getPeerShoppingLists(UUID shoppingListId);
+    /**
+     * Get the peer shoppingLists for the leader of a scalingGroup
+     *
+     * @return list of peer {@link ShoppingList}'s
+     */
+    List<ShoppingList> getPeerShoppingLists(UUID shoppingListId);
 } // end UnmodifiableEconomy interface

@@ -29,6 +29,7 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.ede.Placement;
 import com.vmturbo.platform.analysis.ede.QuoteMinimizer;
@@ -41,7 +42,7 @@ import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
  * An action to move a {@link ShoppingList} from one supplier to another.
  */
 public class Move extends MoveBase implements Action { // inheritance for code reuse
-    static final Logger logger = LogManager.getLogger(Placement.class);
+    private static final Logger logger = LogManager.getLogger(Placement.class);
     // Fields
     private final @Nullable Trader destination_;
     private final Optional<Context> context_;
@@ -116,6 +117,9 @@ public class Move extends MoveBase implements Action { // inheritance for code r
         return sb.toString();
     }
 
+    /**
+     * Take this action and move consumer from source to destination.
+     */
     private @NonNull Move internalTake() {
         super.take();
         if (getSource() != getDestination() ||
@@ -153,7 +157,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
         List<ShoppingList> peers = economy.getPeerShoppingLists(getTarget().getShoppingListId());
         internalTake();
         for (ShoppingList shoppingList : peers) {
-            logger.info("Synthesizing Move for {} in scaling group {}",
+            logger.trace("Synthesizing Move for {} in scaling group {}",
                 shoppingList.getBuyer(), shoppingList.getBuyer().getScalingGroupId());
             // we do not care about the current provider and need to force a move
             QuoteMinimizer minimizer = getConsistentQuote(economy, shoppingList, getDestination());
@@ -175,6 +179,9 @@ public class Move extends MoveBase implements Action { // inheritance for code r
         return this;
     }
 
+    /**
+     * Rollback move action from destination to source.
+     */
     private void internalRollback() {
         super.rollback();
         if (getSource() != getDestination()) {
@@ -348,7 +355,8 @@ public class Move extends MoveBase implements Action { // inheritance for code r
         if (explicitCombinator == null) { // if there is no explicit combinator, use default one.
             return defaultCombinator.operate(sl, boughtIndex, commoditySold, traderToUpdate, economy, take, 0);
         } if (incoming || !FunctionalOperatorUtil.getExplicitCombinatorsSet().contains(explicitCombinator)) {
-            // include quantityBought to the current used of the corresponding commodity
+            // we want to avoid going into the else case for explicit operators like coupon, external to avoid expensive
+            // redundant computation. Also, include quantityBought to the current used of the corresponding commodity.
             return explicitCombinator.operate(sl, boughtIndex, commoditySold, traderToUpdate, economy, take, 0);
         } else {
             // this loop is used when we use a combinator that is "max" for example, when we move out of this trader, we wouldnt know the initial value
@@ -359,17 +367,15 @@ public class Move extends MoveBase implements Action { // inheritance for code r
             // while moving in
 
             // incomingSl is TRUE when the VM is moving in and false when moving out
-            // TODO SS: check if breaking incomingSl semantic has any adverse effect (happens when src and dest are the same)
             boolean incomingSl = traderToUpdate.getCustomers().contains(sl);
             double overhead = commoditySold.getQuantity();
             for (ShoppingList customer : traderToUpdate.getCustomers()) {
                 int commIndex = customer.getBasket().indexOf(specificationSold);
+                TraderSettings ts = sl.getBuyer().getSettings();
                 if ((customer != sl && commIndex != -1) ||
                         // if a consumer hasContext, consider for overhead subtraction
                         // hasContext true means VM on CBTP
-                        (sl.getBuyer().getSettings() != null &&
-                                sl.getBuyer().getSettings().getContext() != null &&
-                                sl.getBuyer().getSettings().getContext().hasValidContext())) {
+                        (ts != null && ts.getContext() != null && ts.getContext().hasValidContext())) {
                     // subtract the used value of comm in question of all the customers but the
                     // incoming shoppingList from the current used value of the sold commodity
                     overhead -= customer.getQuantity(commIndex);
@@ -552,6 +558,10 @@ public class Move extends MoveBase implements Action { // inheritance for code r
     /**
      * Get all valid sellers for peers in a scaling group.  Valid sellers in this case are the
      * set of all valid TPs that sell the basket that the consumer requests
+     * @param economy that the leader {@link ShoppingList} is a part of
+     * @param seller possible destination
+     * @param buyer is the leader whose peers we need to compute
+     * @return peer traders of a given groupLeader
      */
     static List<Trader> getPeerSellers(Economy economy, Trader seller, ShoppingList buyer) {
         List<Trader> mutableSellers = new ArrayList<>();

@@ -68,7 +68,7 @@ public class TestUtils {
     public static final int DC_TYPE = 12;
 
     public static final double FLOATING_POINT_DELTA = 1e-7;
-    public static final double FlOATING_POINT_DELTA2 = 1e-15;
+    public static final double FLOATING_POINT_DELTA2 = 1e-15;
     public static final List<Long> NO_CLIQUES = new ArrayList<>();
 
     private static int commSpecCounter;

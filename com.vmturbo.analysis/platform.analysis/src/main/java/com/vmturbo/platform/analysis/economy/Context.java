@@ -31,16 +31,34 @@ public class Context {
         coverageEntryMap_ = new HashMap<>();
     }
 
-    public Context(Long providerId, long regionId, long zoneId, BalanceAccount balanceAccount,
+    /**
+     * Constructor for the Context.
+     *
+     * @param regionId The regionId associated with the context
+     * @param zoneId The zoneId associated with the context
+     * @param balanceAccount The balance account associated with the context
+     * @param familyBasedCoverageList is a list of coverages of consumers belonging to a scalingGroup
+     */
+    public Context(long regionId, long zoneId, BalanceAccount balanceAccount,
                    final List<EconomyDTOs.CoverageEntry> familyBasedCoverageList) {
         this(regionId, zoneId, balanceAccount);
         for (EconomyDTOs.CoverageEntry ce : familyBasedCoverageList) {
             CoverageEntry coverageEntry = new CoverageEntry(ce.getTotalAllocatedCoupons(),
                 ce.getTotalRequestedCoupons());
-            coverageEntryMap_.put(providerId, coverageEntry);
+            coverageEntryMap_.put(ce.getProviderId(), coverageEntry);
         }
     }
 
+    /**
+     * Constructor for the Context. The coverageMap is constructed for this consumer.
+     *
+     * @param providerId The provider that the consumer is placed on
+     * @param regionId The regionId associated with the context
+     * @param zoneId The zoneId associated with the context
+     * @param balanceAccount The balance account associated with the context
+     * @param totalAllocatedCoupons is the total number of allocated coupons for the consumer
+     * @param totalRequestedCoupons is the total number of requested coupons for the consumer
+     */
     public Context(final Long providerId, final long regionId, final long zoneId,
                    final BalanceAccount balanceAccount, final double totalAllocatedCoupons,
                    final double totalRequestedCoupons) {
@@ -214,6 +232,11 @@ public class Context {
         return String.format("[region id: %s, zone id: %s]", regionId_, zoneId_);
     }
 
+    /**
+     * Static class representing a coverage. The coverage for a consumer captures the totalRequestedCoupons and the
+     * totalAllocatedCoupons for a consumer from a provider.
+     *
+     */
     public static class CoverageEntry {
         private double totalRequestedCoupons_;
         private double totalAllocatedCoupons_;

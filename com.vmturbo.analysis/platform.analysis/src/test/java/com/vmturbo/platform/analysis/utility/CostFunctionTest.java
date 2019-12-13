@@ -3,8 +3,12 @@ package com.vmturbo.platform.analysis.utility;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.List;
+
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -26,6 +30,7 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDT
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO.ComputeResourceDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CostTuple;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
+import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.utilities.CostFunction;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.CostTable;
@@ -33,10 +38,15 @@ import com.vmturbo.platform.analysis.utilities.Quote.CommodityCloudQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.InitialInfiniteQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 public class CostFunctionTest {
 
     private static final long zoneId = 0L;
     private static final long regionId = 10L;
+
+    static final Logger logger = LogManager.getLogger(CostFunctionTest.class);
     /**
      * Case: AWS IO1 storage tier as a seller. Storage amount unit price is 2, IOPS unit price is 10.
      * VM1 asks for 3GB, 90 IOPS, VM2 asks for 5GB, 500IOPS, VM3 asks for 10GB, 200IOPS
@@ -214,15 +224,18 @@ public class CostFunctionTest {
     public void testRI_Pricing() {
 
         // Template Prices used to create CostDTOs
-        double riDeprecationFactor = 0.0000001;
+        double riDeprecationFactor = 0.00001;
         double m5Large = 0.19200;
         double r4Large = 0.131600;
         double m4Large = 0.019200;
         double c4Large = 0.0131600;
         double t2Large = 0.12;
         double t3Large = 0.11;
+        BiMap<Trader, Long> traderOids = HashBiMap.create();
         // Create a new Economy
         Economy economy = new Economy();
+        Topology topo = new Topology();
+        economy.setTopology(topo);
 
         // Create a VM buyer
         Trader vm = TestUtils.createVM(economy, "buyer");
@@ -233,10 +246,12 @@ public class CostFunctionTest {
         Trader cbtp1 = TestUtils.createTrader(economy, TestUtils.VM_TYPE, Arrays.asList(0l),
                 Arrays.asList(TestUtils.COUPON_COMMODITY, TestUtils.CPU),new double[] {25, 3000},
                 true, true, "cbtp");
+        traderOids.forcePut(cbtp1, 1L);
 
         Trader cbtp2 = TestUtils.createTrader(economy, TestUtils.VM_TYPE, Arrays.asList(0l),
                 Arrays.asList(TestUtils.COUPON_COMMODITY, TestUtils.CPU),new double[] {25, 3000},
                 true, true, "cbtp2");
+        traderOids.forcePut(cbtp2, 2L);
 
         cbtp1.getSettings().setContext(new Context(regionId, zoneId, ba));
         cbtp1.getSettings().setQuoteFunction(QuoteFunctionFactory
@@ -264,6 +279,7 @@ public class CostFunctionTest {
                 Arrays.asList(TestUtils.COUPON_COMMODITY, TestUtils.CPU, TestUtils.SEGMENTATION_COMMODITY),
                 new double[] {1, 3000, 20}, true,
                 true, "tp");
+        traderOids.forcePut(tp, 3L);
 
         // Set the cost dto on the TP
         ComputeTierCostDTO.Builder costBundleBuilder =
@@ -293,7 +309,7 @@ public class CostFunctionTest {
 
         // This is not really required but it helps to negate through various if conditions and go into the loop
         // where we use RI pricing as the differentiator between cbtps
-        vmSL.setGroupFactor((long) 0.5);
+        vmSL.setGroupFactor(1L);
 
         // Create shopping lists for cbtps to shop from the top
         ShoppingList cbtpSl = TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.COUPON_COMMODITY,
@@ -302,10 +318,22 @@ public class CostFunctionTest {
                 TestUtils.SEGMENTATION_COMMODITY), cbtp2, new double[] {25, 1}, tp);
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
+        try {
+            Field traderOidField = Topology.class.getDeclaredField("traderOids_");
+            traderOidField.setAccessible(true);
+            traderOidField.set(topo, traderOids);
+            Field unmodifiableTraderOidField = Topology.class
+                    .getDeclaredField("unmodifiableTraderOids_");
+            unmodifiableTraderOidField.setAccessible(true);
+            unmodifiableTraderOidField.set(topo, traderOids);
+        } catch (Exception e) {
+            logger.error("Error setting up topology.");
+        }
+
         // Test to check that cbtp2 gives a cheaper quote than cbtp1
         Assert.assertTrue(EdeCommon.quote(economy, vmSL, cbtp1, bestQuoteSoFar.getQuoteValue(),
                 forTraderIncomeStatement).getQuoteValue() > EdeCommon.quote(economy, vmSL, cbtp2,
-                bestQuoteSoFar.getQuoteValue(), forTraderIncomeStatement).getQuoteValue() );
+                bestQuoteSoFar.getQuoteValue(), forTraderIncomeStatement).getQuoteValue());
 
         // Test to check if we scale the previous costs down by a factor of 10, we get the same quote
         CbtpCostDTO.Builder cbtpBundleBuilder3 = TestUtils.createCbtpBundleBuilder(0,m4Large*riDeprecationFactor,
@@ -324,12 +352,12 @@ public class CostFunctionTest {
 
         double quoteCbtp1 = EdeCommon.quote(economy, vmSL, cbtp1, bestQuoteSoFar.getQuoteValue(), forTraderIncomeStatement).getQuoteValue();
         // Test to check that we get a quote of 1.0 from cbtp1
-        assertEquals(quoteCbtp1, 1.0, TestUtils.FlOATING_POINT_DELTA2);
+        assertEquals(quoteCbtp1, 1.0, TestUtils.FLOATING_POINT_DELTA);
 
         double quoteCbtp2= EdeCommon.quote(economy, vmSL, cbtp2, bestQuoteSoFar.getQuoteValue(),
                 forTraderIncomeStatement).getQuoteValue();
         // Test to check that quotes are equal ie both are 1.0
-        assertEquals(quoteCbtp1, quoteCbtp2, TestUtils.FlOATING_POINT_DELTA2);
+        assertEquals(quoteCbtp1, quoteCbtp2, TestUtils.FLOATING_POINT_DELTA);
 
         // Set the price for a t2.large cbtp
         CbtpCostDTO.Builder cbtpBundleBuilder5 = TestUtils.createCbtpBundleBuilder(0,t2Large*riDeprecationFactor,
@@ -351,7 +379,7 @@ public class CostFunctionTest {
         double quoteCbtp4 = EdeCommon.quote(economy, vmSL, cbtp2, bestQuoteSoFar.getQuoteValue(), forTraderIncomeStatement).getQuoteValue();
 
         // t2.large and t3.large give same quote
-        assertEquals(quoteCbtp3, quoteCbtp4, TestUtils.FlOATING_POINT_DELTA2);
+        assertEquals(quoteCbtp3, quoteCbtp4, TestUtils.FLOATING_POINT_DELTA);
 
         // Now a test by changing budget on business account and increasing the riDeprecationFactor
         // to 10^-5 from 10^-7
@@ -392,9 +420,12 @@ public class CostFunctionTest {
         double t2NanoCost = 0.0063;
         // Cost greater than discounted_compute_costFactor * costOnCurrentSupplier (in this case t2Nano)
         double m5Large = 0.19200;
+        BiMap<Trader, Long> traderOids = HashBiMap.create();
 
         // Create economy with discounted compute cost factor
         Economy economy = new Economy();
+        Topology topo = new Topology();
+        economy.setTopology(topo);
         economy.getSettings().setDiscountedComputeCostFactor(discounted_compute_costFactor);
 
         // Create a VM buyer
@@ -407,6 +438,7 @@ public class CostFunctionTest {
                 Arrays.asList(TestUtils.CPU),
                 new double[] {3000}, true,
                 true, "t2Nano");
+        traderOids.put(t2NanoTP, 1L);
 
         // Set the cost dto on the TP
         CostDTO t2NanoTP_CostDto = CostDTO.newBuilder().setComputeTierCost(
@@ -427,12 +459,14 @@ public class CostFunctionTest {
         // Create CBTP
         Trader cbtp_m5Large = TestUtils.setAndGetCBTP(m5Large, "cbtp_m5Large", economy, true,
                 regionId);
+        traderOids.put(cbtp_m5Large, 2L);
 
         // Create a new TP which sells to CBTP
         Trader m5LargeTP = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0l),
                 Arrays.asList(TestUtils.COUPON_COMMODITY, TestUtils.CPU, TestUtils.SEGMENTATION_COMMODITY),
                 new double[] {8, 3000, 1}, true,
                 true, "m5Large");
+        traderOids.put(m5LargeTP, 3L);
 
         // Set the cost dto on the TP
         CostDTO m5LargeTP_CostDto = CostDTO.newBuilder().setComputeTierCost(
@@ -450,6 +484,18 @@ public class CostFunctionTest {
                         cbtp_m5Large, new double[] {2, 1}, m5LargeTP);
 
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
+
+        try {
+            Field traderOidField = Topology.class.getDeclaredField("traderOids_");
+            traderOidField.setAccessible(true);
+            traderOidField.set(topo, traderOids);
+            Field unmodifiableTraderOidField = Topology.class
+                    .getDeclaredField("unmodifiableTraderOids_");
+            unmodifiableTraderOidField.setAccessible(true);
+            unmodifiableTraderOidField.set(topo, traderOids);
+        } catch (Exception e) {
+            logger.error("Error setting up topology.");
+        }
 
         final InitialInfiniteQuote bestQuoteSoFar = new InitialInfiniteQuote();
         boolean forTraderIncomeStatement = true;
@@ -540,9 +586,12 @@ public class CostFunctionTest {
         final long zone11 = 11L;
         final long zone13 = 13L;
         double m5Large = 0.19200;
+        BiMap<Trader, Long> traderOids = HashBiMap.create();
 
         // Create economy with discounted compute cost factor
         Economy economy = new Economy();
+        Topology topo = new Topology();
+        economy.setTopology(topo);
 
         // Create a VM buyer
         Trader vm = TestUtils.createVM(economy, "vm-buyer");
@@ -559,6 +608,8 @@ public class CostFunctionTest {
                 Arrays.asList(TestUtils.COUPON_COMMODITY, TestUtils.CPU, TestUtils.SEGMENTATION_COMMODITY),
                 new double[] {8, 3000, 1}, true,
                 true, "m5Large");
+        traderOids.put(m5LargeTP, 1L);
+
         // Set the cost dto on the TP
         CostDTO m5LargeTP_CostDto = CostDTO.newBuilder().setComputeTierCost(
                 TestUtils.getComputeTierCostDTOBuilder().addCostTupleList(CostTuple.newBuilder()
@@ -570,9 +621,11 @@ public class CostFunctionTest {
         // CBTP with zone scope 11
         Trader m5LargeCbtpZone11 = TestUtils.setAndGetCBTP(m5Large, "cbtp_m5Large", economy,
                 false, zone11);
+        traderOids.put(m5LargeCbtpZone11, 2L);
         // CBTP with zone scope 13
         Trader m5LargetCbtpZone13 = TestUtils.setAndGetCBTP(m5Large, "cbtp_m5Large", economy,
                 false, zone13);
+        traderOids.put(m5LargetCbtpZone13, 3L);
 
         m5LargeTP.getSettings().setQuoteFunction(QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
         m5LargeTP.getSettings().setCostFunction(CostFunctionFactory.createCostFunction(m5LargeTP_CostDto));
@@ -584,6 +637,18 @@ public class CostFunctionTest {
                 m5LargetCbtpZone13, new double[] {2, 1}, m5LargeTP);
 
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
+
+        try {
+            Field traderOidField = Topology.class.getDeclaredField("traderOids_");
+            traderOidField.setAccessible(true);
+            traderOidField.set(topo, traderOids);
+            Field unmodifiableTraderOidField = Topology.class
+                    .getDeclaredField("unmodifiableTraderOids_");
+            unmodifiableTraderOidField.setAccessible(true);
+            unmodifiableTraderOidField.set(topo, traderOids);
+        } catch (Exception e) {
+            logger.error("Error setting up topology.");
+        }
 
         final InitialInfiniteQuote bestQuoteSoFar = new InitialInfiniteQuote();
         boolean forTraderIncomeStatement = true;

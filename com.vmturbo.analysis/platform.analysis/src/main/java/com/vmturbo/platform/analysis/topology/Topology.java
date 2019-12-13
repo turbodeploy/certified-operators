@@ -113,6 +113,13 @@ public final class Topology implements Serializable {
         return trader;
     }
 
+    /**
+     * Populates the sellers in the markets and merge's coverage of traders part of scalingGroups.
+     *
+     * <p>
+     * This method should only be run once and only after all traders have been added to the economy.
+     * </p>
+     */
     public void populateMarketsWithSellersAndMergeConsumerCoverage() {
         economy_.populateMarketsWithSellersAndMergeConsumerCoverage();
     }

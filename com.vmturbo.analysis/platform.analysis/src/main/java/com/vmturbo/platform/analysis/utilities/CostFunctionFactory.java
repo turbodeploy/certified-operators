@@ -340,6 +340,10 @@ public class CostFunctionFactory {
      */
     private static MutableQuote insufficientCommodityWithinSellerCapacityQuote(ShoppingList sl, Trader seller, int couponCommodityBaseType) {
         // check if the commodities bought comply with capacity limitation on seller
+        if (!sl.getBasket().isSatisfiedBy(seller.getBasketSold())) {
+            // buyer basket not satisfied by seller providing quote
+            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
+        }
         int boughtIndex = 0;
         Basket basket = sl.getBasket();
         final double[] quantities = sl.getQuantities();
@@ -544,8 +548,6 @@ public class CostFunctionFactory {
                         matchingTP.getCommoditiesSold().get(indexOfCouponCommByTp);
 
         // If seller is the CBTP that the VM is currently on, check how many coupons are already covered.
-        // TODO SS: check if we need to update the couponsCovered in the context
-        // TODO SS: check if we want to use couponCount * groupFactor
         double currentCoverage = buyer.getTotalAllocatedCoupons(economy, seller);
         // if the currentCouponCoverage satisfies the requestedAmount for the new template, request 0 coupons
         double requestedCoupons = Math.max(0, couponCommSoldByTp.getCapacity() * (groupFactor > 0 ? groupFactor : 1));
@@ -588,9 +590,8 @@ public class CostFunctionFactory {
         }
         // coverage in the moveContext is on the group level for the group leader
         if (buyer.getGroupFactor() > 0) {
-            double totalCoverage = requestedCoupons;
             return new CommodityCloudQuote(seller, discountedCost, context.get(),
-                    totalCoverage, totalCoverage - numCouponsToPayFor, economy);
+                    requestedCoupons, requestedCoupons - numCouponsToPayFor, economy);
         } else {
             return new CommodityCloudQuote(seller, discountedCost, context.get(),
                     buyer.getTotalRequestedCoupons(economy, seller),
@@ -710,10 +711,6 @@ public class CostFunctionFactory {
             @Override
             public MutableQuote calculateCost(ShoppingList buyer, Trader seller, boolean validate,
                     UnmodifiableEconomy economy) {
-                if (!validate) {
-                    // seller is the currentSupplier. Just return cost
-                    return calculateComputeAndDatabaseCostQuote(seller, buyer, costTable, licenseBaseType);
-                }
 
                 int couponCommodityBaseType = costDTO.getCouponBaseType();
                 final MutableQuote capacityQuote =
@@ -751,7 +748,6 @@ public class CostFunctionFactory {
             @Override
             public MutableQuote calculateCost(ShoppingList buyer, Trader seller,
                                         boolean validate, UnmodifiableEconomy economy) {
-
                 int couponCommodityBaseType = cbtpResourceBundle.getCouponBaseType();
                 final MutableQuote quote =
                     insufficientCommodityWithinSellerCapacityQuote(buyer, seller,  couponCommodityBaseType);
@@ -811,7 +807,6 @@ public class CostFunctionFactory {
 
                     double singleVmTemplateCost = currentTemplateCostForBuyer / (groupFactor > 0 ? groupFactor : 1);
                     final CostTuple costTuple = cbtpResourceBundle.getCostTuple();
-                    // TODO SS: Check if we need to consider groupFactor for couponsCovered
                     double couponsCovered = buyer.getTotalAllocatedCoupons(economy, matchingTP);
                     if (couponCommSoldByTp.getCapacity() != 0) {
                         double templateCostPerCoupon = singleVmTemplateCost / couponCommSoldByTp.getCapacity();
@@ -829,7 +824,6 @@ public class CostFunctionFactory {
                         discountedCost = Double.POSITIVE_INFINITY;
                     }
                 } else {
-                    // TODO SS: check if context needs to be updated here
                     discountedCost = Double.POSITIVE_INFINITY;
                 }
             }
@@ -895,11 +889,6 @@ public class CostFunctionFactory {
             @Override
             public MutableQuote calculateCost(ShoppingList buyer, Trader seller, boolean validate,
                                               UnmodifiableEconomy economy) {
-                if (!validate) {
-                    // seller is the currentSupplier. Just return cost
-                    return calculateComputeAndDatabaseCostQuote(seller, buyer, costTable, licenseBaseType);
-                }
-
                 int couponCommodityBaseType = costDTO.getCouponBaseType();
                 final MutableQuote capacityQuote =
                         insufficientCommodityWithinSellerCapacityQuote(buyer, seller, couponCommodityBaseType);

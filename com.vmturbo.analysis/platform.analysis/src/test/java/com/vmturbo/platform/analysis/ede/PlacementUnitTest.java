@@ -51,7 +51,6 @@ public class PlacementUnitTest {
         assertTrue(Double.isInfinite(Placement.computeCurrentQuote(economy, movableSlByMarket)));
     }
 
-    @Test
     public void testGroupLeaderAlwaysMoves_ShopAlone() {
         testGroupLeaderAlwaysMoves(false);
     }
