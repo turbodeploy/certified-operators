@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -217,13 +218,13 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
         final ReservedInstanceUtilizationFilter.Builder filterBuilder = ReservedInstanceUtilizationFilter.newBuilder();
         if (request.hasRegionFilter()) {
             filterBuilder.addAllScopeId(request.getRegionFilter().getRegionIdList())
-                       .setScopeEntityType(EntityType.REGION_VALUE);
+                       .setScopeEntityType(Optional.of(EntityType.REGION_VALUE));
         } else if (request.hasAvailabilityZoneFilter()) {
             filterBuilder.addAllScopeId(request.getAvailabilityZoneFilter().getAvailabilityZoneIdList())
-                .setScopeEntityType(EntityType.AVAILABILITY_ZONE_VALUE);
+                .setScopeEntityType(Optional.of(EntityType.AVAILABILITY_ZONE_VALUE));
         } else if (request.hasAccountFilter()) {
             filterBuilder.addAllScopeId(request.getAccountFilter().getAccountIdList())
-                .setScopeEntityType(EntityType.BUSINESS_ACCOUNT_VALUE);
+                .setScopeEntityType(Optional.of(EntityType.BUSINESS_ACCOUNT_VALUE));
         }
         filterBuilder.setStartDateMillis(request.getStartDate());
         filterBuilder.setEndDateMillis(request.getEndDate());
