@@ -381,10 +381,6 @@ public final class Topology implements Serializable {
         economy_.getContexts().put(scalingGroupId, context);
     }
 
-    public void mergeScalingGroupContexts() {
-        economy_.mergeScalingGroupContexts();
-    }
-
     public Long getTraderOid(Trader trader) {
         return trader == null ? null : traderOids_.get(trader);
     }

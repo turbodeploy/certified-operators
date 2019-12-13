@@ -373,9 +373,7 @@ public final class ProtobufToAnalysis {
         final String scalingGroupId = input.getScalingGroupId();
         output.setScalingGroupId(scalingGroupId);
         populateTraderSettings(topology, input, output.getSettings());
-        if (input.getDebugInfoNeverUseInCode().contains("VIRTUAL_MACHINE") && input.getDebugInfoNeverUseInCode().contains("PT_Consistent")) {
-            System.out.println("breakpoint 2");
-        }
+
         output.setDebugEnabled(input.getDebugEnabled());
         for (CommoditySoldTO commoditySold : input.getCommoditiesSoldList()) {
             populateCommoditySold(commoditySold,

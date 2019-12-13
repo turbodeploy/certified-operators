@@ -546,10 +546,7 @@ public class CostFunctionFactory {
         // If seller is the CBTP that the VM is currently on, check how many coupons are already covered.
         // TODO SS: check if we need to update the couponsCovered in the context
         // TODO SS: check if we want to use couponCount * groupFactor
-        double currentCoverage = 0L;
-//        if (seller == buyer.getSupplier()) {
-        currentCoverage = buyer.getTotalAllocatedCoupons(economy, seller);
-//        }
+        double currentCoverage = buyer.getTotalAllocatedCoupons(economy, seller);
         // if the currentCouponCoverage satisfies the requestedAmount for the new template, request 0 coupons
         double requestedCoupons = Math.max(0, couponCommSoldByTp.getCapacity() * (groupFactor > 0 ? groupFactor : 1));
 
@@ -584,18 +581,20 @@ public class CostFunctionFactory {
                 discountedCost = Double.POSITIVE_INFINITY;
             }
         } else {
+            numCouponsToPayFor = requestedCoupons;
             // In case that there isn't discount available, avoid preferring a cbtp that provides
             // no discount on tp of the matching template.
             discountedCost = Double.POSITIVE_INFINITY;
         }
         // coverage in the moveContext is on the group level for the group leader
         if (buyer.getGroupFactor() > 0) {
-            double totalCoverage = requestedCoupons + currentCoverage;
+            double totalCoverage = requestedCoupons;
             return new CommodityCloudQuote(seller, discountedCost, context.get(),
-                    totalCoverage, totalCoverage - numCouponsToPayFor);
+                    totalCoverage, totalCoverage - numCouponsToPayFor, economy);
         } else {
             return new CommodityCloudQuote(seller, discountedCost, context.get(),
-                    requestedCoupons, requestedCoupons - numCouponsToPayFor);
+                    buyer.getTotalRequestedCoupons(economy, seller),
+                    currentCoverage + requestedCoupons - numCouponsToPayFor, economy);
         }
     }
 
@@ -774,22 +773,22 @@ public class CostFunctionFactory {
 
     public static MutableQuote calculateDiscountedComputeCostForCurrentSupplierOnCBTPForTier(ShoppingList buyer, Trader cbtp,
                                                 CbtpCostDTO cbtpResourceBundle, UnmodifiableEconomy economy) {
-        // Match the vm with a template in order to:
-        // 1) Estimate the number of coupons requested by the vm
-        // 2) Determine the template cost the discount should apply to
-        // Get the market for the cbtp. sellers in this market are Template Providers
-        final @NonNull @ReadOnly Set<Entry<@NonNull ShoppingList, @NonNull Market>>
-                shoppingListsInMarket = economy.getMarketsAsBuyer(cbtp).entrySet();
-        Market market = shoppingListsInMarket.iterator().next().getValue();
         long groupFactor = buyer.getGroupFactor();
         double discountedCost = 0;
         Optional<EconomyDTOs.Context> context = Optional.empty();
         if (groupFactor > 1) {
-            // in order to make CSG VMs always shop
+            // in order to make group leader always shop
             discountedCost = Double.POSITIVE_INFINITY;
         } else {
             double totalRequestedCoupons = buyer.getTotalRequestedCoupons(economy, cbtp);
             if (totalRequestedCoupons != 0) {
+                // Match the vm with a template in order to:
+                // 1) Estimate the number of coupons requested by the vm
+                // 2) Determine the template cost the discount should apply to
+                // Get the market for the cbtp. sellers in this market are Template Providers
+                final @NonNull @ReadOnly Set<Entry<@NonNull ShoppingList, @NonNull Market>>
+                        shoppingListsInMarket = economy.getMarketsAsBuyer(cbtp).entrySet();
+                Market market = shoppingListsInMarket.iterator().next().getValue();
                 int indexOfCouponCommSoldByCbtp = cbtp.getBasketSold().indexOfBaseType(cbtpResourceBundle.getCouponBaseType());
                 CommoditySpecification couponCommSpec = cbtp.getBasketSold().get(indexOfCouponCommSoldByCbtp);
                 Optional<Trader> optionalTrader = market.getActiveSellers().stream().filter(t ->

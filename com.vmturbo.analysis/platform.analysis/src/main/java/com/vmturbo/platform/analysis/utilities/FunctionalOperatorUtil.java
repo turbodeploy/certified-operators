@@ -113,15 +113,35 @@ public class FunctionalOperatorUtil {
                         -> {
             Context c = buyer.getBuyer().getSettings().getContext();
             long oid = economy.getTopology().getTraderOid(seller);
-            if (!seller.getCustomers().contains(buyer)) {
+            int couponCommBaseType = buyer.getBasket().get(boughtIndex).getBaseType();
+            double totalCouponsToRelinquish = 0;
+            // if gf > 1 (its a group leader), reset coverage of the CSG and relinquish coupons to the CBTP
+            // we do this irrespective of weather the buyer is moving in or out. If we did this only while moving out,
+            // we could have a case where leader is not on a CBTP and we wouldnt relinquish
+            if (buyer.getGroupFactor() > 0) {
                 // consumer moving out of CBTP. Relinquish coupons and update the coupon bought
                 // and the usage of sold coupon
-                double couponsBought = buyer.getQuantity(boughtIndex);
+                List<ShoppingList> peers = economy.getPeerShoppingLists(buyer.getShoppingListId());
+                peers.retainAll(seller.getCustomers());
+                for (ShoppingList peer : peers) {
+                    int couponBoughtIndex = peer.getBasket().indexOfBaseType(couponCommBaseType);
+                    totalCouponsToRelinquish += peer.getQuantity(couponBoughtIndex);
+                    peer.setQuantity(couponBoughtIndex, 0);
+                }
+                totalCouponsToRelinquish += buyer.getQuantity(boughtIndex);
                 buyer.setQuantity(boughtIndex, 0);
                 // unplacing the buyer completely. Clearing up the context that contains complete
                 // coverage information for the scalingGroup/individualVM
-                c.setTotalAllocatedCoupons(oid, c.getTotalAllocatedCoupons(oid).orElse(0.0) - couponsBought);
-                return new double[] {Math.max(0.0, commSold.getQuantity()) - couponsBought, 0.0};
+                c.setTotalAllocatedCoupons(oid, c.getTotalAllocatedCoupons(oid).orElse(0.0) - totalCouponsToRelinquish);
+                // actual relinquishing of coupons to the seller
+                commSold.setQuantity(commSold.getQuantity() - totalCouponsToRelinquish);
+            }
+            if (!seller.getCustomers().contains(buyer)) {
+                // reset usage while moving out
+                double boughtQnty = buyer.getQuantity(boughtIndex);
+                buyer.setQuantity(boughtIndex, 0);
+                // for a consumer moving out of a CBTP, we have already updated the usage we just return the updated usage here
+                return new double[] {Math.max(0.0, commSold.getQuantity() - (totalCouponsToRelinquish == 0 ? boughtQnty : 0)), 0.0};
             } else {
                 // consumer moving into CBTP. Use coupons and update the coupon bought
                 // and the usage of sold coupon
@@ -167,7 +187,6 @@ public class FunctionalOperatorUtil {
                 // order to be able to provide a consistent discounted cost for all
                 // actions.  So, instead of one VM having 100% RI coverage and the other
                 // two having 0% coverage, all VMs will have 33% coverage.
-                int couponCommBaseType = buyer.getBasket().get(boughtIndex).getBaseType();
                 int indexOfCouponCommByTp = matchingTP.getBasketSold().indexOfBaseType(couponCommBaseType);
                 CommoditySold couponCommSoldByTp = matchingTP.getCommoditiesSold().get(indexOfCouponCommByTp);
                 double requestedCoupons = couponCommSoldByTp.getCapacity();
@@ -191,10 +210,10 @@ public class FunctionalOperatorUtil {
                     buyer.setQuantity(boughtIndex, totalAllocatedCoupons);
                     // TODO SS: consider updating tier in context
                     // tier information is updated here indirectly through TotalRequestedCoupons update
+                    c.setTotalAllocatedCoupons(oid, c.getTotalAllocatedCoupons(oid).orElse(0.0) + totalAllocatedCoupons);
                     if (buyer.getGroupFactor() > 0) {
-                        // group leader updates the coupon allocated for the group
-                        c.setTotalAllocatedCoupons(oid,  Math.min(requestedCoupons * buyer.getGroupFactor(), availableCoupons))
-                                .setTotalRequestedCoupons(oid, requestedCoupons * buyer.getGroupFactor());
+                        // group leader updates the coupon requested for the group
+                        c.setTotalRequestedCoupons(oid, requestedCoupons * buyer.getGroupFactor());
                     }
                     // buyer.getBuyer().getSettings().getContext().setTier();
                     discountedCost = ((1 - discountCoefficient) * templateCost) + (discountCoefficient

@@ -191,9 +191,7 @@ public class Placement {
         if (economy.getForceStop()) {
             return PlacementResults.empty();
         }
-        if (shoppingList.getGroupFactor() > 1) {
-            System.out.println("something to break on");
-        }
+
         // if there are no sellers in the market, the buyer is misconfigured
         final @NonNull List<@NonNull Trader> sellers =
                         economy.getMarket(shoppingList).getActiveSellersAvailableForPlacement();
@@ -258,16 +256,14 @@ public class Placement {
         // move, and update economy and state
         PlacementResults placementResults = PlacementResults.empty();
         // Move will require destination provider to be cheaper than current host by quote factor
-        // and move cost factor, except in the case of group leaders. For group leaders, we always
-        // produce move even if it is to the same provider.
-        if ((shoppingList.getGroupFactor() > 1 && Double.isFinite(cheapestQuote)) ||
-            Math.min(MOVE_COST_FACTOR_MAX_COMM_SIZE, shoppingList.getBasket().size())
+        // and move cost factor. Or there needs to be a change in coverage logged in the context
+        if (Math.min(MOVE_COST_FACTOR_MAX_COMM_SIZE, shoppingList.getBasket().size())
                         * buyer.getSettings().getMoveCostFactor() + cheapestQuote
                         < currentQuote * buyer.getSettings().getQuoteFactor() ||
                 (cheapestSeller == shoppingList.getSupplier()
                         && minimizer.getBestQuote().getContext().isPresent()
                         && !shoppingList.getBuyer().getSettings().getContext()
-                            .equals(minimizer.getBestQuote().getContext()))) {
+                            .isEqualCoverages(minimizer.getBestQuote().getContext()))) {
             double savings = currentQuote - cheapestQuote;
             if (Double.isInfinite(savings)) {
                 savings = Double.MAX_VALUE;

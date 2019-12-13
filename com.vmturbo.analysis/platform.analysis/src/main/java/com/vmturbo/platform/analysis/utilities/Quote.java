@@ -18,6 +18,7 @@ import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.CoverageEntry;
@@ -361,7 +362,8 @@ public abstract class Quote {
                                       final double quoteValue,
                                       @Nullable final Context context,
                                       @Nullable final Double requestedCoupons,
-                                      @Nullable final Double allocatedCoupons) {
+                                      @Nullable final Double allocatedCoupons,
+                                      @Nonnull final UnmodifiableEconomy economy) {
             super(seller, quoteValue);
             if (context != null) {
                 Context.Builder builder = Context.newBuilder();
@@ -371,6 +373,7 @@ public abstract class Quote {
                         .setId(context.getBalanceAccount().getId()).build();
                 builder.setBalanceAccount(balanceAccount);
                 builder.addFamilyBasedCoverage(CoverageEntry.newBuilder()
+                    .setProviderId(economy.getTopology().getTraderOid(seller))
                     .setTotalRequestedCoupons(requestedCoupons)
                     .setTotalAllocatedCoupons(allocatedCoupons));
                 moveContext = builder.build();

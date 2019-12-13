@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import javax.annotation.Nullable;
 
@@ -270,4 +271,6 @@ public interface UnmodifiableEconomy {
      * @return placement entities for deploy market.
      */
     public List<Trader> getPlacementEntities();
+
+    public List<ShoppingList> getPeerShoppingLists(UUID shoppingListId);
 } // end UnmodifiableEconomy interface

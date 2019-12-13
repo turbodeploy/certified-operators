@@ -107,8 +107,12 @@ public class Context {
         return this.coverageEntryMap_;
     }
 
-    public boolean equals(EconomyDTOs.Context other) {
-        for (EconomyDTOs.CoverageEntry otherCoverage : other.getFamilyBasedCoverageList()) {
+    public boolean isEqualCoverages(Optional<EconomyDTOs.Context> other) {
+        if (!other.isPresent()) {
+            return false;
+        }
+        EconomyDTOs.Context otherContext = other.get();
+        for (EconomyDTOs.CoverageEntry otherCoverage : otherContext.getFamilyBasedCoverageList()) {
             CoverageEntry thisCoverage = getCoverageEntryMap().get(otherCoverage.getProviderId());
             if (thisCoverage == null) {
                 return false;

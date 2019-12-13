@@ -280,7 +280,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
             populateMarketWithSellers(market);
         }
         marketsPopulated = true;
-        // mergeScalingGroupContexts();
+        mergeScalingGroupContexts();
     }
 
     /**
@@ -1182,6 +1182,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
                 }
                 Long oid = sl.getSupplier() != null ? getTopology().getTraderOid(sl.getSupplier()) : null;
                 if (oid != null) {
+                    // create coverageEntries in the map only for non-zero coverages
                     if (context.getTotalAllocatedCoupons(oid).isPresent()) {
                         CoverageEntry coverageEntry = coverageMap.get(oid);
                         if (coverageEntry == null) {

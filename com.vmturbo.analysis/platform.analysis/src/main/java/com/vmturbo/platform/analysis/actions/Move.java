@@ -151,17 +151,6 @@ public class Move extends MoveBase implements Action { // inheritance for code r
     public @NonNull Move take() {
         Economy economy = getEconomy();
         List<ShoppingList> peers = economy.getPeerShoppingLists(getTarget().getShoppingListId());
-        List<Action> subsequentActions = new ArrayList<>();
-        for (ShoppingList shoppingList : peers) {
-            logger.info("Unplacing peers of scalingGroup {}", shoppingList.getBuyer().getScalingGroupId());
-            if (shoppingList.getSupplier() != null) {
-                final Move move = new Move(economy, shoppingList, shoppingList.getSupplier(),
-                        null, Optional.empty());
-                subsequentActions.add(move.internalTake());
-            }
-        }
-        // unplacing of peers is done first so that the groupLeader has enough coupons to consume
-        // from other larger group members that need to scale down
         internalTake();
         for (ShoppingList shoppingList : peers) {
             logger.info("Synthesizing Move for {} in scaling group {}",
@@ -169,15 +158,21 @@ public class Move extends MoveBase implements Action { // inheritance for code r
             // we do not care about the current provider and need to force a move
             QuoteMinimizer minimizer = getConsistentQuote(economy, shoppingList, getDestination());
             final Trader cheapestSeller = minimizer.getBestSeller();
+            final Optional<Context> optionalQuoteContext = minimizer.getBestQuote().getContext();
             final double savings =
                 minimizer.getCurrentQuote().getQuoteValue() - minimizer.getTotalBestQuote();
-            final Move move = new Move(economy, shoppingList, shoppingList.getSupplier(),
-                cheapestSeller, minimizer.getBestQuote().getContext());
-            // Insert Move at front of subsequent actions list so that they can be rolled back
-            // in reverse order.
-            subsequentActions.add(move.internalTake().setImportance(savings));
+            // we will prevent actions to and from the same TP. But we would still generate action to the same CBTP with
+            // the same coverage. We would need to handle these actions outside M2
+            if (!(minimizer.getBestSeller() == shoppingList.getSupplier() &&
+                    optionalQuoteContext.isPresent() &&
+                    optionalQuoteContext.get().getFamilyBasedCoverageList().isEmpty())) {
+                final Move move = new Move(economy, shoppingList, shoppingList.getSupplier(),
+                        cheapestSeller, optionalQuoteContext);
+                // Insert Move at front of subsequent actions list so that they can be rolled back
+                // in reverse order.
+                getSubsequentActions().add(move.internalTake().setImportance(savings));
+            }
         }
-        getSubsequentActions().addAll(ActionCollapse.collapsed(subsequentActions));
         return this;
     }
 
@@ -460,17 +455,10 @@ public class Move extends MoveBase implements Action { // inheritance for code r
         // If this.destination == this.source, it means that we never moved (This can happen in
         // case of group leaders of ASGs). So combine the actions.
         if (getDestination() != getSource() &&
-            move.getDestination() == getSource() &&
-                // when a VM in a CSG moves, 1) we unplace its peers, 2)move the peers to the right providers, 3) collapse these actions
-                // If the peer was on a TP, and moves to the same TP, we need to cancel these actions
-                // TODO: If the VM was on a CBTP and moves to a CBTP with context change, we merge and generate new action
-                // TODO: we need to know that the coverage changed for peers and only then generate new action for them
-                (!getContext().isPresent() && move.getContext().isPresent() &&
-                        // there is no familyBasedCoverage
-                        move.getContext().get().getFamilyBasedCoverageList().isEmpty())) { // Moves cancel each other
+            move.getDestination() == getSource()) { // Moves cancel each other
             return null;
         } else {
-            Move newMove = new Move(getEconomy(), getTarget(), getSource(), move.getDestination(), move.getContext());
+            Move newMove = new Move(getEconomy(), getTarget(), getSource(), move.getDestination());
             return newMove;
         }
     }
