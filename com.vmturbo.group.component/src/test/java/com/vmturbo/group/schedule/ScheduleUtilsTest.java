@@ -14,6 +14,7 @@ import org.junit.rules.ExpectedException;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.OneTime;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.Perpetual;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.RecurrenceStart;
 
 /**
  * Unit tests for {@link ScheduleUtils}.
@@ -23,6 +24,7 @@ public class ScheduleUtilsTest {
     private static final long SCHEDULE_ID = 1L;
     private static final long START_TIME = Instant.parse("2010-01-10T09:30:00Z").toEpochMilli();
     private static final long END_TIME = Instant.parse("2010-01-10T15:00:00Z").toEpochMilli();
+    private static final long RECURRENCE_START_TIME = Instant.parse("2010-01-17T09:30:00Z").toEpochMilli();
     private static final long LAST_DATE = Instant.parse("2010-12-31T23:59:59Z").toEpochMilli();
     private static  final Schedule SCHEDULE = Schedule.newBuilder()
         .setId(SCHEDULE_ID)
@@ -66,7 +68,7 @@ public class ScheduleUtilsTest {
     @Test
     public void testNextOccurrenceRecurDailyPerpetual() throws Exception {
         Schedule testSchedulePerpetual = SCHEDULE.toBuilder()
-            .setPerpetual(Perpetual.newBuilder().build())
+            .setPerpetual(Perpetual.getDefaultInstance())
             .setRecurRule("FREQ=DAILY;INTERVAL=2").build();
         // before schedule starts
         final long periodStartBefore = Instant.parse("2010-01-10T09:00:00Z").toEpochMilli();
@@ -87,6 +89,41 @@ public class ScheduleUtilsTest {
             testSchedulePerpetual.toBuilder(), periodStartAfter);
         assertTrue(updatedSchedule.hasNextOccurrence());
         assertEquals(Instant.parse("2010-01-12T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+    }
+
+    /**
+     * Test recurring daily perpetual schedule with deferred recurrence start.
+     *
+     * @throws Exception If any unexpected exceptions
+     */
+    @Test
+    public void testNextOccurrenceRecurDailyPerpetualWithRecurStartTime() throws Exception {
+        Schedule testSchedulePerpetual = SCHEDULE.toBuilder()
+            .setRecurrenceStart(RecurrenceStart.newBuilder()
+                .setRecurrenceStartTime(RECURRENCE_START_TIME).build())
+            .setPerpetual(Perpetual.getDefaultInstance())
+            .setRecurRule("FREQ=DAILY;INTERVAL=2").build();
+        // before schedule starts
+        final long periodStartBefore = Instant.parse("2010-01-10T09:00:00Z").toEpochMilli();
+        Schedule updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStartBefore);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-01-18T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+
+        final long periodStart = SCHEDULE.getStartTime();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStart);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-01-18T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+
+        final long periodStartAfter = Instant.parse("2010-01-19T10:00:00Z").toEpochMilli();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStartAfter);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-01-20T09:30:00Z").toEpochMilli(),
             updatedSchedule.getNextOccurrence().getStartTime());
     }
 
@@ -118,6 +155,46 @@ public class ScheduleUtilsTest {
             testSchedulePerpetual.toBuilder(), periodStartAfter);
         assertTrue(updatedSchedule.hasNextOccurrence());
         assertEquals(Instant.parse("2010-01-12T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+
+        final long periodStartAfterLastDate = Instant.parse("2011-01-01T10:00:00Z").toEpochMilli();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStartAfterLastDate);
+        assertFalse(updatedSchedule.hasNextOccurrence());
+    }
+
+    /**
+     * Test recurring daily schedule with last date and deferred recurrence start time.
+     *
+     * @throws Exception If any unexpected exceptions
+     */
+    @Test
+    public void testNextOccurrenceRecurDailyWithLastDateAndRecurStartTime() throws Exception {
+        Schedule testSchedulePerpetual = SCHEDULE.toBuilder()
+            .setRecurrenceStart(RecurrenceStart.newBuilder()
+                .setRecurrenceStartTime(RECURRENCE_START_TIME).build())
+            .setLastDate(LAST_DATE)
+            .setRecurRule("FREQ=DAILY;INTERVAL=2").build();
+        // before schedule starts
+        final long periodStartBefore = Instant.parse("2010-01-10T09:00:00Z").toEpochMilli();
+        Schedule updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStartBefore);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-01-18T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+
+        final long periodStart = SCHEDULE.getStartTime();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStart);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-01-18T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+
+        final long periodStartAfter = Instant.parse("2010-01-10T10:00:00Z").toEpochMilli();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStartAfter);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-01-18T09:30:00Z").toEpochMilli(),
             updatedSchedule.getNextOccurrence().getStartTime());
 
         final long periodStartAfterLastDate = Instant.parse("2011-01-01T10:00:00Z").toEpochMilli();
@@ -159,6 +236,40 @@ public class ScheduleUtilsTest {
     }
 
     /**
+     * Test recurring weekly perpetual schedule with recurrence start time.
+     *
+     * @throws Exception If any unexpected exceptions
+     */
+    @Test
+    public void testNextOccurrenceRecurWeeklyPerpetualWithRecurStartTime() throws Exception {
+        Schedule testSchedulePerpetual = SCHEDULE.toBuilder()
+            .setRecurrenceStart(RecurrenceStart.newBuilder()
+                .setRecurrenceStartTime(RECURRENCE_START_TIME).build())
+            .setPerpetual(Perpetual.getDefaultInstance())
+            .setRecurRule("FREQ=WEEKLY;BYDAY=TU,WE;INTERVAL=1").build();
+        final long periodStartBefore = Instant.parse("2010-01-10T09:00:00Z").toEpochMilli();
+        Schedule updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStartBefore);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-01-19T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+
+        final long periodStart = SCHEDULE.getStartTime();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStart);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-01-19T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+
+        final long periodStartAfter = Instant.parse("2010-01-19T10:00:00Z").toEpochMilli();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStartAfter);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-01-20T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+    }
+
+    /**
      * Test recurring weekly with last date.
      *
      * @throws Exception If any unexpected exceptions
@@ -196,6 +307,45 @@ public class ScheduleUtilsTest {
     }
 
     /**
+     * Test recurring weekly with last date.
+     *
+     * @throws Exception If any unexpected exceptions
+     */
+    @Test
+    public void testNextOccurrenceRecurWeeklyWithLastDateAndRecurrenceStartTime() throws Exception {
+        Schedule testSchedulePerpetual = SCHEDULE.toBuilder()
+            .setRecurrenceStart(RecurrenceStart.newBuilder()
+                .setRecurrenceStartTime(RECURRENCE_START_TIME).build())
+            .setLastDate(LAST_DATE)
+            .setRecurRule("FREQ=WEEKLY;BYDAY=TU,WE;INTERVAL=1").build();
+        final long periodStartBefore = Instant.parse("2010-01-10T09:00:00Z").toEpochMilli();
+        Schedule updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStartBefore);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-01-19T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+
+        final long periodStart = SCHEDULE.getStartTime();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStart);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-01-19T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+
+        final long periodStartAfter = Instant.parse("2010-01-19T10:00:00Z").toEpochMilli();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStartAfter);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-01-20T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+
+        final long periodStartAfterLastDate = Instant.parse("2011-01-01T10:00:00Z").toEpochMilli();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStartAfterLastDate);
+        assertFalse(updatedSchedule.hasNextOccurrence());
+    }
+
+    /**
      * Test recurring monthly by month day perpetual.
      *
      * @throws Exception If any unexpected exceptions
@@ -203,7 +353,7 @@ public class ScheduleUtilsTest {
     @Test
     public void testNextOccurrenceRecurMonthlyByMonthDayPerpetual() throws Exception {
         Schedule testSchedulePerpetual = SCHEDULE.toBuilder()
-            .setPerpetual(Perpetual.newBuilder().build())
+            .setPerpetual(Perpetual.getDefaultInstance())
             .setRecurRule("FREQ=MONTHLY;BYMONTHDAY=15;INTERVAL=1").build();
         final long periodStartBefore = Instant.parse("2010-01-10T09:00:00Z").toEpochMilli();
         Schedule updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
@@ -224,6 +374,40 @@ public class ScheduleUtilsTest {
             testSchedulePerpetual.toBuilder(), periodStartAfter);
         assertTrue(updatedSchedule.hasNextOccurrence());
         assertEquals(Instant.parse("2010-02-15T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+    }
+
+    /**
+     * Test recurring monthly by month day perpetual with deferred recurrence start time.
+     *
+     * @throws Exception If any unexpected exceptions
+     */
+    @Test
+    public void testNextOccurrenceRecurMonthlyByMonthDayPerpetualWithRecurStartTime() throws Exception {
+        Schedule testSchedulePerpetual = SCHEDULE.toBuilder()
+            .setRecurrenceStart(RecurrenceStart.newBuilder()
+                .setRecurrenceStartTime(RECURRENCE_START_TIME).build())
+            .setPerpetual(Perpetual.getDefaultInstance())
+            .setRecurRule("FREQ=MONTHLY;BYMONTHDAY=15;INTERVAL=1").build();
+        final long periodStartBefore = Instant.parse("2010-01-10T09:00:00Z").toEpochMilli();
+        Schedule updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStartBefore);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-02-15T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+
+        final long periodStart = SCHEDULE.getStartTime();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStart);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-02-15T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+
+        final long periodStartAfter = Instant.parse("2010-02-15T10:00:00Z").toEpochMilli();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStartAfter);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-03-15T08:30:00Z").toEpochMilli(),
             updatedSchedule.getNextOccurrence().getStartTime());
     }
 
@@ -265,6 +449,45 @@ public class ScheduleUtilsTest {
     }
 
     /**
+     * Test recurring monthly by month day with last date and deferred recurrence start time.
+     *
+     * @throws Exception If any unexpected exceptions
+     */
+    @Test
+    public void testNextOccurrenceRecurMonthlyByMonthDayWithLastDateAndRecurStartTime() throws Exception {
+        Schedule testSchedulePerpetual = SCHEDULE.toBuilder()
+            .setRecurrenceStart(RecurrenceStart.newBuilder()
+                .setRecurrenceStartTime(RECURRENCE_START_TIME).build())
+            .setLastDate(LAST_DATE)
+            .setRecurRule("FREQ=MONTHLY;BYMONTHDAY=15;INTERVAL=1").build();
+        final long periodStartBefore = Instant.parse("2010-01-10T09:00:00Z").toEpochMilli();
+        Schedule updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStartBefore);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-02-15T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+
+        final long periodStart = SCHEDULE.getStartTime();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStart);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-02-15T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+
+        final long periodStartAfter = Instant.parse("2010-02-15T10:00:00Z").toEpochMilli();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStartAfter);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-03-15T08:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+
+        final long periodStartAfterLastDate = Instant.parse("2011-01-01T10:00:00Z").toEpochMilli();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStartAfterLastDate);
+        assertFalse(updatedSchedule.hasNextOccurrence());
+    }
+
+    /**
      * Test recurring monthly by set position perpetual.
      *
      * @throws Exception If any unexpected exceptions
@@ -272,7 +495,7 @@ public class ScheduleUtilsTest {
     @Test
     public void testNextOccurrenceRecurMonthlySetPosPerpetual() throws Exception {
         Schedule testSchedulePerpetual = SCHEDULE.toBuilder()
-            .setPerpetual(Perpetual.newBuilder().build())
+            .setPerpetual(Perpetual.getDefaultInstance())
             .setRecurRule("FREQ=MONTHLY;BYDAY=TU;BYSETPOS=4;INTERVAL=1").build();
         final long periodStartBefore = Instant.parse("2010-01-10T09:00:00Z").toEpochMilli();
         Schedule updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
@@ -292,7 +515,42 @@ public class ScheduleUtilsTest {
         updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
             testSchedulePerpetual.toBuilder(), periodStartAfter);
         assertTrue(updatedSchedule.hasNextOccurrence());
-        assertEquals(Instant.parse("2010-02-23T09:30:00Z").toEpochMilli(), updatedSchedule.getNextOccurrence().getStartTime());
+        assertEquals(Instant.parse("2010-02-23T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+    }
+
+    /**
+     * Test recurring monthly by set position perpetual with deferred recurrence start time.
+     *
+     * @throws Exception If any unexpected exceptions
+     */
+    @Test
+    public void testNextOccurrenceRecurMonthlySetPosPerpetualWithRecurStartTime() throws Exception {
+        Schedule testSchedulePerpetual = SCHEDULE.toBuilder()
+            .setRecurrenceStart(RecurrenceStart.newBuilder()
+                .setRecurrenceStartTime(Instant.parse("2010-01-27T09:30:00Z").toEpochMilli()).build())
+            .setPerpetual(Perpetual.getDefaultInstance())
+            .setRecurRule("FREQ=MONTHLY;BYDAY=TU;BYSETPOS=4;INTERVAL=1").build();
+        final long periodStartBefore = Instant.parse("2010-01-10T09:00:00Z").toEpochMilli();
+        Schedule updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStartBefore);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-02-23T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+
+        final long periodStart = SCHEDULE.getStartTime();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStart);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-02-23T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+
+        final long periodStartAfter = Instant.parse("2010-02-23T10:00:00Z").toEpochMilli();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStartAfter);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-03-23T08:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
     }
 
     /**
@@ -324,6 +582,45 @@ public class ScheduleUtilsTest {
             testSchedulePerpetual.toBuilder(), periodStartAfter);
         assertTrue(updatedSchedule.hasNextOccurrence());
         assertEquals(Instant.parse("2010-02-23T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+
+        final long periodStartAfterLastDate = Instant.parse("2011-01-01T10:00:00Z").toEpochMilli();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStartAfterLastDate);
+        assertFalse(updatedSchedule.hasNextOccurrence());
+    }
+
+    /**
+     * Test recurring monthly by set position with last date.
+     *
+     * @throws Exception If any unexpected exceptions
+     */
+    @Test
+    public void testNextOccurrenceRecurMonthlySetPosWithLastDateAndRecurStartTime() throws Exception {
+        Schedule testSchedulePerpetual = SCHEDULE.toBuilder()
+            .setRecurrenceStart(RecurrenceStart.newBuilder()
+                .setRecurrenceStartTime(Instant.parse("2010-01-27T09:30:00Z").toEpochMilli()).build())
+            .setLastDate(LAST_DATE)
+            .setRecurRule("FREQ=MONTHLY;BYDAY=TU;BYSETPOS=4;INTERVAL=1").build();
+        final long periodStartBefore = Instant.parse("2010-01-10T09:00:00Z").toEpochMilli();
+        Schedule updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStartBefore);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-02-23T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+
+        final long periodStart = SCHEDULE.getStartTime();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStart);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-02-23T09:30:00Z").toEpochMilli(),
+            updatedSchedule.getNextOccurrence().getStartTime());
+
+        final long periodStartAfter = Instant.parse("2010-02-23T10:00:00Z").toEpochMilli();
+        updatedSchedule = ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
+            testSchedulePerpetual.toBuilder(), periodStartAfter);
+        assertTrue(updatedSchedule.hasNextOccurrence());
+        assertEquals(Instant.parse("2010-03-23T08:30:00Z").toEpochMilli(),
             updatedSchedule.getNextOccurrence().getStartTime());
 
         final long periodStartAfterLastDate = Instant.parse("2011-01-01T10:00:00Z").toEpochMilli();

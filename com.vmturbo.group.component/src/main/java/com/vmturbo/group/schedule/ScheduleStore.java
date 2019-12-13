@@ -20,6 +20,7 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -29,6 +30,9 @@ import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.schedule.ScheduleProto;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.OneTime;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.Perpetual;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.RecurrenceStart;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
@@ -248,14 +252,7 @@ public class ScheduleStore implements Diagnosable {
 
                 // Validate before saving
                 scheduleValidator.validateSchedule(schedule);
-
-                existingRecord.setDisplayName(schedule.getDisplayName());
-                existingRecord.setStartTime(new Timestamp(schedule.getStartTime()));
-                existingRecord.setEndTime(new Timestamp(schedule.getEndTime()));
-                existingRecord.setLastDate(new Timestamp(schedule.getLastDate()));
-                existingRecord.setRecurRule(schedule.getRecurRule());
-                existingRecord.setTimeZoneId(schedule.getTimezoneId());
-
+                updateScheduleRecord(existingRecord, schedule);
                 final int modifiedRecords = existingRecord.update();
                 if (modifiedRecords == 0) {
                     // This should not really happen
@@ -541,18 +538,27 @@ public class ScheduleStore implements Diagnosable {
      */
     @Nonnull
     private ScheduleProto.Schedule toScheduleMessage(@Nonnull final Schedule jooqSchedule) {
-        ScheduleProto.Schedule.Builder schedule = ScheduleProto.Schedule.newBuilder();
+        final ScheduleProto.Schedule.Builder schedule = ScheduleProto.Schedule.newBuilder();
         schedule
             .setId(jooqSchedule.getId())
             .setDisplayName(jooqSchedule.getDisplayName())
             .setStartTime(jooqSchedule.getStartTime().getTime())
             .setEndTime(jooqSchedule.getEndTime().getTime())
-            .setRecurRule(jooqSchedule.getRecurRule())
             .setTimezoneId(jooqSchedule.getTimeZoneId());
         if (jooqSchedule.getLastDate() != null) {
             schedule.setLastDate(jooqSchedule.getLastDate().getTime());
         } else {
-            schedule.setPerpetual(ScheduleProto.Schedule.Perpetual.newBuilder().build());
+            schedule.setPerpetual(Perpetual.getDefaultInstance());
+        }
+        if (StringUtils.isNotBlank(jooqSchedule.getRecurRule())) {
+            schedule.setRecurRule(jooqSchedule.getRecurRule());
+        } else {
+            schedule.setOneTime(OneTime.getDefaultInstance());
+        }
+        if (jooqSchedule.getRecurrenceStartTime() != null) {
+            schedule.setRecurrenceStart(RecurrenceStart.newBuilder()
+                .setRecurrenceStartTime(jooqSchedule.getRecurrenceStartTime().getTime())
+                .build());
         }
         return schedule.build();
     }
@@ -572,8 +578,31 @@ public class ScheduleStore implements Diagnosable {
             new Timestamp(scheduleMessage.getEndTime()),
             scheduleMessage.hasPerpetual() ?
                 null : new Timestamp(scheduleMessage.getLastDate()),
-            scheduleMessage.getRecurRule(),
-            scheduleMessage.getTimezoneId()
+            scheduleMessage.hasOneTime() ?
+                null : scheduleMessage.getRecurRule(),
+            scheduleMessage.getTimezoneId(),
+            scheduleMessage.hasRecurrenceStart() ?
+                new Timestamp(scheduleMessage.getRecurrenceStart().getRecurrenceStartTime()) : null
         );
+    }
+
+    /**
+     * Update existing {@link Schedule} record from {@link ScheduleProto.Schedule} message.
+     *
+     * @param recordToUpdate jooq record to update
+     * @param scheduleMessage {@link ScheduleProto.Schedule} message to generate from
+     */
+    private void updateScheduleRecord(@Nonnull final ScheduleRecord recordToUpdate,
+                                      @Nonnull final ScheduleProto.Schedule scheduleMessage) {
+        recordToUpdate.setDisplayName(scheduleMessage.getDisplayName());
+        recordToUpdate.setStartTime(new Timestamp(scheduleMessage.getStartTime()));
+        recordToUpdate.setEndTime(new Timestamp(scheduleMessage.getEndTime()));
+        recordToUpdate.setLastDate(scheduleMessage.hasPerpetual() ?
+            null : new Timestamp(scheduleMessage.getLastDate()));
+        recordToUpdate.setRecurRule(scheduleMessage.hasOneTime() ?
+            null : scheduleMessage.getRecurRule());
+        recordToUpdate.setTimeZoneId(scheduleMessage.getTimezoneId());
+        recordToUpdate.setRecurrenceStartTime(scheduleMessage.hasRecurrenceStart() ?
+            new Timestamp(scheduleMessage.getRecurrenceStart().getRecurrenceStartTime()) : null);
     }
 }

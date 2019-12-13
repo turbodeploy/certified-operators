@@ -453,6 +453,17 @@
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-collections4</artifactId>
         </dependency>
+        <dependency>
+            <!-- ical4j library is used for its support of recurring events.
+            In particular, we define recurring event as a string using recurring rule format
+            parseable by ical4j.
+            See https://tools.ietf.org/html/rfc2445#section-4.3.10 for more details.
+            -->
+            <groupId>org.mnode.ical4j</groupId>
+            <artifactId>ical4j</artifactId>
+            <version>3.0.10</version>
+            <scope>compile</scope>
+        </dependency>
 
         <!-- test dependencies -->
         <dependency>

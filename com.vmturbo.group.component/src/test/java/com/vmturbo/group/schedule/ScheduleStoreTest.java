@@ -29,7 +29,9 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.OneTime;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.Perpetual;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.RecurrenceStart;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
@@ -61,6 +63,7 @@ public class ScheduleStoreTest {
     private static final long START_TIME = 1446760800000L;
     private static final long END_TIME = 1446766200000L;
     private static final long LAST_DATE = 1451624399000L;
+    private static final long RECURRENCE_START_TINE = 1446809400000L;
     private static final String RECUR_RULE = "FREQ=MONTHLY;BYDAY=SA;BYSETPOS=-1;INTERVAL=1;";
     private static final String TIME_ZONE_ID = "America/Argentina/ComodRivadavia";
 
@@ -220,6 +223,57 @@ public class ScheduleStoreTest {
             updatedSchedule);
         assertEquals(origSchedule.getId(), retUpdatedSchedule.getId());
         verifySchedule(updatedSchedule, retUpdatedSchedule);
+    }
+
+    /**
+     * Test update schedule change recurrence pattern.
+     *
+     * @throws Exception If test throws any exceptions
+     */
+    @Test
+    public void testUpdateScheduleChangeRecurrrence() throws Exception {
+        Schedule schedule = scheduleStore.createSchedule(testScheduleWithLastDate);
+        assertEquals(RECUR_RULE, schedule.getRecurRule());
+        assertFalse(schedule.hasOneTime());
+        Schedule updatedSchedule = testScheduleWithLastDate.toBuilder().clearRecurRule()
+            .setOneTime(OneTime.getDefaultInstance()).build();
+        Schedule retUpdatedSchedule = scheduleStore.updateSchedule(schedule.getId(),
+            updatedSchedule);
+        assertTrue((retUpdatedSchedule.hasOneTime()));
+    }
+
+    /**
+     * Test update schedule change last date.
+     *
+     * @throws Exception If test throws any exceptions
+     */
+    @Test
+    public void testUpdateScheduleChangeLastDate() throws Exception {
+        Schedule schedule = scheduleStore.createSchedule(testScheduleWithLastDate);
+        assertEquals(LAST_DATE, schedule.getLastDate());
+        assertFalse(schedule.hasPerpetual());
+        Schedule updatesSchedule = scheduleStore.updateSchedule(schedule.getId(),
+            testSchedulePerpetual);
+        assertTrue(updatesSchedule.hasPerpetual());
+    }
+
+    /**
+     * Tes update schedule set recurrence start time.
+     *
+     * @throws Exception If test throws any exceptions.
+     */
+    @Test
+    public void testUpdateScheduleSetRecurrenceStartTime() throws Exception {
+        Schedule schedule = scheduleStore.createSchedule(testScheduleWithLastDate);
+        assertFalse(schedule.hasRecurrenceStart());
+        Schedule updatedSchedule = scheduleStore.updateSchedule(schedule.getId(),
+            schedule.toBuilder().setRecurrenceStart(RecurrenceStart.newBuilder()
+                .setRecurrenceStartTime(RECURRENCE_START_TINE)
+                .build())
+            .build());
+        assertTrue(updatedSchedule.hasRecurrenceStart());
+        assertEquals(RECURRENCE_START_TINE, updatedSchedule.getRecurrenceStart()
+            .getRecurrenceStartTime());
     }
 
     /**

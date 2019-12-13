@@ -97,25 +97,29 @@ public class ScheduleUtils {
     @Nullable
     private static Date getFirstOcurrenceInPeriod(@Nonnull  final Schedule.Builder schedule,
               final long periodStartTime) throws ParseException {
-        if (schedule.hasRecurRule()) {
+        if (schedule.hasOneTime()) { //No recurrence pattern
+            if (schedule.getStartTime() > periodStartTime && schedule.getStartTime() < MAX_END_DATE) {
+                return new DateTime(schedule.getStartTime());
+            }
+        } else {
             /*
              * iCal4j is only accurate to the second (not milliseconds). Take the next
              * second to avoid returning a date in the past when the millis are omitted.
              * NOTE: this is copied over from OpsManager RecurringEventImpl
              */
             final long startTime = (long)((Math.ceil((periodStartTime + 1) / 1000.0)) * 1000);
-            final DateTime startDateTime = new DateTime(Math.max(schedule.getStartTime(), startTime));
-            final DateTime endDateTime = schedule.hasPerpetual() ? MAX_END_DATE_TIME :
+            final long recurStartTime = schedule.hasRecurrenceStart() ?
+                Math.max(schedule.getStartTime(), schedule.getRecurrenceStart().getRecurrenceStartTime())
+                : schedule.getStartTime();
+            final DateTime recurStartDateTime = new DateTime(Math.max(recurStartTime, startTime));
+            final DateTime recurEndDateTime = schedule.hasPerpetual() ? MAX_END_DATE_TIME :
                 new DateTime(schedule.getLastDate());
             final Recur recur = new Recur(schedule.getRecurRule());
-            final DateList dates = recur.getDates(new DateTime(schedule.getStartTime()), startDateTime,
-                endDateTime, Value.DATE_TIME, 1);
+            final DateList dates = recur.getDates(new DateTime(schedule.getStartTime()),
+                recurStartDateTime, recurEndDateTime, Value.DATE_TIME, 1);
             return dates.isEmpty() ? null : dates.get(0);
-        } else { //No recurrence pattern
-            if (schedule.getStartTime() > periodStartTime && schedule.getStartTime() < MAX_END_DATE) {
-                return new DateTime(schedule.getStartTime());
-            }
         }
+
         return null;
     }
 }

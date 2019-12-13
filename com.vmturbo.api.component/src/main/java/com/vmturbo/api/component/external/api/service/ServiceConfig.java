@@ -57,8 +57,6 @@ import com.vmturbo.auth.api.widgets.AuthClientConfig;
 import com.vmturbo.components.common.utils.BuildProperties;
 import com.vmturbo.kvstore.KeyValueStoreConfig;
 import com.vmturbo.kvstore.PublicKeyStoreConfig;
-import com.vmturbo.notification.api.impl.NotificationClientConfig;
-import com.vmturbo.reporting.api.ReportingClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 
@@ -425,7 +423,8 @@ public class ServiceConfig {
 
     @Bean
     public SchedulesService schedulesService() {
-        return new SchedulesService();
+        return new SchedulesService(communicationConfig.scheduleRpcService(),
+            mapperConfig.scheduleMapper());
     }
 
     @Bean

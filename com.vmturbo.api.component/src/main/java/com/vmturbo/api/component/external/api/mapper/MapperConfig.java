@@ -239,6 +239,10 @@ public class MapperConfig {
                 settingSpecStyleMappingLoader().getMapping());
     }
 
+    public ScheduleMapper scheduleMapper() {
+        return new ScheduleMapper();
+    }
+
     @Bean
     public ReservationMapper reservationMapper() {
         return new ReservationMapper(communicationConfig.repositoryApi(),

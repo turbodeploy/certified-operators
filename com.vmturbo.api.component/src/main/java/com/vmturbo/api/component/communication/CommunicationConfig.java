@@ -69,6 +69,8 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc;
+import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc.ScheduleServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
@@ -276,6 +278,10 @@ public class CommunicationConfig {
     @Bean
     public SettingPolicyServiceBlockingStub settingPolicyRpcService() {
         return SettingPolicyServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
+    }
+
+    public ScheduleServiceBlockingStub scheduleRpcService() {
+        return ScheduleServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
     }
 
     @Bean

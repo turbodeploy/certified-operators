@@ -32,6 +32,7 @@ import com.vmturbo.common.protobuf.schedule.ScheduleProto.GetScheduleRequest;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.GetScheduleResponse;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.GetSchedulesRequest;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.OneTime;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.UpdateScheduleRequest;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.UpdateScheduleResponse;
 import com.vmturbo.group.common.DuplicateNameException;
@@ -52,6 +53,7 @@ public class ScheduleRpcServiceTest {
         .setId(SCHEDULE_ID)
         .setStartTime(START_TIME)
         .setEndTime(END_TIME)
+        .setOneTime(OneTime.newBuilder().build())
         .build();
 
     /** Expected exceptions to test against. */
@@ -156,6 +158,7 @@ public class ScheduleRpcServiceTest {
     @Test
     public void testGetScheduleParseException() {
         Schedule testSchedule = SCHEDULE.toBuilder()
+            .clearOneTime()
             .setRecurRule("FREQ=DAILY;INTERVAL=2;UNTIL=INVALID").build();
         when(scheduleStore.getSchedule(SCHEDULE_ID)).thenReturn(Optional.of(testSchedule));
         final StreamObserver<GetScheduleResponse> responseObserver =
@@ -214,6 +217,7 @@ public class ScheduleRpcServiceTest {
     @Test
     public void testGetAllSchedulesParseException() {
         Schedule testSchedule = SCHEDULE.toBuilder()
+            .clearOneTime()
             .setRecurRule("FREQ=DAILY;INTERVAL=2;UNTIL=INVALID").build();
         when(scheduleStore.getSchedules()).thenReturn(Stream.of(testSchedule));
         final StreamObserver<Schedule> responseObserver =
@@ -271,6 +275,7 @@ public class ScheduleRpcServiceTest {
     @Test
     public void testCreateScheduleParseException() throws Exception {
         Schedule invalidSchedule = SCHEDULE.toBuilder()
+            .clearOneTime()
             .setRecurRule("FREQ=DAILY;INTERVAL=2;UNTIL=INVALID").build();
         when(scheduleStore.createSchedule(SCHEDULE)).thenReturn(invalidSchedule);
         final StreamObserver<CreateScheduleResponse> responseObserver =
@@ -383,6 +388,7 @@ public class ScheduleRpcServiceTest {
     @Test
     public void testUpdateScheduleParseException() throws Exception {
         Schedule invalidSchedule = SCHEDULE.toBuilder()
+            .clearOneTime()
             .setRecurRule("FREQ=DAILY;INTERVAL=2;UNTIL=INVALID").build();
         when(scheduleStore.updateSchedule(SCHEDULE_ID, invalidSchedule)).thenReturn(invalidSchedule);
         final StreamObserver<UpdateScheduleResponse> responseObserver =

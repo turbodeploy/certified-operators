@@ -27,6 +27,9 @@ message Schedule {
     // If this schedule is currently active and if so, long it will remain active
     optional Active active = 8;
 
+    // Recurrence start time
+    optional RecurrenceStart recurrenceStart = 9;
+
     // Whether the schedule applies daily, weekly, monthly, or only once.
     oneof recurrence {
         OneTime one_time = 10;
@@ -95,6 +98,11 @@ message Schedule {
     // If schedule is active, how long it will remain active
     message Active {
         optional int64 remaining_active_time_ms = 1;
+    }
+
+    // If schedule recurrence start has been deferred, new series start time
+    message RecurrenceStart {
+        optional int64 recurrence_start_time = 1;
     }
 }
 

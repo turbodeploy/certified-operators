@@ -1,0 +1,1 @@
+alter table schedule add column recurrence_start_time TIMESTAMP NULL;

@@ -32,6 +32,7 @@ import com.vmturbo.api.controller.ReservationsController;
 import com.vmturbo.api.controller.ReservedInstancesController;
 import com.vmturbo.api.controller.RolesController;
 import com.vmturbo.api.controller.ScenariosController;
+import com.vmturbo.api.controller.SchedulesController;
 import com.vmturbo.api.controller.SearchController;
 import com.vmturbo.api.controller.SettingsController;
 import com.vmturbo.api.controller.SettingsPoliciesController;
@@ -166,6 +167,11 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public SettingsPoliciesController settingsPoliciesController() {
         return new SettingsPoliciesController();
+    }
+
+    @Bean
+    public SchedulesController schedulesController() {
+        return new SchedulesController();
     }
 
     @Bean
