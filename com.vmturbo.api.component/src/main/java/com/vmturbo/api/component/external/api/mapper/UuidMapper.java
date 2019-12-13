@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -15,6 +16,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
@@ -30,6 +32,8 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -215,13 +219,15 @@ public class UuidMapper {
 
         private final Set<Long> discoveringTargetIds;
 
+        private final Set<Long> entityIds;
+
         /**
          * @param envTypeFromMember the environment type of a member of the group, or
          *                          EnvironmentType.UNKNOWN_ENV if it could not be determined. It
          *                          is used if the group's environment type is not already provided.
          */
         private CachedGroupInfo(Grouping group, final Set<Long> discoveringTargetIds,
-                EnvironmentType envTypeFromMember) {
+                EnvironmentType envTypeFromMember, Set<Long> entityIds) {
             this.entityTypes = GroupProtoUtil.getEntityTypes(group)
                             .stream()
                             .collect(Collectors.toSet());
@@ -239,6 +245,7 @@ public class UuidMapper {
                     && group.getDefinition().getOptimizationMetadata().hasEnvironmentType()) ?
                 group.getDefinition().getOptimizationMetadata().getEnvironmentType()
                 : envTypeFromMember;
+            this.entityIds = entityIds;
         }
 
         public boolean isGlobalTempGroup() {
@@ -266,6 +273,10 @@ public class UuidMapper {
         @Nonnull
         public Set<Long> getDiscoveringTargetIds() {
             return discoveringTargetIds;
+        }
+
+        public Set<Long> getEntityIds() {
+            return entityIds;
         }
     }
 
@@ -510,7 +521,7 @@ public class UuidMapper {
                                 .flatMap(minEntity -> minEntity.getDiscoveringTargetIdsList().stream())
                                 .collect(Collectors.toSet());
                         return Optional.of(new CachedGroupInfo(resp.getGroup(), discoveringTargetIds,
-                            envTypeFromMember));
+                            envTypeFromMember, ImmutableSet.copyOf(entities)));
                     } else {
                         return Optional.empty();
                     }

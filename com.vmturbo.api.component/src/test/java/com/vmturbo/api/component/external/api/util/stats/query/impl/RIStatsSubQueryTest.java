@@ -23,6 +23,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
@@ -30,6 +31,7 @@ import com.google.common.collect.Sets;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
 import com.vmturbo.api.component.external.api.util.stats.ImmutableTimeWindow;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext.TimeWindow;
@@ -237,6 +239,10 @@ public class RIStatsSubQueryTest {
     @Test
     public void testCreateUtilizationRequestRegionScope() throws OperationFailedException {
         when(context.getTimeWindow()).thenReturn(Optional.of(TIME_WINDOW));
+        when(context.getInputScope().isGroup()).thenReturn(true);
+        CachedGroupInfo cachedGroupInfo = Mockito.mock(CachedGroupInfo.class);
+        Mockito.when(cachedGroupInfo.getEntityIds()).thenReturn(SCOPE_ENTITIES);
+        when(context.getInputScope().getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
         when(scope.getScopeTypes()).thenReturn(Optional.of(
                         Collections.singleton(UIEntityType.REGION)));
 
@@ -250,6 +256,10 @@ public class RIStatsSubQueryTest {
     @Test
     public void testCreateUtilizationRequestAzScope() throws OperationFailedException {
         when(context.getTimeWindow()).thenReturn(Optional.of(TIME_WINDOW));
+        CachedGroupInfo cachedGroupInfo = Mockito.mock(CachedGroupInfo.class);
+        Mockito.when(cachedGroupInfo.getEntityIds()).thenReturn(SCOPE_ENTITIES);
+        when(context.getInputScope().getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
+        when(context.getInputScope().isGroup()).thenReturn(true);
         when(scope.getScopeTypes()).thenReturn(Optional.of(
                         Collections.singleton(UIEntityType.AVAILABILITY_ZONE)));
 
@@ -263,6 +273,11 @@ public class RIStatsSubQueryTest {
     @Test
     public void testCreateUtilizationRequestBaScope() throws OperationFailedException {
         when(context.getTimeWindow()).thenReturn(Optional.of(TIME_WINDOW));
+        CachedGroupInfo cachedGroupInfo = Mockito.mock(CachedGroupInfo.class);
+        Mockito.when(cachedGroupInfo.getEntityIds()).thenReturn(SCOPE_ENTITIES);
+        when(context.getInputScope().getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
+        when(context.getInputScope().isGroup()).thenReturn(true);
+
         when(scope.getScopeTypes()).thenReturn(Optional.of(
                         Collections.singleton(UIEntityType.BUSINESS_ACCOUNT)));
 

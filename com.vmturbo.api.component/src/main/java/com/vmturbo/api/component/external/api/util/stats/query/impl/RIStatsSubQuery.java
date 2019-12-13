@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -9,6 +10,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+
+import org.apache.commons.collections4.CollectionUtils;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
@@ -29,8 +32,8 @@ import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
-import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountByTemplateResponse;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
@@ -102,15 +105,18 @@ public class RIStatsSubQuery implements StatsSubQuery {
             throws OperationFailedException {
         final List<StatSnapshotApiDTO> snapshots = new ArrayList<>();
         if (containsStat(StringConstants.NUM_RI, stats) && isValidScopeForNumRIRequest(context)) {
-            final GetReservedInstanceBoughtCountRequest countRequest = GetReservedInstanceBoughtCountRequest
-                    .newBuilder().build();
-            GetReservedInstanceBoughtCountByTemplateResponse response =
-                    riBoughtService.getReservedInstanceBoughtCountByTemplateType(countRequest).toBuilder().build();
-            final Map<Long, Long> riBoughtCountsByTierId =
-                    response.getReservedInstanceCountMapMap();
+            final GetReservedInstanceBoughtCountRequest countRequest = riStatsMapper
+                    .createRIBoughtCountRequest(context);
+
+            GetReservedInstanceBoughtCountByTemplateResponse response = riBoughtService
+                    .getReservedInstanceBoughtCountByTemplateType(countRequest).toBuilder().build();
+
+            final Map<Long, Long> riBoughtCountsByTierId = response.getReservedInstanceCountMapMap();
+
             final Map<Long, ServiceEntityApiDTO> tierApiDTOByTierId =
                     repositoryApi.entitiesRequest(riBoughtCountsByTierId.keySet())
                     .getSEMap();
+
             final Map<String, Long> riBoughtCountByTierName = riBoughtCountsByTierId
                     .entrySet().stream()
                     .filter(e -> tierApiDTOByTierId.containsKey(e.getKey()))
@@ -210,6 +216,50 @@ public class RIStatsSubQuery implements StatsSubQuery {
     static class RIStatsMapper {
 
         @Nonnull
+        GetReservedInstanceBoughtCountRequest createRIBoughtCountRequest(
+                @Nonnull final StatsQueryContext context) throws OperationFailedException {
+            final GetReservedInstanceBoughtCountRequest.Builder reqBuilder =
+                                        GetReservedInstanceBoughtCountRequest.newBuilder();
+            if (context.getInputScope().getScopeTypes().isPresent()) {
+                final Set<Long> scopeEntities = new HashSet<>();
+                if (context.getInputScope().isGroup()) {
+                    if (context.getInputScope().getCachedGroupInfo().isPresent()) {
+                        scopeEntities.addAll(context.getInputScope().getCachedGroupInfo().get().getEntityIds());
+                    }
+                } else {
+                    scopeEntities.add(context.getInputScope().oid());
+                }
+                final Set<UIEntityType> uiEntityTypes = context.getInputScope().getScopeTypes().get();
+
+                if (CollectionUtils.isEmpty(uiEntityTypes)) {
+                    throw new OperationFailedException("Entity type not present");
+                }
+                final UIEntityType type = uiEntityTypes.stream().findFirst().get();
+
+                switch (type) {
+                    case REGION :
+                        reqBuilder.setRegionFilter(RegionFilter.newBuilder()
+                                .addAllRegionId(scopeEntities));
+                        break;
+                    case AVAILABILITY_ZONE:
+                        reqBuilder.setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
+                                .addAllAvailabilityZoneId(scopeEntities));
+                        break;
+                    case BUSINESS_ACCOUNT:
+                        reqBuilder.setAccountFilter(AccountFilter.newBuilder()
+                                .addAllAccountId(scopeEntities));
+                        break;
+                    default:
+                        throw new OperationFailedException("Invalid scope for query: " + type.apiStr());
+                }
+            } else if (!context.isGlobalScope()) {
+                throw new OperationFailedException("Invalid scope for query." +
+                        " Must be global or have an entity type.");
+            }
+            return reqBuilder.build();
+        }
+
+        @Nonnull
         GetReservedInstanceUtilizationStatsRequest createUtilizationRequest(@Nonnull final StatsQueryContext context)
                 throws OperationFailedException {
             final GetReservedInstanceUtilizationStatsRequest.Builder reqBuilder =
@@ -220,21 +270,36 @@ public class RIStatsSubQuery implements StatsSubQuery {
             });
 
             if (context.getInputScope().getScopeTypes().isPresent()) {
-                //TODO (mahdi)
-                final UIEntityType type = context.getInputScope().getScopeTypes().get()
-                                .iterator().next();
-                final Set<Long> scopeEntities = context.getQueryScope().getEntities();
-                if (type == UIEntityType.REGION) {
-                    reqBuilder.setRegionFilter(RegionFilter.newBuilder()
-                        .addAllRegionId(scopeEntities));
-                } else if (type == UIEntityType.AVAILABILITY_ZONE) {
-                    reqBuilder.setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
-                        .addAllAvailabilityZoneId(scopeEntities));
-                } else if (type == UIEntityType.BUSINESS_ACCOUNT) {
-                    reqBuilder.setAccountFilter(AccountFilter.newBuilder()
-                        .addAllAccountId(scopeEntities));
+                final Set<Long> scopeEntities = new HashSet<>();
+                if (context.getInputScope().isGroup()) {
+                    if (context.getInputScope().getCachedGroupInfo().isPresent()) {
+                        scopeEntities.addAll(context.getInputScope().getCachedGroupInfo().get().getEntityIds());
+                    }
                 } else {
-                    throw new OperationFailedException("Invalid scope for query: " + type.apiStr());
+                    scopeEntities.add(context.getInputScope().oid());
+                }
+                final Set<UIEntityType> uiEntityTypes = context.getInputScope().getScopeTypes().get();
+
+                if (CollectionUtils.isEmpty(uiEntityTypes)) {
+                    throw new OperationFailedException("Entity type not present");
+                }
+                final UIEntityType type = uiEntityTypes.stream().findFirst().get();
+
+                switch (type) {
+                    case REGION :
+                        reqBuilder.setRegionFilter(RegionFilter.newBuilder()
+                                .addAllRegionId(scopeEntities));
+                        break;
+                    case AVAILABILITY_ZONE:
+                        reqBuilder.setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
+                                .addAllAvailabilityZoneId(scopeEntities));
+                        break;
+                    case BUSINESS_ACCOUNT:
+                        reqBuilder.setAccountFilter(AccountFilter.newBuilder()
+                                .addAllAccountId(scopeEntities));
+                        break;
+                    default:
+                        throw new OperationFailedException("Invalid scope for query: " + type.apiStr());
                 }
             } else if (!context.isGlobalScope()) {
                 throw new OperationFailedException("Invalid scope for query." +

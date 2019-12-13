@@ -137,7 +137,7 @@ public class ReservedInstanceBoughtRpcServiceTest {
                 .thenReturn(Collections.singletonList(createRiBought()));
         when(reservedInstanceSpecStore.getReservedInstanceSpecByIds(any()))
                 .thenReturn(Collections.singletonList(createRiSpec()));
-        when(reservedInstanceBoughtStore.getReservedInstanceCountByRISpecIdMap())
+        when(reservedInstanceBoughtStore.getReservedInstanceCountByRISpecIdMap(any()))
                 .thenReturn(Collections.singletonMap(RI_SPEC_ID, RI_BOUGHT_COUNT));
         mockPricedTableStore(priceTableStore);
     }

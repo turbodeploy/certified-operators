@@ -12,19 +12,16 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
-import io.grpc.stub.StreamObserver;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
+import io.grpc.stub.StreamObserver;
+
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
-import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
-import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageRequest;
-import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountByTemplateResponse;
@@ -191,10 +188,10 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
             final Optional<RegionFilter> regionFilter = request.hasRegionFilter()
                             ? Optional.of(request.getRegionFilter())
                             : Optional.empty();
-                    final Optional<AvailabilityZoneFilter> azFilter = request.hasRegionFilter()
+                    final Optional<AvailabilityZoneFilter> azFilter = request.hasAvailabilityZoneFilter()
                             ? Optional.of(request.getAvailabilityZoneFilter())
                             : Optional.empty();
-                    final Optional<AccountFilter> accountFilter = request.hasRegionFilter()
+                    final Optional<AccountFilter> accountFilter = request.hasAccountFilter()
                             ? Optional.of(request.getAccountFilter())
                             : Optional.empty();
                     final ReservedInstanceBoughtFilter filter =
@@ -220,8 +217,21 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
             GetReservedInstanceBoughtCountRequest request,
             StreamObserver<GetReservedInstanceBoughtCountByTemplateResponse> responseObserver) {
         try {
+
+            final Optional<RegionFilter> regionFilter = request.hasRegionFilter()
+                                                        ? Optional.of(request.getRegionFilter())
+                                                        : Optional.empty();
+            final Optional<AvailabilityZoneFilter> azFilter = request.hasAvailabilityZoneFilter()
+                                                ? Optional.of(request.getAvailabilityZoneFilter())
+                                                : Optional.empty();
+            final Optional<AccountFilter> accountFilter = request.hasAccountFilter()
+                                                        ? Optional.of(request.getAccountFilter())
+                                                        : Optional.empty();
+            final ReservedInstanceBoughtFilter filter =
+                            createReservedInstanceBoughtFilter(regionFilter, azFilter, accountFilter);
+
             final Map<Long, Long> riCountByRiSpecId = reservedInstanceBoughtStore
-                    .getReservedInstanceCountByRISpecIdMap();
+                    .getReservedInstanceCountByRISpecIdMap(filter);
 
             final Map<Long, ReservedInstanceSpec> riSpecBySpecId = reservedInstanceSpecStore
                     .getReservedInstanceSpecByIds(riCountByRiSpecId.keySet())

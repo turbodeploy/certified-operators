@@ -25,6 +25,7 @@ import org.jooq.DSLContext;
 import org.jooq.Record1;
 import org.jooq.Record2;
 import org.jooq.Result;
+import org.jooq.SelectJoinStep;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
@@ -35,6 +36,7 @@ import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord
 import com.vmturbo.cost.component.identity.IdentityProvider;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCostFilter;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * This class is used to update reserved instance table by latest reserved instance bought data which
@@ -151,14 +153,25 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
     /**
      * Get the sum count of reserved instance bought by RI spec ID.
      *
-     * @return a Map which key is reservedInstance spec ID and value is the sum count of reserved instance bought
-     * which belong to this spec.
+     * @return a Map which key is reservedInstance spec ID and value is the sum count of reserved
+     * instance bought which belong to this spec.
      */
-    public Map<Long, Long> getReservedInstanceCountByRISpecIdMap() {
-        final Result<Record2<ReservedInstanceBoughtInfo, BigDecimal>> riCountMap =
+    public Map<Long, Long> getReservedInstanceCountByRISpecIdMap(ReservedInstanceBoughtFilter filter) {
+        final SelectJoinStep<Record2<ReservedInstanceBoughtInfo, BigDecimal>> from =
                 dsl.select(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_BOUGHT_INFO,
-                        (sum(RESERVED_INSTANCE_BOUGHT.COUNT)).as(RI_SUM_COUNT))
-            .from(RESERVED_INSTANCE_BOUGHT).groupBy(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID).fetch();
+                (sum(RESERVED_INSTANCE_BOUGHT.COUNT)).as(RI_SUM_COUNT))
+                .from(RESERVED_INSTANCE_BOUGHT);
+
+        if (filter.isJoinWithSpecTable()) {
+            from.join(RESERVED_INSTANCE_SPEC)
+                    .on(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID
+                            .eq(RESERVED_INSTANCE_SPEC.ID));
+        }
+
+        from.where(filter.getConditions()).groupBy(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID);
+
+        final Result<Record2<ReservedInstanceBoughtInfo, BigDecimal>> riCountMap = from.fetch();
+
         final Map<ReservedInstanceBoughtInfo, Long> riSpecMap = new HashMap<>();
         riCountMap.forEach(record -> riSpecMap.put(record.value1(), record.value2().longValue()));
         final Map<Long, Long> countsByTemplate = new HashMap<>();
