@@ -19,7 +19,6 @@ import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -82,7 +81,7 @@ public class EdeIntegrationTest {
         first.getCommodityBought(shoppingListOfVm2, TestUtils.CPU).setQuantity(10);
         first.getSettings().setRightSizeLower(0.3).setRightSizeUpper(0.7).setEstimatesEnabled(false);
 
-        first.populateMarketsWithSellers();
+        first.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         TestUtils.setupRawCommodityMap(first);
         TestUtils.setupCommodityResizeDependencyMap(first);

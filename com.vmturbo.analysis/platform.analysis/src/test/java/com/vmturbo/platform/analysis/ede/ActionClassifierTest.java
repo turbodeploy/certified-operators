@@ -192,7 +192,7 @@ public class ActionClassifierTest {
             thirdReplayActions.setActions(thirdActions);
             Deactivate thirdDeactivate = new Deactivate(first, pm1, buying.get(pmShoppingList));
             thirdActions.add(thirdDeactivate);
-            third.populateMarketsWithSellers();
+            third.populateMarketsWithSellersAndMergeConsumerCoverage();
             thirdReplayActions.replayActions(third, new Ledger(third));
             assertEquals(1, thirdReplayActions.getActions().size());
         } catch (ClassNotFoundException | IOException e) {

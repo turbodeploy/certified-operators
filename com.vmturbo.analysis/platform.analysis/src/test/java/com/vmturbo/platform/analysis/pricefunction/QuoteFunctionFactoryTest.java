@@ -30,7 +30,7 @@ public class QuoteFunctionFactoryTest {
     public void setup() {
         buyer = economy.addTrader(0, TraderState.ACTIVE, new Basket(), basketBought);
         seller = economy.addTrader(0, TraderState.ACTIVE, basketBought, new Basket());
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         shoppingList = economy.getMarketsAsBuyer(buyer).keySet().iterator().next();
 
         shoppingList.setQuantity(0, 100.0);

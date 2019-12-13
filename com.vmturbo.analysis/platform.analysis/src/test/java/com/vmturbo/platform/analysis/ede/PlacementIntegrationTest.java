@@ -15,7 +15,6 @@ import javax.annotation.Nonnull;
 import org.junit.Test;
 
 import com.vmturbo.platform.analysis.actions.Action;
-import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -178,7 +177,7 @@ public class PlacementIntegrationTest {
         ProtobufToAnalysis.addTrader(topology, pm2TO).getSettings().setCanAcceptNewCustomers(true);
         ProtobufToAnalysis.addTrader(topology, st1TO).getSettings().setCanAcceptNewCustomers(true);
         ProtobufToAnalysis.addTrader(topology, st2TO).getSettings().setCanAcceptNewCustomers(true);
-        topology.populateMarketsWithSellers();
+        topology.populateMarketsWithSellersAndMergeConsumerCoverage();
         Economy economy = (Economy)topology.getEconomy();
         economy.composeMarketSubsetForPlacement();
         List<Action> actions = Placement.placementDecisions(economy).getActions();
@@ -257,7 +256,7 @@ public class PlacementIntegrationTest {
             t.getSettings().setCostFunction(costFunction);
         });
 
-        topology.populateMarketsWithSellers();
+        topology.populateMarketsWithSellersAndMergeConsumerCoverage();
         Economy economy = (Economy)topology.getEconomy();
         economy.composeMarketSubsetForPlacement();
         final Map<Trader, Collection<QuoteTracker>> unplacedTraders =
@@ -314,7 +313,7 @@ public class PlacementIntegrationTest {
             t.getSettings().setCostFunction(costFunction);
         });
 
-        topology.populateMarketsWithSellers();
+        topology.populateMarketsWithSellersAndMergeConsumerCoverage();
         Economy economy = (Economy)topology.getEconomy();
         economy.composeMarketSubsetForPlacement();
 

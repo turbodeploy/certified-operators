@@ -3,10 +3,7 @@ package com.vmturbo.platform.analysis.ede;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -105,7 +102,7 @@ public class ProvisionTest {
         TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{vm2Sto}, st1);
         vm2.setDebugInfoNeverUseInCode("VM2");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
                                                                         new Ede());
@@ -174,7 +171,7 @@ public class ProvisionTest {
         TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{145}, st1);
         vm2.setDebugInfoNeverUseInCode("VM2");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         for (Market market : economy.getMarkets()) {
             for (ShoppingList sl : market.getBuyers()) {
                 sl.setMovable(false);
@@ -224,7 +221,7 @@ public class ProvisionTest {
         TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{145}, st1);
         vm2.setDebugInfoNeverUseInCode("VM2");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
                                                                         new Ede());
@@ -253,7 +250,7 @@ public class ProvisionTest {
         st1.getSettings().setMaxDesiredUtil(0.9);
         st1.getCommoditiesSold().get(0).setQuantity(290.0);
         st1.setDebugInfoNeverUseInCode("DS1");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
                                                                         new Ede());
@@ -292,7 +289,7 @@ public class ProvisionTest {
         TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{145}, st1);
         vm2.setDebugInfoNeverUseInCode("VM2");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         economy.setForceStop(true);
 
         List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
@@ -334,7 +331,7 @@ public class ProvisionTest {
         TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{140}, st1);
         vm2.setDebugInfoNeverUseInCode("VM2");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
                                                                         new Ede());
@@ -377,7 +374,7 @@ public class ProvisionTest {
                         Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{140}, st1);
         vm2.getSettings().setGuaranteedBuyer(true);
         vm2.setDebugInfoNeverUseInCode("VM2");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
                                                                         new Ede());
@@ -420,7 +417,7 @@ public class ProvisionTest {
         TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{140}, st1);
         vm2.setDebugInfoNeverUseInCode("VM2");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
                                                                         new Ede());
@@ -466,7 +463,7 @@ public class ProvisionTest {
         TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{140}, st1);
         vm2.setDebugInfoNeverUseInCode("VM2");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
                                                                         new Ede());
@@ -516,7 +513,7 @@ public class ProvisionTest {
         TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{140}, st1);
         vm2.setDebugInfoNeverUseInCode("VM2");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
                                                                         new Ede());
@@ -561,7 +558,7 @@ public class ProvisionTest {
         TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{140}, st1);
         vm2.setDebugInfoNeverUseInCode("VM2");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
                                                                         new Ede());
@@ -606,7 +603,7 @@ public class ProvisionTest {
         TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{140}, st1);
         vm2.setDebugInfoNeverUseInCode("VM2");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
                                                                         new Ede());
@@ -655,7 +652,7 @@ public class ProvisionTest {
         TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{140}, st1);
         vm2.setDebugInfoNeverUseInCode("VM2");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
                                                                         new Ede());
@@ -704,7 +701,7 @@ public class ProvisionTest {
         TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{140}, st1);
         vm2.setDebugInfoNeverUseInCode("VM2");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
                                                                         new Ede());
@@ -754,7 +751,7 @@ public class ProvisionTest {
         TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{140}, st1);
         vm2.setDebugInfoNeverUseInCode("VM2");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
                                                                         new Ede());
@@ -808,7 +805,7 @@ public class ProvisionTest {
         TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm4, new double[]{46, 46}, pm2);
         vm2.setDebugInfoNeverUseInCode("VM2");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
                                                                         new Ede());
@@ -843,7 +840,7 @@ public class ProvisionTest {
         TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm1, new double[]{290}, st1);
         vm1.setDebugInfoNeverUseInCode("VM1");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
                                                                         new Ede());

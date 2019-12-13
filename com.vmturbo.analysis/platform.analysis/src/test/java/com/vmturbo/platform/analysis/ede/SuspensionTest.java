@@ -46,7 +46,7 @@ public class SuspensionTest {
         economy.addTrader(PM_TYPE, TraderState.ACTIVE, PM_SMALL);
         economy.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY, new Basket(CPU));
 
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         Ledger ledger = new Ledger(economy);
         Ede ede = new Ede();
 
@@ -94,7 +94,7 @@ public class SuspensionTest {
             axn.take();
         }
 
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         Ledger ledger = new Ledger(economy);
         Ede ede = new Ede();
 
@@ -114,7 +114,7 @@ public class SuspensionTest {
         economy.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY, new Basket(CPU));
         economy.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY, new Basket(CPU));
         economy.getMarkets().forEach(mkt -> mkt.getBuyers().stream().forEach(buyer -> buyer.move(seller)));
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         Ledger ledger = new Ledger(economy);
         Ede ede = new Ede();
 
@@ -161,7 +161,7 @@ public class SuspensionTest {
         economy.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY, new Basket(CPU));
         Trader seller = economy.addTrader(VM_TYPE, TraderState.ACTIVE, PM_SMALL);
         seller.getSettings().setCanAcceptNewCustomers(true);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> actions = new ArrayList<>();
         Suspension suspension = new Suspension();
@@ -179,7 +179,7 @@ public class SuspensionTest {
     public void test_findSoleProviders_noSeller() {
         //Arrange
         Economy economy = getEconomyWithGivenSellersAndBuyers(0, 1);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         //Act
         Suspension suspension = new Suspension();
@@ -196,7 +196,7 @@ public class SuspensionTest {
     public void test_findSoleProviders_noBuyer() {
         //Arrange
         Economy economy = getEconomyWithGivenSellersAndBuyers(1, 0);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         //Act
         Suspension suspension = new Suspension();
@@ -213,7 +213,7 @@ public class SuspensionTest {
     public void test_findSoleProviders_oneActiveSeller() {
         //Arrange
         Economy economy = getEconomyWithGivenSellersAndBuyers(1, 1);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         //Act
         Suspension suspension = new Suspension();
@@ -231,7 +231,7 @@ public class SuspensionTest {
         //Arrange
         Economy economy = getEconomyWithGivenSellersAndBuyers(0, 1);
         economy.addTrader(PM_TYPE, TraderState.INACTIVE, PM_SMALL);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         //Act
         Suspension suspension = new Suspension();
@@ -249,7 +249,7 @@ public class SuspensionTest {
         //Arrange
         Economy economy = getEconomyWithGivenSellersAndBuyers(1, 0);
         economy.addTrader(VM_TYPE, TraderState.INACTIVE, EMPTY, new Basket(CPU));
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         //Act
         Suspension suspension = new Suspension();
@@ -266,7 +266,7 @@ public class SuspensionTest {
     public void test_findSoleProviders_moreThanOneActiveSeller() {
         //Arrange
         Economy economy = getEconomyWithGivenSellersAndBuyers(2, 1);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         //Act
         Suspension suspension = new Suspension();
@@ -285,7 +285,7 @@ public class SuspensionTest {
         Economy economy = getEconomyWithGivenSellersAndBuyers(1, 2);
         Trader gurreanteedBuyer = economy.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY, new Basket(CPU));
         gurreanteedBuyer.getSettings().setGuaranteedBuyer(true);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         //Act
         Suspension suspension = new Suspension();
@@ -304,7 +304,7 @@ public class SuspensionTest {
         Economy economy = getEconomyWithGivenSellersAndBuyers(2, 2);
         Trader gurreanteedBuyer = economy.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY, new Basket(CPU));
         gurreanteedBuyer.getSettings().setGuaranteedBuyer(true);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         //Act
         Suspension suspension = new Suspension();
@@ -323,7 +323,7 @@ public class SuspensionTest {
         Economy economy = getEconomyWithGivenSellersAndBuyers(1, 0);
         Trader buyer = economy.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY, new Basket(CPU));
         buyer.getSettings().setGuaranteedBuyer(true);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         //Act
         Suspension suspension = new Suspension();
@@ -342,7 +342,7 @@ public class SuspensionTest {
         Economy economy = getEconomyWithGivenSellersAndBuyers(1, 1);
         Trader gurreanteedBuyer = economy.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY, new Basket(CPU));
         gurreanteedBuyer.getSettings().setGuaranteedBuyer(true);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         //Act
         Suspension suspension = new Suspension();
@@ -356,7 +356,7 @@ public class SuspensionTest {
     public void test_findSoleProviders_withMoreThanOneActiveSeller() {
         //Arrange
         Economy economy = getEconomyWithGivenSellersAndBuyers(2, 1);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         //Act
         Suspension suspension = new Suspension();
@@ -388,7 +388,7 @@ public class SuspensionTest {
         economy.addBasketBought(buyerVM1, PM_SMALL);
         Trader buyerVM2 = economy.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY);
         economy.addBasketBought(buyerVM2, storageBasket);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         //Act
         Suspension suspension = new Suspension();

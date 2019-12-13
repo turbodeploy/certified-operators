@@ -15,7 +15,6 @@ import org.junit.Test;
 import com.google.common.collect.BiMap;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import com.vmturbo.platform.analysis.drivers.AnalysisServer;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -131,7 +130,7 @@ public class DeployTest {
                         Arrays.asList(TestUtils.ST_AMT), deployVM, new double[]{100}, null);
         economy.getPlacementEntities().add(deployVM);
         deployVM.setDebugInfoNeverUseInCode("deployVM");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         economy.getModifiablePreferentialSls().addAll(Stream.of(slPM1VM1, slST1VM1, slPM2VM2, slST1VM2)
                                                             .collect(Collectors.toList()));
         deployVM.getSettings().setIsShopTogether(true);
@@ -188,7 +187,7 @@ public class DeployTest {
                         Arrays.asList(TestUtils.ST_AMT), deployVM, new double[]{100}, null);
         economy.getPlacementEntities().add(deployVM);
         deployVM.setDebugInfoNeverUseInCode("deployVM");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         economy.getModifiablePreferentialSls().addAll(Stream.of(slPM1VM1, slST1VM1, slPM2VM2, slST1VM2)
                                                             .collect(Collectors.toList()));
         deployVM.getSettings().setIsShopTogether(true);

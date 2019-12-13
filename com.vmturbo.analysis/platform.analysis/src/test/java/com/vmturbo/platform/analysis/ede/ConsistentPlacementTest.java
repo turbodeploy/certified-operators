@@ -72,7 +72,7 @@ public class ConsistentPlacementTest {
             }
             traders[traderIndex++] = seller;
         }
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         return traders;
     }
 

@@ -300,7 +300,7 @@ public class CostFunctionTest {
                 TestUtils.SEGMENTATION_COMMODITY), cbtp1, new double[] {25, 1}, tp);
         ShoppingList cbtpSl2 = TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.COUPON_COMMODITY,
                 TestUtils.SEGMENTATION_COMMODITY), cbtp2, new double[] {25, 1}, tp);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         // Test to check that cbtp2 gives a cheaper quote than cbtp1
         Assert.assertTrue(EdeCommon.quote(economy, vmSL, cbtp1, bestQuoteSoFar.getQuoteValue(),
@@ -449,7 +449,7 @@ public class CostFunctionTest {
         TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.COUPON_COMMODITY, TestUtils.SEGMENTATION_COMMODITY),
                         cbtp_m5Large, new double[] {2, 1}, m5LargeTP);
 
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         final InitialInfiniteQuote bestQuoteSoFar = new InitialInfiniteQuote();
         boolean forTraderIncomeStatement = true;
@@ -517,7 +517,7 @@ public class CostFunctionTest {
         TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.COUPON_COMMODITY, TestUtils.SEGMENTATION_COMMODITY),
                         cbtp_m5Large, new double[] {2, 1}, m5LargeTP);
 
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         final InitialInfiniteQuote bestQuoteSoFar = new InitialInfiniteQuote();
         boolean forTraderIncomeStatement = true;
@@ -583,7 +583,7 @@ public class CostFunctionTest {
         TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.COUPON_COMMODITY, TestUtils.SEGMENTATION_COMMODITY),
                 m5LargetCbtpZone13, new double[] {2, 1}, m5LargeTP);
 
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         final InitialInfiniteQuote bestQuoteSoFar = new InitialInfiniteQuote();
         boolean forTraderIncomeStatement = true;

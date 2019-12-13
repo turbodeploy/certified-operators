@@ -121,10 +121,6 @@ public class Placement {
         // Use a LinkedHashSet to prevent duplicates but allow ordered traversal.
         @NonNull Set<@NonNull Trader> shopTogetherTraders = new LinkedHashSet<>();
         for (ShoppingList sl : shoppingLists) {
-            if (sl.getGroupFactor() == 0) {
-                // Another group member is shopping on this SL's behalf, so skip it
-                continue;
-            }
             // if the sl is shop together, put it into a list, else, run non shop alone placement
             Trader buyer = sl.getBuyer();
             if (buyer.getSettings().isShopTogether()) {

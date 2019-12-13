@@ -108,7 +108,7 @@ public class TestCommon {
         st2.setDebugInfoNeverUseInCode("Storage|" + TRADER_OID_5);
         app1.setDebugInfoNeverUseInCode("Application|" + TRADER_OID_6);
 
-        first.populateMarketsWithSellers();
+        first.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         firstTopology = new Topology();
         first.setTopology(firstTopology);

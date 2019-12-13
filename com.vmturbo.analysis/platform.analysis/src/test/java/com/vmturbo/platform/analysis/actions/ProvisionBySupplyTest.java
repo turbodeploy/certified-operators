@@ -77,7 +77,7 @@ public class ProvisionBySupplyTest {
             }
 
         }
-        e1.populateMarketsWithSellers();
+        e1.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         return testCases.toArray();
     }
@@ -91,7 +91,7 @@ public class ProvisionBySupplyTest {
         b1.getSettings().setGuaranteedBuyer(true);
         ShoppingList s1 = e1.addBasketBought(b1, basketsSold[1]);
         s1.move(modelSeller);
-        e1.populateMarketsWithSellers();
+        e1.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         return new Object[]{e1, modelSeller};
     }
@@ -111,7 +111,7 @@ public class ProvisionBySupplyTest {
         b2.getSettings().setResizeThroughSupplier(true);
         ShoppingList s2 = e1.addBasketBought(b2, basketsBought[3]);
         s2.move(modelSeller2);
-        e1.populateMarketsWithSellers();
+        e1.populateMarketsWithSellersAndMergeConsumerCoverage();
         return new Object[]{e1, modelSeller, modelSeller2};
     }
 
@@ -133,7 +133,7 @@ public class ProvisionBySupplyTest {
         Trader t1 = e1.addTrader(0, TraderState.ACTIVE, EMPTY, EMPTY);
         CommoditySpecification commSpec = CPU;
         Trader t2 = e1.addTrader(0, TraderState.INACTIVE, EMPTY, EMPTY);
-        e1.populateMarketsWithSellers();
+        e1.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         oids.put(t1, "id1");
         oids.put(t2, "id2");
@@ -190,7 +190,7 @@ public class ProvisionBySupplyTest {
         Trader t2 = topology1.addTrader("id2", "Container2", "Container", TraderState.INACTIVE, Arrays.asList());
         t2.setDebugInfoNeverUseInCode(DEBUG_INFO);
         ShoppingList b2 = topology1.addBasketBought(t2, Arrays.asList("CPU"));
-        topology1.populateMarketsWithSellers();
+        topology1.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         return new Object[][]{
             {new ProvisionBySupply((Economy)topology1.getEconomy(), t1, CPU), topology1,
@@ -218,7 +218,7 @@ public class ProvisionBySupplyTest {
         ShoppingList b1 = topology1.addBasketBought(t1, Arrays.asList());
         Trader t2 = topology1.addTrader("id2", "Container1", "Container", TraderState.INACTIVE, Arrays.asList());
         ShoppingList b2 = topology1.addBasketBought(t2, Arrays.asList("CPU"));
-        topology1.populateMarketsWithSellers();
+        topology1.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         return new Object[][]{
             {new ProvisionBySupply((Economy)topology1.getEconomy(), t1, CPU), topology1,
@@ -293,7 +293,7 @@ public class ProvisionBySupplyTest {
         shop1.move(t3);
         ShoppingList shop2 = e.addBasketBought(t2, b2);
         shop2.move(t3);
-        e.populateMarketsWithSellers();
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         ProvisionBySupply provisionBySupply1 = new ProvisionBySupply(e, t2, CPU);
         ProvisionBySupply provisionBySupply2 = new ProvisionBySupply(e, t2, CPU);
@@ -321,7 +321,7 @@ public class ProvisionBySupplyTest {
         Trader t2 = e.addTrader(0, TraderState.ACTIVE, b2, cliques);
         ShoppingList shop1 = e.addBasketBought(t1, b2);
         shop1.move(t2);
-        e.populateMarketsWithSellers();
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         Action action = new ProvisionBySupply(e, t2, CPU).take();
         // check cliques are cloned
@@ -430,7 +430,7 @@ public class ProvisionBySupplyTest {
         app2.getSettings().setProviderMustClone(true);
         ShoppingList sl4 = e.addBasketBought(app2, b1);
         TestUtils.moveSlOnSupplier(e, sl4, c2, new double[]{50});
-        e.populateMarketsWithSellers();
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         ProvisionBySupply provision = (ProvisionBySupply)new ProvisionBySupply(e, app1, CPU).take();
         assertTrue(e.getTraders().size() == 8);
@@ -471,7 +471,7 @@ public class ProvisionBySupplyTest {
                                              Arrays.asList(), new double[]{}, true, true);
         ShoppingList sl2 = e.addBasketBought(vapp, b2);
         TestUtils.moveSlOnSupplier(e, sl2, app1, new double[]{70});
-        e.populateMarketsWithSellers();
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         ProvisionBySupply provision = (ProvisionBySupply)new ProvisionBySupply(e, app1, CPU).take();
         boolean findAppCommInContainerClone = false;

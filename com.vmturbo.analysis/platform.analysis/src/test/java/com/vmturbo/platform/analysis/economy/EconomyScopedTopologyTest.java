@@ -57,7 +57,7 @@ public class EconomyScopedTopologyTest {
         topology.addBasketBought(3002, buyer, BASKET_2, oid(t4)).setMovable(true);
         topology.addBasketBought(3003, buyer, BASKET_3, oid(t5)).setMovable(true);
         economy = (Economy)topology.getEconomy();
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         // The only common clique is #1, therefore sellers that are associated with clique #1
         // (t1, t2 and t4) are potential sellers, while trader t3 is not a potential seller.
         // Trader t5 is a potential seller because it is in a market with no cliques and it

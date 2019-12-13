@@ -363,7 +363,7 @@ public class LedgerTest {
             .setQuantity(0, 4).setPeakQuantity(0, 10)
             .setQuantity(1, 10).setPeakQuantity(1, 20)
             .setQuantity(2, 5).setPeakQuantity(2, 5).setMovable(true).move(seller);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         Ledger ledger = new Ledger(economy);
 
@@ -527,7 +527,7 @@ public class LedgerTest {
             .setQuantity(0, 4).setPeakQuantity(0, 10)
             .setQuantity(1, 10).setPeakQuantity(1, 20)
             .setQuantity(2, 5).setPeakQuantity(2, 5).setMovable(true).move(seller);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         Ledger ledger1 = new Ledger(economy);
 
@@ -613,7 +613,7 @@ public class LedgerTest {
         seller.getSettings().setMinDesiredUtil(0.6);
         seller.getSettings().setMaxDesiredUtil(0.7);
 
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         Ledger ledger = new Ledger(economy);
 

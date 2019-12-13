@@ -202,7 +202,7 @@ public class AnalysisServer implements AutoCloseable {
         AnalysisInstanceInfo instInfoAfterDisc =
                         analysisInstanceInfoMap.get(message.getTopologyId());
         Topology currPartial = instInfoAfterDisc.getCurrentPartial();
-        currPartial.populateMarketsWithSellers();
+        currPartial.populateMarketsWithSellersAndMergeConsumerCoverage();
         ProtobufToAnalysis.populateCommodityResizeDependencyMap(endDiscMsg,
                         currPartial);
         ProtobufToAnalysis.populateRawCommodityMap(endDiscMsg, currPartial);

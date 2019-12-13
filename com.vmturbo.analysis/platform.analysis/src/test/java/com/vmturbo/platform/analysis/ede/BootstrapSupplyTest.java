@@ -62,7 +62,7 @@ public class BootstrapSupplyTest {
                         Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{150, 0}, pm1);
         ShoppingList sl2 = TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm1, new double[]{100}, st1);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> bootStrapActionList =
                         BootstrapSupply.shopTogetherBootstrapForIndividualBuyer(economy, vm1,
@@ -93,7 +93,7 @@ public class BootstrapSupplyTest {
                         Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{200, 0}, pm1);
         TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm1, new double[]{100}, st1);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> bootStrapActionList =
                         BootstrapSupply.shopTogetherBootstrapForIndividualBuyer(economy, vm1,
@@ -139,7 +139,7 @@ public class BootstrapSupplyTest {
         TestUtils.createAndPlaceShoppingList(economy,
             Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{100}, st1);
 
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         Map<ShoppingList, Long> slsThatNeedProvBySupply = new HashMap<>();
         List<Action> bootStrapActionList =
@@ -173,7 +173,7 @@ public class BootstrapSupplyTest {
                         Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{60, 0}, pm1);
         TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{100}, st1);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> bootStrapActionList =
                         BootstrapSupply.nonShopTogetherBootstrap(economy);
@@ -200,7 +200,7 @@ public class BootstrapSupplyTest {
                         Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{60, 0}, null);
         ShoppingList sl2 = TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm1, new double[]{100}, null);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> bootStrapActionList =
                         BootstrapSupply.nonShopTogetherBootstrap(economy);
@@ -246,7 +246,7 @@ public class BootstrapSupplyTest {
                         Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{60, 0}, null);
         ShoppingList sl4 = TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{100}, null);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> bootStrapActionList =
                         BootstrapSupply.nonShopTogetherBootstrap(economy);
@@ -333,7 +333,7 @@ public class BootstrapSupplyTest {
                         TestUtils.ST_PROV, TestUtils.IOPS,TestUtils.ST_LATENCY),
                         vm2, new double[]{50, 100, 100, 100}, st1);
         vm2.setDebugInfoNeverUseInCode("VM2");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         economy.getModifiableShopTogetherTraders().add(vm1);
         economy.getModifiableShopTogetherTraders().add(vm2);
 
@@ -404,7 +404,7 @@ public class BootstrapSupplyTest {
                         TestUtils.ST_PROV, TestUtils.IOPS,TestUtils.ST_LATENCY),
                         vm2, new double[]{350, 700, 100, 100}, st1);
         vm2.setDebugInfoNeverUseInCode("VM2");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         economy.getModifiableShopTogetherTraders().add(vm1);
         economy.getModifiableShopTogetherTraders().add(vm2);
 
@@ -471,7 +471,7 @@ public class BootstrapSupplyTest {
                         TestUtils.ST_PROV, TestUtils.IOPS,TestUtils.ST_LATENCY),
                         vm2, new double[]{350, 700, 100, 100}, st1);
         vm2.setDebugInfoNeverUseInCode("VM2");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         economy.getModifiableShopTogetherTraders().add(vm1);
         economy.getModifiableShopTogetherTraders().add(vm2);
 
@@ -542,7 +542,7 @@ public class BootstrapSupplyTest {
                         Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{110, 0}, null);
         ShoppingList sl4 = TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{100}, null);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> bootStrapActionList =
                         BootstrapSupply.nonShopTogetherBootstrap(economy);
@@ -618,7 +618,7 @@ public class BootstrapSupplyTest {
         vm2.setDebugInfoNeverUseInCode("VM2");
         economy.getModifiableShopTogetherTraders().add(vm1);
         economy.getModifiableShopTogetherTraders().add(vm2);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> bootStrapActionList =
                         BootstrapSupply.shopTogetherBootstrap(economy);
@@ -660,7 +660,7 @@ public class BootstrapSupplyTest {
         TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{100}, st1);
         vm2.setDebugInfoNeverUseInCode("VM2");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         economy.getModifiableShopTogetherTraders().add(vm1);
         economy.getModifiableShopTogetherTraders().add(vm2);
 
@@ -723,7 +723,7 @@ public class BootstrapSupplyTest {
                         TestUtils.ST_PROV, TestUtils.IOPS,TestUtils.ST_LATENCY),
                         vm2, new double[]{50, 100, 100, 100}, st1);
         vm2.setDebugInfoNeverUseInCode("VM2");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         economy.getModifiableShopTogetherTraders().add(vm1);
         economy.getModifiableShopTogetherTraders().add(vm2);
 
@@ -794,7 +794,7 @@ public class BootstrapSupplyTest {
                         TestUtils.ST_PROV, TestUtils.IOPS,TestUtils.ST_LATENCY),
                         vm2, new double[]{350, 700, 100, 100}, st1);
         vm2.setDebugInfoNeverUseInCode("VM2");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         economy.getModifiableShopTogetherTraders().add(vm1);
         economy.getModifiableShopTogetherTraders().add(vm2);
 
@@ -861,7 +861,7 @@ public class BootstrapSupplyTest {
                         TestUtils.ST_PROV, TestUtils.IOPS,TestUtils.ST_LATENCY),
                         vm2, new double[]{350, 700, 100, 100}, st1);
         vm2.setDebugInfoNeverUseInCode("VM2");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         economy.getModifiableShopTogetherTraders().add(vm1);
         economy.getModifiableShopTogetherTraders().add(vm2);
 
@@ -932,7 +932,7 @@ public class BootstrapSupplyTest {
         TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{100}, st1);
         vm2.setDebugInfoNeverUseInCode("VM2");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         economy.getModifiableShopTogetherTraders().add(vm1);
         economy.getModifiableShopTogetherTraders().add(vm2);
 
@@ -970,7 +970,7 @@ public class BootstrapSupplyTest {
         TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{150}, st1);
         vm2.setDebugInfoNeverUseInCode("VM2");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> bootStrapActionList = BootstrapSupply.nonShopTogetherBootstrap(economy);
 
@@ -1002,7 +1002,7 @@ public class BootstrapSupplyTest {
         TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{100}, st1);
         vm2.setDebugInfoNeverUseInCode("VM2");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         economy.getModifiableShopTogetherTraders().add(vm1);
         economy.getModifiableShopTogetherTraders().add(vm2);
 
@@ -1048,7 +1048,7 @@ public class BootstrapSupplyTest {
         vm2.setDebugInfoNeverUseInCode("VM2");
         economy.getModifiableShopTogetherTraders().add(vm1);
         economy.getModifiableShopTogetherTraders().add(vm2);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> bootStrapActionList =
                         BootstrapSupply.shopTogetherBootstrap(economy);
@@ -1114,7 +1114,7 @@ public class BootstrapSupplyTest {
         economy.getModifiableShopTogetherTraders().add(vm2);
         economy.getModifiableShopTogetherTraders().add(vm3);
         economy.getModifiableShopTogetherTraders().add(vm4);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         List<Action> bootStrapActionList =
                 BootstrapSupply.shopTogetherBootstrap(economy);
         assertEquals(bootStrapActionList.stream().filter(action -> action instanceof
@@ -1167,7 +1167,7 @@ public class BootstrapSupplyTest {
         TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{100}, st1);
         vm2.setDebugInfoNeverUseInCode("VM2");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> bootStrapActionList =
                         BootstrapSupply.nonShopTogetherBootstrap(economy);
@@ -1217,7 +1217,7 @@ public class BootstrapSupplyTest {
         TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm3, new double[]{50}, st1);
         vm3.setDebugInfoNeverUseInCode("VM3");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> bootStrapActionList =
                         BootstrapSupply.bootstrapSupplyDecisions(economy);
@@ -1320,7 +1320,7 @@ public class BootstrapSupplyTest {
         Trader pm2 = TestUtils.createTrader(economy, PM_TYPE, CLIQUE0,
                 Arrays.asList(TestUtils.CPU, TestUtils.MEM, TestUtils.SEGMENTATION_COMMODITY),
                 new double[]{50, 100, 100}, true, false, "PM2");
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> bootStrapActionList =
                 BootstrapSupply.bootstrapSupplyDecisions(economy);
@@ -1364,7 +1364,7 @@ public class BootstrapSupplyTest {
         ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
                 Arrays.asList(TestUtils.ST_AMT), vm1, new double[]{100}, st1);
 
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         Market market = economy.getMarket(sl1);
 
         // Call non shop together to test that no reconfigure action is generated according to the
@@ -1392,7 +1392,7 @@ public class BootstrapSupplyTest {
         ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
                 Arrays.asList(TestUtils.ST_AMT), vm1, new double[]{100}, st1);
 
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         Market market = economy.getMarket(sl1);
 
         // Call non shop together. This test is in contrast to the previous one when canAcceptNewCustomers

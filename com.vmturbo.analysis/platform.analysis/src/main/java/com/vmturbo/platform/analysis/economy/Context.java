@@ -33,7 +33,7 @@ public class Context {
 
     public Context(Long providerId, long regionId, long zoneId, BalanceAccount balanceAccount,
                    final List<EconomyDTOs.CoverageEntry> familyBasedCoverageList) {
-        this(regionId, zoneId, balanceAccount);  // XLTODO this is broken for multiple entries
+        this(regionId, zoneId, balanceAccount);
         for (EconomyDTOs.CoverageEntry ce : familyBasedCoverageList) {
             CoverageEntry coverageEntry = new CoverageEntry(ce.getTotalAllocatedCoupons(),
                 ce.getTotalRequestedCoupons());

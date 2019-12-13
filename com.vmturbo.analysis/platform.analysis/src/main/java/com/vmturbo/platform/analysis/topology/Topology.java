@@ -8,16 +8,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.vmturbo.platform.analysis.economy.Context;
-import com.vmturbo.platform.analysis.utilities.M2Utils;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
-import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Multimap;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.actions.Action;
@@ -117,8 +113,8 @@ public final class Topology implements Serializable {
         return trader;
     }
 
-    public void populateMarketsWithSellers() {
-        economy_.populateMarketsWithSellers();
+    public void populateMarketsWithSellersAndMergeConsumerCoverage() {
+        economy_.populateMarketsWithSellersAndMergeConsumerCoverage();
     }
 
     /**
@@ -375,10 +371,6 @@ public final class Topology implements Serializable {
 
     public boolean addCommsToAdjustOverhead(CommoditySpecification cs) {
         return economy_.getCommsToAdjustOverhead().add(cs);
-    }
-
-    public void addContext(String scalingGroupId, Context context) {
-        economy_.getContexts().put(scalingGroupId, context);
     }
 
     public Long getTraderOid(Trader trader) {

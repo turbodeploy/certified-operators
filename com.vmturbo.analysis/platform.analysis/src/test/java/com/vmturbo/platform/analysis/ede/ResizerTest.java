@@ -692,7 +692,7 @@ public class ResizerTest {
 
             TestUtils.setupCommodityResizeDependencyMap(economy);
         }
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         ledger = new Ledger(economy);
         return economy;
     }
@@ -791,7 +791,7 @@ public class ResizerTest {
         TestUtils.setupProducesDependancyMap(economy);
         TestUtils.setupCommodityResizeDependencyMap(economy);
 
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         ledger = new Ledger(economy);
 
         // VM tries resizing vMem down but this resize is prevented by the appServers cumulatively selling high heap/dbMem
@@ -883,7 +883,7 @@ public class ResizerTest {
         if(shouldSetupCommodityResizeDependencyMap){
             TestUtils.setupCommodityResizeDependencyMap(economy);
         }
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         ledger = new Ledger(economy);
         return economy;
     }
@@ -1038,7 +1038,7 @@ public class ResizerTest {
         if(shouldSetupCommodityResizeDependencyMap){
             TestUtils.setupCommodityResizeDependencyMap(economy);
         }
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         ledger = new Ledger(economy);
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
         List<String> actual = new ArrayList<>();
@@ -1056,7 +1056,7 @@ public class ResizerTest {
         double currentQuantity = 6.5;
         Economy economy = setUpEconomyWithHistoricalQuantity(currentQuantity, historicalQuanity);
 
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         Ledger ledger = new Ledger(economy);
 
@@ -1075,7 +1075,7 @@ public class ResizerTest {
         double currentQuantity = 6.5;
         Economy economy = setUpEconomyWithHistoricalQuantity(currentQuantity, historicalQuanity);
 
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         Ledger ledger = new Ledger(economy);
 
@@ -1094,7 +1094,7 @@ public class ResizerTest {
         double currentQuantity = 9;
         Economy economy = setUpEconomyWithHistoricalQuantity(currentQuantity, historicalQuanity);
 
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         Ledger ledger = new Ledger(economy);
 

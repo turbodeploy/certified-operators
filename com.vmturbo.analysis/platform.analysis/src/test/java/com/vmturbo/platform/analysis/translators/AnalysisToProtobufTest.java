@@ -34,7 +34,6 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
-import com.vmturbo.platform.analysis.economy.TraderWithSettingsTest;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActivateTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.CompoundMoveTO;
@@ -442,7 +441,7 @@ public class AnalysisToProtobufTest {
         traderToOidMap.put(vm2, 2L);
         traderToOidMap.put(pm, 3L);
 
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         Set<Trader> prefTrader = Sets.newHashSet(vm1);
         TraderTO traderTO = AnalysisToProtobuf.traderTO(economy, pm, traderToOidMap, HashBiMap.create(), prefTrader);
         assertEquals(2, traderTO.getNumOfProduces());

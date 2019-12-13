@@ -7,11 +7,9 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -274,7 +272,7 @@ public class ProvisionByDemandTest {
         Trader t2 = e.addTrader(0, TraderState.ACTIVE, b2, cliques);
         ShoppingList shop1 = e.addBasketBought(t1, b2);
         shop1.move(t2);
-        e.populateMarketsWithSellers();
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         Action action = new ProvisionByDemand(e, shop1, t2).take();
         // check cliques are cloned

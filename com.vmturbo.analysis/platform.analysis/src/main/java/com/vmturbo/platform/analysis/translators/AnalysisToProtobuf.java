@@ -209,14 +209,7 @@ public final class AnalysisToProtobuf {
             .setMovable(shoppingList.isMovable());
 
         if (shoppingList.getContext().isPresent()) {
-            Context context = shoppingList.getContext().get();
-            Context contextBuilder = Context.newBuilder().setRegionId(context.getRegionId())
-                    .setBalanceAccount(context.getBalanceAccount())
-                // XLTODO fix this
-//                    .setTotalRequestedCoupons(context.getTotalRequestedCoupons())
-//                    .setTotalAllocatedCoupons(context.getTotalAllocatedCoupons())
-                .build();
-            builder.setContext(contextBuilder);
+            builder.setContext(shoppingList.getContext().get());
         }
         // This mirrors the behavior in AnalysisToProtobuf::actionTO, in which we're resolving
         // a CBTP to a TP. The intent is to reconcile the sl's supplier with the move's destination.

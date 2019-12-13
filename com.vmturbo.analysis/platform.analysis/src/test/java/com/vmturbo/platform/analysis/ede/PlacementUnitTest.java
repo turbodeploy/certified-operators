@@ -76,7 +76,7 @@ public class PlacementUnitTest {
         sl2.setGroupFactor(1);
         vm1.setDebugInfoNeverUseInCode("VM1");
         vm1.getSettings().setIsShopTogether(isShopTogether);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         PlacementResults results = Placement.generatePlacementDecisions(economy, Arrays.asList(sl1, sl2));
 

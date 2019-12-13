@@ -450,7 +450,7 @@ public class PlacementTest {
             // 1 VM, 0 PMs, 0 STs, 0 edges
             Economy economy = new Economy();
             economy.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY);
-            economy.populateMarketsWithSellers();
+            economy.populateMarketsWithSellersAndMergeConsumerCoverage();
             output.add(new Object[]{economy, NO_ACTIONS});
 
             return output;
@@ -512,7 +512,7 @@ public class PlacementTest {
                     }
                 }
             }
-            e.populateMarketsWithSellers();
+            e.populateMarketsWithSellersAndMergeConsumerCoverage();
 
             // Construct results
             Action[] results = new Action[moves.length];
@@ -809,7 +809,7 @@ public class PlacementTest {
                     shoppingLists[0][0].setQuantity(0, (double)buyerConfigurations[0][0][3]);
                 }
             }
-            e.populateMarketsWithSellers();
+            e.populateMarketsWithSellersAndMergeConsumerCoverage();
 
 
 
@@ -882,7 +882,7 @@ public class PlacementTest {
                 }
                 traders[traderIndex++] = seller;
             }
-            economy.populateMarketsWithSellers();
+            economy.populateMarketsWithSellersAndMergeConsumerCoverage();
             return traders;
         }
 

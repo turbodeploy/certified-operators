@@ -575,10 +575,6 @@ public final class ProtobufToAnalysis {
         // TODO SS: populate the couponCount and the currentTier
         final Context context = new Context(0L, regionId, sourceContext.getZoneId(), balanceAccount,
                 sourceContext.getFamilyBasedCoverageList());
-        // XLTODO testing.  Save all Contexts for each scaling group to a map in the Economy
-        if (input.hasScalingGroupId()) {
-            topology.addContext(input.getScalingGroupId(), context);
-        }
         destination.setContext(context);
     }
 

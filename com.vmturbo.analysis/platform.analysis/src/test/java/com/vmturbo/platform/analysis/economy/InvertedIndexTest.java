@@ -203,7 +203,7 @@ public class InvertedIndexTest {
     public void testActiveSellerLookupWithInactive() {
         economy.addTrader(0, TraderState.INACTIVE, CPU_MEM_BASKET);
         economy.addTrader(0, TraderState.ACTIVE, EMPTY_BASKET, CPU_BASKET);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         // Inactive sellers should not be included in the active sellers lookup
         assertFalse(economy.getSellersInvertedIndex()
@@ -215,7 +215,7 @@ public class InvertedIndexTest {
     public void testActiveSellerLookupInNoMarkets() {
         // Test that a seller not selling into any markets is not included in the active seller lookup
         economy.addTrader(0, TraderState.ACTIVE, CPU_MEM_BASKET);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         assertFalse(economy.getSellersInvertedIndex()
             .getActiveSellerLookup()
@@ -227,7 +227,7 @@ public class InvertedIndexTest {
         // Test that no active sellers are found if no traders are selling the commodity searched for
         economy.addTrader(0, TraderState.ACTIVE, MEM_BASKET);
         economy.addTrader(0, TraderState.ACTIVE, EMPTY_BASKET, CPU_BASKET);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         assertFalse(economy.getSellersInvertedIndex()
             .getActiveSellerLookup()
@@ -239,7 +239,7 @@ public class InvertedIndexTest {
         // Test that when there is an active seller, we say there is one.
         economy.addTrader(0, TraderState.ACTIVE, CPU_BASKET);
         economy.addTrader(0, TraderState.ACTIVE, EMPTY_BASKET, CPU_BASKET);
-        economy.populateMarketsWithSellers();
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         assertTrue(economy.getSellersInvertedIndex()
             .getActiveSellerLookup()

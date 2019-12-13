@@ -9,11 +9,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
@@ -278,7 +276,7 @@ public class EconomyTest {
         @Test
         public void testAddTraderByModelSellerSameBasketSold() {
             assertEquals(2, economy.getMarkets().size());
-            economy.populateMarketsWithSellers();
+            economy.populateMarketsWithSellersAndMergeConsumerCoverage();
             assertEquals(1, getActiveSellerCountForBuyerMarkets(cpuBuyer));
             assertEquals(0, getActiveSellerCountForBuyerMarkets(memBuyer));
 
@@ -290,7 +288,7 @@ public class EconomyTest {
 
         @Test
         public void testAddTraderByModelSellerDifferentBasketSold() {
-            economy.populateMarketsWithSellers();
+            economy.populateMarketsWithSellersAndMergeConsumerCoverage();
             assertEquals(1, getActiveSellerCountForBuyerMarkets(cpuBuyer));
             assertEquals(0, getActiveSellerCountForBuyerMarkets(memBuyer));
 
@@ -301,21 +299,21 @@ public class EconomyTest {
         }
 
         @Test
-        public void testPopulateMarketsWithSellers() {
+        public void testPopulateMarketsWithSellersAndMergeConsumerCoverage() {
             assertEquals(0, getActiveSellerCountForBuyerMarkets(cpuBuyer));
             assertEquals(0, getActiveSellerCountForBuyerMarkets(memBuyer));
 
-            economy.populateMarketsWithSellers();
+            economy.populateMarketsWithSellersAndMergeConsumerCoverage();
             assertEquals(1, getActiveSellerCountForBuyerMarkets(cpuBuyer));
             assertEquals(0, getActiveSellerCountForBuyerMarkets(memBuyer));
         }
 
         @Test
         public void testPopulateMarketsWithSellersThrowsOnMultipleCalls() {
-            economy.populateMarketsWithSellers();
+            economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
             expectedException.expect(IllegalArgumentException.class);
-            economy.populateMarketsWithSellers();
+            economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         }
 
         private int getActiveSellerCountForBuyerMarkets(final Trader buyer) {

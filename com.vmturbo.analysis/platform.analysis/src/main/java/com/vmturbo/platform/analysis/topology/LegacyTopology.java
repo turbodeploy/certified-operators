@@ -101,8 +101,8 @@ public final class LegacyTopology {
             .collect(Collectors.toList())));
     }
 
-    public void populateMarketsWithSellers() {
-        economy_.populateMarketsWithSellers();
+    public void populateMarketsWithSellersAndMergeConsumerCoverage() {
+        economy_.populateMarketsWithSellersAndMergeConsumerCoverage();
     }
 
     /**

@@ -93,7 +93,6 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     private Map<UUID, String> shoppingListToScalingGroup = new HashMap<UUID, String>();
     // Map from shopping list ID to peer shopping lists in scaling group
     private Multimap<String, ShoppingList> scalingGroupToPeers = ArrayListMultimap.create();
-    private Multimap<String, Context> contexts_ = ArrayListMultimap.create();
 
     // Cached data
 
@@ -273,7 +272,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * economy.
      * </p>
      */
-    public void populateMarketsWithSellers() {
+    public void populateMarketsWithSellersAndMergeConsumerCoverage() {
         Preconditions.checkArgument(!marketsPopulated);
 
         for (Market market : markets_.values()) {
@@ -385,7 +384,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      *
      * <p>
      * Note well that adding a trader does NOT add that trader as a seller in the markets that
-     * trader satisfies. Instead, call {@link #populateMarketsWithSellers()} after adding all
+     * trader satisfies. Instead, call {@link #populateMarketsWithSellersAndMergeConsumerCoverage()} after adding all
      * traders to the economy and this will match all traders with the markets in which they
      * should sell.
      * </p>
@@ -869,7 +868,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         }
         getTraders().stream()
             .forEach(clone::simulationCloneTrader);
-        clone.populateMarketsWithSellers();
+        clone.populateMarketsWithSellersAndMergeConsumerCoverage();
         return clone;
     }
 
@@ -1164,10 +1163,6 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         return allPeers.stream()
             .filter(sl -> sl.getShoppingListId() != shoppingListId)
             .collect(Collectors.toList());
-    }
-
-    public Multimap<String, Context> getContexts() {
-        return this.contexts_;
     }
 
     public void mergeScalingGroupContexts() {

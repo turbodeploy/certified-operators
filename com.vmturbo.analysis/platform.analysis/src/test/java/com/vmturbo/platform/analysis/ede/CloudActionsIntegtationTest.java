@@ -263,7 +263,7 @@ public class CloudActionsIntegtationTest {
         slVM1.move(sellers[0]);
         slVM2.move(sellers[0]);
 
-        e.populateMarketsWithSellers();
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         Placement.generateShopAlonePlacementDecisions(e, slVM1);
         Placement.generateShopAlonePlacementDecisions(e, slVM2);
@@ -286,7 +286,7 @@ public class CloudActionsIntegtationTest {
         slVM1.move(sellers[0]);
         slVM2.move(sellers[0]);
 
-        e.populateMarketsWithSellers();
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         Placement.generateShopAlonePlacementDecisions(e, slVM1);
         Placement.generateShopAlonePlacementDecisions(e, slVM2);
@@ -316,7 +316,7 @@ public class CloudActionsIntegtationTest {
         Context context = makeContext(t.getTraderOid(sellers[2]), 8, 16);
         vms[0].getSettings().setContext(context);
 
-        e.populateMarketsWithSellers();
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         Move move2 = new Move(e, slVM2, sellers[2]).take();
         // new VM requests 16 coupons but gets partial 8 coupons from CBTP1
@@ -368,7 +368,7 @@ public class CloudActionsIntegtationTest {
         e.getCommodityBought(slVM1, CPU).setQuantity(60);
         vms[0].getSettings().setContext(makeContext(t.getTraderOid(sellers[2]), 8, 8));
 
-        e.populateMarketsWithSellers();
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         // the following will effectively do
         // new Move(e, slVM1, sellers[2], sellers[2], Optional.of(quoteContext)).take();
@@ -396,7 +396,7 @@ public class CloudActionsIntegtationTest {
         slVM1.move(sellers[2]);
         vms[0].getSettings().setContext(makeContext(t.getTraderOid(sellers[2]), 16, 16));
 
-        e.populateMarketsWithSellers();
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         Placement.generateShopAlonePlacementDecisions(e, slVM1);
         // VM now requests 8 coupons since it is scaling down
@@ -433,7 +433,7 @@ public class CloudActionsIntegtationTest {
         slVM2.move(sellers[2]);
         vms[0].getSettings().setContext(makeContext(t.getTraderOid(sellers[2]), 8, 8));
 
-        e.populateMarketsWithSellers();
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         Placement.generateShopAlonePlacementDecisions(e, slVM2);
         // VM1 now requests 8 coupons from CBTP1
@@ -458,7 +458,7 @@ public class CloudActionsIntegtationTest {
         ShoppingList slVM2 = getSl(e, vms[1]);
         slVM1.move(sellers[0]);
 
-        e.populateMarketsWithSellers();
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         // move group leader to CBTP1
         PlacementResults results = Placement.generateShopAlonePlacementDecisions(e, slVM1);
@@ -501,7 +501,7 @@ public class CloudActionsIntegtationTest {
         vms[2].getSettings().setContext(makeContext(t.getTraderOid(sellers[3]), 4, 8));
         slVM3.move(sellers[3]);
 
-        e.populateMarketsWithSellers();
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         // move group leader to CBTP1 and hence move all peers to CBTP1 or TP1
         PlacementResults results = Placement.generateShopAlonePlacementDecisions(e, slVM1);
@@ -551,7 +551,7 @@ public class CloudActionsIntegtationTest {
         slVM2.move(sellers[1]);
         slVM3.move(sellers[0]);
 
-        e.populateMarketsWithSellers();
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         // move group leader to CBTP1 and hence move all peers to CBTP1 or TP1
         PlacementResults result1 = Placement.generateShopAlonePlacementDecisions(e, slVM1);
@@ -607,7 +607,7 @@ public class CloudActionsIntegtationTest {
         slVM2.move(sellers[3]);
         slVM3.move(sellers[3]);
 
-        e.populateMarketsWithSellers();
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         // When we request 12 out of 24 coupons from a CBTP. Doesnt matter how the coupons are distributed
         // the RI returns the same price
@@ -645,7 +645,7 @@ public class CloudActionsIntegtationTest {
         slVM1.move(sellers[0]);
         e.getCommodityBought(slVM1, CPU).setQuantity(cpuUsed);
 
-        e.populateMarketsWithSellers();
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         Placement.generateShopAlonePlacementDecisions(e, slVM1);
         assertEquals(couponSoldUsed + couponAllocated, sellers[2].getCommoditySold(COUPON).getQuantity(), 0);
@@ -691,7 +691,7 @@ public class CloudActionsIntegtationTest {
         }
         e.getCommodityBought(slVM2, CPU).setQuantity(cpuUsed2);
 
-        e.populateMarketsWithSellers();
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         Placement.generateShopAlonePlacementDecisions(e, slVM2);
 
