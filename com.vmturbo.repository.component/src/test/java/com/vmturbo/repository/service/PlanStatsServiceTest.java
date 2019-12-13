@@ -44,6 +44,8 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.PlanScenarioOrigin;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
@@ -84,6 +86,105 @@ public class PlanStatsServiceTest {
      */
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
+
+    /**
+     * Test retrieving projected statistics.
+     */
+    @Test
+    public void testRetrievePlanSourceStats() {
+        // arrange
+        final ProjectedTopologyEntity originalEntity = ProjectedTopologyEntity.newBuilder()
+            .setEntity(TopologyEntityDTO.newBuilder()
+                .setOid(1L)
+                .setEntityType(10)
+                .setDisplayName("x"))
+            .build();
+        // This entity was added as part of the plan configuration, and should be filtered out of
+        // the plan source topology stats results.
+        final ProjectedTopologyEntity entityAddedByScenario = ProjectedTopologyEntity.newBuilder()
+            .setEntity(TopologyEntityDTO.newBuilder()
+                .setOid(2L)
+                .setEntityType(10)
+                .setDisplayName("y")
+                .setOrigin(Origin.newBuilder()
+                    .setPlanScenarioOrigin(PlanScenarioOrigin.newBuilder()
+                        .setPlanId(123L)
+                    )))
+            .build();
+        final PaginationParameters paginationParameters = PaginationParameters.newBuilder()
+            .setCursor("foo")
+            .build();
+        final long startDate = Instant.now().toEpochMilli() + 100000;
+        final StatsFilter statsFilter = StatsFilter.newBuilder()
+            .setStartDate(startDate)
+            .build();
+
+        final TopologyProtobufReader protobufReader = mock(TopologyProtobufReader.class);
+        when(protobufReader.hasNext()).thenReturn(true).thenReturn(false);
+        when(protobufReader.nextChunk()).thenReturn(Lists.newArrayList(originalEntity, entityAddedByScenario));
+
+        final StatEpoch statEpoch = StatEpoch.PLAN_SOURCE;
+        final EntityStats.Builder statsBuilder = EntityStats.newBuilder()
+            .setOid(originalEntity.getEntity().getOid())
+            .addStatSnapshots(StatSnapshot.newBuilder()
+                .setStatEpoch(statEpoch)
+                .setSnapshotDate(startDate)
+                .build());
+
+        final EntityStatsPaginationParams paginationParams = mock(EntityStatsPaginationParams.class);
+        when(paginationParams.getSortCommodity()).thenReturn("foo");
+        when(paginationParamsFactory.newPaginationParams(paginationParameters)).thenReturn(paginationParams);
+
+        final PaginatedStats paginatedStats = mock(PaginatedStats.class);
+        when(paginatedStats.getNextPageIds()).thenReturn(Collections.singletonList(originalEntity.getEntity().getOid()));
+
+        final PaginationResponse paginationResponse = PaginationResponse.newBuilder()
+            .setNextCursor("bar")
+            .build();
+        when(paginatedStats.getPaginationResponse()).thenReturn(paginationResponse);
+
+        when(entityStatsPaginator.paginate(eq(Collections.singleton(originalEntity.getEntity().getOid())), any(), eq(paginationParams)))
+            .thenReturn(paginatedStats);
+
+        // Some final parameters
+        final Predicate<TopologyEntityDTO> noFilterPredicate = (entity) -> true;
+        final Type entityReturnType = Type.MINIMAL;
+
+        // for checking the results (the StreamObserver will deposit the response into results list)
+        final List<PlanTopologyStatsResponse> results = Lists.newArrayList();
+        final StreamObserver<PlanTopologyStatsResponse> responseObserver = getResponseObserver(results);
+
+        // act
+        planStatsService.getPlanTopologyStats(protobufReader,
+            statEpoch,
+            statsFilter,
+            noFilterPredicate,
+            paginationParameters,
+            entityReturnType,
+            responseObserver);
+
+        // Extract the results
+        List<PlanEntityStats> returnedPlanEntityStats = new ArrayList<>();
+        PaginationResponse returnedPaginationResponse = null;
+        for (PlanTopologyStatsResponse chunk : results) {
+            if (chunk.getTypeCase() == TypeCase.PAGINATION_RESPONSE) {
+                returnedPaginationResponse = chunk.getPaginationResponse();
+            } else {
+                returnedPlanEntityStats.addAll(chunk.getEntityStatsWrapper().getEntityStatsList());
+            }
+        }
+        // assert
+        verify(paginationParamsFactory).newPaginationParams(paginationParameters);
+        verify(entityStatsPaginator).paginate(eq(Collections.singleton(
+            originalEntity.getEntity().getOid())), any(), eq(paginationParams));
+
+        assertThat(returnedPaginationResponse, is(paginationResponse));
+        assertThat(returnedPlanEntityStats, is(Collections.singletonList(PlanEntityStats.newBuilder()
+            .setPlanEntity(partialEntityConverter
+                .createPartialEntity(originalEntity.getEntity(), entityReturnType))
+            .setPlanEntityStats(statsBuilder)
+            .build())));
+    }
 
     /**
      * Test retrieving projected statistics.

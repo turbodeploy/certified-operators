@@ -60,6 +60,14 @@ public class PlanStatsService {
     private static final Logger logger = LogManager.getLogger();
 
     /**
+     * A predicate to test whether a given {@link TopologyEntityDTO} was added to the plan via a
+     * scenario change (i.e. as part of the plan configuration).
+     */
+    private static final Predicate<TopologyEntityDTO> ENTITY_ADDED_BY_SCENARIO =
+        topologyEntityDTO -> topologyEntityDTO.hasOrigin()
+        && topologyEntityDTO.getOrigin().hasPlanScenarioOrigin();
+
+    /**
      * A factory for creating {@link EntityStatsPaginationParams}.
      */
     private final EntityStatsPaginationParamsFactory paginationParamsFactory;
@@ -142,9 +150,15 @@ public class PlanStatsService {
         // stats the startDate must be greater than planStartTime.
         long sourceSnapshotTime = statsFilter.getStartDate();
 
+        // For source topologies, filter entities added via scenario changes
+        final Predicate<TopologyEntityDTO> updatedEntityPredicate =
+            StatEpoch.PLAN_SOURCE == statEpoch
+                ? entityPredicate.and(ENTITY_ADDED_BY_SCENARIO.negate())
+                : entityPredicate;
+
         // Retrieve the entities and their stats from the data store
         final Map<Long, EntityAndStats> entities = retrieveTopologyEntitiesAndStats(
-            reader, entityPredicate, statsFilter, statEpoch, sourceSnapshotTime);
+            reader, updatedEntityPredicate, statsFilter, statEpoch, sourceSnapshotTime);
 
         // Begin the sorting and pagination process
         final EntityStatsPaginationParams paginationParams =
@@ -235,9 +249,12 @@ public class PlanStatsService {
         // Similar logic applies to projected stats, where the endDate must be greater than planStartTime.
         long sourceSnapshotTime = statsFilter.getStartDate();
         long projectedSnapshotTime = statsFilter.getEndDate();
+        // Filter entities added via scenario changes from the source topology response
+        final Predicate<TopologyEntityDTO> sourceEntityPredicate = entityPredicate
+            .and(ENTITY_ADDED_BY_SCENARIO.negate());
         // Retrieve the entities and their stats from the data store
         final Map<Long, EntityAndStats> sourceEntities =
-            retrieveTopologyEntitiesAndStats(sourceReader, entityPredicate, statsFilter,
+            retrieveTopologyEntitiesAndStats(sourceReader, sourceEntityPredicate, statsFilter,
                 StatEpoch.PLAN_SOURCE, sourceSnapshotTime);
         final Map<Long, EntityAndStats> projectedEntities =
             retrieveTopologyEntitiesAndStats(projectedReader, entityPredicate, statsFilter,
