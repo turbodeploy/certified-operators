@@ -45,21 +45,17 @@ public class ComputeTierConverterTest {
     @Test
     public void testInstanceSizeFamilySet() {
         final String family = "m4";
-        final String quotaFamily = "standardDFamily";
         final String computeTierId = family + ".small";
         final CloudDiscoveryConverter cloudDiscoveryConverter = mock(CloudDiscoveryConverter.class);
         when(cloudDiscoveryConverter.getProfileDTO(computeTierId))
                 .thenReturn(EntityProfileDTO.newBuilder()
                         .setId("1122")
                         .setEntityType(EntityType.VIRTUAL_MACHINE)
-                        .setVmProfileDTO(VMProfileDTO.newBuilder()
-                            .setInstanceSizeFamily(family)
-                            .setQuotaFamily(quotaFamily)
-                            .build()).build());
+                        .setVmProfileDTO(VMProfileDTO.newBuilder().setInstanceSizeFamily(family)
+                                .build()).build());
         final EntityDTO.Builder builder = EntityDTO.newBuilder().setId(computeTierId);
         converter.convert(builder, cloudDiscoveryConverter);
         assertEquals(family, builder.getComputeTierData().getFamily());
-        assertEquals(quotaFamily, builder.getComputeTierData().getQuotaFamily());
     }
 
     /**

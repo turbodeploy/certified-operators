@@ -369,18 +369,13 @@ public class AzureCloudDiscoveryConverterTest {
 
     @Test
     public void testRegionConverter() {
-        IEntityConverter converter = new RegionConverter(SDKProbeType.AZURE);
+        IEntityConverter converter = new RegionConverter();
         newEntitiesByType.get(EntityType.REGION).forEach(entity -> {
             String entityId = entity.getId();
             EntityDTO.Builder newEntity = azureConverter.getNewEntityBuilder(entityId);
 
             // check region not removed
             assertTrue(converter.convert(newEntity, azureConverter));
-
-            // check entity property list
-            assertEquals(azureConverter.getNewEntityBuilder(
-                azureConversionContext.getAzIdFromRegionId(entityId)).getEntityPropertiesList(),
-                newEntity.getEntityPropertiesList());
 
             // check no bought commodities
             assertEquals(0, newEntity.getCommoditiesBoughtCount());

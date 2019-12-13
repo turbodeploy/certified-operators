@@ -44,7 +44,7 @@ public class AzureConversionContext implements CloudProviderConversionContext {
         converters.put(EntityType.COMPUTE_TIER, new ComputeTierConverter(SDKProbeType.AZURE));
         converters.put(EntityType.DATABASE, new DatabaseConverter(SDKProbeType.AZURE));
         converters.put(EntityType.BUSINESS_ACCOUNT, new BusinessAccountConverter(SDKProbeType.AZURE));
-        converters.put(EntityType.REGION, new RegionConverter(SDKProbeType.AZURE));
+        converters.put(EntityType.REGION, new RegionConverter());
         converters.put(EntityType.STORAGE, new AzureStorageConverter());
         converters.put(EntityType.DATABASE_TIER, new DatabaseTierConverter());
         converters.put(EntityType.DATABASE_SERVER, new DatabaseServerConverter(SDKProbeType.AZURE));
@@ -82,7 +82,7 @@ public class AzureConversionContext implements CloudProviderConversionContext {
     }
 
     /**
-     * Get region id based on AZ id. It gets region name from AZ id and then combine
+     * Get region id based on AZ id. It get region name from AZ id and then combine
      * with prefix into the Region id. For example:
      *     Azure AZ id is:     azure::northcentralus::PM::northcentralus
      *     Azure Region id is: azure::northcentralus::DC::northcentralus
@@ -95,22 +95,6 @@ public class AzureConversionContext implements CloudProviderConversionContext {
     public String getRegionIdFromAzId(@Nonnull String azId) {
         String region = azId.split("::", 3)[1];
         return "azure::" + region + "::DC::" + region;
-    }
-
-    /**
-     * Get AZ id based on region id. It get region name from region id and then combine
-     * with prefix into the AZ id. For example:
-     *     Azure AZ id is:     azure::northcentralus::PM::northcentralus
-     *     Azure Region id is: azure::northcentralus::DC::northcentralus
-     *
-     * @param regionId id of the region
-     * @return id of the AZ
-     */
-    @Nonnull
-    @Override
-    public String getAzIdFromRegionId(@Nonnull String regionId) {
-        String region = regionId.split("::", 3)[1];
-        return "azure::" + region + "::PM::" + region;
     }
 
     /**

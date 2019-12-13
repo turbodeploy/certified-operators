@@ -10,7 +10,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
-import com.vmturbo.action.orchestrator.action.constraint.ActionConstraintStoreFactory;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc.ProbeActionCapabilitiesServiceBlockingStub;
@@ -67,11 +66,6 @@ public class ActionExecutionConfig {
     }
 
     @Bean
-    public ActionConstraintStoreFactory actionConstraintStoreFactory() {
-        return new ActionConstraintStoreFactory();
-    }
-
-    @Bean
     public ActionExecutor actionExecutor() {
         final ActionExecutor executor =
                 new ActionExecutor(globalConfig.topologyProcessorChannel(),
@@ -88,7 +82,6 @@ public class ActionExecutionConfig {
     public ActionTargetSelector actionTargetSelector() {
         final ActionTargetSelector actionTargetSelector =
                 new ActionTargetSelector(targetCapabilityCache(),
-                    actionConstraintStoreFactory(),
                     actionExecutionTargetEntitySelector(),
                     globalConfig.repositoryProcessorChannel(),
                     globalConfig.realtimeTopologyContextId());

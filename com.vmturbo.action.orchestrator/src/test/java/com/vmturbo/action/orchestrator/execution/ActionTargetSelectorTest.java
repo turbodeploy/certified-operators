@@ -4,7 +4,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -29,7 +28,6 @@ import org.mockito.MockitoAnnotations;
 import com.google.common.collect.Maps;
 
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
-import com.vmturbo.action.orchestrator.action.constraint.ActionConstraintStoreFactory;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.TargetInfoResolver;
 import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache.CachedCapabilities;
@@ -88,9 +86,6 @@ public class ActionTargetSelectorTest {
 
     private ProbeCapabilityCache probeCapabilityCache = mock(ProbeCapabilityCache.class);
 
-    private ActionConstraintStoreFactory actionConstraintStoreFactory =
-        mock(ActionConstraintStoreFactory.class);
-
     private CachedCapabilities cachedCapabilities = mock(CachedCapabilities.class);
 
     private TargetInfoResolver mockTargetInfoResolver = mock(TargetInfoResolver.class);
@@ -100,7 +95,6 @@ public class ActionTargetSelectorTest {
 
     @Before
     public void setup() {
-        when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         when(probeCapabilityCache.getCachedCapabilities()).thenReturn(cachedCapabilities);
         when(entitySettingsCache.emptySnapshot()).thenReturn(new EntitiesAndSettingsSnapshot(
             Collections.emptyMap(), Maps.newHashMap(), null, Maps.newHashMap(), 0));
@@ -129,8 +123,7 @@ public class ActionTargetSelectorTest {
 
     @Test
     public void testTargetInfoResolverMaxSupportingLevel() throws UnsupportedActionException {
-        final TargetInfoResolver targetInfoResolver =
-            new TargetInfoResolver(probeCapabilityCache, actionConstraintStoreFactory);
+        final TargetInfoResolver targetInfoResolver = new TargetInfoResolver(probeCapabilityCache);
         final ActionDTO.Action action = testActionBuilder.buildMoveAction(1, 2L, 1, 3L, 1);
         final ActionEntity actionEntity = ActionDTOUtil.getPrimaryEntity(action);
         final long target1Id = 1;
@@ -169,8 +162,7 @@ public class ActionTargetSelectorTest {
 
     @Test
     public void testTargetInfoResolverUnsupportedTarget() throws UnsupportedActionException {
-        final TargetInfoResolver targetInfoResolver =
-            new TargetInfoResolver(probeCapabilityCache, actionConstraintStoreFactory);
+        final TargetInfoResolver targetInfoResolver = new TargetInfoResolver(probeCapabilityCache);
         final ActionDTO.Action action = testActionBuilder.buildMoveAction(1, 2L, 1, 3L, 1);
         final ActionEntity actionEntity = ActionDTOUtil.getPrimaryEntity(action);
         final long target1Id = 1;
@@ -197,8 +189,7 @@ public class ActionTargetSelectorTest {
 
     @Test
     public void testTargetInfoResolverNoTargets() throws UnsupportedActionException {
-        final TargetInfoResolver targetInfoResolver =
-            new TargetInfoResolver(probeCapabilityCache, actionConstraintStoreFactory);
+        final TargetInfoResolver targetInfoResolver = new TargetInfoResolver(probeCapabilityCache);
         final ActionDTO.Action action = testActionBuilder.buildMoveAction(1, 2L, 1, 3L, 1);
         final ActionEntity actionEntity = ActionDTOUtil.getPrimaryEntity(action);
         final ActionPartialEntity actionPartialEntity = ActionPartialEntity.newBuilder()
@@ -217,8 +208,7 @@ public class ActionTargetSelectorTest {
 
     @Test
     public void testTargetInfoResolverProbeCategoryPriority() throws UnsupportedActionException {
-        final TargetInfoResolver targetInfoResolver =
-            new TargetInfoResolver(probeCapabilityCache, actionConstraintStoreFactory);
+        final TargetInfoResolver targetInfoResolver = new TargetInfoResolver(probeCapabilityCache);
         final ActionDTO.Action action = testActionBuilder.buildMoveAction(1, 2L, 1, 3L, 1);
         final ActionEntity actionEntity = ActionDTOUtil.getPrimaryEntity(action);
         final long target1Id = 1;
@@ -257,8 +247,7 @@ public class ActionTargetSelectorTest {
 
     @Test
     public void testTargetInfoResolverNoProbeCategory() throws UnsupportedActionException {
-        final TargetInfoResolver targetInfoResolver =
-            new TargetInfoResolver(probeCapabilityCache, actionConstraintStoreFactory);
+        final TargetInfoResolver targetInfoResolver = new TargetInfoResolver(probeCapabilityCache);
         final ActionDTO.Action action = testActionBuilder.buildMoveAction(1, 2L, 1, 3L, 1);
         final ActionEntity actionEntity = ActionDTOUtil.getPrimaryEntity(action);
         final long target1Id = 1;
@@ -297,8 +286,7 @@ public class ActionTargetSelectorTest {
 
     @Test
     public void testTargetInfoResolverUnknownProbeCategoryLowerPriority() throws UnsupportedActionException {
-        final TargetInfoResolver targetInfoResolver =
-            new TargetInfoResolver(probeCapabilityCache, actionConstraintStoreFactory);
+        final TargetInfoResolver targetInfoResolver = new TargetInfoResolver(probeCapabilityCache);
         final ActionDTO.Action action = testActionBuilder.buildMoveAction(1, 2L, 1, 3L, 1);
         final ActionEntity actionEntity = ActionDTOUtil.getPrimaryEntity(action);
         final long target1Id = 1;

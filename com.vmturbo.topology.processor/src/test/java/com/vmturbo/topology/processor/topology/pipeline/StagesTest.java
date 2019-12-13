@@ -49,7 +49,6 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.search.SearchResolver;
-import com.vmturbo.topology.processor.actions.ActionConstraintsUploader;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.entity.EntitiesValidationException;
@@ -92,7 +91,6 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingGroupFix
 import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyAcquisitionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyEditStage;
-import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadActionConstraintsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadGroupsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadTemplatesStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadWorkflowsStage;
@@ -119,18 +117,6 @@ public class StagesTest {
         final UploadGroupsStage stage = new UploadGroupsStage(uploader);
         stage.passthrough(topology);
         verify(uploader).uploadDiscoveredGroups(topology);
-    }
-
-    /**
-     * Test UploadActionConstraintsStage.
-     */
-    @Test
-    public void testUploadActionConstraintsStage() {
-        final ActionConstraintsUploader uploader = mock(ActionConstraintsUploader.class);
-        final UploadActionConstraintsStage stage = new UploadActionConstraintsStage(uploader);
-        final StitchingContext stitchingContext = mock(StitchingContext.class);
-        stage.passthrough(stitchingContext);
-        verify(uploader).uploadActionConstraintInfo(stitchingContext);
     }
 
     @Test
