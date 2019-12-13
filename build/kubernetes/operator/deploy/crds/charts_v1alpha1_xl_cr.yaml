@@ -26,6 +26,8 @@ spec:
     enabled: true
   appdynamics:
     enabled: true
+  appinsights:
+    enabled: true
   aws:
     enabled: true
   azure:
