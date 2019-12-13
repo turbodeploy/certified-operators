@@ -5,7 +5,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -43,7 +42,7 @@ public abstract class ReservedInstanceBoughtTableFilter extends ReservedInstance
      * @param cloudScopesTuple The Cloud Scopes Tuple for the topology scope.
      * @param joinWithSpecTable True if any filter needs to get from reserved instance spec table.
      */
-    public ReservedInstanceBoughtTableFilter(@Nonnull Set<Long> scopeIds, Optional<Integer> scopeEntityType,
+    public ReservedInstanceBoughtTableFilter(@Nonnull Set<Long> scopeIds, int scopeEntityType,
                     @Nonnull final Map<CommonDTO.EntityDTO.EntityType, Set<Long>> cloudScopesTuple,
                     final boolean joinWithSpecTable) {
         super(scopeIds, scopeEntityType);
@@ -53,7 +52,7 @@ public abstract class ReservedInstanceBoughtTableFilter extends ReservedInstance
         // Regions, AZ's and BA's should be set.
         if (!scopeIds.isEmpty()) {
             // when REGION is involved, we need to join with the reserved_instance_spec table.
-            if (scopeEntityType.isPresent() && scopeEntityType.get() == CommonDTO.EntityDTO.EntityType.REGION_VALUE) {
+            if (scopeEntityType == CommonDTO.EntityDTO.EntityType.REGION_VALUE) {
                 this.joinWithSpecTable = true;
             }
             this.conditions = generateConditions(scopeIds, scopeEntityType);
@@ -89,26 +88,24 @@ public abstract class ReservedInstanceBoughtTableFilter extends ReservedInstance
      */
     @Override
     protected List<Condition> generateConditions(@Nonnull final Set<Long> scopeIds,
-                    final Optional<Integer> scopeEntityType) {
+                    final int scopeEntityType) {
         final List<Condition> conditions = new ArrayList<>();
         if (scopeIds.isEmpty()) {
             return conditions;
         }
-        if (scopeEntityType.isPresent()) {
-            switch (scopeEntityType.get()) {
-                case CommonDTO.EntityDTO.EntityType.REGION_VALUE:
-                    conditions.add(Tables.RESERVED_INSTANCE_SPEC.REGION_ID.in(scopeIds));
-                    break;
-                case CommonDTO.EntityDTO.EntityType.AVAILABILITY_ZONE_VALUE:
-                    conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.AVAILABILITY_ZONE_ID.in(scopeIds));
-                    break;
-                case CommonDTO.EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE:
-                    conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.BUSINESS_ACCOUNT_ID.in(scopeIds));
-                    break;
-                // Mixed scope of optimizable entities is handled by generateConditions(cloudScopesTuple).
-                default:
-                    break;
-            }
+        switch (scopeEntityType) {
+            case CommonDTO.EntityDTO.EntityType.REGION_VALUE:
+                conditions.add(Tables.RESERVED_INSTANCE_SPEC.REGION_ID.in(scopeIds));
+                break;
+            case CommonDTO.EntityDTO.EntityType.AVAILABILITY_ZONE_VALUE:
+                conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.AVAILABILITY_ZONE_ID.in(scopeIds));
+                break;
+            case CommonDTO.EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE:
+                conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.BUSINESS_ACCOUNT_ID.in(scopeIds));
+                break;
+            // Mixed scope of optimizable entities is handled by generateConditions(cloudScopesTuple).
+            default:
+                break;
         }
         return conditions;
     }
@@ -141,7 +138,7 @@ public abstract class ReservedInstanceBoughtTableFilter extends ReservedInstance
         } else {
             for (Map.Entry<CommonDTO.EntityDTO.EntityType, Set<Long>> entry : cloudScopesTuple.entrySet()) {
                 Set<Long> entityOids = entry.getValue();
-                conditions.addAll(generateConditions(entityOids, Optional.of(entry.getKey().getNumber())));
+                conditions.addAll(generateConditions(entityOids, entry.getKey().getNumber()));
             }
         }
         return conditions;
@@ -156,7 +153,7 @@ public abstract class ReservedInstanceBoughtTableFilter extends ReservedInstance
     abstract static class AbstractBuilder<T extends ReservedInstanceBoughtTableFilter, U extends AbstractBuilder<T, U>> {
         // The set of scope oids.
         final Set<Long> scopeIds = new HashSet<>();
-        Optional<Integer> scopeEntityType = Optional.empty();
+        int scopeEntityType = CommonDTO.EntityDTO.EntityType.UNKNOWN_VALUE;
         // Cloud scopes Tuple of (Regions/AZ's/BA's/..)
         final Map<CommonDTO.EntityDTO.EntityType, Set<Long>> cloudScopesTuple = new HashMap<>();
         // Needs to set to true, if any filter needs to get from reserved instance spec table.
@@ -188,7 +185,7 @@ public abstract class ReservedInstanceBoughtTableFilter extends ReservedInstance
          * @return Builder for this class.
          */
         @Nonnull
-        public U setScopeEntityType(@Nonnull final Optional<Integer> entityType) {
+        public U setScopeEntityType(@Nonnull final int entityType) {
             this.scopeEntityType = entityType;
             return getThis();
         }

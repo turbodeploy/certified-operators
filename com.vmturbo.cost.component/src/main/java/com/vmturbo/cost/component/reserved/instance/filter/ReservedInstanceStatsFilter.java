@@ -9,7 +9,6 @@ import static com.vmturbo.cost.component.reserved.instance.ReservedInstanceUtil.
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -46,7 +45,7 @@ public abstract class ReservedInstanceStatsFilter extends ReservedInstanceFilter
      * @param timeFrame The timeframe for which to obtain stats.
      */
     public ReservedInstanceStatsFilter(@Nonnull final Set<Long> scopeIds,
-                                       final Optional<Integer> scopeEntityType,
+                                       final int scopeEntityType,
                                        final long startDateMillis,
                                        final long endDateMillis,
                                        @Nullable final TimeFrame timeFrame) {
@@ -69,28 +68,26 @@ public abstract class ReservedInstanceStatsFilter extends ReservedInstanceFilter
      */
     @Override
     protected List<Condition> generateConditions(@Nonnull final Set<Long> scopeIds,
-                                                 final Optional<Integer> scopeEntityType) {
+                                                 final int scopeEntityType) {
         final List<Condition> conditions = new ArrayList<>();
         final Table<?> table = getTableName();
-        if (scopeEntityType.isPresent()) {
-            switch (scopeEntityType.get()) {
-                case EntityType.REGION_VALUE:
-                    conditions.add(table.field(REGION_ID).in(scopeIds));
-                    break;
-                case EntityType.AVAILABILITY_ZONE_VALUE:
-                    conditions.add(table.field(AVAILABILITY_ZONE_ID).in(scopeIds));
-                    break;
-                case EntityType.BUSINESS_ACCOUNT_VALUE:
-                    conditions.add(table.field(BUSINESS_ACCOUNT_ID).in(scopeIds));
-                    break;
+        switch (scopeEntityType) {
+            case EntityType.REGION_VALUE:
+                conditions.add(table.field(REGION_ID).in(scopeIds));
+                break;
+            case EntityType.AVAILABILITY_ZONE_VALUE:
+                conditions.add(table.field(AVAILABILITY_ZONE_ID).in(scopeIds));
+                break;
+            case EntityType.BUSINESS_ACCOUNT_VALUE:
+                conditions.add(table.field(BUSINESS_ACCOUNT_ID).in(scopeIds));
+                break;
                 // TODO:  Mixed scope of optimizable entities.
-                default:
-                    break;
-            }
-        } else {
-            if(!scopeIds.isEmpty()) {
-                conditions.add(table.field(ENTITY_ID).in(scopeIds));
-            }
+            default:
+                // By default we go back to the regular entity id restriction.
+                if (table.field(ENTITY_ID) != null) {
+                    conditions.add(table.field(ENTITY_ID).in(scopeIds));
+                }
+                break;
         }
         if (startDateMillis > 0 && endDateMillis > 0) {
             conditions.add(((Field<Timestamp>)table.field(SNAPSHOT_TIME))

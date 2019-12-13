@@ -2,7 +2,6 @@ package com.vmturbo.cost.component.reserved.instance.filter;
 
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -32,7 +31,7 @@ public class ReservedInstanceUtilizationFilter extends ReservedInstanceStatsFilt
      * @param timeFrame The timeframe for which to obtain stats.
      */
     private ReservedInstanceUtilizationFilter(@Nonnull final Set<Long> scopeIds,
-                                              final Optional<Integer> scopeEntityType,
+                                              final int scopeEntityType,
                                               final long startDateMillis,
                                               final long endDateMillis,
                                               final TimeFrame timeFrame) {
@@ -66,7 +65,7 @@ public class ReservedInstanceUtilizationFilter extends ReservedInstanceStatsFilt
         // The set of scope oids.
         private Set<Long> scopeIds = new HashSet<>();
         // The scope's entity type.
-        private Optional<Integer> scopeEntityType = Optional.empty();
+        private int scopeEntityType = EntityType.UNKNOWN_VALUE;
         private long startDateMillis = 0;
         private long endDateMillis = 0;
         private TimeFrame timeFrame = null;
@@ -98,7 +97,7 @@ public class ReservedInstanceUtilizationFilter extends ReservedInstanceStatsFilt
          * @return Builder for this class.
          */
         @Nonnull
-        public Builder setScopeEntityType(final Optional<Integer> entityType) {
+        public Builder setScopeEntityType(final int entityType) {
             this.scopeEntityType = entityType;
             return this;
         }

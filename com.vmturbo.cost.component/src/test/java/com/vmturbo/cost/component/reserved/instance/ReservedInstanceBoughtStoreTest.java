@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -210,7 +209,7 @@ public class ReservedInstanceBoughtStoreTest {
         scopeIds.add(0L);
         final ReservedInstanceBoughtFilter zeroAzFilter = ReservedInstanceBoughtFilter.newBuilder()
                 .addAllScopeId(scopeIds)
-                .setScopeEntityType(Optional.of(AVAILABILITYZONE_VALUE))
+                .setScopeEntityType(AVAILABILITYZONE_VALUE)
                 .build();
         final List<ReservedInstanceBought> reservedInstancesByZeroAzFilter =
                 reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(zeroAzFilter);
@@ -219,7 +218,7 @@ public class ReservedInstanceBoughtStoreTest {
         scopeIds.add(100L);
         final ReservedInstanceBoughtFilter azFilter = ReservedInstanceBoughtFilter.newBuilder()
                 .addAllScopeId(scopeIds)
-                .setScopeEntityType(Optional.of(AVAILABILITYZONE_VALUE))
+                .setScopeEntityType(AVAILABILITYZONE_VALUE)
                 .build();
         final List<ReservedInstanceBought> reservedInstancesByAzFilter =
                 reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(azFilter);
@@ -235,7 +234,7 @@ public class ReservedInstanceBoughtStoreTest {
         scopeIds.add(0L);
         final ReservedInstanceBoughtFilter zeroRegionIdFilter = ReservedInstanceBoughtFilter.newBuilder()
                 .addAllScopeId(scopeIds)
-                .setScopeEntityType(Optional.of(REGION_VALUE))
+                .setScopeEntityType(REGION_VALUE)
                 .setJoinWithSpecTable(true)
                 .build();
         final List<ReservedInstanceBought> reservedInstancesByZeroRegionIdFilter =
@@ -245,7 +244,7 @@ public class ReservedInstanceBoughtStoreTest {
         scopeIds.add(77L);
         final ReservedInstanceBoughtFilter regionIdFilter = ReservedInstanceBoughtFilter.newBuilder()
                 .addAllScopeId(scopeIds)
-                .setScopeEntityType(Optional.of(REGION_VALUE))
+                .setScopeEntityType(REGION_VALUE)
                 .setJoinWithSpecTable(true)
                 .build();
         final List<ReservedInstanceBought> reservedInstancesByRegionIdFilter =
@@ -269,7 +268,7 @@ public class ReservedInstanceBoughtStoreTest {
         scopeIds.add(0L);
         final ReservedInstanceBoughtFilter zeroAccountIdFilter = ReservedInstanceBoughtFilter.newBuilder()
                 .addAllScopeId(scopeIds)
-                .setScopeEntityType(Optional.of(BUSINESS_ACCOUNT_VALUE))
+                .setScopeEntityType(BUSINESS_ACCOUNT_VALUE)
                 .setJoinWithSpecTable(false)
                 .build();
         final List<ReservedInstanceBought> reservedInstancesByZeroAccountIdFilter =
@@ -280,7 +279,7 @@ public class ReservedInstanceBoughtStoreTest {
         scopeIds.add(456L);
         final ReservedInstanceBoughtFilter accountIdFilter = ReservedInstanceBoughtFilter.newBuilder()
                 .addAllScopeId(scopeIds)
-                .setScopeEntityType(Optional.of(BUSINESS_ACCOUNT_VALUE))
+                .setScopeEntityType(BUSINESS_ACCOUNT_VALUE)
                 .setJoinWithSpecTable(false)
                 .build();
         final List<ReservedInstanceBought> reservedInstancesByAccountIdFilter =
@@ -316,7 +315,7 @@ public class ReservedInstanceBoughtStoreTest {
         scopeIds.add(77L);
         final ReservedInstanceBoughtFilter filter = ReservedInstanceBoughtFilter.newBuilder()
                 .addAllScopeId(scopeIds)
-                .setScopeEntityType(Optional.of(REGION_VALUE))
+                .setScopeEntityType(REGION_VALUE)
                 .build();
         final Map<Long, Long> riCountMap = reservedInstanceBoughtStore.getReservedInstanceCountMap(filter);
         final long countForSpecOne = riCountMap.get(88L);
@@ -334,7 +333,7 @@ public class ReservedInstanceBoughtStoreTest {
         scopeIds.add(100L);
         final ReservedInstanceBoughtFilter filter = ReservedInstanceBoughtFilter.newBuilder()
                 .addAllScopeId(scopeIds)
-                .setScopeEntityType(Optional.of(AVAILABILITYZONE_VALUE))
+                .setScopeEntityType(AVAILABILITYZONE_VALUE)
                 .build();
         final Map<Long, Long> riCountMap = reservedInstanceBoughtStore.getReservedInstanceCountMap(filter);
         final long countForSpecOne = riCountMap.get(88L);
@@ -355,7 +354,7 @@ public class ReservedInstanceBoughtStoreTest {
         scopeIds.add(100L);
         final ReservedInstanceCostFilter filter = ReservedInstanceCostFilter.newBuilder()
                         .addAllScopeId(scopeIds)
-                        .setScopeEntityType(Optional.of(AVAILABILITYZONE_VALUE))
+                        .setScopeEntityType(AVAILABILITYZONE_VALUE)
                         .build();
         final List<ReservedInstanceBoughtRecord> reservedInstanceBoughtRecords =
                         dsl.selectFrom(Tables.RESERVED_INSTANCE_BOUGHT)
@@ -377,7 +376,7 @@ public class ReservedInstanceBoughtStoreTest {
         scopeIds.add(77L);
         final ReservedInstanceCostFilter filter = ReservedInstanceCostFilter.newBuilder()
                         .addAllScopeId(scopeIds)
-                        .setScopeEntityType(Optional.of(REGION_VALUE))
+                        .setScopeEntityType(REGION_VALUE)
                         .build();
         final Result<ReservedInstanceBoughtRecord> reservedInstanceBoughtRecords =
                         dsl.select(RESERVED_INSTANCE_BOUGHT.fields()).from(RESERVED_INSTANCE_BOUGHT)
@@ -402,7 +401,7 @@ public class ReservedInstanceBoughtStoreTest {
         scopeIds.add(789L);
         final ReservedInstanceCostFilter filter = ReservedInstanceCostFilter.newBuilder()
                         .addAllScopeId(scopeIds)
-                        .setScopeEntityType(Optional.of(BUSINESS_ACCOUNT_VALUE))
+                        .setScopeEntityType(BUSINESS_ACCOUNT_VALUE)
                         .build();
         final List<ReservedInstanceBoughtRecord> reservedInstanceBoughtRecords =
                         dsl.selectFrom(Tables.RESERVED_INSTANCE_BOUGHT)

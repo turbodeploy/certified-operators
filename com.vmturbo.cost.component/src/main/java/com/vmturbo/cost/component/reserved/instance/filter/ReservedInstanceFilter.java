@@ -2,7 +2,6 @@ package com.vmturbo.cost.component.reserved.instance.filter;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -19,7 +18,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
  */
 public abstract class ReservedInstanceFilter {
     protected final Set<Long> scopeIds;
-    protected final Optional<Integer> scopeEntityType;
+    protected final int scopeEntityType;
 
     protected static final Set<Integer> SUPPORTED_RI_FILTER_TYPES =
         ImmutableSet.of(EntityDTO.EntityType.REGION_VALUE,
@@ -37,7 +36,7 @@ public abstract class ReservedInstanceFilter {
      *     ResourceGroups for which a new scope entity type would likely be needed.
      */
     public ReservedInstanceFilter(@Nonnull final Set<Long> scopeIds,
-                                  final Optional<Integer> scopeEntityType) {
+                                  final int scopeEntityType) {
         this.scopeIds = ImmutableSet.copyOf(Objects.requireNonNull(scopeIds));
         this.scopeEntityType = scopeEntityType;
     }
@@ -50,7 +49,7 @@ public abstract class ReservedInstanceFilter {
      * @return a list of {@link Condition}.
      */
     abstract List<Condition> generateConditions(@Nonnull Set<Long> scopeIds,
-                                                Optional<Integer> scopeEntityType);
+                                                int scopeEntityType);
 
     /**
      * For access to scopeIds outside child classes.
@@ -67,7 +66,7 @@ public abstract class ReservedInstanceFilter {
      *
      * @return The entityType.
      */
-    public Optional<Integer> getEntityType() {
+    public int getEntityType() {
         return scopeEntityType;
     }
 }

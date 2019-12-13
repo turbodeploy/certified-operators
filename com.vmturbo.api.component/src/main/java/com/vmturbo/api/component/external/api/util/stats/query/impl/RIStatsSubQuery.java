@@ -85,7 +85,7 @@ public class RIStatsSubQuery implements StatsSubQuery {
                 && !context.getQueryScope().getGlobalScope().get().entityTypes().isEmpty()) {
             // if related entity type doesn't support RI stats, we don't go through the query
             relatedEntityType = context.getQueryScope().getGlobalScope().get().entityTypes().iterator().next();
-            return !context.getInputScope().isPlan() && validEntityTypesForRIStats.contains(relatedEntityType);
+            return !context.getInputScope().isPlan() && !validEntityTypesForRIStats.contains(relatedEntityType);
         }
         return !context.getInputScope().isPlan();
     }

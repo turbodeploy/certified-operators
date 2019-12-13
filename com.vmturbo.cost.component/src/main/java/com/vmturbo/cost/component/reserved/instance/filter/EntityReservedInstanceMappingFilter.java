@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -24,8 +23,8 @@ public class EntityReservedInstanceMappingFilter extends ReservedInstanceFilter 
 
     private EntityReservedInstanceMappingFilter(@Nonnull final Set<Long> scopeIds) {
         // TODO: should this be EntityType.UNKNOWN_VALUE ?
-        super(scopeIds, Optional.of(EntityType.SWITCH_VALUE));
-        this.conditions = generateConditions(scopeIds, Optional.of(EntityType.SWITCH_VALUE));
+        super(scopeIds, EntityType.SWITCH_VALUE);
+        this.conditions = generateConditions(scopeIds, EntityType.SWITCH_VALUE);
     }
 
     /**
@@ -38,7 +37,7 @@ public class EntityReservedInstanceMappingFilter extends ReservedInstanceFilter 
     }
 
     @Override
-    List<Condition> generateConditions(@Nonnull Set<Long> scopeIds, Optional<Integer> scopeEntityType) {
+    List<Condition> generateConditions(@Nonnull Set<Long> scopeIds, int scopeEntityType) {
         final List<Condition> conditions = new ArrayList<>();
         if (scopeIds.isEmpty()) {
             return conditions;

@@ -98,7 +98,7 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
                                .getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter
                                                                   .newBuilder()
                                   .addAllScopeId(scopeOids)
-                                  .setScopeEntityType(Optional.of(scopeEntityType))
+                                  .setScopeEntityType(scopeEntityType)
                                   .setCloudScopesTuple(cloudScopesTuple)
                                   .build());
             final List<Long> riOids = reservedInstancesBought.stream()
@@ -256,15 +256,15 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
                         .newBuilder();
         if (regionFilter.isPresent()) {
             filterBuilder.addAllScopeId(regionFilter.get().getRegionIdList())
-                        .setScopeEntityType(Optional.of(EntityType.REGION_VALUE));
+                        .setScopeEntityType(EntityType.REGION_VALUE);
             // Because region id is stored at RI spec table, it needs join operation.
             filterBuilder.setJoinWithSpecTable(true);
         } else if (azFilter.isPresent()) {
             filterBuilder.addAllScopeId(azFilter.get().getAvailabilityZoneIdList())
-                        .setScopeEntityType(Optional.of(EntityType.AVAILABILITY_ZONE_VALUE));
+                        .setScopeEntityType(EntityType.AVAILABILITY_ZONE_VALUE);
         } else if (accountFilter.isPresent()) {
             filterBuilder.addAllScopeId(accountFilter.get().getAccountIdList())
-                        .setScopeEntityType(Optional.of(EntityType.BUSINESS_ACCOUNT_VALUE));
+                        .setScopeEntityType(EntityType.BUSINESS_ACCOUNT_VALUE);
         }
         return filterBuilder.build();
     }
