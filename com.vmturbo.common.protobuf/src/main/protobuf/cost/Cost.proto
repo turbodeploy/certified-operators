@@ -899,9 +899,8 @@ message SetBuyRIAnalysisScheduleResponse {
 }
 
 message GetEntityReservedInstanceCoverageRequest {
-    // At the time of this writing we always want
-    // the coverage for all entities. If that changes,
-    // we can add additional filters here.
+    // Filter by a list of Entities.
+    optional EntityFilter entity_filter = 1;
 }
 
 message GetEntityReservedInstanceCoverageResponse {
