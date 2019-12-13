@@ -17,6 +17,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.commons.lang3.text.WordUtils;
@@ -155,6 +156,12 @@ public class ActionDTOUtil {
         switch (actionInfo.getActionTypeCase()) {
             case MOVE:
             case SCALE:
+                // For any Cloud entity we need to return target id
+                // for correct severity calculations
+                ActionEntity primaryEntity = getPrimaryEntity(action.getId(), actionInfo, false);
+                if (primaryEntity.getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.CLOUD) {
+                    return primaryEntity.getId();
+                }
                 // For move/scale actions, the importance of the action
                 // is applied to the source instead of the target,
                 // since we're moving the load off of the source.
