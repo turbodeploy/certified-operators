@@ -42,7 +42,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
@@ -166,13 +165,8 @@ public class ActionInterpreter {
 
             switch (actionTO.getActionTypeCase()) {
                 case MOVE:
-                    Move move = interpretMoveAction(actionTO.getMove(), projectedTopology, originalCloudTopology);
-                    if (move.getChangesList().isEmpty()) {
-                        // There needs to be at least one change provider. It will currently hit
-                        // this block for Accounting actions on the cloud.
-                        return Optional.empty();
-                    }
-                    infoBuilder.setMove(move);
+                    infoBuilder.setMove(interpretMoveAction(
+                            actionTO.getMove(), projectedTopology, originalCloudTopology));
                     break;
                 case COMPOUND_MOVE:
                     infoBuilder.setMove(interpretCompoundMoveAction(actionTO.getCompoundMove(),
@@ -687,11 +681,6 @@ public class ActionInterpreter {
         // 4 case of moves:
         // 1) Cloud to cloud. 2) on prem to cloud. 3) cloud to on prem. 4) on prem to on prem.
         if (sourceMarketTier != null && destMarketTier != null) {
-            if (destinationRegion == sourceRegion && (destTier == sourceTier)
-                    && (move.hasCouponDiscount()&& move.hasCouponId())) {
-                logger.warn("ACCOUNTING action generated for {}. We do not handle accounting " +
-                        "actions YET. Dropping action.", target.getDisplayName());
-            }
             // Cloud to cloud move
             if (destinationRegion != sourceRegion) {
                 // AZ or Region change provider. We create an AZ or Region change provider
@@ -699,7 +688,11 @@ public class ActionInterpreter {
                 changeProviders.add(createChangeProvider(sourceAzOrRegion.getOid(),
                     destAzOrRegion.getOid(), null, projectedTopology));
             }
-            if (destTier != sourceTier) {
+            final boolean isAccountingAction = destinationRegion == sourceRegion
+                    && destTier == sourceTier
+                    && move.hasCouponDiscount()
+                    && move.hasCouponId();
+            if (destTier != sourceTier || isAccountingAction) {
                 // Tier change provider
                 changeProviders.add(createChangeProvider(sourceTier.getOid(),
                         destTier.getOid(), resourceId, projectedTopology));
