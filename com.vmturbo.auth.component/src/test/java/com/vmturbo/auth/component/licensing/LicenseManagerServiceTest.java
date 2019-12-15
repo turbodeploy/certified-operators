@@ -2,6 +2,7 @@ package com.vmturbo.auth.component.licensing;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -11,14 +12,16 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Date;
 import java.util.List;
+import java.util.function.Predicate;
 
+import com.google.common.collect.ImmutableList;
 import com.google.protobuf.Empty;
 
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -226,6 +229,101 @@ public class LicenseManagerServiceTest {
         // verify new features ARE avaialble
         Assert.assertTrue(licenseSummary.getFeatureList().containsAll(Arrays.asList("NewFeature1","NewFeature2")));
 
+    }
+
+    /**
+     * Adding multiple licenses that are compatible with an existing license should succeed.
+     *
+     * @throws IOException if there's a problem reading the file-based licenses.
+     */
+    @Test
+    public void testValidateMultipleLicensesCompatibleWithExisting() throws IOException {
+        String email = "somebody@mail.com";
+        List<String> features = Arrays.asList("Feature");
+        // put one license in the license store
+        Instant tomorrow = Instant.now().plus(1, ChronoUnit.DAYS);
+        ILicense originalLicense = LicenseTestUtils.createLicense(Date.from(tomorrow), email, features, 1);
+        licenseKVStore.storeLicense(LicenseDTOUtils.iLicenseToLicenseDTO(originalLicense));
+
+        // now try adding two more licenses that are compatible
+        ILicense license1 = LicenseTestUtils.createLicense(Date.from(tomorrow.plus(2, ChronoUnit.DAYS)), email, features, 1);
+        ILicense license2 = LicenseTestUtils.createLicense(Date.from(tomorrow.plus(1, ChronoUnit.DAYS)), email, features, 1);
+
+        Collection<ILicense> validatedLicenses = licenseManagerService.validateMultipleLicenses(ImmutableList.of(license1, license2));
+        // both licenses should be valid
+        Predicate<ILicense> licenseMatcher = ILicense::isValid;
+        assertTrue(validatedLicenses.stream().allMatch(licenseMatcher));
+    }
+
+    /**
+     * Adding two licenses of different editions (cwom and xl) should fail.
+     *
+     * @throws IOException if there's a problem reading persisted licenses
+     */
+    @Test
+    public void testValidateMultipleLicensesMixedEditions() throws IOException {
+        ILicense cwomLicense = LicenseDeserializer.deserialize(LicenseLocalStoreTest.C1_LICENSE, "test.file");
+
+        Instant tomorrow = Instant.now().plus(1, ChronoUnit.DAYS);
+        ILicense xlLicense = LicenseTestUtils.createLicense(
+                Date.from(tomorrow), "somebody@mail.com", Arrays.asList("Feature"), 1);
+
+        Collection<ILicense> validatedLicenses = licenseManagerService.validateMultipleLicenses(ImmutableList.of(cwomLicense, xlLicense));
+        // both licenses should be invalid
+        Predicate<ILicense> licenseMatcher = license -> {
+            // we expect all of the licenses to be marked as invalid w/Invalid Feature Set
+            return (!license.isValid() && license.getErrorReasons().contains(ErrorReason.INVALID_FEATURE_SET));
+        };
+        assertTrue(validatedLicenses.stream().allMatch(licenseMatcher));
+    }
+
+    /**
+     * Multiple licenses that have conflicting feature sets should be rejected.
+     *
+     * @throws IOException if there's a problem reading persisted licenses
+     */
+    @Test
+    public void testValidateMultipleLicensesMixedFeatures() throws IOException {
+        String email = "somebody@mail.com";
+        List<String> features = Arrays.asList("Feature");
+        // put one license in the license store
+        Instant tomorrow = Instant.now().plus(1, ChronoUnit.DAYS);
+        ILicense originalLicense = LicenseTestUtils.createLicense(Date.from(tomorrow), email, features, 1);
+        licenseKVStore.storeLicense(LicenseDTOUtils.iLicenseToLicenseDTO(originalLicense));
+
+        // now try adding two more licenses that have differing feature sets
+        ILicense license1 = LicenseTestUtils.createLicense(Date.from(tomorrow.plus(2, ChronoUnit.DAYS)), email,
+                Arrays.asList("Feature", "NewFeature"), 1);
+        ILicense license2 = LicenseTestUtils.createLicense(Date.from(tomorrow.plus(1, ChronoUnit.DAYS)), email,
+                Arrays.asList("Feature", "NewOldFeature"), 1);
+
+        Collection<ILicense> validatedLicenses = licenseManagerService.validateMultipleLicenses(ImmutableList.of(license1, license2));
+        // both licenses should be invalid and marked with invalid feature sets.
+        Predicate<ILicense> licenseMatcher = license -> (!license.isValid())
+                && license.getErrorReasons().contains(ErrorReason.INVALID_FEATURE_SET);
+        assertTrue(validatedLicenses.stream().allMatch(licenseMatcher));
+    }
+
+    /**
+     * Adding multiple licenses with the same key should be rejected
+     *
+     * @throws IOException if there's a problem reading persisted licenses
+     */
+    @Test
+    public void testValidateMultipleLicensesDuplicates() throws IOException {
+        String email = "somebody@mail.com";
+        List<String> features = Arrays.asList("Feature");
+        Instant tomorrow = Instant.now().plus(1, ChronoUnit.DAYS);
+        // now try adding two more licenses that will be considered duplicates based on the license key
+        // same date / features / email / workload == same license key
+        ILicense license1 = LicenseTestUtils.createLicense(Date.from(tomorrow), email, features, 1);
+        ILicense license2 = LicenseTestUtils.createLicense(Date.from(tomorrow), email, features, 1);
+
+        Collection<ILicense> validatedLicenses = licenseManagerService.validateMultipleLicenses(ImmutableList.of(license1, license2));
+        // both licenses should be rejected as dupes
+        Predicate<ILicense> licenseMatcher = license -> (!license.isValid())
+                && (license.getErrorReasons().contains(ErrorReason.DUPLICATE_LICENSE));
+        assertTrue(validatedLicenses.stream().allMatch(licenseMatcher));
     }
 
     // TODO: When we support authorization in this service (OM-35910), add test validating Admin role
