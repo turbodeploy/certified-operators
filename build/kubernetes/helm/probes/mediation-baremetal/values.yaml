@@ -23,7 +23,7 @@ java:
 
 env:
   - name: component_type
-    value: mediation-dynatrace
+    value: mediation-baremetal
   - name: instance_id
     valueFrom:
       fieldRef:

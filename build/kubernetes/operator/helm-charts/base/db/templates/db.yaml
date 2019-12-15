@@ -65,7 +65,7 @@ spec:
           tcpSocket:
             port: 3306
           periodSeconds: 60
-          failureThreshold: 60
+          failureThreshold: 1440
         readinessProbe:
           tcpSocket:
             port: 3306
