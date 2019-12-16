@@ -90,19 +90,18 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
     private static final LicenseSummary NO_LICENSES_SUMMARY = LicenseSummary.getDefaultInstance();
     @VisibleForTesting
     public static final String TURBONOMIC_LICENSE_HAS_EXPIRED_PLEASE_UPDATE_IT
-            = "Turbonomic license has expired, please update it";
+            = "Your license has expired, please update it";
 
     @VisibleForTesting
     public static final String LICENSE_HAS_EXPIRED = "License has expired";
 
     @VisibleForTesting
     public static final String LICENSE_WORKLOAD_COUNT_HAS_OVER_LIMIT
-            = "It’s great to see you're getting so much value from Turbonomic! Your installation of" +
-        " Turbonomic instance %s is currently managing %d active" +
-        " workloads, while your license only covers %d workloads. Don't worry," +
-        " Turbonomic continues to manage all of your workloads without interruption. Unfortunately," +
+            = "It’s great to see you're getting so much value from our product! Your product installation" +
+            " on %s is currently managing %d active workloads, while your license only covers %d workloads. Don't worry," +
+        " we'll continue to manage all of your workloads without interruption. Unfortunately," +
         " you cannot update your version or add new targets until you upgrade your license to cover" +
-        " all your workloads. To add more workloads to your license, contact your Turbonomic Inc." +
+        " all your workloads. To add more workloads to your license, contact your" +
         " sales representative or authorized dealer.";
 
     @VisibleForTesting
@@ -112,15 +111,15 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
     public static final String LICENSE_IS_ABOUT_TO_EXPIRE = "License is about to expire";
 
     @VisibleForTesting
-    public static final String TURBONOMIC_LICENSE_WILL_EXPIRE = "Your Turbonomic license on Turbonomic" +
+    public static final String TURBONOMIC_LICENSE_WILL_EXPIRE = "The product license on your" +
         " instance %s will expire tomorrow, %s. To keep using the full power of" +
-        " Turbonomic, be sure to install an updated license. To obtain a license, contact your Turbonomic" +
-        " Inc. sales representative or authorized dealer.";
+        " this product, be sure to install an updated license. To obtain a license, contact your" +
+        " sales representative or authorized dealer.";
 
     @VisibleForTesting
-    public static final String TURBONOMIC_LICENSE_IS_MISSING = "Turbonomic instance %s has no license, " +
-        "or your license has expired. Please install a valid license. To obtain a license, contact " +
-        "your Turbonomic Inc. sales representative or authorized dealer.";
+    public static final String TURBONOMIC_LICENSE_IS_MISSING = "Your instance (%s) has no " +
+            "license, or your license has expired. Please install a valid license. To obtain a license, " +
+            "contact your sales representative or authorized dealer.";
 
     @VisibleForTesting
     public static final String LICENSE_IS_MISSING = "License is missing";
