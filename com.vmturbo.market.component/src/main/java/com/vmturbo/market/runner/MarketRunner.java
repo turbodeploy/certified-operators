@@ -108,6 +108,7 @@ public class MarketRunner {
                 analysis = analysisMap.get(topologyContextId);
                 logger.info("Analysis {} is already running with topology {}. Discarding {}.",
                         topologyContextId, analysis.getTopologyId(), topologyId);
+                TheMatrix.clearInstance(analysis.getTopologyId());
                 return analysis;
             }
             logger.info("Received analysis {}: topology {}" +
@@ -153,6 +154,8 @@ public class MarketRunner {
                     return analysis;
                 } catch (CommunicationException | InterruptedException e) {
                     logger.error("Could not send market notifications", e);
+                } finally {
+                    TheMatrix.clearInstance(analysis.getTopologyId());
                 }
             }
             if (!analysis.getTopologyInfo().hasPlanInfo()) {
@@ -166,6 +169,8 @@ public class MarketRunner {
                         serverApi.notifyActionsRecommended(getEmptyActionPlan(topologyInfo));
                     } catch (CommunicationException | InterruptedException e) {
                         logger.error("Could not send market notifications", e);
+                    } finally {
+                        TheMatrix.clearInstance(analysis.getTopologyId());
                     }
                     return analysis;
                 }
@@ -177,6 +182,7 @@ public class MarketRunner {
             if (analysisStoppageSet.remove(topologyContextId)) {
                 logger.info("Analysis {} has been stopped for topology {} by user. Discarding.",
                         topologyContextId, topologyId);
+                TheMatrix.clearInstance(analysis.getTopologyId());
                 analysisMap.remove(topologyContextId);
                 return analysis;
             }
@@ -237,8 +243,12 @@ public class MarketRunner {
             // Set replay actions from last succeeded market cycle.
             analysis.setReplayActions(realtimeReplayActions);
         }
-        analysis.execute();
-        analysisMap.remove(analysis.getContextId());
+        try {
+            analysis.execute();
+        } finally {
+            TheMatrix.clearInstance(analysis.getTopologyInfo().getTopologyId());
+            analysisMap.remove(analysis.getContextId());
+        }
         try {
             if (analysis.isDone()) {
                 marketDebugRpcService.ifPresent(debugService -> {
@@ -296,9 +306,6 @@ public class MarketRunner {
                          + analysis.getTopologyInfo().getTopologyId(), e);
             // Send notification of Analysis FAILURE
             sendAnalysisStatus(analysis, AnalysisState.FAILED.ordinal());
-        } finally {
-            // Clear the Matrix for a given topology.
-            TheMatrix.clearInstance(analysis.getTopologyInfo().getTopologyId());
         }
     }
 

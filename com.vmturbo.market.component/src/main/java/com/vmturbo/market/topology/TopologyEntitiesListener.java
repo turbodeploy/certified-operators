@@ -105,7 +105,9 @@ public class TopologyEntitiesListener implements EntitiesListener {
             }
             // Construct the Matrix.
             final MatrixInterface matrix = loadMatrix(exts);
-            TheMatrix.setInstance(topologyId, matrix);
+            if (!matrix.isEmpty()) {
+                TheMatrix.setInstance(topologyId, matrix);
+            }
         } catch (CommunicationException | TimeoutException e) {
             logger.error("Error occurred while receiving topology " + topologyId + " for " +
                     "context " + topologyContextId, e);
