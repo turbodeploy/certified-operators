@@ -325,6 +325,10 @@ public class RIStatsSubQueryTest {
         when(context.getTimeWindow()).thenReturn(Optional.of(TIME_WINDOW));
         when(scope.getScopeTypes()).thenReturn(Optional.of(
                         Collections.singleton(UIEntityType.REGION)));
+        CachedGroupInfo cachedGroupInfo = Mockito.mock(CachedGroupInfo.class);
+        Mockito.when(cachedGroupInfo.getEntityIds()).thenReturn(SCOPE_ENTITIES);
+        when(context.getInputScope().getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
+        when(context.getInputScope().isGroup()).thenReturn(true);
 
         final RIStatsMapper mapper = new RIStatsMapper();
         final GetReservedInstanceCoverageStatsRequest req = mapper.createCoverageRequest(context);
@@ -338,6 +342,10 @@ public class RIStatsSubQueryTest {
         when(context.getTimeWindow()).thenReturn(Optional.of(TIME_WINDOW));
         when(scope.getScopeTypes()).thenReturn(Optional.of(
                         Collections.singleton(UIEntityType.AVAILABILITY_ZONE)));
+        CachedGroupInfo cachedGroupInfo = Mockito.mock(CachedGroupInfo.class);
+        Mockito.when(cachedGroupInfo.getEntityIds()).thenReturn(SCOPE_ENTITIES);
+        when(context.getInputScope().getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
+        when(context.getInputScope().isGroup()).thenReturn(true);
 
         final RIStatsMapper mapper = new RIStatsMapper();
         final GetReservedInstanceCoverageStatsRequest req = mapper.createCoverageRequest(context);
@@ -365,6 +373,10 @@ public class RIStatsSubQueryTest {
         when(context.getTimeWindow()).thenReturn(Optional.of(TIME_WINDOW));
         when(scope.getScopeTypes()).thenReturn(Optional.of(
                         Collections.singleton(UIEntityType.BUSINESS_ACCOUNT)));
+        CachedGroupInfo cachedGroupInfo = Mockito.mock(CachedGroupInfo.class);
+        Mockito.when(cachedGroupInfo.getEntityIds()).thenReturn(SCOPE_ENTITIES);
+        when(context.getInputScope().getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
+        when(context.getInputScope().isGroup()).thenReturn(true);
 
         final RIStatsMapper mapper = new RIStatsMapper();
         final GetReservedInstanceCoverageStatsRequest req = mapper.createCoverageRequest(context);
