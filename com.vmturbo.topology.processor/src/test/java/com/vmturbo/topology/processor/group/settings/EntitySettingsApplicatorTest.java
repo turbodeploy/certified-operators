@@ -295,13 +295,12 @@ public class EntitySettingsApplicatorTest {
     }
 
     /**
-     * Test Delete Applicator for manual setting with entity's original AnalysisSetting.deletable True.
+     * Test Delete Applicator for manual setting.
      */
     @Test
-    public void testDeleteApplicatorForManualSettingWithEntityConsumerPolicyDeletableTrue() {
+    public void testDeleteApplicatorForManualSetting() {
         final long vvId = 123456L;
         final long stId = 345678L;
-        final boolean isVvDeletable = true;
         final TopologyEntityDTO.Builder vmEntity = TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
@@ -311,40 +310,10 @@ public class EntitySettingsApplicatorTest {
                 .setMovable(false));
         final TopologyEntityDTO.Builder vvEntity = TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-            .setAnalysisSettings(AnalysisSettings.newBuilder()
-                .setDeletable(isVvDeletable)
-                .build())
             .setOid(vvId);
         applySettings(TOPOLOGY_INFO, vvEntity, vmEntity, applicator, DELETE_MANUAL_SETTING);
 
         assertThat(vvEntity.getAnalysisSettings().getDeletable(), is(true));
-    }
-
-    /**
-     * Test Delete Applicator for manual setting with entity's original AnalysisSetting.deletable false.
-     * Ensure the applicator do not remove the original setting.
-     */
-    @Test
-    public void testDeleteApplicatorForManualSettingWithEntityConsumerPolicyDeletableFalse() {
-        final long vvId = 123456L;
-        final long stId = 345678L;
-        final boolean isVvDeletable = false;
-        final TopologyEntityDTO.Builder vmEntity = TopologyEntityDTO.newBuilder()
-            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                .setProviderId(PARENT_ID)
-                .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
-                .setVolumeId(stId)
-                .setMovable(false));
-        final TopologyEntityDTO.Builder vvEntity = TopologyEntityDTO.newBuilder()
-            .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-            .setAnalysisSettings(AnalysisSettings.newBuilder()
-                .setDeletable(isVvDeletable)
-                .build())
-            .setOid(vvId);
-        applySettings(TOPOLOGY_INFO, vvEntity, vmEntity, applicator, DELETE_MANUAL_SETTING);
-
-        assertThat(vvEntity.getAnalysisSettings().getDeletable(), is(false));
     }
 
     /**
@@ -354,20 +323,16 @@ public class EntitySettingsApplicatorTest {
     public void testDeleteApplicatorForDisabledSetting() {
         final long vvId = 123456L;
         final long stId = 345678L;
-        final boolean isVvDeletable = true;
         final TopologyEntityDTO.Builder vmEntity = TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                 .setProviderId(PARENT_ID)
                 .setProviderEntityType(EntityType.STORAGE_TIER_VALUE)
                 .setVolumeId(stId)
-                .setMovable(true));
+                .setMovable(false));
         final TopologyEntityDTO.Builder vvEntity = TopologyEntityDTO.newBuilder()
             .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-            .setOid(vvId)
-            .setAnalysisSettings(AnalysisSettings.newBuilder()
-                .setDeletable(isVvDeletable)
-                .build());
+            .setOid(vvId);
         applySettings(TOPOLOGY_INFO, vvEntity, vmEntity, applicator, DELETE_DISABLED_SETTING);
 
         assertThat(vvEntity.getAnalysisSettings().getDeletable(), is(false));

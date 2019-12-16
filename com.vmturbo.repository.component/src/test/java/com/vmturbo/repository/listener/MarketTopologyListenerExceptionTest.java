@@ -98,12 +98,12 @@ public class MarketTopologyListenerExceptionTest {
                                         .thenThrow(new InterruptedException("interrupted"));
         when(topologyManager.getRealtimeTopologyId()).thenReturn(Optional.empty());
         marketTopologyListener.onProjectedTopologyReceived(projectedTopologyId,
-                originalInfo,
-                entityIterator);
+                 originalInfo,
+                 entityIterator);
 
         verifyMocks();
-        verify(apiBackend).onProjectedTopologyFailure(
-                eq(projectedTopologyId), eq(topologyContextId), any(String.class));
+        verify(apiBackend, never()).onProjectedTopologyFailure(
+            eq(projectedTopologyId), eq(topologyContextId), any(String.class));
     }
 
     /**
@@ -153,8 +153,8 @@ public class MarketTopologyListenerExceptionTest {
             // expected
         }
         verifyMocks();
-        verify(apiBackend).onProjectedTopologyFailure(
-                eq(projectedTopologyId), eq(topologyContextId), any(String.class));
+        verify(apiBackend, never()).onProjectedTopologyFailure(
+            any(long.class), any(long.class), any(String.class));
     }
 
     private void verifyMocks() throws Exception {

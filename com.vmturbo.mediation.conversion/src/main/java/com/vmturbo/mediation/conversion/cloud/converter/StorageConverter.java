@@ -7,9 +7,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.vmturbo.mediation.conversion.cloud.CloudDiscoveryConverter;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
 import com.vmturbo.mediation.conversion.util.ConverterUtils;
@@ -19,7 +16,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.RatioDependency;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ConsumerPolicy;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
@@ -33,8 +29,6 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
  * tiers when converting the VMs and other consumers.
  */
 public class StorageConverter implements IEntityConverter {
-
-    private final Logger logger = LogManager.getLogger();
 
     private SDKProbeType probeType;
 
@@ -96,12 +90,6 @@ public class StorageConverter implements IEntityConverter {
 
                         // volume owned by business account
                         converter.ownedByBusinessAccount(volumeId);
-
-                        // Set Volume Consumer Policy based on its descriptor's value
-                        if (file.getDoNotDelete()) {
-                            logger.debug("File {} with doNotDelete==true -> Setting ConsumerPolicy.deletable to false", file.getPath());
-                            volume.setConsumerPolicy(ConsumerPolicy.newBuilder().setDeletable(false).build());
-                        }
                     })
                 );
             });

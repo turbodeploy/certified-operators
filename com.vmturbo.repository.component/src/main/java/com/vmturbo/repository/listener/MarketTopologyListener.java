@@ -64,6 +64,7 @@ public class MarketTopologyListener implements
             onProjectedTopologyReceivedInternal(projectedTopologyId, originalTopologyInfo,
                     projectedTopo);
         } catch (CommunicationException | InterruptedException e) {
+            // TODO This message is very required by plan orchestrator. Need to do something here
             logger.error(
                     "Failed to send notification about received topology " + projectedTopologyId, e);
         }
@@ -140,7 +141,7 @@ public class MarketTopologyListener implements
                 .startTimer();
 
         final TopologyCreator<ProjectedTopologyEntity> topologyCreator =
-                topologyManager.newProjectedTopologyCreator(tid, originalTopologyInfo);
+            topologyManager.newProjectedTopologyCreator(tid, originalTopologyInfo);
         try {
             topologyCreator.initialize();
             logger.info("Start updating topology {}", tid);
@@ -158,35 +159,29 @@ public class MarketTopologyListener implements
             topologyCreator.complete();
             SharedMetrics.TOPOLOGY_COUNTER.labels(SharedMetrics.PROJECTED_LABEL, SharedMetrics.PROCESSED_LABEL).increment();
             logger.info("Finished updating topology {} with {} entities", tid, numberOfEntities);
-            notificationSender.onProjectedTopologyAvailable(projectedTopologyId, topologyContextId);
-            timer.observe();
         } catch (InterruptedException e) {
-            logger.error("Thread interrupted receiving topology " + projectedTopologyId, e);
+            logger.info("Thread interrupted receiving topology " + projectedTopologyId, e);
             SharedMetrics.TOPOLOGY_COUNTER.labels(SharedMetrics.PROJECTED_LABEL, SharedMetrics.FAILED_LABEL).increment();
-            notificationSender.onProjectedTopologyFailure(projectedTopologyId, topologyContextId,
-                    "Thread interrupted when receiving projected topology " + projectedTopologyId +
-                            " + for context " + topologyContextId + ": " + e.getMessage());
             topologyCreator.rollback();
-            throw e;
+            return;
         } catch (CommunicationException | TimeoutException | TopologyEntitiesException
             | GraphDatabaseException | ArangoDBException e) {
             logger.error(
                 "Error occurred during retrieving projected topology " + projectedTopologyId, e);
             SharedMetrics.TOPOLOGY_COUNTER.labels(SharedMetrics.PROJECTED_LABEL, SharedMetrics.FAILED_LABEL).increment();
             notificationSender.onProjectedTopologyFailure(projectedTopologyId, topologyContextId,
-                "Error receiving projected topology " + projectedTopologyId +
-                        " + for context " + topologyContextId + ": " + e.getMessage());
+                "Error receiving projected topology " + projectedTopologyId
+                    + ": " + e.getMessage());
             topologyCreator.rollback();
             return;
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             logger.error("Exception while receiving projected topology " + projectedTopologyId, e);
             SharedMetrics.TOPOLOGY_COUNTER.labels(SharedMetrics.PROJECTED_LABEL, SharedMetrics.FAILED_LABEL).increment();
-            notificationSender.onProjectedTopologyFailure(projectedTopologyId, topologyContextId,
-                    "Error receiving projected topology " + projectedTopologyId +
-                            " + for context " + topologyContextId + ": " + e.getMessage());
-                topologyCreator.rollback();
+            topologyCreator.rollback();
             throw e;
         }
+        notificationSender.onProjectedTopologyAvailable(projectedTopologyId, topologyContextId);
+        timer.observe();
     }
 
     @Override

@@ -6,7 +6,6 @@ import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.number.IsCloseTo.closeTo;
 
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -14,7 +13,6 @@ import static org.mockito.Mockito.when;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -26,10 +24,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -41,7 +37,6 @@ import com.vmturbo.api.component.external.api.util.stats.ImmutableTimeWindow;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.GlobalScope;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.StatsQueryScope;
-import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
@@ -85,28 +80,11 @@ public class CloudCostsStatsSubQueryTest {
     @Mock
     private ThinTargetCache thinTargetCache;
 
-    private static final long CLOUD_SERVICE_ID_1 = 1L;
-    private static final long CLOUD_SERVICE_ID_2 = 2L;
-    private static final String CLOUD_SERVICE_NAME_1 = "CLOUD_SERVICE_1";
-    private static final String CLOUD_SERVICE_NAME_2 = "CLOUD_SERVICE_2";
-
-    private final MinimalEntity cloudService1 = MinimalEntity.newBuilder()
-            .setDisplayName(CLOUD_SERVICE_NAME_1)
-            .setEntityType(UIEntityType.CLOUD_SERVICE.typeNumber())
-            .setOid(CLOUD_SERVICE_ID_1)
-            .build();
-
-    private final MinimalEntity cloudService2 = MinimalEntity.newBuilder()
-            .setDisplayName(CLOUD_SERVICE_NAME_2)
-            .setEntityType(UIEntityType.CLOUD_SERVICE.typeNumber())
-            .setOid(CLOUD_SERVICE_ID_2)
-            .build();
-
     @Before
     public void setup() {
         MockitoAnnotations.initMocks(this);
         CostServiceBlockingStub costRpc = CostServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
-        query = Mockito.spy(new CloudCostsStatsSubQuery(repositoryApi, costRpc, supplyChainFetcherFactory, thinTargetCache));
+        query = new CloudCostsStatsSubQuery(repositoryApi, costRpc, supplyChainFetcherFactory, thinTargetCache);
     }
 
     @Test
@@ -298,79 +276,6 @@ public class CloudCostsStatsSubQueryTest {
         assertThat(aggregatedRecords.get(0).getStatRecordsCount(), is(1));
         assertThat((double)aggregatedRecords.get(0).getStatRecords(0).getValues().getTotal(),
             closeTo(88d, 0.01d));
-    }
-
-    /**
-     * Tests the case where we are getting the stats grouped by cloud services.
-     */
-    @Test
-    public void testGetAggregateStatsGroupByCloudService() {
-
-        // expected filters
-        StatFilterApiDTO filter1 = new StatFilterApiDTO();
-        filter1.setType(CloudCostsStatsSubQuery.CLOUD_SERVICE);
-        filter1.setValue(CLOUD_SERVICE_NAME_1);
-
-        StatFilterApiDTO filter2 = new StatFilterApiDTO();
-        filter2.setType(CloudCostsStatsSubQuery.CLOUD_SERVICE);
-        filter2.setValue(CLOUD_SERVICE_NAME_2);
-
-        // build
-        Map<Long, MinimalEntity> cloudServiceDTOs = ImmutableMap.<Long, MinimalEntity>builder()
-                .put(CLOUD_SERVICE_ID_1, cloudService1)
-                .put(CLOUD_SERVICE_ID_2, cloudService2)
-                .build();
-        Mockito.doReturn(cloudServiceDTOs).when(query).getDiscoveredServiceDTO();
-
-        StatApiInputDTO queryStat = new StatApiInputDTO();
-        queryStat.setGroupBy(Collections.singletonList(CloudCostsStatsSubQuery.CLOUD_SERVICE));
-        queryStat.setRelatedEntityType("CloudService");
-        final Set<StatApiInputDTO> requestedStats = Collections.singleton(queryStat);
-
-        StatsQueryContext context = mock(StatsQueryContext.class);
-        ApiId apiId = mock(ApiId.class);
-        when(context.getInputScope()).thenReturn(apiId);
-
-        List<CloudCostStatRecord> records = Collections.singletonList(CloudCostStatRecord.newBuilder()
-                .setSnapshotDate(1234L)
-                .addStatRecords(createCloudServiceStatRecord(CLOUD_SERVICE_ID_1, 10.0f))
-                .addStatRecords(createCloudServiceStatRecord(CLOUD_SERVICE_ID_2, 12.0f))
-                .build());
-        Mockito.doReturn(records).when(query).getCloudExpensesRecordList(anySetOf(String.class),
-                anySetOf(Long.class), any(StatsQueryContext.class));
-
-        // test
-        try {
-            Map<Long, List<StatApiDTO>> stats = query.getAggregateStats(requestedStats, context);
-
-            // assert
-            assertThat(stats.size(), is(1));
-
-            Map<String, List<StatFilterApiDTO>> cloudServiceToFilters = stats.values().stream()
-                    .flatMap(List::stream)
-                    .collect(Collectors.toList())
-                    .stream()
-                    .collect(Collectors.toMap(
-                            statApiDTO -> statApiDTO.getRelatedEntity().getUuid(),
-                            StatApiDTO::getFilters));
-
-            assertThat(cloudServiceToFilters.get(Long.toString(CLOUD_SERVICE_ID_1)).size(), is(1));
-            assertThat(cloudServiceToFilters.get(Long.toString(CLOUD_SERVICE_ID_1)).get(0), is(filter1));
-            assertThat(cloudServiceToFilters.get(Long.toString(CLOUD_SERVICE_ID_2)).size(), is(1));
-            assertThat(cloudServiceToFilters.get(Long.toString(CLOUD_SERVICE_ID_2)).get(0), is(filter2));
-
-        } catch (OperationFailedException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private StatRecord createCloudServiceStatRecord(long cloudServiceId, float cost) {
-        return StatRecord.newBuilder()
-                .setAssociatedEntityId(cloudServiceId)
-                .setAssociatedEntityType(UIEntityType.CLOUD_SERVICE.typeNumber())
-                .setUnits("$/h")
-                .setValues(StatValue.newBuilder().setAvg(cost).build())
-                .build();
     }
 
     @Test
