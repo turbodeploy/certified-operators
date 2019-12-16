@@ -37,6 +37,7 @@ import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.group.db.GroupComponent;
+import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
@@ -68,11 +69,11 @@ public class GroupDaoSearchTest {
     private static final String tagValue2 = "tag-value2";
     private static final Set<MemberType> EXPECTED_MEMBERS =
             Collections.singleton(MemberType.newBuilder().setEntity(1).build());
-    private static final long OID1 = 1001L;
-    private static final long OID2 = 1002L;
-    private static final long OID3 = 1003L;
 
     private final AtomicInteger counter = new AtomicInteger(0);
+    private long oid1;
+    private long oid2;
+    private long oid3;
 
     /**
      * Initialize local variables.
@@ -82,7 +83,8 @@ public class GroupDaoSearchTest {
     @Before
     public void setup() throws Exception {
         final DSLContext dslContext = dbConfig.getDslContext();
-        groupStore = new GroupDAO(dslContext);
+        final IdentityProvider identityProvider = new IdentityProvider(0);
+        groupStore = new GroupDAO(dslContext, identityProvider);
 
         final Origin userOrigin = createUserOrigin();
         final Origin systemOrigin = createSystemOrigin();
@@ -103,9 +105,9 @@ public class GroupDaoSearchTest {
                 .setType(GroupType.COMPUTE_HOST_CLUSTER)
                 .setDisplayName("grandFatherGroup")
                 .build();
-        groupStore.createGroup(OID1, userOrigin, group1, EXPECTED_MEMBERS, true);
-        groupStore.createGroup(OID2, systemOrigin, group2, EXPECTED_MEMBERS, true);
-        groupStore.createGroup(OID3, discovered, group3, EXPECTED_MEMBERS, true);
+        oid1 = groupStore.createGroup(userOrigin, group1, EXPECTED_MEMBERS, true);
+        oid2 = groupStore.createGroup(systemOrigin, group2, EXPECTED_MEMBERS, true);
+        oid3 = groupStore.createGroup(discovered, group3, EXPECTED_MEMBERS, true);
     }
 
     /**
@@ -115,7 +117,7 @@ public class GroupDaoSearchTest {
     public void testGroupSearchAllGroups() {
         final Collection<Grouping> groupsAll =
                 groupStore.getGroups(GroupDTO.GroupFilter.newBuilder().build());
-        Assert.assertEquals(Sets.newHashSet(OID1, OID3),
+        Assert.assertEquals(Sets.newHashSet(oid1, oid3),
                 groupsAll.stream().map(Grouping::getId).collect(Collectors.toSet()));
     }
 
@@ -132,7 +134,7 @@ public class GroupDaoSearchTest {
                                 .addOrigin(Type.USER)
                                 .build())
                         .build());
-        Assert.assertEquals(Sets.newHashSet(OID1, OID3),
+        Assert.assertEquals(Sets.newHashSet(oid1, oid3),
                 groupsSystemDiscovered.stream().map(Grouping::getId).collect(Collectors.toSet()));
     }
 
@@ -150,7 +152,7 @@ public class GroupDaoSearchTest {
                                         .addOptions(Long.toString(OWNER_ID)))
                                 .build())
                         .build());
-        Assert.assertEquals(Collections.singleton(OID3),
+        Assert.assertEquals(Collections.singleton(oid3),
                 groupsNotHiddenWithOwner.stream().map(Grouping::getId).collect(Collectors.toSet()));
     }
 
@@ -162,10 +164,10 @@ public class GroupDaoSearchTest {
         // search by ids including hidden
         final Collection<Grouping> groupsByIdAll = groupStore.getGroups(
                 GroupDTO.GroupFilter.newBuilder(GroupProtoUtil.createGroupFilterByIds(
-                        Arrays.asList(OID1, OID2)))
+                        Arrays.asList(oid1, oid2)))
                         .setIncludeHidden(true)
                         .build());
-        Assert.assertEquals(Sets.newHashSet(OID1, OID2),
+        Assert.assertEquals(Sets.newHashSet(oid1, oid2),
                 groupsByIdAll.stream().map(Grouping::getId).collect(Collectors.toSet()));
     }
 
@@ -184,7 +186,7 @@ public class GroupDaoSearchTest {
                                         .setCaseSensitive(true)))
                         .setIncludeHidden(true)
                         .build());
-        Assert.assertEquals(Sets.newHashSet(OID2),
+        Assert.assertEquals(Sets.newHashSet(oid2),
                 groupsByDisplayName1.stream().map(Grouping::getId).collect(Collectors.toSet()));
     }
 
@@ -203,7 +205,7 @@ public class GroupDaoSearchTest {
                                         .setCaseSensitive(false)))
                         .setIncludeHidden(true)
                         .build());
-        Assert.assertEquals(Sets.newHashSet(OID2, OID3),
+        Assert.assertEquals(Sets.newHashSet(oid2, oid3),
                 groupsByDisplayName2.stream().map(Grouping::getId).collect(Collectors.toSet()));
     }
 
@@ -222,7 +224,7 @@ public class GroupDaoSearchTest {
                                         .setCaseSensitive(false)))
                         .setIncludeHidden(true)
                         .build());
-        Assert.assertEquals(Sets.newHashSet(OID2, OID3),
+        Assert.assertEquals(Sets.newHashSet(oid2, oid3),
                 groupsByDisplayName3.stream().map(Grouping::getId).collect(Collectors.toSet()));
     }
 
@@ -241,7 +243,7 @@ public class GroupDaoSearchTest {
                                         .addValues(tagValue2)))
                         .setIncludeHidden(true)
                         .build());
-        Assert.assertEquals(Sets.newHashSet(OID1, OID2),
+        Assert.assertEquals(Sets.newHashSet(oid1, oid2),
                 groupsByTags.stream().map(Grouping::getId).collect(Collectors.toSet()));
     }
 
@@ -254,7 +256,7 @@ public class GroupDaoSearchTest {
                 GroupDTO.GroupFilter.newBuilder()
                         .setGroupType(GroupType.COMPUTE_HOST_CLUSTER)
                         .build());
-        Assert.assertEquals(Sets.newHashSet(OID3),
+        Assert.assertEquals(Sets.newHashSet(oid3),
                 groupsByTags.stream().map(Grouping::getId).collect(Collectors.toSet()));
     }
 

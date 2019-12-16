@@ -279,7 +279,7 @@ public class PolicyRpcServiceTest {
     }
 
     @Test(expected = UserAccessException.class)
-    public void testEditPolicyCantAccessExisting() throws Exception {
+    public void testEditPolicyCantAccessExisting() {
         // verify that a scoped user trying to edit an existing policy they can't access will fail
 
         // this user has access to group 1 but not group 2
@@ -315,7 +315,7 @@ public class PolicyRpcServiceTest {
     }
 
     @Test(expected = UserAccessException.class)
-    public void testEditPolicyChangesOutOfScope() throws Exception {
+    public void testEditPolicyChangesOutOfScope() {
         // verify that a scoped user can't edit a policy to include groups out of scope
 
         // this user has access to group 1 but not group 2
@@ -582,7 +582,7 @@ public class PolicyRpcServiceTest {
     }
 
     @Test
-    public void testGetAllPoliciesForScopedUser() throws Exception {
+    public void testGetAllPoliciesForScopedUser() {
         final PolicyDTO.PolicyRequest request = PolicyDTO.PolicyRequest.getDefaultInstance();
         final Collection<PolicyDTO.Policy> testPolicies = ImmutableList.of(
                 Policy.newBuilder().setId(1L)
@@ -628,7 +628,7 @@ public class PolicyRpcServiceTest {
     }
 
     @Test
-    public void testCreateByScopedUser() throws Exception {
+    public void testCreateByScopedUser() throws DuplicateNameException {
         // this user has access to group 1 but not group 2
         when(userSessionContext.isUserScoped()).thenReturn(true);
         when(groupRpcService.userHasAccessToGrouping(groupStore, 1L)).thenReturn(true);
@@ -664,7 +664,7 @@ public class PolicyRpcServiceTest {
     }
 
     @Test(expected =  UserAccessException.class)
-    public void testCreateByScopedUserFail() throws Exception {
+    public void testCreateByScopedUserFail() {
         // this user has access to group 1 but not group 2
         when(userSessionContext.isUserScoped()).thenReturn(true);
         when(groupRpcService.userHasAccessToGrouping(groupStore, 1L)).thenReturn(true);

@@ -102,7 +102,6 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.components.common.identity.OidSet;
 import com.vmturbo.group.group.GroupDAO.DiscoveredGroupIdImpl;
-import com.vmturbo.group.group.GroupMembersPlain;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.TemporaryGroupCache;
@@ -133,7 +132,6 @@ public class GroupRpcServiceTest {
     private MockTransactionProvider transactionProvider;
     private IGroupStore groupStoreDAO;
     private GrpcTestServer testServer;
-    private IdentityProvider identityProvider;
 
     private final GroupDefinition testGrouping = GroupDefinition.newBuilder()
                     .setType(GroupType.REGULAR)
@@ -170,7 +168,7 @@ public class GroupRpcServiceTest {
         searchServiceMole = Mockito.spy(new SearchServiceMole());
         testServer = GrpcTestServer.newServer(searchServiceMole);
         testServer.start();
-        identityProvider = Mockito.spy(new IdentityProvider(0));
+        final IdentityProvider identityProvider = new IdentityProvider(0);
         groupStitchingManager = new GroupStitchingManager(identityProvider);
         SearchServiceBlockingStub searchServiceRpc = SearchServiceGrpc.newBlockingStub(testServer.getChannel());
         transactionProvider = new MockTransactionProvider();
@@ -179,8 +177,7 @@ public class GroupRpcServiceTest {
                 searchServiceRpc,
                 userSessionContext,
                 groupStitchingManager,
-                transactionProvider,
-                identityProvider);
+                transactionProvider);
         when(temporaryGroupCache.getGrouping(anyLong())).thenReturn(Optional.empty());
         when(temporaryGroupCache.deleteGrouping(anyLong())).thenReturn(Optional.empty());
         MockitoAnnotations.initMocks(this);
@@ -904,7 +901,7 @@ public class GroupRpcServiceTest {
     }
 
     @Test
-    public void testGetMembersExpansionDynamic() throws Exception {
+    public void testGetMembersExpansionDynamic() {
         final long groupId = 1234L;
         final List<Long> cluster1Members = Arrays.asList(10L, 11L);
         final List<Long> cluster2Members = Arrays.asList(20L, 21L);
@@ -977,8 +974,9 @@ public class GroupRpcServiceTest {
                         .setGroupFilter(groupFilter)
                         .build();
 
-        Mockito.when(groupStoreDAO.getGroupIds(request.getGroupFilter()))
-                .thenReturn(Collections.singleton(1L));
+        given(groupStoreDAO.getGroups(request.getGroupFilter())).willReturn(Arrays.asList(cluster1));
+
+
         final StreamObserver<GroupDTO.GetMembersResponse> mockObserver =
                 mock(StreamObserver.class);
 
@@ -995,9 +993,6 @@ public class GroupRpcServiceTest {
 
         verify(mockObserver).onNext(expectedNonExpandedResponse);
 
-        Mockito.when(groupStoreDAO.getMembers(Mockito.any(), Mockito.anyBoolean()))
-                .thenReturn(new GroupMembersPlain(new HashSet<>(cluster1Members),
-                        Collections.emptySet(), Collections.emptySet()));
         // verify that a request WITH expansion should get all of the cluster members.
         final GroupDTO.GetMembersRequest requestExpanded = GroupDTO.GetMembersRequest.newBuilder()
                 .setId(groupId)
@@ -1235,10 +1230,12 @@ public class GroupRpcServiceTest {
                         mock(StreamObserver.class);
 
         long groupingOid = 5;
-        Mockito.when(identityProvider.next()).thenReturn(groupingOid).thenReturn(-1L);
+        given(groupStoreDAO
+                        .createGroup(eq(origin), eq(group), any(),
+                                        eq(true))).willReturn(groupingOid);
 
         groupRpcService.createGroup(groupRequest, mockObserver);
-        verify(groupStoreDAO).createGroup(eq(groupingOid), eq(origin), eq(group), any(),
+        verify(groupStoreDAO).createGroup(eq(origin), eq(group), any(),
                         eq(true));
         verify(mockObserver).onNext(CreateGroupResponse.newBuilder()
                 .setGroup(Grouping
@@ -1320,7 +1317,7 @@ public class GroupRpcServiceTest {
 
         //Verify the group was not created
         verify(groupStoreDAO, never())
-            .createGroup(Mockito.anyLong(), Mockito.anyObject(), Mockito.anyObject(),
+            .createGroup(Mockito.anyObject(), Mockito.anyObject(),
                             Mockito.anyObject(), Mockito.anyBoolean());
 
         //Verify we send the error response
@@ -1352,7 +1349,7 @@ public class GroupRpcServiceTest {
 
         //Verify the group was not created
         verify(groupStoreDAO, never())
-            .createGroup(Mockito.anyLong(), Mockito.anyObject(), Mockito.anyObject(),
+            .createGroup(Mockito.anyObject(), Mockito.anyObject(),
                             Mockito.anyObject(), Mockito.anyBoolean());
         //Verify we send the error response
         final ArgumentCaptor<StatusException> exceptionCaptor =
@@ -1387,7 +1384,7 @@ public class GroupRpcServiceTest {
 
         //Verify the group was not created
         verify(groupStoreDAO, never())
-                .createGroup(Mockito.anyLong(), Mockito.anyObject(), Mockito.anyObject(),
+                .createGroup(Mockito.anyObject(), Mockito.anyObject(),
                                 Mockito.anyObject(), Mockito.anyBoolean());
 
         //Verify we send the error response
@@ -1540,9 +1537,9 @@ public class GroupRpcServiceTest {
                         mock(StreamObserver.class);
         final String message = "some error occurred";
         Mockito.doThrow(new StoreOperationException(Status.ABORTED, message))
-                .when(groupStoreDAO)
-                .createGroup(Mockito.anyLong(), Mockito.anyObject(), Mockito.anyObject(),
-                        Mockito.anyObject(), Mockito.anyBoolean());
+            .when(groupStoreDAO).createGroup(Mockito.anyObject(), Mockito.anyObject(),
+                            Mockito.anyObject(),
+                            Mockito.anyBoolean());
 
         groupRpcService.createGroup(groupRequest, mockObserver);
 

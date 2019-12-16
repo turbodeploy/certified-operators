@@ -4,10 +4,12 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -26,29 +28,29 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.GroupFilters;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.OptimizationMetadata;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
-import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
-import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.group.db.GroupComponent;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroupId;
+import com.vmturbo.group.identity.IdentityProvider;
+import com.vmturbo.group.policy.PolicyStore;
 import com.vmturbo.group.service.StoreOperationException;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
  * Unit test to cover {@link GroupDAO} functionality.
@@ -68,11 +70,6 @@ public class GroupDaoTest {
             ImmutableSet.of(MemberType.newBuilder().setEntity(1).build(),
                     MemberType.newBuilder().setGroup(GroupType.COMPUTE_HOST_CLUSTER).build(),
                     MemberType.newBuilder().setGroup(GroupType.STORAGE_CLUSTER).build());
-    private static final long OID1 = 100001L;
-    private static final long OID2 = 100002L;
-    private static final long OID3 = 100003L;
-    private static final long OID4 = 100004L;
-    private static final long OID5 = 100005L;
 
     /**
      * Expected exception rule.
@@ -81,15 +78,18 @@ public class GroupDaoTest {
     public ExpectedException expectedException = ExpectedException.none();
 
     private GroupDAO groupStore;
-    private TestGroupGenerator groupGenerator;
+
+    private PolicyStore policyStore;
+
+    private final AtomicInteger counter = new AtomicInteger(0);
 
     /**
      * Initialize local variables.
      */
     @Before
     public void setup() {
-        this.groupGenerator = new TestGroupGenerator();
-        groupStore = new GroupDAO(dbConfig.getDslContext());
+        final IdentityProvider identityProvider = new IdentityProvider(0);
+        groupStore = new GroupDAO(dbConfig.getDslContext(), identityProvider);
     }
 
     /**
@@ -101,11 +101,13 @@ public class GroupDaoTest {
      */
     @Test
     public void testUpdateDiscoveredGroupCollection() throws Exception {
-        final Origin user = groupGenerator.createUserOrigin();
+        final Origin user = createUserOrigin();
         final GroupDefinition userGroup1Def = createGroupDefinition();
         final GroupDefinition userGroup2Def = createGroupDefinition();
-        groupStore.createGroup(OID1, user, userGroup1Def, EXPECTED_MEMBERS, true);
-        groupStore.createGroup(OID2, user, userGroup2Def, EXPECTED_MEMBERS, true);
+        final long userOid1 =
+                groupStore.createGroup(user, userGroup1Def, EXPECTED_MEMBERS, true);
+        final long userOid2 =
+                groupStore.createGroup(user, userGroup2Def, EXPECTED_MEMBERS, true);
         final String src1 = "discovered-group-1";
         final String src2 = "discovered-group-2";
         final String src3 = "discovered-group-3";
@@ -136,8 +138,8 @@ public class GroupDaoTest {
 
         assertGroupsEqual(group2, agroup2);
         assertGroupsEqual(group3, agroup3);
-        final Grouping userGroup1 = groupStore.getGroup(OID1).get();
-        final Grouping userGroup2 = groupStore.getGroup(OID2).get();
+        final Grouping userGroup1 = groupStore.getGroup(userOid1).get();
+        final Grouping userGroup2 = groupStore.getGroup(userOid2).get();
         Assert.assertEquals(userGroup1Def, userGroup1.getDefinition());
         Assert.assertEquals(userGroup2Def, userGroup2.getDefinition());
 
@@ -206,10 +208,10 @@ public class GroupDaoTest {
                 .setDisplayName(groupDef2.getDisplayName())
                 .build();
         final Origin origin = createUserOrigin();
-        groupStore.createGroup(OID1, origin, groupDef1, EXPECTED_MEMBERS, false);
-        groupStore.createGroup(OID2, origin, groupDef2, EXPECTED_MEMBERS, false);
+        final long oid1 = groupStore.createGroup(origin, groupDef1, EXPECTED_MEMBERS, false);
+        final long oid2 = groupStore.createGroup(origin, groupDef2, EXPECTED_MEMBERS, false);
         expectedException.expect(new StoreExceptionMatcher(Status.ALREADY_EXISTS));
-        groupStore.updateGroup(OID1, groupDef3, Collections.emptySet(), false);
+        groupStore.updateGroup(oid1, groupDef3, Collections.emptySet(), false);
     }
 
     /**
@@ -223,15 +225,15 @@ public class GroupDaoTest {
         final Set<MemberType> memberTypes = Collections.singleton(MemberType.newBuilder()
             .setEntity(1).build());
 
-        groupStore.createGroup(OID1, origin, groupDefinition, memberTypes, true);
+        final long oid = groupStore.createGroup(origin, groupDefinition, memberTypes, true);
 
-        final Grouping originalGroup = groupStore.getGroup(OID1).get();
+        final Grouping originalGroup = groupStore.getGroup(oid).get();
 
         GroupDefinition updatedGroupDefinition = GroupDefinition.newBuilder(groupDefinition)
             .setDisplayName("Updated display name").build();
 
-        Grouping updatedGrouping =
-                groupStore.updateGroup(OID1, updatedGroupDefinition, memberTypes, true);
+        Grouping updatedGrouping = groupStore.updateGroup(oid, updatedGroupDefinition, memberTypes,
+            true);
 
         Assert.assertEquals("Updated display name",
             updatedGrouping.getDefinition().getDisplayName());
@@ -256,8 +258,8 @@ public class GroupDaoTest {
                 Arrays.asList(MemberType.newBuilder().setEntity(1).build(),
                         MemberType.newBuilder().setGroup(GroupType.COMPUTE_HOST_CLUSTER).build()));
 
-        groupStore.createGroup(OID1, origin, groupDefinition, memberTypes, true);
-        final GroupDTO.Grouping group1 = groupStore.getGroup(OID1).get();
+        final long oid = groupStore.createGroup(origin, groupDefinition, memberTypes, true);
+        final GroupDTO.Grouping group1 = groupStore.getGroup(oid).get();
         Assert.assertEquals(origin, group1.getOrigin());
         Assert.assertEquals(groupDefinition, group1.getDefinition());
         Assert.assertEquals(memberTypes, new HashSet<>(group1.getExpectedTypesList()));
@@ -279,8 +281,8 @@ public class GroupDaoTest {
                 Arrays.asList(MemberType.newBuilder().setEntity(1).build(),
                         MemberType.newBuilder().setGroup(GroupType.STORAGE_CLUSTER).build()));
 
-        groupStore.createGroup(OID1, origin, groupDefinition, memberTypes, false);
-        final GroupDTO.Grouping group1 = groupStore.getGroup(OID1).get();
+        final long oid1 = groupStore.createGroup(origin, groupDefinition, memberTypes, false);
+        final GroupDTO.Grouping group1 = groupStore.getGroup(oid1).get();
         Assert.assertEquals(origin, group1.getOrigin());
         Assert.assertEquals(groupDefinition, group1.getDefinition());
         Assert.assertEquals(memberTypes, new HashSet<>(group1.getExpectedTypesList()));
@@ -291,11 +293,11 @@ public class GroupDaoTest {
                         .addMembersByType(StaticMembersByType.newBuilder()
                                 .setType(
                                         MemberType.newBuilder().setGroup(GroupType.STORAGE_CLUSTER))
-                                .addMembers(OID1)))
+                                .addMembers(oid1)))
                 .build();
 
-        groupStore.createGroup(OID2, origin, groupDefinition2, memberTypes, false);
-        final GroupDTO.Grouping group2 = groupStore.getGroup(OID2).get();
+        final long oid2 = groupStore.createGroup(origin, groupDefinition2, memberTypes, false);
+        final GroupDTO.Grouping group2 = groupStore.getGroup(oid2).get();
         Assert.assertEquals(origin, group2.getOrigin());
         Assert.assertEquals(groupDefinition2, group2.getDefinition());
         Assert.assertEquals(memberTypes, new HashSet<>(group2.getExpectedTypesList()));
@@ -323,7 +325,7 @@ public class GroupDaoTest {
                         MemberType.newBuilder().setGroup(GroupType.STORAGE_CLUSTER).build()));
         expectedException.expect(IllegalArgumentException.class);
         expectedException.expectMessage(nonExistingProperty);
-        groupStore.createGroup(OID1, createUserOrigin(), groupDefinition, memberTypes, false);
+        groupStore.createGroup(createUserOrigin(), groupDefinition, memberTypes, false);
     }
 
     /**
@@ -337,8 +339,9 @@ public class GroupDaoTest {
                 .setStaticGroupMembers(StaticMembers.newBuilder().build())
                 .build();
         final Origin origin = createUserOrigin();
-        groupStore.createGroup(OID1, origin, groupDefinition, Collections.emptySet(), true);
-        final GroupDTO.Grouping group = groupStore.getGroup(OID1).get();
+        final long oid1 =
+                groupStore.createGroup(origin, groupDefinition, Collections.emptySet(), true);
+        final GroupDTO.Grouping group = groupStore.getGroup(oid1).get();
         Assert.assertEquals(groupDefinition, group.getDefinition());
     }
 
@@ -356,19 +359,19 @@ public class GroupDaoTest {
                 Arrays.asList(MemberType.newBuilder().setEntity(1).build(),
                         MemberType.newBuilder().setGroup(GroupType.COMPUTE_HOST_CLUSTER).build()));
 
-        groupStore.createGroup(OID1, origin, groupDefinition, memberTypes, false);
+        final long oid1 = groupStore.createGroup(origin, groupDefinition, memberTypes, false);
 
         final GroupDefinition groupDefinition2 = GroupDefinition.newBuilder(createGroupDefinition())
                 .setStaticGroupMembers(StaticMembers.newBuilder()
                         .addMembersByType(StaticMembersByType.newBuilder()
                                 .setType(
                                         MemberType.newBuilder().setGroup(GroupType.STORAGE_CLUSTER))
-                                .addMembers(OID1)))
+                                .addMembers(oid1)))
                 .build();
 
         expectedException.expect(new StoreExceptionMatcher(Status.INVALID_ARGUMENT,
                 GroupType.STORAGE_CLUSTER.toString()));
-        groupStore.createGroup(OID2, origin, groupDefinition2, memberTypes, false);
+        groupStore.createGroup(origin, groupDefinition2, memberTypes, false);
     }
 
     /**
@@ -392,7 +395,7 @@ public class GroupDaoTest {
                                 .addMembers(-1)))
                 .build();
         expectedException.expect(new StoreExceptionMatcher(Status.INVALID_ARGUMENT, "-1"));
-        groupStore.createGroup(OID1, origin, groupDefinition, memberTypes, false);
+        groupStore.createGroup(origin, groupDefinition, memberTypes, false);
     }
 
     /**
@@ -410,7 +413,7 @@ public class GroupDaoTest {
                 .build();
         final GroupDefinition groupDefinition = createGroupDefinition();
         expectedException.expect(new StoreExceptionMatcher(Status.INVALID_ARGUMENT));
-        groupStore.createGroup(OID1, origin, groupDefinition, Collections.emptySet(), false);
+        groupStore.createGroup(origin, groupDefinition, Collections.emptySet(), false);
     }
 
     /**
@@ -437,15 +440,15 @@ public class GroupDaoTest {
                 .setDisplayName(groupDefinition1.getDisplayName())
                 .build();
 
-        groupStore.createGroup(OID1, origin1, groupDefinition1, memberTypes, false);
-        groupStore.createGroup(OID2, origin2, groupDefinition2, memberTypes, false);
-        final GroupDTO.Grouping group1 = groupStore.getGroup(OID1).get();
-        final GroupDTO.Grouping group2 = groupStore.getGroup(OID2).get();
+        final long oid1 = groupStore.createGroup(origin1, groupDefinition1, memberTypes, false);
+        final long oid2 = groupStore.createGroup(origin2, groupDefinition2, memberTypes, false);
+        final GroupDTO.Grouping group1 = groupStore.getGroup(oid1).get();
+        final GroupDTO.Grouping group2 = groupStore.getGroup(oid2).get();
         Assert.assertEquals(groupDefinition1, group1.getDefinition());
         Assert.assertEquals(groupDefinition2, group2.getDefinition());
 
         expectedException.expect(new StoreExceptionMatcher(Status.ALREADY_EXISTS));
-        groupStore.createGroup(OID3, origin1, groupDuplicated, memberTypes, false);
+        groupStore.createGroup(origin1, groupDuplicated, memberTypes, false);
     }
 
     /**
@@ -460,8 +463,7 @@ public class GroupDaoTest {
                 .clearStaticGroupMembers()
                 .build();
         expectedException.expect(new StoreExceptionMatcher(Status.INVALID_ARGUMENT));
-        groupStore.createGroup(OID1, createUserOrigin(), groupDefinition, Collections.emptySet(),
-                false);
+        groupStore.createGroup(createUserOrigin(), groupDefinition, Collections.emptySet(), false);
     }
 
     /**
@@ -485,8 +487,8 @@ public class GroupDaoTest {
         final Set<MemberType> memberTypes = ImmutableSet.of(
                 MemberType.newBuilder().setGroup(GroupType.COMPUTE_HOST_CLUSTER).build(),
                 MemberType.newBuilder().setEntity(445).build());
-        groupStore.createGroup(OID1, createUserOrigin(), groupDefinition, memberTypes, false);
-        final Optional<Grouping> group = groupStore.getGroup(OID1);
+        final long oid = groupStore.createGroup(createUserOrigin(), groupDefinition, memberTypes, false);
+        final Optional<Grouping> group = groupStore.getGroup(oid);
         Assert.assertEquals(
                 new HashSet<>(groupDefinition.getStaticGroupMembers().getMembersByTypeList()),
                 new HashSet<>(group.map(Grouping::getDefinition)
@@ -534,11 +536,13 @@ public class GroupDaoTest {
         final Origin origin = createUserOrigin();
         final GroupDefinition groupDefinition1 = createGroupDefinition();
         final GroupDefinition groupDefinition2 = createGroupDefinition();
-        groupStore.createGroup(OID1, origin, groupDefinition1, EXPECTED_MEMBERS, false);
-        groupStore.createGroup(OID2, origin, groupDefinition2, EXPECTED_MEMBERS, false);
-        groupStore.deleteGroup(OID1);
-        Assert.assertEquals(Optional.empty(), groupStore.getGroup(OID1));
-        final GroupDTO.Grouping group = groupStore.getGroup(OID2).get();
+        final long oid1 =
+                groupStore.createGroup(origin, groupDefinition1, EXPECTED_MEMBERS, false);
+        final long oid2 =
+                groupStore.createGroup(origin, groupDefinition2, EXPECTED_MEMBERS, false);
+        groupStore.deleteGroup(oid1);
+        Assert.assertEquals(Optional.empty(), groupStore.getGroup(oid1));
+        final GroupDTO.Grouping group = groupStore.getGroup(oid2).get();
         Assert.assertEquals(groupDefinition2, group.getDefinition());
         Assert.assertEquals(origin, group.getOrigin());
     }
@@ -570,9 +574,9 @@ public class GroupDaoTest {
                         .putTags(tag2, TagValuesDTO.newBuilder().addValues(value2).build())
                         .putTags(tag2, TagValuesDTO.newBuilder().addValues(value3).build()))
                 .build();
-        groupStore.createGroup(OID1, origin, groupDefinition1, EXPECTED_MEMBERS, true);
-        groupStore.createGroup(OID2, origin, groupDefinition2, EXPECTED_MEMBERS, true);
-        groupStore.createGroup(OID3, origin, groupDefinition3, EXPECTED_MEMBERS, true);
+        groupStore.createGroup(origin, groupDefinition1, EXPECTED_MEMBERS, true);
+        groupStore.createGroup(origin, groupDefinition2, EXPECTED_MEMBERS, true);
+        groupStore.createGroup(origin, groupDefinition3, EXPECTED_MEMBERS, true);
         final Map<String, Set<String>> actualTags = groupStore.getTags();
         Assert.assertEquals(Sets.newHashSet(value1, value2), actualTags.get(tag1));
         Assert.assertEquals(Sets.newHashSet(value2, value3), actualTags.get(tag2));
@@ -603,15 +607,16 @@ public class GroupDaoTest {
                                 .addAllMembers(group2members)
                                 .build()))
                 .build();
-        groupStore.createGroup(OID1, origin, groupDefinition1, EXPECTED_MEMBERS, true);
-        groupStore.createGroup(OID2, origin, groupDefinition2,
+        final long oid1 =
+                groupStore.createGroup(origin, groupDefinition1, EXPECTED_MEMBERS, true);
+        final long oid2 = groupStore.createGroup(origin, groupDefinition2,
                 Collections.singleton(MemberType.newBuilder().setEntity(234).build()), true);
         final Set<GroupDTO.Grouping> groups100 = groupStore.getStaticGroupsForEntity(100L);
         final Set<GroupDTO.Grouping> groups1 =
                 groupStore.getStaticGroupsForEntity(group1members.iterator().next());
-        Assert.assertEquals(Collections.singleton(OID2),
+        Assert.assertEquals(Collections.singleton(oid2),
                 groups100.stream().map(GroupDTO.Grouping::getId).collect(Collectors.toSet()));
-        Assert.assertEquals(new HashSet<>(Arrays.asList(OID1, OID2)),
+        Assert.assertEquals(new HashSet<>(Arrays.asList(oid1, oid2)),
                 groups1.stream().map(GroupDTO.Grouping::getId).collect(Collectors.toSet()));
     }
 
@@ -622,105 +627,80 @@ public class GroupDaoTest {
      * @throws Exception on exceptions occurred.
      */
     @Test
-    public void testGetMembers() throws Exception {
+    public void testGetStaticMembers() throws Exception {
         final Origin origin = createUserOrigin();
         final GroupDefinition child1 = createGroupDefinition();
         final GroupDefinition child2 = GroupDefinition.newBuilder(createGroupDefinition())
                 .setType(GroupType.COMPUTE_HOST_CLUSTER)
                 .build();
-        final EntityFilters entityFilters = EntityFilters.newBuilder()
-                .addEntityFilter(EntityFilter.newBuilder()
-                        .setEntityType(EntityType.STORAGE_VALUE)
-                        .setSearchParametersCollection(SearchParametersCollection.newBuilder()
-                                .addSearchParameters(SearchParameters.newBuilder()
-                                        .setStartingFilter(PropertyFilter.newBuilder()
-                                                .setPropertyName("oid")
-                                                .setStringFilter(StringFilter.newBuilder()
-                                                        .addOptions("awr232421342"))))))
-                .build();
-        final GroupDefinition child3 = GroupDefinition.newBuilder(createGroupDefinition())
-                .setType(GroupType.STORAGE_CLUSTER)
-                .setEntityFilters(entityFilters)
-                .build();
-        final GroupDefinition child4 = GroupDefinition.newBuilder(createGroupDefinition())
-                .setGroupFilters(GroupFilters.newBuilder()
-                        .addGroupFilter(GroupFilter.newBuilder()
-                                .setGroupType(GroupType.STORAGE_CLUSTER)
-                                .build()))
-                .build();
-        groupStore.createGroup(OID1, origin, child1, EXPECTED_MEMBERS, true);
-        groupStore.createGroup(OID2, origin, child2, EXPECTED_MEMBERS, true);
-        groupStore.createGroup(OID3, origin, child3, EXPECTED_MEMBERS, true);
-        groupStore.createGroup(OID4, origin, child4, EXPECTED_MEMBERS, true);
-        final long oidEntity = 123456L;
+        final long oid1 = groupStore.createGroup(origin, child1, EXPECTED_MEMBERS, true);
+        final long oid2 = groupStore.createGroup(origin, child2, EXPECTED_MEMBERS, true);
+        final long oid3 = 123456L;
         final GroupDefinition container = GroupDefinition.newBuilder(createGroupDefinition())
                 .setStaticGroupMembers(StaticMembers.newBuilder()
                         .addMembersByType(StaticMembersByType.newBuilder()
                                 .setType(MemberType.newBuilder().setGroup(GroupType.REGULAR))
-                                .addMembers(OID1)
+                                .addMembers(oid1)
                                 .build())
                         .addMembersByType(StaticMembersByType.newBuilder()
                                 .setType(MemberType.newBuilder()
                                         .setGroup(GroupType.COMPUTE_HOST_CLUSTER))
-                                .addMembers(OID2)
-                                .build())
-                        .addMembersByType(StaticMembersByType.newBuilder()
-                                .setType(MemberType.newBuilder().setGroup(GroupType.REGULAR))
-                                .addMembers(OID4)
+                                .addMembers(oid2)
                                 .build())
                         .addMembersByType(StaticMembersByType.newBuilder()
                                 .setType(MemberType.newBuilder().setEntity(34))
-                                .addMembers(oidEntity)
+                                .addMembers(oid3)
                                 .build()))
                 .build();
         final Set<MemberType> expectedMemberTypes =
                 ImmutableSet.of(MemberType.newBuilder().setGroup(GroupType.REGULAR).build(),
                         MemberType.newBuilder().setGroup(GroupType.COMPUTE_HOST_CLUSTER).build(),
                         MemberType.newBuilder().setEntity(34).build());
-        groupStore.createGroup(OID5, origin, container, expectedMemberTypes, true);
-        final GroupMembersPlain members =
-                groupStore.getMembers(Collections.singleton(OID5), true);
-        final Set<Long> expectedEntities = new HashSet<>();
-        expectedEntities.add(oidEntity);
-        expectedEntities.addAll(getEntityMembers(child1));
-        expectedEntities.addAll(getEntityMembers(child2));
-        expectedEntities.addAll(getEntityMembers(child3));
-        expectedEntities.addAll(getEntityMembers(child4));
-        Assert.assertEquals(Sets.newHashSet(OID1, OID2, OID3, OID4), members.getGroupIds());
-        Assert.assertEquals(expectedEntities, members.getEntityIds());
-        Assert.assertEquals(Collections.singleton(entityFilters), members.getEntityFilters());
+        final long parentOid =
+                groupStore.createGroup(origin, container, expectedMemberTypes, true);
+        final Pair<Set<Long>, Set<Long>> members = groupStore.getStaticMembers(parentOid);
+        Assert.assertEquals(Pair.create(Collections.singleton(oid3), Sets.newHashSet(oid1, oid2)),
+                members);
     }
 
-    @Nonnull
-    private Set<Long> getEntityMembers(@Nonnull GroupDefinition groupDefinition) {
-        return groupDefinition.getStaticGroupMembers()
-                .getMembersByTypeList()
-                .stream()
-                .filter(member -> member.getType().hasEntity())
-                .map(StaticMembersByType::getMembersList)
-                .flatMap(Collection::stream)
-                .collect(Collectors.toSet());
-    }
+
     /**
-     * Tests removal of all the groups from the DAO. Method is expected to remove all the groups
-     * regardless of their origins.
+     * Tests how the data is restored from diagnostics. All the groups dumped initially should
+     * be restored using {@link com.vmturbo.components.common.diagnostics.Diagnosable} interfaces
+     * call.
      *
      * @throws Exception on exceptions occurred
      */
     @Test
-    public void testDeleteAllGroups() throws Exception {
-        final DiscoveredGroup discoveredGroup =
-                createUploadedGroup("some-id", Arrays.asList(2L, 3L));
-        groupStore.updateDiscoveredGroups(Collections.singleton(discoveredGroup),
-                Collections.emptyList(), Collections.emptySet());
-        groupStore.createGroup(OID1, createUserOrigin(), createGroupDefinition(), EXPECTED_MEMBERS,
-                true);
-        groupStore.createGroup(OID2, createSystemOrigin(), createGroupDefinition(),
+    public void testDiags() throws Exception {
+        final String src1 = "discovered-group-1";
+        final String src2 = "discovered-group-2";
+        final DiscoveredGroup group1 = createUploadedGroup(src1, Arrays.asList(1L, 2L));
+        final DiscoveredGroup group2 = createUploadedGroup(src2, Arrays.asList(1L, 3L));
+        final DiscoveredGroup groupNew = createUploadedGroup(src2, Arrays.asList(1L, 3L));
+        groupStore.updateDiscoveredGroups(Arrays.asList(group1, group2), Collections.emptyList(),
+                Collections.emptySet());
+        final long oid1 = groupStore.createGroup(createUserOrigin(), createGroupDefinition(),
                 EXPECTED_MEMBERS, true);
-        Assert.assertEquals(3, groupStore.getGroups(GroupFilter.newBuilder().build()).size());
-        groupStore.deleteAllGroups();
-        Assert.assertEquals(Collections.emptySet(),
-                new HashSet<>(groupStore.getGroups(GroupFilter.newBuilder().build())));
+        final long oid2 = groupStore.createGroup(createUserOrigin(), createGroupDefinition(),
+                EXPECTED_MEMBERS, true);
+        final Collection<GroupDTO.Grouping> allGroups1 =
+                groupStore.getGroups(GroupDTO.GroupFilter.newBuilder().build());
+        Assert.assertEquals(4, allGroups1.size());
+        final List<String> dumpedData = groupStore.collectDiagsStream()
+            .collect(Collectors.toList());
+
+        groupStore.deleteGroup(oid1);
+        groupStore.updateDiscoveredGroups(Collections.singleton(groupNew), Collections.emptyList(),
+                new HashSet<>(Arrays.asList(group1.getOid(), group2.getOid())));
+        final Collection<GroupDTO.Grouping> allGroups2 =
+                groupStore.getGroups(GroupDTO.GroupFilter.newBuilder().build());
+        Assert.assertEquals(2, allGroups2.size());
+
+        groupStore.restoreDiags(dumpedData);
+        final Collection<GroupDTO.Grouping> restoredGroups =
+                groupStore.getGroups(GroupDTO.GroupFilter.newBuilder().build());
+        Assert.assertEquals(new HashSet<>(allGroups1), new HashSet<>(restoredGroups));
     }
 
     private void assertGroupsEqual(@Nonnull DiscoveredGroup expectedDiscGroup,
@@ -737,22 +717,48 @@ public class GroupDaoTest {
     @Nonnull
     private DiscoveredGroup createUploadedGroup(@Nonnull String srcId,
             @Nonnull Collection<Long> targetIds) {
-        return groupGenerator.createUploadedGroup(srcId, targetIds);
+        final GroupDefinition groupDefinition = createGroupDefinition();
+        final List<MemberType> types = Arrays.asList(MemberType.newBuilder().setEntity(1).build(),
+                MemberType.newBuilder().setGroup(GroupType.REGULAR).build());
+        return new DiscoveredGroup(counter.getAndIncrement(), groupDefinition, srcId,
+                new HashSet<>(targetIds), types, false);
     }
 
     @Nonnull
     private GroupDefinition createGroupDefinition() {
-        return groupGenerator.createGroupDefinition();
+        return GroupDefinition.newBuilder()
+                .setType(GroupType.REGULAR)
+                .setDisplayName("Group-" + counter.getAndIncrement())
+                .setStaticGroupMembers(StaticMembers.newBuilder()
+                        .addMembersByType(StaticMembersByType.newBuilder()
+                                .setType(MemberType.newBuilder().setEntity(1))
+                                .addMembers(counter.getAndIncrement())))
+                .setTags(Tags.newBuilder()
+                        .putTags("tag", TagValuesDTO.newBuilder()
+                                .addValues("tag1")
+                                .addValues("tag" + counter.getAndIncrement())
+                                .build()))
+                .setIsHidden(false)
+                .setOptimizationMetadata(OptimizationMetadata.newBuilder()
+                        .setIsGlobalScope(false)
+                        .setEnvironmentType(EnvironmentType.ON_PREM)
+                        .build())
+                .build();
     }
 
     @Nonnull
     private Origin createUserOrigin() {
-        return groupGenerator.createUserOrigin();
+        return Origin.newBuilder()
+                .setUser(Origin.User.newBuilder().setUsername("user-" + counter.getAndIncrement()))
+                .build();
     }
 
     @Nonnull
     private Origin createSystemOrigin() {
-        return groupGenerator.createSystemOrigin();
+        return Origin.newBuilder()
+                .setSystem(Origin.System.newBuilder()
+                        .setDescription("system-group-" + counter.getAndIncrement()))
+                .build();
     }
 
     /**

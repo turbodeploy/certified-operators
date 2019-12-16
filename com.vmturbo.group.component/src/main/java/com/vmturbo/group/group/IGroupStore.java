@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -17,6 +18,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
  * Store to operate with groups. It is responsible to create, save and query groups.
@@ -28,15 +30,15 @@ public interface IGroupStore {
      * call. Discovered groups should be created with {@link #updateDiscoveredGroups(Collection,
      * Collection, Set)}
      *
-     * @param oid oid for the new group
      * @param origin origin of this group
      * @param groupDefinition group definition
      * @param expecMemberTypes expected members types of this group
      * @param supportReverseLookup whether the group supports reverse lookups
+     * @return OID of the newly create group
      * @throws StoreOperationException if operation failed
      * @see #updateDiscoveredGroups(Collection, Collection, Set)
      */
-    void createGroup(long oid, @Nonnull Origin origin, @Nonnull GroupDefinition groupDefinition,
+    long createGroup(@Nonnull Origin origin, @Nonnull GroupDefinition groupDefinition,
             @Nonnull Set<MemberType> expecMemberTypes, boolean supportReverseLookup)
             throws StoreOperationException;
 
@@ -54,7 +56,7 @@ public interface IGroupStore {
      *
      * @param groupId group id to update
      * @param groupDefinition new data to set
-     * @param expectedMemberTypes expected members types for this group
+     * @param expectedMemberTypes expected mebers types for this group
      * @param supportReverseLookups whether this group supports reverse lookups
      * @return group object
      * @throws StoreOperationException if operation failed
@@ -72,15 +74,6 @@ public interface IGroupStore {
      */
     @Nonnull
     Collection<Grouping> getGroups(@Nonnull GroupDTO.GroupFilter groupFilter);
-
-    /**
-     * Returns collection of group ids, conforming to the request specified.
-     *
-     * @param groupFilter request to query
-     * @return collection of groups
-     */
-    @Nonnull
-    Collection<Long> getGroupIds(@Nonnull GroupDTO.GroupFilter groupFilter);
 
     /**
      * Deletes the group specified by id.
@@ -136,15 +129,12 @@ public interface IGroupStore {
      * recursion. Only direct static members are returned. If group is a dynamic group or
      * it does not have any members, this method returns empty set.
      *
-     * @param groupIds ids of groups to get members for
-     * @param expandNestedGroups whether to expand nested groups. If this value is {@code
-     *         false} only direct members will be returned.
-     * @return collection of members: oids and entity filters
-     * @throws StoreOperationException if error occurred during data reading operations.
+     * @param groupId group id to search
+     * @return set of member entities and set of member groups. If group does not exist or it
+     *         does not have any static members empty collections will be returned.
      */
     @Nonnull
-    GroupMembersPlain getMembers(Collection<Long> groupIds, boolean expandNestedGroups)
-            throws StoreOperationException;
+    Pair<Set<Long>, Set<Long>> getStaticMembers(long groupId);
 
     /**
      * Returns static groups containing the specified entity. No recursion will be performed
@@ -157,13 +147,14 @@ public interface IGroupStore {
     Set<Grouping> getStaticGroupsForEntity(long entityId);
 
     /**
-     * Method deletes all the groups in the store. Should be used only when the whole set
-     * of groups has to be replaced with a new one. There are no checks for immutable groups
-     * implied here. All groups are just deleted.
+     * Subscribe to deletion of user or system group. The callback will not be called for any
+     * discovered groups. Callback receives a OID of the group after the deletion.
+     *
+     * @param consumer callback
      */
-    void deleteAllGroups();
+    void subscribeUserGroupRemoved(@Nonnull Consumer<Long> consumer);
 
-    /**
+        /**
      * Class to hold discovered group information.
      */
     @Immutable

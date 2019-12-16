@@ -1,7 +1,8 @@
 package com.vmturbo.group.service;
 
-import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -10,12 +11,12 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
-
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
@@ -62,35 +63,17 @@ public class PolicyRpcService extends PolicyServiceImplBase {
     @Override
     public void getAllPolicies(final PolicyDTO.PolicyRequest request,
                                final StreamObserver<PolicyDTO.PolicyResponse> responseObserver) {
-        final Predicate<Policy> userScopeFilter;
-        final Collection<Policy> allPolicies = policyStore.getAll();
-        if (userSessionContext.isUserScoped()) {
-            // create a predicate that will check user access to a group id using a cache of results.
-            // (the cache is to help speed up the case where the same groups are used in several policies)
-            final Set<Long> accessedGroups = new HashSet<>();
-            final Set<Long> groups = allPolicies.stream()
-                    .map(GroupProtoUtil::getPolicyGroupIds)
-                    .flatMap(Collection::stream)
-                    .collect(Collectors.toSet());
-            try {
-                for (Long groupId : groups) {
-                    if (groupService.userHasAccessToGrouping(groupStore, groupId)) {
-                        accessedGroups.add(groupId);
-                    }
-                }
-            } catch (StoreOperationException e) {
-                responseObserver.onError(e.getStatus().asException());
-                return;
-            }
-            userScopeFilter =
-                    policy -> accessedGroups.containsAll(GroupProtoUtil.getPolicyGroupIds(policy));
-        } else {
-            userScopeFilter = policy -> true;
-        }
-
-        allPolicies.stream()
-                .filter(userScopeFilter)
-                .map(policy -> PolicyDTO.PolicyResponse.newBuilder().setPolicy(policy).build())
+        // create a predicate that will check user access to a group id using a cache of results.
+        // (the cache is to help speed up the case where the same groups are used in several policies)
+        Map<Long, Boolean> groupAccessFlags = new HashMap<>();
+        Predicate<Long> userHasAccessToGroupId =
+                groupId -> groupAccessFlags.computeIfAbsent(groupId,
+                        id -> groupService.userHasAccessToGrouping(groupStore, id));
+        policyStore.getAll().stream()
+                .filter(policy -> isPolicyAccessible(policy, userHasAccessToGroupId))
+                .map(policy -> PolicyDTO.PolicyResponse.newBuilder()
+                        .setPolicy(policy)
+                        .build())
                 .forEach(responseObserver::onNext);
         responseObserver.onCompleted();
     }
@@ -110,16 +93,10 @@ public class PolicyRpcService extends PolicyServiceImplBase {
         logger.info("Getting policy with ID {}", policyID);
 
         final PolicyDTO.PolicyResponse.Builder response = PolicyDTO.PolicyResponse.newBuilder();
-        final Optional<Policy> policy = policyStore.get(policyID);
-        if (policy.isPresent()) {
-            try {
-                checkPolicyAccess(policy.get());
-            } catch (StoreOperationException e) {
-                responseObserver.onError(e.getStatus().asException());
-                return;
-            }
-            response.setPolicy(policy.get());
-        }
+        policyStore.get(policyID).ifPresent(policy -> {
+            checkPolicyAccess(policy);
+            response.setPolicy(policy);
+        });
         responseObserver.onNext(response.build());
         responseObserver.onCompleted();
     }
@@ -134,13 +111,8 @@ public class PolicyRpcService extends PolicyServiceImplBase {
             return;
         }
 
-        try {
-            // check access on the policy contents before proceeding
-            checkPolicyAccess(Policy.newBuilder().setPolicyInfo(request.getPolicyInfo()).build());
-        } catch (StoreOperationException e) {
-            responseObserver.onError(e.getStatus().asException());
-            return;
-        }
+        // check access on the policy contents before proceeding
+        checkPolicyAccess(Policy.newBuilder().setPolicyInfo(request.getPolicyInfo()).build());
 
         // make sure we're not merging clusters that are already in a merge policy
         try {
@@ -180,26 +152,18 @@ public class PolicyRpcService extends PolicyServiceImplBase {
             responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asException());
             return;
         }
+        if (userSessionContext.isUserScoped()) {
+            // verify that the updated policy would fit the scoping rules
+            checkPolicyAccess(Policy.newBuilder().setPolicyInfo(request.getNewPolicyInfo()).build());
+
+            // verify the existing policy is accessible too
+            policyStore.get(request.getPolicyId()).ifPresent(this::checkPolicyAccess);
+        }
+
+        // make sure we're not merging any cluster that's already merged elsewhere
         try {
-            if (userSessionContext.isUserScoped()) {
-                try {
-                    // verify that the updated policy would fit the scoping rules
-                    checkPolicyAccess(Policy.newBuilder().setPolicyInfo(request.getNewPolicyInfo()).build());
-
-                    // verify the existing policy is accessible too
-                    final Optional<Policy> policy = policyStore.get(request.getPolicyId());
-                    if (policy.isPresent()) {
-                        checkPolicyAccess(policy.get());
-                    }
-                } catch (StoreOperationException e) {
-                    responseObserver.onError(e.getStatus().asException());
-                    return;
-                }
-            }
-
-            // make sure we're not merging any cluster that's already merged elsewhere
             checkForInvalidClusterMergePolicy(request.getNewPolicyInfo(),
-                    Optional.of(request.getPolicyId()));
+                Optional.of(request.getPolicyId()));
         } catch (IllegalArgumentException e) {
             responseObserver.onError(
                 Status.INVALID_ARGUMENT.withDescription(e.getMessage()).asException());
@@ -231,16 +195,10 @@ public class PolicyRpcService extends PolicyServiceImplBase {
         } else {
             final long id = request.getPolicyId();
             // verify the user has access to the policy
-            try {
-                if (userSessionContext.isUserScoped()) {
-                    final Optional<Policy> policy = policyStore.get(request.getPolicyId());
-                    if (policy.isPresent()) {
-                        checkPolicyAccess(policy.get());
-                    }
-                }
-            } catch (StoreOperationException e) {
-                responseObserver.onError(e.getStatus().asException());
-                return;
+            if (userSessionContext.isUserScoped()) {
+                policyStore.get(id).ifPresent(policy -> {
+                    checkPolicyAccess(policy);
+                });
             }
             try {
                 final PolicyDTO.Policy policy = policyStore.deleteUserPolicy(id);
@@ -311,15 +269,27 @@ public class PolicyRpcService extends PolicyServiceImplBase {
             : defaultName;
     }
 
-    private void checkPolicyAccess(Policy policy) throws StoreOperationException {
-        if (!userSessionContext.isUserScoped()) {
+    private void checkPolicyAccess(Policy policy) {
+        if (isPolicyAccessible(policy)) {
             return;
         }
-        final Set<Long> groupsInPolicy = GroupProtoUtil.getPolicyGroupIds(policy);
-        for (Long groupId: groupsInPolicy) {
-            if (!groupService.userHasAccessToGrouping(groupStore, groupId)) {
-                throw new UserAccessException("User does not have access to policy");
-            }
-        }
+        throw new UserAccessException("User does not have access to policy");
     }
+
+    // is the policy accessible to the current user?
+    private boolean isPolicyAccessible(Policy policy) {
+        return isPolicyAccessible(policy,
+                (id) -> groupService.userHasAccessToGrouping(groupStore, id));
+    }
+
+    // policy access check with injectible predicate
+    private boolean isPolicyAccessible(Policy policy, Predicate<Long> groupAccessCheck) {
+        // check that the user has access to all of the groups associated with the policy.
+        if (! userSessionContext.isUserScoped()) {
+            return true;
+        }
+        Set<Long> groupsInPolicy = GroupProtoUtil.getPolicyGroupIds(policy);
+        return groupsInPolicy.stream().allMatch(groupAccessCheck);
+    }
+
 }

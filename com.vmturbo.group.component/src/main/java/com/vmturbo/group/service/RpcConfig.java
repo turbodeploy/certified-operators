@@ -84,7 +84,7 @@ public class RpcConfig {
     @Bean
     public TransactionProvider transactionProvider() {
         return new TransactionProviderImpl(policyConfig.policyStore(), settingConfig.settingStore(),
-                databaseConfig.dsl());
+                databaseConfig.dsl(), identityProviderConfig.identityProvider());
     }
 
     /**
@@ -94,10 +94,12 @@ public class RpcConfig {
      */
     @Bean
     public GroupRpcService groupService() {
-        return new GroupRpcService(groupConfig.temporaryGroupCache(),
+        return new GroupRpcService(
+                groupConfig.temporaryGroupCache(),
                 repositoryClientConfig.searchServiceClient(),
-                userSessionConfig.userSessionContext(), groupStitchingManager(),
-                transactionProvider(), identityProviderConfig.identityProvider());
+                userSessionConfig.userSessionContext(),
+                groupStitchingManager(),
+                transactionProvider());
     }
 
     /**

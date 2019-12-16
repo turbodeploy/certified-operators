@@ -9,10 +9,8 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory;
 import com.vmturbo.components.common.diagnostics.DiagsZipReaderFactory.DefaultDiagsZipReader;
 import com.vmturbo.group.group.GroupConfig;
-import com.vmturbo.group.group.GroupDaoDiagnostics;
 import com.vmturbo.group.policy.PolicyConfig;
 import com.vmturbo.group.schedule.ScheduleConfig;
-import com.vmturbo.group.service.RpcConfig;
 import com.vmturbo.group.setting.SettingConfig;
 
 /**
@@ -22,8 +20,7 @@ import com.vmturbo.group.setting.SettingConfig;
 @Import({GroupConfig.class,
         PolicyConfig.class,
         SettingConfig.class,
-        ScheduleConfig.class,
-        RpcConfig.class})
+        ScheduleConfig.class})
 public class GroupDiagnosticsConfig {
 
     @Autowired
@@ -38,9 +35,6 @@ public class GroupDiagnosticsConfig {
     @Autowired
     private ScheduleConfig scheduleConfig;
 
-    @Autowired
-    private RpcConfig rpcConfig;
-
     @Bean
     public DiagnosticsWriter diagnosticsWriter() {
         return new DiagnosticsWriter();
@@ -53,20 +47,9 @@ public class GroupDiagnosticsConfig {
 
     @Bean
     public GroupDiagnosticsHandler diagsHandler() {
-        return new GroupDiagnosticsHandler(groupStoreDiagnostics(), policyConfig.policyStore(),
-                settingConfig.settingStore(), scheduleConfig.scheduleStore(),
-                recursiveZipReaderFactory(), diagnosticsWriter());
-
-    }
-
-    /**
-     * Bean responsible for dumping diagnostics from group DAO.
-     *
-     * @return group diagnostics bean
-     */
-    @Bean
-    public GroupDaoDiagnostics groupStoreDiagnostics() {
-        return new GroupDaoDiagnostics(rpcConfig.transactionProvider());
+        return new GroupDiagnosticsHandler(groupConfig.groupStore(), policyConfig.policyStore(),
+            settingConfig.settingStore(), scheduleConfig.scheduleStore(), recursiveZipReaderFactory(),
+            diagnosticsWriter());
     }
 
     @Bean

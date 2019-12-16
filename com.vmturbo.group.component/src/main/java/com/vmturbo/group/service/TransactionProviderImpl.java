@@ -17,6 +17,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
 import com.vmturbo.group.group.GroupDAO;
 import com.vmturbo.group.group.IGroupStore;
+import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.policy.IPlacementPolicyStore;
 import com.vmturbo.group.policy.PolicyStore;
 import com.vmturbo.group.setting.ISettingPolicyStore;
@@ -30,6 +31,7 @@ public class TransactionProviderImpl implements TransactionProvider {
     private final PolicyStore policyStore;
     private final SettingStore settingStore;
     private final DSLContext dslContext;
+    private final IdentityProvider identityProvider;
 
     /**
      * Constructs transaction provider for RPC services.
@@ -37,12 +39,15 @@ public class TransactionProviderImpl implements TransactionProvider {
      * @param policyStore placement policy store to use
      * @param settingStore setting policy store to use
      * @param dslContext Jooq connection
+     * @param identityProvider identity provider
      */
     public TransactionProviderImpl(@Nonnull PolicyStore policyStore,
-            @Nonnull SettingStore settingStore, @Nonnull DSLContext dslContext) {
+            @Nonnull SettingStore settingStore, @Nonnull DSLContext dslContext,
+            @Nonnull IdentityProvider identityProvider) {
         this.policyStore = Objects.requireNonNull(policyStore);
         this.settingStore = Objects.requireNonNull(settingStore);
         this.dslContext = Objects.requireNonNull(dslContext);
+        this.identityProvider = Objects.requireNonNull(identityProvider);
     }
 
     @Nonnull
@@ -55,7 +60,7 @@ public class TransactionProviderImpl implements TransactionProvider {
                 final Stores stores =
                         new StoresImpl(new SettingPolicyStoreImpl(settingStore, transactionContext),
                                 new PlacementPolicyStoreImpl(policyStore, transactionContext),
-                                new GroupDAO(transactionContext));
+                                new GroupDAO(transactionContext, identityProvider));
                 return operation.execute(stores);
             });
         } catch (DataAccessException | org.springframework.dao.DataAccessException e) {
