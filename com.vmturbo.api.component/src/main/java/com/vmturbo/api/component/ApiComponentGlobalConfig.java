@@ -87,6 +87,7 @@ public class ApiComponentGlobalConfig extends WebMvcConfigurerAdapter {
             .excludePathPatterns("/license/**")
             .excludePathPatterns("/checkInit")
             .excludePathPatterns("/initAdmin")
+            .excludePathPatterns("/notifications/**")
             .excludePathPatterns("/users/administrator/reset")
             .excludePathPatterns("/cluster/proactive/initialized")
             .excludePathPatterns("/cluster/proactive/enabled")
