@@ -310,7 +310,8 @@ public class RIStatsSubQuery implements StatsSubQuery {
         }
 
         @Nonnull
-        GetReservedInstanceCoverageStatsRequest createCoverageRequest(@Nonnull final StatsQueryContext context) throws OperationFailedException {
+        GetReservedInstanceCoverageStatsRequest createCoverageRequest(
+                @Nonnull final StatsQueryContext context) throws OperationFailedException {
             final GetReservedInstanceCoverageStatsRequest.Builder reqBuilder =
                 GetReservedInstanceCoverageStatsRequest.newBuilder();
             context.getTimeWindow().ifPresent(timeWindow -> {
@@ -321,25 +322,44 @@ public class RIStatsSubQuery implements StatsSubQuery {
             if (context.getInputScope().getScopeTypes().isPresent()
                             && !context.getInputScope().getScopeTypes().get().isEmpty()) {
 
+                final Set<Long> scopeEntities = new HashSet<>();
+                if (context.getInputScope().isGroup()) {
+                    if (context.getInputScope().getCachedGroupInfo().isPresent()) {
+                        scopeEntities.addAll(context.getInputScope().getCachedGroupInfo().get().getEntityIds());
+                    }
+                } else {
+                    scopeEntities.add(context.getInputScope().oid());
+                }
+
                 if (context.getInputScope().getScopeTypes().get().size() != 1) {
                     //TODO (mahdi) Change the logic to support scopes with more than one type
                     throw new IllegalStateException("Scopes with more than one type is not supported.");
                 }
 
-                final UIEntityType type = context.getInputScope().getScopeTypes().get().iterator().next();
-                final Set<Long> scopeEntities = context.getQueryScope().getEntities();
-                if (type == UIEntityType.REGION) {
-                    reqBuilder.setRegionFilter(RegionFilter.newBuilder()
-                        .addAllRegionId(scopeEntities));
-                } else if (type == UIEntityType.AVAILABILITY_ZONE) {
-                    reqBuilder.setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
-                        .addAllAvailabilityZoneId(scopeEntities));
-                } else if (type == UIEntityType.BUSINESS_ACCOUNT) {
-                    reqBuilder.setAccountFilter(AccountFilter.newBuilder()
-                        .addAllAccountId(scopeEntities));
-                } else {
-                    reqBuilder.setEntityFilter(EntityFilter.newBuilder()
-                        .addAllEntityId(scopeEntities));
+                final Set<UIEntityType> uiEntityTypes = context.getInputScope().getScopeTypes().get();
+
+                if (CollectionUtils.isEmpty(uiEntityTypes)) {
+                    throw new OperationFailedException("Entity type not present");
+                }
+                final UIEntityType type = uiEntityTypes.stream().findFirst().get();
+
+                switch (type) {
+                    case REGION :
+                        reqBuilder.setRegionFilter(RegionFilter.newBuilder()
+                                .addAllRegionId(scopeEntities));
+                        break;
+                    case AVAILABILITY_ZONE:
+                        reqBuilder.setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
+                                .addAllAvailabilityZoneId(scopeEntities));
+                        break;
+                    case BUSINESS_ACCOUNT:
+                        reqBuilder.setAccountFilter(AccountFilter.newBuilder()
+                                .addAllAccountId(scopeEntities));
+                        break;
+                    default:
+                        reqBuilder.setEntityFilter(EntityFilter.newBuilder()
+                                .addAllEntityId(context.getQueryScope().getEntities()));
+                        break;
                 }
             } else if (!context.isGlobalScope()) {
                 throw new OperationFailedException("Invalid context - must be global or have entity type");
