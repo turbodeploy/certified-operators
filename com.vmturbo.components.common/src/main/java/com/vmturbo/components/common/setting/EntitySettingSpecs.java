@@ -298,34 +298,42 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0.0f/*min*/, 100.0f/*max*/, 10.0f/*default*/), true),
 
     /**
-     * Percentile aggressiveness for business user.
+     * Aggressiveness for business user.
      */
     PercentileAggressivenessBusinessUser("percentileAggressivenessBusinessUser",
-            "Percentile Aggressiveness",
+            SettingConstants.AGGRESSIVENESS,
             Collections.singletonList("resizeRecommendationsConstants"), SettingTiebreaker.BIGGER,
             EnumSet.of(EntityType.BUSINESS_USER), numeric(90.0f, 100.0f, 95.0f), true),
 
     /**
-     * Percentile aggressiveness for virtual machine.
+     * Aggressiveness for virtual machine.
      */
     PercentileAggressivenessVirtualMachine("percentileAggressivenessVirtualMachine",
-            "Percentile Aggressiveness",
+            SettingConstants.AGGRESSIVENESS,
             Collections.singletonList("resizeRecommendationsConstants"), SettingTiebreaker.BIGGER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE), numeric(90.0f, 100.0f, 95.0f), true),
 
     /**
-     * Percentile observation period for business user.
+     * Min observation period for business user.
      */
-    PercentileObservationPeriodBusinessUser("percentileObservationPeriodBusinessUser",
-            "Percentile Observation Period",
+    MinObservationPeriodVirtualMachine("minObservationPeriodVirtualMachine",
+            "Min Observation Period",
+            Collections.singletonList("resizeRecommendationsConstants"), SettingTiebreaker.BIGGER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), numeric(0.0f, 7.0f, 0.0f), true),
+
+    /**
+     * Max observation period for business user.
+     */
+    MaxObservationPeriodBusinessUser("maxObservationPeriodBusinessUser",
+            SettingConstants.MAX_OBSERVATION_PERIOD,
             Collections.singletonList("resizeRecommendationsConstants"), SettingTiebreaker.BIGGER,
             EnumSet.of(EntityType.BUSINESS_USER), numeric(7.0f, 90.0f, 30.0f), true),
 
     /**
-     * Percentile observation period for virtual machine.
+     * Max observation period for virtual machine.
      */
-    PercentileObservationPeriodVirtualMachine("percentileObservationPeriodVirtualMachine",
-            "Percentile Observation Period",
+    MaxObservationPeriodVirtualMachine("maxObservationPeriodVirtualMachine",
+            SettingConstants.MAX_OBSERVATION_PERIOD,
             Collections.singletonList("resizeRecommendationsConstants"), SettingTiebreaker.BIGGER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE), numeric(7.0f, 90.0f, 30.0f), true),
 
@@ -1014,5 +1022,13 @@ public enum EntitySettingSpecs {
     private static SettingDataStructure<?> sortedSetOfOid(@Nonnull final Type type,
                                                           @Nonnull final Set<Long> defaultValue) {
         return new SortedSetOfOidSettingDataType(type, defaultValue);
+    }
+
+    /**
+     * Class for storing setting constants.
+     */
+    private static class SettingConstants {
+        private static final String AGGRESSIVENESS = "Aggressiveness";
+        private static final String MAX_OBSERVATION_PERIOD = "Max Observation Period";
     }
 }

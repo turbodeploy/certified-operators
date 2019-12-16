@@ -41,9 +41,9 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
                         EntitySettingSpecs.PercentileAggressivenessVirtualMachine);
     private static final Map<EntityType, EntitySettingSpecs> TYPE_OBSERVATION_PERIOD = ImmutableMap
                     .of(EntityType.BUSINESS_USER,
-                        EntitySettingSpecs.PercentileObservationPeriodBusinessUser,
+                        EntitySettingSpecs.MaxObservationPeriodBusinessUser,
                         EntityType.VIRTUAL_MACHINE,
-                        EntitySettingSpecs.PercentileObservationPeriodVirtualMachine);
+                        EntitySettingSpecs.MaxObservationPeriodVirtualMachine);
 
     private final Map<CommodityType, PercentileBuckets> buckets = new HashMap<>();
     private final int maintenanceWindowHours;
@@ -68,12 +68,12 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
                                             @Nullable KVConfig kvConfig) {
         super(0, calculationChunkSize);
         // maintenance window cannot exceed minimum observation window
-        int minObservationPeriod = (int)EntitySettingSpecs.PercentileObservationPeriodVirtualMachine
+        final int minMaxObservationPeriod = (int)EntitySettingSpecs.MaxObservationPeriodVirtualMachine
                         .getSettingSpec().getNumericSettingValueType().getMin();
         this.maintenanceWindowHours = Math
                         .min(maintenanceWindowHours <= 0 ? defaultMaintenanceWindowHours
                                         : maintenanceWindowHours,
-                             minObservationPeriod * 24);
+                             minMaxObservationPeriod * 24);
         this.grpcStreamTimeoutSec = grpcStreamTimeoutSec;
         this.blobReadWriteChunkSizeKb = blobReadWriteChunkSizeKb;
         commType2Buckets.forEach((commType, bucketsSpec) -> buckets
@@ -160,7 +160,7 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
     }
 
     private static int getDefaultObservationPeriod() {
-        return (int)EntitySettingSpecs.PercentileObservationPeriodVirtualMachine.getSettingSpec()
+        return (int)EntitySettingSpecs.MaxObservationPeriodVirtualMachine.getSettingSpec()
                         .getNumericSettingValueType().getDefault();
     }
 
