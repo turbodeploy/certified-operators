@@ -16,7 +16,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.plan.orchestrator.db.tables.records.ScenarioRecord;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;

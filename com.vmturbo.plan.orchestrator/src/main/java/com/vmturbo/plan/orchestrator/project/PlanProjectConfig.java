@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
-import com.vmturbo.common.protobuf.plan.PlanDTOREST.PlanProjectServiceController;
+import com.vmturbo.common.protobuf.plan.PlanProjectREST.PlanProjectServiceController;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.group.api.GroupClientConfig;

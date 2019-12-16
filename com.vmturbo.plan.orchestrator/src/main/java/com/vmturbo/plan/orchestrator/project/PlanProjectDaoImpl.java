@@ -22,9 +22,9 @@ import org.jooq.impl.DSL;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.vmturbo.common.protobuf.plan.PlanDTO;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectInfo;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -62,7 +62,7 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
 
     @Nonnull
     @Override
-    public PlanDTO.PlanProject createPlanProject(@Nonnull PlanProjectInfo info) {
+    public PlanProjectOuterClass.PlanProject createPlanProject(@Nonnull PlanProjectInfo info) {
         LocalDateTime curTime = LocalDateTime.now();
 
         PlanProject planProject = new
@@ -70,7 +70,7 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
                 info.getType().name());
         dsl.newRecord(PLAN_PROJECT, planProject).store();
 
-        return PlanDTO.PlanProject.newBuilder()
+        return PlanProjectOuterClass.PlanProject.newBuilder()
                 .setPlanProjectId(planProject.getId())
                 .setPlanProjectInfo(info)
                 .build();
@@ -78,7 +78,7 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
 
     @Nonnull
     @Override
-    public Optional<PlanDTO.PlanProject> getPlanProject(long id) {
+    public Optional<PlanProjectOuterClass.PlanProject> getPlanProject(long id) {
         Optional<PlanProjectRecord> loadedPlanProject = Optional.ofNullable(
                 dsl.selectFrom(PLAN_PROJECT)
                         .where(PLAN_PROJECT.ID.eq(id))
@@ -90,7 +90,7 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
 
     @Nonnull
     @Override
-    public List<PlanDTO.PlanProject> getPlanProjectsByType(@Nonnull final PlanProjectType type) {
+    public List<PlanProjectOuterClass.PlanProject> getPlanProjectsByType(@Nonnull final PlanProjectType type) {
         List<PlanProject> planProjects = dsl
                 .selectFrom(PLAN_PROJECT)
                 .where(PLAN_PROJECT.TYPE.eq(type.name()))
@@ -103,7 +103,7 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
 
     @Nonnull
     @Override
-    public List<PlanDTO.PlanProject> getAllPlanProjects() {
+    public List<PlanProjectOuterClass.PlanProject> getAllPlanProjects() {
         List<PlanProject> planProjects = dsl
                 .selectFrom(PLAN_PROJECT)
                 .fetch()
@@ -115,9 +115,9 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
 
     @Nonnull
     @Override
-    public Optional<PlanDTO.PlanProject> deletePlan(long id) {
+    public Optional<PlanProjectOuterClass.PlanProject> deletePlan(long id) {
         return dsl.transactionResult(configuration -> {
-            Optional<PlanDTO.PlanProject> project =
+            Optional<PlanProjectOuterClass.PlanProject> project =
                     getProject(DSL.using(configuration), id);
             if (project.isPresent()) {
                DSL.using(configuration)
@@ -130,15 +130,15 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
     }
 
     /**
-     * Look up the DB for the provided plan project id, and convert it to PlanDTO.PlanProject, if
+     * Look up the DB for the provided plan project id, and convert it to PlanProjectOuterClass.PlanProject, if
      * plan project id exists in DB, otherwise will return Optional.empty().
      *
      * @param context       the DSLContext
      * @param planProjectId the plan project ID
-     * @return Optional<PlanDTO.PlanProject> the optional PlanDTO.PlanProject
+     * @return The optional PlanProjectOuterClass.PlanProject.
      */
     @Nonnull
-    private Optional<PlanDTO.PlanProject> getProject(@Nonnull final DSLContext context,
+    private Optional<PlanProjectOuterClass.PlanProject> getProject(@Nonnull final DSLContext context,
                                                            final long planProjectId) {
         Optional<PlanProjectRecord> loadedPlanProject = Optional.ofNullable(
                 context.selectFrom(com.vmturbo.plan.orchestrator.db.tables.PlanProject.PLAN_PROJECT)
@@ -150,15 +150,15 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
     }
 
     /**
-     * Convert pojos.PlanProject to PlanDTO.PlanProject.
+     * Convert pojos.PlanProject to PlanProjectOuterClass.PlanProject.
      *
      * @param planProject pojos.PlanProject the pojos.PlanProject from JOOQ
-     * @return PlanDTO.PlanProject the PlanDTO.PlanProject from gRPC
+     * @return PlanProjectOuterClass.PlanProject the PlanProjectOuterClass.PlanProject from gRPC
      */
     @Nonnull
-    private PlanDTO.PlanProject toPlanProjectDTO(
+    private PlanProjectOuterClass.PlanProject toPlanProjectDTO(
             @Nonnull final PlanProject planProject) {
-        return PlanDTO.PlanProject.newBuilder()
+        return PlanProjectOuterClass.PlanProject.newBuilder()
                 .setPlanProjectId(planProject.getId())
                 .setPlanProjectInfo(planProject.getProjectInfo())
                 .build();
@@ -175,10 +175,10 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
     @Nonnull
     @Override
     public Stream<String> collectDiagsStream() {
-        final List<PlanDTO.PlanProject> planProjects = getAllPlanProjects();
+        final List<PlanProjectOuterClass.PlanProject> planProjects = getAllPlanProjects();
         logger.info("Collecting diagnostics for {} plan projects", planProjects.size());
         return planProjects.stream()
-            .map(planProject -> GSON.toJson(planProject, PlanDTO.PlanProject.class));
+            .map(planProject -> GSON.toJson(planProject, PlanProjectOuterClass.PlanProject.class));
     }
 
     /**
@@ -198,7 +198,7 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
 
         final List<String> errors = new ArrayList<>();
 
-        final List<PlanDTO.PlanProject> preexisting = getAllPlanProjects();
+        final List<PlanProjectOuterClass.PlanProject> preexisting = getAllPlanProjects();
         if (!preexisting.isEmpty()) {
             final int numPreexisting = preexisting.size();
             final String clearingMessage = "Clearing " + numPreexisting +
@@ -225,7 +225,7 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
 
         final long count = collectedDiags.stream().map(serialized -> {
             try {
-                return GSON.fromJson(serialized, PlanDTO.PlanProject.class);
+                return GSON.fromJson(serialized, PlanProjectOuterClass.PlanProject.class);
             } catch (JsonParseException e) {
                 errors.add("Failed to deserialize Plan Project " + serialized +
                     " because of parse exception " + e.getMessage());
@@ -250,7 +250,7 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
      * @param planProject the plan project to add
      * @return an optional of a string representing any error that may have occurred
      */
-    private Optional<String> restorePlanProject(@Nonnull final PlanDTO.PlanProject planProject) {
+    private Optional<String> restorePlanProject(@Nonnull final PlanProjectOuterClass.PlanProject planProject) {
         LocalDateTime curTime = LocalDateTime.now();
 
         PlanProject record = new PlanProject(planProject.getPlanProjectId(), curTime, curTime,

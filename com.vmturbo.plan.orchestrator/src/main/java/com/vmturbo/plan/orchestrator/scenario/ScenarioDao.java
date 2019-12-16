@@ -21,8 +21,8 @@ import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
-import com.vmturbo.common.protobuf.plan.PlanDTO;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
@@ -60,7 +60,7 @@ public class ScenarioDao implements Diagnosable {
      * @param scenarioId ID of the scenario to fetch.
      * @return Return the Scenario DTO object.
      */
-    public Optional<PlanDTO.Scenario> getScenario(final long scenarioId) {
+    public Optional<ScenarioOuterClass.Scenario> getScenario(final long scenarioId) {
         Optional<ScenarioRecord> loadedScenario = Optional.ofNullable(
                 dsl.selectFrom(SCENARIO)
                         .where(SCENARIO.ID.eq(scenarioId))
@@ -116,8 +116,8 @@ public class ScenarioDao implements Diagnosable {
      * @param scenario Scenario pojo object.
      * @return return converted Plan.Scenario DTO.
      */
-    public static PlanDTO.Scenario toScenarioDTO(@Nonnull final Scenario scenario) {
-        return PlanDTO.Scenario.newBuilder()
+    public static ScenarioOuterClass.Scenario toScenarioDTO(@Nonnull final Scenario scenario) {
+        return ScenarioOuterClass.Scenario.newBuilder()
             .setId(scenario.getId())
             .setScenarioInfo(scenario.getScenarioInfo())
             .build();

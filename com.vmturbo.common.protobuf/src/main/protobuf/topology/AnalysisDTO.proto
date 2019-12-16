@@ -3,7 +3,8 @@ package topology;
 
 option java_package = "com.vmturbo.common.protobuf.topology";
 
-import "plan/PlanDTO.proto";
+import "plan/Scenario.proto";
+import "plan/PlanProject.proto";
 
 message StartAnalysisRequest {
     // The ID of the plan this analysis request

@@ -15,18 +15,18 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
-import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.PlanDTO;
-import com.vmturbo.common.protobuf.plan.PlanDTO.DeleteScenarioResponse;
-import com.vmturbo.common.protobuf.plan.PlanDTO.GetScenariosOptions;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
-import com.vmturbo.common.protobuf.plan.PlanDTO.UpdateScenarioResponse;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.DeleteScenarioResponse;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.GetScenariosOptions;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.UpdateScenarioRequest;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.UpdateScenarioResponse;
 import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc.ScenarioServiceImplBase;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -57,7 +57,7 @@ public class ScenarioRpcService extends ScenarioServiceImplBase {
     }
 
     @Override
-    public void createScenario(ScenarioInfo info, StreamObserver<PlanDTO.Scenario> responseObserver) {
+    public void createScenario(ScenarioInfo info, StreamObserver<ScenarioOuterClass.Scenario> responseObserver) {
         LocalDateTime curTime = LocalDateTime.now();
 
         // if the user is scoped, we need to check to make sure they have access to the plan scope.
@@ -110,16 +110,16 @@ public class ScenarioRpcService extends ScenarioServiceImplBase {
     }
 
     @Override
-    public void updateScenario(PlanDTO.UpdateScenarioRequest request,
-                               StreamObserver<PlanDTO.UpdateScenarioResponse> responseObserver) {
+    public void updateScenario(UpdateScenarioRequest request,
+                               StreamObserver<UpdateScenarioResponse> responseObserver) {
 
-            Optional<PlanDTO.Scenario> scenario;
+            Optional<ScenarioOuterClass.Scenario> scenario;
             if (request.hasNewInfo()) {
                 int rowsUpdated = scenarioDao.updateScenario(request.getNewInfo(), request.getScenarioId());
                 // On successful update, return the updated scenario object. No
                 // need to do another DB get().
                 if (rowsUpdated == 1) {
-                    scenario = Optional.of(PlanDTO.Scenario.newBuilder()
+                    scenario = Optional.of(ScenarioOuterClass.Scenario.newBuilder()
                                     .setId(request.getScenarioId())
                                     .setScenarioInfo(request.getNewInfo())
                                     .build());
@@ -148,8 +148,8 @@ public class ScenarioRpcService extends ScenarioServiceImplBase {
     }
 
     @Override
-    public void deleteScenario(PlanDTO.ScenarioId request,
-                               StreamObserver<PlanDTO.DeleteScenarioResponse> responseObserver) {
+    public void deleteScenario(ScenarioOuterClass.ScenarioId request,
+                               StreamObserver<DeleteScenarioResponse> responseObserver) {
 
         scenarioDao.deleteScenario(request.getScenarioId());
         responseObserver.onNext(DeleteScenarioResponse.getDefaultInstance());
@@ -157,9 +157,9 @@ public class ScenarioRpcService extends ScenarioServiceImplBase {
     }
 
     @Override
-    public void getScenario(PlanDTO.ScenarioId request,
-                            StreamObserver<PlanDTO.Scenario> responseObserver) {
-        Optional<PlanDTO.Scenario> scenario =
+    public void getScenario(ScenarioOuterClass.ScenarioId request,
+                            StreamObserver<ScenarioOuterClass.Scenario> responseObserver) {
+        Optional<ScenarioOuterClass.Scenario> scenario =
             scenarioDao.getScenario(request.getScenarioId());
         if (scenario.isPresent()) {
             responseObserver.onNext(scenario.get());
@@ -173,7 +173,7 @@ public class ScenarioRpcService extends ScenarioServiceImplBase {
 
     @Override
     public void getScenarios(GetScenariosOptions request,
-                             StreamObserver<PlanDTO.Scenario> responseObserver) {
+                             StreamObserver<ScenarioOuterClass.Scenario> responseObserver) {
 
         scenarioDao.getScenarios()
             .stream()
@@ -183,8 +183,8 @@ public class ScenarioRpcService extends ScenarioServiceImplBase {
         responseObserver.onCompleted();
     }
 
-    private PlanDTO.Scenario emptyScenarioDTO(final long scenarioId) {
-        return PlanDTO.Scenario.newBuilder()
+    private ScenarioOuterClass.Scenario emptyScenarioDTO(final long scenarioId) {
+        return ScenarioOuterClass.Scenario.newBuilder()
             .setId(scenarioId)
             .build();
     }

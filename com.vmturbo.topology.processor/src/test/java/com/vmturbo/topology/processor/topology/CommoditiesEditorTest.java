@@ -18,11 +18,11 @@ import org.mockito.Mockito;
 
 import com.google.common.collect.Lists;
 
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.HistoricalBaseline;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.HistoricalBaseline;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
@@ -462,7 +462,7 @@ public class CommoditiesEditorTest {
             .build();
 
         TopologyInfo topologyInfo = TopologyInfo.newBuilder().setPlanInfo(PlanTopologyInfo.newBuilder()
-                .setPlanProjectType(com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType.CLUSTER_HEADROOM)
+                .setPlanProjectType(com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType.CLUSTER_HEADROOM)
                 .build())
             .build();
 
@@ -522,7 +522,7 @@ public class CommoditiesEditorTest {
             .build();
 
         TopologyInfo topologyInfo = TopologyInfo.newBuilder().setPlanInfo(PlanTopologyInfo.newBuilder()
-                .setPlanProjectType(com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType.CLUSTER_HEADROOM)
+                .setPlanProjectType(com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType.CLUSTER_HEADROOM)
                 .build())
             .build();
 

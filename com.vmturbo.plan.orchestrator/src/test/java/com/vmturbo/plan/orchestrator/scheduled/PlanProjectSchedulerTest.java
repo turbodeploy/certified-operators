@@ -12,6 +12,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.flywaydb.core.Flyway;
 import org.junit.After;
 import org.junit.Before;
@@ -29,17 +31,15 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import com.vmturbo.common.protobuf.plan.PlanDTO;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
-import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence;
-import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence.Daily;
-import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence.DayOfWeek;
-import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence.Monthly;
-import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence.TimeOfRun;
-import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence.Weekly;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectInfo;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence.Daily;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence.DayOfWeek;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence.Monthly;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence.TimeOfRun;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence.Weekly;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.PlanProject;
@@ -149,7 +149,7 @@ public class PlanProjectSchedulerTest {
      */
     @Test
     public void testVerifyDefaultPlanProjectsCreated() {
-        List<PlanDTO.PlanProject> projectList =
+        List<PlanProjectOuterClass.PlanProject> projectList =
                 planProjectDao.getPlanProjectsByType(PlanProjectType.CLUSTER_HEADROOM);
         assertTrue(projectList.size() == 1);
         verifyScheduler(projectList.get(0).getPlanProjectId());

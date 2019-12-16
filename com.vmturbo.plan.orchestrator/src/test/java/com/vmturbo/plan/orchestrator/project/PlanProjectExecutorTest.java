@@ -35,10 +35,12 @@ import com.vmturbo.common.protobuf.group.GroupDTOMoles;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo.PlanProjectScenario;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
-import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectInfo;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectInfo.PlanProjectScenario;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template.Type;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
@@ -108,7 +110,7 @@ public class PlanProjectExecutorTest {
 
     @Test
     public void testExecutePlanOnePlanInstancePerClusterPerScenario() throws Exception {
-        PlanDTO.PlanProject planProject = createHeadroomPlanProjectWithTwoScenarios();
+        final PlanProjectOuterClass.PlanProject planProject = createHeadroomPlanProjectWithTwoScenarios();
 
         // 2 clusters
         List<Grouping> groupList = new ArrayList<>();
@@ -179,7 +181,7 @@ public class PlanProjectExecutorTest {
                 .setStatus(PlanStatus.READY)
                 .build());
 
-        PlanDTO.PlanProject planProject = createHeadroomPlanProjectWithTwoScenarios();
+        PlanProjectOuterClass.PlanProject planProject = createHeadroomPlanProjectWithTwoScenarios();
         planProjectExecutor.executePlan(planProject);
 
         // 3 clusters, with 2 scenarios each. So there are 2 plan instances created.
@@ -318,15 +320,15 @@ public class PlanProjectExecutorTest {
      *
      * @return a plan project
      */
-    private PlanDTO.PlanProject createHeadroomPlanProjectWithTwoScenarios() {
-        PlanDTO.ScenarioChange.TopologyAddition topologyAddition =
-                PlanDTO.ScenarioChange.TopologyAddition.newBuilder()
+    private PlanProjectOuterClass.PlanProject createHeadroomPlanProjectWithTwoScenarios() {
+        ScenarioOuterClass.ScenarioChange.TopologyAddition topologyAddition =
+                ScenarioOuterClass.ScenarioChange.TopologyAddition.newBuilder()
                         .addChangeApplicationDays(0)
                         .build();
-        PlanDTO.ScenarioChange scenarioChange1 = PlanDTO.ScenarioChange.newBuilder()
+        ScenarioOuterClass.ScenarioChange scenarioChange1 = ScenarioOuterClass.ScenarioChange.newBuilder()
                 .setTopologyAddition(topologyAddition)
                 .build();
-        PlanDTO.ScenarioChange scenarioChange2 = PlanDTO.ScenarioChange.newBuilder()
+        ScenarioOuterClass.ScenarioChange scenarioChange2 = ScenarioOuterClass.ScenarioChange.newBuilder()
                 .setTopologyAddition(topologyAddition)
                 .build();
         PlanProjectInfo.PlanProjectScenario scenario1 =
@@ -337,13 +339,13 @@ public class PlanProjectExecutorTest {
                 PlanProjectInfo.PlanProjectScenario.newBuilder()
                         .addChanges(scenarioChange2)
                         .build();
-        PlanDTO.PlanProjectInfo planProjectInfo = PlanDTO.PlanProjectInfo.newBuilder()
+        PlanProjectOuterClass.PlanProjectInfo planProjectInfo = PlanProjectOuterClass.PlanProjectInfo.newBuilder()
                 .setName("Test Project")
                 .setType(PlanProjectType.CLUSTER_HEADROOM)
                 .addScenarios(scenario1)
                 .addScenarios(scenario2)
                 .build();
-        PlanDTO.PlanProject planProject = PlanDTO.PlanProject.newBuilder()
+        PlanProjectOuterClass.PlanProject planProject = PlanProjectOuterClass.PlanProject.newBuilder()
                 .setPlanProjectInfo(planProjectInfo)
                 .build();
         return planProject;

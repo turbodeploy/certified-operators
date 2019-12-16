@@ -21,7 +21,7 @@ import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotificat
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.Builder;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.cost.api.CostNotificationListener;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable;

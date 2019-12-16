@@ -9,7 +9,7 @@ import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.PlanDTOREST.ScenarioServiceController;
+import com.vmturbo.common.protobuf.plan.ScenarioREST.ScenarioServiceController;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.plan.orchestrator.GlobalConfig;
 import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;

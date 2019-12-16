@@ -13,6 +13,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+import io.grpc.Status;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -20,19 +22,17 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
-import io.grpc.Status;
-
 import com.vmturbo.api.component.external.api.mapper.ScenarioMapper;
 import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
-import com.vmturbo.common.protobuf.plan.PlanDTO.DeleteScenarioResponse;
-import com.vmturbo.common.protobuf.plan.PlanDTO.GetScenariosOptions;
-import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioId;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
-import com.vmturbo.common.protobuf.plan.PlanDTO.UpdateScenarioRequest;
-import com.vmturbo.common.protobuf.plan.PlanDTO.UpdateScenarioResponse;
-import com.vmturbo.common.protobuf.plan.PlanDTOMoles.ScenarioServiceMole;
+import com.vmturbo.common.protobuf.plan.ScenarioMoles.ScenarioServiceMole;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.DeleteScenarioResponse;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.GetScenariosOptions;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioId;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.UpdateScenarioRequest;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.UpdateScenarioResponse;
 import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
 

@@ -12,8 +12,8 @@ import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
-import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 
 /**
  * Tests for the interpretation of {@link PlanInstance} as

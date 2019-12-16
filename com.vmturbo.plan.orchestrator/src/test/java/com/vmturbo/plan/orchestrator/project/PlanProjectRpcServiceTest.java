@@ -13,6 +13,10 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import io.grpc.Status.Code;
+import io.grpc.StatusException;
+import io.grpc.stub.StreamObserver;
+
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.junit.After;
@@ -27,21 +31,17 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
-import io.grpc.Status.Code;
-import io.grpc.StatusException;
-import io.grpc.stub.StreamObserver;
-
-import com.vmturbo.common.protobuf.plan.PlanDTO;
-import com.vmturbo.common.protobuf.plan.PlanDTO.DeletePlanProjectRequest;
-import com.vmturbo.common.protobuf.plan.PlanDTO.DeletePlanProjectResponse;
-import com.vmturbo.common.protobuf.plan.PlanDTO.GetPlanProjectRequest;
-import com.vmturbo.common.protobuf.plan.PlanDTO.GetPlanProjectResponse;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
-import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence;
-import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence.Daily;
-import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence.Schedule;
-import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence.TimeOfRun;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.DeletePlanProjectRequest;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.DeletePlanProjectResponse;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.GetPlanProjectRequest;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.GetPlanProjectResponse;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectInfo;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence.Daily;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence.Schedule;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence.TimeOfRun;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
@@ -108,12 +108,12 @@ public class PlanProjectRpcServiceTest {
                 .setRecurrence(recurrence)
                 .build();
 
-        final StreamObserver<PlanDTO.PlanProject> mockObserver =
+        final StreamObserver<PlanProjectOuterClass.PlanProject> mockObserver =
                 Mockito.mock(StreamObserver.class);
 
         planProjectRpcService.createPlanProject(toCreate, mockObserver);
 
-        verify(mockObserver).onNext(PlanDTO.PlanProject.newBuilder()
+        verify(mockObserver).onNext(PlanProjectOuterClass.PlanProject.newBuilder()
                 .setPlanProjectId(anyInt())
                 .setPlanProjectInfo(toCreate)
                 .build());
@@ -149,7 +149,7 @@ public class PlanProjectRpcServiceTest {
     @Test
     public void testGetPlanProject() throws Exception {
         // created with prePopulatePlanProjectTestData()
-        Optional<PlanDTO.PlanProject> project = getProject(dbConfig.dsl(), GET_PLAN_PROJECT_ID);
+        Optional<PlanProjectOuterClass.PlanProject> project = getProject(dbConfig.dsl(), GET_PLAN_PROJECT_ID);
         final GetPlanProjectResponse expectedResponse = GetPlanProjectResponse.newBuilder()
                 .setProject(project.orElse(null)).build();
         final StreamObserver<GetPlanProjectResponse> mockObserver = mock(StreamObserver.class);
@@ -175,7 +175,7 @@ public class PlanProjectRpcServiceTest {
         verify(mockObserver).onCompleted();
     }
 
-    private Optional<PlanDTO.PlanProject> getProject(DSLContext context, final long planProjectId) {
+    private Optional<PlanProjectOuterClass.PlanProject> getProject(DSLContext context, final long planProjectId) {
         Optional<PlanProjectRecord> loadedPlanProject = Optional.ofNullable(
                 context.selectFrom(PLAN_PROJECT)
                         .where(PLAN_PROJECT.ID.eq(planProjectId))
@@ -185,9 +185,9 @@ public class PlanProjectRpcServiceTest {
                         PlanProject.class)));
     }
 
-    private PlanDTO.PlanProject toPlanProjectDTO(
+    private PlanProjectOuterClass.PlanProject toPlanProjectDTO(
             @Nonnull final PlanProject planProject) {
-        return PlanDTO.PlanProject.newBuilder()
+        return PlanProjectOuterClass.PlanProject.newBuilder()
                 .setPlanProjectId(planProject.getId())
                 .setPlanProjectInfo(planProject.getProjectInfo())
                 .build();

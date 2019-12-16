@@ -4,7 +4,7 @@ package topology;
 option java_package = "com.vmturbo.common.protobuf.topology";
 
 import "common/EnvironmentTypeEnum.proto";
-import "plan/PlanDTO.proto";
+import "plan/PlanProject.proto";
 import "CloudCostDTO.proto";
 import "CommonDTO.proto";
 import "tag/Tag.proto";

@@ -20,7 +20,7 @@ import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
 import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 
 /**
  * Converts {@link PlanInstance} objects to the plan-related API objects - namely

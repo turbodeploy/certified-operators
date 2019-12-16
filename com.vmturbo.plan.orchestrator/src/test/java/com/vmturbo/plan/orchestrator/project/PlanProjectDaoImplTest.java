@@ -19,14 +19,14 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
-import com.vmturbo.common.protobuf.plan.PlanDTO;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProject;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
-import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence;
-import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence.Daily;
-import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence.Schedule;
-import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence.TimeOfRun;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProject;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectInfo;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence.Daily;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence.Schedule;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence.TimeOfRun;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
@@ -74,18 +74,18 @@ public class PlanProjectDaoImplTest {
     }
 
     private void testGetPlanProjectList(PlanProjectType planProjectType) throws Exception {
-        List<PlanDTO.PlanProject> projectList =
+        List<PlanProjectOuterClass.PlanProject> projectList =
                 planProjectDao.getPlanProjectsByType(planProjectType);
 
         int numOfHeadroomProjectsBeforeInsert = projectList.size();
 
         assertEquals(numOfHeadroomProjectsBeforeInsert, 0);
 
-        PlanDTO.Recurrence recurrence = PlanDTO.Recurrence.newBuilder()
-                .setSchedule(PlanDTO.Recurrence.Schedule.newBuilder().setDaily(PlanDTO.Recurrence.Daily.newBuilder()))
-                .setTimeOfRun(PlanDTO.Recurrence.TimeOfRun.newBuilder().setHour(5))
+        PlanProjectOuterClass.Recurrence recurrence = PlanProjectOuterClass.Recurrence.newBuilder()
+                .setSchedule(PlanProjectOuterClass.Recurrence.Schedule.newBuilder().setDaily(PlanProjectOuterClass.Recurrence.Daily.newBuilder()))
+                .setTimeOfRun(PlanProjectOuterClass.Recurrence.TimeOfRun.newBuilder().setHour(5))
                 .build();
-        PlanDTO.PlanProjectInfo planProjectInfo = PlanDTO.PlanProjectInfo.newBuilder()
+        PlanProjectOuterClass.PlanProjectInfo planProjectInfo = PlanProjectOuterClass.PlanProjectInfo.newBuilder()
                 .setName("Plan Project")
                 .setRecurrence(recurrence)
                 .setType(planProjectType)
@@ -98,16 +98,16 @@ public class PlanProjectDaoImplTest {
 
     @Test
     public void testCollectDiags() throws Exception {
-        final PlanDTO.Recurrence recurrence = PlanDTO.Recurrence.newBuilder()
-            .setSchedule(PlanDTO.Recurrence.Schedule.newBuilder().setDaily(PlanDTO.Recurrence.Daily.newBuilder()))
-            .setTimeOfRun(PlanDTO.Recurrence.TimeOfRun.newBuilder().setHour(5))
+        final PlanProjectOuterClass.Recurrence recurrence = PlanProjectOuterClass.Recurrence.newBuilder()
+            .setSchedule(PlanProjectOuterClass.Recurrence.Schedule.newBuilder().setDaily(PlanProjectOuterClass.Recurrence.Daily.newBuilder()))
+            .setTimeOfRun(PlanProjectOuterClass.Recurrence.TimeOfRun.newBuilder().setHour(5))
             .build();
-        final PlanDTO.PlanProjectInfo planProjectInfo1 = PlanDTO.PlanProjectInfo.newBuilder()
+        final PlanProjectOuterClass.PlanProjectInfo planProjectInfo1 = PlanProjectOuterClass.PlanProjectInfo.newBuilder()
             .setName("Plan Project 1")
             .setRecurrence(recurrence)
             .setType(PlanProjectType.USER)
             .build();
-        final PlanDTO.PlanProjectInfo planProjectInfo2 = PlanDTO.PlanProjectInfo.newBuilder()
+        final PlanProjectOuterClass.PlanProjectInfo planProjectInfo2 = PlanProjectOuterClass.PlanProjectInfo.newBuilder()
             .setName("Plan Project 2")
             .setRecurrence(recurrence)
             .setType(PlanProjectType.CLUSTER_HEADROOM)
