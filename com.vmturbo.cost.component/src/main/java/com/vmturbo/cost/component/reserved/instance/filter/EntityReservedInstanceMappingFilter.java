@@ -22,9 +22,10 @@ public class EntityReservedInstanceMappingFilter extends ReservedInstanceFilter 
 
     private final List<Condition> conditions;
 
-    private EntityReservedInstanceMappingFilter(@Nonnull final Set<Long> scopeIds, int entityType) {
-        super(scopeIds, Optional.of(entityType));
-        this.conditions = generateConditions(scopeIds, Optional.of(entityType));
+    private EntityReservedInstanceMappingFilter(@Nonnull final Set<Long> scopeIds) {
+        // TODO: should this be EntityType.UNKNOWN_VALUE ?
+        super(scopeIds, Optional.of(EntityType.SWITCH_VALUE));
+        this.conditions = generateConditions(scopeIds, Optional.of(EntityType.SWITCH_VALUE));
     }
 
     /**
@@ -42,11 +43,7 @@ public class EntityReservedInstanceMappingFilter extends ReservedInstanceFilter 
         if (scopeIds.isEmpty()) {
             return conditions;
         }
-        if (scopeEntityType.isPresent() && scopeEntityType.get() == EntityType.VIRTUAL_MACHINE_VALUE) {
-            conditions.add(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.ENTITY_ID.in(scopeIds));
-        } else {
-            conditions.add(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID.in(scopeIds));
-        }
+        conditions.add(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID.in(scopeIds));
         return conditions;
     }
 
@@ -65,7 +62,6 @@ public class EntityReservedInstanceMappingFilter extends ReservedInstanceFilter 
     public static class Builder {
         // The set of scope oids.
         private Set<Long> scopeIds = new HashSet<>();
-        private int entityType;
 
         private Builder() {}
 
@@ -75,7 +71,7 @@ public class EntityReservedInstanceMappingFilter extends ReservedInstanceFilter 
          * @return an object of type EntityReservedInstanceMappingFilter.
          */
         public EntityReservedInstanceMappingFilter build() {
-            return new EntityReservedInstanceMappingFilter(scopeIds, entityType);
+            return new EntityReservedInstanceMappingFilter(scopeIds);
         }
 
         /**
@@ -87,17 +83,6 @@ public class EntityReservedInstanceMappingFilter extends ReservedInstanceFilter 
         @Nonnull
         public Builder addAllScopeId(final List<Long> ids) {
             this.scopeIds.addAll(ids);
-            return this;
-        }
-
-        /**
-         * Add entity type for the Uuids being sent in scopeIds.
-         * @param entityType - Entity Type number value.
-         * @return Builder for this class.
-         */
-        @Nonnull
-        public Builder addEntityType(int entityType) {
-            this.entityType = entityType;
             return this;
         }
     }

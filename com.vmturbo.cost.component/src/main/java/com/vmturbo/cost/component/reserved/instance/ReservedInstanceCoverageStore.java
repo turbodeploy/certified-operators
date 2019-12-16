@@ -36,9 +36,6 @@ public class ReservedInstanceCoverageStore {
     //TODO: set this chunk config through consul.
     private final static int chunkSize = 1000;
 
-    private final static ReservedInstanceCoverageFilter reservedInstanceCoverageFilter = ReservedInstanceCoverageFilter
-            .newBuilder().build();
-
     private final DSLContext dsl;
 
     public ReservedInstanceCoverageStore(@Nonnull final DSLContext dsl) {
@@ -106,15 +103,10 @@ public class ReservedInstanceCoverageStore {
 
     @Nonnull
     protected Map<Long, Double> getEntitiesCouponCapacity() {
-        return getEntitiesCouponCapacity(reservedInstanceCoverageFilter);
-    }
-
-    @Nonnull
-    protected Map<Long, Double> getEntitiesCouponCapacity(ReservedInstanceCoverageFilter filter) {
         Map<Long, Double> entitiesCouponCapacity = new HashMap<>();
         dsl.select(RESERVED_INSTANCE_COVERAGE_LATEST.ENTITY_ID, RESERVED_INSTANCE_COVERAGE_LATEST.TOTAL_COUPONS)
                 .from(Tables.RESERVED_INSTANCE_COVERAGE_LATEST)
-                .where((filter.getConditions())).and(RESERVED_INSTANCE_COVERAGE_LATEST.SNAPSHOT_TIME.eq(
+                .where(RESERVED_INSTANCE_COVERAGE_LATEST.SNAPSHOT_TIME.eq(
                         dsl.select(RESERVED_INSTANCE_COVERAGE_LATEST.SNAPSHOT_TIME.max())
                                 .from(Tables.RESERVED_INSTANCE_COVERAGE_LATEST)))
                 .fetch()

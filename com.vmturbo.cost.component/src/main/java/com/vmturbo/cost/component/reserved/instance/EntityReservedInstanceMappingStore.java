@@ -18,7 +18,6 @@ import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Table;
 
-import com.vmturbo.common.protobuf.group.GroupDTO;
 import org.apache.commons.collections4.MultiValuedMap;
 import org.apache.commons.collections4.multimap.HashSetValuedHashMap;
 import org.apache.logging.log4j.LogManager;
@@ -48,9 +47,6 @@ public class EntityReservedInstanceMappingStore {
     private final static String RI_SUM_COUPONS = "RI_SUM_COUPONS";
 
     private final static String ENTITY_SUM_COUPONS = "ENTITY_SUM_COUPONS";
-
-    private static final EntityReservedInstanceMappingFilter entityReservedInstanceMappingFilter = EntityReservedInstanceMappingFilter
-            .newBuilder().build();
 
     //TODO: set this chunk config through consul.
     private final static int chunkSize = 1000;
@@ -207,20 +203,10 @@ public class EntityReservedInstanceMappingStore {
      * @return A {@link Map} of Entity OID to a {@link Set} of {@link Coverage} entries
      */
     public Map<Long, Set<Coverage>> getRICoverageByEntity() {
-        return getRICoverageByEntity(entityReservedInstanceMappingFilter);
-    }
-
-    /**
-     * Gets the RI coverage by entity ID.
-     *
-     * @param filter - entity reserved instance mapping filter.
-     * @return A {@link Map} of Entity OID to a {@link Set} of {@link Coverage} entries
-     */
-    public Map<Long, Set<Coverage>> getRICoverageByEntity(EntityReservedInstanceMappingFilter filter) {
 
         final Map<Long, Set<Coverage>> riCoverageByEntity = new HashMap<>();
 
-        getEntityRICoverageFromDB(filter).forEach(entityRIMapping ->
+        getEntityRICoverageFromDB().forEach(entityRIMapping ->
                 riCoverageByEntity.computeIfAbsent(entityRIMapping.getEntityId(), __ -> new HashSet<>())
                         .add(Coverage.newBuilder()
                                 .setReservedInstanceId(entityRIMapping.getReservedInstanceId())
@@ -280,20 +266,6 @@ public class EntityReservedInstanceMappingStore {
                 dsl.selectFrom(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING)
                         // This is important - lets us process one entity completely before
                         // moving on to the next one.
-                        .orderBy(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.ENTITY_ID)
-                        .fetch()
-                        .into(EntityToReservedInstanceMapping.class);
-        return riCoverageRows;
-    }
-
-    private List<EntityToReservedInstanceMapping> getEntityRICoverageFromDB(EntityReservedInstanceMappingFilter filter) {
-        final List<EntityToReservedInstanceMapping> riCoverageRows =
-                // There should only be one set of RI coverage in the table at a time, so
-                // we can just get everything from the table.
-                dsl.selectFrom(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING)
-                        // This is important - lets us process one entity completely before
-                        // moving on to the next one.
-                        .where(filter.getConditions())
                         .orderBy(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.ENTITY_ID)
                         .fetch()
                         .into(EntityToReservedInstanceMapping.class);

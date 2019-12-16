@@ -15,15 +15,11 @@ import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
 import com.vmturbo.repository.dto.CommodityBoughtRepoDTO;
 import com.vmturbo.repository.dto.CommoditySoldRepoDTO;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 /**
  * Convert between CommodityBoughtRepoDTO and CommodityBoughtDTO.
  **/
-    class CommodityMapper {
-
-    private static final Logger LOGGER = LogManager.getLogger();
+class CommodityMapper {
 
     /**
      * Convert from {@link CommodityBoughtDTO} protobuf to {@link CommodityBoughtRepoDTO}.
@@ -208,15 +204,10 @@ import org.apache.logging.log4j.Logger;
             CommoditiesBoughtRepoFromProviderDTO commoditiesBoughtRepoFromProviderDTO) {
         CommoditiesBoughtFromProvider.Builder commodityBoughtFromProviderBuilder =
                 CommoditiesBoughtFromProvider.newBuilder();
-        if (commoditiesBoughtRepoFromProviderDTO.getCommodityBoughtRepoDTOs() != null) {
-            commodityBoughtFromProviderBuilder.addAllCommodityBought(
-                    commoditiesBoughtRepoFromProviderDTO.getCommodityBoughtRepoDTOs().stream()
-                            .map(CommodityMapper::convertToCommodityBoughtDTO)
-                            .collect(Collectors.toList()));
-        } else {
-            LOGGER.info("{}'s CommodityBoughtRepoDTOs is null, it means it's buying from another entity, " +
-                    "but not declaring which commodity buying from it. This should not happen.", commoditiesBoughtRepoFromProviderDTO);
-        }
+        commodityBoughtFromProviderBuilder.addAllCommodityBought(
+                commoditiesBoughtRepoFromProviderDTO.getCommodityBoughtRepoDTOs().stream()
+                        .map(CommodityMapper::convertToCommodityBoughtDTO)
+                        .collect(Collectors.toList()));
         if (commoditiesBoughtRepoFromProviderDTO.getProviderId() != null) {
             commodityBoughtFromProviderBuilder.setProviderId(
                     commoditiesBoughtRepoFromProviderDTO.getProviderId());

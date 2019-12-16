@@ -1606,13 +1606,10 @@ public class ActionSpecMapper {
      * @param cloudResizeActionDetailsApiDTO - cloud resize action details DTO
      */
     private void setRiCoverage(long entityUuid, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
-        final EntityFilter entityFilter = EntityFilter.newBuilder().addEntityId(entityUuid).build();
-
         // get latest RI coverage for target entity
         Cost.GetEntityReservedInstanceCoverageRequest reservedInstanceCoverageRequest =
                 Cost.GetEntityReservedInstanceCoverageRequest
                 .newBuilder()
-                .setEntityFilter(entityFilter)
                 .build();
         Cost.GetEntityReservedInstanceCoverageResponse reservedInstanceCoverageResponse =
                 reservedInstanceUtilizationCoverageServiceBlockingStub
@@ -1636,6 +1633,8 @@ public class ActionSpecMapper {
         }
 
         // get projected RI coverage for target entity
+        EntityFilter entityFilter = EntityFilter.newBuilder().addEntityId(entityUuid).build();
+
         Cost.GetProjectedEntityReservedInstanceCoverageRequest projectedEntityReservedInstanceCoverageRequest =
                 Cost.GetProjectedEntityReservedInstanceCoverageRequest
                 .newBuilder()

@@ -3,7 +3,6 @@ package com.vmturbo.cost.component.reserved.instance;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -88,8 +87,8 @@ public class ReservedInstanceUtilizationCoverageRpcServiceTest {
         final Coverage coverage2 = Coverage.newBuilder().setCoveredCoupons(2).setReservedInstanceId(2).build();
         final Map<Long, Set<Coverage>> rICoverageByEntity = ImmutableMap.of(1L, Sets.newHashSet(coverage1, coverage2));
 
-        when(entityReservedInstanceMappingStore.getRICoverageByEntity(any())).thenReturn(rICoverageByEntity);
-        when(reservedInstanceCoverageStore.getEntitiesCouponCapacity(any()))
+        when(entityReservedInstanceMappingStore.getRICoverageByEntity()).thenReturn(rICoverageByEntity);
+        when(reservedInstanceCoverageStore.getEntitiesCouponCapacity())
                 .thenReturn(ImmutableMap.of(1L, 4d));
 
         final GetEntityReservedInstanceCoverageResponse response =
