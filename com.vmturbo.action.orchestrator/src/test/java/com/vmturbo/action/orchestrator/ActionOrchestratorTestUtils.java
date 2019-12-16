@@ -5,11 +5,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -28,12 +26,6 @@ import com.vmturbo.action.orchestrator.action.VisibilityLevel;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator.TranslationExecutor;
-import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo;
-import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo.CoreQuotaInfo;
-import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo.CoreQuotaInfo.CoreQuotaByBusinessAccount;
-import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo.CoreQuotaInfo.CoreQuotaByBusinessAccount.CoreQuotaByRegion;
-import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintInfo.CoreQuotaInfo.CoreQuotaByBusinessAccount.CoreQuotaByRegion.CoreQuotaByFamily;
-import com.vmturbo.common.protobuf.action.ActionConstraintDTO.ActionConstraintType;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -261,34 +253,5 @@ public class ActionOrchestratorTestUtils {
         when(actionView.getVisibilityLevel()).thenReturn(VisibilityLevel.ALWAYS_VISIBLE);
 
         return actionView;
-    }
-
-    /**
-     * Build core quota action constraint info.
-     *
-     * @param businessAccountIds a list of business account ids
-     * @param regionIds a list of region ids
-     * @param families a list of families
-     * @param value a value
-     * @return an action constraint info
-     */
-    public static ActionConstraintInfo buildCoreQuotaActionConstraintInfo(
-        @Nonnull final List<Long> businessAccountIds, @Nonnull final List<Long> regionIds,
-        @Nonnull final List<String> families, final int value) {
-        return ActionConstraintInfo.newBuilder()
-            .setActionConstraintType(ActionConstraintType.CORE_QUOTA)
-            .setCoreQuotaInfo(CoreQuotaInfo.newBuilder()
-                .addAllCoreQuotaByBusinessAccount(businessAccountIds.stream().map(businessAccountId ->
-                    CoreQuotaByBusinessAccount.newBuilder()
-                        .setBusinessAccountId(businessAccountId)
-                        .addAllCoreQuotaByRegion(regionIds.stream().map(regionId ->
-                            CoreQuotaByRegion.newBuilder()
-                                .setRegionId(regionId).setTotalCoreQuota(value)
-                                .addAllCoreQuotaByFamily(families.stream().map(family ->
-                                    CoreQuotaByFamily.newBuilder()
-                                        .setFamily(family).setQuota(value).build())
-                                    .collect(Collectors.toList())).build())
-                            .collect(Collectors.toList())).build())
-                    .collect(Collectors.toList()))).build();
     }
 }

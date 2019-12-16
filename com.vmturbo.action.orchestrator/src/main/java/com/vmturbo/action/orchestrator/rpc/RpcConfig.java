@@ -19,7 +19,6 @@ import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
-import com.vmturbo.common.protobuf.action.ActionConstraintDTOREST.ActionConstraintsServiceController;
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionsServiceController;
 import com.vmturbo.common.protobuf.action.ActionsDebugREST.ActionsDebugServiceController;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOREST.EntitySeverityServiceController;
@@ -45,7 +44,7 @@ public class RpcConfig {
     private ActionTranslator actionTranslator;
 
     @Autowired
-    private ActionExecutionConfig actionExecutionConfig;
+    private ActionTargetSelector actionTargetSelector;
 
     @Autowired
     private ActionStatsConfig actionStatsConfig;
@@ -68,7 +67,7 @@ public class RpcConfig {
             actionOrchestratorGlobalConfig.actionOrchestratorClock(),
             actionStoreConfig.actionStorehouse(),
             actionExecutor,
-            actionExecutionConfig.actionTargetSelector(),
+            actionTargetSelector,
             actionStoreConfig.entitySettingsCache(),
             actionTranslator,
             actionPaginatorFactory(),
@@ -103,16 +102,6 @@ public class RpcConfig {
     public EntitySeverityRpcService entitySeverityRpcService() {
         return new EntitySeverityRpcService(actionStoreConfig.actionStorehouse(),
                 actionPaginationDefaultLimit, actionPaginationMaxLimit);
-    }
-
-    @Bean
-    public ActionConstraintsRpcService actionConstraintsRpcService() {
-        return new ActionConstraintsRpcService(actionExecutionConfig.actionConstraintStoreFactory());
-    }
-
-    @Bean
-    public ActionConstraintsServiceController actionConstraintsServiceController() {
-        return new ActionConstraintsServiceController(actionConstraintsRpcService());
     }
 
     @Bean

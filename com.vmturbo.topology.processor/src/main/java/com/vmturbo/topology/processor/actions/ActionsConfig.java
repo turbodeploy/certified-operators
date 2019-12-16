@@ -6,9 +6,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
-import com.vmturbo.common.protobuf.action.ActionConstraintsServiceGrpc;
-import com.vmturbo.common.protobuf.action.ActionConstraintsServiceGrpc.ActionConstraintsServiceStub;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ActionExecutionREST.ActionExecutionServiceController;
 import com.vmturbo.topology.processor.actions.data.EntityRetriever;
@@ -20,6 +17,7 @@ import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.operation.OperationConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.repository.RepositoryConfig;
+import com.vmturbo.topology.processor.rpc.TopologyProcessorRpcConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 
 /**
@@ -30,8 +28,8 @@ import com.vmturbo.topology.processor.targets.TargetConfig;
         EntityConfig.class,
         OperationConfig.class,
         RepositoryConfig.class,
-        TargetConfig.class,
-        ActionOrchestratorClientConfig.class})
+        TopologyProcessorRpcConfig.class,
+        TargetConfig.class})
 public class ActionsConfig {
 
     @Autowired
@@ -48,9 +46,6 @@ public class ActionsConfig {
 
     @Autowired
     private ProbeConfig probeConfig;
-
-    @Autowired
-    private ActionOrchestratorClientConfig aoClientConfig;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -94,17 +89,5 @@ public class ActionsConfig {
     @Bean
     public ActionExecutionServiceController actionExecutionServiceController() {
         return new ActionExecutionServiceController(actionExecutionService());
-    }
-
-    @Bean
-    public ActionConstraintsServiceStub actionConstraintsServiceStub() {
-        return ActionConstraintsServiceGrpc.newStub(
-            aoClientConfig.actionOrchestratorChannel());
-    }
-
-    @Bean
-    public ActionConstraintsUploader actionConstraintsUploader() {
-        return new ActionConstraintsUploader(entityConfig.entityStore(),
-            actionConstraintsServiceStub());
     }
 }

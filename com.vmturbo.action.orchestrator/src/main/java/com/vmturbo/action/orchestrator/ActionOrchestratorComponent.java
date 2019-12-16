@@ -108,7 +108,6 @@ public class ActionOrchestratorComponent extends BaseVmtComponent {
         final List<BindableService> services = new ArrayList<>();
         services.add(rpcConfig.actionRpcService());
         services.add(rpcConfig.entitySeverityRpcService());
-        services.add(rpcConfig.actionConstraintsRpcService());
         services.add(workflowConfig.discoveredWorkflowRpcService());
         services.add(workflowConfig.fetchWorkflowRpcService());
         rpcConfig.actionsDebugRpcService().ifPresent(services::add);

@@ -27,7 +27,6 @@ import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ExecutableStep;
-import com.vmturbo.action.orchestrator.action.constraint.ActionConstraintStoreFactory;
 import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache.CachedCapabilities;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
@@ -82,17 +81,15 @@ public class ActionTargetSelector {
     /**
      * Create an ActionTargetSelector.
      * @param probeCapabilityCache To get the target-specific action capabilities.
-     * @param actionConstraintStoreFactory the factory which has access to all action constraint stores
      * @param entitySelector to select a service entity to execute an action against
      * @param repositoryProcessorChannel Channel to access repository.
      * @param realtimeTopologyContextId the context ID of the realtime market
      */
     public ActionTargetSelector(@Nonnull final ProbeCapabilityCache probeCapabilityCache,
-                                @Nonnull final ActionConstraintStoreFactory actionConstraintStoreFactory,
                                 @Nonnull final ActionExecutionEntitySelector entitySelector,
                                 @Nonnull final Channel repositoryProcessorChannel,
                                 final long realtimeTopologyContextId) {
-        this(new TargetInfoResolver(probeCapabilityCache, actionConstraintStoreFactory), entitySelector,
+        this(new TargetInfoResolver(probeCapabilityCache), entitySelector,
             repositoryProcessorChannel, realtimeTopologyContextId);
     }
 
@@ -304,12 +301,8 @@ public class ActionTargetSelector {
 
         private final ProbeCapabilityCache probeCapabilityCache;
 
-        private final ActionConstraintStoreFactory actionConstraintStoreFactory;
-
-        TargetInfoResolver(@Nonnull final ProbeCapabilityCache probeCapabilityCache,
-                           @Nonnull final ActionConstraintStoreFactory actionConstraintStoreFactory) {
+        TargetInfoResolver(@Nonnull final ProbeCapabilityCache probeCapabilityCache) {
             this.probeCapabilityCache = Objects.requireNonNull(probeCapabilityCache);
-            this.actionConstraintStoreFactory = Objects.requireNonNull(actionConstraintStoreFactory);
         }
 
         /**
@@ -361,9 +354,8 @@ public class ActionTargetSelector {
                     // Calculate pre-requisite.
                     cachedCapabilities.getProbeCategory(probeIdOptional.get())
                         .ifPresent(probeCategory -> prerequisites.addAll(
-                            PrerequisiteCalculator.calculatePrerequisites(action,
-                                actionPartialEntity, snapshot, probeCategory,
-                                actionConstraintStoreFactory)));
+                            PrerequisiteCalculator.calculatePrerequisites(
+                                action, actionPartialEntity, snapshot, probeCategory)));
                 }
             }
 

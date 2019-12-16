@@ -18,10 +18,8 @@ import com.google.common.collect.ImmutableMap;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.Prerequisite;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.PrerequisiteType;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * A utility class with static methods that assists in composing pre-requisite descriptions for actions.
@@ -42,8 +40,6 @@ public class PrerequisiteDescriptionComposer {
     private static final String VIRTUALIZATION_TYPE_PREREQUISITE_FORMAT =
         "To unblock, enable HVM AMIs for {0}. " +
             "Alternatively, you can exclude templates that require HVM AMIs";
-    private static final String CORE_QUOTA_PREREQUISITE_FORMAT =
-        "Request a quota increase for {0} in {1} to allow resize of {2}";
     private static final String ACTION_TYPE_ERROR_MESSAGE =
         "Can not give a proper pre-requisite description as action type is not defined";
 
@@ -72,18 +68,9 @@ public class PrerequisiteDescriptionComposer {
         return action.getPrerequisiteList().stream()
             .filter(Prerequisite::hasPrerequisiteType).map(prerequisite -> {
                 try {
-                    return ActionDTOUtil.TRANSLATION_PREFIX +
-                        (prerequisite.getPrerequisiteType() == PrerequisiteType.CORE_QUOTAS ?
-                        MessageFormat.format(
-                            CORE_QUOTA_PREREQUISITE_FORMAT,
-                            prerequisite.getQuotaName(),
-                            buildEntityNameOrType(ActionEntity.newBuilder()
-                                .setId(prerequisite.getRegionId())
-                                .setType(EntityType.REGION_VALUE).build()),
-                            buildEntityNameOrType(ActionDTOUtil.getPrimaryEntity(action))) :
-                        MessageFormat.format(
-                            prerequisiteTypeToString.get(prerequisite.getPrerequisiteType()),
-                            buildEntityNameOrType(ActionDTOUtil.getPrimaryEntity(action))));
+                    return ActionDTOUtil.TRANSLATION_PREFIX + MessageFormat.format(
+                        prerequisiteTypeToString.get(prerequisite.getPrerequisiteType()),
+                        buildEntityNameOrType(ActionDTOUtil.getPrimaryEntity(action)));
                 } catch (UnsupportedActionException e) {
                     logger.error("Cannot build action pre-requisite description", e);
                     return ACTION_TYPE_ERROR_MESSAGE;

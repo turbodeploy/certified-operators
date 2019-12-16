@@ -373,13 +373,4 @@ public class StringConstants {
     public static final String ATTACHMENT = "attachment";
     public static final String ATTACHED = "VIRTUAL_VOLUME_ATTACHED";
     public static final String UNATTACHED = "VIRTUAL_VOLUME_UNATTACHED";
-
-    /**
-     * Constants used for core quota.
-     */
-    public static final String CORE_QUOTA_PREFIX = "azureQuotaRemaining";
-    public static final String CORE_QUOTA_SEPARATOR = "::";
-    public static final String BUSINESS_ACCOUNT_PREFIX = "BUSINESS_ACCOUNT::";
-    public static final String TOTAL_CORE_QUOTA = "cores";
-    public static final String TOTAL_REGIONAL_VCPUS_QUOTA_DISPLAYNAME = "total Regional vCPUs";
 }
