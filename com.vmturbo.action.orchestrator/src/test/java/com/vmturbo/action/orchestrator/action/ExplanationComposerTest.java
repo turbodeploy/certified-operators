@@ -3,23 +3,21 @@ package com.vmturbo.action.orchestrator.action;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.COMMODITY_KEY_SEPARATOR;
 import static org.junit.Assert.assertEquals;
 
-import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
-import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
-import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import org.junit.Test;
+import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
+
+import org.junit.Test;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
+import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.AllocateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.Builder;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.BuyRIExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
@@ -30,12 +28,18 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeactivateExplan
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
+import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
+import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -89,7 +93,7 @@ public class ExplanationComposerTest {
     }
 
     @Test
-    public void testtMoveComplianceReasonSettingsExplanation() {
+    public void testMoveComplianceReasonSettingsExplanation() {
         long reasonSetting1 = 1L;
         long reasonSetting2 = 2L;
 
@@ -455,6 +459,53 @@ public class ExplanationComposerTest {
             ExplanationComposer.composeExplanation(deleteFiles));
         assertEquals("Idle or non-productive",
             ExplanationComposer.shortExplanation(deleteFiles));
+    }
+
+    /**
+     * Test building explanation for Allocate action.
+     */
+    @Test
+    public void testAllocateExplanation() {
+        // Arrange
+        final ActionEntity vm = createActionEntity(1, EntityType.VIRTUAL_MACHINE_VALUE);
+        final ActionEntity tier = createActionEntity(2, EntityType.COMPUTE_TIER_VALUE);
+        final ActionInfo actionInfo = ActionInfo.newBuilder()
+                .setAllocate(Allocate.newBuilder()
+                        .setTarget(vm)
+                        .setWorkloadTier(tier))
+                .build();
+        final Explanation explanation = Explanation.newBuilder()
+                .setAllocate(AllocateExplanation.getDefaultInstance())
+                .build();
+        final ActionDTO.Action action = createAction(actionInfo, explanation);
+
+        // Act
+        final String shortExplanation = ExplanationComposer.shortExplanation(action);
+        final String fullExplanation = ExplanationComposer.composeExplanation(action);
+
+        // Assert
+        assertEquals("Virtual Machine can be covered by {entity:2:displayName:} RI",
+                shortExplanation);
+        assertEquals("(^_^)~Virtual Machine can be covered by {entity:2:displayName:} RI",
+                fullExplanation);
+    }
+
+    private static ActionEntity createActionEntity(long id, int type) {
+        return ActionEntity.newBuilder()
+                .setId(id)
+                .setType(type)
+                .build();
+    }
+
+    private static ActionDTO.Action createAction(
+            @Nonnull final ActionInfo actionInfo,
+            @Nonnull final Explanation explanation) {
+        return ActionDTO.Action.newBuilder()
+                .setId(123121)
+                .setExplanation(explanation)
+                .setInfo(actionInfo)
+                .setDeprecatedImportance(1)
+                .build();
     }
 
     private static ReasonCommodity createReasonCommodity(int baseType, String key) {

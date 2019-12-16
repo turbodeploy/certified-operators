@@ -614,6 +614,16 @@ public class ActionDTOUtilTest {
         assertEquals(ImmutableSet.of(vm, computeTier), new HashSet<>(involvedEntities));
     }
 
+    /**
+     * Test for {@link ActionDTOUtil#buildEntityName} method.
+     */
+    @Test
+    public void testBuildEntityName() {
+        final ActionEntity entity = createActionEntity(1);
+        final String result = ActionDTOUtil.buildEntityName(entity);
+        assertEquals("{entity:1:displayName:}", result);
+    }
+
     private static ActionEntity createActionEntity(long id) {
         // set some fake type for now
         return createActionEntity(id, 1);

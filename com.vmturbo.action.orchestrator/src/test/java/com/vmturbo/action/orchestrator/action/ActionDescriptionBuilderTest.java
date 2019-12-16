@@ -20,6 +20,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
+import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
@@ -72,33 +73,34 @@ public class ActionDescriptionBuilderTest {
     private ActionDTO.Action deleteCloudStorageRecommendation;
     private ActionDTO.Action deleteCloudStorageRecommendationWithNoSourceEntity;
     private ActionDTO.Action buyRIRecommendation;
+    private ActionDTO.Action allocateRecommendation;
 
     private static final ReasonCommodity BALLOONING =
         createReasonCommodity(CommodityDTO.CommodityType.BALLOONING_VALUE, null);
     private static final ReasonCommodity CPU_ALLOCATION =
         createReasonCommodity(CommodityDTO.CommodityType.CPU_ALLOCATION_VALUE, null);
-    private final Long VM1_ID = 11L;
-    private final String VM1_DISPLAY_NAME = "vm1_test";
-    private final Long PM_SOURCE_ID = 22L;
-    private final String PM_SOURCE_DISPLAY_NAME = "pm_source_test";
-    private final Long PM_DESTINATION_ID = 33L;
-    private final String PM_DESTINATION_DISPLAY_NAME = "pm_destination_test";
-    private final Long ST_SOURCE_ID = 44L;
-    private final String ST_SOURCE_DISPLAY_NAME = "storage_source_test";
-    private final Long ST_DESTINATION_ID = 55L;
-    private final String ST_DESTINATION_DISPLAY_NAME = "storage_destination_test";
-    private final Long VV_ID = 66L;
-    private final String VV_DISPLAY_NAME = "volume_display_name";
+    private static final Long VM1_ID = 11L;
+    private static final String VM1_DISPLAY_NAME = "vm1_test";
+    private static final Long PM_SOURCE_ID = 22L;
+    private static final String PM_SOURCE_DISPLAY_NAME = "pm_source_test";
+    private static final Long PM_DESTINATION_ID = 33L;
+    private static final String PM_DESTINATION_DISPLAY_NAME = "pm_destination_test";
+    private static final Long ST_SOURCE_ID = 44L;
+    private static final String ST_SOURCE_DISPLAY_NAME = "storage_source_test";
+    private static final Long ST_DESTINATION_ID = 55L;
+    private static final String ST_DESTINATION_DISPLAY_NAME = "storage_destination_test";
+    private static final Long VV_ID = 66L;
+    private static final String VV_DISPLAY_NAME = "volume_display_name";
     private static final Long COMPUTE_TIER_SOURCE_ID = 100L;
     private static final String COMPUTE_TIER_SOURCE_DISPLAY_NAME = "tier_t1";
     private static final Long COMPUTE_TIER_DESTINATION_ID = 200L;
     private static final String COMPUTE_TIER_DESTINATION_DISPLAY_NAME = "tier_t2";
-    private final Long MASTER_ACCOUNT_ID = 101L;
-    private final String MASTER_ACCOUNT_DISPLAY_NAME = "my.super.account";
-    private final Long REGION_ID = 102L;
-    private final String REGION_DISPLAY_NAME = "Manhattan";
-    private final Long CONTAINER1_ID = 11L;
-    private final String CONTAINER1_DISPLAY_NAME = "container1_test";
+    private static final Long MASTER_ACCOUNT_ID = 101L;
+    private static final String MASTER_ACCOUNT_DISPLAY_NAME = "my.super.account";
+    private static final Long REGION_ID = 102L;
+    private static final String REGION_DISPLAY_NAME = "Manhattan";
+    private static final Long CONTAINER1_ID = 11L;
+    private static final String CONTAINER1_DISPLAY_NAME = "container1_test";
 
     private EntitiesAndSettingsSnapshot entitySettingsCache = mock(EntitiesAndSettingsSnapshot.class);
 
@@ -164,6 +166,9 @@ public class ActionDescriptionBuilderTest {
         buyRIRecommendation =
             makeRec(makeBuyRIInfo(COMPUTE_TIER_SOURCE_ID, MASTER_ACCOUNT_ID, REGION_ID),
                 SupportLevel.SUPPORTED).build();
+
+        allocateRecommendation = makeRec(makeAllocateInfo(VM1_ID, COMPUTE_TIER_SOURCE_ID),
+                SupportLevel.UNSUPPORTED).build();
     }
 
     /**
@@ -443,6 +448,17 @@ public class ActionDescriptionBuilderTest {
         return ReconfigureExplanation.newBuilder()
             .addReasonSettings(1L)
             .build();
+    }
+
+    private ActionInfo.Builder makeAllocateInfo(long vmId, long computeTierId) {
+        return ActionInfo.newBuilder().setAllocate(Allocate.newBuilder()
+                .setTarget(ActionEntity.newBuilder()
+                        .setId(vmId)
+                        .setType(EntityType.VIRTUAL_MACHINE_VALUE))
+                .setWorkloadTier(ActionEntity.newBuilder()
+                        .setId(computeTierId)
+                        .setType(EntityType.COMPUTE_TIER_VALUE))
+                .build());
     }
 
     private static Optional<ActionPartialEntity> createEntity(Long oid, int entityType,
@@ -917,5 +933,54 @@ public class ActionDescriptionBuilderTest {
             entitySettingsCache, buyRIRecommendation);
 
         Assert.assertEquals(description, "Buy 0 tier_t1 RIs for my.super.account in Manhattan");
+    }
+
+    /**
+     * Test building description for Allocation action.
+     *
+     * @throws UnsupportedActionException In case of unsupported action type.
+     */
+    @Test
+    public void testBuildAllocateActionDescription() throws UnsupportedActionException {
+        when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
+                .thenReturn((createEntity(VM1_ID,
+                        EntityType.VIRTUAL_MACHINE.getNumber(),
+                        VM1_DISPLAY_NAME)));
+
+        final long businessAccountOid = 88L;
+        final String businessAccountName = "Development";
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID)))
+                .thenReturn(Optional.of(EntityWithConnections.newBuilder()
+                        .setOid(businessAccountOid)
+                        .setEntityType(EntityType.BUSINESS_ACCOUNT.getNumber())
+                        .setDisplayName(businessAccountName)
+                        .build()));
+
+        final String description = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, allocateRecommendation);
+        Assert.assertEquals(description,
+                "Increase RI coverage for Virtual Machine vm1_test in Development");
+    }
+
+    /**
+     * Test building description for Allocation action when no account is present.
+     *
+     * @throws UnsupportedActionException In case of unsupported action type.
+     */
+    @Test
+    public void testBuildAllocateActionDescriptionWithNoAccount()
+            throws UnsupportedActionException {
+        when(entitySettingsCache.getEntityFromOid(eq(VM1_ID)))
+                .thenReturn((createEntity(VM1_ID,
+                        EntityType.VIRTUAL_MACHINE.getNumber(),
+                        VM1_DISPLAY_NAME)));
+
+        when(entitySettingsCache.getOwnerAccountOfEntity(eq(VM1_ID)))
+                .thenReturn(Optional.empty());
+
+        final String description = ActionDescriptionBuilder.buildActionDescription(
+                entitySettingsCache, allocateRecommendation);
+        Assert.assertEquals(description,
+                "Increase RI coverage for Virtual Machine vm1_test in ");
     }
 }

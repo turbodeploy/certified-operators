@@ -10,8 +10,6 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisInvoker;
 
@@ -97,7 +95,7 @@ public class BuyRIAnalysisScheduler {
             invoker.invokeBuyRIAnalysis(startBuyRIAnalysisRequest);
             logger.info("Finished RI Buy Analysis.");
         } catch (RuntimeException e) {
-            logger.error("Unable to run RI Buy Analysis: {}", e);
+            logger.error("Unable to run RI Buy Analysis.", e);
         }
     }
 }

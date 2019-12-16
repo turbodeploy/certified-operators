@@ -771,6 +771,16 @@ public class ActionDTOUtil {
     }
 
     /**
+     * Given an {@link ActionEntity}, create a translation fragment that shows the entity name.
+     *
+     * @param entity an {@link ActionEntity}
+     * @return the translation
+     */
+    public static String buildEntityName(ActionEntity entity) {
+        return ActionDTOUtil.createTranslationBlock(entity.getId(), DISPLAY_NAME, "");
+    }
+
+    /**
      * Given an {@link ActionEntity}, create a translation fragment that shows the entity type and name.
      *
      * <p>e.g. For a VM named "Bill", create a fragment that would translate to "Virtual Machine Bill".

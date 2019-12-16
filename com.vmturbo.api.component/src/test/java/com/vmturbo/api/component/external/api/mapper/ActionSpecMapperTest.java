@@ -70,11 +70,13 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
+import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.AllocateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Efficiency;
@@ -203,7 +205,7 @@ public class ActionSpecMapperTest {
     private final UuidMapper uuidMapper = mock(UuidMapper.class);
 
     @Before
-    public void setup() throws Exception {
+    public void setup() {
         RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub riBuyContextFetchServiceStub =
                 RIBuyContextFetchServiceGrpc.newBlockingStub(grpcServer.getChannel());
         final List<PolicyResponse> policyResponses = ImmutableList.of(
@@ -316,6 +318,27 @@ public class ActionSpecMapperTest {
         assertEquals("2", first.getNewValue());
 
         // Validate that the importance value is 0
+        assertEquals(0, actionApiDTO.getImportance(), 0.05);
+    }
+
+    /**
+     * Test mapping of Allocate action.
+     * @throws Exception in case of mapping error.
+     */
+    @Test
+    public void testMapAllocate() throws Exception {
+        final ActionInfo allocateInfo = getAllocateActionInfo();
+        final Explanation explanation = Explanation.newBuilder()
+                .setAllocate(AllocateExplanation.getDefaultInstance())
+                .build();
+
+        final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
+                buildActionSpec(allocateInfo, explanation), REAL_TIME_TOPOLOGY_CONTEXT_ID);
+
+        assertEquals(ActionType.ALLOCATE, actionApiDTO.getActionType());
+        assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
+        assertEquals("3", actionApiDTO.getTarget().getUuid());
+        assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
         assertEquals(0, actionApiDTO.getImportance(), 0.05);
     }
 
@@ -1519,6 +1542,21 @@ public class ActionSpecMapperTest {
         when(repositoryApi.entitiesRequest(any())).thenReturn(req);
 
         return scaleInfo;
+    }
+
+    private ActionInfo getAllocateActionInfo() {
+        final ActionInfo allocateInfo = ActionInfo.newBuilder()
+                .setAllocate(Allocate.newBuilder()
+                        .setTarget(ApiUtilsTest.createActionEntity(3))
+                        .setWorkloadTier(ApiUtilsTest.createActionEntity(4)))
+                .build();
+
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
+                topologyEntityDTO(TARGET, 3L, EntityType.VIRTUAL_MACHINE_VALUE),
+                topologyEntityDTO(SOURCE, 4L, UIEntityType.COMPUTE_TIER.typeNumber())));
+        when(repositoryApi.entitiesRequest(any())).thenReturn(req);
+
+        return allocateInfo;
     }
 
     /**

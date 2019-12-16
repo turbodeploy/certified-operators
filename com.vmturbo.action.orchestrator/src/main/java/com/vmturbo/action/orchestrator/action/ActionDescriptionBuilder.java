@@ -21,6 +21,7 @@ import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.
 import com.vmturbo.common.protobuf.StringUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
@@ -57,7 +58,6 @@ public class ActionDescriptionBuilder {
     private static final String ENTITY_NOT_FOUND_WARN_MSG = "{} {} Entity {} doesn't exist in the entities snapshot";
 
 
-
     // Static patterns used for dynamically-constructed message contents.
     //
     // We're going to model these pattern strings as an enum, containing a set of
@@ -89,6 +89,7 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_MOVE_WITHOUT_SOURCE("Start {0} on {1}"),
         ACTION_DESCRIPTION_MOVE("{0} {1}{2} from {3} to {4}"),
         ACTION_DESCRIPTION_BUYRI("Buy {0} {1} RIs for {2} in {3}"),
+        ACTION_DESCRIPTION_ALLOCATE("Increase RI coverage for {0} in {1}"),
         SIMPLE_MHZ("{0} MHz"),
         SIMPLE_GB("{0} GB"),
         SIMPLE("{0}");
@@ -132,6 +133,8 @@ public class ActionDescriptionBuilder {
             case MOVE:
             case SCALE:
                 return getMoveOrScaleActionDescription(entitiesSnapshot, recommendation);
+            case ALLOCATE:
+                return getAllocateActionDescription(entitiesSnapshot, recommendation);
             case RECONFIGURE:
                 return getReconfigureActionDescription(entitiesSnapshot, recommendation);
             case PROVISION:
@@ -162,7 +165,7 @@ public class ActionDescriptionBuilder {
     private static String getResizeActionDescription(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
                                               @Nonnull final ActionDTO.Action recommendation) {
         Resize resize = recommendation.getInfo().getResize();
-        Long entityId = resize.getTarget().getId();
+        long entityId = resize.getTarget().getId();
         Optional<ActionPartialEntity> optEntity = entitiesSnapshot.getEntityFromOid(entityId);
         if (!optEntity.isPresent()) {
             logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getResizeActionDescription ", "entityId", entityId);
@@ -204,7 +207,7 @@ public class ActionDescriptionBuilder {
     private static String getReconfigureActionDescription(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
                                                    @Nonnull final ActionDTO.Action recommendation) {
         final Reconfigure reconfigure = recommendation.getInfo().getReconfigure();
-        final Long entityId = reconfigure.getTarget().getId();
+        final long entityId = reconfigure.getTarget().getId();
         Optional<ActionPartialEntity> targetEntityDTO = entitiesSnapshot.getEntityFromOid(entityId);
         if (!targetEntityDTO.isPresent()) {
             logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getReconfigureActionDescription", "entityId", entityId);
@@ -238,6 +241,46 @@ public class ActionDescriptionBuilder {
     }
 
     /**
+     * Builds Allocate action description.
+     *
+     * @param entitiesSnapshot {@link EntitiesAndSettingsSnapshot} object that contains entities
+     * information.
+     * @param recommendation Action recommendation.
+     * @return Allocate action description.
+     */
+    private static String getAllocateActionDescription(
+            @Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
+            @Nonnull final ActionDTO.Action recommendation) {
+        final Allocate allocate = recommendation.getInfo().getAllocate();
+        final long workloadEntityId = allocate.getTarget().getId();
+
+        // Get workload
+        final Optional<ActionPartialEntity> workloadEntityOpt = entitiesSnapshot.getEntityFromOid(
+                workloadEntityId);
+        if (!workloadEntityOpt.isPresent()) {
+            logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getAllocateActionDescription",
+                    "workloadEntityId", workloadEntityId);
+            return "";
+        }
+        final ActionPartialEntity workloadEntity = workloadEntityOpt.get();
+
+        // Get account
+        final Optional<EntityWithConnections> accountOpt = entitiesSnapshot
+                .getOwnerAccountOfEntity(workloadEntityId);
+        final String accountName;
+        if (accountOpt.isPresent()) {
+            accountName = accountOpt.get().getDisplayName();
+        } else {
+            logger.warn("Cannot find Business Account for Allocate action. VM - {} (ID: {})",
+                    workloadEntity.getDisplayName(), workloadEntityId);
+            accountName = "";
+        }
+
+        return ActionMessageFormat.ACTION_DESCRIPTION_ALLOCATE.format(
+                beautifyEntityTypeAndName(workloadEntity), accountName);
+    }
+
+    /**
      * Builds Move or Right Size action description. This is intended to be called by
      * {@link ActionDescriptionBuilder#buildActionDescription(EntitiesAndSettingsSnapshot, ActionDTO.Action)}
      *
@@ -258,12 +301,12 @@ public class ActionDescriptionBuilder {
         final long destinationEntityId = primaryChange.getDestination().getId();
         final long targetEntityId = ActionDTOUtil.getPrimaryEntity(recommendation, true).getId();
         Optional<ActionPartialEntity> optTargetEntity = entitiesSnapshot.getEntityFromOid(targetEntityId);
-        if( !optTargetEntity.isPresent()) {
+        if (!optTargetEntity.isPresent()) {
             logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getMoveActionDescription", "targetEntityId", targetEntityId);
             return "";
         }
         Optional<ActionPartialEntity> optDestinationEntity = entitiesSnapshot.getEntityFromOid(destinationEntityId);
-        if( !optDestinationEntity.isPresent()) {
+        if (!optDestinationEntity.isPresent()) {
             logger.warn(ENTITY_NOT_FOUND_WARN_MSG, "getMoveActionDescription", "destinationEntityId", destinationEntityId);
             return "";
         }

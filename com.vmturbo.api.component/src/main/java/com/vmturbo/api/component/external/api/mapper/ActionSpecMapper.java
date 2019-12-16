@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static com.vmturbo.common.protobuf.action.ActionDTO.ActionType.ALLOCATE;
 import static com.vmturbo.common.protobuf.action.ActionDTO.ActionType.BUY_RI;
 import static com.vmturbo.common.protobuf.action.ActionDTO.ActionType.RESIZE;
 import static com.vmturbo.common.protobuf.action.ActionDTO.ActionType.SCALE;
@@ -31,16 +32,16 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMappingContextFactory.ActionSpecMappingContext;
@@ -61,8 +62,6 @@ import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
 import com.vmturbo.api.dto.reservedinstance.ReservedInstanceApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
-import com.vmturbo.api.dto.statistic.StatApiInputDTO;
-import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
@@ -70,9 +69,7 @@ import com.vmturbo.api.enums.ActionMode;
 import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.enums.AspectName;
-import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
-import com.vmturbo.api.pagination.CommonComparators;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.Pair;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
@@ -86,6 +83,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter.InvolvedEntities;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
+import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
@@ -93,7 +91,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
@@ -166,15 +163,6 @@ public class ActionSpecMapper {
     private static final Map<String, String> SHORTENED_ENTITY_TYPES = ImmutableMap.of(
         UIEntityType.VIRTUAL_VOLUME.apiStr(), "Volume"
     );
-
-    // Commodities in actions mapped to their default units.
-    // For example, vMem commodity has its default capacity unit as KB.
-    private static final ImmutableMap<CommodityDTO.CommodityType, Long> commodityTypeToDefaultUnits =
-                    new ImmutableMap.Builder<CommodityDTO.CommodityType, Long>()
-                        .put(CommodityDTO.CommodityType.VMEM, Units.KBYTE)
-                        .put(CommodityDTO.CommodityType.STORAGE_AMOUNT, Units.MBYTE)
-                        .put(CommodityDTO.CommodityType.HEAP, Units.KBYTE)
-                        .build();
 
     private final ActionSpecMappingContextFactory actionSpecMappingContextFactory;
 
@@ -433,9 +421,11 @@ public class ActionSpecMapper {
             case SCALE:
                 addMoveInfo(actionApiDTO, recommendation, context, ActionType.SCALE);
                 break;
+            case ALLOCATE:
+                addAllocateInfo(actionApiDTO, info.getAllocate(), context);
+                break;
             case RECONFIGURE:
-                addReconfigureInfo(actionApiDTO, info.getReconfigure(),
-                    recommendation.getExplanation().getReconfigure(), context);
+                addReconfigureInfo(actionApiDTO, info.getReconfigure(), context);
                 break;
             case PROVISION:
                 addProvisionInfo(actionApiDTO, info.getProvision(), context);
@@ -1034,9 +1024,32 @@ public class ActionSpecMapper {
         }
     }
 
+    private void addAllocateInfo(
+            @Nonnull final ActionApiDTO actionApiDTO,
+            @Nonnull final Allocate allocate,
+            @Nonnull final ActionSpecMappingContext context)
+            throws UnknownObjectException {
+        // Set action type
+        actionApiDTO.setActionType(ActionType.ALLOCATE);
+
+        // Set action target
+        final long targetId = allocate.getTarget().getId();
+        final ServiceEntityApiDTO target = context.getEntity(targetId);
+        actionApiDTO.setTarget(ServiceEntityMapper.copyServiceEntityAPIDTO(target));
+
+        // Set action current and new locations (should be the same for Allocate)
+        setCurrentAndNewLocation(targetId, context, actionApiDTO);
+
+        // Set Cloud aspect
+        context.getCloudAspect(targetId).ifPresent(cloudAspect -> {
+            final Map<AspectName, EntityAspect> aspects = new HashMap<>();
+            aspects.put(AspectName.CLOUD, cloudAspect);
+            actionApiDTO.getTarget().setAspectsByName(aspects);
+        });
+    }
+
     private void addReconfigureInfo(@Nonnull final ActionApiDTO actionApiDTO,
                                     @Nonnull final Reconfigure reconfigure,
-                                    @Nonnull final ReconfigureExplanation explanation,
                                     @Nonnull final ActionSpecMappingContext context)
                     throws UnknownObjectException, ExecutionException, InterruptedException {
         actionApiDTO.setActionType(ActionType.RECONFIGURE);
@@ -1193,23 +1206,6 @@ public class ActionSpecMapper {
             logger.error("Offering Class not found for RI : {}", buyRI.getBuyRiId(), e);
         } catch (NotFoundCloudTypeException e) {
             logger.error("Cannot identify Cloud Type for RI : {}", buyRI.getBuyRiId(), e);
-        }
-    }
-
-    /**
-     * Format resize actions commodity capacity value to more readable format.
-     *
-     * @param commodityType commodity type.
-     * @param capacity commodity capacity which needs to format.
-     * @return a string after format.
-     */
-    private String formatResizeActionCommodityValue(@Nonnull final CommodityDTO.CommodityType commodityType,
-                                                    final double capacity) {
-        // Currently all items in this map are converted from default units to GB.
-        if (commodityTypeToDefaultUnits.keySet().contains(commodityType)) {
-            return MessageFormat.format("{0} GB", capacity / (Units.GBYTE / commodityTypeToDefaultUnits.get(commodityType)));
-        } else {
-            return MessageFormat.format("{0}", capacity);
         }
     }
 
@@ -1483,7 +1479,7 @@ public class ActionSpecMapper {
                 detailsDto.setHistoricalDemandData(demandList);
                 return detailsDto;
             }
-            if (actionType == RESIZE || actionType == SCALE) {
+            if (actionType == RESIZE || actionType == SCALE || actionType == ALLOCATE) {
                 long entityUuid;
                 try {
                     entityUuid = ActionDTOUtil.getPrimaryEntityId(action.getActionSpec().getRecommendation());

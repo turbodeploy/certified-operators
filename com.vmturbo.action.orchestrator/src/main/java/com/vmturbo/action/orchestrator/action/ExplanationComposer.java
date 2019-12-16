@@ -72,6 +72,7 @@ public class ExplanationComposer {
     private static final String WASTED_COST = "Wasted Cost";
     private static final String DELETE_WASTED_FILES_EXPLANATION = "Idle or non-productive";
     private static final String DELETE_WASTED_VOLUMES_EXPLANATION = "Increase savings";
+    private static final String ALLOCATE_EXPLANATION = "{0}Virtual Machine can be covered by {1} RI";
 
     /**
      * Private to prevent instantiation.
@@ -137,6 +138,8 @@ public class ExplanationComposer {
             case MOVE:
             case SCALE:
                 return buildMoveExplanation(action, keepItShort, settingPolicyIdToSettingPolicyName);
+            case ALLOCATE:
+                return buildAllocateExplanation(action, keepItShort);
             case RESIZE:
                 return buildResizeExplanation(action, keepItShort);
             case ACTIVATE:
@@ -311,9 +314,11 @@ public class ExplanationComposer {
      * "Increase RI Utilization"
      *
      * @param congestion The congestion change provider explanation
+     * @param keepItShort Defines whether to generate short explanation or not.
      * @return explanation
      */
-    public static String buildCongestionExplanation(Congestion congestion, final boolean keepItShort) {
+    private static String buildCongestionExplanation(Congestion congestion,
+            final boolean keepItShort) {
         List<ReasonCommodity> congestedComms =  congestion.getCongestedCommoditiesList();
         List<ReasonCommodity> underUtilizedComms =  congestion.getUnderUtilizedCommoditiesList();
         // For the cloud, we should have either congested commodities or increase RI utilization
@@ -335,9 +340,10 @@ public class ExplanationComposer {
      *     "{entity name} is not available"
      *
      * @param evacuation The evacuation change provider explanation
+     * @param keepItShort Defines whether to generate short explanation or not.
      * @return explanation
      */
-    public static String buildEvacuationExplanation(Evacuation evacuation, boolean keepItShort) {
+    private static String buildEvacuationExplanation(Evacuation evacuation, boolean keepItShort) {
         return MessageFormat.format(
             evacuation.getIsAvailable() ? MOVE_EVACUATION_SUSPENSION_EXPLANATION_FORMAT :
                 MOVE_EVACUATION_AVAILABILITY_EXPLANATION_FORMAT,
@@ -359,8 +365,25 @@ public class ExplanationComposer {
      *
      * @return explanation
      */
-    public static String buildPerformanceExplanation() {
+    private static String buildPerformanceExplanation() {
         return MOVE_PERFORMANCE_EXPLANATION;
+    }
+
+    /**
+     * Build Allocate action explanation.
+     *
+     * @param action The action to explain.
+     * @param keepItShort Defines whether to generate short explanation or not.
+     * @return The explanation sentence.
+     */
+    private static String buildAllocateExplanation(
+            @Nonnull final ActionDTO.Action action,
+            final boolean keepItShort) {
+        // TODO: Use RI family name instead of template name.
+        final ActionEntity tier = action.getInfo().getAllocate().getWorkloadTier();
+        final String tierName = ActionDTOUtil.buildEntityName(tier);
+        final String prefix = keepItShort ? "" : ActionDTOUtil.TRANSLATION_PREFIX;
+        return MessageFormat.format(ALLOCATE_EXPLANATION, prefix, tierName);
     }
 
     /**
@@ -371,9 +394,10 @@ public class ExplanationComposer {
      * For a resize up: "{commodity name} congestion in {entity name}"
      *
      * @param action the resize action
+     * @param keepItShort Defines whether to generate short explanation or not.
      * @return explanation
      */
-    public static String buildResizeExplanation(ActionDTO.Action action, final boolean keepItShort) {
+    private static String buildResizeExplanation(ActionDTO.Action action, final boolean keepItShort) {
         // verify it's a resize.
         if (! action.getInfo().hasResize()) {
             logger.warn("Can't build resize explanation for non-resize action {}", action.getId());
