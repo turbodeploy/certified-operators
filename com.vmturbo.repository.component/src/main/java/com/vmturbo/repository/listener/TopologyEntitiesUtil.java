@@ -84,18 +84,21 @@ public class TopologyEntitiesUtil {
             logger.error("Error occurred while receiving topology " + topologyId, e);
             topologyCreator.rollback();
             notificationSender.onSourceTopologyFailure(topologyId, topologyContextId,
-                    "Error receiving source topology " + topologyId + ": " + e.getMessage());
+                    "Error receiving source topology " + topologyId +
+                            " for context " + topologyContextId + ": " + e.getMessage());
         } catch (InterruptedException e) {
-            logger.info("Thread interrupted receiving topology " + topologyId, e);
+            logger.error("Thread interrupted receiving topology " + topologyId, e);
             topologyCreator.rollback();
             notificationSender.onSourceTopologyFailure(topologyId, topologyContextId,
-                    "Error receiving source topology " + topologyId + ": " + e.getMessage());
+                    "Error receiving source topology " + topologyId +
+                            " for context " + topologyContextId + ": " + e.getMessage());
             throw e;
-        } catch (RuntimeException e) {
+        } catch (Exception e) {
             logger.error("Exception while receiving topology " + topologyId, e);
             topologyCreator.rollback();
             notificationSender.onSourceTopologyFailure(topologyId, topologyContextId,
-                    "Error receiving source topology " + topologyId + ": " + e.getMessage());
+                    "Error receiving source topology " + topologyId +
+                            " for context " + topologyContextId + ": " + e.getMessage());
             throw e;
         }
     }

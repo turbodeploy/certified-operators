@@ -64,18 +64,18 @@ public class MarketTopologyListenerExceptionTest {
     private static final long creationTime = 44444L;
     private static final TopologyID tid = new TopologyID(topologyContextId, projectedTopologyId, TopologyID.TopologyType.PROJECTED);
     private static final TopologyInfo originalInfo = TopologyInfo.newBuilder()
-        .setTopologyId(srcTopologyId)
+            .setTopologyId(srcTopologyId)
             .setTopologyContextId(topologyContextId)
             .setCreationTime(creationTime)
             .build();
 
     public MarketTopologyListenerExceptionTest() throws IOException {
         vmDTO = ProjectedTopologyEntity.newBuilder()
-            .setEntity(RepositoryTestUtil.messageFromJsonFile("protobuf/messages/vm-1.dto.json"))
-            .build();
+                .setEntity(RepositoryTestUtil.messageFromJsonFile("protobuf/messages/vm-1.dto.json"))
+                .build();
         pmDTO = ProjectedTopologyEntity.newBuilder()
-            .setEntity(RepositoryTestUtil.messageFromJsonFile("protobuf/messages/pm-1.dto.json"))
-            .build();
+                .setEntity(RepositoryTestUtil.messageFromJsonFile("protobuf/messages/pm-1.dto.json"))
+                .build();
     }
 
     @Before
@@ -95,15 +95,15 @@ public class MarketTopologyListenerExceptionTest {
     public void testOnProjectedTopologyReceivedInterruptedException() throws Exception {
         // Simulates one chunk and then an exception
         when(entityIterator.nextChunk()).thenReturn(Sets.newHashSet(vmDTO, pmDTO))
-                                        .thenThrow(new InterruptedException("interrupted"));
+                .thenThrow(new InterruptedException("interrupted"));
         when(topologyManager.getRealtimeTopologyId()).thenReturn(Optional.empty());
         marketTopologyListener.onProjectedTopologyReceived(projectedTopologyId,
-                 originalInfo,
-                 entityIterator);
+                originalInfo,
+                entityIterator);
 
         verifyMocks();
-        verify(apiBackend, never()).onProjectedTopologyFailure(
-            eq(projectedTopologyId), eq(topologyContextId), any(String.class));
+        verify(apiBackend).onProjectedTopologyFailure(
+                eq(projectedTopologyId), eq(topologyContextId), any(String.class));
     }
 
     /**
@@ -115,7 +115,7 @@ public class MarketTopologyListenerExceptionTest {
         when(topologyManager.getRealtimeTopologyId()).thenReturn(Optional.empty());
         // Simulates one chunk and then an exception
         when(entityIterator.nextChunk()).thenReturn(Sets.newHashSet(vmDTO, pmDTO))
-                                        .thenThrow(new CommunicationException("communication exception"));
+                .thenThrow(new CommunicationException("communication exception"));
         marketTopologyListener.onProjectedTopologyReceived(
                 projectedTopologyId,
                 TopologyInfo.newBuilder()
@@ -127,7 +127,7 @@ public class MarketTopologyListenerExceptionTest {
 
         verifyMocks();
         verify(apiBackend).onProjectedTopologyFailure(
-            eq(projectedTopologyId), eq(topologyContextId), any(String.class));
+                eq(projectedTopologyId), eq(topologyContextId), any(String.class));
     }
 
     /**
@@ -139,7 +139,7 @@ public class MarketTopologyListenerExceptionTest {
         when(topologyManager.getRealtimeTopologyId()).thenReturn(Optional.empty());
         // Simulates one chunk and then an exception
         when(entityIterator.nextChunk()).thenReturn(Sets.newHashSet(vmDTO, pmDTO))
-                                        .thenThrow(new IllegalStateException("other exception"));
+                .thenThrow(new IllegalStateException("other exception"));
         try {
             marketTopologyListener.onProjectedTopologyReceived(
                     projectedTopologyId,
@@ -153,8 +153,8 @@ public class MarketTopologyListenerExceptionTest {
             // expected
         }
         verifyMocks();
-        verify(apiBackend, never()).onProjectedTopologyFailure(
-            any(long.class), any(long.class), any(String.class));
+        verify(apiBackend).onProjectedTopologyFailure(
+                eq(projectedTopologyId), eq(topologyContextId), any(String.class));
     }
 
     private void verifyMocks() throws Exception {
