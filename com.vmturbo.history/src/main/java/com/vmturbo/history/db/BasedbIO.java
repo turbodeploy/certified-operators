@@ -2,6 +2,9 @@ package com.vmturbo.history.db;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.vmturbo.sql.utils.JooqQueryTrimmer.trimJooqErrorMessage;
+import static com.vmturbo.sql.utils.JooqQueryTrimmer.trimJooqQuery;
+import static com.vmturbo.sql.utils.JooqQueryTrimmer.trimJooqQueryString;
 
 import java.io.IOException;
 import java.sql.Connection;
@@ -1202,9 +1205,10 @@ public abstract class BasedbIO {
                          */
                     case SOFT:
                         if (logger.isDebugEnabled() && ((tries % 10) == 0)) {
-                            logger.debug(String.format("Try %d to execute queries" + "failed: %s%n"
-                                    + "Last known query was:%n"
-                                    + "%s%n------%n", tries, ex, lastQuery), ex);
+                            logger.debug(String.format("Try %d to execute queries failed: %s%n"
+                                            + "Last known query was:%n"
+                                            + "%s%n------%n",
+                                    tries, trimJooqErrorMessage(ex), trimJooqQuery(lastQuery)), ex);
                         } else {
                             logSoftError("Query failed with soft error (try: {})." +
                                 " Exception message: {}", tries, ex);
@@ -1213,14 +1217,14 @@ public abstract class BasedbIO {
                     case SERVER:
                         logger.error(String.format("Server error accessing database; " +
                                 "Last known query was:%n"
-                                + "%s%n------%n", lastQuery), ex);
-                        internalNotifyUser("Server internal error", ex.toString());
+                                + "%s%n------%n", trimJooqQuery(lastQuery)), ex);
+                        internalNotifyUser("Server internal error", trimJooqErrorMessage(ex));
                         continue;
 
                     case HARD:
                         logger.error(String.format("Hard error accessing database; "
                                 + "Last known query was:%n"
-                                + "%s%n------%n", lastQuery), ex);
+                                + "%s%n------%n", trimJooqQuery(lastQuery)), ex);
                         throw new HardFailureException(ex);
                 }
             }
@@ -1237,7 +1241,7 @@ public abstract class BasedbIO {
                                 + "%d tries.  Query list was:%n",
                         startTime, style, tries);
         for (Query query : queries) {
-            message = String.format("%s%s%n------%n", message, query);
+            message = String.format("%s%s%n------%n", message, trimJooqQuery(query));
         }
         if (style == Style.FORCED) {
             internalNotifyUser("Database write failures",
@@ -1268,14 +1272,8 @@ public abstract class BasedbIO {
      * @param e exception returned for operation
      */
     private void logSoftError(@Nonnull final String s, final int tries, @Nonnull final Throwable e) {
-        if (logger.isEnabled(Level.DEBUG)) {
-            logger.debug(s, tries, e.getMessage());
-        } else {
-            String[] lines = e.getMessage().split("\n");
-            String abbreviatedMsg = lines[0]
-                + (lines.length > 1 ? "... "+lines[lines.length-1] : "");
-            logger.warn(s, tries, abbreviatedMsg);
-        }
+        logger.log(logger.isDebugEnabled() ? Level.DEBUG : Level.WARN,
+                s, tries, trimJooqQueryString(e.getMessage()));
     }
 
     /**
