@@ -95,7 +95,7 @@ spec:
   plan-orchestrator:
     resources:
       limits:
-        memory: 768Mi
+        memory: 1Gi
   reporting:
     resources:
       limits:
