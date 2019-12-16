@@ -9,7 +9,6 @@ import static org.mockito.Matchers.anyList;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -29,7 +28,6 @@ import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
-import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse.TypeCase;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.SeverityCount;
@@ -39,8 +37,6 @@ import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeveri
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.SearchOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
-import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
-import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse.Builder;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
@@ -57,7 +53,7 @@ public class EntitySeverityRpcServiceTest {
 
     private final EntitySeverityRpcService entitySeverityRpcService =
             new EntitySeverityRpcService(actionStorehouse,
-                    100, 500, 5000);
+                    100, 500);
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(entitySeverityRpcService);
@@ -78,9 +74,9 @@ public class EntitySeverityRpcServiceTest {
             .build();
 
         when(actionStorehouse.getSeverityCache(topologyContextId)).thenReturn(Optional.of(severityCache));
-        Iterable<EntitySeveritiesResponse> response =
-            () -> severityServiceClient.getEntitySeverities(severityContext);
-        EntitySeverity severity = processEntitySeverityStream(response).get(0);
+        EntitySeverity severity =
+                severityServiceClient.getEntitySeverities(severityContext).getEntitySeverityList().get(0);
+
         assertTrue(severity.hasSeverity());
         assertEquals(Severity.CRITICAL, severity.getSeverity());
         assertEquals(1234L, severity.getEntityId());
@@ -95,9 +91,9 @@ public class EntitySeverityRpcServiceTest {
             .build();
 
         when(actionStorehouse.getSeverityCache(topologyContextId)).thenReturn(Optional.of(severityCache));
-        Iterable<EntitySeveritiesResponse> response =
-            () -> severityServiceClient.getEntitySeverities(severityContext);
-        EntitySeverity severity = processEntitySeverityStream(response).get(0);
+        EntitySeverity severity =
+                severityServiceClient.getEntitySeverities(severityContext).getEntitySeverityList().get(0);
+
         assertFalse(severity.hasSeverity());
         assertEquals(1234L, severity.getEntityId());
     }
@@ -114,9 +110,8 @@ public class EntitySeverityRpcServiceTest {
             .build();
 
         when(actionStorehouse.getSeverityCache(topologyContextId)).thenReturn(Optional.of(severityCache));
-        Iterable<EntitySeveritiesResponse> response =
-                () -> severityServiceClient.getEntitySeverities(severityContext);
-        List<EntitySeverity> severitiesList = processEntitySeverityStream(response);
+        List<EntitySeverity> severitiesList =
+                severityServiceClient.getEntitySeverities(severityContext).getEntitySeverityList();
         Map<Long, Optional<Severity>> severities = StreamSupport.stream(severitiesList.spliterator(), false)
             .collect(Collectors.toMap(
                 EntitySeverity::getEntityId,
@@ -135,9 +130,8 @@ public class EntitySeverityRpcServiceTest {
             .build();
 
         when(actionStorehouse.getSeverityCache(topologyContextId)).thenReturn(Optional.empty());
-        Iterable<EntitySeveritiesResponse> response =
-            () -> severityServiceClient.getEntitySeverities(severityContext);
-        List<EntitySeverity> severitiesList = processEntitySeverityStream(response);
+        List<EntitySeverity> severitiesList =
+                severityServiceClient.getEntitySeverities(severityContext).getEntitySeverityList();
         Map<Long, Optional<Severity>> severities = StreamSupport.stream(severitiesList.spliterator(), false)
             .collect(Collectors.toMap(
                 EntitySeverity::getEntityId,
@@ -207,26 +201,14 @@ public class EntitySeverityRpcServiceTest {
         when(severityCache.getSeverity(1L)).thenReturn(Optional.of(Severity.NORMAL));
         when(severityCache.getSeverity(2L)).thenReturn(Optional.of(Severity.CRITICAL));
         when(severityCache.getSeverity(3L)).thenReturn(Optional.of(Severity.CRITICAL));
-        Iterable<EntitySeveritiesResponse> response =
-            () -> severityServiceClient.getEntitySeverities(request);
-        List<EntitySeverity> entitySeverityList = new ArrayList<>();
-        Builder paginationResponseBuilder = PaginationResponse.newBuilder();
-        StreamSupport.stream(response.spliterator(), false)
-            .forEach(chunk -> {
-                if (chunk.getTypeCase() == TypeCase.ENTITY_SEVERITY) {
-                    entitySeverityList.addAll(chunk.getEntitySeverity()
-                        .getEntitySeverityList());
-                } else {
-                    paginationResponseBuilder.setNextCursor(chunk.getPaginationResponse().getNextCursor());
-                }
-            });
-        assertEquals(2, entitySeverityList.size());
-        Set<Long> responseOids = entitySeverityList.stream()
+        EntitySeveritiesResponse response = severityServiceClient.getEntitySeverities(request);
+        assertEquals(2, response.getEntitySeverityCount());
+        Set<Long> responseOids = response.getEntitySeverityList().stream()
                 .map(EntitySeverity::getEntityId)
                 .collect(Collectors.toSet());
         assertTrue(responseOids.contains(2L));
         assertTrue(responseOids.contains(3L));
-        assertEquals("2", paginationResponseBuilder.getNextCursor());
+        assertEquals("2", response.getPaginationResponse().getNextCursor());
 
         final PaginationParameters paginationParamsLastPage = PaginationParameters.newBuilder()
                 .setLimit(3)
@@ -239,39 +221,13 @@ public class EntitySeverityRpcServiceTest {
                 .addAllEntityIds(oids)
                 .setPaginationParams(paginationParamsLastPage)
                 .build();
-        response = () -> severityServiceClient.getEntitySeverities(requestLastPage);
-        Builder lastPaginationResponseBuilder = PaginationResponse.newBuilder();
-        List<EntitySeverity> lastPageEntitySeverityList = new ArrayList<>();
-        StreamSupport.stream(response.spliterator(), false)
-            .forEach(chunk -> {
-                if (chunk.getTypeCase() == TypeCase.ENTITY_SEVERITY) {
-                    lastPageEntitySeverityList.addAll(chunk.getEntitySeverity()
-                        .getEntitySeverityList());
-                } else {
-                    if (chunk.getPaginationResponse().hasNextCursor()) {
-                        lastPaginationResponseBuilder.setNextCursor(chunk.getPaginationResponse().getNextCursor());
-                    }
-                }
-            });
-
-        assertEquals(3, lastPageEntitySeverityList.size());
-        responseOids = lastPageEntitySeverityList.stream()
+        response = severityServiceClient.getEntitySeverities(requestLastPage);
+        assertEquals(3, response.getEntitySeverityCount());
+        responseOids = response.getEntitySeverityList().stream()
                 .map(EntitySeverity::getEntityId)
                 .collect(Collectors.toSet());
         assertTrue(responseOids.contains(2L));
         assertTrue(responseOids.contains(3L));
-        assertFalse(lastPaginationResponseBuilder.hasNextCursor());
-    }
-
-    private List<EntitySeverity> processEntitySeverityStream(Iterable<EntitySeveritiesResponse> response) {
-        List<EntitySeverity> entitySeverityList = new ArrayList<>();
-        StreamSupport.stream(response.spliterator(), false)
-            .forEach(chunk -> {
-                if (chunk.getTypeCase() == TypeCase.ENTITY_SEVERITY) {
-                    entitySeverityList.addAll(chunk.getEntitySeverity()
-                        .getEntitySeverityList());
-                }
-            });
-        return entitySeverityList;
+        assertFalse(response.getPaginationResponse().hasNextCursor());
     }
 }

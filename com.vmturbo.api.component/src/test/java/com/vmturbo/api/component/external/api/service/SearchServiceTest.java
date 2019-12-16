@@ -93,7 +93,6 @@ import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationRespon
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
-import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesChunk;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
@@ -665,14 +664,10 @@ public class SearchServiceTest {
                 .addEntities(4L)
                 .build());
         when(entitySeverityServiceSpy.getEntitySeverities(any())).thenReturn(
-            Arrays.asList(
-                EntitySeveritiesResponse.newBuilder()
-                    .setEntitySeverity(EntitySeveritiesChunk.newBuilder()
-                        .addEntitySeverity(EntitySeverity.newBuilder()
-                            .setEntityId(1L)
-                            .setSeverity(Severity.CRITICAL))).build(),
-                EntitySeveritiesResponse.newBuilder()
-                    .setPaginationResponse(PaginationResponse.newBuilder()).build()));
+                EntitySeveritiesResponse.newBuilder().addEntitySeverity(EntitySeverity.newBuilder()
+                        .setEntityId(1L)
+                        .setSeverity(Severity.CRITICAL))
+                    .setPaginationResponse(PaginationResponse.newBuilder()).build());
 
         MultiEntityRequest req = ApiTestUtils.mockMultiSEReq(serviceEntities);
         when(repositoryApi.entitiesRequest(any()))

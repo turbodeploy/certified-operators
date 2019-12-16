@@ -1,9 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -11,7 +9,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
@@ -25,8 +22,6 @@ import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
-import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse.TypeCase;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
@@ -117,39 +112,31 @@ public class SeverityPopulator {
      */
     @Nonnull
     public Map<Long, Optional<Severity>> calculateSeverities(final long topologyContextId,
-                                               @Nonnull final Collection<Long> entityOids) {
-    try {
-            Iterable<EntitySeveritiesResponse> response = () ->
-                severityService.getEntitySeverities( MultiEntityRequest.newBuilder()
-                .setTopologyContextId(topologyContextId)
-                .addAllEntityIds(entityOids)
-                .build());
-            Map<Long, Optional<Severity>> entityToSeverity = new HashMap<>();
-            StreamSupport.stream(response.spliterator(), false)
-                .forEach(chunk -> {
-                    if (chunk.getTypeCase() == TypeCase.ENTITY_SEVERITY) {
-                        chunk.getEntitySeverity()
-                            .getEntitySeverityList()
-                            .forEach(entity -> entityToSeverity.put(entity.getEntityId(), entity.hasSeverity() ?
-                                Optional.of(entity.getSeverity()) : Optional.empty()));
-                    }
-                });
-            return entityToSeverity;
-            } catch (RuntimeException e) {
-        if (e instanceof StatusRuntimeException) {
-            // This is a gRPC StatusRuntimeException
-            Status status = ((StatusRuntimeException)e).getStatus();
-            logger.warn("Unable to fetch severities: {} caused by {}.",
-                status.getDescription(), status.getCause());
-        } else {
-            logger.error("Error when fetching severities: ", e);
+                                                @Nonnull final Collection<Long> entityOids) {
+        try {
+            return severityService.getEntitySeverities(
+                MultiEntityRequest.newBuilder()
+                    .setTopologyContextId(topologyContextId)
+                    .addAllEntityIds(entityOids)
+                    .build())
+                .getEntitySeverityList().stream()
+                .collect(Collectors.toMap(EntitySeverity::getEntityId,
+                    entitySeverity -> entitySeverity.hasSeverity() ?
+                        Optional.of(entitySeverity.getSeverity()) : Optional.empty()));
+        } catch (RuntimeException e) {
+            if (e instanceof StatusRuntimeException) {
+                // This is a gRPC StatusRuntimeException
+                Status status = ((StatusRuntimeException)e).getStatus();
+                logger.warn("Unable to fetch severities: {} caused by {}.",
+                        status.getDescription(), status.getCause());
+            } else {
+                logger.error("Error when fetching severities: ", e);
+            }
         }
-    }
-            return entityOids.stream()
+        return entityOids.stream()
                 .collect(Collectors.toMap(Function.identity(),
-                    id -> Optional.of(Severity.NORMAL)));
-}
-
+                        id -> Optional.of(Severity.NORMAL)));
+    }
 
     /**
      * Calculate the highest severity for the passed in entity OIDs.
@@ -164,16 +151,15 @@ public class SeverityPopulator {
     public Optional<Severity> calculateSeverity(final long topologyContextId,
                                                 @Nonnull final Collection<Long> entityOids) {
         try {
-            Iterable<EntitySeveritiesResponse> response = () -> severityService.getEntitySeverities(
-                MultiEntityRequest.newBuilder()
-                    .setTopologyContextId(topologyContextId)
-                    .addAllEntityIds(entityOids)
-                    .build());
-
-            List<EntitySeverity> entitySeverityList = processEntitySeverityStream(response);
+            List<EntitySeverity> severitiesList = severityService.getEntitySeverities(
+                    MultiEntityRequest.newBuilder()
+                            .setTopologyContextId(topologyContextId)
+                            .addAllEntityIds(entityOids)
+                            .build())
+                    .getEntitySeverityList();
 
             // Calculate the highest severity based on enum value: NORMAL(1), MINOR(2), MAJOR(3), CRITICAL(4)
-            return Optional.ofNullable(entitySeverityList
+            return Optional.ofNullable(severitiesList
                     .stream()
                     .map(EntitySeverity::getSeverity)
                     .reduce(Severity.NORMAL, (first, second)
@@ -235,15 +221,4 @@ public class SeverityPopulator {
         }
     }
 
-    private List<EntitySeverity> processEntitySeverityStream(Iterable<EntitySeveritiesResponse> response) {
-        List<EntitySeverity> entitySeverityList = new ArrayList<>();
-        StreamSupport.stream(response.spliterator(), false)
-            .forEach(chunk -> {
-                if (chunk.getTypeCase() == TypeCase.ENTITY_SEVERITY) {
-                    entitySeverityList.addAll(chunk.getEntitySeverity()
-                        .getEntitySeverityList());
-                }
-            });
-        return entitySeverityList;
-    }
 }

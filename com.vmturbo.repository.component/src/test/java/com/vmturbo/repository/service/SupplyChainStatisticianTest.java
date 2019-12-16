@@ -43,7 +43,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsRespons
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
-import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesChunk;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
@@ -591,15 +590,14 @@ public class SupplyChainStatisticianTest {
         final List<Long> entities = Arrays.asList(1L, 2L, 3L);
 
         when(entitySeverityServiceBackend.getEntitySeverities(any()))
-            .thenReturn(Collections.singletonList(EntitySeveritiesResponse.newBuilder()
-                .setEntitySeverity(EntitySeveritiesChunk.newBuilder().addEntitySeverity(EntitySeverity.newBuilder()
+            .thenReturn(EntitySeveritiesResponse.newBuilder()
+                .addEntitySeverity(EntitySeverity.newBuilder()
                     .setEntityId(1L)
                     .setSeverity(Severity.CRITICAL))
-                    .addEntitySeverity(EntitySeverity.newBuilder()
-                        .setEntityId(2L)
-                        .setSeverity(Severity.MAJOR))
-                    .build()).build()));
-
+                .addEntitySeverity(EntitySeverity.newBuilder()
+                    .setEntityId(2L)
+                    .setSeverity(Severity.MAJOR))
+                .build());
 
         final SupplementaryData suppData = factory.newSupplementaryData(
             entities, Collections.singletonList(SupplyChainGroupBy.SEVERITY));

@@ -10,7 +10,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
@@ -36,7 +35,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsRespons
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
-import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse.TypeCase;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
@@ -326,22 +324,12 @@ public class SupplyChainStatistician {
         @Nonnull
         private Map<Long, Severity> getSeveritiesById(@Nonnull final List<Long> supplyChainEntities) {
             try {
-                Map<Long, Severity> entityToSeverity = new HashMap<>();
-                final Iterable<EntitySeveritiesResponse> resp = () ->
-                    severityService.getEntitySeverities(
+                final EntitySeveritiesResponse resp = severityService.getEntitySeverities(
                     MultiEntityRequest.newBuilder()
                         .addAllEntityIds(supplyChainEntities)
                         .build());
-                StreamSupport.stream(resp.spliterator(), false)
-                    .forEach(chunk -> {
-                        if (chunk.getTypeCase() == TypeCase.ENTITY_SEVERITY) {
-                            chunk.getEntitySeverity()
-                                .getEntitySeverityList()
-                                .forEach(entity -> entityToSeverity.put(entity.getEntityId(),
-                                    entity.getSeverity()));
-                        }
-                    });
-                return entityToSeverity;
+                return resp.getEntitySeverityList().stream()
+                    .collect(Collectors.toMap(EntitySeverity::getEntityId, EntitySeverity::getSeverity));
             } catch (StatusRuntimeException e) {
                 logger.error("Failed to get entity severities. Error: {}", e.getMessage());
                 return Collections.emptyMap();

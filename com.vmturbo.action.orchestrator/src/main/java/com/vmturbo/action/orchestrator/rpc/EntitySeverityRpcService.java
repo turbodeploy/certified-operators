@@ -6,21 +6,17 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-
-import com.google.common.collect.Iterators;
-
-import io.grpc.stub.StreamObserver;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import io.grpc.stub.StreamObserver;
+
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
-import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesChunk;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
@@ -43,25 +39,17 @@ public class EntitySeverityRpcService extends EntitySeverityServiceImplBase {
 
     private final int entitySeverityDefaultPaginationMax;
 
-    private final int maxAmountOfEntitiesPerGrpcMessage;
-
     /**
      * Create a new ActionsRpcService.
      *
      * @param actionStorehouse The storehouse containing action stores.
-     * @param entitySeverityDefaultPaginationLimit The pagination limit for entity severities.
-     * @param defaultPaginationMax The default pagination limit for a response.
-     * @param maxAmountOfEntitiesPerGrpcMessage The maximum amount of entities we can put in a
-     *                                          single rpc message.
      */
     public EntitySeverityRpcService(@Nonnull final ActionStorehouse actionStorehouse,
                                     final int entitySeverityDefaultPaginationLimit,
-                                    final int defaultPaginationMax,
-                                    final int maxAmountOfEntitiesPerGrpcMessage) {
+                                    final int defaultPaginationMax) {
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
         this.entitySeverityDefaultPaginationLimit = entitySeverityDefaultPaginationLimit;
         this.entitySeverityDefaultPaginationMax = defaultPaginationMax;
-        this.maxAmountOfEntitiesPerGrpcMessage = maxAmountOfEntitiesPerGrpcMessage;
     }
 
     /**
@@ -73,15 +61,11 @@ public class EntitySeverityRpcService extends EntitySeverityServiceImplBase {
         final Optional<EntitySeverityCache> optionalCache =
             actionStorehouse.getSeverityCache(request.getTopologyContextId());
         if (!request.hasPaginationParams()) {
-            Stream<EntitySeverity> severityList = request.getEntityIdsList().stream()
-                .map(oid -> generateEntitySeverity(oid, optionalCache));
-            // send the results in batches, if needed
-            Iterators.partition(severityList.iterator(), maxAmountOfEntitiesPerGrpcMessage)
-                .forEachRemaining(chunk -> {
-                    EntitySeveritiesResponse.Builder responseBuilder = EntitySeveritiesResponse.newBuilder();
-                    responseBuilder.setEntitySeverity(EntitySeveritiesChunk.newBuilder().addAllEntitySeverity(chunk).build());
-                    responseObserver.onNext(responseBuilder.build());
-                });
+            EntitySeveritiesResponse.Builder responseBuilder = EntitySeveritiesResponse.newBuilder();
+            request.getEntityIdsList().stream()
+                    .map(oid -> generateEntitySeverity(oid, optionalCache))
+                    .forEach(responseBuilder::addEntitySeverity);
+            responseObserver.onNext(responseBuilder.build());
             responseObserver.onCompleted();
             return;
         }
@@ -99,26 +83,16 @@ public class EntitySeverityRpcService extends EntitySeverityServiceImplBase {
                 .limit(paginationParameters.getLimit())
                 .map(oid -> generateEntitySeverity(oid, optionalCache))
                 .collect(Collectors.toList());
-
-        if ((skipCount + results.size()) < request.getEntityIdsCount()) {
-            EntitySeveritiesResponse.Builder paginationResponseBuilder =
+        EntitySeveritiesResponse.Builder responseBuilder =
                 EntitySeveritiesResponse.newBuilder()
-                    .setPaginationResponse(PaginationResponse.newBuilder());
+                        .addAllEntitySeverity(results)
+                        .setPaginationResponse(PaginationResponse.newBuilder());
+        if ((skipCount + results.size()) < request.getEntityIdsCount()) {
             // if there are more results left.
-            paginationResponseBuilder.getPaginationResponseBuilder()
+            responseBuilder.getPaginationResponseBuilder()
                     .setNextCursor(String.valueOf(skipCount + paginationParameters.getLimit()));
-            responseObserver.onNext(paginationResponseBuilder.build());
         }
-        Iterators.partition(results.iterator(), maxAmountOfEntitiesPerGrpcMessage)
-            .forEachRemaining(chunk -> {
-                EntitySeveritiesResponse.Builder responseBuilder = EntitySeveritiesResponse.newBuilder();
-                responseBuilder
-                    .setEntitySeverity(EntitySeveritiesChunk
-                        .newBuilder()
-                        .addAllEntitySeverity(chunk)
-                        .build());
-                responseObserver.onNext(responseBuilder.build());
-            });
+        responseObserver.onNext(responseBuilder.build());
         responseObserver.onCompleted();
     }
 
