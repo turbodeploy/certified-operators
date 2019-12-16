@@ -21,6 +21,8 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc.BuyRIAnalysisServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
@@ -117,6 +119,7 @@ public class PlanConfig {
                 userSessionConfig.userSessionContext(),
                 repositoryClientConfig.searchServiceClient(),
                 riBuyContextService(),
+                planReservedInstanceService(),
                 planTimeOutHours);
     }
 
@@ -154,6 +157,16 @@ public class PlanConfig {
     @Bean
     public BuyRIAnalysisServiceBlockingStub buyRIService() {
         return BuyRIAnalysisServiceGrpc.newBlockingStub(costClientConfig.costChannel());
+    }
+
+    /**
+     * Grpc stub for the plan reserved instance service.
+     *
+     * @return The {@link PlanReservedInstanceServiceBlockingStub}.
+     */
+    @Bean
+    public PlanReservedInstanceServiceBlockingStub planReservedInstanceService() {
+        return PlanReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel());
     }
 
     @Bean

@@ -205,6 +205,10 @@
                                 </forcedType>
                                 <forcedType>
                                     <name>com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo</name>
+                                    <expression>.*\.plan_reserved_instance_bought\.reserved_instance_bought_info</expression>
+                                </forcedType>
+                                <forcedType>
+                                    <name>com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo</name>
                                     <expression>.*\.buy_reserved_instance\.reserved_instance_bought_info</expression>
                                 </forcedType>
                                 <forcedType>

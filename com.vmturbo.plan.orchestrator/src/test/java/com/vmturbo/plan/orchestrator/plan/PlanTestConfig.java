@@ -27,6 +27,8 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc.BuyRIAnalysisServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
@@ -94,6 +96,11 @@ public class PlanTestConfig {
     @Bean
     protected BuyRIAnalysisServiceBlockingStub buyRIService() throws IOException {
         return BuyRIAnalysisServiceGrpc.newBlockingStub(analysisGrpcServer().getChannel());
+    }
+
+    @Bean
+    protected PlanReservedInstanceServiceBlockingStub planRIService() throws IOException {
+        return PlanReservedInstanceServiceGrpc.newBlockingStub(analysisGrpcServer().getChannel());
     }
 
     @Bean
@@ -226,7 +233,7 @@ public class PlanTestConfig {
         return Mockito.spy(
                 new PlanDaoImpl(dbConfig.dsl(), repositoryClient(),
                         actionServiceClient(), statsServiceClient(), settingGrpcServer().getChannel(),
-                        userSessionContext(), searchClient(), riBuyContextService(), 6));
+                        userSessionContext(), searchClient(), riBuyContextService(), planRIService(), 6));
     }
 
     @Bean

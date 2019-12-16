@@ -19,7 +19,8 @@ public class MarketListenerConfig {
         return marketClientConfig.marketComponent(
             MarketSubscription.forTopic(Topic.ProjectedEntityCosts),
             MarketSubscription.forTopic(Topic.ProjectedEntityRiCoverage),
-            MarketSubscription.forTopic(Topic.ProjectedTopologies));
+            MarketSubscription.forTopic(Topic.ProjectedTopologies),
+            MarketSubscription.forTopic(Topic.PlanAnalysisTopologies));
     }
 
 }

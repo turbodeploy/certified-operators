@@ -41,7 +41,9 @@ import com.vmturbo.auth.api.authorization.UserContextUtils;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.Cost.DeletePlanReservedInstanceStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.DeleteRIBuyContextDataRequest;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
@@ -119,6 +121,8 @@ public class PlanDaoImpl implements PlanDao {
     private final List<PlanStatusListener> planStatusListeners = new LinkedList<>();
 
     private final RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub riStub;
+
+    private final PlanReservedInstanceServiceBlockingStub planRIService;
     /**
      * Constructs plan DAO.
      *
@@ -126,7 +130,11 @@ public class PlanDaoImpl implements PlanDao {
      * @param repositoryClient gRPC client for the repository component
      * @param actionOrchestratorClient gRPC client for action orchestrator
      * @param statsClient gRPC client for the stats/history component
+     * @param groupChannel group channel
+     * @param userSessionContext user session context
      * @param searchServiceBlockingStub gRPC client for search service
+     * @param riStub RI buy context fetching service
+     * @param planRIService plan RI service
      * @param planTimeOutHours plan time out hours
      */
     public PlanDaoImpl(@Nonnull final DSLContext dsl,
@@ -137,6 +145,7 @@ public class PlanDaoImpl implements PlanDao {
                        @Nonnull final UserSessionContext userSessionContext,
                        @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
                        @Nonnull final RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub riStub,
+                       @Nonnull final PlanReservedInstanceServiceBlockingStub planRIService,
                        final int planTimeOutHours) {
         this.dsl = Objects.requireNonNull(dsl);
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
@@ -145,6 +154,7 @@ public class PlanDaoImpl implements PlanDao {
         this.settingService = SettingServiceGrpc.newBlockingStub(groupChannel);
         this.userSessionContext = userSessionContext;
         this.riStub = riStub;
+        this.planRIService = planRIService;
         this.planTimeOutHours = planTimeOutHours;
         this.scenarioScopeAccessChecker = new ScenarioScopeAccessChecker(userSessionContext,
                 GroupServiceGrpc.newBlockingStub(groupChannel), searchServiceBlockingStub);
@@ -358,9 +368,12 @@ public class PlanDaoImpl implements PlanDao {
                     .setTopologyContextId(topologyContextId)
                     .build();
 
+            final DeletePlanReservedInstanceStatsRequest planRIStatsRequest = DeletePlanReservedInstanceStatsRequest
+                            .newBuilder().setTopologyContextId(topologyContextId).build();
             try {
                 // If the plan doesn't exist, stats will not throw any exception.
                 statsClient.deletePlanStats(statsRequest);
+                planRIService.deletePlanReservedInstanceStats(planRIStatsRequest);
             } catch (StatusRuntimeException e) {
                 errors.add("Failed to delete stats associated with plan " + topologyContextId +
                         " due to error: " + e.getLocalizedMessage());

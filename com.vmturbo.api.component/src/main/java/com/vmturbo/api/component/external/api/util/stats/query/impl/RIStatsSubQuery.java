@@ -1,13 +1,11 @@
 package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
-import java.time.Clock;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -15,7 +13,6 @@ import javax.annotation.Nonnull;
 import org.apache.commons.collections4.CollectionUtils;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -23,12 +20,9 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
-import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
-import com.vmturbo.api.component.external.api.util.stats.query.SubQuerySupportedStats;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
-import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.enums.Epoch;
@@ -57,18 +51,13 @@ import com.vmturbo.components.common.utils.StringConstants;
 /**
  * Sub-query responsible for getting reserved instance stats from the cost component.
  */
-public class RIStatsSubQuery implements StatsSubQuery {
+public class RIStatsSubQuery extends AbstractRIStatsSubQuery {
     private final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService;
     private final ReservedInstanceBoughtServiceBlockingStub riBoughtService;
 
     private final RIStatsMapper riStatsMapper;
-    private final RepositoryApi repositoryApi;
     private final ReservedInstanceCostServiceBlockingStub reservedInstanceCostService;
     private final BuyRiScopeHandler buyRiScopeHandler;
-
-    private static final Set<String> SUPPORTED_STATS =
-            ImmutableSet.of(StringConstants.RI_COUPON_UTILIZATION, StringConstants.RI_COUPON_COVERAGE,
-                    StringConstants.NUM_RI, StringConstants.RI_COST);
 
     public RIStatsSubQuery(@Nonnull final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService,
                            @Nonnull final ReservedInstanceBoughtServiceBlockingStub riBoughtService,
@@ -85,10 +74,10 @@ public class RIStatsSubQuery implements StatsSubQuery {
                     @Nonnull final RepositoryApi repositoryApi,
                     @Nonnull final ReservedInstanceCostServiceBlockingStub reservedInstanceCostService,
                     @Nonnull BuyRiScopeHandler buyRiScopeHandler) {
+        super(repositoryApi);
         this.riUtilizationCoverageService = riUtilizationCoverageService;
         this.riBoughtService = riBoughtService;
         this.riStatsMapper = riStatsMapper;
-        this.repositoryApi = repositoryApi;
         this.reservedInstanceCostService = reservedInstanceCostService;
         this.buyRiScopeHandler = buyRiScopeHandler;
     }
@@ -113,11 +102,6 @@ public class RIStatsSubQuery implements StatsSubQuery {
         return !context.getInputScope().isPlan();
     }
 
-    @Override
-    public SubQuerySupportedStats getHandledStats(@Nonnull final StatsQueryContext context) {
-        return SubQuerySupportedStats.some(context.findStats(SUPPORTED_STATS));
-    }
-
     @Nonnull
     @Override
     public List<StatSnapshotApiDTO> getAggregateStats(@Nonnull final Set<StatApiInputDTO> stats,
@@ -129,23 +113,9 @@ public class RIStatsSubQuery implements StatsSubQuery {
             final GetReservedInstanceBoughtCountRequest countRequest = riStatsMapper
                     .createRIBoughtCountRequest(context);
 
-            GetReservedInstanceBoughtCountByTemplateResponse response = riBoughtService
-                    .getReservedInstanceBoughtCountByTemplateType(countRequest).toBuilder().build();
-
-            final Map<Long, Long> riBoughtCountsByTierId = response.getReservedInstanceCountMapMap();
-
-            final Map<Long, ServiceEntityApiDTO> tierApiDTOByTierId =
-                    repositoryApi.entitiesRequest(riBoughtCountsByTierId.keySet())
-                            .getSEMap();
-
-            final Map<String, Long> riBoughtCountByTierName = riBoughtCountsByTierId
-                    .entrySet().stream()
-                    .filter(e -> tierApiDTOByTierId.containsKey(e.getKey()))
-                    .collect(Collectors
-                            .toMap(e -> tierApiDTOByTierId.get(e.getKey()).getDisplayName(),
-                                    Entry::getValue, Long::sum));
+            final Map<String, Long> riBoughtCountByTierName = getRIBoughtCountByTierName(countRequest);
             snapshots.addAll(riStatsMapper
-                    .convertNumRIStatsRecordsToStatSnapshotApiDTO(riBoughtCountByTierName));
+                            .convertNumRIStatsRecordsToStatSnapshotApiDTO(riBoughtCountByTierName));
         }
 
         if (containsStat(StringConstants.RI_COST, stats)
@@ -174,19 +144,23 @@ public class RIStatsSubQuery implements StatsSubQuery {
                             .getReservedInstanceStatsRecordsList(), false));
         }
 
-        return snapshots.stream()
-                .collect(Collectors.toMap(snapshot -> DateTimeUtil.parseTime(snapshot.getDate()),
-                        Function.identity(), (v1, v2) -> {
-                            // Merge stats lists with the same date.
-                            final List<StatApiDTO> stats1 = v1.getStatistics();
-                            final List<StatApiDTO> stats2 = v2.getStatistics();
-                            final List<StatApiDTO> combinedList =
-                                    new ArrayList<>(stats1.size() + stats2.size());
-                            combinedList.addAll(stats1);
-                            combinedList.addAll(stats2);
-                            v1.setStatistics(combinedList);
-                            return v1;
-                        })).values().stream().collect(Collectors.toList());
+        return mergeStatsByDate(snapshots);
+    }
+
+    private Map<String, Long> getRIBoughtCountByTierName(GetReservedInstanceBoughtCountRequest countRequest) {
+        final GetReservedInstanceBoughtCountByTemplateResponse response =
+                        riBoughtService.getReservedInstanceBoughtCountByTemplateType(countRequest).toBuilder().build();
+        final Map<Long, Long> riBoughtCountsByTierId =
+                        response.getReservedInstanceCountMapMap();
+        final Map<Long, ServiceEntityApiDTO> tierApiDTOByTierId =
+                        getRepositoryApi().entitiesRequest(riBoughtCountsByTierId.keySet())
+                                        .getSEMap();
+        return riBoughtCountsByTierId
+                        .entrySet().stream()
+                        .filter(e -> tierApiDTOByTierId.containsKey(e.getKey()))
+                        .collect(Collectors
+                                        .toMap(e -> tierApiDTOByTierId.get(e.getKey()).getDisplayName(),
+                                                        Entry::getValue, Long::sum));
     }
 
     /**
@@ -195,7 +169,7 @@ public class RIStatsSubQuery implements StatsSubQuery {
      * @param context - query context
      * @return boolean
      */
-    private boolean isValidScopeForCoverageRequest(@Nonnull final StatsQueryContext context) {
+    private static boolean isValidScopeForCoverageRequest(@Nonnull final StatsQueryContext context) {
         if (context.getInputScope().getScopeTypes().isPresent()
                 && !context.getInputScope().getScopeTypes().get().isEmpty()) {
             if (context.getInputScope().getScopeTypes().get().size() == 1) {
@@ -445,17 +419,7 @@ public class RIStatsSubQuery implements StatsSubQuery {
          */
         public List<StatSnapshotApiDTO> convertNumRIStatsRecordsToStatSnapshotApiDTO(
                 @Nonnull final Map<String, Long> records) {
-            final List<StatSnapshotApiDTO> response = new ArrayList<>();
-            final StatSnapshotApiDTO snapshotApiDTO = new StatSnapshotApiDTO();
-            snapshotApiDTO.setDate(DateTimeUtil.toString(Clock.systemUTC().millis()));
-            snapshotApiDTO.setEpoch(Epoch.CURRENT);
-            List<StatApiDTO> statApiDTOList = new ArrayList<>();
-            for (String template : records.keySet()) {
-                statApiDTOList.add(createNumRIStatApiDTO(template, records.get(template)));
-            }
-            snapshotApiDTO.setStatistics(statApiDTOList);
-            response.add(snapshotApiDTO);
-            return response;
+            return convertNumRIStatsMapToStatSnapshotApiDTO(records);
         }
 
         /**
@@ -490,7 +454,7 @@ public class RIStatsSubQuery implements StatsSubQuery {
          *                     false means it's a reserved instance utilization stats request.
          * @return a {@link StatApiDTO}.
          */
-        private StatApiDTO createRIUtilizationStatApiDTO(@Nonnull final ReservedInstanceStatsRecord record,
+        private static StatApiDTO createRIUtilizationStatApiDTO(@Nonnull final ReservedInstanceStatsRecord record,
                                                          final boolean isRICoverage) {
             final String name = isRICoverage ? StringConstants.RI_COUPON_COVERAGE : StringConstants.RI_COUPON_UTILIZATION;
             StatApiDTO statsDto = new StatApiDTO();
@@ -509,32 +473,6 @@ public class RIStatsSubQuery implements StatsSubQuery {
             statsDto.setUnits(StringConstants.RI_COUPON_UNITS);
             statsDto.setName(name);
             statsDto.setValue(record.getValues().getAvg());
-            return statsDto;
-        }
-
-        /**
-         * Create StatApiDTO for NumRI stats.
-         *
-         * @param template - template type key
-         * @param count    - number of RIs in users inventory for given template type
-         * @return a {@link StatApiDTO}
-         */
-        private StatApiDTO createNumRIStatApiDTO(@Nonnull String template, @Nonnull Long count) {
-            StatApiDTO statsDto = new StatApiDTO();
-            statsDto.setValue((float) count);
-            statsDto.setName(StringConstants.NUM_RI);
-            StatValueApiDTO statsValueDto = new StatValueApiDTO();
-            statsValueDto.setAvg((float) count);
-            statsValueDto.setMax((float) count);
-            statsValueDto.setMin((float) count);
-            statsValueDto.setTotal((float) count);
-            statsDto.setValues(statsValueDto);
-            List<StatFilterApiDTO> filterList = new ArrayList<>();
-            StatFilterApiDTO filterDto = new StatFilterApiDTO();
-            filterDto.setType(StringConstants.TEMPLATE);
-            filterDto.setValue(template);
-            filterList.add(filterDto);
-            statsDto.setFilters(filterList);
             return statsDto;
         }
 

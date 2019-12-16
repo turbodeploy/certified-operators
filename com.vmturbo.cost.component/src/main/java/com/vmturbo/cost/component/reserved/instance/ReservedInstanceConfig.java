@@ -27,6 +27,7 @@ import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
 import com.vmturbo.cost.component.notification.CostNotificationConfig;
 import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.reserved.instance.coverage.analysis.SupplementalRICoverageAnalysisFactory;
+import com.vmturbo.cost.component.reserved.instance.listener.PlanTopologyListener;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
@@ -116,6 +117,16 @@ public class ReservedInstanceConfig {
                 identityProviderConfig.identityProvider(), repositoryInstanceCostCalculator());
     }
 
+    /**
+     * Plan reserved instance store. Used to interact with plan reserved instance table.
+     *
+     * @return The {@link PlanReservedInstanceStore}.
+     */
+    @Bean
+    public PlanReservedInstanceStore planReservedInstanceStore() {
+        return new PlanReservedInstanceStore(databaseConfig.dsl(), identityProviderConfig.identityProvider());
+    }
+
     @Bean
     public BuyReservedInstanceStore buyReservedInstanceStore() {
         return new BuyReservedInstanceStore(databaseConfig.dsl(),
@@ -151,6 +162,16 @@ public class ReservedInstanceConfig {
                 supplyChainRpcServiceConfig.supplyChainRpcService(),
                 realtimeTopologyContextId, pricingConfig.priceTableStore(),
                 reservedInstanceSpecConfig.reservedInstanceSpecStore());
+    }
+
+    /**
+     * Plan reserved instance Rpc service bean.
+     *
+     * @return The {@link PlanReservedInstanceRpcService}
+     */
+    @Bean
+    public PlanReservedInstanceRpcService planReservedInstanceRpcService() {
+        return new PlanReservedInstanceRpcService(planReservedInstanceStore());
     }
 
     @Bean
@@ -259,6 +280,20 @@ public class ReservedInstanceConfig {
                                                    realtimeTopologyContextId);
         repositoryClientConfig.repository().addListener(PlanProjectedRICoverageAndUtilStore);
         return PlanProjectedRICoverageAndUtilStore;
+    }
+
+    /**
+     * Plan topology listener.
+     *
+     * @return The {@link PlanTopologyListener}
+     */
+    @Bean
+    public PlanTopologyListener planTopologyListener() {
+        PlanTopologyListener planTopologyListener
+                = new PlanTopologyListener(planReservedInstanceStore(),
+                                                   reservedInstanceBoughtRpcService());
+        marketComponent.addPlanAnalysisTopologyListener(planTopologyListener);
+        return planTopologyListener;
     }
 
     @Bean

@@ -133,6 +133,7 @@ public class CostComponent extends BaseVmtComponent {
         return Arrays.asList(pricingConfig.pricingRpcService(),
             buyRIAnalysisConfig.buyReservedInstanceScheduleRpcService(),
             reservedInstanceConfig.reservedInstanceBoughtRpcService(),
+            reservedInstanceConfig.planReservedInstanceRpcService(),
             reservedInstanceSpecConfig.reservedInstanceSpecRpcService(),
             costConfig.costRpcService(),
             costConfig.reservedInstanceCostRpcService(),

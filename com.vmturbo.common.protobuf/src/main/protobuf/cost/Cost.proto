@@ -720,6 +720,18 @@ message GetReservedInstanceBoughtCountByTemplateResponse {
     map<int64, int64> reserved_instance_count_map = 1;
 }
 
+// A request to get plan reserved instance bought count map.
+message GetPlanReservedInstanceBoughtCountRequest {
+    // get reserved instance bought filter by plan id.
+    optional int64 plan_id = 1;
+}
+
+// Response contains plan ri bought count map by tier name
+message GetPlanReservedInstanceBoughtCountByTemplateResponse {
+    // A map where key is the tier id and value is the number of the RIs bought for the tier id
+    map<string, int64> reserved_instance_count_map = 1;
+}
+
 // A request to get reserved instance specs
 message GetReservedInstanceSpecByIdsRequest {
     // A list of reserved instance specs id need to retrieve.
@@ -1052,6 +1064,14 @@ message DeleteRIBuyContextDataResponse {
     optional bool deleted = 1;
 }
 
+message DeletePlanReservedInstanceStatsRequest {
+    optional int64 topologyContextId = 1;
+}
+
+message DeletePlanReservedInstanceStatsResponse {
+    optional bool deleted = 1;
+}
+
 // A service for getting reserved instance bought
 service ReservedInstanceBoughtService {
     // Get reserved instance bought by some filter condition, such as filter by region, availability zones
@@ -1116,6 +1136,20 @@ service BuyRIAnalysisService {
     rpc StartBuyRIAnalysis(StartBuyRIAnalysisRequest) returns (StartBuyRIAnalysisResponse);
 }
 
+// A service for getting plan reserved instance
+service PlanReservedInstanceService {
+    // Get reserved instance bought by some filter condition, such as filter by region, availability zones
+    // or account.
+    rpc GetPlanReservedInstanceBoughtByFilter(GetReservedInstanceBoughtByFilterRequest) returns
+    (GetReservedInstanceBoughtByFilterResponse);
+
+    // Get reserved instance count in the users inventory by template type for the plan
+    rpc GetPlanReservedInstanceBoughtCountByTemplateType(GetPlanReservedInstanceBoughtCountRequest) returns
+    (GetPlanReservedInstanceBoughtCountByTemplateResponse);
+
+    rpc DeletePlanReservedInstanceStats(DeletePlanReservedInstanceStatsRequest) returns
+    (DeletePlanReservedInstanceStatsResponse);
+}
 
 // A service responsible for getting information about cost information in Cloud.
 service CostService {

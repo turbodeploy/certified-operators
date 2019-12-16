@@ -39,6 +39,7 @@ import com.vmturbo.api.component.external.api.util.stats.query.impl.ClusterStats
 import com.vmturbo.api.component.external.api.util.stats.query.impl.HistoricalCommodityStatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.NumClustersStatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.PlanCommodityStatsSubQuery;
+import com.vmturbo.api.component.external.api.util.stats.query.impl.PlanRIStatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.ProjectedCommodityStatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.RIStatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.ScopedUserCountStatsSubQuery;
@@ -683,6 +684,21 @@ public class ServiceConfig {
                         mapperConfig.buyRiScopeHandler());
         statsQueryExecutor().addSubquery(riStatsQuery);
         return riStatsQuery;
+    }
+
+    /**
+     * Plan RI stats sub-query.
+     *
+     * @return The {@link PlanRIStatsSubQuery}.
+     */
+    @Bean
+    public PlanRIStatsSubQuery planRIStatsSubQuery() {
+        final PlanRIStatsSubQuery planRIStatsQuery =
+                new PlanRIStatsSubQuery(
+                        communicationConfig.repositoryApi(),
+                        communicationConfig.planReservedInstanceServiceBlockingStub());
+        statsQueryExecutor().addSubquery(planRIStatsQuery);
+        return planRIStatsQuery;
     }
 
     @Bean
