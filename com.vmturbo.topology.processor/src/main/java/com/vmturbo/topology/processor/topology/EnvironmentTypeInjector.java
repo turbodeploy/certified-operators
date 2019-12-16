@@ -42,6 +42,8 @@ public class EnvironmentTypeInjector {
         SDKProbeType.AWS_BILLING,
         SDKProbeType.AZURE,
         SDKProbeType.AZURE_COST,
+        SDKProbeType.AZURE_EA,
+        SDKProbeType.AZURE_SERVICE_PRINCIPAL,
         SDKProbeType.AZURE_STORAGE_BROWSE);
 
     private static final Logger logger = LogManager.getLogger();

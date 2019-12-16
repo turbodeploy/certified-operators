@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper;
 import static com.vmturbo.common.protobuf.GroupProtoUtil.WORKLOAD_ENTITY_TYPES;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -547,29 +548,40 @@ public class GroupMapper {
 
     private BillingFamilyApiDTO extractBillingFamilyInfo(GroupAndMembers groupAndMembers) {
         BillingFamilyApiDTO billingFamilyApiDTO = new BillingFamilyApiDTO();
-
         Set<Long> oidsToQuery = new HashSet<>(groupAndMembers.members());
-        final List<BusinessUnitApiDTO> billingFamilyMembers =
-            businessAccountRetriever.getBusinessAccounts(oidsToQuery);
+        Map<String, String> accountIdToDisplayNameMap = new HashMap<>();
+        Map<String, String> uuidToDisplayNameMap = new HashMap<>();
+        float cost = 0f;
 
-        // costPrice is the sum of the costPrice of the business accounts
-        billingFamilyApiDTO.setCostPrice(billingFamilyMembers.stream()
-            .map(BusinessUnitApiDTO::getCostPrice)
-            .filter(businessAccountPrice -> businessAccountPrice != null)
-            .reduce(0F, Float::sum)); // mapToFloat doesn't exist, so we have to sum it ourselves
+        for (BusinessUnitApiDTO businessUnit : businessAccountRetriever.getBusinessAccounts(oidsToQuery)) {
+            Float businessUnitCost = businessUnit.getCostPrice();
+            if (businessUnitCost != null) {
+                cost += businessUnitCost;
+            }
 
-        // if there's a master account, set masterAccountUuid of BillingFamilyApiDTO
-        billingFamilyMembers.stream()
-            .filter(BusinessUnitApiDTO::isMaster)
-            .findAny()
-            .ifPresent(masterAccount -> {
-                billingFamilyApiDTO.setMasterAccountUuid(masterAccount.getUuid());
-            });
+            if (businessUnit.getCloudType() != null) {
+                billingFamilyApiDTO.setCloudType(businessUnit.getCloudType());
+            }
 
-        // create a map of uuid to displayName using the business accounts
-        billingFamilyApiDTO.setUuidToNameMap(billingFamilyMembers.stream().collect(Collectors.toMap(
-            BusinessUnitApiDTO::getUuid,
-            BusinessUnitApiDTO::getDisplayName)));
+            String displayName = businessUnit.getDisplayName();
+            uuidToDisplayNameMap.put(businessUnit.getUuid(), displayName);
+
+            String accountId = businessUnit.getAccountId();
+            if (businessUnit.isMaster()) {
+                billingFamilyApiDTO.setMasterAccountUuid(businessUnit.getUuid());
+                billingFamilyApiDTO.setMasterAccountId(accountId == null ? "" : accountId);
+            }
+
+            if (accountId != null) {
+                accountIdToDisplayNameMap.put(accountId, displayName);
+            } else {
+                accountIdToDisplayNameMap.put("", displayName);
+            }
+        }
+
+        billingFamilyApiDTO.setCostPrice(cost);
+        billingFamilyApiDTO.setUuidToNameMap(uuidToDisplayNameMap);
+        billingFamilyApiDTO.setAccountIdToDisplayNameMap(accountIdToDisplayNameMap);
 
         return billingFamilyApiDTO;
     }
