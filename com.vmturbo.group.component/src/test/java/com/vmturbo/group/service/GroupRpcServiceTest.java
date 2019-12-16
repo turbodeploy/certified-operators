@@ -102,6 +102,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.components.common.identity.OidSet;
 import com.vmturbo.group.group.GroupDAO.DiscoveredGroupIdImpl;
+import com.vmturbo.group.group.GroupMembersPlain;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.TemporaryGroupCache;
@@ -903,7 +904,7 @@ public class GroupRpcServiceTest {
     }
 
     @Test
-    public void testGetMembersExpansionDynamic() {
+    public void testGetMembersExpansionDynamic() throws Exception {
         final long groupId = 1234L;
         final List<Long> cluster1Members = Arrays.asList(10L, 11L);
         final List<Long> cluster2Members = Arrays.asList(20L, 21L);
@@ -976,9 +977,8 @@ public class GroupRpcServiceTest {
                         .setGroupFilter(groupFilter)
                         .build();
 
-        given(groupStoreDAO.getGroups(request.getGroupFilter())).willReturn(Arrays.asList(cluster1));
-
-
+        Mockito.when(groupStoreDAO.getGroupIds(request.getGroupFilter()))
+                .thenReturn(Collections.singleton(1L));
         final StreamObserver<GroupDTO.GetMembersResponse> mockObserver =
                 mock(StreamObserver.class);
 
@@ -995,6 +995,9 @@ public class GroupRpcServiceTest {
 
         verify(mockObserver).onNext(expectedNonExpandedResponse);
 
+        Mockito.when(groupStoreDAO.getMembers(Mockito.any(), Mockito.anyBoolean()))
+                .thenReturn(new GroupMembersPlain(new HashSet<>(cluster1Members),
+                        Collections.emptySet(), Collections.emptySet()));
         // verify that a request WITH expansion should get all of the cluster members.
         final GroupDTO.GetMembersRequest requestExpanded = GroupDTO.GetMembersRequest.newBuilder()
                 .setId(groupId)

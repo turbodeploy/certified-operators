@@ -14,6 +14,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -88,7 +89,6 @@ import com.vmturbo.group.db.tables.records.GroupDiscoverTargetsRecord;
 import com.vmturbo.group.db.tables.records.GroupingRecord;
 import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
-import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 
 /**
@@ -611,28 +611,78 @@ public class GroupDAO implements IGroupStore {
     }
 
     @Nonnull
-    @Override
-    public Pair<Set<Long>, Set<Long>> getStaticMembers(long groupId) {
-        return getStaticMembers(dslContext, groupId);
+    private Set<Long> mergeMembers(@Nonnull GroupMembersPlain existing, @Nonnull GroupMembersPlain additional) {
+        existing.getEntityFilters().addAll(additional.getEntityFilters());
+        existing.getEntityIds().addAll(additional.getEntityIds());
+        final Set<Long> newGroups = new HashSet<>();
+        for (Long groupId: additional.getGroupIds()) {
+            if (existing.getGroupIds().add(groupId)) {
+                newGroups.add(groupId);
+            }
+        }
+        return newGroups;
     }
 
     @Nonnull
-    private Pair<Set<Long>, Set<Long>> getStaticMembers(@Nonnull DSLContext context, long groupId) {
+    @Override
+    public GroupMembersPlain getMembers(@Nonnull Collection<Long> groupId,
+            boolean expandNestedGroups) throws StoreOperationException {
+        final GroupMembersPlain members = getDirectMembers(groupId);
+        if (expandNestedGroups) {
+            Set<Long> newGroups = members.getGroupIds();
+            while (!newGroups.isEmpty()) {
+                final GroupMembersPlain subMembers = getDirectMembers(newGroups);
+                newGroups = mergeMembers(members, subMembers);
+            }
+        }
+        return members.unmodifiable();
+    }
+
+    @Nonnull
+    private GroupMembersPlain getDirectMembers(@Nonnull Collection<Long> groupId)
+            throws StoreOperationException {
         final List<Record1<Long>> staticMembersEntities =
-                context.select(GROUP_STATIC_MEMBERS_ENTITIES.ENTITY_ID)
+                dslContext.select(GROUP_STATIC_MEMBERS_ENTITIES.ENTITY_ID)
                         .from(GROUP_STATIC_MEMBERS_ENTITIES)
-                        .where(GROUP_STATIC_MEMBERS_ENTITIES.GROUP_ID.eq(groupId))
+                        .where(GROUP_STATIC_MEMBERS_ENTITIES.GROUP_ID.in(groupId))
                         .fetch();
         final List<Record1<Long>> staticMembersGroups =
-                context.select(GROUP_STATIC_MEMBERS_GROUPS.CHILD_GROUP_ID)
+                dslContext.select(GROUP_STATIC_MEMBERS_GROUPS.CHILD_GROUP_ID)
                         .from(GROUP_STATIC_MEMBERS_GROUPS)
-                        .where(GROUP_STATIC_MEMBERS_GROUPS.PARENT_GROUP_ID.eq(groupId))
+                        .where(GROUP_STATIC_MEMBERS_GROUPS.PARENT_GROUP_ID.in(groupId))
                         .fetch();
         final Set<Long> entitiesMembers =
                 staticMembersEntities.stream().map(Record1::value1).collect(Collectors.toSet());
-        final Set<Long> groupMembers =
-                staticMembersGroups.stream().map(Record1::value1).collect(Collectors.toSet());
-        return Pair.create(entitiesMembers, groupMembers);
+        final Set<Long> groupMembers = staticMembersGroups.stream()
+                .map(Record1::value1)
+                .collect(Collectors.toCollection(HashSet::new));
+        final Collection<Record2<byte[], byte[]>> groups =
+                dslContext.select(GROUPING.ENTITY_FILTERS, GROUPING.GROUP_FILTERS)
+                        .from(GROUPING)
+                        .where(GROUPING.ID.in(groupId))
+                        .fetch();
+        final Set<EntityFilters> entityFilters = new HashSet<>();
+        final Set<GroupFilters> groupFilters = new HashSet<>();
+        for (Record2<byte[], byte[]> record: groups) {
+            try {
+                if (record.value1() != null) {
+                    final EntityFilters entityFilter = EntityFilters.parseFrom(record.value1());
+                    entityFilters.add(entityFilter);
+                }
+                if (record.value2() != null) {
+                    final GroupFilters groupFilter = GroupFilters.parseFrom(record.value2());
+                    groupFilters.add(groupFilter);
+                }
+            } catch (InvalidProtocolBufferException e) {
+                throw new StoreOperationException(Status.INTERNAL,
+                        "Failed deserializing filters from group " + groupId, e);
+            }
+        }
+        for (GroupFilters groupFilter: groupFilters) {
+            final Set<Long> subgroups = getGroupIds(groupFilter);
+            groupMembers.addAll(subgroups);
+        }
+        return new GroupMembersPlain(entitiesMembers, groupMembers, entityFilters);
     }
 
     @Nonnull
@@ -779,7 +829,18 @@ public class GroupDAO implements IGroupStore {
 
     @Nonnull
     @Override
-    public Collection<GroupDTO.Grouping> getGroups(@Nonnull GroupDTO.GroupFilter filter) {
+    public Set<GroupDTO.Grouping> getGroups(@Nonnull GroupDTO.GroupFilter filter) {
+        final Collection<Long> groupingIds = getGroupIds(filter);
+        return groupingIds.stream()
+                .map(id -> getGroupInternal(dslContext, id))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toSet());
+    }
+
+    @Nonnull
+    @Override
+    public Collection<Long> getGroupIds(@Nonnull GroupDTO.GroupFilter filter) {
         final Condition sqlCondition = createGroupCondition(filter);
         final Set<Long> groupingIds = dslContext.select(GROUPING.ID)
                 .from(GROUPING)
@@ -789,11 +850,22 @@ public class GroupDAO implements IGroupStore {
                 .map(Record1::value1)
                 .collect(Collectors.toSet());
         final Collection<Long> postSqlFiltered = filterPostSQL(dslContext, groupingIds, filter);
-        return postSqlFiltered.stream()
-                .map(id -> getGroupInternal(dslContext, id))
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .collect(Collectors.toSet());
+        return Collections.unmodifiableCollection(postSqlFiltered);
+    }
+
+    @Nonnull
+    private Set<Long> getGroupIds(@Nonnull GroupFilters filters) {
+        if (filters.getGroupFilterCount() == 0) {
+            return Collections.emptySet();
+        }
+        final Iterator<GroupFilter> iterator = filters.getGroupFilterList().iterator();
+        final Set<Long> initialSet = new HashSet<>(getGroupIds(iterator.next()));
+        while (iterator.hasNext()) {
+            final GroupFilter additionalFilter = iterator.next();
+            final Collection<Long> anotherSet = getGroupIds(additionalFilter);
+            initialSet.retainAll(anotherSet);
+        }
+        return Collections.unmodifiableSet(initialSet);
     }
 
     /**
