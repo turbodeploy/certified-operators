@@ -17,7 +17,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
-import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
  * Store to operate with groups. It is responsible to create, save and query groups.
@@ -75,6 +74,15 @@ public interface IGroupStore {
     Collection<Grouping> getGroups(@Nonnull GroupDTO.GroupFilter groupFilter);
 
     /**
+     * Returns collection of group ids, conforming to the request specified.
+     *
+     * @param groupFilter request to query
+     * @return collection of groups
+     */
+    @Nonnull
+    Collection<Long> getGroupIds(@Nonnull GroupDTO.GroupFilter groupFilter);
+
+    /**
      * Deletes the group specified by id.
      *
      * @param groupId group id
@@ -128,12 +136,15 @@ public interface IGroupStore {
      * recursion. Only direct static members are returned. If group is a dynamic group or
      * it does not have any members, this method returns empty set.
      *
-     * @param groupId group id to search
-     * @return set of member entities and set of member groups. If group does not exist or it
-     *         does not have any static members empty collections will be returned.
+     * @param groupIds ids of groups to get members for
+     * @param expandNestedGroups whether to expand nested groups. If this value is {@code
+     *         false} only direct members will be returned.
+     * @return collection of members: oids and entity filters
+     * @throws StoreOperationException if error occurred during data reading operations.
      */
     @Nonnull
-    Pair<Set<Long>, Set<Long>> getStaticMembers(long groupId);
+    GroupMembersPlain getMembers(Collection<Long> groupIds, boolean expandNestedGroups)
+            throws StoreOperationException;
 
     /**
      * Returns static groups containing the specified entity. No recursion will be performed

@@ -29,22 +29,26 @@ import org.junit.rules.ExpectedException;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.GroupFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
+import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.group.db.GroupComponent;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroupId;
 import com.vmturbo.group.service.StoreOperationException;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
-import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
  * Unit test to cover {@link GroupDAO} functionality.
@@ -67,6 +71,8 @@ public class GroupDaoTest {
     private static final long OID1 = 100001L;
     private static final long OID2 = 100002L;
     private static final long OID3 = 100003L;
+    private static final long OID4 = 100004L;
+    private static final long OID5 = 100005L;
 
     /**
      * Expected exception rule.
@@ -616,15 +622,37 @@ public class GroupDaoTest {
      * @throws Exception on exceptions occurred.
      */
     @Test
-    public void testGetStaticMembers() throws Exception {
+    public void testGetMembers() throws Exception {
         final Origin origin = createUserOrigin();
         final GroupDefinition child1 = createGroupDefinition();
         final GroupDefinition child2 = GroupDefinition.newBuilder(createGroupDefinition())
                 .setType(GroupType.COMPUTE_HOST_CLUSTER)
                 .build();
+        final EntityFilters entityFilters = EntityFilters.newBuilder()
+                .addEntityFilter(EntityFilter.newBuilder()
+                        .setEntityType(EntityType.STORAGE_VALUE)
+                        .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+                                .addSearchParameters(SearchParameters.newBuilder()
+                                        .setStartingFilter(PropertyFilter.newBuilder()
+                                                .setPropertyName("oid")
+                                                .setStringFilter(StringFilter.newBuilder()
+                                                        .addOptions("awr232421342"))))))
+                .build();
+        final GroupDefinition child3 = GroupDefinition.newBuilder(createGroupDefinition())
+                .setType(GroupType.STORAGE_CLUSTER)
+                .setEntityFilters(entityFilters)
+                .build();
+        final GroupDefinition child4 = GroupDefinition.newBuilder(createGroupDefinition())
+                .setGroupFilters(GroupFilters.newBuilder()
+                        .addGroupFilter(GroupFilter.newBuilder()
+                                .setGroupType(GroupType.STORAGE_CLUSTER)
+                                .build()))
+                .build();
         groupStore.createGroup(OID1, origin, child1, EXPECTED_MEMBERS, true);
         groupStore.createGroup(OID2, origin, child2, EXPECTED_MEMBERS, true);
-        final long oid3 = 123456L;
+        groupStore.createGroup(OID3, origin, child3, EXPECTED_MEMBERS, true);
+        groupStore.createGroup(OID4, origin, child4, EXPECTED_MEMBERS, true);
+        final long oidEntity = 123456L;
         final GroupDefinition container = GroupDefinition.newBuilder(createGroupDefinition())
                 .setStaticGroupMembers(StaticMembers.newBuilder()
                         .addMembersByType(StaticMembersByType.newBuilder()
@@ -637,20 +665,42 @@ public class GroupDaoTest {
                                 .addMembers(OID2)
                                 .build())
                         .addMembersByType(StaticMembersByType.newBuilder()
+                                .setType(MemberType.newBuilder().setGroup(GroupType.REGULAR))
+                                .addMembers(OID4)
+                                .build())
+                        .addMembersByType(StaticMembersByType.newBuilder()
                                 .setType(MemberType.newBuilder().setEntity(34))
-                                .addMembers(oid3)
+                                .addMembers(oidEntity)
                                 .build()))
                 .build();
         final Set<MemberType> expectedMemberTypes =
                 ImmutableSet.of(MemberType.newBuilder().setGroup(GroupType.REGULAR).build(),
                         MemberType.newBuilder().setGroup(GroupType.COMPUTE_HOST_CLUSTER).build(),
                         MemberType.newBuilder().setEntity(34).build());
-        groupStore.createGroup(OID3, origin, container, expectedMemberTypes, true);
-        final Pair<Set<Long>, Set<Long>> members = groupStore.getStaticMembers(OID3);
-        Assert.assertEquals(Pair.create(Collections.singleton(oid3), Sets.newHashSet(OID1, OID2)),
-                members);
+        groupStore.createGroup(OID5, origin, container, expectedMemberTypes, true);
+        final GroupMembersPlain members =
+                groupStore.getMembers(Collections.singleton(OID5), true);
+        final Set<Long> expectedEntities = new HashSet<>();
+        expectedEntities.add(oidEntity);
+        expectedEntities.addAll(getEntityMembers(child1));
+        expectedEntities.addAll(getEntityMembers(child2));
+        expectedEntities.addAll(getEntityMembers(child3));
+        expectedEntities.addAll(getEntityMembers(child4));
+        Assert.assertEquals(Sets.newHashSet(OID1, OID2, OID3, OID4), members.getGroupIds());
+        Assert.assertEquals(expectedEntities, members.getEntityIds());
+        Assert.assertEquals(Collections.singleton(entityFilters), members.getEntityFilters());
     }
 
+    @Nonnull
+    private Set<Long> getEntityMembers(@Nonnull GroupDefinition groupDefinition) {
+        return groupDefinition.getStaticGroupMembers()
+                .getMembersByTypeList()
+                .stream()
+                .filter(member -> member.getType().hasEntity())
+                .map(StaticMembersByType::getMembersList)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toSet());
+    }
     /**
      * Tests removal of all the groups from the DAO. Method is expected to remove all the groups
      * regardless of their origins.

@@ -11,7 +11,6 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -50,6 +49,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.SelectionCriteriaCase;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
@@ -68,6 +68,7 @@ import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.group.group.GroupMembersPlain;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.TemporaryGroupCache;
@@ -151,7 +152,8 @@ public class GroupRpcService extends GroupServiceImplBase {
         });
     }
 
-    private List<Grouping> getListOfGroups(@Nonnull IGroupStore groupStore, GetGroupsRequest request) {
+    private List<Grouping> getListOfGroups(@Nonnull IGroupStore groupStore,
+            GetGroupsRequest request) throws StoreOperationException {
         boolean resolveGroupBasedFilters =
             request.getReplaceGroupPropertyWithGroupMembershipFilter();
 
@@ -160,21 +162,32 @@ public class GroupRpcService extends GroupServiceImplBase {
                         GroupFilter.newBuilder().build());
 
         final Set<Long> requestedIds = new HashSet<>(request.getGroupFilter().getIdList());
+        final List<Grouping> resultList = new ArrayList<>(groups.size());
+        for (Grouping group: groups) {
+            final Grouping resolvedGroup = resolveGroupBasedFilters ?
+                    replaceGroupPropertiesWithGroupMembershipFilter(groupStore, group) : group;
+            if (userScopeFilter(resolvedGroup, requestedIds, groupStore)) {
+                resultList.add(resolvedGroup);
+            }
+        }
+        return resultList;
+    }
+
+    private boolean userScopeFilter(@Nonnull Grouping group, @Nonnull Set<Long> requestedIds,
+            @Nonnull IGroupStore groupStore) throws StoreOperationException {
         // if the user is scoped, set up a filter to restrict the results based on their scope.
         // if the request is for "all" groups: we will filter results and only return accessible ones.
         // If the request was for a specific set of groups: we will use a filter that will throw an
         // access exception if any groups are deemed "out of scope".
-        Predicate<Grouping> userScopeFilter = userSessionContext.isUserScoped()
-                ? requestedIds.isEmpty()
-                ? group -> userSessionContext.getUserAccessScope().contains(getGroupMembers(groupStore, group.getDefinition(), true))
-                : group -> UserScopeUtils.checkAccess(userSessionContext, getGroupMembers(groupStore, group.getDefinition(), true))
-                : group -> true;
-
-        return groups.stream()
-                .map(group -> resolveGroupBasedFilters ?
-                    replaceGroupPropertiesWithGroupMembershipFilter(groupStore, group) : group)
-                .filter(userScopeFilter)
-                .collect(Collectors.toList());
+        if (!userSessionContext.isUserScoped()) {
+            return true;
+        }
+        final Collection<Long> members = getGroupMembers(groupStore, group.getDefinition(), true);
+        if (requestedIds.isEmpty()) {
+            return userSessionContext.getUserAccessScope().contains(members);
+        } else {
+            return UserScopeUtils.checkAccess(userSessionContext, members);
+        }
     }
 
     @Override
@@ -314,15 +327,15 @@ public class GroupRpcService extends GroupServiceImplBase {
             final IGroupStore groupStore = stores.getGroupStore();
             final Set<Grouping> staticGroupsForEntity =
                     groupStore.getStaticGroupsForEntity(request.getEntityId());
-            //  User have access to group if has access to all group members
-            final Predicate<Grouping> userScopeFilter = userSessionContext.isUserScoped() ?
-                    group -> UserScopeUtils.checkAccess(userSessionContext,
-                            getGroupMembers(groupStore, group.getDefinition(), true)) :
-                    group -> true;
-            final List<Grouping> filteredGroups = staticGroupsForEntity.stream()
-                    .filter(userScopeFilter)
-                    .collect(Collectors.toList());
-
+            final List<Grouping> filteredGroups = new ArrayList<>(staticGroupsForEntity.size());
+            for (Grouping staticGroup: staticGroupsForEntity) {
+                //  User have access to group if has access to all group members
+                if (!userSessionContext.isUserScoped() ||
+                        UserScopeUtils.checkAccess(userSessionContext,
+                                getGroupMembers(groupStore, staticGroup.getDefinition(), true))) {
+                    filteredGroups.add(staticGroup);
+                }
+            }
             GetGroupForEntityResponse entityResponse =
                     GetGroupForEntityResponse.newBuilder().addAllGroup(filteredGroups).build();
 
@@ -711,7 +724,40 @@ public class GroupRpcService extends GroupServiceImplBase {
     }
 
     @Nonnull
-    private List<Long> getGroupMembers(@Nonnull IGroupStore groupStore, @Nonnull GroupDefinition groupDefinition, boolean expandNestedGroups) {
+    private Set<Long> getEntities(@Nonnull EntityFilters entityFilters, @Nonnull IGroupStore groupStore) {
+        final List<EntityFilter> filterList = entityFilters.getEntityFilterList();
+        final Set<Long> memberOids = new HashSet<>();
+        for (EntityFilter entityFilter : filterList) {
+            if (!entityFilter.hasSearchParametersCollection()) {
+                logger.error("Search parameter collection is not present in group entity filters `{}`",
+                        entityFilters);
+            }
+            // resolve a dynamic group
+            final List<SearchParameters> searchParameters
+                    = entityFilter.getSearchParametersCollection().getSearchParametersList();
+
+            // Convert any ClusterMemberFilters to static set member checks based
+            // on current group membership info
+            Search.SearchEntityOidsRequest.Builder searchRequestBuilder =
+                    Search.SearchEntityOidsRequest.newBuilder();
+            final SearchFilterResolver searchFilterResolver =
+                    new GroupComponentSearchFilterResolver(groupStore);
+            for (SearchParameters params : searchParameters) {
+                searchRequestBuilder.addSearchParameters(
+                        searchFilterResolver.resolveGroupFilters(params));
+            }
+            final Search.SearchEntityOidsRequest searchRequest = searchRequestBuilder.build();
+            final Search.SearchEntityOidsResponse searchResponse =
+                    searchServiceRpc.searchEntityOids(searchRequest);
+            memberOids.addAll(searchResponse.getEntitiesList());
+        }
+        return memberOids;
+    }
+
+    @Nonnull
+    private List<Long> getGroupMembers(@Nonnull IGroupStore groupStore,
+            @Nonnull GroupDefinition groupDefinition, boolean expandNestedGroups)
+            throws StoreOperationException {
         final Set<Long> memberOids = new HashSet<>();
 
         switch (groupDefinition.getSelectionCriteriaCase()) {
@@ -751,49 +797,23 @@ public class GroupRpcService extends GroupServiceImplBase {
 
                 break;
             case ENTITY_FILTERS:
-                final List<EntityFilter> filterList = groupDefinition
-                                .getEntityFilters().getEntityFilterList();
-                for (EntityFilter entityFilter : filterList) {
-                    if (!entityFilter.hasSearchParametersCollection()) {
-                        logger.error("Search parameter collection is not present in group definition `{}`",
-                                        groupDefinition);
-                    }
-                    // resolve a dynamic group
-                    final List<SearchParameters> searchParameters
-                            = entityFilter.getSearchParametersCollection().getSearchParametersList();
-
-                    // Convert any ClusterMemberFilters to static set member checks based
-                    // on current group membership info
-                    Search.SearchEntityOidsRequest.Builder searchRequestBuilder =
-                            Search.SearchEntityOidsRequest.newBuilder();
-                    final SearchFilterResolver searchFilterResolver =
-                            new GroupComponentSearchFilterResolver(groupStore);
-                    for (SearchParameters params : searchParameters) {
-                        searchRequestBuilder.addSearchParameters(
-                                searchFilterResolver.resolveGroupFilters(params));
-                    }
-                    final Search.SearchEntityOidsRequest searchRequest = searchRequestBuilder.build();
-                    final Search.SearchEntityOidsResponse searchResponse = searchServiceRpc.searchEntityOids(searchRequest);
-                    memberOids.addAll(searchResponse.getEntitiesList());
-                }
+                memberOids.addAll(getEntities(groupDefinition.getEntityFilters(), groupStore));
                 break;
            case GROUP_FILTERS:
                final List<GroupFilter> groupFilterList = groupDefinition
                        .getGroupFilters().getGroupFilterList();
                 for (GroupFilter groupFilter : groupFilterList) {
                     // We need to look up the expected types from GroupStore
-                    final Collection<Grouping> groups = groupStore.getGroups(groupFilter);
+                    final Collection<Long> groups = groupStore.getGroupIds(groupFilter);
                     if (expandNestedGroups) {
-                        groups
-                            .stream()
-                            .map(Grouping::getDefinition)
-                            .map(group -> getGroupMembers(groupStore, group, true))
-                            .forEach(memberOids::addAll);
+                        final GroupMembersPlain members = groupStore.getMembers(groups, true);
+                        memberOids.addAll(members.getEntityIds());
+                        memberOids.addAll(members.getGroupIds());
+                        for (EntityFilters entityFilters: members.getEntityFilters()) {
+                            memberOids.addAll(getEntities(entityFilters, groupStore));
+                        }
                     } else {
-                        groups
-                            .stream()
-                            .map(Grouping::getId)
-                            .forEach(memberOids::add);
+                        memberOids.addAll(groups);
                     }
 
                 }
@@ -819,9 +839,10 @@ public class GroupRpcService extends GroupServiceImplBase {
      *
      * @param groupStore group store to use
      * @param groupId the group id to check
-     *
+     * @throws StoreOperationException if error occurred while processing group data
      */
-    private void checkUserAccessToGrouping(@Nonnull IGroupStore groupStore, long groupId) {
+    private void checkUserAccessToGrouping(@Nonnull IGroupStore groupStore, long groupId)
+            throws StoreOperationException {
         if (!userHasAccessToGrouping(groupStore, groupId)) {
             throw new UserAccessScopeException("User does not have access to group " + groupId);
         }
@@ -836,8 +857,10 @@ public class GroupRpcService extends GroupServiceImplBase {
      * @param groupId the group id to check access for
      * @param groupStore group store to use
      * @return true, if the user definitely has access to the group. false, if not.
+     * @throws StoreOperationException if some error occurred while operating with stores
      */
-    public boolean userHasAccessToGrouping(@Nonnull IGroupStore groupStore, long groupId) {
+    public boolean userHasAccessToGrouping(@Nonnull IGroupStore groupStore, long groupId)
+            throws StoreOperationException {
         if (!userSessionContext.isUserScoped()) {
             return true;
         }
