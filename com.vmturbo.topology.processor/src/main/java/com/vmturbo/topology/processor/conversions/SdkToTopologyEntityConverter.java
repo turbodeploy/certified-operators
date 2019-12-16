@@ -181,6 +181,7 @@ public class SdkToTopologyEntityConverter {
         final boolean isShopTogether = dto.getConsumerPolicy().getShopsTogether();
         final boolean isControllable = dto.getConsumerPolicy().getControllable();
         final boolean isProviderMustClone = dto.getConsumerPolicy().getProviderMustClone();
+        final boolean isDeletable = dto.getConsumerPolicy().getDeletable();
         final boolean isMonitored = dto.getMonitored();
         final Map<String, TagValuesDTO> entityTags = extractTags(dto);
 
@@ -312,6 +313,7 @@ public class SdkToTopologyEntityConverter {
             isShopTogether,
             isControllable(isControllable, isMonitored),
             isProviderMustClone,
+            isDeletable,
             calculateSuspendabilityWithStitchingEntity(entity)
         );
 
@@ -362,6 +364,7 @@ public class SdkToTopologyEntityConverter {
         final boolean isShopTogether =  dto.getConsumerPolicy().getShopsTogether();
         final boolean isControllable = dto.getConsumerPolicy().getControllable();
         final boolean isProviderMustClone = dto.getConsumerPolicy().getProviderMustClone();
+        final boolean isDeletable = dto.getConsumerPolicy().getDeletable();
         final boolean isMonitored = dto.getMonitored();
         final Map<String, TagValuesDTO> entityTags = extractTags(dto);
 
@@ -467,6 +470,7 @@ public class SdkToTopologyEntityConverter {
                 isShopTogether,
                 isControllable(isControllable, isMonitored),
                 isProviderMustClone,
+                isDeletable,
                 calculateSuspendability(dto)
         );
 
@@ -493,6 +497,7 @@ public class SdkToTopologyEntityConverter {
             boolean isShopTogether,
             boolean isControllable,
             boolean isProviderMustClone,
+            boolean isDeletable,
             Optional<Boolean> suspendable
         ) {
         AnalysisSettings.Builder analysisSettingsBuilder =
@@ -500,7 +505,8 @@ public class SdkToTopologyEntityConverter {
                 .setShopTogether(isShopTogether)
                 .setControllable(isControllable)
                 .setProviderMustClone(isProviderMustClone)
-                .setIsAvailableAsProvider(availableAsProvider);
+                .setIsAvailableAsProvider(availableAsProvider)
+                .setDeletable(isDeletable);
         if (suspendable.isPresent()) {
             boolean suspendableValue = suspendable.get();
             analysisSettingsBuilder.setSuspendable(suspendableValue);

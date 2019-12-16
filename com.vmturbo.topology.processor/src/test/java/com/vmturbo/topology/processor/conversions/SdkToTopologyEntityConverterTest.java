@@ -38,6 +38,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ConsumerPolicy;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -530,6 +531,61 @@ public class SdkToTopologyEntityConverterTest {
                      vmTopologyEntityBuilder.getConnectedEntityList(0).getConnectionType());
         assertEquals(0, regTopologyEntityBuilder.getConnectedEntityListCount());
     }
+
+    /**
+     * Tests that {@link SdkToTopologyEntityConverter} translate the ConsumerPolicy.deletable to
+     * AnalysisSetting.deletable when it is false.
+     */
+    @Test
+    public void testVolumeConverterForConsumerPolicyWhenConsumerPolicyDeletableIsFalse() {
+        final long vvId = 1L;
+        final boolean isVolumeDeletable = false;
+
+        final TopologyStitchingEntity vv = getTopologyStitchingEntityForVirtualVolume(vvId, isVolumeDeletable);
+
+        final TopologyEntityDTO.Builder vvTopologyEntityBuilder =
+            SdkToTopologyEntityConverter.newTopologyEntityDTO(vv);
+
+        assertFalse(vvTopologyEntityBuilder.getAnalysisSettings().getDeletable());
+    }
+
+    /**
+     * Tests that {@link SdkToTopologyEntityConverter} translate the ConsumerPolicy.deletable to
+     * AnalysisSetting.deletable when it is true.
+     */
+    @Test
+    public void testVolumeConverterForConsumerPolicyWhenConsumerPolicyDeletableIsTrue() {
+        final long vvId = 1L;
+        final boolean isVolumeDeletable = true;
+
+        final TopologyStitchingEntity vv = getTopologyStitchingEntityForVirtualVolume(vvId, isVolumeDeletable);
+
+        final TopologyEntityDTO.Builder vvTopologyEntityBuilder =
+            SdkToTopologyEntityConverter.newTopologyEntityDTO(vv);
+
+        assertTrue(vvTopologyEntityBuilder.getAnalysisSettings().getDeletable());
+    }
+
+    /**
+     * Helper method to create {@link TopologyStitchingEntity} for Virtual Volume.
+     *
+     * @param vvId virtual volume id
+     * @param deletable  volume's consumer policy of deletable
+     * @return {@link TopologyStitchingEntity}
+     */
+    private static TopologyStitchingEntity getTopologyStitchingEntityForVirtualVolume(final long vvId,
+                                                                                      final boolean deletable) {
+        final EntityDTO.Builder vvNotDeletableBuilder = EntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_VOLUME)
+            .setId(Long.toString(vvId))
+            .setConsumerPolicy(ConsumerPolicy.newBuilder()
+                .setDeletable(deletable)
+                .build());
+        return new TopologyStitchingEntity(
+            StitchingEntityData.newBuilder(vvNotDeletableBuilder).oid(vvId).build());
+    }
+
+
 
     private static boolean isAccessCommodity(CommoditySoldDTO comm) {
         int type = comm.getCommodityType().getType();
