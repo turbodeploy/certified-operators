@@ -50,7 +50,6 @@ public class GroupConfig {
 
     @Bean
     public GroupDAO groupStore() {
-        return new GroupDAO(databaseConfig.dsl(),
-                        identityProviderConfig.identityProvider());
+        return new GroupDAO(databaseConfig.dsl());
     }
 }

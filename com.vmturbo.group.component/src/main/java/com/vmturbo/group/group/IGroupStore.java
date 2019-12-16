@@ -5,7 +5,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -30,15 +29,15 @@ public interface IGroupStore {
      * call. Discovered groups should be created with {@link #updateDiscoveredGroups(Collection,
      * Collection, Set)}
      *
+     * @param oid oid for the new group
      * @param origin origin of this group
      * @param groupDefinition group definition
      * @param expecMemberTypes expected members types of this group
      * @param supportReverseLookup whether the group supports reverse lookups
-     * @return OID of the newly create group
      * @throws StoreOperationException if operation failed
      * @see #updateDiscoveredGroups(Collection, Collection, Set)
      */
-    long createGroup(@Nonnull Origin origin, @Nonnull GroupDefinition groupDefinition,
+    void createGroup(long oid, @Nonnull Origin origin, @Nonnull GroupDefinition groupDefinition,
             @Nonnull Set<MemberType> expecMemberTypes, boolean supportReverseLookup)
             throws StoreOperationException;
 
@@ -56,7 +55,7 @@ public interface IGroupStore {
      *
      * @param groupId group id to update
      * @param groupDefinition new data to set
-     * @param expectedMemberTypes expected mebers types for this group
+     * @param expectedMemberTypes expected members types for this group
      * @param supportReverseLookups whether this group supports reverse lookups
      * @return group object
      * @throws StoreOperationException if operation failed
@@ -147,14 +146,13 @@ public interface IGroupStore {
     Set<Grouping> getStaticGroupsForEntity(long entityId);
 
     /**
-     * Subscribe to deletion of user or system group. The callback will not be called for any
-     * discovered groups. Callback receives a OID of the group after the deletion.
-     *
-     * @param consumer callback
+     * Method deletes all the groups in the store. Should be used only when the whole set
+     * of groups has to be replaced with a new one. There are no checks for immutable groups
+     * implied here. All groups are just deleted.
      */
-    void subscribeUserGroupRemoved(@Nonnull Consumer<Long> consumer);
+    void deleteAllGroups();
 
-        /**
+    /**
      * Class to hold discovered group information.
      */
     @Immutable

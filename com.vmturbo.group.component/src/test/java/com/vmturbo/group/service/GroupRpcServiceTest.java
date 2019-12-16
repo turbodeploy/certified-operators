@@ -132,6 +132,7 @@ public class GroupRpcServiceTest {
     private MockTransactionProvider transactionProvider;
     private IGroupStore groupStoreDAO;
     private GrpcTestServer testServer;
+    private IdentityProvider identityProvider;
 
     private final GroupDefinition testGrouping = GroupDefinition.newBuilder()
                     .setType(GroupType.REGULAR)
@@ -168,7 +169,7 @@ public class GroupRpcServiceTest {
         searchServiceMole = Mockito.spy(new SearchServiceMole());
         testServer = GrpcTestServer.newServer(searchServiceMole);
         testServer.start();
-        final IdentityProvider identityProvider = new IdentityProvider(0);
+        identityProvider = Mockito.spy(new IdentityProvider(0));
         groupStitchingManager = new GroupStitchingManager(identityProvider);
         SearchServiceBlockingStub searchServiceRpc = SearchServiceGrpc.newBlockingStub(testServer.getChannel());
         transactionProvider = new MockTransactionProvider();
@@ -177,7 +178,8 @@ public class GroupRpcServiceTest {
                 searchServiceRpc,
                 userSessionContext,
                 groupStitchingManager,
-                transactionProvider);
+                transactionProvider,
+                identityProvider);
         when(temporaryGroupCache.getGrouping(anyLong())).thenReturn(Optional.empty());
         when(temporaryGroupCache.deleteGrouping(anyLong())).thenReturn(Optional.empty());
         MockitoAnnotations.initMocks(this);
@@ -1230,12 +1232,10 @@ public class GroupRpcServiceTest {
                         mock(StreamObserver.class);
 
         long groupingOid = 5;
-        given(groupStoreDAO
-                        .createGroup(eq(origin), eq(group), any(),
-                                        eq(true))).willReturn(groupingOid);
+        Mockito.when(identityProvider.next()).thenReturn(groupingOid).thenReturn(-1L);
 
         groupRpcService.createGroup(groupRequest, mockObserver);
-        verify(groupStoreDAO).createGroup(eq(origin), eq(group), any(),
+        verify(groupStoreDAO).createGroup(eq(groupingOid), eq(origin), eq(group), any(),
                         eq(true));
         verify(mockObserver).onNext(CreateGroupResponse.newBuilder()
                 .setGroup(Grouping
@@ -1317,7 +1317,7 @@ public class GroupRpcServiceTest {
 
         //Verify the group was not created
         verify(groupStoreDAO, never())
-            .createGroup(Mockito.anyObject(), Mockito.anyObject(),
+            .createGroup(Mockito.anyLong(), Mockito.anyObject(), Mockito.anyObject(),
                             Mockito.anyObject(), Mockito.anyBoolean());
 
         //Verify we send the error response
@@ -1349,7 +1349,7 @@ public class GroupRpcServiceTest {
 
         //Verify the group was not created
         verify(groupStoreDAO, never())
-            .createGroup(Mockito.anyObject(), Mockito.anyObject(),
+            .createGroup(Mockito.anyLong(), Mockito.anyObject(), Mockito.anyObject(),
                             Mockito.anyObject(), Mockito.anyBoolean());
         //Verify we send the error response
         final ArgumentCaptor<StatusException> exceptionCaptor =
@@ -1384,7 +1384,7 @@ public class GroupRpcServiceTest {
 
         //Verify the group was not created
         verify(groupStoreDAO, never())
-                .createGroup(Mockito.anyObject(), Mockito.anyObject(),
+                .createGroup(Mockito.anyLong(), Mockito.anyObject(), Mockito.anyObject(),
                                 Mockito.anyObject(), Mockito.anyBoolean());
 
         //Verify we send the error response
@@ -1537,9 +1537,9 @@ public class GroupRpcServiceTest {
                         mock(StreamObserver.class);
         final String message = "some error occurred";
         Mockito.doThrow(new StoreOperationException(Status.ABORTED, message))
-            .when(groupStoreDAO).createGroup(Mockito.anyObject(), Mockito.anyObject(),
-                            Mockito.anyObject(),
-                            Mockito.anyBoolean());
+                .when(groupStoreDAO)
+                .createGroup(Mockito.anyLong(), Mockito.anyObject(), Mockito.anyObject(),
+                        Mockito.anyObject(), Mockito.anyBoolean());
 
         groupRpcService.createGroup(groupRequest, mockObserver);
 
