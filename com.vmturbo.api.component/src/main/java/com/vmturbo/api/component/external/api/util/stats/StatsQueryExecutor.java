@@ -41,6 +41,7 @@ import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.StatsUtils;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
@@ -107,7 +108,13 @@ public class StatsQueryExecutor {
         final StatsQueryScope expandedScope = scopeExpander.expandScope(scope, inputDTO.getStatistics());
 
         // Check if there is anything in the scope.
-        if (!expandedScope.getGlobalScope().isPresent() && expandedScope.getEntities().isEmpty()) {
+        if (!expandedScope.getGlobalScope().isPresent() && expandedScope.getEntities().isEmpty()
+            && !scopeHasBusinessAccounts(scope)) {
+            // In case that the scope is a business account / billing family / group of business
+            // accounts, the expanded scope will be empty and the input scope will be used directly
+            // in CloudCostsStatsSubQuery#getCloudExpensesRecordList.
+            // In any other case - return empty stats.
+            logger.warn("expandedScope is empty. scopeOID: {}", scope.oid());
             return Collections.emptyList();
         }
 
@@ -194,6 +201,18 @@ public class StatsQueryExecutor {
         }
 
         return StatsUtils.filterStats(stats, allowCoolingPower ? null : Collections.emptyList());
+    }
+
+    /**
+     * This method checks if the input scope is a business account / billing family / group of
+     * business accounts.
+     *
+     * @param scope The input scope.
+     * @return whether the scope contains business account(s).
+     */
+    public static boolean scopeHasBusinessAccounts(@Nonnull final ApiId scope) {
+        return scope.getScopeTypes().isPresent()
+                && scope.getScopeTypes().get().contains(UIEntityType.BUSINESS_ACCOUNT);
     }
 
     /**

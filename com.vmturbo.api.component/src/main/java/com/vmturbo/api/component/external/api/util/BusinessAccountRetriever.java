@@ -38,9 +38,9 @@ import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo.ServiceExpenses;
+import com.vmturbo.common.protobuf.cost.Cost.AccountExpenseQueryScope;
+import com.vmturbo.common.protobuf.cost.Cost.AccountExpenseQueryScope.IdList;
 import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest;
-import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest.AccountExpenseQueryScope;
-import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest.AccountExpenseQueryScope.IdList;
 import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -370,7 +370,7 @@ public class BusinessAccountRetriever {
                 scopeBldr.setSpecificAccounts(IdList.newBuilder()
                     .addAllAccountIds(specificAccountIds.get()));
             } else {
-                scopeBldr.setAll(true);
+                scopeBldr.setAllAccounts(true);
             }
 
             final GetCurrentAccountExpensesResponse response = costService.getCurrentAccountExpenses(

@@ -76,6 +76,7 @@ public class StatsQueryExecutorTest {
 
         when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
         when(expandedScope.getEntities()).thenReturn(Collections.emptySet());
+        when(scope.getScopeTypes()).thenReturn(Optional.empty());
 
         assertThat(executor.getAggregateStats(scope, period), is(Collections.emptyList()));
     }

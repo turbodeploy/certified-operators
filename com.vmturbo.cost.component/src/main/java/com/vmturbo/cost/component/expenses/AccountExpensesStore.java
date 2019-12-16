@@ -1,18 +1,14 @@
 package com.vmturbo.cost.component.expenses;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.cost.Cost;
-import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo;
-import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest.AccountExpenseQueryScope;
 import com.vmturbo.cost.component.util.CostFilter;
 import com.vmturbo.sql.utils.DbException;
-import org.jooq.Condition;
 
 /**
  * This class is used to manage the account expenses table. Currently billing probe will discover

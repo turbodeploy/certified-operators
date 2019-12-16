@@ -37,6 +37,7 @@ import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
+import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.GlobalScope;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.SubQuerySupportedStats;
@@ -51,6 +52,8 @@ import com.vmturbo.api.utils.CompositeEntityTypesSpec;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.AccountExpenseQueryScope;
+import com.vmturbo.common.protobuf.cost.Cost.AccountExpenseQueryScope.IdList;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
@@ -667,8 +670,49 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             builder.setGroupBy(GroupByType.CLOUD_SERVICE);
         }
 
+        // get relevant business account(s) from input scope.
+        builder.setScope(getAccountScopeBuilder(context));
+
         return costServiceRpc.getAccountExpenseStats(
             builder.build()).getCloudStatRecordList();
+    }
+
+    /**
+     * This method calculates the requested business account scope, if exists, and creates an
+     * AccountExpenseQueryScope builder accordingly.
+     * In case that the scope has no business account / billing family / group of account,
+     * the scope will be "all accounts".
+     *
+     * @param context The query context, which contains the input scope.
+     * @return The relevant business accounts scope.
+     */
+    @VisibleForTesting
+    AccountExpenseQueryScope.Builder getAccountScopeBuilder(@Nonnull final StatsQueryContext context) {
+        Set<Long> entitiesInScope = new HashSet<>();
+
+        // If the scoped entity/entities are business accounts - use the as scope
+        if (StatsQueryExecutor.scopeHasBusinessAccounts(context.getInputScope())) {
+            // a scope can be a specific business account / billing family / group of accounts,
+            // or global scope (cloud page)
+            if (context.getInputScope().isGroup()) {
+                // The input scope is a group, i.e a billing family or a temporary group of accounts
+                if (context.getInputScope().getCachedGroupInfo().isPresent()) {
+                    entitiesInScope.addAll(context.getInputScope().getCachedGroupInfo().get().getEntityIds());
+                }
+            } else {
+                // The input scope is a business account
+                entitiesInScope.add(context.getInputScope().oid());
+            }
+        }
+
+        final AccountExpenseQueryScope.Builder scopeBuilder = AccountExpenseQueryScope.newBuilder();
+        if (!entitiesInScope.isEmpty()) {
+            scopeBuilder.setSpecificAccounts(IdList.newBuilder()
+                    .addAllAccountIds(entitiesInScope));
+        } else {
+            scopeBuilder.setAllAccounts(true);
+        }
+        return scopeBuilder;
     }
 
     // Search discovered Cloud services.

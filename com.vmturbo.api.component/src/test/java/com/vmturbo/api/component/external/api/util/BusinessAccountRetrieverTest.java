@@ -45,11 +45,11 @@ import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
+import com.vmturbo.common.protobuf.cost.Cost.AccountExpenseQueryScope;
+import com.vmturbo.common.protobuf.cost.Cost.AccountExpenseQueryScope.IdList;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo.ServiceExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest;
-import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest.AccountExpenseQueryScope;
-import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesRequest.AccountExpenseQueryScope.IdList;
 import com.vmturbo.common.protobuf.cost.Cost.GetCurrentAccountExpensesResponse;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
@@ -515,7 +515,7 @@ public class BusinessAccountRetrieverTest {
         // Checking that we set the query scope properly.
         verify(costBackend).getCurrentAccountExpenses(GetCurrentAccountExpensesRequest.newBuilder()
             .setScope(AccountExpenseQueryScope.newBuilder()
-                .setAll(true))
+                .setAllAccounts(true))
             .build());
     }
 

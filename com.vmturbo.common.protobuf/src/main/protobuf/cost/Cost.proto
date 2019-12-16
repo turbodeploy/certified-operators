@@ -251,25 +251,28 @@ message ProjectedEntityReservedInstanceCoverage {
 
 // A message used to retrieve account expenses.
 message GetCurrentAccountExpensesRequest {
-    message AccountExpenseQueryScope {
-        message IdList {
-            repeated int64 account_ids = 1;
-        }
+    // When scoping to a specific business account / billing family / group of accounts, then
+    // "scope" should contain all the relevant account OIDs in specific_accounts.
+    // If this is global scope (cloud page) then the scope should be set to all_accounts = true.
+    optional AccountExpenseQueryScope scope = 1;
+}
 
-        // Using a oneof to prevent accidentally asking for "all" with an empty ID list on
-        // the client. We've been hit by those bugs multiple times, and each time it's a
-        // high-priority performance issue.
-        oneof scope {
-            // A list of specific account IDs to get expenses for.
-            // If the list is empty, returns no expenses.
-            IdList specific_accounts = 1;
-
-            // Get expenses for ALL account IDs in the latest uploaded expenses.
-            bool all = 2;
-        }
+message AccountExpenseQueryScope {
+    message IdList {
+        repeated int64 account_ids = 1;
     }
 
-    optional AccountExpenseQueryScope scope = 1;
+    // Using a oneof to prevent accidentally asking for "all" with an empty ID list on
+    // the client. We've been hit by those bugs multiple times, and each time it's a
+    // high-priority performance issue.
+    oneof scope {
+        // A list of specific account IDs to get expenses for.
+        // If the list is empty, returns no expenses.
+        IdList specific_accounts = 1;
+
+        // Get expenses for ALL account IDs in the latest uploaded expenses.
+        bool all_accounts = 2;
+    }
 }
 
 // Response to the expense request
@@ -806,6 +809,11 @@ message GetCloudExpenseStatsRequest {
     // A property names to aggregate stats over, as in an SQL 'group by' clause.
     optional GroupByType group_by = 5;
 
+    // When scoping to a specific business account / billing family / group of accounts, then
+    // "scope" should contain all the relevant account OIDs in specific_accounts.
+    // If this is global scope (cloud page) then the scope should be set to all_accounts = true.
+    optional AccountExpenseQueryScope scope = 6;
+
     enum GroupByType {
         // Cloud service provider
         CSP = 1;
@@ -814,7 +822,7 @@ message GetCloudExpenseStatsRequest {
         TARGET = 2;
 
         // Cloud Service
-        CLOUD_SERVICE =3;
+        CLOUD_SERVICE = 3;
     }
 }
 

@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.number.IsCloseTo.closeTo;
@@ -23,6 +24,7 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -85,6 +87,9 @@ public class CloudCostsStatsSubQueryTest {
     @Mock
     private ThinTargetCache thinTargetCache;
 
+    private static final long ACCOUNT_ID_1 = 1L;
+    private static final long ACCOUNT_ID_2 = 2L;
+    private static final long BILLING_FAMILY_ID = 3L;
     private static final long CLOUD_SERVICE_ID_1 = 1L;
     private static final long CLOUD_SERVICE_ID_2 = 2L;
     private static final String CLOUD_SERVICE_NAME_1 = "CLOUD_SERVICE_1";
@@ -808,6 +813,65 @@ public class CloudCostsStatsSubQueryTest {
             .setRequestProjected(true)
             .build()
         ));
+    }
+
+    @Test
+    public void testGlobalScope() {
+        UuidMapper.ApiId inputScope = mock(UuidMapper.ApiId.class);
+        when(inputScope.isRealtimeMarket()).thenReturn(true);
+        when(inputScope.isGroup()).thenReturn(false);
+        when(inputScope.getScopeTypes()).thenReturn(Optional.empty());
+
+        final StatsQueryContext context = mock(StatsQueryContext.class);
+        when(context.getInputScope()).thenReturn(inputScope);
+
+        Cost.AccountExpenseQueryScope.Builder scopeBuilder = query.getAccountScopeBuilder(context);
+
+        Assert.assertTrue(scopeBuilder.getAllAccounts());
+        Assert.assertEquals(0, scopeBuilder.getSpecificAccounts().getAccountIdsCount());
+    }
+
+    @Test
+    public void testBusinessAccountScope() {
+        UuidMapper.ApiId inputScope = mock(UuidMapper.ApiId.class);
+        when(inputScope.isRealtimeMarket()).thenReturn(false);
+        when(inputScope.isGroup()).thenReturn(false);
+        when(inputScope.getScopeTypes())
+                .thenReturn(Optional.of(Collections.singleton(UIEntityType.BUSINESS_ACCOUNT)));
+        when(inputScope.oid()).thenReturn(ACCOUNT_ID_1);
+
+        final StatsQueryContext context = mock(StatsQueryContext.class);
+        when(context.getInputScope()).thenReturn(inputScope);
+
+        Cost.AccountExpenseQueryScope.Builder scopeBuilder = query.getAccountScopeBuilder(context);
+
+        Assert.assertFalse(scopeBuilder.getAllAccounts());
+        Assert.assertEquals(1, scopeBuilder.getSpecificAccounts().getAccountIdsCount());
+        Assert.assertEquals(ACCOUNT_ID_1, scopeBuilder.getSpecificAccounts().getAccountIds(0));
+    }
+
+    @Test
+    public void testBillingFamilyScope() {
+        UuidMapper.CachedGroupInfo cachedGroupInfo = mock(UuidMapper.CachedGroupInfo.class);
+        when(cachedGroupInfo.getEntityIds()).thenReturn(Sets.newHashSet(ACCOUNT_ID_1, ACCOUNT_ID_2));
+
+        UuidMapper.ApiId inputScope = mock(UuidMapper.ApiId.class);
+        when(inputScope.isRealtimeMarket()).thenReturn(false);
+        when(inputScope.isGroup()).thenReturn(true);
+        when(inputScope.getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
+        when(inputScope.getScopeTypes())
+                .thenReturn(Optional.of(Collections.singleton(UIEntityType.BUSINESS_ACCOUNT)));
+        when(inputScope.oid()).thenReturn(BILLING_FAMILY_ID);
+
+        final StatsQueryContext context = mock(StatsQueryContext.class);
+        when(context.getInputScope()).thenReturn(inputScope);
+
+        Cost.AccountExpenseQueryScope.Builder scopeBuilder = query.getAccountScopeBuilder(context);
+
+        Assert.assertFalse(scopeBuilder.getAllAccounts());
+        Assert.assertEquals(2, scopeBuilder.getSpecificAccounts().getAccountIdsCount());
+        assertThat(scopeBuilder.getSpecificAccounts().getAccountIdsList(),
+                containsInAnyOrder(ACCOUNT_ID_1, ACCOUNT_ID_2));
     }
 
     @Nonnull

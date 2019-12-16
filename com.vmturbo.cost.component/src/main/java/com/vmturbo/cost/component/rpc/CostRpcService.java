@@ -372,7 +372,7 @@ public class CostRpcService extends CostServiceImplBase {
                 .newBuilder(TimeFrame.LATEST)
                 .latestTimestampRequested(true);
 
-            if (!request.getScope().getAll()) {
+            if (!request.getScope().getAllAccounts()) {
                 builder.accountIds(request
                     .getScope()
                     .getSpecificAccounts()
@@ -570,6 +570,13 @@ public class CostRpcService extends CostServiceImplBase {
 
         if (request.hasEntityTypeFilter()) {
             filterBuilder.entityTypes(request.getEntityTypeFilter().getEntityTypeIdList());
+        }
+
+        if (request.hasScope() && !request.getScope().getAllAccounts()) {
+            filterBuilder.accountIds(request
+                    .getScope()
+                    .getSpecificAccounts()
+                    .getAccountIdsList());
         }
 
         return filterBuilder;
