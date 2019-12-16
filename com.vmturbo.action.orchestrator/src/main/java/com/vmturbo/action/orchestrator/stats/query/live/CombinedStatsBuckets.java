@@ -26,6 +26,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat;
@@ -259,8 +260,16 @@ class CombinedStatsBuckets {
                 .filter(entityPredicate)
                 .map(ActionEntity::getId)
                 .forEach(this.involvedEntities::add);
-            this.actionCount++;
-            double savingAmount = actionInfo.action().getTranslationResultOrOriginal()
+            final Action translationResultOrOriginal = actionInfo.action().getTranslationResultOrOriginal();
+            final ActionInfo translatedActionInfo =  translationResultOrOriginal.getInfo();
+            final boolean hasBuyRi = translatedActionInfo.hasBuyRi();
+            if (hasBuyRi) {
+                this.actionCount += translatedActionInfo.getBuyRi().getCount();
+            } else {
+                this.actionCount++;
+            }
+
+            double savingAmount = translationResultOrOriginal
                     .getSavingsPerHour().getAmount();
             if (savingAmount >= 0) {
                 this.savings += savingAmount;
