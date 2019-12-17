@@ -86,11 +86,35 @@ public class MarketSubscription {
 
 
     public enum Topic {
+        /**
+         * Analysis Summary topic.
+         */
         AnalysisSummary,
+        /**
+         * Action Plans topic.
+         */
         ActionPlans,
+        /**
+         * Projected Topology topic.
+         */
         ProjectedTopologies,
+        /**
+         * Projected Entity Costs topic.
+         */
         ProjectedEntityCosts,
+        /**
+         * Projected Entity Ri Coverage topic.
+         */
         ProjectedEntityRiCoverage,
-        PlanAnalysisTopologies;
+        /**
+         * Projected Plan Analysis topic.
+         */
+        PlanAnalysisTopologies,
+        /**
+         * Analysis Status topic.
+         *
+         * <p>Notifies Status of a market analysis run.
+         */
+        AnalysisStatusNotification;
     }
 }

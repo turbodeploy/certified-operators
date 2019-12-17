@@ -7,6 +7,7 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityCosts;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
@@ -31,7 +32,7 @@ public class TestApiServerConfig {
     public MarketNotificationSender marketNotificationSender() {
         return new MarketNotificationSender(projectedTopologySender(), projectedEntityCostSender(),
                         projectedEntityRiCoverageSender(), planAnalysisTopologySender(),
-                        actionPlanSender(), analysisSummarySender());
+                        actionPlanSender(), analysisSummarySender(), analysisStatusSender());
     }
 
     @Bean
@@ -61,6 +62,16 @@ public class TestApiServerConfig {
 
     @Bean
     public IMessageSender<AnalysisSummary> analysisSummarySender() {
+        return new SenderReceiverPair<>();
+    }
+
+    /**
+     * Sender for status of a market analysis run.
+     *
+     * @return The sender.
+     */
+    @Bean
+    public IMessageSender<AnalysisStatusNotification> analysisStatusSender() {
         return new SenderReceiverPair<>();
     }
 }

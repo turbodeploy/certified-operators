@@ -15,11 +15,11 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.BuyRIActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated;
-import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.Status;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProgress;
+import com.vmturbo.common.protobuf.plan.PlanProgressStatusEnum.Status;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 
 /**

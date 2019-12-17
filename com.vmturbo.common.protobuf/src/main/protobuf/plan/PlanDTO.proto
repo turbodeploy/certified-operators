@@ -6,6 +6,7 @@ option java_package = "com.vmturbo.common.protobuf.plan";
 import "cost/CostNotification.proto";
 import "topology/TopologyDTO.proto";
 import "plan/PlanProject.proto";
+import "plan/PlanProgressStatusEnum.proto";
 import "plan/Scenario.proto";
 
 // NB Informational (most) messages in this set of declarations are serialized in rdbms.
@@ -103,13 +104,14 @@ message PlanInstance {
 
 // The status of the notifications received by the plan orchestrator.
 message PlanProgress {
-
     // The status of the notifications received by the plan orchestrator related to cost.
-    optional cost.CostNotification.Status projected_cost_status = 1 [default = UNKNOWN];
+    optional Status projected_cost_status = 1 [default = UNKNOWN];
 
     // The status of the notifications received by the plan orchestrator realted to RI Coverage.
-    optional cost.CostNotification.Status projected_ri_coverage_status = 2 [default = UNKNOWN];
+    optional Status projected_ri_coverage_status = 2 [default = UNKNOWN];
 
+    // The status of the market analysis run.  Re-using statuses defined in CostNotification.proto
+    optional Status analysis_status = 3 [default = UNKNOWN];
 }
 
 // A request to create a plan.

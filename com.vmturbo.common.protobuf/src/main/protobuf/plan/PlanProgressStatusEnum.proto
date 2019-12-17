@@ -1,0 +1,18 @@
+syntax = "proto2";
+
+package plan;
+
+option java_package = "com.vmturbo.common.protobuf.plan";
+
+
+// The status of the plan in-progress, used for completion statuses like SUCCESS or FAILURE.
+enum Status {
+    // The notification has not been received yet.
+    UNKNOWN = 0;
+
+    // The notification received was success.
+    SUCCESS = 1;
+
+    // The notification received was fail.
+    FAIL = 2;
+}

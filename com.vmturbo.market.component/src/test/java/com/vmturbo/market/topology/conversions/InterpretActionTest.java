@@ -219,7 +219,7 @@ public class InterpretActionTest {
     }
 
     @Test
-    public void testInterpretMoveAction() throws IOException {
+    public void testInterpretMoveAction() throws IOException, RuntimeException {
         TopologyDTO.TopologyEntityDTO entityDto =
                 TopologyConverterFromMarketTest.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
         long resourceId = entityDto.getCommoditiesBoughtFromProviders(0).getVolumeId();
@@ -319,7 +319,7 @@ public class InterpretActionTest {
     }
 
     @Test
-    public void testInterpretReconfigureAction() throws IOException, InvalidTopologyException {
+    public void testInterpretReconfigureAction() throws IOException, InvalidTopologyException, RuntimeException {
         long reconfigureSourceId = 1234;
         int reconfigureSourceType = 1;
 
@@ -358,7 +358,7 @@ public class InterpretActionTest {
     }
 
     @Test
-    public void testInterpretReconfigureActionWithoutSource() throws IOException, InvalidTopologyException {
+    public void testInterpretReconfigureActionWithoutSource() throws IOException, InvalidTopologyException, RuntimeException {
         TopologyDTO.TopologyEntityDTO entityDto =
                         TopologyConverterFromMarketTest.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
         final Map<Long, ProjectedTopologyEntity> projectedTopology =

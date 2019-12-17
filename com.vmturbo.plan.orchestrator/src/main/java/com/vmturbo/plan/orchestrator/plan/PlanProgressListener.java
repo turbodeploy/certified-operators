@@ -15,17 +15,20 @@ import com.vmturbo.action.orchestrator.api.ActionsListener;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionsUpdated;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
-import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.Status;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdateType;
+import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification;
+import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification.AnalysisState;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.Builder;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
+import com.vmturbo.common.protobuf.plan.PlanProgressStatusEnum.Status;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.cost.api.CostNotificationListener;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable;
 import com.vmturbo.history.component.api.StatsListener;
+import com.vmturbo.market.component.api.AnalysisStatusNotificationListener;
 import com.vmturbo.plan.orchestrator.reservation.ReservationPlacementHandler;
 import com.vmturbo.repository.api.RepositoryListener;
 
@@ -33,7 +36,7 @@ import com.vmturbo.repository.api.RepositoryListener;
  * Listener for action orchestrator's notifications.
  */
 public class PlanProgressListener implements ActionsListener, RepositoryListener, StatsListener,
-        CostNotificationListener {
+        CostNotificationListener, AnalysisStatusNotificationListener {
 
     private final PlanDao planDao;
 
@@ -350,6 +353,57 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
             } else {
                 logger.debug("Dropping real-time cost notification.");
             }
+        }
+    }
+
+    /**
+     * Notifies, the status of a market analysis run.
+     * For Plans, it should correspond to PlanStatus and in realtime to AnalysisStatus.
+     *
+     * @param analysisStatus status of the analysis run (e.g. SUCCEEDED/FAILED).
+     */
+    @Override
+    public void
+           onAnalysisStatusNotification(@Nonnull com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification
+                                        analysisStatus) {
+        Long topologyId = analysisStatus.getTopologyId();
+        Long topologyContextId = analysisStatus.getTopologyContextId();
+        logger.debug("Received analysis run status notification for topology context ID {}",
+                     topologyId, topologyContextId);
+        if (topologyContextId != realtimeTopologyContextId) {
+            try {
+                logger.debug("Plan {} has a status message from market {}. Updating plan instance...",
+                             topologyContextId, topologyId);
+                    planDao.updatePlanInstance(topologyContextId,
+                                           plan -> processAnalysisStatusNotification(plan,
+                                                                             analysisStatus));
+                logger.debug("Finished updating plan instance for plan {}", topologyContextId);
+            } catch (IntegrityException e) {
+                logger.error("Could not change plan's {} state according to  " +
+                             "available source topology {}", topologyContextId, topologyId, e);
+            } catch (NoSuchObjectException e) {
+                logger.warn("Could not find plan by topology context id {}", topologyContextId, e);
+            }
+        }
+    }
+
+    /**
+     * Processes the projected cost notifications related to a plan.
+     *
+     * @param plan                      The plan
+     * @param analysisStatus The notification regarding the status of the market analysis run for the plan.
+     */
+    private static void processAnalysisStatusNotification(@Nonnull final PlanInstance.Builder plan,
+                                      @Nonnull final AnalysisStatusNotification analysisStatus) {
+        final int analysisRunStatus = analysisStatus.getStatus();
+        if (analysisRunStatus == AnalysisState.SUCCEEDED.ordinal()) {
+            plan.setPlanProgress(plan.getPlanProgress().toBuilder()
+                .setAnalysisStatus(Status.SUCCESS));
+            plan.setStatus(getPlanStatusBasedOnPlanType(plan));
+        } else if (analysisRunStatus == AnalysisState.FAILED.ordinal()) {
+            plan.setPlanProgress(plan.getPlanProgress().toBuilder()
+                 .setAnalysisStatus(Status.FAIL));
+            plan.setStatus(PlanStatus.FAILED);
         }
     }
 

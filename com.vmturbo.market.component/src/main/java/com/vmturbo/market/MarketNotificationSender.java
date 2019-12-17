@@ -11,6 +11,7 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityCosts;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ActionPlanSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
@@ -40,6 +41,7 @@ public class MarketNotificationSender extends
     private final IMessageSender<ProjectedEntityReservedInstanceCoverage> projectedEntityRiCoverageSender;
     private final IMessageSender<Topology> planAnalysisTopologySender;
     private final IMessageSender<ActionPlan> actionPlanSender;
+    private final IMessageSender<AnalysisStatusNotification> analysisStatusSender;
 
     public MarketNotificationSender(
             @Nonnull IMessageSender<ProjectedTopology> projectedTopologySender,
@@ -47,13 +49,15 @@ public class MarketNotificationSender extends
             @Nonnull IMessageSender<ProjectedEntityReservedInstanceCoverage> projectedEntityRiCoverageSender,
             @Nonnull IMessageSender<Topology> planAnalysisTopologySender,
             @Nonnull IMessageSender<ActionPlan> actionPlanSender,
-            @Nonnull IMessageSender<AnalysisSummary> analysisSummarySender) {
+            @Nonnull IMessageSender<AnalysisSummary> analysisSummarySender,
+            @Nonnull IMessageSender<AnalysisStatusNotification>  analysisStatusSender) {
         this.projectedTopologySender = Objects.requireNonNull(projectedTopologySender);
         this.projectedEntityCostsSender = Objects.requireNonNull(projectedEntityCostsSender);
         this.projectedEntityRiCoverageSender = Objects.requireNonNull(projectedEntityRiCoverageSender);
         this.planAnalysisTopologySender = Objects.requireNonNull(planAnalysisTopologySender);
         this.actionPlanSender = Objects.requireNonNull(actionPlanSender);
         this.analysisSummarySender = Objects.requireNonNull(analysisSummarySender);
+        this.analysisStatusSender = Objects.requireNonNull(analysisStatusSender);
     }
 
     /**
@@ -267,6 +271,27 @@ public class MarketNotificationSender extends
                 projectdTopologyId);
         } catch (CommunicationException|InterruptedException e) {
             getLogger().error("Could not send TopologySummary message", e);
+        }
+    }
+
+    /**
+     * Send notification about the status of a market analysis run.
+     *
+     * @param sourceTopologyInfo Source topology id associated with the market tun.
+     * @param analysisState The state of the market run (FAILED/SUCCEEDED).
+     */
+   public void sendAnalysisStatus(@Nonnull final TopologyInfo sourceTopologyInfo,
+                                     final int analysisState) {
+        try {
+            final AnalysisStatusNotification.Builder statusBuilder = AnalysisStatusNotification.newBuilder();
+            statusBuilder.setTopologyContextId(sourceTopologyInfo.getTopologyContextId());
+            statusBuilder.setTopologyId(sourceTopologyInfo.getTopologyId());
+            statusBuilder.setStatus(analysisState);
+            getLogger().debug("Sending analysis status src topology with id {}",
+                              sourceTopologyInfo.getTopologyId());
+            analysisStatusSender.sendMessage(statusBuilder.build());
+        } catch (CommunicationException | InterruptedException e) {
+            getLogger().error("Could not send AnalysisStatusNotification message", e);
         }
     }
 

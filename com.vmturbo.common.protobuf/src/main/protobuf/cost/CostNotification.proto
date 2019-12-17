@@ -3,6 +3,8 @@ package cost;
 
 option java_package = "com.vmturbo.common.protobuf.cost";
 
+import "plan/PlanProgressStatusEnum.proto";
+
 // This is the notification message from cost component to plan orchestrator at the end of an
 // optimize cloud plan.
 message CostNotification {
@@ -24,7 +26,7 @@ message CostNotification {
         optional int64 topology_id = 3;
 
         // status of the operation
-        optional Status status = 4 [default = UNKNOWN];
+        optional .plan.Status status = 4 [default = UNKNOWN];
 
         // TODO: the error description should be set if any error happens while running the plan.
         // This description is useful when status is fail.
@@ -32,19 +34,6 @@ message CostNotification {
 
         // the time that the operation reached the status indicated
         optional int64 timestamp = 6;
-
-    }
-
-    enum Status {
-
-        // The notification has not been received yet.
-        UNKNOWN = 0;
-
-        // The notification received was success.
-        SUCCESS = 1;
-
-        // The notification received was fail.
-        FAIL = 2;
 
     }
 

@@ -14,10 +14,10 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
-import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.Status;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate.Builder;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdateType;
+import com.vmturbo.common.protobuf.plan.PlanProgressStatusEnum.Status;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;

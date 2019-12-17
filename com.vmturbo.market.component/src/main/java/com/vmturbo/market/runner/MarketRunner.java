@@ -12,7 +12,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.Sets;
-import com.vmturbo.common.protobuf.plan.PlanDTO;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -23,6 +22,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification.AnalysisState;
+import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
@@ -34,7 +35,6 @@ import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.rpc.MarketDebugRpcService;
-import com.vmturbo.market.runner.Analysis.AnalysisState;
 import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
@@ -225,6 +225,10 @@ public class MarketRunner {
 
     /**
      * Run the analysis, when done - remove it from the map of runs and notify listeners.
+     *
+     * <P>AnalysisStatusNotification is for RunTime exceptions. Actions/Projected entity/topology creation,
+     * are updated in the absence of such exceptions.  The Plan Orchestrator state itself goes to succeeded
+     * once all notifications have been received from components it's listening to.
      * @param analysis the object on which to run the analysis.
      */
     private void runAnalysis(@Nonnull final Analysis analysis) {
@@ -235,53 +239,89 @@ public class MarketRunner {
         }
         analysis.execute();
         analysisMap.remove(analysis.getContextId());
-        if (analysis.isDone()) {
-            marketDebugRpcService.ifPresent(debugService -> {
-                debugService.recordCompletedAnalysis(analysis);
-            });
+        try {
+            if (analysis.isDone()) {
+                marketDebugRpcService.ifPresent(debugService -> {
+                    debugService.recordCompletedAnalysis(analysis);
+                });
 
-            if (analysis.getState() == AnalysisState.SUCCEEDED) {
-                try {
+                if (analysis.getState() == AnalysisState.SUCCEEDED) {
                     // if this was a plan topology, broadcast the plan analysis topology
                     if (isPlan) {
                         serverApi.notifyPlanAnalysisTopology(analysis.getTopologyInfo(),
-                                        analysis.getTopology().values());
+                                                             analysis.getTopology().values());
                     } else {
                         // Update replay actions to contain actions from most recent analysis.
                         realtimeReplayActions = analysis.getReplayActions();
                     }
+                    // Send notification of Analysis SUCCESS
+                    sendAnalysisStatus(analysis, AnalysisState.SUCCEEDED.ordinal());
+
                     // Send projected topology before recommended actions, because some recommended
                     // actions will have OIDs that are only present in the projected topology, and we
                     // want to minimize the risk of the projected topology being unavailable.
                     serverApi.notifyProjectedTopology(analysis.getTopologyInfo(),
-                                    analysis.getProjectedTopologyId().get(),
-                                    analysis.getProjectedTopology().get(),
-                                    analysis.getActionPlan().get().getId());
+                                                      analysis.getProjectedTopologyId().get(),
+                                                      analysis.getProjectedTopology().get(),
+                                                      analysis.getActionPlan().get().getId());
                     serverApi.notifyActionsRecommended(analysis.getActionPlan().get());
 
                     // Send projected entity costs. We only send them for the real time topology.
                     final Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts =
-                                    analysis.getProjectedCosts().get();
+                                                               analysis.getProjectedCosts().get();
                     serverApi.notifyProjectedEntityCosts(analysis.getTopologyInfo(),
-                                    analysis.getProjectedTopologyId().get(),
-                                    Collections2.transform(projectedCosts.values(),
-                                                    CostJournal::toEntityCostProto));
+                                                         analysis.getProjectedTopologyId().get(),
+                                                         Collections2.transform(projectedCosts
+                                                                         .values(),
+                                                            CostJournal::toEntityCostProto));
                     // EntityRICoverage is already a protobuf object so
                     // we can directly send values of map in the message.
                     final Map<Long, EntityReservedInstanceCoverage> projectedCoverage =
-                                    analysis.getProjectedEntityRiCoverage().get();
+                                                          analysis.getProjectedEntityRiCoverage()
+                                                                          .get();
                     serverApi.notifyProjectedEntityRiCoverage(analysis.getTopologyInfo(),
-                                    analysis.getProjectedTopologyId().get(),
-                                    projectedCoverage.values());
-                } catch (CommunicationException | InterruptedException e) {
-                    // TODO we need to decide, whether to commit the incoming topology here or not.
-                    logger.error("Could not send market notifications", e);
-                } finally {
-                    // Clear the Matrix for a given topology.
-                    TheMatrix.clearInstance(analysis.getTopologyInfo().getTopologyId());
+                                                              analysis.getProjectedTopologyId()
+                                                                              .get(),
+                                                              projectedCoverage.values());
                 }
+            } else if (analysis.getState() == AnalysisState.FAILED) {
+                // Send notification of Analysis FAILURE
+                sendAnalysisStatus(analysis, AnalysisState.FAILED.ordinal());
             }
+        } catch (CommunicationException | InterruptedException e) {
+            // TODO we need to decide, whether to commit the incoming topology here or not.
+            logger.error("Could not send market notifications", e);
+        } catch (Exception e) {
+            logger.error("Exception during market execution for topologyId: "
+                         + analysis.getTopologyInfo().getTopologyId(), e);
+            // Send notification of Analysis FAILURE
+            sendAnalysisStatus(analysis, AnalysisState.FAILED.ordinal());
+        } finally {
+            // Clear the Matrix for a given topology.
+            TheMatrix.clearInstance(analysis.getTopologyInfo().getTopologyId());
         }
+    }
+
+    /**
+     * Send the status of the analysis run to listeners such as PlanProgresslistener.
+     *
+     * @param analysis the object on which to run the analysis.
+     * @param status The status of a market analysis run.
+     */
+    private void sendAnalysisStatus(@Nonnull final Analysis analysis, final int status) {
+        boolean isPlan = analysis.getTopologyInfo().hasPlanInfo();
+        // TODO:  If analysis status is ever needed in real-time (for e.g to know if
+        // actions are stale) send AnalysisState.FAILED.ordinal()
+
+        if (!isPlan) {
+            return;
+        }
+        if (status == AnalysisState.FAILED.ordinal()) {
+            logger.error("Sending analysis failure notification..");
+        } else if (status == AnalysisState.SUCCEEDED.ordinal()) {
+            logger.info("Sending analysis sucsess notification..");
+        }
+        serverApi.sendAnalysisStatus(analysis.getTopologyInfo(), status);
     }
 
     /**

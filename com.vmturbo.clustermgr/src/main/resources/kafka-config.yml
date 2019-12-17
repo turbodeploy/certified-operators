@@ -18,6 +18,9 @@ topics:
   - topic: analysis-summary
     properties:
       retention.ms: 7200000 # 7200k ms = 2 hr
+  - topic: analysis-status-notification
+    properties:
+      retention.ms: 7200000 # 7200k ms = 2 hr
   - topic: topology-summaries # a topic containing short summaries of topologies
     properties:
       retention.ms: 3600000 # 3600k ms = 1 hr

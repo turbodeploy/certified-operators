@@ -21,6 +21,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityCosts;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
@@ -113,6 +114,17 @@ public class MarketClientConfig {
                 Topology::parseFrom));
     }
 
+    @Bean
+    protected IMessageReceiver<AnalysisStatusNotification> analysisStatusReceiver(final Optional<StartFrom> startFromOverride) {
+        return startFromOverride
+        .map(startFrom -> baseKafkaConfig.kafkaConsumer().messageReceiverWithSettings(
+            new TopicSettings(MarketComponentNotificationReceiver.ANALYSIS_STATUS_NOTIFICATION_TOPIC, startFrom),
+            AnalysisStatusNotification::parseFrom))
+        .orElseGet(() -> baseKafkaConfig.kafkaConsumer().messageReceiver(
+            MarketComponentNotificationReceiver.ANALYSIS_STATUS_NOTIFICATION_TOPIC,
+            AnalysisStatusNotification::parseFrom));
+    }
+
     @Bean(destroyMethod = "shutdownNow")
     protected ExecutorService marketClientThreadPool() {
         final ThreadFactory threadFactory =
@@ -144,9 +156,12 @@ public class MarketClientConfig {
         final IMessageReceiver<AnalysisSummary> analysisSummaryReceiver =
             topicsAndOverrides.containsKey(Topic.AnalysisSummary) ?
                 analysisSummaryReceiver(topicsAndOverrides.get(Topic.AnalysisSummary)) : null;
+        final IMessageReceiver<AnalysisStatusNotification> analysisStatusReceiver =
+             topicsAndOverrides.containsKey(Topic.AnalysisStatusNotification) ?
+                analysisStatusReceiver(topicsAndOverrides.get(Topic.AnalysisStatusNotification)) : null;
         return new MarketComponentNotificationReceiver(projectedTopologyReceiver,
                 projectedEntityCostReceiver, projectedEntityRiCoverageReceiver, actionPlansReceiver,
-                planAnalysisTopologyReceiver, analysisSummaryReceiver, marketClientThreadPool(),
+                planAnalysisTopologyReceiver, analysisSummaryReceiver, analysisStatusReceiver, marketClientThreadPool(),
                 kafkaReceiverTimeoutSeconds);
     }
 }

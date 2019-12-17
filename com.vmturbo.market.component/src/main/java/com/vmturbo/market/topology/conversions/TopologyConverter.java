@@ -446,6 +446,10 @@ public class TopologyConverter {
                 }
             }
             return convertToMarket();
+        } catch (RuntimeException e) {
+            //throw new RuntimeException("RuntimeException in convertToMarket(topology) ", e);
+            logger.error("RuntimeException in convertToMarket(topology) ");
+            throw e;
         } finally {
             conversionErrorCounts.endPhase();
             tierExcluder.clearStateNeededForConvertToMarket();
@@ -461,38 +465,43 @@ public class TopologyConverter {
      */
     @Nonnull
     private Set<EconomyDTOs.TraderTO> convertToMarket() {
-        logger.info("Converting topologyEntityDTOs to traderTOs");
-        logger.debug("Start creating bicliques");
-        BiMap<Long, String> oidToUuidMap = HashBiMap.create();
-        for (TopologyDTO.TopologyEntityDTO dto : entityOidToDto.values()) {
-            dto.getCommoditySoldListList().stream()
-                .filter(comm -> CommodityConverter.isBicliqueCommodity(comm.getCommodityType()))
-                .forEach(comm -> edge(dto, comm));
-            oidToUuidMap.put(dto.getOid(), String.valueOf(dto.getOid()));
-            commodityIndex.addEntity(dto);
-            populateCommodityConsumesTable(dto);
+        try {
+            logger.info("Converting topologyEntityDTOs to traderTOs");
+            logger.debug("Start creating bicliques");
+            BiMap<Long, String> oidToUuidMap = HashBiMap.create();
+            for (TopologyDTO.TopologyEntityDTO dto : entityOidToDto.values()) {
+                dto.getCommoditySoldListList().stream()
+                    .filter(comm -> CommodityConverter.isBicliqueCommodity(comm.getCommodityType()))
+                    .forEach(comm -> edge(dto, comm));
+                oidToUuidMap.put(dto.getOid(), String.valueOf(dto.getOid()));
+                commodityIndex.addEntity(dto);
+                populateCommodityConsumesTable(dto);
+            }
+            // Create market tier traderTO builders
+            List<TraderTO.Builder> marketTierTraderTOBuilders = cloudTc.createMarketTierTraderTOs();
+            marketTierTraderTOBuilders.forEach(t -> oidToUuidMap.put(t.getOid(), String.valueOf(t.getOid())));
+            dsBasedBicliquer.compute(oidToUuidMap);
+            pmBasedBicliquer.compute(oidToUuidMap);
+            logger.debug("Done creating bicliques");
+
+            final ImmutableSet.Builder<EconomyDTOs.TraderTO> returnBuilder = ImmutableSet.builder();
+            // Convert market tier traderTO builders to traderTOs
+            marketTierTraderTOBuilders.stream()
+                    .map(t -> t.addAllCliques(pmBasedBicliquer.getBcIDs(String.valueOf(t.getOid()))))
+                    .map(t -> t.addAllCommoditiesSold(commodityConverter.bcCommoditiesSold(t.getOid())))
+                    .forEach(t -> returnBuilder.add(t.build()));
+            entityOidToDto.values().stream()
+                    .filter(t -> TopologyConversionUtils.shouldConvertToTrader(t.getEntityType()))
+                    .map(this::topologyDTOtoTraderTO)
+                    .filter(Objects::nonNull)
+                    .forEach(returnBuilder::add);
+
+            logger.info("Converted topologyEntityDTOs to traderTOs");
+            return returnBuilder.build();
+        } catch (RuntimeException e) {
+            logger.error("RuntimeException in convertToMarket");
+            throw e;
         }
-        // Create market tier traderTO builders
-        List<TraderTO.Builder> marketTierTraderTOBuilders = cloudTc.createMarketTierTraderTOs();
-        marketTierTraderTOBuilders.forEach(t -> oidToUuidMap.put(t.getOid(), String.valueOf(t.getOid())));
-        dsBasedBicliquer.compute(oidToUuidMap);
-        pmBasedBicliquer.compute(oidToUuidMap);
-        logger.debug("Done creating bicliques");
-
-        final ImmutableSet.Builder<EconomyDTOs.TraderTO> returnBuilder = ImmutableSet.builder();
-        // Convert market tier traderTO builders to traderTOs
-        marketTierTraderTOBuilders.stream()
-                .map(t -> t.addAllCliques(pmBasedBicliquer.getBcIDs(String.valueOf(t.getOid()))))
-                .map(t -> t.addAllCommoditiesSold(commodityConverter.bcCommoditiesSold(t.getOid())))
-                .forEach(t -> returnBuilder.add(t.build()));
-        entityOidToDto.values().stream()
-                .filter(t -> TopologyConversionUtils.shouldConvertToTrader(t.getEntityType()))
-                .map(this::topologyDTOtoTraderTO)
-                .filter(Objects::nonNull)
-                .forEach(returnBuilder::add);
-
-        logger.info("Converted topologyEntityDTOs to traderTOs");
-        return returnBuilder.build();
     }
 
     /**
@@ -1768,8 +1777,9 @@ public class TopologyConverter {
                     .addAllCliques(allCliques)
                     .build();
             oidToOriginalTraderTOMap.put(traderDTO.getOid(), traderDTO);
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             logger.error(entityDebugInfo(topologyDTO) + " could not be converted to traderTO:", e);
+            throw e;
         }
         return traderDTO;
     }

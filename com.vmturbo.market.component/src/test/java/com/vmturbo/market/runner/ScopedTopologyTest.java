@@ -47,6 +47,7 @@ import com.google.protobuf.util.JsonFormat;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification.AnalysisState;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -356,7 +357,7 @@ public class ScopedTopologyTest {
             Thread.sleep(1000);
         }
         assertSame("Plan completed with an error : " + analysis.getErrorMsg(),
-                Analysis.AnalysisState.SUCCEEDED, analysis.getState());
+                AnalysisState.SUCCEEDED, analysis.getState());
 
         // Assert
         // wait for the action broadcast to complete

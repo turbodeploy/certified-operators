@@ -1,0 +1,48 @@
+syntax = "proto2";
+package market;
+
+option java_package = "com.vmturbo.common.protobuf.market";
+
+// Values to notify a change in the State of a market analysis run, particularly FAILURE/SUCCESS.
+// Should correspond to AnalysisStatus in real-time and PlanStatus for plans.
+message AnalysisStatusNotification {
+    // topology_context_id of the plan or real-time topology
+    optional int64 topology_context_id = 1;
+    // topology_id of the plan or real-time topology
+    optional int64 topology_id = 2;
+    // market analysis status notification to be sent
+    optional int32 status = 3;
+
+    /**
+     * The state of an analysis run.  Same as {@link com.vmturbo.market.runner.Analysis.AnalysisState}
+     *
+     * <p> TODO:  Use this to replace Market Analysis.AnalysisState
+     * An analysis run starts in the {@link #INITIAL} state when it is created. If it then gets
+     * executed via the {@link MarketRunner} then it transitions to {@link #QUEUED} when it is
+     * placed in the queue for execution. When the {@link Analysis#execute} method is invoked it
+     * goes into {@link #IN_PROGRESS}, and when the run completes it goes into {@link #SUCCEEDED}
+     * if it completed successfully, or to {@link #FAILED} if it completed with an exception.
+     */
+    enum AnalysisState {
+        /**
+         * The analysis object was created, but not yet queued or started.
+         */
+        INITIAL = 0;
+        /**
+         * The analysis is queued for execution.
+         */
+        QUEUED = 1;
+        /**
+         * The analysis was removed from the queue and is currently running.
+         */
+        IN_PROGRESS = 2;
+        /**
+         * Analysis completed successfully.
+         */
+        SUCCEEDED = 3;
+        /**
+         * Analysis completed with an exception.
+         */
+        FAILED = 4;
+    }
+}

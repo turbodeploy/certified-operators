@@ -18,8 +18,8 @@ import com.vmturbo.common.protobuf.market.MarketDebug.ControlAnalysisCollectionR
 import com.vmturbo.common.protobuf.market.MarketDebug.GetAnalysisInfoRequest;
 import com.vmturbo.common.protobuf.market.MarketDebug.GetAnalysisInfoResponse;
 import com.vmturbo.common.protobuf.market.MarketDebugServiceGrpc.MarketDebugServiceImplBase;
+import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification.AnalysisState;
 import com.vmturbo.market.runner.Analysis;
-import com.vmturbo.market.runner.Analysis.AnalysisState;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 
 public class MarketDebugRpcService extends MarketDebugServiceImplBase {

@@ -15,8 +15,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
-import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.Status;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate;
+import com.vmturbo.common.protobuf.plan.PlanProgressStatusEnum.Status;
 import com.vmturbo.cost.api.CostNotificationListener;
 import com.vmturbo.market.runner.Analysis;
 

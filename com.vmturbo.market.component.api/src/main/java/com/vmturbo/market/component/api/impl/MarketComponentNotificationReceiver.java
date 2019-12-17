@@ -19,6 +19,7 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityCosts;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
@@ -34,6 +35,7 @@ import com.vmturbo.components.api.client.ComponentNotificationReceiver;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.MulticastNotificationReceiver;
 import com.vmturbo.market.component.api.ActionsListener;
+import com.vmturbo.market.component.api.AnalysisStatusNotificationListener;
 import com.vmturbo.market.component.api.AnalysisSummaryListener;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.PlanAnalysisTopologyListener;
@@ -77,6 +79,11 @@ public class MarketComponentNotificationReceiver extends
      */
     public static final String ANALYSIS_SUMMARY_TOPIC = "analysis-summary";
 
+    /**
+     * Analysis status topic. Should be synchronized with kafka-config.yml
+     */
+    public static final String ANALYSIS_STATUS_NOTIFICATION_TOPIC = "analysis-status-notification";
+
     private final Set<ActionsListener> actionsListenersSet;
 
     private final Set<ProjectedTopologyListener> projectedTopologyListenersSet;
@@ -88,6 +95,7 @@ public class MarketComponentNotificationReceiver extends
     private final ChunkingReceiver<EntityCost> projectedEntityCostChunkReceiver;
     private final ChunkingReceiver<EntityReservedInstanceCoverage> projectedEntityRiCoverageChunkReceiver;
     private final MulticastNotificationReceiver<AnalysisSummary, AnalysisSummaryListener> analysisSummaryHandler;
+    private final MulticastNotificationReceiver<AnalysisStatusNotification, AnalysisStatusNotificationListener> analysisStatusHandler;
 
     public MarketComponentNotificationReceiver(
             @Nullable final IMessageReceiver<ProjectedTopology> projectedTopologyReceiver,
@@ -96,6 +104,7 @@ public class MarketComponentNotificationReceiver extends
             @Nullable final IMessageReceiver<ActionPlan> actionPlanReceiver,
             @Nullable final IMessageReceiver<Topology> planAnalysisTopologyReceiver,
             @Nullable final IMessageReceiver<AnalysisSummary> analysisSummaryReceiver,
+            @Nullable final IMessageReceiver<AnalysisStatusNotification> analysisStatusReceiver,
             @Nonnull final ExecutorService executorService,
             final int kafkaReceiverTimeoutSeconds) {
         super(actionPlanReceiver, executorService);
@@ -130,6 +139,7 @@ public class MarketComponentNotificationReceiver extends
         projectedTopologyChunkReceiver = new ChunkingReceiver<>(executorService);
         projectedEntityCostChunkReceiver = new ChunkingReceiver<>(executorService);
         projectedEntityRiCoverageChunkReceiver = new ChunkingReceiver<>(executorService);
+
         if (planAnalysisTopologyReceiver != null) {
             planAnalysisTopologyListenersSet = Collections.newSetFromMap(new ConcurrentHashMap<>());
             planAnalysisTopologyReceiver.addListener(this::processPlanAnalysisTopology);
@@ -141,6 +151,13 @@ public class MarketComponentNotificationReceiver extends
         } else {
             analysisSummaryHandler = new MulticastNotificationReceiver<>(analysisSummaryReceiver, executorService,
                     kafkaReceiverTimeoutSeconds, analysisSummary -> l -> l.onAnalysisSummary(analysisSummary));
+        }
+        // Initialize Set of listeners of Analysis Status.
+        if (analysisStatusReceiver == null) {
+            analysisStatusHandler = null;
+        } else {
+            analysisStatusHandler = new MulticastNotificationReceiver<>(analysisStatusReceiver, executorService,
+              kafkaReceiverTimeoutSeconds, analysisStatusNotification -> l -> l.onAnalysisStatusNotification(analysisStatusNotification));
         }
     }
 
@@ -168,6 +185,14 @@ public class MarketComponentNotificationReceiver extends
     @Override
     public void addPlanAnalysisTopologyListener(@Nonnull final PlanAnalysisTopologyListener listener) {
         planAnalysisTopologyListenersSet.add(Objects.requireNonNull(listener));
+    }
+
+    @Override
+    public void addAnalysisStatusListener(@Nonnull final AnalysisStatusNotificationListener listener) {
+        if (analysisStatusHandler == null) {
+            throw new IllegalStateException("The analysis status topic has not been subscribed to.");
+        }
+        analysisStatusHandler.addListener(Objects.requireNonNull(listener));
     }
 
     @Override

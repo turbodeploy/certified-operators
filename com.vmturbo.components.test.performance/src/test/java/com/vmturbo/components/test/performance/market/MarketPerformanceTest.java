@@ -29,6 +29,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityCosts;
 import com.vmturbo.common.protobuf.cost.Cost.ProjectedEntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
+import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -90,6 +91,7 @@ public class MarketPerformanceTest {
     private IMessageReceiver<ProjectedTopology> projectedTopologyReceiver;
     private IMessageReceiver<ProjectedEntityCosts> projectedEntityCostReceiver;
     private IMessageReceiver<AnalysisSummary> analysisSummaryReceiver;
+    private IMessageReceiver<AnalysisStatusNotification> analysisStatusReceiver;
     private IMessageReceiver<ProjectedEntityReservedInstanceCoverage> projectedEntityRiCoverageReceiver;
     private KafkaMessageConsumer kafkaMessageConsumer;
 
@@ -111,9 +113,12 @@ public class MarketPerformanceTest {
         analysisSummaryReceiver = kafkaMessageConsumer.messageReceiver(
                 MarketComponentNotificationReceiver.ANALYSIS_SUMMARY_TOPIC,
             AnalysisSummary::parseFrom);
+        analysisStatusReceiver = kafkaMessageConsumer.messageReceiver(
+                       MarketComponentNotificationReceiver.ANALYSIS_STATUS_NOTIFICATION_TOPIC,
+                           AnalysisStatusNotification::parseFrom);
         marketComponent = new MarketComponentNotificationReceiver(projectedTopologyReceiver,
                 projectedEntityCostReceiver, projectedEntityRiCoverageReceiver, actionsReceiver,
-            null, analysisSummaryReceiver, threadPool, 0);
+            null, analysisSummaryReceiver, analysisStatusReceiver, threadPool, 0);
         kafkaMessageConsumer.start();
     }
 

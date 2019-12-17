@@ -79,6 +79,7 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToComplementar
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToGroupPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceImplBase;
+import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
@@ -157,6 +158,7 @@ public class PlacementPolicySysTest {
     private IMessageReceiver<ProjectedTopology> projectedTopologyReceiver;
     private IMessageReceiver<ProjectedEntityCosts> projectedEntityCostReceiver;
     private IMessageReceiver<AnalysisSummary> analysisSummaryReceiver;
+    private IMessageReceiver<AnalysisStatusNotification> analysisStatusReceiver;
     private IMessageReceiver<ProjectedEntityReservedInstanceCoverage> projectedEntityRiCoverageReceiver;
     private IMessageReceiver<ActionPlan> actionsReceiver;
 
@@ -302,9 +304,13 @@ public class PlacementPolicySysTest {
         analysisSummaryReceiver = kafkaMessageConsumer.messageReceiver(
             MarketComponentNotificationReceiver.ANALYSIS_SUMMARY_TOPIC,
             TopologyDTO.AnalysisSummary::parseFrom);
+        analysisStatusReceiver = kafkaMessageConsumer.messageReceiver(
+                         MarketComponentNotificationReceiver.ANALYSIS_STATUS_NOTIFICATION_TOPIC,
+                              AnalysisStatusNotification::parseFrom);
         marketComponent = new MarketComponentNotificationReceiver(
                 projectedTopologyReceiver, projectedEntityCostReceiver, projectedEntityRiCoverageReceiver,
-                actionsReceiver, tpTopologyReceiver, analysisSummaryReceiver, threadPool, 0);
+                actionsReceiver, tpTopologyReceiver, analysisSummaryReceiver, analysisStatusReceiver,
+                threadPool, 0);
         kafkaMessageConsumer.start();
     }
 

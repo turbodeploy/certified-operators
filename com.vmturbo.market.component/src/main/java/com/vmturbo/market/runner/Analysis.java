@@ -41,11 +41,12 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionP
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
-import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.Status;
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification.StatusUpdate;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification.AnalysisState;
+import com.vmturbo.common.protobuf.plan.PlanProgressStatusEnum.Status;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -147,7 +148,7 @@ public class Analysis {
     // Analysis started (kept true also when it is completed).
     private AtomicBoolean started = new AtomicBoolean();
 
-    // Analysis completed (successfully or not).
+    // Analysis completed (successfully or not).  Default is false.
     private boolean completed = false;
 
     private Instant startTime = Instant.EPOCH;
@@ -523,10 +524,16 @@ public class Analysis {
                 state = AnalysisState.FAILED;
             }
         } catch (RuntimeException e) {
-            logger.error(logPrefix + e + " while running analysis", e);
+            logger.error(logPrefix + e + " Runtime exception while running analysis", e);
             state = AnalysisState.FAILED;
             completionTime = clock.instant();
             errorMsg = e.toString();
+            logger.info(logPrefix + "Execution time : "
+                            + startTime.until(completionTime, ChronoUnit.SECONDS) + " seconds");
+            logger.info(logPrefix + "Execution time : "
+                            + startTime.until(completionTime, ChronoUnit.SECONDS) + " seconds");
+            completed = false;
+            return false;
         }
 
         logger.info(logPrefix + "Execution time : "
@@ -904,38 +911,6 @@ public class Analysis {
     @Nonnull
     public TopologyInfo getTopologyInfo() {
         return topologyInfo;
-    }
-
-    /**
-     * The state of an analysis run.
-     *
-     * <p>An analysis run starts in the {@link #INITIAL} state when it is created. If it then gets
-     * executed via the {@link MarketRunner} then it transitions to {@link #QUEUED} when it is
-     * placed in the queue for execution. When the {@link Analysis#execute} method is invoked it
-     * goes into {@link #IN_PROGRESS}, and when the run completes it goes into {@link #SUCCEEDED}
-     * if it completed successfully, or to {@link #FAILED} if it completed with an exception.
-     */
-    public enum AnalysisState {
-        /**
-         * The analysis object was created, but not yet queued or started.
-         */
-        INITIAL,
-        /**
-         * The analysis is queued for execution.
-         */
-        QUEUED,
-        /**
-         * The analysis was removed from the queue and is currently running.
-         */
-        IN_PROGRESS,
-        /**
-         * Analysis completed successfully.
-         */
-        SUCCEEDED,
-        /**
-         * Analysis completed with an exception.
-         */
-        FAILED
     }
 
     /**

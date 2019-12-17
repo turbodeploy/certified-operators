@@ -41,6 +41,9 @@ import com.vmturbo.cost.api.impl.CostSubscription;
 import com.vmturbo.cost.api.impl.CostSubscription.Topic;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
+import com.vmturbo.market.component.api.MarketComponent;
+import com.vmturbo.market.component.api.impl.MarketClientConfig;
+import com.vmturbo.market.component.api.impl.MarketSubscription;
 import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
 import com.vmturbo.plan.orchestrator.reservation.ReservationConfig;
@@ -55,7 +58,7 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
         ActionOrchestratorClientConfig.class, HistoryClientConfig.class,
         RepositoryClientConfig.class, TopologyProcessorClientConfig.class,
         BaseKafkaProducerConfig.class, ReservationConfig.class,
-        GroupClientConfig.class, CostClientConfig.class})
+        GroupClientConfig.class, CostClientConfig.class, MarketClientConfig.class})
 public class PlanConfig {
 
     /**
@@ -97,6 +100,9 @@ public class PlanConfig {
     @Autowired
     private UserSessionConfig userSessionConfig;
 
+    @Autowired
+    private MarketClientConfig marketClientConfig;
+
     @Bean
     public PlanDao planDao() {
         return new PlanDaoImpl(dbConfig.dsl(),
@@ -108,6 +114,18 @@ public class PlanConfig {
                 repositoryClientConfig.searchServiceClient(),
                 riBuyContextService(),
                 planTimeOutHours);
+    }
+
+    /**
+     * Java Bean for Market component.
+     *
+     * @return The Market component.
+     */
+    @Bean
+    public MarketComponent marketComponent() {
+        final MarketComponent market = marketClientConfig.marketComponent(
+            MarketSubscription.forTopic(MarketSubscription.Topic.AnalysisStatusNotification));
+        return market;
     }
 
     @Bean
@@ -171,6 +189,7 @@ public class PlanConfig {
         repositoryClientConfig.repository().addListener(listener);
         historyClientConfig.historyComponent().addListener(listener);
         costComponent().addCostNotificationListener(listener);
+        marketComponent().addAnalysisStatusListener(listener);
         return listener;
     }
 
