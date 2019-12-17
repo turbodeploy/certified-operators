@@ -215,6 +215,8 @@ message Explanation {
     }
 
     message AllocateExplanation {
+        // Instance size family of the workload that is relocated to RI
+        optional string instanceSizeFamily = 1;
         // TODO: Consider adding some details here, e.g. other scaling actions that freed up RI.
     }
 

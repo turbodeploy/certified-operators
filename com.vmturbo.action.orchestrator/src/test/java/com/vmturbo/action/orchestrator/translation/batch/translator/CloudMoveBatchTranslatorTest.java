@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
@@ -32,6 +33,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderEx
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -283,8 +287,9 @@ public class CloudMoveBatchTranslatorTest {
                 .setId(1)
                 .setType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .build();
+        final long computeTierId = 2;
         final ActionEntity computeTier = ActionEntity.newBuilder()
-                .setId(2)
+                .setId(computeTierId)
                 .setType(EntityType.COMPUTE_TIER_VALUE)
                 .build();
         final ActionDTO.Action allocateActionDto = ActionDTO.Action.newBuilder()
@@ -307,6 +312,15 @@ public class CloudMoveBatchTranslatorTest {
         when(allocateAction.getActionTranslation()).thenReturn(actionTranslation);
         final List<Action> actionsToTranslate = ImmutableList.of(allocateAction);
         final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
+        final String instanceSizeFamily = "m4";
+        final ActionPartialEntity computeTierPartial = ActionPartialEntity.newBuilder()
+                .setOid(1L)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                        .setComputeTier(ComputeTierInfo.newBuilder()
+                                .setFamily(instanceSizeFamily)))
+                .build();
+        final Optional<ActionPartialEntity> computeTierPartialOpt = Optional.of(computeTierPartial);
+        when(snapshot.getEntityFromOid(computeTierId)).thenReturn(computeTierPartialOpt);
 
         // Act
         final List<Action> translatedActions = translator.translate(actionsToTranslate, snapshot)
@@ -322,5 +336,6 @@ public class CloudMoveBatchTranslatorTest {
         assertEquals(computeTier, allocate.getWorkloadTier());
         final Explanation explanation = translatedAction.getExplanation();
         assertTrue(explanation.hasAllocate());
+        assertEquals(instanceSizeFamily, explanation.getAllocate().getInstanceSizeFamily());
     }
 }

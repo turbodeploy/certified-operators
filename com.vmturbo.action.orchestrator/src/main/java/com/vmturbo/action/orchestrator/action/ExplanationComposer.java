@@ -72,7 +72,7 @@ public class ExplanationComposer {
     private static final String WASTED_COST = "Wasted Cost";
     private static final String DELETE_WASTED_FILES_EXPLANATION = "Idle or non-productive";
     private static final String DELETE_WASTED_VOLUMES_EXPLANATION = "Increase savings";
-    private static final String ALLOCATE_EXPLANATION = "{0}Virtual Machine can be covered by {1} RI";
+    private static final String ALLOCATE_EXPLANATION = "Virtual Machine can be covered by {0} RI";
 
     /**
      * Private to prevent instantiation.
@@ -139,7 +139,7 @@ public class ExplanationComposer {
             case SCALE:
                 return buildMoveExplanation(action, keepItShort, settingPolicyIdToSettingPolicyName);
             case ALLOCATE:
-                return buildAllocateExplanation(action, keepItShort);
+                return buildAllocateExplanation(action);
             case RESIZE:
                 return buildResizeExplanation(action, keepItShort);
             case ACTIVATE:
@@ -373,17 +373,12 @@ public class ExplanationComposer {
      * Build Allocate action explanation.
      *
      * @param action The action to explain.
-     * @param keepItShort Defines whether to generate short explanation or not.
      * @return The explanation sentence.
      */
-    private static String buildAllocateExplanation(
-            @Nonnull final ActionDTO.Action action,
-            final boolean keepItShort) {
-        // TODO: Use RI family name instead of template name.
-        final ActionEntity tier = action.getInfo().getAllocate().getWorkloadTier();
-        final String tierName = ActionDTOUtil.buildEntityName(tier);
-        final String prefix = keepItShort ? "" : ActionDTOUtil.TRANSLATION_PREFIX;
-        return MessageFormat.format(ALLOCATE_EXPLANATION, prefix, tierName);
+    private static String buildAllocateExplanation(@Nonnull final ActionDTO.Action action) {
+        final String instanceSizeFamily = action.getExplanation().getAllocate()
+                .getInstanceSizeFamily();
+        return MessageFormat.format(ALLOCATE_EXPLANATION, instanceSizeFamily);
     }
 
     /**

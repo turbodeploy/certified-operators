@@ -475,7 +475,8 @@ public class ExplanationComposerTest {
                         .setWorkloadTier(tier))
                 .build();
         final Explanation explanation = Explanation.newBuilder()
-                .setAllocate(AllocateExplanation.getDefaultInstance())
+                .setAllocate(AllocateExplanation.newBuilder()
+                        .setInstanceSizeFamily("m4"))
                 .build();
         final ActionDTO.Action action = createAction(actionInfo, explanation);
 
@@ -484,10 +485,9 @@ public class ExplanationComposerTest {
         final String fullExplanation = ExplanationComposer.composeExplanation(action);
 
         // Assert
-        assertEquals("Virtual Machine can be covered by {entity:2:displayName:} RI",
-                shortExplanation);
-        assertEquals("(^_^)~Virtual Machine can be covered by {entity:2:displayName:} RI",
-                fullExplanation);
+        final String expectedExplanation = "Virtual Machine can be covered by m4 RI";
+        assertEquals(expectedExplanation, shortExplanation);
+        assertEquals(expectedExplanation, fullExplanation);
     }
 
     private static ActionEntity createActionEntity(long id, int type) {

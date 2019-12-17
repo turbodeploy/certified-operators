@@ -9,6 +9,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.Allocate;
@@ -19,6 +20,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ScaleExplanation
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.TypeCase;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 
 /**
@@ -67,15 +72,17 @@ public class CloudMoveBatchTranslator implements BatchTranslator {
             @Nonnull final List<T> moveActions,
             @Nonnull final EntitiesAndSettingsSnapshot snapshot) {
         return moveActions.stream()
-            .map(this::translate)
+            .map(action -> translate(action, snapshot))
             .collect(Collectors.toList()).stream();
     }
 
-    private <T extends ActionView> T translate(@Nonnull final T action) {
+    private <T extends ActionView> T translate(
+            @Nonnull final T action,
+            @Nonnull final EntitiesAndSettingsSnapshot snapshot) {
         final ActionDTO.Action originalAction = action.getRecommendation();
 
         final ActionDTO.Action translatedAction = isAllocateAction(originalAction)
-                ? translateToAllocate(originalAction)
+                ? translateToAllocate(originalAction, snapshot)
                 : translateToScale(originalAction);
         action.getActionTranslation().setTranslationSuccess(translatedAction);
 
@@ -100,15 +107,27 @@ public class CloudMoveBatchTranslator implements BatchTranslator {
                 .build();
     }
 
-    private ActionDTO.Action translateToAllocate(@Nonnull final ActionDTO.Action actionDto) {
+    private ActionDTO.Action translateToAllocate(
+            @Nonnull final ActionDTO.Action actionDto,
+            @Nonnull final EntitiesAndSettingsSnapshot snapshot) {
         final Move move = actionDto.getInfo().getMove();
 
+        final ActionEntity workloadTier = ActionDTOUtil.getPrimaryChangeProvider(actionDto)
+                .getDestination();
         final Allocate allocate = Allocate.newBuilder()
                 .setTarget(move.getTarget())
-                .setWorkloadTier(ActionDTOUtil.getPrimaryChangeProvider(actionDto).getDestination())
+                .setWorkloadTier(workloadTier)
                 .build();
 
-        final AllocateExplanation explanation = AllocateExplanation.newBuilder().build();
+        final AllocateExplanation.Builder explanation = AllocateExplanation.newBuilder();
+
+        // Set RI instance size family
+        snapshot.getEntityFromOid(workloadTier.getId())
+                .map(ActionPartialEntity::getTypeSpecificInfo)
+                .filter(typeInfo -> typeInfo.getTypeCase() == TypeCase.COMPUTE_TIER)
+                .map(TypeSpecificInfo::getComputeTier)
+                .map(ComputeTierInfo::getFamily)
+                .ifPresent(explanation::setInstanceSizeFamily);
 
         return actionDto.toBuilder()
                 .setExplanation(Explanation.newBuilder()
