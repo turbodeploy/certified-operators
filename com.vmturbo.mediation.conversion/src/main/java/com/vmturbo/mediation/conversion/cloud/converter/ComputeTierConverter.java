@@ -22,7 +22,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.ProfileDTO.CommodityProfileDTO;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.VMProfileDTO;
-import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.VMProfileDTO.InstanceDiskType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 /**
@@ -66,6 +65,9 @@ public class ComputeTierConverter implements IEntityConverter {
                 .setDedicatedStorageNetworkState(vmProfileDTO.getDedicatedStorageNetworkState())
                 .setNumCoupons(vmProfileDTO.getNumberOfCoupons())
                 .setNumCores(vmProfileDTO.getNumVCPUs())
+                .setInstanceDiskSizeGb(vmProfileDTO.getInstanceDiskSize())
+                .setInstanceDiskType(vmProfileDTO.getInstanceDiskType())
+                .setNumInstanceDisks(vmProfileDTO.getNumInstanceDisks())
                 .build());
 
         // connect CT to Region, based on license

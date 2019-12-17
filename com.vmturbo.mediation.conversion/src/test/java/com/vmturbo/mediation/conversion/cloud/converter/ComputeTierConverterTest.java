@@ -19,6 +19,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.InstanceDiskType;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.LicenseMapEntry;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.VMProfileDTO;
@@ -93,5 +94,31 @@ public class ComputeTierConverterTest {
         assertEquals(3, licenseNames.size());
         assertThat(licenseNames, containsInAnyOrder("Linux", "Linux_SQL_Server_Enterprise",
             "Windows"));
+    }
+
+    /**
+     * Test for the instance store data in computeTier data.
+     */
+    @Test
+    public void testInstanceStoreData() {
+        final InstanceDiskType diskType = InstanceDiskType.SSD;
+        final int numInstanceDisks = 2;
+        final int instanceDiskSize = 100;
+        final String computeTierId = "c1.medium";
+        final CloudDiscoveryConverter cloudDiscoveryConverter = mock(CloudDiscoveryConverter.class);
+        when(cloudDiscoveryConverter.getProfileDTO(computeTierId))
+                .thenReturn(EntityProfileDTO.newBuilder()
+                        .setId("1122")
+                        .setEntityType(EntityType.VIRTUAL_MACHINE)
+                        .setVmProfileDTO(VMProfileDTO.newBuilder()
+                                .setInstanceDiskSize(instanceDiskSize)
+                                .setNumInstanceDisks(numInstanceDisks)
+                                .setInstanceDiskType(diskType)
+                                .build()).build());
+        final EntityDTO.Builder builder = EntityDTO.newBuilder().setId(computeTierId);
+        converter.convert(builder, cloudDiscoveryConverter);
+        assertEquals(diskType, builder.getComputeTierData().getInstanceDiskType());
+        assertEquals(numInstanceDisks, builder.getComputeTierData().getNumInstanceDisks());
+        assertEquals(instanceDiskSize, builder.getComputeTierData().getInstanceDiskSizeGb());
     }
 }

@@ -21,8 +21,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.InstanceDiskType;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.VMProfileDTO;
-import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.VMProfileDTO.InstanceDiskType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 /**

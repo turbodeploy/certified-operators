@@ -72,6 +72,9 @@ public class ComputeTierInfoMapper extends TypeSpecificInfoMapper {
                         .setNumCoupons(ctData.getNumCoupons())
                         .setNumCores(ctData.getNumCores())
                         .setSupportedCustomerInfo(supportedCustomerInfo)
+                        .setInstanceDiskSizeGb(ctData.getInstanceDiskSizeGb())
+                        .setInstanceDiskType(ctData.getInstanceDiskType())
+                        .setNumInstanceDisks(ctData.getNumInstanceDisks())
                         .build())
                 .build();
     }

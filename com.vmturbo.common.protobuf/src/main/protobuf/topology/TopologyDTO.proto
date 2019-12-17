@@ -173,7 +173,15 @@ message TypeSpecificInfo {
             // The virtualization type of VMs that are supported by this compute tier.
             repeated VirtualizationType supportedVirtualizationTypes = 4;
         }
+
+        //Number of Ephemeral disks supported by this tier
+        optional int32 num_instance_disks = 6;
+        //Size of each Ephemeral disk supported by this tier in GB
+        optional int32 instance_disk_size_gb = 7;
+        //disk type of Ephemeral storage
+        optional common_dto.EntityDTO.InstanceDiskType instance_disk_type = 8;
     }
+
 
     // Architectures
     enum Architecture {
@@ -228,6 +236,9 @@ message TypeSpecificInfo {
 
         // Boolean encryption enabled on volume
         optional bool encryption = 7;
+
+        // Boolean ephemeral storage
+        optional bool isEphemeral = 8;
     }
 
     // specific data for a Storage entity
