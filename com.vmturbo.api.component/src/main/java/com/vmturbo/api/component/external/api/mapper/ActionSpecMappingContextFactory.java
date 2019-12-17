@@ -16,6 +16,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
@@ -531,7 +532,7 @@ public class ActionSpecMappingContextFactory {
             return Optional.ofNullable(oidToDatacenter.get(entityOid));
         }
 
-        @Nonnull
+        @Nullable
         ApiPartialEntity getRegion(@Nonnull Long entityOid) throws UnknownObjectException {
             return entityIdToRegion.get(entityOid);
         }

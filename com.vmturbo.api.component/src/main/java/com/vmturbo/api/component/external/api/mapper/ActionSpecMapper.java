@@ -525,13 +525,6 @@ public class ActionSpecMapper {
             templateApiDTO.setClassName(newEntity.getClassName());
             actionApiDTO.setTemplate(templateApiDTO);
 
-            // set location, which is the region
-            final ApiPartialEntity region = context.getRegion(targetEntityId);
-            final BaseApiDTO regionDTO = serviceEntityMapper.toServiceEntityApiDTO(region);
-            // todo: set current and new location to be different if region could be changed
-            actionApiDTO.setCurrentLocation(regionDTO);
-            actionApiDTO.setNewLocation(regionDTO);
-
             /*
              * Set virtualDisks on ActionApiDTO. Scale virtual volume actions have virtual volume as
              * target entity after converting to the ActionApiDTO. SO we need get VM ID from action info.
@@ -541,6 +534,15 @@ public class ActionSpecMapper {
             final Long vmId = isVirtualVolumeTarget
                             ? ActionDTOUtil.getPrimaryEntity(action, false).getId()
                             : targetEntityId;
+            // set location, which is the region
+            final ApiPartialEntity region = context.getRegion(vmId);
+            if (region != null) {
+                final BaseApiDTO regionDTO = serviceEntityMapper.toServiceEntityApiDTO(region);
+                // todo: set current and new location to be different if region could be changed
+                actionApiDTO.setCurrentLocation(regionDTO);
+                actionApiDTO.setNewLocation(regionDTO);
+            }
+
             // Filter virtual disks if it is scale virtual volume action.
             final Predicate<VirtualDiskApiDTO> filter = isVirtualVolumeTarget
                             ? vd -> targetEntityUuid.equals(vd.getUuid())
