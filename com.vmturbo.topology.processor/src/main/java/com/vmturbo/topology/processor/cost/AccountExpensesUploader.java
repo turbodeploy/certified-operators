@@ -89,6 +89,25 @@ public class AccountExpensesUploader {
                                                    TopologyInfo topologyInfo,
                                                    StitchingContext stitchingContext,
                                                    CloudEntitiesMap cloudEntitiesMap) {
+        // Check if any expenses were discovered yet.
+        // Note: costDataByTargetIdSnapshot can be populated while no actual expenses were discovered.
+        // For example: we added Azure SP target, but haven't added Azure EA target yet.
+        if (costDataByTarget.values().stream()
+                .allMatch(targetCostData -> targetCostData.costDataDTOS.isEmpty())) {
+            logger.info("no expenses were discovered yet");
+            return;
+        }
+
+        // Check if any cloud services were discovered yet.
+        // For example: the Azure EA discovery completed (so expenses are discovered), but the
+        // Azure Subscription targets discoveries haven't finished yet, so we don't have any cloud
+        // services entities to match.
+        if (stitchingContext.getEntitiesByEntityTypeAndTarget().keySet().stream()
+                .noneMatch(entityType -> entityType == EntityType.CLOUD_SERVICE)) {
+            logger.info("no cloud services were discovered yet");
+            return;
+        }
+
         // check if we are within our minimum upload interval. Note that we are not persisting the
         // last upload time stamp, and starting a new set of upload interval checks every time the
         // component starts. Component restarts should be rare, so we don't expect this to be much
