@@ -129,11 +129,12 @@ public class EnvironmentTypeInjectorTest {
         assertTrue(graph.getEntity(ENTITY_OID_2).isPresent());
 
         assertThat(graph.getEntity(ENTITY_OID).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
-        assertThat(graph.getEntity(ENTITY_OID_2).get().getEnvironmentType(), is(EnvironmentType.CLOUD));
+        assertThat(graph.getEntity(ENTITY_OID_2).get().getEnvironmentType(), is(EnvironmentType.HYBRID));
 
         assertThat(injectionSummary.getConflictingTypeCount(), is(0));
         assertThat(injectionSummary.getUnknownCount(), is(0));
-        assertThat(injectionSummary.getEnvTypeCounts(), is(ImmutableMap.of(EnvironmentType.CLOUD, 2)));
+        assertThat(injectionSummary.getEnvTypeCounts(), is(ImmutableMap.of(EnvironmentType.CLOUD, 1,
+                EnvironmentType.HYBRID, 1)));
 
     }
 
