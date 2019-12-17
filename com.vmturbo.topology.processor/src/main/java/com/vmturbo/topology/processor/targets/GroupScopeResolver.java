@@ -342,10 +342,9 @@ public class GroupScopeResolver {
             return Collections.emptyList();
         }
         final SearchEntitiesRequest.Builder searchTopologyRequest = SearchEntitiesRequest.newBuilder()
-            .addAllEntityOid(groupScopedEntitiesOids)
             .setReturnType(Type.FULL)
             .addSearchParameters(SearchParameters.newBuilder()
-                .setStartingFilter(SearchProtoUtil.entityTypeFilter(EntityType.VIRTUAL_MACHINE_VALUE))
+                .setStartingFilter(SearchProtoUtil.idFilter(groupScopedEntitiesOids))
                 .addSearchFilter(SearchFilter.newBuilder()
                     .setTraversalFilter(TraversalFilter.newBuilder()
                         .setTraversalDirection(TraversalDirection.PRODUCES)

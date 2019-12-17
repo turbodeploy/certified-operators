@@ -621,16 +621,22 @@ public class GroupScopeResolverTest {
 
     public class TestSearchService extends SearchServiceImplBase {
 
-        /**
-         * We use this variable to indicate we should retrieve the group scoped entities or guest
-         * load entities.
-         */
-        private int entitiesRetrievingIndicator = 0;
-
         @Override
         public void searchEntitiesStream(final SearchEntitiesRequest request,
                                    final StreamObserver<PartialEntityBatch> responseObserver) {
-            responseObserver.onNext(retrieveSearchEntities(request.getEntityOid(0)));
+            long requestedOid;
+            boolean guestLoad = false;
+            // if there is an entity oid in the request, use it to make an entity request
+            if (request.getEntityOidCount() > 0) {
+                requestedOid = request.getEntityOid(0);
+            } else {
+                // if there is no entity in the request, it means it is a guestLoad request
+                // the starting filter contains the OID
+                requestedOid = Long.parseLong(request.getSearchParametersList().iterator().next()
+                    .getStartingFilter().getStringFilter().getOptions(0));
+                guestLoad = true;
+            }
+            responseObserver.onNext(retrieveSearchEntities(requestedOid, guestLoad));
             responseObserver.onCompleted();
         }
 
@@ -642,7 +648,7 @@ public class GroupScopeResolverTest {
         }
 
         @Nonnull
-        private PartialEntityBatch retrieveSearchEntities(long oid) {
+        private PartialEntityBatch retrieveSearchEntities(long oid, boolean retrieveGuestLoad) {
             PartialEntityBatch response = PartialEntityBatch.getDefaultInstance();
             for (int j = 0; j < BUSINESS_ACCOUNT_OID.length; j++) {
                 if (BUSINESS_ACCOUNT_OID[j] == oid) {
@@ -651,9 +657,9 @@ public class GroupScopeResolverTest {
             }
             for (int i = 0; i < memberId.length; i ++) {
                 if (memberId[i] == oid) {
-                    response = (entitiesRetrievingIndicator ++ % 2 == 0)
-                            ? getRetrieveScopedVMEntitiesResponse(i)
-                            : getRetrieveGuestLoadAppEntitiesResponse(i);
+                    response = retrieveGuestLoad
+                        ? getRetrieveGuestLoadAppEntitiesResponse(i)
+                        : getRetrieveScopedVMEntitiesResponse(i);
                 }
             }
             return response;
