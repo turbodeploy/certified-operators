@@ -9,6 +9,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -69,6 +70,20 @@ public class ClusterStatsSubQueryTest {
     }
 
     /**
+     * Test that the query is cluster query, since it doesn't contain any cluster
+     * stats in the request.
+     */
+    @Test
+    public void testApplicableToClusterWithEmptyStats() {
+        final ApiId scope = mock(ApiId.class);
+        when(scope.getGroupType()).thenReturn(Optional.of(GroupType.COMPUTE_HOST_CLUSTER));
+        final StatsQueryContext context = mock(StatsQueryContext.class);
+        when(context.getInputScope()).thenReturn(scope);
+        when(context.getRequestedStats()).thenReturn(new HashSet<>(new ArrayList<>()));
+        assertThat(query.applicableInContext(context), is(true));
+    }
+
+    /**
      * Test that the query is not a cluster query, since it doesn't contain any cluster
      * commodities in the request.
      */
@@ -76,8 +91,11 @@ public class ClusterStatsSubQueryTest {
     public void testNotApplicableToCluster() {
         final ApiId scope = mock(ApiId.class);
         when(scope.getGroupType()).thenReturn(Optional.of(GroupType.COMPUTE_HOST_CLUSTER));
+        StatApiInputDTO nonClusterStat = new StatApiInputDTO();
+        nonClusterStat.setName(StringConstants.CPU);
         final StatsQueryContext context = mock(StatsQueryContext.class);
         when(context.getInputScope()).thenReturn(scope);
+        when(context.getRequestedStats()).thenReturn(new HashSet<>(Arrays.asList(nonClusterStat)));
         assertThat(query.applicableInContext(context), is(false));
     }
 

@@ -59,15 +59,16 @@ public class ClusterStatsSubQuery implements StatsSubQuery {
 
     @Override
     public boolean applicableInContext(@Nonnull final StatsQueryContext context) {
-        // Supports queries on clusters. Applicable only if the input scope is a cluster and in
-        // the request there is at least one cluster commodity. If not, we assume the request is
+        // Supports queries on clusters. Applicable only if the input scope is a cluster and stats requested
+        // are empty or in  the request there is at least one cluster commodity. If not, we assume the request is
         // for Physical Machines commodities.
         return context.getInputScope().getGroupType()
             .filter(GroupProtoUtil.CLUSTER_GROUP_TYPES::contains)
             .isPresent() &&
-            context.getRequestedStats().stream()
-                .map(StatApiInputDTO::getName)
-                .anyMatch(PRE_AGGREGATED_CLUSTER_STATS::contains);
+            (context.getRequestedStats().isEmpty() ||
+                context.getRequestedStats().stream()
+                    .map(StatApiInputDTO::getName)
+                    .anyMatch(PRE_AGGREGATED_CLUSTER_STATS::contains));
     }
 
     @Override
