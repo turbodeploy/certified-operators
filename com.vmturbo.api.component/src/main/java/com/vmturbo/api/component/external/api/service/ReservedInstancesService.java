@@ -80,9 +80,9 @@ public class ReservedInstancesService implements IReservedInstancesService {
 
     private final UuidMapper uuidMapper;
 
-    private static final Set<Integer> SUPPORTED_RI_FILTER_TYPES =
-                    ImmutableSet.of(EntityDTO.EntityType.REGION_VALUE, EntityDTO.EntityType.AVAILABILITY_ZONE_VALUE,
-                                    EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE);
+    private static final Set<UIEntityType> SUPPORTED_RI_FILTER_TYPES =
+                    ImmutableSet.of(UIEntityType.REGION, UIEntityType.AVAILABILITY_ZONE,
+                                    UIEntityType.BUSINESS_ACCOUNT);
 
     public ReservedInstancesService(
             @Nonnull final ReservedInstanceBoughtServiceBlockingStub reservedInstanceService,
@@ -170,7 +170,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
                     GetReservedInstanceBoughtByFilterRequest.newBuilder().build())
                     .getReservedInstanceBoughtsList();
         } else if (groupOptional.isPresent()) {
-            final Collection<UIEntityType> groupEntityType =
+            final Set<UIEntityType> groupEntityType =
                     GroupProtoUtil.getEntityTypes(groupOptional.get());
             final Set<Long> expandedOidsList = groupExpander.expandUuid(scope);
             Map<Long, ReservedInstanceBought> result = new HashMap<>();
