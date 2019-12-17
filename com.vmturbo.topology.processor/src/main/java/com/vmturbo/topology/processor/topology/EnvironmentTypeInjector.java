@@ -13,7 +13,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.Sets;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -85,11 +84,15 @@ public class EnvironmentTypeInjector {
             final EnvironmentType envType;
             final boolean discoveredByAppOrContainer = topoEntity.getDiscoveringTargetIds()
                 .anyMatch(appContainerTargetIds::contains);
+            TopologyEntity entityCopy = topoEntity;
             if (discoveredByAppOrContainer) {
-                envType = computeEnvironmentTypeByProviders(topoEntity, cloudTargetIds);
-            } else {
-                envType = getEnvironmentType(topoEntity, cloudTargetIds);
+                //For entities discovered by Container or App probe, we need to traverse down to the bottom provider to evaluate the envType
+                while (!entityCopy.getProviders().isEmpty()) {
+                    //TODO: Need to double check when an entity span over on-prem and cloud, i.e. BusinessApplication
+                    entityCopy = entityCopy.getProviders().get(0);
+                }
             }
+            envType = getEnvironmentType(entityCopy, cloudTargetIds);
             // We shouldn't have entities with env type already set
             // unless we're in plan-over-plan.
             if (topoEntity.getTopologyEntityDtoBuilder().hasEnvironmentType()) {
@@ -174,57 +177,6 @@ public class EnvironmentTypeInjector {
             default:
                 return EnvironmentType.UNKNOWN_ENV;
         }
-    }
-
-    /**
-     * The method defines an environment type (CLOUD, ON_PREM, etc.) of an entity, which was
-     * discovered by a probe that can be considered as 'application or container' (CLOUD_NATIVE,
-     * GUEST_OS_PROCESSES, etc.). Some providers (other entities) of this target entity may have
-     * different env. types, and it influences on the target entity env. type.
-     * - If all env. types of all providers are the same (providersEnvTypes.size()==1), this env.
-     *   type goes to the target entity;
-     * - If the set 'providersEnvTypes' contains HYBRID env. type, it means that target entity
-     *   has HYBRID type as well;
-     * - If the set 'providersEnvTypes' contains both ON_PREM and CLOUD types, it means that target
-     *   entity has HYBRID env. type.
-     * @param entity - target entity
-     * @param cloudTargetIds - a set of targets IDs, that considered as cloud-based.
-     * @return an environment type of the target entity.
-     */
-    @Nonnull
-    private EnvironmentType computeEnvironmentTypeByProviders(@Nonnull TopologyEntity entity,
-                                                              @Nonnull Set<Long> cloudTargetIds) {
-        final Set<EnvironmentType> providersEnvTypes = getProvidersTypes(entity, cloudTargetIds);
-        switch (providersEnvTypes.size()) {
-            case 1:
-                return providersEnvTypes.iterator().next();
-            default:
-                if (providersEnvTypes.contains(EnvironmentType.HYBRID) ||
-                        (providersEnvTypes.contains(EnvironmentType.ON_PREM) &&
-                                providersEnvTypes.contains(EnvironmentType.CLOUD))) {
-                    return EnvironmentType.HYBRID;
-                }
-        }
-        return EnvironmentType.UNKNOWN_ENV;
-    }
-
-    /**
-     * The method populates all environment types from all entity providers to a set.
-     *
-     * @param entity         - target entity.
-     * @param cloudTargetIds - a set of targets IDs, that considered as cloud-based.
-     * @return a set of entity types.
-     */
-    @Nonnull
-    private Set<EnvironmentType> getProvidersTypes(@Nonnull TopologyEntity entity,
-                                                   @Nonnull Set<Long> cloudTargetIds) {
-        Set<EnvironmentType> types = Sets.newHashSet(
-                entity.getProviders().stream()
-                        .flatMap(p -> getProvidersTypes(p, cloudTargetIds).stream())
-                        .collect(Collectors.toSet())
-        );
-        types.add(getEnvironmentType(entity, cloudTargetIds));
-        return types;
     }
 
     /**
