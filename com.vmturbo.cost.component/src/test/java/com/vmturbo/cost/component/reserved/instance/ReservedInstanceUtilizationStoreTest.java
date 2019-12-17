@@ -4,10 +4,10 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.flywaydb.core.Flyway;
@@ -20,8 +20,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-
-import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
@@ -194,7 +192,7 @@ public class ReservedInstanceUtilizationStoreTest {
     }
 
     @Test
-    public void testGetRIUtilizationStatsRecords() throws Exception {
+    public void testGetRIUtilizationStatsRecords() {
         final List<ReservedInstanceBoughtInfo> reservedInstancesBoughtInfo =
                 Arrays.asList(riInfoOne, riInfoTwo, riInfoThree);
         final List<EntityRICoverageUpload> entityCoverageLists =
@@ -217,6 +215,10 @@ public class ReservedInstanceUtilizationStoreTest {
         assertEquals(110L, riStatRecord.getValues().getTotal(), DELTA);
         assertEquals(20L, riStatRecord.getValues().getMin(), DELTA);
         assertEquals(50L, riStatRecord.getValues().getMax(), DELTA);
+
+        final Collection<ReservedInstanceStatsRecord> riLatestStatsRecords =
+                reservedInstanceUtilizationStore.getLatestReservedInstanceStatsRecords(filter);
+        assertEquals(1, riLatestStatsRecords.size());
     }
 
     private void insertDefaultReservedInstanceSpec() {

@@ -5,6 +5,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -141,7 +142,7 @@ public class ReservedInstanceCoverageStoreTest {
                 .build();
         final List<ReservedInstanceStatsRecord> riStatsRecords =
                 reservedInstanceCoverageStore.getReservedInstanceCoverageStatsRecords(filter);
-        assertEquals(1L, riStatsRecords.size());
+        assertEquals(1, riStatsRecords.size());
         final ReservedInstanceStatsRecord riStatsRecord = riStatsRecords.get(0);
         assertEquals(200L, riStatsRecord.getCapacity().getMax(), DELTA);
         assertEquals(50L, riStatsRecord.getCapacity().getMin(), DELTA);
@@ -149,5 +150,9 @@ public class ReservedInstanceCoverageStoreTest {
         assertEquals(30L, riStatsRecord.getValues().getMax(), DELTA);
         assertEquals(10L, riStatsRecord.getValues().getMin(), DELTA);
         assertEquals(60L, riStatsRecord.getValues().getTotal(), DELTA);
+
+        final Collection<ReservedInstanceStatsRecord> riLatestStatsRecords =
+                reservedInstanceCoverageStore.getLatestReservedInstanceStatsRecords(filter);
+        assertEquals(1, riLatestStatsRecords.size());
     }
 }

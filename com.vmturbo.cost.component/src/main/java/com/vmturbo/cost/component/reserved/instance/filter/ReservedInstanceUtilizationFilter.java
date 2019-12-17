@@ -11,8 +11,6 @@ import org.jooq.Table;
 
 import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.db.Tables;
-import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter.Builder;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * A filter to restrict the reserved instance coverage records from the

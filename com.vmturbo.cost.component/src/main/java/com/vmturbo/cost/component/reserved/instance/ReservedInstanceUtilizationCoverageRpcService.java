@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.reserved.instance;
 
 import java.time.Clock;
 import java.time.temporal.ChronoUnit;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -115,6 +116,14 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
             // TODO (Alexey, Oct 24 2019): Currently we use the same method as for RI Coverage.
             //  It looks incorrect. E.g. it doesn't take into account recommended RI purchases.
             statRecords.add(createProjectedRICoverageStats(filter));
+            final long currentTime = System.currentTimeMillis();
+            if (shouldAddLatestStats(currentTime, request.getStartDate(), request.getEndDate())) {
+                final Collection<ReservedInstanceStatsRecord> latestStats =
+                        reservedInstanceUtilizationStore.getLatestReservedInstanceStatsRecords(
+                                createRIUtilizationLatestStatFilter(request));
+                statRecords.addAll(latestStats);
+                logger.trace("Adding latest RI utilization stats: {}", () -> latestStats);
+            }
             final GetReservedInstanceUtilizationStatsResponse response =
                     GetReservedInstanceUtilizationStatsResponse.newBuilder()
                             .addAllReservedInstanceStatsRecords(statRecords)
@@ -147,6 +156,15 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
                 .getReservedInstanceCoverageStatsRecords(filter);
             // Add projected RI Coverage point
             statRecords.add(createProjectedRICoverageStats(filter));
+            // Add latest RI Coverage point
+            final long currentTime = System.currentTimeMillis();
+            if (shouldAddLatestStats(currentTime, request.getStartDate(), request.getEndDate())) {
+                final Collection<ReservedInstanceStatsRecord> latestStats =
+                        reservedInstanceCoverageStore.getLatestReservedInstanceStatsRecords(
+                                createRICoverageLatestStatFilter(request));
+                statRecords.addAll(latestStats);
+                logger.trace("Adding latest RI coverage stats: {}", () -> latestStats);
+            }
             final GetReservedInstanceCoverageStatsResponse response =
                     GetReservedInstanceCoverageStatsResponse.newBuilder()
                             .addAllReservedInstanceStatsRecords(statRecords)
@@ -158,6 +176,11 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
                     .withDescription("Failed to get reserved instance coverage stats.")
                     .asException());
         }
+    }
+
+    private boolean shouldAddLatestStats(final long currentTime, final long startTime,
+                                         final long endTime) {
+        return currentTime >= startTime && currentTime <= endTime;
     }
 
     @Override
@@ -227,17 +250,9 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
     private ReservedInstanceUtilizationFilter createReservedInstanceUtilizationFilter(
             @Nonnull final GetReservedInstanceUtilizationStatsRequest request) {
         // Get all business accounts based on scope ID's and scope type.
-        final ReservedInstanceUtilizationFilter.Builder filterBuilder = ReservedInstanceUtilizationFilter.newBuilder();
-        if (request.hasRegionFilter()) {
-            filterBuilder.addAllScopeId(request.getRegionFilter().getRegionIdList())
-                       .setScopeEntityType(Optional.of(EntityType.REGION_VALUE));
-        } else if (request.hasAvailabilityZoneFilter()) {
-            filterBuilder.addAllScopeId(request.getAvailabilityZoneFilter().getAvailabilityZoneIdList())
-                .setScopeEntityType(Optional.of(EntityType.AVAILABILITY_ZONE_VALUE));
-        } else if (request.hasAccountFilter()) {
-            filterBuilder.addAllScopeId(request.getAccountFilter().getAccountIdList())
-                .setScopeEntityType(Optional.of(EntityType.BUSINESS_ACCOUNT_VALUE));
-        }
+        final ReservedInstanceUtilizationFilter.Builder filterBuilder =
+                addRIUtilizationFilterScope(request,
+                        ReservedInstanceUtilizationFilter.newBuilder());
         filterBuilder.setStartDateMillis(request.getStartDate());
         filterBuilder.setEndDateMillis(request.getEndDate());
         final TimeFrame timeFrame = timeFrameCalculator.millis2TimeFrame(request.getStartDate());
@@ -252,21 +267,10 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
      * @param request The {@link GetReservedInstanceCoverageStatsRequest}.
      * @return a {@link ReservedInstanceCoverageFilter}.
      */
-    private ReservedInstanceCoverageFilter createReservedInstanceCoverageFilter(GetReservedInstanceCoverageStatsRequest request) {
-        final ReservedInstanceCoverageFilter.Builder filterBuilder = ReservedInstanceCoverageFilter.newBuilder();
-        if (request.hasRegionFilter()) {
-            filterBuilder.addAllScopeId(request.getRegionFilter().getRegionIdList())
-                .setScopeEntityType(EntityType.REGION_VALUE);
-        } else if (request.hasAvailabilityZoneFilter()) {
-            filterBuilder.addAllScopeId(request.getAvailabilityZoneFilter().getAvailabilityZoneIdList())
-                .setScopeEntityType(EntityType.AVAILABILITY_ZONE_VALUE);
-        } else if (request.hasAccountFilter()) {
-            filterBuilder.addAllScopeId(request.getAccountFilter().getAccountIdList())
-                .setScopeEntityType(EntityType.BUSINESS_ACCOUNT_VALUE);
-        } else if (request.hasEntityFilter()) {
-            filterBuilder.addAllScopeId(request.getEntityFilter().getEntityIdList());
-            // No entity type.
-        }
+    private ReservedInstanceCoverageFilter createReservedInstanceCoverageFilter(
+            GetReservedInstanceCoverageStatsRequest request) {
+        final ReservedInstanceCoverageFilter.Builder filterBuilder =
+                addRICoverageFilterScope(request, ReservedInstanceCoverageFilter.newBuilder());
         filterBuilder.setStartDateMillis(request.getStartDate());
         filterBuilder.setEndDateMillis(request.getEndDate());
         filterBuilder.setTimeFrame(request.hasStartDate() ?
@@ -282,6 +286,61 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
                 .setEndDateMillis(clock.millis());
         }
         return filterBuilder.build();
+    }
+
+    private ReservedInstanceCoverageFilter createRICoverageLatestStatFilter(
+            GetReservedInstanceCoverageStatsRequest request) {
+        final ReservedInstanceCoverageFilter.Builder filterBuilder =
+                addRICoverageFilterScope(request, ReservedInstanceCoverageFilter.newBuilder());
+        filterBuilder.setTimeFrame(TimeFrame.LATEST);
+        return filterBuilder.build();
+    }
+
+    private ReservedInstanceUtilizationFilter createRIUtilizationLatestStatFilter(
+            GetReservedInstanceUtilizationStatsRequest request) {
+        final ReservedInstanceUtilizationFilter.Builder filterBuilder =
+                addRIUtilizationFilterScope(request,
+                        ReservedInstanceUtilizationFilter.newBuilder());
+        filterBuilder.setTimeFrame(TimeFrame.LATEST);
+        return filterBuilder.build();
+    }
+
+    private ReservedInstanceUtilizationFilter.Builder addRIUtilizationFilterScope(
+            GetReservedInstanceUtilizationStatsRequest request,
+            ReservedInstanceUtilizationFilter.Builder filterBuilder) {
+        // Get all business accounts based on scope ID's and scope type.
+        if (request.hasRegionFilter()) {
+            filterBuilder.addAllScopeId(request.getRegionFilter().getRegionIdList())
+                    .setScopeEntityType(Optional.of(EntityType.REGION_VALUE));
+        } else if (request.hasAvailabilityZoneFilter()) {
+            filterBuilder.addAllScopeId(request.getAvailabilityZoneFilter()
+                    .getAvailabilityZoneIdList())
+                    .setScopeEntityType(Optional.of(EntityType.AVAILABILITY_ZONE_VALUE));
+        } else if (request.hasAccountFilter()) {
+            filterBuilder.addAllScopeId(request.getAccountFilter().getAccountIdList())
+                    .setScopeEntityType(Optional.of(EntityType.BUSINESS_ACCOUNT_VALUE));
+        }
+        return filterBuilder;
+    }
+
+    private ReservedInstanceCoverageFilter.Builder addRICoverageFilterScope(
+            GetReservedInstanceCoverageStatsRequest request,
+            ReservedInstanceCoverageFilter.Builder filterBuilder) {
+        if (request.hasRegionFilter()) {
+            filterBuilder.addAllScopeId(request.getRegionFilter().getRegionIdList())
+                    .setScopeEntityType(EntityType.REGION_VALUE);
+        } else if (request.hasAvailabilityZoneFilter()) {
+            filterBuilder.addAllScopeId(request.getAvailabilityZoneFilter()
+                    .getAvailabilityZoneIdList())
+                    .setScopeEntityType(EntityType.AVAILABILITY_ZONE_VALUE);
+        } else if (request.hasAccountFilter()) {
+            filterBuilder.addAllScopeId(request.getAccountFilter().getAccountIdList())
+                    .setScopeEntityType(EntityType.BUSINESS_ACCOUNT_VALUE);
+        } else if (request.hasEntityFilter()) {
+            filterBuilder.addAllScopeId(request.getEntityFilter().getEntityIdList());
+            // No entity type.
+        }
+        return filterBuilder;
     }
 
     private ReservedInstanceStatsRecord createProjectedRICoverageStats(

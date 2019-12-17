@@ -8,13 +8,10 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.jooq.Condition;
 import org.jooq.Table;
 
 import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.db.Tables;
-import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter.Builder;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * A filter to restrict the reserved instance coverage records from the
@@ -23,8 +20,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * in the tables.
  */
 public class ReservedInstanceCoverageFilter extends ReservedInstanceStatsFilter {
-
-    private final List<Condition> conditions;
 
     /**
      * Constructor for ReservedInstanceCoverageFilter.
@@ -42,7 +37,6 @@ public class ReservedInstanceCoverageFilter extends ReservedInstanceStatsFilter 
                                            @Nullable final TimeFrame timeFrame) {
         super(scopeIds, scopeEntityType, startDateMillis, endDateMillis,
               timeFrame);
-        this.conditions = generateConditions(scopeIds, scopeEntityType);
     }
 
     @Override

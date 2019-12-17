@@ -32,7 +32,7 @@ public abstract class ReservedInstanceStatsFilter extends ReservedInstanceFilter
 
     protected final long endDateMillis;
 
-    private final List<Condition> conditions;
+    protected final List<Condition> conditions;
 
     protected final TimeFrame timeFrame;
 

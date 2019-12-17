@@ -17,6 +17,7 @@ import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.Result;
 import org.jooq.Table;
+import org.jooq.impl.DSL;
 
 import com.google.common.collect.Lists;
 
@@ -31,7 +32,8 @@ import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCover
  * each entity, and also used the {@link EntityReservedInstanceMappingStore} which has the latest
  * used coupons for each entity. And it will combine these data and store into database.
  */
-public class ReservedInstanceCoverageStore {
+public class ReservedInstanceCoverageStore
+        extends ReservedInstanceStatsStore<ReservedInstanceCoverageFilter> {
 
     //TODO: set this chunk config through consul.
     private final static int chunkSize = 1000;
@@ -84,6 +86,15 @@ public class ReservedInstanceCoverageStore {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    protected Result getLatestRecords(@Nonnull final ReservedInstanceCoverageFilter filter) {
+        return dsl.select(createSelectFieldsForRIUtilizationCoverage(
+                RESERVED_INSTANCE_COVERAGE_LATEST)).from(RESERVED_INSTANCE_COVERAGE_LATEST)
+                .where(filter.getConditions()).and(RESERVED_INSTANCE_COVERAGE_LATEST.SNAPSHOT_TIME
+                        .eq(dsl.select(DSL.max(RESERVED_INSTANCE_COVERAGE_LATEST.SNAPSHOT_TIME))
+                                .from(RESERVED_INSTANCE_COVERAGE_LATEST))).fetch();
+    }
+
     /**
      * Create {@link ReservedInstanceCoverageLatestRecord}.
      *
@@ -102,11 +113,6 @@ public class ReservedInstanceCoverageStore {
                         entityRiCoverage.getBusinessAccountId(), entityRiCoverage.getTotalCoupons(),
                         entityRiCoverage.getUsedCoupons(),null,null,null));
 
-    }
-
-    @Nonnull
-    protected Map<Long, Double> getEntitiesCouponCapacity() {
-        return getEntitiesCouponCapacity(reservedInstanceCoverageFilter);
     }
 
     @Nonnull

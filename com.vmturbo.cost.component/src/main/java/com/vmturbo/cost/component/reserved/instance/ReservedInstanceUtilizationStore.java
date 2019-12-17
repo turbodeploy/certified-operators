@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.reserved.instance;
 
+import static com.vmturbo.cost.component.db.tables.ReservedInstanceUtilizationLatest.RESERVED_INSTANCE_UTILIZATION_LATEST;
 import static com.vmturbo.cost.component.reserved.instance.ReservedInstanceUtil.SNAPSHOT_TIME;
 import static com.vmturbo.cost.component.reserved.instance.ReservedInstanceUtil.createSelectFieldsForRIUtilizationCoverage;
 
@@ -36,7 +37,8 @@ import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtili
  * reserved instance, and also used the {@link ReservedInstanceBoughtStore} which has the latest
  * reserved instance information. And it will combine these data and store into database.
  */
-public class ReservedInstanceUtilizationStore {
+public class ReservedInstanceUtilizationStore
+        extends ReservedInstanceStatsStore<ReservedInstanceUtilizationFilter> {
 
     private final static Logger logger = LogManager.getLogger();
 
@@ -140,5 +142,16 @@ public class ReservedInstanceUtilizationStore {
                 new ReservedInstanceUtilizationLatestRecord(curTime, riId, riSpecIdToRegionMap.get(riSpecId),
                         riBoughtInfo.getAvailabilityZoneId(), riBoughtInfo.getBusinessAccountId(),
                         riTotalCoupons, riUsedCouponsMap.getOrDefault(riId, 0.0),null,null,null));
+    }
+
+    @Override
+    protected Result getLatestRecords(@Nonnull final ReservedInstanceUtilizationFilter filter) {
+        return dsl.select(createSelectFieldsForRIUtilizationCoverage(
+                RESERVED_INSTANCE_UTILIZATION_LATEST)).from(RESERVED_INSTANCE_UTILIZATION_LATEST)
+                .where(filter.getConditions())
+                .and(RESERVED_INSTANCE_UTILIZATION_LATEST.SNAPSHOT_TIME.eq(
+                        dsl.select(DSL.max(RESERVED_INSTANCE_UTILIZATION_LATEST.SNAPSHOT_TIME))
+                        .from(RESERVED_INSTANCE_UTILIZATION_LATEST)))
+                .fetch();
     }
 }
