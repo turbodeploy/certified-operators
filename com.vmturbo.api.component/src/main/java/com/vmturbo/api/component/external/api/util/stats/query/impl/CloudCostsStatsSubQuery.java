@@ -34,6 +34,7 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
+import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.GlobalScope;
@@ -49,6 +50,7 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.CompositeEntityTypesSpec;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
@@ -587,6 +589,13 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         if (!relatedEntityTypes.isEmpty()) {
             builder.setEntityTypeFilter(EntityTypeFilter.newBuilder()
                 .addAllEntityTypeId(relatedEntityTypes)
+                .build());
+        }
+
+        if (!StatsUtils.shouldIncludeBuyRiDiscount(context.getInputScope())) {
+            builder.setCostSourceFilter(GetCloudCostStatsRequest.CostSourceFilter.newBuilder()
+                .addCostSources(Cost.CostSource.BUY_RI_DISCOUNT)
+                .setExclusionFilter(true)
                 .build());
         }
 

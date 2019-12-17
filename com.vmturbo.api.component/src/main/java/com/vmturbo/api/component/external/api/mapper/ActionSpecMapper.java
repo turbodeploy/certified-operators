@@ -1524,6 +1524,10 @@ public class ActionSpecMapper {
                 .setStartDate(System.currentTimeMillis())
                 .setRequestProjected(true)
                 .setEntityFilter(entityFilter)
+                .setCostSourceFilter(GetCloudCostStatsRequest.CostSourceFilter.newBuilder()
+                    .setExclusionFilter(true)
+                    .addCostSources(Cost.CostSource.BUY_RI_DISCOUNT)
+                    .build())
                 .setGroupBy(GetCloudCostStatsRequest.GroupByType.COSTCOMPONENT)
                 .build();
         GetCloudCostStatsResponse response = costServiceBlockingStub.getCloudCostStats(cloudCostStatsRequest);

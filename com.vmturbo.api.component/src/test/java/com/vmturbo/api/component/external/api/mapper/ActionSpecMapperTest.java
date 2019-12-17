@@ -39,6 +39,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.vmturbo.api.component.ApiTestUtils;
@@ -100,6 +101,7 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest.CostSourceFilter;
 import com.vmturbo.common.protobuf.cost.CostMoles;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
@@ -664,7 +666,10 @@ public class ActionSpecMapperTest {
                 .addCloudStatRecord(record1)
                 .addCloudStatRecord(record2)
                 .build();
-        when(costServiceMole.getCloudCostStats(any())).thenReturn(serviceResult);
+
+        ArgumentCaptor<Cost.GetCloudCostStatsRequest> costParamCaptor =
+            ArgumentCaptor.forClass(Cost.GetCloudCostStatsRequest.class);
+        when(costServiceMole.getCloudCostStats(costParamCaptor.capture())).thenReturn(serviceResult);
 
         // test RI coverage before/after
         // mock responses
@@ -704,6 +709,11 @@ public class ActionSpecMapperTest {
         assertEquals(cloudResizeActionDetailsApiDTO.getRiCoverageBefore().getCapacity().getAvg(), 4f , 0);
         assertEquals(cloudResizeActionDetailsApiDTO.getRiCoverageAfter().getValue(), 1f, 0);
         assertEquals(cloudResizeActionDetailsApiDTO.getRiCoverageAfter().getCapacity().getAvg(), 4f, 0);
+        // check buy ri discount is excluded
+        assertThat(costParamCaptor.getValue().getCostSourceFilter(), is(CostSourceFilter.newBuilder()
+            .setExclusionFilter(true)
+            .addCostSources(Cost.CostSource.BUY_RI_DISCOUNT)
+            .build()));
     }
 
     @Test

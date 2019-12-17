@@ -31,6 +31,7 @@ import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
@@ -215,6 +216,8 @@ public class UuidMapper {
 
         private final Set<UIEntityType> entityTypes;
 
+        private final Set<GroupType> nestedGroupTypes;
+
         private final String name;
 
         private final Set<Long> discoveringTargetIds;
@@ -231,6 +234,11 @@ public class UuidMapper {
             this.entityTypes = GroupProtoUtil.getEntityTypes(group)
                             .stream()
                             .collect(Collectors.toSet());
+
+            this.nestedGroupTypes = group.getExpectedTypesList().stream()
+                .filter(GroupDTO.MemberType::hasGroup)
+                .map(GroupDTO.MemberType::getGroup)
+                .collect(Collectors.toSet());
 
             // Will be set to false if it's not a temp group, because it's false in the default
             // instance.
@@ -255,6 +263,15 @@ public class UuidMapper {
         @Nonnull
         public Set<UIEntityType> getEntityTypes() {
             return entityTypes;
+        }
+
+        /**
+         * Returns the type of groups nested in this group.
+         * @return the type of nested groups.
+         */
+        @Nonnull
+        public Set<GroupType> getNestedGroupTypes() {
+            return Collections.unmodifiableSet(this.nestedGroupTypes);
         }
 
         @Nonnull

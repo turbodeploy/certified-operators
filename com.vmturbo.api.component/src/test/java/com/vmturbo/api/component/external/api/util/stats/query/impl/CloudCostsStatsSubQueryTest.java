@@ -4,7 +4,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.number.IsCloseTo.closeTo;
-
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Mockito.mock;
@@ -21,6 +20,9 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -28,9 +30,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
@@ -41,11 +40,11 @@ import com.vmturbo.api.component.external.api.util.stats.ImmutableTimeWindow;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.GlobalScope;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.StatsQueryScope;
-import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
@@ -63,6 +62,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEnt
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
@@ -163,7 +163,7 @@ public class CloudCostsStatsSubQueryTest {
     @Test
     public void testGetGroupByAttachmentStat() {
         final long attachedVolumeId1 = 111L;
-        final long attachedVolumeId2= 222L;
+        final long attachedVolumeId2 = 222L;
         final long unattachedVolumeId = 333L;
         final long storageTierOid = 99999L;
 
@@ -454,6 +454,359 @@ public class CloudCostsStatsSubQueryTest {
                 assertThat(stat.getValue(), is(3f));
             }
         });
+    }
+
+    private Set<StatApiInputDTO> createRequestStats() {
+        StatFilterApiDTO computeFilter = new StatFilterApiDTO();
+        computeFilter.setType("costComponent");
+        computeFilter.setValue("COMPUTE");
+        StatApiInputDTO vmCostStatApi = new StatApiInputDTO();
+        vmCostStatApi.setName("cost");
+        vmCostStatApi.setRelatedEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        vmCostStatApi.setFilters(Collections.singletonList(computeFilter));
+        return Collections.singleton(vmCostStatApi);
+    }
+
+    /**
+     * Tests getting the costs for a billing family.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testGetAggregateStatsBillingFamily() throws Exception {
+        // ARRANGE
+        final Set<StatApiInputDTO> requestedStats = createRequestStats();
+        final StatsQueryContext context = mock(StatsQueryContext.class);
+        final ApiId inputScope = mock(ApiId.class);
+        final StatsQueryScope queryScope = mock(StatsQueryScope.class);
+
+        // Behaviors associated to context
+        when(context.getInputScope()).thenReturn(inputScope);
+        when(context.getQueryScope()).thenReturn(queryScope);
+        when(context.getTimeWindow()).thenReturn(Optional.empty());
+        when(context.requestProjected()).thenReturn(true);
+
+        // Behaviors associated to inputScope
+        when(inputScope.isRealtimeMarket()).thenReturn(false);
+        when(inputScope.isPlan()).thenReturn(false);
+        when(inputScope.isCloud()).thenReturn(true);
+        when(inputScope.isEntity()).thenReturn(false);
+        when(inputScope.isGroup()).thenReturn(true);
+        final UuidMapper.CachedGroupInfo cachedGroupInfo = mock(UuidMapper.CachedGroupInfo.class);
+        when(cachedGroupInfo.getEntityTypes())
+            .thenReturn(Collections.singleton(UIEntityType.VIRTUAL_MACHINE));
+        when(cachedGroupInfo.getGroupType()).thenReturn(GroupType.BILLING_FAMILY);
+        when(inputScope.getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
+
+        // Behaviors associated to costRpcService
+        ArgumentCaptor<Cost.GetCloudCostStatsRequest> costParamCaptor =
+            ArgumentCaptor.forClass(Cost.GetCloudCostStatsRequest.class);
+        Cost.GetCloudCostStatsResponse response =
+            Cost.GetCloudCostStatsResponse.getDefaultInstance();
+        when(costServiceMole.getCloudCostStats(costParamCaptor.capture())).thenReturn(response);
+
+        // Behaviors associated to query scope
+        when(queryScope.getEntities()).thenReturn(Collections.singleton(5L));
+
+
+        // ACT
+        query.getAggregateStats(requestedStats, context);
+
+        // ASSERT
+        // make sure we made correct call to cost service
+        assertThat(costParamCaptor.getValue(), is(Cost.GetCloudCostStatsRequest.newBuilder()
+            .setEntityTypeFilter(Cost.EntityTypeFilter.newBuilder()
+                .addEntityTypeId(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+            .setEntityFilter(Cost.EntityFilter.newBuilder().addEntityId(5L))
+            .setRequestProjected(true)
+           .build()
+        ));
+    }
+
+    /**gi
+     * Tests getting the costs for for cloud tab of realtime market.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testGetAggregateStatsCloudTab() throws Exception {
+        // ARRANGE
+        final Set<StatApiInputDTO> requestedStats = createRequestStats();
+        requestedStats.iterator().next().setRelatedEntityType(null);
+        final StatsQueryContext context = mock(StatsQueryContext.class);
+        final ApiId inputScope = mock(ApiId.class);
+        final StatsQueryScope queryScope = mock(StatsQueryScope.class);
+
+        // Behaviors associated to context
+        when(context.getInputScope()).thenReturn(inputScope);
+        when(context.getQueryScope()).thenReturn(queryScope);
+        when(context.getTimeWindow()).thenReturn(Optional.empty());
+        when(context.requestProjected()).thenReturn(false);
+
+        // Behaviors associated to inputScope
+        when(inputScope.isRealtimeMarket()).thenReturn(true);
+        when(inputScope.isPlan()).thenReturn(false);
+        when(inputScope.isCloud()).thenReturn(true);
+        when(inputScope.isEntity()).thenReturn(false);
+        when(inputScope.isGroup()).thenReturn(false);
+
+        // Behaviors associated to costRpcService
+        ArgumentCaptor<Cost.GetCloudCostStatsRequest> costParamCaptor =
+            ArgumentCaptor.forClass(Cost.GetCloudCostStatsRequest.class);
+        Cost.GetCloudCostStatsResponse response =
+            Cost.GetCloudCostStatsResponse.getDefaultInstance();
+        when(costServiceMole.getCloudCostStats(costParamCaptor.capture())).thenReturn(response);
+
+        // Behaviors associated to query scope
+        when(queryScope.getEntities()).thenReturn(Collections.emptySet());
+
+
+        // ACT
+        query.getAggregateStats(requestedStats, context);
+
+        // ASSERT
+        // make sure we made correct call to cost service
+        assertThat(costParamCaptor.getValue(), is(Cost.GetCloudCostStatsRequest.newBuilder()
+            .build()
+        ));
+    }
+
+    /**
+     * Tests getting the costs for a region.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testGetAggregateStatsRegion() throws Exception {
+        // ARRANGE
+        final Set<StatApiInputDTO> requestedStats = createRequestStats();
+        final StatsQueryContext context = mock(StatsQueryContext.class);
+        final ApiId inputScope = mock(ApiId.class);
+        final StatsQueryScope queryScope = mock(StatsQueryScope.class);
+
+        // Behaviors associated to context
+        when(context.getInputScope()).thenReturn(inputScope);
+        when(context.getQueryScope()).thenReturn(queryScope);
+        when(context.getTimeWindow()).thenReturn(Optional.empty());
+        when(context.requestProjected()).thenReturn(true);
+
+        // Behaviors associated to inputScope
+        when(inputScope.isRealtimeMarket()).thenReturn(false);
+        when(inputScope.isPlan()).thenReturn(false);
+        when(inputScope.isCloud()).thenReturn(true);
+        when(inputScope.isEntity()).thenReturn(true);
+        when(inputScope.isGroup()).thenReturn(false);
+        when(inputScope.getScopeTypes()).thenReturn(Optional
+                .of(Collections.singleton(UIEntityType.REGION)));
+
+        // Behaviors associated to costRpcService
+        ArgumentCaptor<Cost.GetCloudCostStatsRequest> costParamCaptor =
+            ArgumentCaptor.forClass(Cost.GetCloudCostStatsRequest.class);
+        Cost.GetCloudCostStatsResponse response =
+            Cost.GetCloudCostStatsResponse.getDefaultInstance();
+        when(costServiceMole.getCloudCostStats(costParamCaptor.capture())).thenReturn(response);
+
+        // Behaviors associated to query scope
+        when(queryScope.getEntities()).thenReturn(Collections.singleton(5L));
+
+
+        // ACT
+        query.getAggregateStats(requestedStats, context);
+
+        // ASSERT
+        // make sure we made correct call to cost service
+        assertThat(costParamCaptor.getValue(), is(Cost.GetCloudCostStatsRequest.newBuilder()
+            .setEntityTypeFilter(Cost.EntityTypeFilter.newBuilder()
+                .addEntityTypeId(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+            .setEntityFilter(Cost.EntityFilter.newBuilder().addEntityId(5L))
+            .setRequestProjected(true)
+            .build()
+        ));
+    }
+
+    /**
+     * Tests getting the costs for a group billing family.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testGetAggregateStatsGroupOfBillingFamily() throws Exception {
+        // ARRANGE
+        final Set<StatApiInputDTO> requestedStats = createRequestStats();
+        final StatsQueryContext context = mock(StatsQueryContext.class);
+        final ApiId inputScope = mock(ApiId.class);
+        final StatsQueryScope queryScope = mock(StatsQueryScope.class);
+
+        // Behaviors associated to context
+        when(context.getInputScope()).thenReturn(inputScope);
+        when(context.getQueryScope()).thenReturn(queryScope);
+        when(context.getTimeWindow()).thenReturn(Optional.empty());
+        when(context.requestProjected()).thenReturn(true);
+
+        // Behaviors associated to inputScope
+        when(inputScope.isRealtimeMarket()).thenReturn(false);
+        when(inputScope.isPlan()).thenReturn(false);
+        when(inputScope.isCloud()).thenReturn(true);
+        when(inputScope.isEntity()).thenReturn(false);
+        when(inputScope.isGroup()).thenReturn(true);
+        final UuidMapper.CachedGroupInfo cachedGroupInfo = mock(UuidMapper.CachedGroupInfo.class);
+        when(cachedGroupInfo.getEntityTypes())
+            .thenReturn(Collections.singleton(UIEntityType.VIRTUAL_MACHINE));
+        when(cachedGroupInfo.getNestedGroupTypes())
+            .thenReturn(Collections.singleton(GroupType.BILLING_FAMILY));
+        when(cachedGroupInfo.getGroupType()).thenReturn(GroupType.REGULAR);
+        when(inputScope.getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
+
+        // Behaviors associated to costRpcService
+        ArgumentCaptor<Cost.GetCloudCostStatsRequest> costParamCaptor =
+            ArgumentCaptor.forClass(Cost.GetCloudCostStatsRequest.class);
+        Cost.GetCloudCostStatsResponse response =
+            Cost.GetCloudCostStatsResponse.getDefaultInstance();
+        when(costServiceMole.getCloudCostStats(costParamCaptor.capture())).thenReturn(response);
+
+        // Behaviors associated to query scope
+        when(queryScope.getEntities()).thenReturn(Collections.singleton(5L));
+
+
+        // ACT
+        query.getAggregateStats(requestedStats, context);
+
+        // ASSERT
+        // make sure we made correct call to cost service
+        assertThat(costParamCaptor.getValue(), is(Cost.GetCloudCostStatsRequest.newBuilder()
+            .setEntityTypeFilter(Cost.EntityTypeFilter.newBuilder()
+                .addEntityTypeId(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+            .setEntityFilter(Cost.EntityFilter.newBuilder().addEntityId(5L))
+            .setRequestProjected(true)
+            .build()
+        ));
+    }
+
+    /**
+     * Tests getting the costs for a group regions.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testGetAggregateStatsGroupOfRegions() throws Exception {
+        // ARRANGE
+        final Set<StatApiInputDTO> requestedStats = createRequestStats();
+        final StatsQueryContext context = mock(StatsQueryContext.class);
+        final ApiId inputScope = mock(ApiId.class);
+        final StatsQueryScope queryScope = mock(StatsQueryScope.class);
+
+        // Behaviors associated to context
+        when(context.getInputScope()).thenReturn(inputScope);
+        when(context.getQueryScope()).thenReturn(queryScope);
+        when(context.getTimeWindow()).thenReturn(Optional.empty());
+        when(context.requestProjected()).thenReturn(true);
+
+        // Behaviors associated to inputScope
+        when(inputScope.isRealtimeMarket()).thenReturn(false);
+        when(inputScope.isPlan()).thenReturn(false);
+        when(inputScope.isCloud()).thenReturn(true);
+        when(inputScope.isEntity()).thenReturn(false);
+        when(inputScope.isGroup()).thenReturn(true);
+        final UuidMapper.CachedGroupInfo cachedGroupInfo = mock(UuidMapper.CachedGroupInfo.class);
+        when(cachedGroupInfo.getEntityTypes())
+            .thenReturn(Collections.singleton(UIEntityType.REGION));
+        when(cachedGroupInfo.getNestedGroupTypes())
+            .thenReturn(Collections.emptySet());
+        when(cachedGroupInfo.getGroupType()).thenReturn(GroupType.REGULAR);
+        when(inputScope.getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
+
+        // Behaviors associated to costRpcService
+        ArgumentCaptor<Cost.GetCloudCostStatsRequest> costParamCaptor =
+            ArgumentCaptor.forClass(Cost.GetCloudCostStatsRequest.class);
+        Cost.GetCloudCostStatsResponse response =
+            Cost.GetCloudCostStatsResponse.getDefaultInstance();
+        when(costServiceMole.getCloudCostStats(costParamCaptor.capture())).thenReturn(response);
+
+        // Behaviors associated to query scope
+        when(queryScope.getEntities()).thenReturn(Collections.singleton(5L));
+
+
+        // ACT
+        query.getAggregateStats(requestedStats, context);
+
+        // ASSERT
+        // make sure we made correct call to cost service
+        assertThat(costParamCaptor.getValue(), is(Cost.GetCloudCostStatsRequest.newBuilder()
+            .setEntityTypeFilter(Cost.EntityTypeFilter.newBuilder()
+                .addEntityTypeId(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+            .setEntityFilter(Cost.EntityFilter.newBuilder().addEntityId(5L))
+            .setRequestProjected(true)
+            .build()
+        ));
+    }
+
+    /**
+     * Tests getting the costs for a group vms.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testGetAggregateStatsGroupOfVms() throws Exception {
+        // ARRANGE
+        StatFilterApiDTO computeFilter = new StatFilterApiDTO();
+        computeFilter.setType("costComponent");
+        computeFilter.setValue("COMPUTE");
+        StatApiInputDTO vmCostStatApi = new StatApiInputDTO();
+        vmCostStatApi.setName("cost");
+        vmCostStatApi.setRelatedEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        vmCostStatApi.setFilters(Collections.singletonList(computeFilter));
+        final Set<StatApiInputDTO> requestedStats = Collections.singleton(vmCostStatApi);
+        final StatsQueryContext context = mock(StatsQueryContext.class);
+        final ApiId inputScope = mock(ApiId.class);
+        final StatsQueryScope queryScope = mock(StatsQueryScope.class);
+
+        // Behaviors associated to context
+        when(context.getInputScope()).thenReturn(inputScope);
+        when(context.getQueryScope()).thenReturn(queryScope);
+        when(context.getTimeWindow()).thenReturn(Optional.empty());
+        when(context.requestProjected()).thenReturn(true);
+
+        // Behaviors associated to inputScope
+        when(inputScope.isRealtimeMarket()).thenReturn(false);
+        when(inputScope.isPlan()).thenReturn(false);
+        when(inputScope.isCloud()).thenReturn(true);
+        when(inputScope.isEntity()).thenReturn(false);
+        when(inputScope.isGroup()).thenReturn(true);
+        final UuidMapper.CachedGroupInfo cachedGroupInfo = mock(UuidMapper.CachedGroupInfo.class);
+        when(cachedGroupInfo.getEntityTypes())
+            .thenReturn(Collections.singleton(UIEntityType.VIRTUAL_MACHINE));
+        when(cachedGroupInfo.getNestedGroupTypes())
+            .thenReturn(Collections.emptySet());
+        when(cachedGroupInfo.getGroupType()).thenReturn(GroupType.REGULAR);
+        when(inputScope.getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
+
+        // Behaviors associated to costRpcService
+        ArgumentCaptor<Cost.GetCloudCostStatsRequest> costParamCaptor =
+            ArgumentCaptor.forClass(Cost.GetCloudCostStatsRequest.class);
+        Cost.GetCloudCostStatsResponse response =
+            Cost.GetCloudCostStatsResponse.getDefaultInstance();
+        when(costServiceMole.getCloudCostStats(costParamCaptor.capture())).thenReturn(response);
+
+        // Behaviors associated to query scope
+        when(queryScope.getEntities()).thenReturn(Collections.singleton(5L));
+
+
+        // ACT
+        query.getAggregateStats(requestedStats, context);
+
+        // ASSERT
+        // make sure we made correct call to cost service
+        assertThat(costParamCaptor.getValue(), is(Cost.GetCloudCostStatsRequest.newBuilder()
+            .setEntityTypeFilter(Cost.EntityTypeFilter.newBuilder()
+                .addEntityTypeId(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+            .setEntityFilter(Cost.EntityFilter.newBuilder().addEntityId(5L))
+            .setCostSourceFilter(Cost.GetCloudCostStatsRequest.CostSourceFilter.newBuilder()
+                .setExclusionFilter(true)
+                .addCostSources(Cost.CostSource.BUY_RI_DISCOUNT)
+                .build())
+            .setRequestProjected(true)
+            .build()
+        ));
     }
 
     @Nonnull
