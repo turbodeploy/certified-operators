@@ -6,9 +6,9 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -64,18 +64,24 @@ public class ComputeTierInfoMapper extends TypeSpecificInfoMapper {
         supportedCustomerInfo.addAllSupportedVirtualizationTypes(parseVirtualizationType(sdkEntity, entityPropertyMap));
 
         final ComputeTierData ctData = sdkEntity.getComputeTierData();
+        ComputeTierInfo.Builder computeTierInfoBuilder = ComputeTierInfo.newBuilder()
+                .setFamily(ctData.getFamily())
+                .setQuotaFamily(ctData.getQuotaFamily())
+                .setDedicatedStorageNetworkState(ctData.getDedicatedStorageNetworkState())
+                .setNumCoupons(ctData.getNumCoupons())
+                .setNumCores(ctData.getNumCores())
+                .setSupportedCustomerInfo(supportedCustomerInfo);
+        if (ctData.hasInstanceDiskSizeGb()) {
+            computeTierInfoBuilder.setInstanceDiskSizeGb(ctData.getInstanceDiskSizeGb());
+        }
+        if (ctData.hasInstanceDiskType()) {
+            computeTierInfoBuilder.setInstanceDiskType(ctData.getInstanceDiskType());
+        }
+        if (ctData.hasNumInstanceDisks()) {
+            computeTierInfoBuilder.setNumInstanceDisks(ctData.getNumInstanceDisks());
+        }
         return TypeSpecificInfo.newBuilder()
-                .setComputeTier(ComputeTierInfo.newBuilder()
-                        .setFamily(ctData.getFamily())
-                        .setQuotaFamily(ctData.getQuotaFamily())
-                        .setDedicatedStorageNetworkState(ctData.getDedicatedStorageNetworkState())
-                        .setNumCoupons(ctData.getNumCoupons())
-                        .setNumCores(ctData.getNumCores())
-                        .setSupportedCustomerInfo(supportedCustomerInfo)
-                        .setInstanceDiskSizeGb(ctData.getInstanceDiskSizeGb())
-                        .setInstanceDiskType(ctData.getInstanceDiskType())
-                        .setNumInstanceDisks(ctData.getNumInstanceDisks())
-                        .build())
+                .setComputeTier(computeTierInfoBuilder.build())
                 .build();
     }
 

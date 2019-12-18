@@ -59,16 +59,22 @@ public class ComputeTierConverter implements IEntityConverter {
         entity.addAllEntityProperties(profileDTO.getEntityPropertiesList());
 
         // set compute tier specific data
-        entity.setComputeTierData(ComputeTierData.newBuilder()
+        final ComputeTierData.Builder computeTierDataBuilder = ComputeTierData.newBuilder()
                 .setFamily(vmProfileDTO.getInstanceSizeFamily())
                 .setQuotaFamily(vmProfileDTO.getQuotaFamily())
                 .setDedicatedStorageNetworkState(vmProfileDTO.getDedicatedStorageNetworkState())
                 .setNumCoupons(vmProfileDTO.getNumberOfCoupons())
-                .setNumCores(vmProfileDTO.getNumVCPUs())
-                .setInstanceDiskSizeGb(vmProfileDTO.getInstanceDiskSize())
-                .setInstanceDiskType(vmProfileDTO.getInstanceDiskType())
-                .setNumInstanceDisks(vmProfileDTO.getNumInstanceDisks())
-                .build());
+                .setNumCores(vmProfileDTO.getNumVCPUs());
+        if (vmProfileDTO.hasInstanceDiskSize()) {
+            computeTierDataBuilder.setInstanceDiskSizeGb(vmProfileDTO.getInstanceDiskSize());
+        }
+        if (vmProfileDTO.hasInstanceDiskType()) {
+            computeTierDataBuilder.setInstanceDiskType(vmProfileDTO.getInstanceDiskType());
+        }
+        if (vmProfileDTO.hasNumInstanceDisks()) {
+            computeTierDataBuilder.setNumInstanceDisks(vmProfileDTO.getNumInstanceDisks());
+        }
+        entity.setComputeTierData(computeTierDataBuilder.build());
 
         // connect CT to Region, based on license
         profileDTO.getVmProfileDTO().getLicenseList().forEach(licenseMapEntry ->
@@ -126,7 +132,7 @@ public class ComputeTierConverter implements IEntityConverter {
      * @param profileDTO the EntityProfileDTO based on which to create sold commodities
      * @return list of sold commodities for the compute tier
      */
-    private List<CommodityDTO> createComputeTierSoldCommodities(@Nonnull EntityProfileDTO profileDTO) {
+    protected List<CommodityDTO> createComputeTierSoldCommodities(@Nonnull EntityProfileDTO profileDTO) {
         List<CommodityDTO> soldCommodities = Lists.newArrayList();
 
         float memorySize = 0.0f;
@@ -195,7 +201,7 @@ public class ComputeTierConverter implements IEntityConverter {
      * @param capacity the capacity of {@link CommodityDTO}
      * @return {@link CommodityDTO}
      */
-    private CommodityDTO createCommodityDTO(CommodityType commodityType, double capacity) {
+    protected CommodityDTO createCommodityDTO(CommodityType commodityType, double capacity) {
         final Builder commodityBuilder = CommodityDTO.newBuilder()
                 .setCommodityType(commodityType)
                 .setCapacity(capacity);
