@@ -17,11 +17,12 @@ message AccountExpenses {
     // account expenses info to store service and tier expenses
     optional AccountExpensesInfo account_expenses_info = 2;
 
-    // The timestamp at which the expense is received by Cost component.
-    // Note: It should be the timestamp that the expenses were generated.
-    // But currently probe doesn't have this information in it's DTO.
-    // The time is in epoch milliseconds.
-    optional int64 expense_received_timestamp = 3;
+    // The epoch milliseconds of the date at which the services/tiers were used.
+    // Since all the expenses should be from yesterday and the minimal time frame is DAY,
+    // all the expenses should have the same usage date.
+    // The timestamp is from the first second of the day, for example:
+    // 1575158400 = Sunday, December 1, 2019 12:00:00 AM (UTC)
+    optional int64 expenses_date = 3;
 
     // Service and tier level account expense information. An account could have many service
     // and tier level expenses.

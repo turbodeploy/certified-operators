@@ -7,11 +7,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 
 import java.time.Clock;
-import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.concurrent.TimeUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -19,7 +16,6 @@ import java.util.stream.Collectors;
 import org.flywaydb.core.Flyway;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,6 +52,9 @@ public class SqlAccountExpensesStoreTest {
     private static final double COST_AMOUNT_2 = 20.0;
     private static final double COST_AMOUNT_3 = 30.0;
     private static final double COST_AMOUNT_4 = 40.0;
+
+    private static final long USAGE_DATE_1 = 1576627200000L; // Wed, 18 Dec 2019 GMT
+    private static final long USAGE_DATE_2 = 1576713600000L; // Thu, 19 Dec 2019 GMT
 
     final AccountExpenses.AccountExpensesInfo accountExpensesInfo1 = AccountExpensesInfo.newBuilder()
             .addServiceExpenses(ServiceExpenses
@@ -101,14 +100,13 @@ public class SqlAccountExpensesStoreTest {
     protected TestSQLDatabaseConfig dbConfig;
     private Flyway flyway;
     private AccountExpensesStore expensesStore;
-    private Clock clock = Clock.systemDefaultZone();
 
     @Before
     public void setup() throws Exception {
         flyway = dbConfig.flyway();
         flyway.clean();
         flyway.migrate();
-        expensesStore = new SqlAccountExpensesStore(dbConfig.dsl(), clock, 1);
+        expensesStore = new SqlAccountExpensesStore(dbConfig.dsl(), Clock.systemDefaultZone(), 1);
     }
 
     @After
@@ -124,13 +122,10 @@ public class SqlAccountExpensesStoreTest {
      * @throws DbException if anything goes wrong in the database
      * @throws InterruptedException if thread has been interrupted
      */
-    //TODO: enable test as part of https://vmturbo.atlassian.net/browse/OM-53119
-    @Ignore
     @Test
     public void testGetLatestExpense() throws AccountExpenseNotFoundException, DbException, InterruptedException {
-        expensesStore.persistAccountExpenses(ACCOUNT_ID_1, accountExpensesInfo1);
-        TimeUnit.SECONDS.sleep(2);
-        expensesStore.persistAccountExpenses(ACCOUNT_ID_1, accountExpensesInfo2);
+        expensesStore.persistAccountExpenses(ACCOUNT_ID_1, USAGE_DATE_1, accountExpensesInfo1);
+        expensesStore.persistAccountExpenses(ACCOUNT_ID_1, USAGE_DATE_2, accountExpensesInfo2);
 
         Map<Long, Map<Long, AccountExpenses>> accountExpenses1 = expensesStore
                 .getAccountExpenses(AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST)
@@ -139,14 +134,9 @@ public class SqlAccountExpensesStoreTest {
                 );
         assertEquals(1, accountExpenses1.size());
         // the expenses map should have one account ID to one set of account expenses (accountExpensesInfo2)
-        assertEquals(ACCOUNT_ID_1, accountExpenses1.values().stream()
-                .findFirst()
-                .get()
-                .get(ACCOUNT_ID_1)
-                .getAssociatedAccountId());
-        assertEquals(2, accountExpenses1.get(ACCOUNT_ID_1));
-        assertEquals(1, accountExpenses1.values().stream().findAny().get().values().size());
-        assertThat(accountExpenses1.values().stream().findAny().get().values().stream()
+        Map<Long, AccountExpenses> accountExpensesMap = accountExpenses1.values().stream().findAny().get();
+        assertEquals(1, accountExpensesMap.size());
+        assertThat(accountExpensesMap.values().stream()
                 .map(AccountExpenses::getAccountExpensesInfo)
                 .collect(Collectors.toList()), containsInAnyOrder(accountExpensesInfo2));
 
@@ -163,10 +153,9 @@ public class SqlAccountExpensesStoreTest {
      */
     @Test
     public void testGetCurrentExpenseByAccount() throws Exception {
-        expensesStore.persistAccountExpenses(ACCOUNT_ID_1, accountExpensesInfo1);
-        expensesStore.persistAccountExpenses(ACCOUNT_ID_2, accountExpensesInfo2);
-        TimeUnit.SECONDS.sleep(2);
-        expensesStore.persistAccountExpenses(ACCOUNT_ID_1, accountExpensesInfo3);
+        expensesStore.persistAccountExpenses(ACCOUNT_ID_1, USAGE_DATE_1, accountExpensesInfo1);
+        expensesStore.persistAccountExpenses(ACCOUNT_ID_2, USAGE_DATE_1, accountExpensesInfo2);
+        expensesStore.persistAccountExpenses(ACCOUNT_ID_1, USAGE_DATE_2, accountExpensesInfo3);
 
         Collection<AccountExpenses> ret = expensesStore.getAccountExpenses(
             AccountExpenseFilterBuilder.newBuilder(TimeFrame.LATEST)
@@ -201,15 +190,12 @@ public class SqlAccountExpensesStoreTest {
      */
     @Test
     public void testGetCurrentExpensesAll() throws Exception {
-
         // put expenses in DB
-        expensesStore.persistAccountExpenses(ACCOUNT_ID_1, accountExpensesInfo1);
-        expensesStore.persistAccountExpenses(ACCOUNT_ID_2, accountExpensesInfo2);
-        TimeUnit.SECONDS.sleep(2);
+        expensesStore.persistAccountExpenses(ACCOUNT_ID_1, USAGE_DATE_1, accountExpensesInfo1);
+        expensesStore.persistAccountExpenses(ACCOUNT_ID_2, USAGE_DATE_1, accountExpensesInfo2);
         // put new expenses in DB
-        expensesStore.persistAccountExpenses(ACCOUNT_ID_1, accountExpensesInfo3);
-        TimeUnit.SECONDS.sleep(2);
-        expensesStore.persistAccountExpenses(ACCOUNT_ID_2, accountExpensesInfo4);
+        expensesStore.persistAccountExpenses(ACCOUNT_ID_1, USAGE_DATE_2, accountExpensesInfo3);
+        expensesStore.persistAccountExpenses(ACCOUNT_ID_2, USAGE_DATE_2, accountExpensesInfo4);
 
         // get most recent expenses per account
         Collection<AccountExpenses> ret = expensesStore.getAccountExpenses(
@@ -240,9 +226,8 @@ public class SqlAccountExpensesStoreTest {
 
     @Test
     public void testGetLatestExpenseWithFilters() throws AccountExpenseNotFoundException, DbException, InterruptedException {
-        expensesStore.persistAccountExpenses(ACCOUNT_ID_1, accountExpensesInfo1);
-        TimeUnit.SECONDS.sleep(2);
-        expensesStore.persistAccountExpenses(ACCOUNT_ID_1, accountExpensesInfo3);
+        expensesStore.persistAccountExpenses(ACCOUNT_ID_1, USAGE_DATE_1, accountExpensesInfo1);
+        expensesStore.persistAccountExpenses(ACCOUNT_ID_1, USAGE_DATE_2, accountExpensesInfo3);
 
         Map<Long, Map<Long, AccountExpenses>> accountExpenses = expensesStore
             .getAccountExpenses(
@@ -256,6 +241,11 @@ public class SqlAccountExpensesStoreTest {
                 .get()
                 .get(ACCOUNT_ID_1)
                 .getAssociatedAccountId());
+        assertEquals(accountExpensesInfo3, accountExpenses.values().stream()
+                .findFirst()
+                .get()
+                .get(ACCOUNT_ID_1)
+                .getAccountExpensesInfo());
 
         // get expenses for entityID = 0, entityType = any
         Map<Long, Map<Long, AccountExpenses>> accountExpenses1 = expensesStore
@@ -290,43 +280,39 @@ public class SqlAccountExpensesStoreTest {
 
     @Test
     public void tesGetAccountExpenseFilter() throws DbException, AccountExpenseNotFoundException, InterruptedException {
-        // get by date
-        long startTime = clock.instant().minus(1, ChronoUnit.DAYS).toEpochMilli();
-        long endTime = clock.instant().plus(1, ChronoUnit.DAYS).toEpochMilli();
 
         final AccountExpensesFilter entityCostFilter1 = AccountExpenseFilterBuilder
                 .newBuilder(TimeFrame.LATEST)
-                .duration(startTime, endTime)
+                .duration(USAGE_DATE_1, USAGE_DATE_2)
                 .entityIds(Collections.singleton(CLOUD_SERVICE_ID_1))
                 .entityTypes(Collections.singleton(ENTITY_TYPE_1))
                 .build();
 
         final AccountExpensesFilter entityCostFilter2 = AccountExpenseFilterBuilder
             .newBuilder(TimeFrame.LATEST)
-            .duration(startTime, endTime)
+            .duration(USAGE_DATE_1, USAGE_DATE_2)
             .entityIds(Collections.singleton(CLOUD_SERVICE_ID_1))
             .build();
 
         final AccountExpensesFilter entityCostFilter3 = AccountExpenseFilterBuilder
             .newBuilder(TimeFrame.LATEST)
-            .duration(startTime, endTime)
+            .duration(USAGE_DATE_1, USAGE_DATE_2)
             .entityTypes(Collections.singleton(ENTITY_TYPE_1))
             .build();
 
         final AccountExpensesFilter entityCostFilter4 = AccountExpenseFilterBuilder
             .newBuilder(TimeFrame.LATEST)
-            .duration(startTime, endTime)
+            .duration(USAGE_DATE_1, USAGE_DATE_2)
             .entityIds(Collections.singleton(Long.MAX_VALUE))
             .entityTypes(Collections.singleton(Integer.MAX_VALUE))
             .build();
 
         final AccountExpensesFilter entityCostFilter5 = AccountExpenseFilterBuilder
             .newBuilder(TimeFrame.LATEST)
-            .duration(startTime, endTime)
+            .duration(USAGE_DATE_1, USAGE_DATE_2)
             .build();
 
-        TimeUnit.SECONDS.sleep(1);
-        expensesStore.persistAccountExpenses(ACCOUNT_ID_1, accountExpensesInfo1);
+        expensesStore.persistAccountExpenses(ACCOUNT_ID_1, USAGE_DATE_1, accountExpensesInfo1);
 
         // get latest account expenses for entityID = 1, entityType = 43, timeframe = yesterday until tomorrow
         final Map<Long, Map<Long, AccountExpenses>> accountExpenses1 = expensesStore.getAccountExpenses(entityCostFilter1);
@@ -361,9 +347,8 @@ public class SqlAccountExpensesStoreTest {
 
     @Test
     public void testSaveMultipleExpenseForTheSameAccount() throws AccountExpenseNotFoundException, InterruptedException, DbException {
-        expensesStore.persistAccountExpenses(ACCOUNT_ID_1, accountExpensesInfo1);
-        TimeUnit.SECONDS.sleep(2);
-        expensesStore.persistAccountExpenses(ACCOUNT_ID_1, accountExpensesInfo2);
+        expensesStore.persistAccountExpenses(ACCOUNT_ID_1, USAGE_DATE_1, accountExpensesInfo1);
+        expensesStore.persistAccountExpenses(ACCOUNT_ID_1, USAGE_DATE_2, accountExpensesInfo2);
 
         // get all expenses for an account, not just the most recent
         List<AccountExpenses> allAccountExpenses = expensesStore.getAllAccountExpenses();
@@ -388,8 +373,6 @@ public class SqlAccountExpensesStoreTest {
      * @throws DbException if anything goes wrong in the database
      * @throws InterruptedException if thread has been interrupted
      */
-    //TODO: enable test as part of https://vmturbo.atlassian.net/browse/OM-53119
-    @Ignore
     @Test
     public void testPersistAccountExpensesDuplicateRecordsUpsert() throws InterruptedException,
             DbException, AccountExpenseNotFoundException {
@@ -397,10 +380,9 @@ public class SqlAccountExpensesStoreTest {
         // accountExpensesInfo1 and accountExpensesInfo3 are related to the same cloud service, have
         // the same expense date, but their cost amounts are different.
         assertNotEquals(COST_AMOUNT_1, COST_AMOUNT_3);
-        expensesStore.persistAccountExpenses(ACCOUNT_ID_1, accountExpensesInfo1);
+        expensesStore.persistAccountExpenses(ACCOUNT_ID_1, USAGE_DATE_1, accountExpensesInfo1);
         // accountExpensesInfo3 is persisted after accountExpensesInfo1
-        TimeUnit.SECONDS.sleep(2);
-        expensesStore.persistAccountExpenses(ACCOUNT_ID_1, accountExpensesInfo3);
+        expensesStore.persistAccountExpenses(ACCOUNT_ID_1, USAGE_DATE_1, accountExpensesInfo3);
 
         List<AccountExpenses> allAccountExpenses = expensesStore.getAllAccountExpenses();
         assertEquals(1, allAccountExpenses.size());

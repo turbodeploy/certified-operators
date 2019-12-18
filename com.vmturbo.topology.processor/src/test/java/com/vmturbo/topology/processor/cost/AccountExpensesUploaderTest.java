@@ -460,7 +460,7 @@ public class AccountExpensesUploaderTest {
                 createAccountExpenseInfo(serviceIdToAmount);
         return AccountExpenses.newBuilder()
                 .setAssociatedAccountId(accountId)
-                .setExpenseReceivedTimestamp(usageDate)
+                .setExpensesDate(usageDate)
                 .setAccountExpensesInfo(accountExpensesInfoBuilder.build());
     }
 

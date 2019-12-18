@@ -97,6 +97,7 @@ public class RIAndExpenseUploadRpcService extends RIAndExpenseUploadServiceImplB
             request.getAccountExpensesList().forEach(accountExpenses -> {
                 try {
                     accountExpensesStore.persistAccountExpenses(accountExpenses.getAssociatedAccountId(),
+                            accountExpenses.getExpensesDate(),
                             accountExpenses.getAccountExpensesInfo());
                 } catch (Exception e) {
                     logger.error("Error saving account {}", accountExpenses.getAssociatedAccountId(), e);

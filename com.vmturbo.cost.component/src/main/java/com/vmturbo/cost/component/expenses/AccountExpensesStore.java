@@ -18,12 +18,15 @@ import com.vmturbo.sql.utils.DbException;
 public interface AccountExpensesStore {
     /**
      * Persist a account expense, based on AccountExpensesInfo {@link AccountExpensesInfo}.
-     * @return discount object, if created
+     * @param associatedAccountId the OID of the business account
+     * @param usageDate usage date for the account expenses in epoch milliseconds
+     * @param accountExpensesInfo the expenses information
      * @throws DbException if anything goes wrong in the database
      */
     @Nonnull
     void persistAccountExpenses(
-            final long associatedAccountId,
+            long associatedAccountId,
+            long usageDate,
             @Nonnull final AccountExpensesInfo accountExpensesInfo) throws DbException;
 
     /**

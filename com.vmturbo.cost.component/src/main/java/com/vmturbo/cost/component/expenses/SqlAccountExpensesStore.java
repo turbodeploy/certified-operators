@@ -4,7 +4,9 @@ import static com.vmturbo.cost.component.db.tables.AccountExpenses.ACCOUNT_EXPEN
 
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -76,11 +78,12 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
      * {@inheritDoc}
      */
     @Override
-    public void persistAccountExpenses(final long associatedAccountId,
+    public void persistAccountExpenses(long associatedAccountId,
+                                       long usageDate,
                                        @Nonnull final AccountExpensesInfo accountExpensesInfo)
             throws DbException {
         Objects.requireNonNull(accountExpensesInfo);
-        final LocalDate expenseDate = LocalDate.now(clock);
+        final LocalDate expenseDate = TimeUtil.milliToLocalDateUTC(usageDate);
         inProgressBatchTime.set(expenseDate);
             try {
                 // We chunk the transactions for speed, and to avoid overloading the DB buffers
@@ -286,7 +289,7 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
                 .build();
         return Cost.AccountExpenses.newBuilder()
                 .setAssociatedAccountId(recordWrapper.gettAssociatedAccountId())
-                .setExpenseReceivedTimestamp(TimeUtil.localDateToMilli(recordWrapper.getExpenseDate(),
+                .setExpensesDate(TimeUtil.localDateToMilli(recordWrapper.getExpenseDate(),
                         clock))
                 .setAccountExpensesInfo(info)
                 .build();
@@ -316,7 +319,7 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
                 .build();
         return Cost.AccountExpenses.newBuilder()
                 .setAssociatedAccountId(accountExpensesRecord.getAssociatedAccountId())
-                .setExpenseReceivedTimestamp(TimeUtil.localDateToMilli(accountExpensesRecord.getExpenseDate(),
+                .setExpensesDate(TimeUtil.localDateToMilli(accountExpensesRecord.getExpenseDate(),
                         clock))
                 .setAccountExpensesInfo(info)
                 .build();

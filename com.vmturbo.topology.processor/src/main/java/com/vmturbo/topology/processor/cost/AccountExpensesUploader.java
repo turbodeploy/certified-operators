@@ -7,7 +7,6 @@ import static com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.UP
 
 import java.time.Clock;
 import java.time.Instant;
-import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.Map;
@@ -22,7 +21,6 @@ import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo.TierExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.GetAccountExpensesChecksumRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UploadAccountExpensesRequest;
-import com.vmturbo.common.protobuf.cost.Cost.UploadAccountExpensesResponse;
 import com.vmturbo.common.protobuf.cost.RIAndExpenseUploadServiceGrpc.RIAndExpenseUploadServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -158,7 +156,7 @@ public class AccountExpensesUploader {
                     CLOUD_COST_EXPENSES_SECTION, UPLOAD_REQUEST_UPLOAD_STAGE).startTimer()) {
                 // we should probably upload empty data too, if we are relying on this as a way to
                 // "clear" data when all cloud targets are removed.
-                UploadAccountExpensesResponse response = costServiceClient.uploadAccountExpenses(requestBuilder.build());
+                costServiceClient.uploadAccountExpenses(requestBuilder.build());
                 logger.debug("Account expenses upload took {} secs", uploadTimer.getTimeElapsedSecs());
                 lastUploadTime = clock.instant();
             } catch (Exception e) {
@@ -203,9 +201,9 @@ public class AccountExpensesUploader {
                     accountExpenses.getAssociatedAccountId());
         }
 
-        if (accountExpenses.hasExpenseReceivedTimestamp()) {
+        if (accountExpenses.hasExpensesDate()) {
             hash = (53L * hash) + com.google.protobuf.Internal.hashLong(
-                    accountExpenses.getExpenseReceivedTimestamp());
+                    accountExpenses.getExpensesDate());
         }
 
         if (accountExpenses.hasAccountExpensesInfo()) {
@@ -252,12 +250,9 @@ public class AccountExpensesUploader {
                         stitchingEntity.getTargetId());
                 return;
             }
-            long discoveryTime = costDataByTargetIdSnapshot.get(stitchingEntity.getTargetId())
-                    .discovery.getCompletionTime()
-                    .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+
             expensesByAccountOid.put(stitchingEntity.getOid(), AccountExpenses.newBuilder()
-                    .setAssociatedAccountId(stitchingEntity.getOid())
-                    .setExpenseReceivedTimestamp(discoveryTime));
+                    .setAssociatedAccountId(stitchingEntity.getOid()));
         });
 
         // Find the service expenses from the cost data objects, and assign them to the
@@ -284,6 +279,15 @@ public class AccountExpensesUploader {
                 }
 
                 AccountExpenses.Builder accountExpensesBuilder = expensesByAccountOid.get(accountOid);
+
+                // Set the usage date for the account expenses for this account to be the value of
+                // the first costDataDTO which has a usage date.
+                // Since all the usage data is from yesterday and the smallest time frame is DAY,
+                // all the expenses should have the same date.
+                if (!accountExpensesBuilder.hasExpensesDate() && costData.hasUsageDate()) {
+                    accountExpensesBuilder.setExpensesDate(costData.getUsageDate());
+                    logger.info("usageTime for account {}: {}", accountOid, costData.getUsageDate());
+                }
 
                 // create an expense entry for each cost object
                 if (EntityType.CLOUD_SERVICE.equals(costData.getEntityType())) {
