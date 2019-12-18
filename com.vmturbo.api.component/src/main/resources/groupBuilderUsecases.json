@@ -173,7 +173,7 @@
         {"inputType": "*", "elements": "VirtualMachine:displayName:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "volumeByConnectedVm"},
         {"inputType": "s", "elements": "virtualVolumeInfoRepoDTO.attachmentState", "filterCategory": "property", "filterType": "volumeByAttachmentState", "loadOptions": true},
         {"inputType": "s", "elements": "StorageTier:oid:CONNECTED_FROM:1", "filterCategory": "entity", "filterType": "volumeByTier", "loadOptions": true},
-        {"inputType": "s", "elements": "Region:oid:CONNECTED_TO:1:AvailabilityZone:CONNECTED_FROM:1", "filterCategory": "entity", "filterType": "volumeByRegion", "loadOptions": true},
+        {"inputType": "s", "elements": "Region:oid:CONNECTED_FROM:VirtualVolume", "filterCategory": "entity", "filterType": "volumeByRegion", "loadOptions": true},
         {"inputType": "s", "elements": "cloudProvider", "filterCategory": "property", "filterType": "volumeByCloudProvider", "loadOptions": true},
         {"inputType": "*", "elements": "vendorId", "filterCategory": "property", "filterType": "volumeById"},
         {"inputType": "s", "elements": "MemberOf:ResourceGroup:uuid", "filterCategory": "entity", "filterType": "volumeByResourceGroup", "loadOptions": true}

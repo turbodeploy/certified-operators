@@ -11,6 +11,8 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -108,6 +110,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
@@ -125,6 +129,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -648,6 +653,167 @@ public class SearchServiceTest {
         assertTrue(resultFilters.contains(nonCloudProviderSearchFilter));
         assertTrue(resultFilters.contains(resolvedAwsFilter));
         assertTrue(resultFilters.contains(resolvedAzureFilter));
+    }
+
+    /**
+     * Test that search parameters without adjacent Region + OID search filters are left untouched.
+     * Test that when search parameters have adjacent Region + OID search filters, those two filters
+     * are removed and replaced with a single OID search filter with all appropriate value options.
+     *
+     * Test that this happens no matter where the filters are in the list.
+     */
+    @Test
+    public void testResolveRegionFilter() {
+        // scenario 0: nothing requires conversion
+        final SearchParameters paramsWithNoRegionFilter = SearchParameters.getDefaultInstance();
+        assertEquals(paramsWithNoRegionFilter,
+            searchService.resolveRegionFilters(paramsWithNoRegionFilter));
+
+        final String regionWithNoZone = "123";
+        final String regionWithZone = "456";
+        final String zone1 = "7";
+        final String zone2 = "8";
+
+        final RelatedEntity zoneEntity1 = RelatedEntity.newBuilder()
+            .setEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
+            .setOid(Long.valueOf(zone1))
+            .build();
+        final RelatedEntity zoneEntity2 = RelatedEntity.newBuilder()
+            .setEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
+            .setOid(Long.valueOf(zone2))
+            .build();
+        final ApiPartialEntity regionEntity = ApiPartialEntity.newBuilder()
+            .setOid(Long.valueOf(regionWithZone))
+            .setEntityType(EntityType.REGION_VALUE)
+            .addConnectedTo(zoneEntity1)
+            .addConnectedTo(zoneEntity2)
+            .build();
+        final SingleEntityRequest reqWithZone = ApiTestUtils.mockSingleEntityRequest(regionEntity);
+        when(repositoryApi.entityRequest(eq(Long.valueOf(regionWithZone)))).thenReturn(reqWithZone);
+        final SingleEntityRequest reqWithNoZone =
+            ApiTestUtils.mockSingleEntityRequest(ApiPartialEntity.getDefaultInstance());
+        when(repositoryApi.entityRequest(eq(Long.valueOf(regionWithNoZone))))
+            .thenReturn(reqWithNoZone);
+
+        final PropertyFilter regionFilter = SearchProtoUtil.numericPropertyFilter(
+            SearchableProperties.ENTITY_TYPE, EntityType.REGION_VALUE, ComparisonOperator.EQ);
+        final PropertyFilter oidFilter = SearchProtoUtil.stringPropertyFilterExact(
+            SearchableProperties.OID, ImmutableList.of(regionWithNoZone, regionWithZone));
+        final SearchFilter otherSearchFilter = SearchFilter.getDefaultInstance();
+        /*
+          scenario 1:
+          starting filter: region
+          search filters: oid, other
+         */
+        final SearchParameters params1 =
+            SearchProtoUtil.makeSearchParameters(regionFilter)
+                .addSearchFilter(SearchProtoUtil.searchFilterProperty(oidFilter))
+                .addSearchFilter(otherSearchFilter)
+                .build();
+        final SearchParameters result1 = searchService.resolveRegionFilters(params1);
+
+        assertEquals(SearchableProperties.OID, result1.getStartingFilter().getPropertyName());
+        assertEquals(3, result1.getStartingFilter().getStringFilter().getOptionsCount());
+        assertTrue(result1.getStartingFilter().getStringFilter().getOptionsList()
+            .containsAll(ImmutableList.of(regionWithNoZone, zone1, zone2)));
+        assertEquals(1, result1.getSearchFilterCount());
+        assertEquals(otherSearchFilter, result1.getSearchFilter(0));
+
+        /*
+          scenario 2:
+          starting filter: other
+          search filters: region, oid
+         */
+        final SearchParameters params2 =
+            SearchProtoUtil.makeSearchParameters(PropertyFilter.getDefaultInstance())
+                .addSearchFilter(SearchProtoUtil.searchFilterProperty(regionFilter))
+                .addSearchFilter(SearchProtoUtil.searchFilterProperty(oidFilter))
+                .build();
+        final SearchParameters result2 = searchService.resolveRegionFilters(params2);
+
+        assertNotEquals(SearchableProperties.OID, result2.getStartingFilter().getPropertyName());
+        assertEquals(1, result2.getSearchFilterCount());
+        assertEquals(SearchableProperties.OID,
+            result2.getSearchFilter(0).getPropertyFilter().getPropertyName());
+        assertTrue(result2.getSearchFilter(0).getPropertyFilter().getStringFilter().getOptionsList()
+            .containsAll(ImmutableList.of(regionWithNoZone, zone1, zone2)));
+
+        /*
+          scenario 3:
+          starting filter: other
+          search filters: region, oid, other
+         */
+        final SearchParameters params3 =
+            SearchProtoUtil.makeSearchParameters(PropertyFilter.getDefaultInstance())
+                .addSearchFilter(SearchProtoUtil.searchFilterProperty(regionFilter))
+                .addSearchFilter(SearchProtoUtil.searchFilterProperty(oidFilter))
+                .addSearchFilter(otherSearchFilter)
+                .build();
+        final SearchParameters result3 = searchService.resolveRegionFilters(params3);
+
+        assertNotEquals(SearchableProperties.OID, result3.getStartingFilter().getPropertyName());
+        assertEquals(2, result3.getSearchFilterCount());
+        assertEquals(SearchableProperties.OID,
+            result3.getSearchFilter(0).getPropertyFilter().getPropertyName());
+        assertTrue(result3.getSearchFilter(0).getPropertyFilter().getStringFilter().getOptionsList()
+            .containsAll(ImmutableList.of(regionWithNoZone, zone1, zone2)));
+        assertEquals(otherSearchFilter, result3.getSearchFilter(1));
+        /*
+          scenario 4:
+          starting filter: oid
+          search filters: other, region, oid
+         */
+        final SearchParameters params4 =
+            SearchProtoUtil.makeSearchParameters(oidFilter)
+                .addSearchFilter(otherSearchFilter)
+                .addSearchFilter(SearchProtoUtil.searchFilterProperty(regionFilter))
+                .addSearchFilter(SearchProtoUtil.searchFilterProperty(oidFilter))
+                .build();
+        final SearchParameters result4 = searchService.resolveRegionFilters(params4);
+
+        assertEquals(oidFilter, result4.getStartingFilter());
+        assertEquals(2, result4.getSearchFilterCount());
+        assertEquals(otherSearchFilter, result4.getSearchFilter(0));
+        assertEquals(SearchableProperties.OID,
+            result4.getSearchFilter(1).getPropertyFilter().getPropertyName());
+        assertTrue(result4.getSearchFilter(1).getPropertyFilter().getStringFilter().getOptionsList()
+            .containsAll(ImmutableList.of(regionWithNoZone, zone1, zone2)));
+        /*
+          scenario 5:
+          starting filter: none
+          search filters: region, oid
+         */
+        final SearchParameters params5 = SearchParameters.newBuilder()
+            .addSearchFilter(SearchProtoUtil.searchFilterProperty(regionFilter))
+            .addSearchFilter(SearchProtoUtil.searchFilterProperty(oidFilter))
+            .build();
+        final SearchParameters result5 = searchService.resolveRegionFilters(params5);
+
+        assertFalse(result5.hasStartingFilter());
+        assertEquals(1, result5.getSearchFilterCount());
+        assertEquals(SearchableProperties.OID,
+            result5.getSearchFilter(0).getPropertyFilter().getPropertyName());
+        assertTrue(result5.getSearchFilter(0).getPropertyFilter().getStringFilter().getOptionsList()
+            .containsAll(ImmutableList.of(regionWithNoZone, zone1, zone2)));
+        /*
+          scenario 6:
+          starting filter: none
+          search filters: other, region, oid
+         */
+        final SearchParameters params6 = SearchParameters.newBuilder()
+            .addSearchFilter(otherSearchFilter)
+            .addSearchFilter(SearchProtoUtil.searchFilterProperty(regionFilter))
+            .addSearchFilter(SearchProtoUtil.searchFilterProperty(oidFilter))
+            .build();
+        final SearchParameters result6 = searchService.resolveRegionFilters(params6);
+
+        assertFalse(result6.hasStartingFilter());
+        assertEquals(2, result6.getSearchFilterCount());
+        assertEquals(otherSearchFilter, result6.getSearchFilter(0));
+        assertEquals(SearchableProperties.OID,
+            result6.getSearchFilter(1).getPropertyFilter().getPropertyName());
+        assertTrue(result6.getSearchFilter(1).getPropertyFilter().getStringFilter().getOptionsList()
+            .containsAll(ImmutableList.of(regionWithNoZone, zone1, zone2)));
     }
 
     @Test

@@ -33,6 +33,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
@@ -95,6 +96,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
@@ -113,11 +115,13 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
@@ -556,6 +560,7 @@ public class SearchService implements ISearchService {
                 // Convert any cluster membership filters to property filters.
                 .map(filterResolver::resolveGroupFilters)
                 .map(this::resolveCloudProviderFilters)
+                .map(this::resolveRegionFilters)
                 .collect(Collectors.toList());
 
         // match only the entity uuids which are part of the group or cluster
@@ -898,6 +903,100 @@ public class SearchService implements ISearchService {
         return SearchFilter.newBuilder()
             .setPropertyFilter(SearchProtoUtil.discoveredBy(targetOptions))
             .build();
+    }
+
+    /**
+     * Given a set of search parameters containing a region entityType filter immediately followed
+     * by an OID filter, substitute those two filters for a new OID filter.
+     *
+     * This OID filter will contain the OIDs of:
+     *  - all availability zones connected to any of the original regions
+     *  - all the original regions that are not connected to any availability zones
+     *
+     * @param searchParams original search parameters
+     * @return search parameters with Region + OID filters converted to one OID filter
+     */
+    @VisibleForTesting
+    SearchParameters resolveRegionFilters(SearchParameters searchParams) {
+        final int filterReplacementIndex = findIndexOfFiltersToReplace(searchParams);
+        if (filterReplacementIndex == -1) {
+            return searchParams;
+        }
+        final List<String> regionOids = searchParams.getSearchFilter(filterReplacementIndex)
+            .getPropertyFilter().getStringFilter().getOptionsList();
+        final PropertyFilter regionAndZoneOidFilter = substituteZonesForApplicableRegions(regionOids);
+
+        if (filterReplacementIndex == 0) {
+            return SearchProtoUtil.makeSearchParameters(regionAndZoneOidFilter)
+                .addAllSearchFilter(searchParams.getSearchFilterList()
+                    .subList(1, searchParams.getSearchFilterCount())).build();
+        }
+        return SearchParameters.newBuilder(searchParams)
+            .clearSearchFilter()
+            .addAllSearchFilter(
+                searchParams.getSearchFilterList().subList(0, filterReplacementIndex - 1))
+            .addSearchFilter(SearchProtoUtil.searchFilterProperty(regionAndZoneOidFilter))
+            .addAllSearchFilter(
+                searchParams.getSearchFilterList()
+                    .subList(filterReplacementIndex + 1, searchParams.getSearchFilterCount()))
+            .build();
+
+    }
+
+    private PropertyFilter substituteZonesForApplicableRegions(final List<String> originalOids) {
+        final Set<Long> resultOids = new HashSet<>();
+        originalOids.forEach(originalOid ->
+            repositoryApi.entityRequest(Long.valueOf(originalOid)).getEntity().ifPresent(e -> {
+                final Set<Long> zoneOids = e.getConnectedToList().stream()
+                    .filter(rel -> rel.getEntityType() == EntityType.AVAILABILITY_ZONE_VALUE)
+                    .map(RelatedEntity::getOid)
+                    .collect(Collectors.toSet());
+                if (zoneOids.isEmpty()) {
+                    resultOids.add(Long.valueOf(originalOid));
+                } else {
+                    resultOids.addAll(zoneOids);
+                }
+            })
+        );
+        return SearchProtoUtil.idFilter(resultOids);
+    }
+
+    /**
+     * Find the index of the first filter to replace (i.e. the region filter). If this is 0, the
+     * starting filter is the Region filter and searchParameters.getSearchFilter(0) is the OID
+     * filter. Otherwise, the Region filter is searchParameters.getSearchFilter(n - 1) and the OID
+     * filter is searchParameters.getSearchFilter(n).
+     *
+     * @param searchParameters the search parameters which may have filters that need replacing.
+     * @return the index of the first filter to replace, or -1 if no filters need replacing.
+     */
+    private int findIndexOfFiltersToReplace(final SearchParameters searchParameters) {
+        final String startFilterName = extractPropertyName(searchParameters.getStartingFilter());
+        final List<String> filterNames = searchParameters.getSearchFilterList().stream()
+            .map(sf -> sf.hasPropertyFilter() ? extractPropertyName(sf.getPropertyFilter()) : null)
+            .collect(Collectors.toList());
+        filterNames.add(0, startFilterName);
+        final List<String> regionAndOid =
+            ImmutableList.of(SearchableProperties.ENTITY_TYPE, SearchableProperties.OID);
+        return Collections.indexOfSubList(filterNames, regionAndOid);
+    }
+
+    /**
+     * For the purposes of the region filter conversion, an entityType filter only matters if it is
+     * specifically for regions. If the filter is for some other entityType (or multiple
+     * entityTypes) we use null to avoid unnecessary querying for availability zones.
+     *
+     * @param propertyFilter property filter to extract name from
+     * @return the property name, or null if the filter is for an entityType that isn't region.
+     */
+    @Nullable
+    private String extractPropertyName(final PropertyFilter propertyFilter) {
+        if (propertyFilter.getPropertyName().equals(SearchableProperties.ENTITY_TYPE)) {
+            return propertyFilter.hasNumericFilter() &&
+                propertyFilter.getNumericFilter().getValue() == EntityType.REGION_VALUE ?
+                propertyFilter.getPropertyName() : null;
+        }
+        return propertyFilter.getPropertyName();
     }
 
     @Override
