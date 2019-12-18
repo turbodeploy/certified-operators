@@ -10,11 +10,9 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DesktopPoolData;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualDatacenterData;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingPoint;
@@ -30,9 +28,6 @@ import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
  * property to entity properties to identify if the UID was a VM.
  */
 public class DesktopPoolMasterImageStitchingOperation implements StitchingOperation<String, String> {
-
-
-    private static final String MASTER_IMAGE_SOURCE = "masterImageSource";
     private final Logger logger = LogManager.getLogger();
 
     @Nonnull
@@ -108,11 +103,6 @@ public class DesktopPoolMasterImageStitchingOperation implements StitchingOperat
         DesktopPoolData.Builder dpPoolDataBuilder = vdcDataBuilder.getDesktopPoolDataBuilder();
         dpPoolDataBuilder.setMasterImage(String.valueOf(vmEntity.getOid())).build();
         vdcDataBuilder.setDesktopPoolData(dpPoolDataBuilder.build());
-        dpBuilder.addEntityProperties(EntityProperty.newBuilder()
-                .setName(MASTER_IMAGE_SOURCE)
-                .setNamespace(SDKUtil.DEFAULT_NAMESPACE)
-                .setValue(EntityType.VIRTUAL_MACHINE.name()).build())
-                .setVirtualDatacenterData(vdcDataBuilder.build())
-                .build();
+        dpBuilder.setVirtualDatacenterData(vdcDataBuilder.build()).build();
     }
 }

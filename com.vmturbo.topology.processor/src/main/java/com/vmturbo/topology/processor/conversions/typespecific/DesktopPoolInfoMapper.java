@@ -23,6 +23,10 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
  * Populate the {@link TypeSpecificInfo} unique to a desktop pool - i.e. {@link DesktopPoolInfo}.
  **/
 public class DesktopPoolInfoMapper extends TypeSpecificInfoMapper {
+    /**
+     * Entity property name to contain the raw external template identifier.
+     */
+    public static final String DESKTOP_POOL_TEMPLATE_REFERENCE = "desktopPoolTemplateReference";
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -55,10 +59,23 @@ public class DesktopPoolInfoMapper extends TypeSpecificInfoMapper {
                     vmWithSnapshotBuilder.setSnapshot(dpData.getSnapshot());
                 }
                 desktopInfoBuilder.setVmWithSnapshot(vmWithSnapshotBuilder.build());
+            } else if (!dpData.hasSnapshot()) {
+                // template identities are resolved much later
+                // this hack is to pass the raw vendor template identifier reference down the
+                // data flow, in a temporary entity property, to get converted after
+                // DiscoveredTemplateDeploymentProfileUploader is done
+                // TODO alternatives:
+                // - (not good either) invert the relationship, reference "1-to-many" template to desktop pools
+                // - (somewhat better) turn all stitching, the type-specific mappers, SdkToTopologyEntityConverter etc to beans,
+                //   StitchingContext to prototype, inject DiscoveredTemplateDeploymentProfileUploader here
+                //   and register template id patchers in it for later execution
+                // - (better) resolve all the identities - entities, templates, groups, non-market entities etc
+                //   uniformly and simultaneously before stitching, then connecting pool to template could be
+                //   a legitimate stitcher
+                entityPropertyMap.put(DESKTOP_POOL_TEMPLATE_REFERENCE, dpData.getMasterImage());
             } else {
-                logger.debug("Master Image {} has not been resolved to a VM OID." +
-                        " It is possible that this is a template UID" +
-                        " to be resolved during the template upload. ", dpData.getMasterImage());
+                logger.warn("Master Image {} has not been resolved to a VM or template OID, desktop pool data will be incomplete",
+                            dpData.getMasterImage());
             }
         }
         return TypeSpecificInfo.newBuilder()
@@ -68,4 +85,5 @@ public class DesktopPoolInfoMapper extends TypeSpecificInfoMapper {
                                         .setCloneType(cloneType)
                         .build()).build();
     }
+
 }

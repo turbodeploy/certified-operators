@@ -32,19 +32,19 @@ import com.vmturbo.common.protobuf.plan.TemplateSpecServiceGrpc.TemplateSpecServ
 public class TemplatesUtils {
     public static final String PROFILE = "Profile";
     // compute
+    public static final String MEMORY_SIZE = "memorySize";
+    public static final String NUM_OF_CPU = "numOfCpu";
     private static final String CPU_CONSUMED_FACTOR = "cpuConsumedFactor";
     private static final String CPU_SPEED = "cpuSpeed";
     private static final String IO_THROUGHPUT = "ioThroughput";
     private static final String IO_THROUGHPUT_SIZE = "ioThroughputSize";
     private static final String MEMORY_CONSUMED_FACTOR = "memoryConsumedFactor";
-    private static final String MEMORY_SIZE = "memorySize";
-    private static final String NUM_OF_CPU = "numOfCpu";
     private static final String NUM_OF_CORES = "numOfCores";
     private static final String NETWORK_THROUGHPUT = "networkThroughput";
     private static final String NETWORK_THROUGHPUT_SIZE = "networkThroughputSize";
     // storage
+    public static final String DISK_SIZE = "diskSize";
     private static final String DISK_IOPS = "diskIops";
-    private static final String DISK_SIZE = "diskSize";
     private static final String DISK_CONSUMED_FACTOR = "diskConsumedFactor";
 
     public static Set<String> allowedComputeStats = Sets

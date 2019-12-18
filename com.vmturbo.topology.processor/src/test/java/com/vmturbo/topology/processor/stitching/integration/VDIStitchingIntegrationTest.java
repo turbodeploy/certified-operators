@@ -269,8 +269,5 @@ public class VDIStitchingIntegrationTest extends StitchingIntegrationTest {
                 "DESKTOP_POOL f31dfba7b0c24783cdb240889f5ca293bc7f8c0c SITE02-POD01-POOL04-LINKED-SMALL-1VCPU-2GB (oid-4 tgt-3333)"));
         assertThat(journalOutput, containsString(
                 "masterImage\": ((\"4233fb65-8d8e-31fe-90c8-8a89369d5072\" --> \"9\"))"));
-
-        assertThat(journalOutput, containsString("++++++\"name\": \"masterImageSource"));
-        assertThat(journalOutput, containsString("++++++\"value\": \"VIRTUAL_MACHINE"));
     }
 }

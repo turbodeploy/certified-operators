@@ -36,11 +36,14 @@ import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.UpdateDiscoveredTem
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.UpdateDiscoveredTemplateDeploymentProfileResponse.TargetProfileIdentities;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.UpdateTargetDiscoveredTemplateDeploymentProfileRequest;
 import com.vmturbo.common.protobuf.plan.DiscoveredTemplateDeploymentProfileServiceGrpc.DiscoveredTemplateDeploymentProfileServiceStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.ProfileDTO.DeploymentProfileDTO;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
+import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.conversions.typespecific.DesktopPoolInfoMapper;
 import com.vmturbo.topology.processor.deployment.profile.DeploymentProfileMapper;
 import com.vmturbo.topology.processor.entity.EntityStore;
 
@@ -239,12 +242,6 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
 
     }
 
-    /**
-     * Upload discovered templates and deployment profiles to Plan component. And upload will be happen
-     * at broadcast time.
-     *
-     * @throws CommunicationException
-     */
     @Override
     public void sendTemplateDeploymentProfileData() throws CommunicationException {
 
@@ -361,6 +358,40 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
     public Long getDeploymentProfileId(long targetId, String deploymentProfileVendorId) {
         return target2deploymentProfileId2oid.getOrDefault(targetId, Collections.emptyMap())
                         .get(deploymentProfileVendorId);
+    }
+
+    @Override
+    public void patchTopology(@Nonnull Map<Long, TopologyEntity.Builder> topology) {
+        for (TopologyEntity.Builder entity : topology.values()) {
+            // only one case of patching for now - no generalization
+            if (entity.getEntityType() == EntityType.DESKTOP_POOL_VALUE) {
+                TopologyEntityDTO.Builder builder = entity.getEntityBuilder();
+                String masterImageVendorId = builder
+                    .getEntityPropertyMapOrDefault(DesktopPoolInfoMapper.DESKTOP_POOL_TEMPLATE_REFERENCE,
+                                                   null);
+                if (masterImageVendorId != null) {
+                    Set<Long> targets = Sets
+                            .union(target2profileId2oid.keySet(),
+                                   entity.getEntityBuilder().getOrigin()
+                                                   .getDiscoveryOrigin()
+                                                   .getDiscoveredTargetDataMap().keySet());
+                    for (Long targetId : targets) {
+                        Long templateOid = getProfileId(targetId, masterImageVendorId);
+                        if (templateOid != null) {
+                            if (logger.isTraceEnabled()) {
+                                logger.trace("Patched template reference '{}' for desktop pool {} into {}",
+                                             masterImageVendorId, entity.getOid(), templateOid);
+                            }
+                            builder.getTypeSpecificInfoBuilder()
+                                            .getDesktopPoolBuilder()
+                                            .setTemplateReferenceId(templateOid);
+                            break;
+                        }
+                    }
+                    builder.removeEntityPropertyMap(DesktopPoolInfoMapper.DESKTOP_POOL_TEMPLATE_REFERENCE);
+                }
+            }
+        }
     }
 
     /**

@@ -463,6 +463,8 @@ public class SdkToTopologyEntityConverter {
             entityPropertyMap.put("origin", dto.getOrigin().toString()); // TODO: DISCOVERED/PROXY use number?
         }
 
+        TypeSpecificInfo info = mapToTypeSpecificInfo(dto, entityPropertyMap);
+
         // Either monitored or controllable is false, set XL controllable to false.
         // Explanations: some probes still send "Monitored = false", but XL doesn't have "Monitored" property,
         // given the the semantic is the same, setting XL controllable to false.
@@ -487,7 +489,7 @@ public class SdkToTopologyEntityConverter {
                 calculateSuspendability(dto)
         );
 
-        retBuilder.setTypeSpecificInfo(mapToTypeSpecificInfo(dto, entityPropertyMap));
+        retBuilder.setTypeSpecificInfo(info);
         return retBuilder;
     }
 

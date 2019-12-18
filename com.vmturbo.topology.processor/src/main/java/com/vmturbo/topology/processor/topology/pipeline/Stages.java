@@ -201,12 +201,13 @@ public class Stages {
         }
 
         @Override
-        public Status passthrough(final Map<Long, TopologyEntity.Builder> input) {
+        public Status passthrough(final Map<Long, TopologyEntity.Builder> topology) {
             try {
                 notifier.sendTemplateDeploymentProfileData();
+                notifier.patchTopology(topology);
                 return Status.success();
             } catch (CommunicationException e) {
-                return Status.failed("Failed to send data: " + e.getLocalizedMessage());
+                return Status.failed("Failed to upload templates: " + e.getMessage());
             }
         }
     }

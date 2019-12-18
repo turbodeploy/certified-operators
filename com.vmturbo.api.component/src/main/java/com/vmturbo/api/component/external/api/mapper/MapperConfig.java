@@ -306,7 +306,8 @@ public class MapperConfig {
      */
     @Bean
     public MasterImageEntityAspectMapper masterImageEntityAspectMapper() {
-        return new MasterImageEntityAspectMapper(communicationConfig.repositoryApi());
+        return new MasterImageEntityAspectMapper(communicationConfig.repositoryApi(),
+                                                 communicationConfig.templateServiceBlockingStub());
     }
 
     @Bean

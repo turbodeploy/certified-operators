@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.plan;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -10,6 +11,7 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.ProfileDTO.DeploymentProfileDTO;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
+import com.vmturbo.stitching.TopologyEntity;
 
 /**
  * Responsible for upload and delete discovered templates and deployment profile. We should upload
@@ -70,4 +72,11 @@ public interface DiscoveredTemplateDeploymentProfileNotifier {
      */
     @Nullable
     Long getDeploymentProfileId(long targetId, @Nonnull String deploymentProfileVendorId);
+
+    /**
+     * Fix the topology references to template identifiers, once the latter have been resolved.
+     *
+     * @param topology entities to be adjusted
+     */
+    void patchTopology(@Nonnull Map<Long, TopologyEntity.Builder> topology);
 }
