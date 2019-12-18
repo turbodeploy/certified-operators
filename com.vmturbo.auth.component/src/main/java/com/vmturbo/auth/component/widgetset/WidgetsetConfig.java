@@ -21,7 +21,7 @@ public class WidgetsetConfig {
 
     @Bean
     public WidgetsetDbStore widgetsetDbStore() {
-        return new WidgetsetDbStore(authDBConfig.dslContext());
+        return new WidgetsetDbStore(authDBConfig.dsl());
     }
 
     @Bean

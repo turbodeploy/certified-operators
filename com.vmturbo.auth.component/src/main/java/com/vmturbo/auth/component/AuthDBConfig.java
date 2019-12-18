@@ -229,25 +229,19 @@ public class AuthDBConfig extends SQLDatabaseConfig {
     @Bean
     @Primary
     public @Nonnull DataSource dataSource() {
-        // Create a correct data source.
-        @Nonnull MariaDbDataSource dataSource = new MariaDbDataSource();
         Optional<String> credentials = authKVConfig.authKeyValueStore().get(CONSUL_KEY);
-        try {
-            if (credentials.isPresent()) {
-                dataSource.setUser(authDbUsername);
-                dataSource.setPassword(getDecryptPassword(credentials.get()));
-                dataSource.setUrl(getDbUrl());
-            } else {
-                // Use the well worn out defaults.
-                dataSource.setUser(getRootSqlDBUser());
-                dataSource.setPassword(getRootSqlDBPassword());
-                // Set DB connection root url.
-                dataSource.setUrl(getSQLConfigObject().getDbRootUrl());
-            }
-        } catch (SQLException e) {
-            throw new BeanCreationException("Failed to initialize bean: " + e.getMessage());
+        String dbPassword = authDbPassword;
+        if (!credentials.isPresent()) {
+            // Use authDbPassword if specified;
+            // else, use the same externalized admin db password as prefix and append it with random characters.
+            dbPassword = !Strings.isEmpty(dbPassword) ? dbPassword : getRootSqlDBPassword() + generatePassword();
+            authKVConfig.authKeyValueStore().put(CONSUL_KEY, CryptoFacility.encrypt(dbPassword));
+        } else {
+            dbPassword = getDecryptPassword(credentials.get());
         }
-
+        // Get DataSource from the given DB schema name and user. Make sure we have the proper user
+        // here. If the user does not exist, create it under root connection.
+        DataSource dataSource = dataSourceConfig(dbSchemaName, authDbUsername, dbPassword);
 
         // Ensure the connection is available before proceeding.
         while (true) {
@@ -296,60 +290,13 @@ public class AuthDBConfig extends SQLDatabaseConfig {
     }
 
     /**
-     * Creates the JOOQ configuration.
-     *
-     * @return The JOOQ configuration.
-     */
-    @Bean
-    public DefaultConfiguration configuration() {
-        // Create the user and grant privileges in case the user has not been yet created.
-        Optional<String> credentials = authKVConfig.authKeyValueStore().get(CONSUL_KEY);
-        String dbPassword = authDbPassword;
-        if (!credentials.isPresent()) {
-            // Use authDbPassword if specified;
-            // else, use the same externalized admin db password as prefix and append it with random characters.
-            dbPassword = !Strings.isEmpty(dbPassword) ? dbPassword : getRootSqlDBPassword() + generatePassword();
-            authKVConfig.authKeyValueStore().put(CONSUL_KEY, CryptoFacility.encrypt(dbPassword));
-        } else {
-            dbPassword = getDecryptPassword(credentials.get());
-        }
-        // Create DB user with all privileges on the specified schema. Make sure we have the proper user here.
-        dataSourceConfig(dbSchemaName, authDbUsername, dbPassword);
-
-        // Create a JOOQ configuration.
-        DefaultConfiguration jooqConfiguration = new DefaultConfiguration();
-        jooqConfiguration.set(connectionProvider());
-        jooqConfiguration.set(new DefaultExecuteListenerProvider(exceptionTranslator()));
-        jooqConfiguration.set(new Settings()
-            .withRenderNameStyle(RenderNameStyle.LOWER)
-            // Set withRenderSchema to false to avoid rendering schema name in Jooq generated SQL
-            // statement. For example, with false withRenderSchema, statement
-            // "SELECT * FROM auth.widgetset" will be changed to "SELECT * FROM widgetset".
-            // And dynamically set schema name in the constructed JDBC connection URL to support
-            // multi-tenant database.
-            .withRenderSchema(false));
-        jooqConfiguration.set(getSQLConfigObject().getSqlDialect());
-        return jooqConfiguration;
-    }
-
-    /**
-     * Force initialization of flyway before getting a reference to the database.
-     *
-     * @return The DSL context.
-     */
-    @Bean
-    public DSLContext dslContext() {
-        return new DefaultDSLContext(configuration());
-    }
-
-    /**
      * Returns the DB-backed secure store.
      *
      * @return The DB-backed secure store.
      */
     @Bean
     public ISecureStore secureDataStore() {
-        return new DBStore(dslContext(), authKVConfig.authKeyValueStore(), getDbUrl());
+        return new DBStore(dsl(), authKVConfig.authKeyValueStore(), getDbUrl());
     }
 
     /**
