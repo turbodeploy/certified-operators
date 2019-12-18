@@ -369,7 +369,12 @@ public final class AnalysisToProtobuf {
             if(moveTargetCost.isPresent()){
                 moveTO.setCouponDiscount(moveTargetCost.get());
             }
-
+            if (move.getActionTarget() != null) {
+                String scalingGroupId = move.getActionTarget().getScalingGroupId();
+                if (!scalingGroupId.isEmpty()) {
+                    moveTO.setScalingGroupId(scalingGroupId);
+                }
+            }
             // the provision by demand action may not have been handled
             if (traderOid.get(newSupplier) == null) {
                 topology.addProvisionedTrader(newSupplier);

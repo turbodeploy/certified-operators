@@ -31,6 +31,9 @@ message MoveTO {
 
     // The context of the move, contains additional info.
     optional Context moveContext = 7;
+
+    // scaling group ID
+    optional string scaling_group_id = 8;
 }
 
 // a move explanation suggesting unavailability of commodities

@@ -168,8 +168,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
                     optionalQuoteContext.get().getFamilyBasedCoverageList().isEmpty())) {
                 final Move move = new Move(economy, shoppingList, shoppingList.getSupplier(),
                         cheapestSeller, optionalQuoteContext);
-                // Insert Move at front of subsequent actions list so that they can be rolled back
-                // in reverse order.
+                // Add peer Move to subsequent actions list.
                 getSubsequentActions().add(move.internalTake().setImportance(savings));
             }
         }
