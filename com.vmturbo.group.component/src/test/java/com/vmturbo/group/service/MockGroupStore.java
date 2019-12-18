@@ -3,6 +3,7 @@ package com.vmturbo.group.service;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -10,6 +11,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.junit.Assert;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
@@ -22,6 +24,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.group.group.GroupMembersPlain;
 import com.vmturbo.group.group.IGroupStore;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
  * Mock implementation of group store, suitable for testing.
@@ -40,11 +43,10 @@ public class MockGroupStore implements IGroupStore {
     }
 
     @Override
-    public void createGroup(long oid, @Nonnull Origin origin, @Nonnull GroupDefinition groupDefinition,
-            @Nonnull Set<MemberType> expecMemberTypes, boolean supportReverseLookup)
-            throws StoreOperationException {
-        final Grouping createdGroup = Grouping
-                .newBuilder()
+    public void createGroup(long oid, @Nonnull Origin origin,
+            @Nonnull GroupDefinition groupDefinition, @Nonnull Set<MemberType> expecMemberTypes,
+            boolean supportReverseLookup) throws StoreOperationException {
+        final Grouping createdGroup = Grouping.newBuilder()
                 .setId(oid)
                 .setDefinition(groupDefinition)
                 .addAllExpectedTypes(expecMemberTypes)
@@ -122,7 +124,11 @@ public class MockGroupStore implements IGroupStore {
     @Nonnull
     @Override
     public GroupMembersPlain getMembers(@Nonnull Collection<Long> groupIds,
-            boolean expandNestedGroups) throws StoreOperationException {
+            boolean expandNestedGroups) {
+        if (CollectionUtils.isEmpty(groupIds)) {
+            return new GroupMembersPlain(Collections.emptySet(), Collections.emptySet(),
+                    Collections.emptySet());
+        }
         final Collection<StaticMembersByType> members = groupIds.stream()
                 .map(groups::get)
                 .filter(Objects::nonNull)
@@ -144,10 +150,40 @@ public class MockGroupStore implements IGroupStore {
         return new GroupMembersPlain(entities, groups, Collections.emptySet());
     }
 
-    @Nonnull
     @Override
-    public Set<Grouping> getStaticGroupsForEntity(long entityId) {
-        return Collections.emptySet();
+    @Nonnull
+    public Map<Long, Set<Long>> getStaticGroupsForEntities(@Nonnull Collection<Long> entityIds,
+            @Nonnull Collection<GroupType> groupTypes) {
+        if (CollectionUtils.isEmpty(entityIds)) {
+            return Collections.emptyMap();
+        }
+        final Map<Long, Set<Long>> resultMap = new HashMap<>();
+        for (Grouping group : groups.values()) {
+            if (groupTypes.isEmpty() || groupTypes.contains(group.getDefinition().getType())) {
+                final Collection<Long> groupMembers = getGroupStaticEntityMembers(group);
+                for (Long entityId : entityIds) {
+                    if (groupMembers.contains(entityId)) {
+                        resultMap.computeIfAbsent(entityId, key -> new HashSet<>())
+                                .add(group.getId());
+                    }
+                }
+            }
+        }
+        return Collections.unmodifiableMap(resultMap);
+    }
+
+    @Nonnull
+    private static Collection<Long> getGroupStaticEntityMembers(@Nonnull Grouping group) {
+        final StaticMembers staticMembers = group.getDefinition().getStaticGroupMembers();
+        if (staticMembers == null) {
+            return Collections.emptySet();
+        }
+        return staticMembers.getMembersByTypeList()
+                .stream()
+                .filter(member -> member.getType().hasEntity())
+                .map(StaticMembersByType::getMembersList)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toSet());
     }
 
     @Override

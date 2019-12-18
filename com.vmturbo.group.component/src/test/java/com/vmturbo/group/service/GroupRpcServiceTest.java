@@ -30,6 +30,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
+
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
@@ -61,9 +63,9 @@ import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings.UploadedGroup;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
@@ -77,6 +79,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.OptimizationMe
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.Groupings;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin.User;
@@ -108,6 +111,7 @@ import com.vmturbo.components.common.identity.OidSet;
 import com.vmturbo.group.group.GroupDAO.DiscoveredGroupIdImpl;
 import com.vmturbo.group.group.GroupMembersPlain;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
+import com.vmturbo.group.group.ProtobufMessageMatcher;
 import com.vmturbo.group.group.TemporaryGroupCache;
 import com.vmturbo.group.group.TemporaryGroupCache.InvalidTempGroupException;
 import com.vmturbo.group.identity.IdentityProvider;
@@ -274,43 +278,52 @@ public class GroupRpcServiceTest {
     }
 
     /**
-     * Test {@link GroupRpcService#getGroupForEntity(GetGroupForEntityRequest, StreamObserver)}.
+     * Test {@link GroupRpcService#getGroupsForEntities(GetGroupsForEntitiesRequest,
+     * StreamObserver)}.
      */
     @Test
     public void testGetGroupForEntity() {
         final long entityId = 1234L;
-        final GetGroupForEntityRequest groupForEntityRequest =
-                GetGroupForEntityRequest.newBuilder().setEntityId(entityId).build();
-        final StreamObserver<GroupDTO.GetGroupForEntityResponse> mockGroupForEntityObserver =
+        final long entityId2 = 1235L;
+        final Set<Long> listOfGroups = Sets.newHashSet(2000L, 2001L);
+        final GetGroupsForEntitiesRequest groupForEntityRequest = GetGroupsForEntitiesRequest.newBuilder()
+                .addEntityId(entityId)
+                .addEntityId(entityId2)
+                .build();
+        final StreamObserver<GroupDTO.GetGroupsForEntitiesResponse> mockGroupForEntityObserver =
                 Mockito.mock(StreamObserver.class);
-        final Set<Grouping> listOfGroups =
-                new HashSet<>(Collections.singletonList(Grouping.getDefaultInstance()));
-        final GetGroupForEntityResponse entityResponse =
-                GetGroupForEntityResponse.newBuilder().addAllGroup(listOfGroups).build();
-        Mockito.when(groupStoreDAO.getStaticGroupsForEntity(entityId)).thenReturn(listOfGroups);
-        groupRpcService.getGroupForEntity(groupForEntityRequest, mockGroupForEntityObserver);
-        Mockito.verify(mockGroupForEntityObserver).onNext(entityResponse);
+        final GetGroupsForEntitiesResponse entityResponse =
+                GetGroupsForEntitiesResponse.newBuilder()
+                        .putEntityGroup(entityId,
+                                Groupings.newBuilder().addAllGroupId(listOfGroups).build())
+                        .build();
+        Mockito.when(groupStoreDAO.getStaticGroupsForEntities(Mockito.anyCollectionOf(Long.class),
+                Mockito.anyCollectionOf(GroupType.class)))
+                .thenReturn(Collections.singletonMap(entityId, listOfGroups));
+        groupRpcService.getGroupsForEntities(groupForEntityRequest, mockGroupForEntityObserver);
+        Mockito.verify(mockGroupForEntityObserver)
+                .onNext(Mockito.argThat(new GetGroupsForEntitiesResponseMatcher(entityResponse)));
         Mockito.verify(mockGroupForEntityObserver).onCompleted();
     }
 
     /**
-     * Test {@link GroupRpcService#getGroupForEntity(GetGroupForEntityRequest, StreamObserver)}
-     * when GetGroupForEntityRequest doesn't contain entityId.
+     * Test {@link GroupRpcService#getGroupsForEntities(GetGroupsForEntitiesRequest,
+     * StreamObserver)}.
+     * when GetGroupsForEntitiesRequest doesn't contain entityId.
      */
     @Test
     public void testGetGroupForEntityExceptionCase() {
         final ArgumentCaptor<StatusException> exceptionCaptor =
                 ArgumentCaptor.forClass(StatusException.class);
         // request without entityId
-        final GetGroupForEntityRequest groupForEntityRequest =
-                GetGroupForEntityRequest.getDefaultInstance();
-        final StreamObserver<GroupDTO.GetGroupForEntityResponse> mockGroupForEntityObserver =
+        final GetGroupsForEntitiesRequest groupForEntityRequest =
+                GetGroupsForEntitiesRequest.getDefaultInstance();
+        final StreamObserver<GroupDTO.GetGroupsForEntitiesResponse> mockGroupForEntityObserver =
                 Mockito.mock(StreamObserver.class);
-        groupRpcService.getGroupForEntity(groupForEntityRequest, mockGroupForEntityObserver);
-        verify(mockGroupForEntityObserver).onError(exceptionCaptor.capture());
-        final StatusException exception = exceptionCaptor.getValue();
-        assertThat(exception, GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
-                .descriptionContains("EntityID is missing for the getGroupForEntityRequest"));
+        groupRpcService.getGroupsForEntities(groupForEntityRequest, mockGroupForEntityObserver);
+        Mockito.verify(mockGroupForEntityObserver)
+                .onNext(GetGroupsForEntitiesResponse.newBuilder().build());
+        Mockito.verify(mockGroupForEntityObserver).onCompleted();
     }
 
     /**
@@ -319,22 +332,25 @@ public class GroupRpcServiceTest {
     @Test
     public void testGetGroupForEntityWhenUserHaveAccess() {
         final long entityId = 1234L;
-        final GetGroupForEntityRequest groupForEntityRequest =
-                GetGroupForEntityRequest.newBuilder().setEntityId(entityId).build();
-        final StreamObserver<GroupDTO.GetGroupForEntityResponse> mockGroupForEntityObserver =
+        final Set<Long> setOfGroups = Sets.newHashSet(2000L, 20003L);
+        final GetGroupsForEntitiesRequest groupForEntityRequest =
+                GetGroupsForEntitiesRequest.newBuilder().addEntityId(entityId).build();
+        final StreamObserver<GetGroupsForEntitiesResponse> mockGroupForEntityObserver =
                 Mockito.mock(StreamObserver.class);
-        final Set<Grouping> listOfGroups =
-                new HashSet<>(Collections.singletonList(Grouping.getDefaultInstance()));
-        final GetGroupForEntityResponse entityResponse =
-                GetGroupForEntityResponse.newBuilder().addAllGroup(listOfGroups).build();
-        Mockito.when(groupStoreDAO.getStaticGroupsForEntity(entityId)).thenReturn(listOfGroups);
+        final GetGroupsForEntitiesResponse entityResponse = GetGroupsForEntitiesResponse.newBuilder()
+                .putEntityGroup(entityId, Groupings.newBuilder().addAllGroupId(setOfGroups).build())
+                .build();
+        Mockito.when(groupStoreDAO.getStaticGroupsForEntities(Collections.singletonList(entityId),
+                Collections.emptyList()))
+                .thenReturn(Collections.singletonMap(entityId, setOfGroups));
         final EntityAccessScope accessScope =
                 new EntityAccessScope(null, null, new ArrayOidSet(Collections.singletonList(entityId)),
                         null);
         when(userSessionContext.isUserScoped()).thenReturn(true);
         when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
-        groupRpcService.getGroupForEntity(groupForEntityRequest, mockGroupForEntityObserver);
-        Mockito.verify(mockGroupForEntityObserver).onNext(entityResponse);
+        groupRpcService.getGroupsForEntities(groupForEntityRequest, mockGroupForEntityObserver);
+        Mockito.verify(mockGroupForEntityObserver)
+                .onNext(Mockito.argThat(new GetGroupsForEntitiesResponseMatcher(entityResponse)));
         Mockito.verify(mockGroupForEntityObserver).onCompleted();
     }
 
@@ -345,51 +361,57 @@ public class GroupRpcServiceTest {
     public void testGetGroupForEntityWhenUserRestrict() {
         final long requestedEntityId = 1L;
         final long allowedEntityId = 2L;
-        final GetGroupForEntityRequest groupForEntityRequest =
-                GetGroupForEntityRequest.newBuilder().setEntityId(requestedEntityId).build();
-        final StreamObserver<GroupDTO.GetGroupForEntityResponse> mockGroupForEntityObserver =
+        final GetGroupsForEntitiesRequest groupForEntityRequest =
+                GetGroupsForEntitiesRequest.newBuilder().addEntityId(requestedEntityId).build();
+        final StreamObserver<GroupDTO.GetGroupsForEntitiesResponse> mockGroupForEntityObserver =
                 Mockito.mock(StreamObserver.class);
-        final Set<Grouping> listOfGroups =
-                new HashSet<>(Collections.singletonList(Grouping.getDefaultInstance()));
-        final GetGroupForEntityResponse entityResponse =
-                GetGroupForEntityResponse.newBuilder().addAllGroup(listOfGroups).build();
-        Mockito.when(groupStoreDAO.getStaticGroupsForEntity(requestedEntityId)).thenReturn(listOfGroups);
+        final Set<Long> setOfGroups = Sets.newHashSet(2000L, 20003L);
+        final GetGroupsForEntitiesResponse entityResponse = GetGroupsForEntitiesResponse.newBuilder()
+                .putEntityGroup(requestedEntityId,
+                        Groupings.newBuilder().addAllGroupId(setOfGroups).build())
+                .build();
+        Mockito.when(groupStoreDAO.getStaticGroupsForEntities(Mockito.any(), Mockito.any()))
+                .thenReturn(Collections.singletonMap(requestedEntityId, setOfGroups));
         final EntityAccessScope accessScope =
                 new EntityAccessScope(null, null, new ArrayOidSet(Collections.singletonList(allowedEntityId)),
                         null);
         when(userSessionContext.isUserScoped()).thenReturn(true);
         when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
-        groupRpcService.getGroupForEntity(groupForEntityRequest, mockGroupForEntityObserver);
-        Mockito.verify(mockGroupForEntityObserver).onNext(entityResponse);
+        groupRpcService.getGroupsForEntities(groupForEntityRequest, mockGroupForEntityObserver);
+        Mockito.verify(mockGroupForEntityObserver)
+                .onNext(Mockito.argThat(new GetGroupsForEntitiesResponseMatcher(entityResponse)));
         Mockito.verify(mockGroupForEntityObserver).onCompleted();
     }
 
     /**
-     * Test {@link GroupRpcService#getGroupForEntity(GetGroupForEntityRequest, StreamObserver)}
+     * Test {@link GroupRpcService#getGroupsForEntities(GetGroupsForEntitiesRequest, StreamObserver)}
      * when user doesn't have access to all group members and accordingly does not have access to
-     * the group.
+     * the group. User does not have access to the requested group - the group is not returned.
+     *
+     * @throws Exception on exceptions occurred
      */
-    @Test(expected = UserAccessScopeException.class)
-    public void testGetGroupForEntityWhenGroupAccessDenied() {
-        final long groupId = 5L;
+    public void testGetGroupForEntityWhenGroupAccessDenied() throws Exception {
+        final Set<Long> groups = Collections.singleton(5L);
         final long requestedEntityId = 1L;
         final Collection<Long> allowedEntityId = Arrays.asList(1L, 2L, 3L);
-        final Collection<Long> groupMembers = Arrays.asList(1L, 2L, 3L, 4L);
-        final GetGroupForEntityRequest groupForEntityRequest =
-                GetGroupForEntityRequest.newBuilder().setEntityId(requestedEntityId).build();
-        final StreamObserver<GroupDTO.GetGroupForEntityResponse> mockGroupForEntityObserver =
+        final Set<Long> groupMembers = Sets.newHashSet(1L, 2L, 3L, 4L);
+        final GetGroupsForEntitiesRequest groupForEntityRequest =
+                GetGroupsForEntitiesRequest.newBuilder().addEntityId(requestedEntityId).build();
+        final StreamObserver<GroupDTO.GetGroupsForEntitiesResponse> mockGroupForEntityObserver =
                 Mockito.mock(StreamObserver.class);
-        final Set<Grouping> listOfGroups =
-                new HashSet<>(Collections.singletonList(createGrouping(groupId, groupMembers)));
-        final GetGroupForEntityResponse entityResponse =
-                GetGroupForEntityResponse.newBuilder().addAllGroup(listOfGroups).build();
-        Mockito.when(groupStoreDAO.getStaticGroupsForEntity(requestedEntityId))
-                .thenReturn(listOfGroups);
+        final GetGroupsForEntitiesResponse entityResponse = GetGroupsForEntitiesResponse.newBuilder()
+                .putEntityGroup(requestedEntityId, Groupings.newBuilder().build())
+                .build();
+        Mockito.when(groupStoreDAO.getStaticGroupsForEntities(Mockito.any(), Mockito.any()))
+                .thenReturn(Collections.singletonMap(requestedEntityId, groups));
+        Mockito.when(groupStoreDAO.getMembers(Mockito.any(), Mockito.anyBoolean()))
+                .thenReturn(new GroupMembersPlain(groupMembers, Collections.emptySet(),
+                        Collections.emptySet()));
         final EntityAccessScope accessScope =
                 new EntityAccessScope(null, null, new ArrayOidSet(allowedEntityId), null);
         when(userSessionContext.isUserScoped()).thenReturn(true);
         when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
-        groupRpcService.getGroupForEntity(groupForEntityRequest, mockGroupForEntityObserver);
+        groupRpcService.getGroupsForEntities(groupForEntityRequest, mockGroupForEntityObserver);
         Mockito.verify(mockGroupForEntityObserver).onNext(entityResponse);
         Mockito.verify(mockGroupForEntityObserver).onCompleted();
     }
@@ -2206,5 +2228,15 @@ public class GroupRpcServiceTest {
                 .build();
 
         return StaticMembers.newBuilder().addMembersByType(staticMembersByType).build();
+    }
+
+    /**
+     * Matcher for {@link GetGroupsForEntitiesResponse} message.
+     */
+    private static class GetGroupsForEntitiesResponseMatcher extends
+            ProtobufMessageMatcher<GetGroupsForEntitiesResponse> {
+        GetGroupsForEntitiesResponseMatcher(@Nonnull GetGroupsForEntitiesResponse expected) {
+            super(expected, Collections.singleton("entity_group.value.group_id"));
+        }
     }
 }

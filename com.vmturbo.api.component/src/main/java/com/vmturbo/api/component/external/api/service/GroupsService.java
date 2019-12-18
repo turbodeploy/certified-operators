@@ -15,7 +15,6 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -108,9 +107,9 @@ import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.DeleteGroupResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
@@ -1464,23 +1463,19 @@ public class GroupsService implements IGroupsService {
             @Nullable EnvironmentType environmentType) {
         // As of today (Feb 2019), the scopes object could only have one id (PM oid).
         // If there is PM oid, we want to retrieve the Cluster that the PM belonged to.
-        // TODO (Gary, Feb 4, 2019), add a new gRPC service for multiple PM oids when needed.
-        final Map<Long, Grouping> clustersById = scopes.stream()
-            .map(uuid -> Long.parseLong(uuid))
-            .map(entityId -> {
-                final GetGroupForEntityResponse response =
-                    groupServiceRpc.getGroupForEntity(GetGroupForEntityRequest.newBuilder()
-                        .setEntityId(entityId)
+        if (CollectionUtils.isEmpty(scopes)) {
+            return Collections.emptyList();
+        }
+        final Collection<Long> scopeIds =
+                scopes.stream().map(Long::parseLong).collect(Collectors.toList());
+        final GetGroupsForEntitiesResponse response = groupServiceRpc.getGroupsForEntities(
+                GetGroupsForEntitiesRequest.newBuilder()
+                        .addAllEntityId(scopeIds)
+                        .addGroupType(clusterType)
+                        .setLoadGroupObjects(true)
                         .build());
-                return response.getGroupList();
-            })
-            .flatMap(List::stream)
-            .filter(group -> group.getDefinition().getType() == clusterType)
-            // Collect to a map to get rid of duplicate clusters (i.e. if scopes specify two entities
-            // in the same cluster.
-            .collect(Collectors.toMap(Grouping::getId, Function.identity(), (c1, c2) -> c1));
-
-        return clustersById.values().stream()
+        return response.getGroupsList()
+            .stream()
             .map(groupExpander::getMembersForGroup)
             .map(clusterAndMembers -> {
                 EntityEnvironment envCloudType = groupMapper.getEnvironmentAndCloudTypeForGroup(clusterAndMembers);

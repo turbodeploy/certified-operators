@@ -3,6 +3,7 @@ package com.vmturbo.group.group;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -606,13 +607,63 @@ public class GroupDaoTest {
         groupStore.createGroup(OID1, origin, groupDefinition1, EXPECTED_MEMBERS, true);
         groupStore.createGroup(OID2, origin, groupDefinition2,
                 Collections.singleton(MemberType.newBuilder().setEntity(234).build()), true);
-        final Set<GroupDTO.Grouping> groups100 = groupStore.getStaticGroupsForEntity(100L);
-        final Set<GroupDTO.Grouping> groups1 =
-                groupStore.getStaticGroupsForEntity(group1members.iterator().next());
-        Assert.assertEquals(Collections.singleton(OID2),
-                groups100.stream().map(GroupDTO.Grouping::getId).collect(Collectors.toSet()));
-        Assert.assertEquals(new HashSet<>(Arrays.asList(OID1, OID2)),
-                groups1.stream().map(GroupDTO.Grouping::getId).collect(Collectors.toSet()));
+        final Map<Long, Set<Long>> groups100 =
+                groupStore.getStaticGroupsForEntities(Collections.singletonList(100L),
+                        Collections.emptyList());
+        final Map<Long, Set<Long>> groups1 =
+                groupStore.getStaticGroupsForEntities(group1members, Collections.emptyList());
+        Assert.assertEquals(Collections.singleton(OID2), groups100.values()
+                .stream()
+                .flatMap(Collection::stream)
+                .collect(Collectors.toSet()));
+        Assert.assertEquals(new HashSet<>(Arrays.asList(OID1, OID2)), groups1.values()
+                .stream()
+                .flatMap(Collection::stream)
+                .collect(Collectors.toSet()));
+    }
+
+    /**
+     * Tests retrieval of static groups of the specified types associated with an entity.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testGetStaticMembershipInfoSpecificTypes() throws Exception {
+        final Origin origin = createUserOrigin();
+        final GroupDefinition groupDefinition1 = createGroupDefinition();
+        final Collection<Long> group1members = groupDefinition1.getStaticGroupMembers()
+                .getMembersByTypeList()
+                .stream()
+                .filter(memberType -> memberType.getType().hasEntity())
+                .map(StaticMembersByType::getMembersList)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toSet());
+        final Set<Long> group2members = new HashSet<>(Arrays.asList(100L, 102L));
+        group2members.addAll(group1members);
+        final GroupDefinition groupDefinition2 = GroupDefinition.newBuilder(createGroupDefinition())
+                .setType(GroupType.COMPUTE_HOST_CLUSTER)
+                .setStaticGroupMembers(StaticMembers.newBuilder()
+                        .addMembersByType(StaticMembersByType.newBuilder()
+                                .setType(MemberType.newBuilder().setEntity(234))
+                                .addAllMembers(group2members)
+                                .build()))
+                .build();
+        groupStore.createGroup(OID1, origin, groupDefinition1, EXPECTED_MEMBERS, true);
+        groupStore.createGroup(OID2, origin, groupDefinition2,
+                Collections.singleton(MemberType.newBuilder().setEntity(234).build()), true);
+        final Map<Long, Set<Long>> groupsAll =
+                groupStore.getStaticGroupsForEntities(group2members, Collections.emptyList());
+        Assert.assertEquals(Sets.newHashSet(OID1, OID2), groupsAll.values()
+                .stream()
+                .flatMap(Collection::stream)
+                .collect(Collectors.toSet()));
+
+        final Map<Long, Set<Long>> groupsRegular =
+                groupStore.getStaticGroupsForEntities(group2members, EnumSet.of(GroupType.REGULAR));
+        Assert.assertEquals(Collections.singleton(OID1), groupsRegular.values()
+                .stream()
+                .flatMap(Collection::stream)
+                .collect(Collectors.toSet()));
     }
 
     /**

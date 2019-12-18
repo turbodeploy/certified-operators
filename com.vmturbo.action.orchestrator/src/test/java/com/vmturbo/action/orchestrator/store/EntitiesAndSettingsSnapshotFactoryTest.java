@@ -24,10 +24,9 @@ import org.junit.Test;
 
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
-import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.Groupings;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
@@ -90,10 +89,6 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
                 .setSettingSpecName("foo")
                 .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
                 .build();
-        final Grouping associatedResourceGroup = Grouping.newBuilder()
-                .setId(ASSOCIATED_RESOURCE_GROUP_ID)
-                .setDefinition(GroupDefinition.newBuilder().setType(GroupType.RESOURCE).build())
-                .build();
 
         final ServiceEntityApiDTO entityDto = new ServiceEntityApiDTO();
         entityDto.setUuid(Long.toString(ENTITY_ID));
@@ -111,10 +106,13 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
                     .setSetting(setting)
                     .addEntityOids(ENTITY_ID))
                 .build()));
-        when(groupServiceSpy.getGroupForEntity(
-                GetGroupForEntityRequest.newBuilder().setEntityId(ENTITY_ID).build())).thenReturn(
-                GetGroupForEntityResponse.newBuilder().addGroup(associatedResourceGroup).build());
-
+        when(groupServiceSpy.getGroupsForEntities(GetGroupsForEntitiesRequest.newBuilder()
+                .addEntityId(ENTITY_ID)
+                .addGroupType(GroupType.RESOURCE)
+                .build())).thenReturn(GetGroupsForEntitiesResponse.newBuilder()
+                .putEntityGroup(ENTITY_ID,
+                        Groupings.newBuilder().addGroupId(ASSOCIATED_RESOURCE_GROUP_ID).build())
+                .build());
 
         final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(
             Collections.singleton(ENTITY_ID), TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
@@ -137,8 +135,8 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
     public void testNewSnapshotError() {
         when(spServiceSpy.getEntitySettingsError(any()))
             .thenReturn(Optional.of(Status.INTERNAL.asException()));
-        when(groupServiceSpy.getGroupForEntity(any())).thenReturn(
-                GetGroupForEntityResponse.getDefaultInstance());
+        when(groupServiceSpy.getGroupsForEntities(any())).thenReturn(
+                GetGroupsForEntitiesResponse.getDefaultInstance());
 
         final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(Collections.singleton(ENTITY_ID),
             TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);

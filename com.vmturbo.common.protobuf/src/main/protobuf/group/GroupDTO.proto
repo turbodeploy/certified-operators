@@ -398,12 +398,33 @@ message CreateGroupRequest {
     optional Origin origin = 2;
 }
 
-message GetGroupForEntityRequest {
-    optional int64 entity_id = 1;
+message GetGroupsForEntitiesRequest {
+    // Entity OIDs to request groups for. If empty, an empty response will be returned.
+    repeated int64 entity_id = 1;
+
+    // Group types to retrieve. If empty all the group types will be queried.
+    repeated common_dto.GroupDTO.GroupType group_type = 2;
+
+    // Whether to load groups objects. If this parameter is set to false (default), then
+    // GetGroupForEntityResponse.groups will not be filled.
+    // Be aware that setting this flag to true will cause additional queries to be executed
+    // at the service's side and additional data to be transferred over the network
+    optional bool load_group_objects = 3 [default = false];
 }
 
-message GetGroupForEntityResponse {
-    repeated Grouping group = 1;
+// A collection of groups
+message Groupings {
+    repeated int64 group_id = 1;
+}
+
+// Response of groups for entity request
+message GetGroupsForEntitiesResponse {
+    // Map of entity Oid -> group OIDs
+    map<int64, Groupings> entity_group = 1;
+
+    // A collection of groups that are mentioned in entity_group map. Only filled if
+    // GetGroupForEntityRequest.load_group_objects is true
+    repeated Grouping groups = 2;
 }
 
 message GetTagsRequest {}
@@ -428,24 +449,24 @@ service GroupService {
     rpc GetGroups(GetGroupsRequest) returns (stream Grouping);
 
     // Count groups matching a particular request.
-    rpc CountGroups(GetGroupsRequest) returns (CountGroupsResponse);
+    rpc CountGroups (GetGroupsRequest) returns (CountGroupsResponse);
 
-    rpc UpdateGroup(UpdateGroupRequest) returns (UpdateGroupResponse);
+    rpc UpdateGroup (UpdateGroupRequest) returns (UpdateGroupResponse);
 
     // Delete a group
     //
     // Returns INVALID_ARGUMENT if the group is a discovered group.
-    rpc DeleteGroup(GroupID) returns (DeleteGroupResponse);
+    rpc DeleteGroup (GroupID) returns (DeleteGroupResponse);
 
     // Get the members of a group
-    rpc GetMembers(GetMembersRequest) returns (GetMembersResponse);
+    rpc GetMembers (GetMembersRequest) returns (GetMembersResponse);
 
     // Get the group the entity belongs to.
-    rpc GetGroupForEntity(GetGroupForEntityRequest) returns (GetGroupForEntityResponse);
+    rpc GetGroupsForEntities (GetGroupsForEntitiesRequest) returns (GetGroupsForEntitiesResponse);
 
     // Stores groups, clusters, settings and policies discovered in the customer's topology.
-    rpc StoreDiscoveredGroupsPoliciesSettings(stream DiscoveredGroupsPoliciesSettings) returns (StoreDiscoveredGroupsPoliciesSettingsResponse);
+    rpc StoreDiscoveredGroupsPoliciesSettings (stream DiscoveredGroupsPoliciesSettings) returns (StoreDiscoveredGroupsPoliciesSettingsResponse);
 
     // Returns all tags of groups
-    rpc GetTags(GetTagsRequest) returns (GetTagsResponse);
+    rpc GetTags (GetTagsRequest) returns (GetTagsResponse);
 }

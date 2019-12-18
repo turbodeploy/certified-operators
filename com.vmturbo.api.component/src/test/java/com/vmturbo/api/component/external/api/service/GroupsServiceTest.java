@@ -90,9 +90,9 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlock
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
@@ -101,6 +101,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.Groupings;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin.Type;
@@ -1093,12 +1094,17 @@ public class GroupsServiceTest {
         when(groupExpander.getMembersForGroup(group2)).thenReturn(groupAndMembers2);
         when(groupMapper.getEnvironmentAndCloudTypeForGroup(groupAndMembers2)).thenReturn(new EntityEnvironment(EnvironmentType.CLOUD, CloudType.AWS));
         when(groupMapper.toGroupApiDto(groupAndMembers2, EnvironmentType.CLOUD, CloudType.AWS, true)).thenReturn(groupApiDto2);
-        when(groupServiceSpy.getGroupForEntity(GetGroupForEntityRequest.newBuilder()
-                .setEntityId(111L)
+        when(groupServiceSpy.getGroupsForEntities(GetGroupsForEntitiesRequest.newBuilder()
+                .addEntityId(111L)
+                .addGroupType(GroupType.REGULAR)
+                .setLoadGroupObjects(true)
                 .build()))
-                .thenReturn(GetGroupForEntityResponse.newBuilder()
-                        .addGroup(group1)
-                        .addGroup(group2)
+                .thenReturn(GetGroupsForEntitiesResponse.newBuilder()
+                        .putEntityGroup(111L, Groupings.newBuilder().addGroupId(group1.getId())
+                                .addGroupId(group2.getId())
+                                .build())
+                        .addGroups(group1)
+                        .addGroups(group2)
                         .build());
 
         final ApiId entityApiId = mock(ApiId.class);

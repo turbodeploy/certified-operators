@@ -40,9 +40,9 @@ import com.vmturbo.common.protobuf.group.GroupDTO.DeleteGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
@@ -56,6 +56,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.SelectionCrite
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.Groupings;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsPoliciesSettingsResponse;
@@ -348,38 +349,61 @@ public class GroupRpcService extends GroupServiceImplBase {
     }
 
     @Override
-    public void getGroupForEntity(GetGroupForEntityRequest request,
-            StreamObserver<GetGroupForEntityResponse> responseObserver) {
-        if (!request.hasEntityId()) {
-            final String errMsg = "EntityID is missing for the getGroupForEntityRequest";
-            logger.error(errMsg);
-            responseObserver.onError(
-                    Status.INVALID_ARGUMENT.withDescription(errMsg).asException());
+    public void getGroupsForEntities(GetGroupsForEntitiesRequest request,
+            StreamObserver<GetGroupsForEntitiesResponse> responseObserver) {
+        if (request.getEntityIdCount() == 0) {
+            responseObserver.onNext(GetGroupsForEntitiesResponse.getDefaultInstance());
+            responseObserver.onCompleted();
             return;
         }
         if (userSessionContext.isUserScoped()) {
             UserScopeUtils.checkAccess(userSessionContext.getUserAccessScope(),
-                    Collections.singletonList(request.getEntityId()));
+                    request.getEntityIdList());
         }
-        executeOperation(responseObserver, (stores) -> {
-            final IGroupStore groupStore = stores.getGroupStore();
-            final Set<Grouping> staticGroupsForEntity =
-                    groupStore.getStaticGroupsForEntity(request.getEntityId());
-            final List<Grouping> filteredGroups = new ArrayList<>(staticGroupsForEntity.size());
-            for (Grouping staticGroup: staticGroupsForEntity) {
-                //  User have access to group if has access to all group members
-                if (!userSessionContext.isUserScoped() ||
-                        UserScopeUtils.checkAccess(userSessionContext,
-                                getGroupMembers(groupStore, staticGroup.getDefinition(), true))) {
-                    filteredGroups.add(staticGroup);
-                }
-            }
-            GetGroupForEntityResponse entityResponse =
-                    GetGroupForEntityResponse.newBuilder().addAllGroup(filteredGroups).build();
+        executeOperation(responseObserver,
+                (stores) -> getGroupForEntity(stores.getGroupStore(), request, responseObserver));
+    }
 
-            responseObserver.onNext(entityResponse);
-            responseObserver.onCompleted();
-        });
+    private void getGroupForEntity(@Nonnull IGroupStore groupStore,
+            @Nonnull GetGroupsForEntitiesRequest request,
+            @Nonnull StreamObserver<GetGroupsForEntitiesResponse> responseObserver)
+            throws StoreOperationException {
+        final Map<Long, Set<Long>> staticGroupsPerEntity =
+                groupStore.getStaticGroupsForEntities(request.getEntityIdList(),
+                        request.getGroupTypeList());
+        final Map<Long, Set<Long>> filteredGroups;
+        if (!userSessionContext.isUserScoped()) {
+            filteredGroups = staticGroupsPerEntity;
+        } else {
+            filteredGroups = new HashMap<>(staticGroupsPerEntity.size());
+            for (Entry<Long, Set<Long>> entityGroups : staticGroupsPerEntity.entrySet()) {
+                final Set<Long> filtered = new HashSet<>(entityGroups.getValue().size());
+                for (Long staticGroup : entityGroups.getValue()) {
+                    //  User have access to group if has access to all group members
+                    if (userHasAccessToGrouping(groupStore, staticGroup)) {
+                        filtered.add(staticGroup);
+                    }
+                }
+                filteredGroups.put(entityGroups.getKey(), filtered);
+            }
+        }
+        final GetGroupsForEntitiesResponse.Builder response =
+                GetGroupsForEntitiesResponse.newBuilder();
+        for (Entry<Long, Set<Long>> entityGroups : filteredGroups.entrySet()) {
+            final Groupings groupings =
+                    Groupings.newBuilder().addAllGroupId(entityGroups.getValue()).build();
+            response.putEntityGroup(entityGroups.getKey(), groupings);
+        }
+        if (request.getLoadGroupObjects()) {
+            final Set<Long> groupIds = filteredGroups.values()
+                    .stream()
+                    .flatMap(Collection::stream)
+                    .collect(Collectors.toSet());
+            final Collection<Grouping> groups = groupStore.getGroupsById(groupIds);
+            response.addAllGroups(groups);
+        }
+        responseObserver.onNext(response.build());
+        responseObserver.onCompleted();
     }
 
     /**

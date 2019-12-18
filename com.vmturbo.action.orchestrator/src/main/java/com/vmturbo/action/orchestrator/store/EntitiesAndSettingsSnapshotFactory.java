@@ -2,8 +2,8 @@ package com.vmturbo.action.orchestrator.store;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -23,9 +23,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupForEntityResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.Groupings;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
@@ -228,18 +228,23 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
 
     @Nonnull
     private Map<Long, Long> retrieveResourceGroupsForEntities(@Nonnull Set<Long> entities) {
-        final Map<Long, Long> entityToResourceGroupMap = new HashMap<>(entities.size());
-        for (Long entity : entities) {
-            final GetGroupForEntityResponse groupForEntityResponse = groupService.getGroupForEntity(
-                    GetGroupForEntityRequest.newBuilder().setEntityId(entity).build());
-            final List<Grouping> groups = groupForEntityResponse.getGroupList();
-            for (Grouping group : groups) {
-                if (group.getDefinition().getType().equals(GroupType.RESOURCE)) {
-                    entityToResourceGroupMap.put(entity, group.getId());
+        final GetGroupsForEntitiesResponse response = groupService.getGroupsForEntities(
+                GetGroupsForEntitiesRequest.newBuilder()
+                        .addAllEntityId(entities)
+                        .addGroupType(GroupType.RESOURCE)
+                        .build());
+        final Map<Long, Long> resultMap = new HashMap<>();
+        for (Entry<Long, Groupings> groupingsEntry : response.getEntityGroupMap().entrySet()) {
+            final long entityId = groupingsEntry.getKey();
+            for (Long groupId : groupingsEntry.getValue().getGroupIdList()) {
+                final Long oldGroupId = resultMap.put(entityId, groupId);
+                if (oldGroupId != null) {
+                    logger.warn("Found multiple resource groups for entity {}: {} and {}", entityId,
+                            oldGroupId, groupId);
                 }
             }
         }
-        return entityToResourceGroupMap;
+        return Collections.unmodifiableMap(resultMap);
     }
 
     @Nonnull
