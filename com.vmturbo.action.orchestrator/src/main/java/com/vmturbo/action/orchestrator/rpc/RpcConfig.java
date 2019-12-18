@@ -62,7 +62,7 @@ public class RpcConfig {
     @Value("${actionPaginationMaxLimit}")
     private int actionPaginationMaxLimit;
 
-    @Value("${maxAmountOfEntitiesPerGrpcMessage}")
+    @Value("${maxAmountOfEntitiesPerGrpcMessage:5000}")
     private int maxAmountOfEntitiesPerGrpcMessage;
 
     @Bean

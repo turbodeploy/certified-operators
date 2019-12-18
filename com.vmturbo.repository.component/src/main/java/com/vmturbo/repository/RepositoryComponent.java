@@ -211,7 +211,7 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Value("${numberOfExpectedRealtimeProjectedDB}")
     private int numberOfExpectedRealtimeProjectedDB;
 
-    @Value("${repositoryMaxEntitiesPerChunk}")
+    @Value("${repositoryMaxEntitiesPerChunk:5}")
     private int maxEntitiesPerChunk;
 
     private final SetOnce<ArangoDB> arangoDB = new SetOnce<>();
