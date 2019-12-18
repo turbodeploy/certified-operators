@@ -438,6 +438,16 @@ public enum EntitySettingSpecs {
             numeric(0.0f/*min*/, 100000.0f/*max*/, 100.0f/*default*/), true),
 
     /**
+     * Ignore nvme pre-requisite. When this setting is enabled for a VM, we will not perform the
+     * NVMe pre-requisite check.
+     */
+    IgnoreNvmePreRequisite("ignoreNvmePreRequisite", "Ignore NVMe Constraints",
+        Collections.singletonList("resizeRecommendationsConstants"),
+        SettingTiebreaker.BIGGER,
+        EnumSet.of(EntityType.VIRTUAL_MACHINE),
+        new BooleanSettingDataType(false), true),
+
+    /**
      * Automation Policy for the Activate Workflow. The value is the name of an
      * Orchestration workflow to invoke when an activate action is generated and executed.
      */

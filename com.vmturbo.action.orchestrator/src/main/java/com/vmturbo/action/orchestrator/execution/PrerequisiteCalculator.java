@@ -1,8 +1,11 @@
 package com.vmturbo.action.orchestrator.execution;
 
+import static com.vmturbo.components.common.setting.EntitySettingSpecs.IgnoreNvmePreRequisite;
+
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -10,6 +13,9 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.constraint.ActionConstraintStore;
 import com.vmturbo.action.orchestrator.action.constraint.ActionConstraintStoreFactory;
@@ -20,6 +26,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action.Prerequisite;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.PrerequisiteType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
@@ -44,6 +51,8 @@ class PrerequisiteCalculator {
      */
     private PrerequisiteCalculator() {}
 
+    private static final Logger logger = LogManager.getLogger();
+
     /**
      * Calculate pre-requisites for a given action.
      *
@@ -61,18 +70,18 @@ class PrerequisiteCalculator {
             @Nonnull final EntitiesAndSettingsSnapshot snapshot,
             @Nonnull final ProbeCategory probeCategory,
             @Nonnull final ActionConstraintStoreFactory actionConstraintStoreFactory) {
-        final Set<Prerequisite> whatPrerequisites = calculateGeneralPrerequisites(
+        final Set<Prerequisite> generalPrerequisites = calculateGeneralPrerequisites(
             action, target, snapshot, probeCategory);
         final Set<Prerequisite> coreQuotaPrerequisites = calculateQuotaPrerequisite(
             action, target, snapshot, probeCategory, actionConstraintStoreFactory.getCoreQuotaStore());
 
-        if (whatPrerequisites.isEmpty() && coreQuotaPrerequisites.isEmpty()) {
+        if (generalPrerequisites.isEmpty() && coreQuotaPrerequisites.isEmpty()) {
             return Collections.emptySet();
         }
 
         final Set<Prerequisite> prerequisites =
-            new HashSet<>(whatPrerequisites.size() + coreQuotaPrerequisites.size());
-        prerequisites.addAll(whatPrerequisites);
+            new HashSet<>(generalPrerequisites.size() + coreQuotaPrerequisites.size());
+        prerequisites.addAll(generalPrerequisites);
         prerequisites.addAll(coreQuotaPrerequisites);
         return prerequisites;
     }
@@ -81,20 +90,22 @@ class PrerequisiteCalculator {
      * This functional interface defines a single pre-requisites calculator.
      */
     @FunctionalInterface
-    private interface WhatPrerequisiteCalculator {
+    private interface GeneralPrerequisiteCalculator {
         /**
          * Calculate a specific type of pre-requisite.
          *
          * @param virtualMachineInfo virtualMachineInfo which contains pre-requisite info
          * @param computeTierInfo computeTierInfo which contains pre-requisite info
+         * @param settingsForTargetEntity settings for the target entity
          * @return a {@link Prerequisite} if there's any
          */
         Optional<Prerequisite> calculate(VirtualMachineInfo virtualMachineInfo,
-                                         ComputeTierInfo computeTierInfo);
+                                         ComputeTierInfo computeTierInfo,
+                                         Map<String, Setting> settingsForTargetEntity);
     }
 
     // A list of single calculators for different type of pre-requisite.
-    private static List<WhatPrerequisiteCalculator> whatPrerequisiteCalculators = ImmutableList.of(
+    private static List<GeneralPrerequisiteCalculator> generalPrerequisiteCalculators = ImmutableList.of(
         PrerequisiteCalculator::calculateEnaPrerequisite,
         PrerequisiteCalculator::calculateNVMePrerequisite,
         PrerequisiteCalculator::calculateArchitecturePrerequisite,
@@ -136,10 +147,15 @@ class PrerequisiteCalculator {
                     destinationOptional.get().getTypeSpecificInfo().hasComputeTier()) {
                     // Calculate pre-requisites when target has VirtualMachineInfo and
                     // destination has ComputeTierInfo.
-                    return whatPrerequisiteCalculators.stream()
+                    Map<String, Setting> settingsForTargetEntity = snapshot.getSettingsForEntity(target.getOid());
+                    if (settingsForTargetEntity == null) {
+                        logger.error("Could not fetch settings for entity {}", target.getDisplayName());
+                    }
+                    return generalPrerequisiteCalculators.stream()
                         .map(calculator -> calculator.calculate(
                             target.getTypeSpecificInfo().getVirtualMachine(),
-                            destinationOptional.get().getTypeSpecificInfo().getComputeTier()))
+                            destinationOptional.get().getTypeSpecificInfo().getComputeTier(),
+                            settingsForTargetEntity))
                         .filter(Optional::isPresent)
                         .map(Optional::get)
                         .collect(Collectors.toSet());
@@ -156,11 +172,13 @@ class PrerequisiteCalculator {
      *
      * @param virtualMachineInfo virtualMachineInfo which contains pre-requisite info
      * @param computeTierInfo computeTierInfo which contains pre-requisite info
+     * @param settingsForTargetEntity settings for the target entity
      * @return a {@link Prerequisite} if there's any
      */
     private static Optional<Prerequisite> calculateEnaPrerequisite(
-            @Nonnull final VirtualMachineInfo virtualMachineInfo,
-            @Nonnull final ComputeTierInfo computeTierInfo) {
+        @Nonnull final VirtualMachineInfo virtualMachineInfo,
+        @Nonnull final ComputeTierInfo computeTierInfo,
+        @Nonnull final Map<String, Setting> settingsForTargetEntity) {
         // Check if the compute tier supports only Ena vms.
         final boolean computeTierSupportsOnlyEnaVms = computeTierInfo.hasSupportedCustomerInfo() &&
             computeTierInfo.getSupportedCustomerInfo().hasSupportsOnlyEnaVms() &&
@@ -174,7 +192,6 @@ class PrerequisiteCalculator {
             return Optional.of(Prerequisite.newBuilder()
                 .setPrerequisiteType(PrerequisiteType.ENA).build());
         }
-
         return Optional.empty();
     }
 
@@ -184,25 +201,33 @@ class PrerequisiteCalculator {
      *
      * @param virtualMachineInfo virtualMachineInfo which contains pre-requisite info
      * @param computeTierInfo computeTierInfo which contains pre-requisite info
+     * @param settingsForTargetEntity settings for the target entity
      * @return a {@link Prerequisite} if there's any
      */
     private static Optional<Prerequisite> calculateNVMePrerequisite(
             @Nonnull final VirtualMachineInfo virtualMachineInfo,
-            @Nonnull final ComputeTierInfo computeTierInfo) {
-        // Check if the compute tier supports only NVMe vms.
-        final boolean computeTierSupportsOnlyNVMeVms = computeTierInfo.hasSupportedCustomerInfo() &&
-            computeTierInfo.getSupportedCustomerInfo().hasSupportsOnlyNVMeVms() &&
-            computeTierInfo.getSupportedCustomerInfo().getSupportsOnlyNVMeVms();
-        // Check if the vm has a NVMe driver.
-        final boolean vmHasNvmeDriver = virtualMachineInfo.hasDriverInfo() &&
-            virtualMachineInfo.getDriverInfo().hasHasNvmeDriver() &&
-            virtualMachineInfo.getDriverInfo().getHasNvmeDriver();
+            @Nonnull final ComputeTierInfo computeTierInfo,
+            @Nonnull final Map<String, Setting> settingsForTargetEntity) {
+        if (settingsForTargetEntity != null) {
+            Setting ignoreNvmeSetting = settingsForTargetEntity.get(IgnoreNvmePreRequisite.getSettingName());
+            boolean ignoreNvme = ignoreNvmeSetting.hasBooleanSettingValue()
+                && ignoreNvmeSetting.getBooleanSettingValue().getValue();
+            if (!ignoreNvme) {
+                // Check if the compute tier supports only NVMe vms.
+                final boolean computeTierSupportsOnlyNVMeVms = computeTierInfo.hasSupportedCustomerInfo() &&
+                    computeTierInfo.getSupportedCustomerInfo().hasSupportsOnlyNVMeVms() &&
+                    computeTierInfo.getSupportedCustomerInfo().getSupportsOnlyNVMeVms();
+                // Check if the vm has a NVMe driver.
+                final boolean vmHasNvmeDriver = virtualMachineInfo.hasDriverInfo() &&
+                    virtualMachineInfo.getDriverInfo().hasHasNvmeDriver() &&
+                    virtualMachineInfo.getDriverInfo().getHasNvmeDriver();
 
-        if (computeTierSupportsOnlyNVMeVms && !vmHasNvmeDriver) {
-            return Optional.of(Prerequisite.newBuilder()
-                .setPrerequisiteType(PrerequisiteType.NVME).build());
+                if (computeTierSupportsOnlyNVMeVms && !vmHasNvmeDriver) {
+                    return Optional.of(Prerequisite.newBuilder()
+                        .setPrerequisiteType(PrerequisiteType.NVME).build());
+                }
+            }
         }
-
         return Optional.empty();
     }
 
@@ -211,11 +236,13 @@ class PrerequisiteCalculator {
      *
      * @param virtualMachineInfo virtualMachineInfo which contains pre-requisite info
      * @param computeTierInfo computeTierInfo which contains pre-requisite info
+     * @param settingsForTargetEntity settings for the target entity
      * @return a {@link Prerequisite} if there's any
      */
     private static Optional<Prerequisite> calculateArchitecturePrerequisite(
-            @Nonnull final VirtualMachineInfo virtualMachineInfo,
-            @Nonnull final ComputeTierInfo computeTierInfo) {
+        @Nonnull final VirtualMachineInfo virtualMachineInfo,
+        @Nonnull final ComputeTierInfo computeTierInfo,
+        @Nonnull final Map<String, Setting> settingsForTargetEntity) {
         // Check if the compute tier has supported architectures.
         final boolean computeTierHasSupportedArchitectures =
             computeTierInfo.hasSupportedCustomerInfo() &&
@@ -230,7 +257,6 @@ class PrerequisiteCalculator {
             return Optional.of(Prerequisite.newBuilder()
                 .setPrerequisiteType(PrerequisiteType.ARCHITECTURE).build());
         }
-
         return Optional.empty();
     }
 
@@ -239,11 +265,13 @@ class PrerequisiteCalculator {
      *
      * @param virtualMachineInfo virtualMachineInfo which contains pre-requisite info
      * @param computeTierInfo computeTierInfo which contains pre-requisite info
+     * @param settingsForTargetEntity settings for the target entity
      * @return a {@link Prerequisite} if there's any
      */
     private static Optional<Prerequisite> calculateVirtualizationTypePrerequisite(
             @Nonnull final VirtualMachineInfo virtualMachineInfo,
-            @Nonnull final ComputeTierInfo computeTierInfo) {
+            @Nonnull final ComputeTierInfo computeTierInfo,
+            @Nonnull final Map<String, Setting> settingsForTargetEntity) {
         // Check if the compute tier has supported virtualization types.
         final boolean computeTierHasSupportedVirtualizationTypes =
             computeTierInfo.hasSupportedCustomerInfo() &&
@@ -258,7 +286,6 @@ class PrerequisiteCalculator {
             return Optional.of(Prerequisite.newBuilder()
                 .setPrerequisiteType(PrerequisiteType.VIRTUALIZATION_TYPE).build());
         }
-
         return Optional.empty();
     }
 

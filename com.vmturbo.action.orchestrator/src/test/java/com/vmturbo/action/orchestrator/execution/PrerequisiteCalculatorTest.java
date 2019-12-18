@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.execution;
 
+import static com.vmturbo.components.common.setting.EntitySettingSpecs.IgnoreNvmePreRequisite;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -7,14 +8,19 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
+
+import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.action.orchestrator.action.constraint.CoreQuotaStore;
@@ -28,6 +34,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
+import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
@@ -46,9 +54,20 @@ import com.vmturbo.platform.sdk.common.util.ProbeCategory;
  */
 public class PrerequisiteCalculatorTest {
 
+    private static final Long VM1 = 1L;
     private final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
 
     private CoreQuotaStore coreQuotaStore = mock(CoreQuotaStore.class);
+
+    /**
+     * Setup
+     */
+    @Before
+    public void setup() {
+        Setting defaultIgnoreNvmeSetting = Setting.newBuilder().setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(false)).build();
+        Map<String, Setting> settingMap = ImmutableMap.of(IgnoreNvmePreRequisite.getSettingName(), defaultIgnoreNvmeSetting);
+        when(snapshot.getSettingsForEntity(VM1)).thenReturn(settingMap);
+    }
 
     /**
      * Build a Move action.
@@ -60,7 +79,7 @@ public class PrerequisiteCalculatorTest {
     private Action buildMoveAction(final long sourceId, final long destinationId) {
         return Action.newBuilder().setId(0).setDeprecatedImportance(0)
             .setInfo(ActionInfo.newBuilder().setMove(Move.newBuilder()
-                .setTarget(ActionEntity.newBuilder().setId(1)
+                .setTarget(ActionEntity.newBuilder().setId(VM1)
                     .setType(EntityType.VIRTUAL_MACHINE_VALUE))
                 .addChanges(ChangeProvider.newBuilder()
                     .setSource(ActionEntity.newBuilder()
@@ -96,7 +115,7 @@ public class PrerequisiteCalculatorTest {
             }
         }
 
-        return ActionPartialEntity.newBuilder().setOid(0)
+        return ActionPartialEntity.newBuilder().setOid(VM1)
             .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                 .setVirtualMachine(builder)).build();
     }
@@ -170,6 +189,30 @@ public class PrerequisiteCalculatorTest {
             action, target, snapshot, ProbeCategory.CLOUD_MANAGEMENT),
             is(Collections.singleton(Prerequisite.newBuilder()
                 .setPrerequisiteType(PrerequisiteType.NVME).build())));
+    }
+
+    /**
+     * Test {@link PrerequisiteCalculator#calculateGeneralPrerequisites}. If the ignore nvme
+     * constraint is true for the VM, then we will not evaluate the nvme pre-requisite.
+     */
+    @Test
+    public void testCalculateGeneralPrerequisitesNVMeIgnoreNvmeConstraint() {
+        Setting ignoreNvmeSetting = Setting.newBuilder().setBooleanSettingValue(
+            BooleanSettingValue.newBuilder().setValue(true)).build();
+        Map<String, Setting> settingMap = ImmutableMap.of(
+            IgnoreNvmePreRequisite.getSettingName(), ignoreNvmeSetting);
+        when(snapshot.getSettingsForEntity(VM1)).thenReturn(settingMap);
+
+        final long destinationId = 1;
+        final Action action = buildMoveAction(2, destinationId);
+        final ActionPartialEntity target = buildGeneralVMActionPartialEntity(PrerequisiteType.NVME);
+        final ActionPartialEntity destination =
+            buildGeneralComputeTierActionPartialEntity(PrerequisiteType.NVME);
+
+        doReturn(Optional.of(destination)).when(snapshot).getEntityFromOid(destinationId);
+
+        assertTrue(PrerequisiteCalculator.calculateGeneralPrerequisites(
+            action, target, snapshot, ProbeCategory.CLOUD_MANAGEMENT).isEmpty());
     }
 
     /**
