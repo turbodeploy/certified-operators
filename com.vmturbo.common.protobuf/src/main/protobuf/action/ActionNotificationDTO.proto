@@ -4,6 +4,7 @@ package action;
 option java_package = "com.vmturbo.common.protobuf.action";
 
 import "action/ActionDTO.proto";
+import "plan/PlanDTO.proto";
 
 // Sent as an update when an action is in progress.
 message ActionProgress {
@@ -48,5 +49,11 @@ message ActionsUpdated {
     // The ID of the topology context. Used to differentiate, for example, between real and plan contexts.
     // If not set, it is an error.
     optional int64 __deprecated__topology_context_id = 3 [deprecated = true];
+
+    optional UpdateFailure updateFailure = 4;
+
+    message UpdateFailure {
+        optional string error_message = 1;
+    }
 
 }

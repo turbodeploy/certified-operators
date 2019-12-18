@@ -40,6 +40,8 @@ public class MarketActionListenerTest {
     private final IActionStoreLoader actionStoreLoader = Mockito.mock(IActionStoreLoader.class);
     private final AutomatedActionExecutor executor = Mockito.mock(AutomatedActionExecutor.class);
     private final ActionModeCalculator actionModeCalculator = mock(ActionModeCalculator.class);
+    private final ActionOrchestratorNotificationSender notificationSender =
+            mock(ActionOrchestratorNotificationSender.class);
     private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
             executor, actionStoreLoader, actionModeCalculator);
     private final ActionStore actionStore = mock(ActionStore.class);

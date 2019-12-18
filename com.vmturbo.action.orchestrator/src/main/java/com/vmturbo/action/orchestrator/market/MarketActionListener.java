@@ -100,34 +100,37 @@ public class MarketActionListener implements ActionsListener, AnalysisSummaryLis
 
         if (shouldSkip(orderedActions)) {
             logger.warn("Dropping action plan {} (info: {}) " +
-                    "with {} actions (analysis start [{}] completion [{}])",
-                orderedActions.getId(),
-                orderedActions.getInfo(),
-                orderedActions.getActionCount(),
-                localDateTimeFromSystemTime(orderedActions.getAnalysisStartTimestamp()),
-                localDateTimeFromSystemTime(orderedActions.getAnalysisCompleteTimestamp()));
+                            "with {} actions (analysis start [{}] completion [{}])",
+                    orderedActions.getId(),
+                    orderedActions.getInfo(),
+                    orderedActions.getActionCount(),
+                    localDateTimeFromSystemTime(orderedActions.getAnalysisStartTimestamp()),
+                    localDateTimeFromSystemTime(orderedActions.getAnalysisCompleteTimestamp()));
             return;
         }
 
         // Populate the store with the new recommendations and refresh the cache.
-        final ActionStore actionStore = actionStorehouse.storeActions(orderedActions);
-        logger.info("Received {} actions in action plan {} (info: {})" +
-                " (analysis start [{}] completion [{}])" +
-                " (store population: {}).",
-            orderedActions.getActionCount(),
-            orderedActions.getId(),
-            orderedActions.getInfo(),
-            localDateTimeFromSystemTime(orderedActions.getAnalysisStartTimestamp()),
-            localDateTimeFromSystemTime(orderedActions.getAnalysisCompleteTimestamp()),
-            actionStore.size());
-
-        // Notify listeners that actions are ready for retrieval.
         try {
-            notificationSender.notifyActionsUpdated(orderedActions);
-        } catch (CommunicationException | InterruptedException e) {
-            logger.error(
-                    "Could not send actions recommended notification for " + orderedActions.getId(),
-                    e);
+            final ActionStore actionStore = actionStorehouse.storeActions(orderedActions);
+            logger.info("Received {} actions in action plan {} (info: {})" +
+                            " (analysis start [{}] completion [{}])" +
+                            " (store population: {}).",
+                    orderedActions.getActionCount(),
+                    orderedActions.getId(),
+                    orderedActions.getInfo(),
+                    localDateTimeFromSystemTime(orderedActions.getAnalysisStartTimestamp()),
+                    localDateTimeFromSystemTime(orderedActions.getAnalysisCompleteTimestamp()),
+                    actionStore.size());
+            // Notify listeners that actions are ready for retrieval.
+            try {
+                notificationSender.notifyActionsUpdated(orderedActions);
+            } catch (CommunicationException | InterruptedException e) {
+                logger.error("Could not send actions recommended notification for "
+                        + orderedActions.getId(), e);
+            }
+        } catch (Exception e) {
+            logger.error("An error happened while populating the actions.", e);
+            notificationSender.notifyActionsUpdateFailure(orderedActions);
         }
     }
 
