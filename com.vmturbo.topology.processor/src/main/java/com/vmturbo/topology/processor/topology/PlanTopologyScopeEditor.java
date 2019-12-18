@@ -84,8 +84,6 @@ public class PlanTopologyScopeEditor {
      */
     public TopologyGraph<TopologyEntity> scopeCloudTopology(@Nonnull final TopologyInfo topologyInfo,
                                                             @Nonnull final TopologyGraph<TopologyEntity> graph) {
-        // TODO: the implementation of this algorithm can be replaced by calls to
-        // the new scoped supply chain algorithm, which will come with OM-51366
         // from the seed list keep accounts, regions, and workloads only
         final Set<Long> seedIds =
             topologyInfo.getScopeSeedOidsList().stream()

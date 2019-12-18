@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import org.junit.Test;
-import org.mockito.Mock;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -20,9 +19,14 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology.SourceRealtimeTopologyBuilder;
+import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
 
+/**
+ * Test for the {@link LiveTopologyStore} class.
+ */
 public class LiveTopologyStoreTest {
-    /**
+    /*
+     *  Topology to test on:
      *  VM
      *   |
      *  PM   PM
@@ -60,9 +64,8 @@ public class LiveTopologyStoreTest {
                     .setType(UICommodityType.STORAGE_AMOUNT.typeNumber()))))
         .build();
 
-    private final GlobalSupplyChainCalculator supplyChainCalculator = mock(GlobalSupplyChainCalculator.class);
-
-    private final LiveTopologyStore liveTopologyStore = new LiveTopologyStore(supplyChainCalculator);
+    private final LiveTopologyStore liveTopologyStore =
+            new LiveTopologyStore(new GlobalSupplyChainCalculator());
 
     @Test
     public void testSourceTopology() {

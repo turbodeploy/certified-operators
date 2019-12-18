@@ -12,6 +12,7 @@ import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIR
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -21,6 +22,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
@@ -110,15 +112,11 @@ public class FlowCommoditiesGenerator {
      * @return The optional Region.
      */
     private Optional<StitchingEntity> getRegionForAZ(final @Nonnull TopologyStitchingEntity az) {
-        for (Set<StitchingEntity> set : az.getConnectedFromByType().values()) {
-            Optional<StitchingEntity> region = set.stream()
-                                                  .filter(p -> p.getEntityType().equals(REGION))
-                                                  .findFirst();
-            if (region.isPresent()) {
-                return region;
-            }
-        }
-        return Optional.empty();
+        return az.getConnectedFromByType()
+                 .getOrDefault(ConnectionType.OWNS_CONNECTION, Collections.emptySet())
+                 .stream()
+                 .filter(p -> p.getEntityType().equals(REGION))
+                 .findAny();
     }
 
     /**
@@ -127,9 +125,8 @@ public class FlowCommoditiesGenerator {
      * @param az The availability zone.
      */
     private void setAZTopology(final @Nonnull TopologyStitchingEntity az) {
-        final Optional<StitchingEntity> region = getRegionForAZ(az);
-        region.ifPresent(stitchingEntity -> matrix.populateUnderlay(az.getOid(),
-                                                                    stitchingEntity.getOid()));
+        getRegionForAZ(az).ifPresent(stitchingEntity ->
+            matrix.populateUnderlay(az.getOid(), stitchingEntity.getOid()));
     }
 
     /**

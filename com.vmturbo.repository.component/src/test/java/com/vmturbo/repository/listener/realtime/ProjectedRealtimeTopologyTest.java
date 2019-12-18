@@ -3,7 +3,6 @@ package com.vmturbo.repository.listener.realtime;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Mockito.mock;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -24,6 +23,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.repository.listener.realtime.ProjectedRealtimeTopology.ProjectedTopologyBuilder;
+import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
 
 public class ProjectedRealtimeTopologyTest {
 
@@ -61,7 +61,7 @@ public class ProjectedRealtimeTopologyTest {
             .setTopologyId(9)
             .setTopologyType(TopologyType.REALTIME)
             .build();
-        final LiveTopologyStore liveTopologyStore = new LiveTopologyStore(mock(GlobalSupplyChainCalculator.class));
+        final LiveTopologyStore liveTopologyStore = new LiveTopologyStore(new GlobalSupplyChainCalculator());
         final ProjectedTopologyBuilder projectedTopologyBuilder =
             liveTopologyStore.newProjectedTopology(topologyId, originalTopologyInfo);
         projectedTopologyBuilder.addEntities(Collections.singletonList(projectedVm));
@@ -95,7 +95,7 @@ public class ProjectedRealtimeTopologyTest {
             .setTopologyId(9)
             .setTopologyType(TopologyType.REALTIME)
             .build();
-        final LiveTopologyStore liveTopologyStore = new LiveTopologyStore(mock(GlobalSupplyChainCalculator.class));
+        final LiveTopologyStore liveTopologyStore = new LiveTopologyStore(new GlobalSupplyChainCalculator());
         final ProjectedTopologyBuilder projectedTopologyBuilder =
             liveTopologyStore.newProjectedTopology(topologyId, originalTopologyInfo);
         projectedTopologyBuilder.addEntities(Collections.singletonList(projectedVm));

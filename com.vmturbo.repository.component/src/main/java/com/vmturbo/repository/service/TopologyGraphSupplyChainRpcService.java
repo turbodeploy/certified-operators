@@ -4,27 +4,25 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Sets;
+import com.google.common.collect.ImmutableSet;
 
-import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
-import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
@@ -39,7 +37,6 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainStat;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceImplBase;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -47,18 +44,14 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology;
-import com.vmturbo.repository.service.SupplyChainMerger.MergedSupplyChain;
-import com.vmturbo.repository.service.SupplyChainMerger.MergedSupplyChainException;
-import com.vmturbo.repository.service.SupplyChainMerger.SingleSourceSupplyChain;
 import com.vmturbo.topology.graph.TopologyGraph;
-import com.vmturbo.topology.graph.supplychain.SupplyChainResolver;
+import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
+import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
+import com.vmturbo.topology.graph.supplychain.TraversalRulesLibrary;
 
 /**
  * An implementation of {@link SupplyChainServiceImplBase} (see SupplyChain.proto) that uses
  * the in-memory topology graph for resolving supply chain queries.
- *
- * <p>TODO (roman, May 27 2019): OM-46673 - Reduce duplication between this and
- * {@link ArangoSupplyChainRpcService} (e.g. various utility methods).
  */
 public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBase {
 
@@ -66,61 +59,28 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
 
     private final ArangoSupplyChainRpcService arangoSupplyChainService;
 
-    private final RealtimeSupplyChainResolver realtimeSupplyChainResolver;
-
     private final LiveTopologyStore liveTopologyStore;
 
     private final SupplyChainStatistician supplyChainStatistician;
 
     private final long realtimeTopologyContextId;
 
-    /**
-     * The entity types to ignore when traversing the topology to construct global supply chain.
-     * Currently these are cloud entity types which we don't want to show in global supply chain.
-     */
-    public static final Set<Integer> IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN =
-        ArangoSupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN;
+    private final InMemorySupplyChainResolver inMemorySupplyChainResolver;
 
-    /**
-     * The entity types to ignore when traversing the topology to construct account supply chain.
-     * BUSINESS_ACCOUNT should be included since it is the starting vertex.
-     */
-    public static final Set<Integer> IGNORED_ENTITY_TYPES_FOR_ACCOUNT_SUPPLY_CHAIN =
-        ArangoSupplyChainRpcService.IGNORED_ENTITY_TYPES_FOR_ACCOUNT_SUPPLY_CHAIN;
-
-    /**
-     * Constructor for {@link TopologyGraphSupplyChainRpcService} instances.
-     *
-     * @param userSessionContext To limit supply chains to user scopes.
-     * @param supplyChainResolver Generic utility to help resolve realtime supply chains.
-     * @param liveTopologyStore To get the realtime topology from.
-     * @param arangoSupplyChainService For delegation of plan supply chain requests.
-     * @param supplyChainStatistician For supply chain stats on the realtime topology.
-     * @param realtimeTopologyContextId The context ID that indicates "realtime" (vs. plan).
-     */
     public TopologyGraphSupplyChainRpcService(@Nonnull final UserSessionContext userSessionContext,
-                                              @Nonnull final SupplyChainResolver<RepoGraphEntity> supplyChainResolver,
                                               @Nonnull final LiveTopologyStore liveTopologyStore,
                                               @Nonnull final ArangoSupplyChainRpcService arangoSupplyChainService,
                                               @Nonnull final SupplyChainStatistician supplyChainStatistician,
+                                              @Nonnull final SupplyChainCalculator supplyChainCalculator,
                                               final long realtimeTopologyContextId) {
-        this(new RealtimeSupplyChainResolver(userSessionContext, supplyChainResolver),
-            liveTopologyStore, arangoSupplyChainService, supplyChainStatistician, realtimeTopologyContextId);
-    }
-
-    @VisibleForTesting
-    TopologyGraphSupplyChainRpcService(@Nonnull final RealtimeSupplyChainResolver realtimeSupplyChainResolver,
-                                       @Nonnull final LiveTopologyStore liveTopologyStore,
-                                       @Nonnull final ArangoSupplyChainRpcService arangoSupplyChainService,
-                                       @Nonnull final SupplyChainStatistician supplyChainStatistician,
-                                       final long realtimeTopologyContextId) {
-        this.realtimeSupplyChainResolver = realtimeSupplyChainResolver;
         this.liveTopologyStore = liveTopologyStore;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.supplyChainStatistician = supplyChainStatistician;
         this.arangoSupplyChainService = arangoSupplyChainService;
+        inMemorySupplyChainResolver = new InMemorySupplyChainResolver(userSessionContext,
+                                                                      liveTopologyStore,
+                                                                      supplyChainCalculator);
     }
-
 
     /**
      * Fetch supply chain information as determined by the given {@link GetSupplyChainRequest}.
@@ -151,49 +111,83 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
             Optional.of(request.getContextId()) : Optional.empty();
 
         if (contextId.map(context -> context == realtimeTopologyContextId).orElse(true)) {
-            try {
-                final SupplyChain supplyChain =
-                    realtimeSupplyChainResolver.getRealtimeSupplyChain(request.getScope(),
-                        request.getEnforceUserScope(), liveTopologyStore.getSourceTopology());
-                responseObserver.onNext(GetSupplyChainResponse.newBuilder()
-                    .setSupplyChain(supplyChain)
-                    .build());
-                responseObserver.onCompleted();
-            } catch (MergedSupplyChainException e) {
-                responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
-            }
+            // this is a real time topology request
+                // to be serviced by in-memory topology
+            inMemorySupplyChainResolver.serveInMemoryRequest(request, responseObserver);
         } else {
+            // this is not a real time topology request
+                // To be serviced by a topology stored in ArangoDB.
+                // This service is not currently used.
+                // We should consider either improving it
+                // to use the same algorithm as the real-time
+                // topology, or to remove it altogether.
             arangoSupplyChainService.getSupplyChain(request, responseObserver);
         }
     }
 
-
     @Override
     public void getSupplyChainStats(GetSupplyChainStatsRequest request,
                                     StreamObserver<GetSupplyChainStatsResponse> responseObserver) {
-        final SupplyChainScope scope = request.getScope();
-        final Optional<SourceRealtimeTopology> optRealtimeTopology = liveTopologyStore.getSourceTopology();
-        try {
-            if (optRealtimeTopology.isPresent()) {
-                final TopologyGraph<RepoGraphEntity> topoGraph = optRealtimeTopology.get().entityGraph();
-                final SupplyChain supplyChain =
-                    realtimeSupplyChainResolver.getRealtimeSupplyChain(scope, true, optRealtimeTopology);
-                final List<SupplyChainStat> stats = supplyChainStatistician.calculateStats(supplyChain,
-                    request.getGroupByList(),
-                    topoGraph::getEntity);
-                responseObserver.onNext(GetSupplyChainStatsResponse.newBuilder()
-                    .addAllStats(stats)
-                    .build());
-            } else {
-                // If there is no realtime topology available, return an empty stats response.
-                logger.info("No realtime topology available for supply chain stat request: {}",
-                    request);
-                responseObserver.onNext(GetSupplyChainStatsResponse.getDefaultInstance());
-            }
+        // the request will be answered by mimicking a regular GetSupplyChainRequest,
+        // calling getSupplyChain on it, and then retrieving statistics from the response.
+
+        // get live topology or return if it doesn't exist
+        final TopologyGraph<RepoGraphEntity> topologyGraph =
+                liveTopologyStore.getSourceTopology().map(SourceRealtimeTopology::entityGraph).orElse(null);
+        if (topologyGraph == null) {
+            responseObserver.onNext(GetSupplyChainStatsResponse.getDefaultInstance());
             responseObserver.onCompleted();
-        } catch (MergedSupplyChainException e) {
-            responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
+            return;
         }
+
+        // prepare the GetSupplyChainRequest object
+        final GetSupplyChainRequest supplyChainRequest = GetSupplyChainRequest.newBuilder()
+                                                                .setScope(request.getScope())
+                                                                .build();
+
+        // this is where the result will be stored
+        final AtomicReference<SupplyChain> supplyChain = new AtomicReference<>();
+
+        // latch to be used as a signal when getSupplyChain is finished
+        final CountDownLatch latch = new CountDownLatch(1);
+
+        // prepare the stream observer
+        final StreamObserver<GetSupplyChainResponse> supplyChainResponseStreamObserver =
+                new StreamObserver<GetSupplyChainResponse>() {
+                    @Override
+                    public void onNext(final GetSupplyChainResponse getSupplyChainResponse) {
+                        supplyChain.set(getSupplyChainResponse.getSupplyChain());
+                    }
+
+                    @Override
+                    public void onError(final Throwable throwable) {
+                        latch.countDown();
+                    }
+
+                    @Override
+                    public void onCompleted() {
+                        latch.countDown();
+                    }
+                };
+
+        // call and get the result
+        getSupplyChain(supplyChainRequest, supplyChainResponseStreamObserver);
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            responseObserver.onError(e);
+            return;
+        }
+
+        // get the statistics and return them
+        final List<SupplyChainStat> stats =
+            supplyChainStatistician.calculateStats(supplyChain.get(),
+                                                   request.getGroupByList(),
+                                                   topologyGraph::getEntity);
+        responseObserver.onNext(GetSupplyChainStatsResponse.newBuilder()
+                                    .addAllStats(stats)
+                                    .build());
+        responseObserver.onCompleted();
     }
 
     @Override
@@ -218,21 +212,21 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
                 @Override
                 public void onError(final Throwable throwable) {
                     logger.error("Encountered error for supply chain seed {}. Error: {}",
-                        supplyChainSeed, throwable.getMessage());
+                            supplyChainSeed, throwable.getMessage());
                     responseObserver.onNext(GetMultiSupplyChainsResponse.newBuilder()
-                        .setSeedOid(supplyChainSeed.getSeedOid())
-                        .setError(throwable.getMessage())
-                        .build());
+                            .setSeedOid(supplyChainSeed.getSeedOid())
+                            .setError(throwable.getMessage())
+                            .build());
                 }
 
                 @Override
                 public void onCompleted() {
                     final GetMultiSupplyChainsResponse.Builder builder = GetMultiSupplyChainsResponse.newBuilder()
-                        .setSeedOid(supplyChainSeed.getSeedOid());
+                            .setSeedOid(supplyChainSeed.getSeedOid());
 
                     response.getValue()
-                        .map(GetSupplyChainResponse::getSupplyChain)
-                        .ifPresent(builder::setSupplyChain);
+                            .map(GetSupplyChainResponse::getSupplyChain)
+                            .ifPresent(builder::setSupplyChain);
 
                     responseObserver.onNext(builder.build());
                 }
@@ -244,7 +238,7 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
 
     @Nonnull
     private GetSupplyChainRequest supplyChainSeedToRequest(final Optional<Long> contextId,
-                                                        @Nonnull final SupplyChainSeed supplyChainSeed) {
+                                                           @Nonnull final SupplyChainSeed supplyChainSeed) {
         GetSupplyChainRequest.Builder reqBuilder = GetSupplyChainRequest.newBuilder();
         reqBuilder.setScope(supplyChainSeed.getScope());
         contextId.ifPresent(reqBuilder::setContextId);
@@ -252,162 +246,119 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
     }
 
     /**
-     * Utility to resolve the realtime supply chain given a {@link SupplyChainScope}.
-     *
-     * <p>Takes care of special cases, multiple starting entity types, and user scope enforcement -
-     * all the stuff that the generic {@link SupplyChainResolver} doesn't handle (yet).
+     * Helper class that deals with the generation of supply chains
+     * from the in-memory topologies.
      */
-    @VisibleForTesting
-    static class RealtimeSupplyChainResolver {
+    private static class InMemorySupplyChainResolver {
+        /**
+         * Entity types that should not be included in the supply chain of an account.
+         */
+        private static final Set<Integer> IGNORED_ENTITY_TYPES_FOR_ACCOUNT_SUPPLY_CHAIN =
+                ImmutableSet.of(EntityType.COMPUTE_TIER_VALUE, EntityType.STORAGE_TIER_VALUE,
+                        EntityType.DATABASE_TIER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE,
+                        EntityType.CLOUD_SERVICE_VALUE, EntityType.HYPERVISOR_SERVER_VALUE,
+                        EntityType.PROCESSOR_POOL_VALUE);
+        /**
+         * Traversal rules for the production of a scoped supply chain.
+         */
+        private static final TraversalRulesLibrary<RepoGraphEntity> TRAVERSAL_RULES_LIBRARY =
+                new TraversalRulesLibrary<>();
 
         private final UserSessionContext userSessionContext;
+        private final LiveTopologyStore liveTopologyStore;
+        private final SupplyChainCalculator supplyChainCalculator;
 
-        private final SupplyChainResolver<RepoGraphEntity> supplyChainResolver;
-
-        RealtimeSupplyChainResolver(@Nonnull final UserSessionContext userSessionContext,
-                                    @Nonnull final SupplyChainResolver<RepoGraphEntity> supplyChainResolver) {
-            this.userSessionContext = userSessionContext;
-            this.supplyChainResolver = supplyChainResolver;
+        InMemorySupplyChainResolver(@Nonnull UserSessionContext userSessionContext,
+                                    @Nonnull LiveTopologyStore liveTopologyStore,
+                                    @Nonnull SupplyChainCalculator supplyChainCalculator) {
+            this.userSessionContext = Objects.requireNonNull(userSessionContext);
+            this.liveTopologyStore = Objects.requireNonNull(liveTopologyStore);
+            this.supplyChainCalculator = Objects.requireNonNull(supplyChainCalculator);
         }
 
-        @Nonnull
-        SupplyChain getRealtimeSupplyChain(final SupplyChainScope scope,
-                                           final boolean enforceUserScope,
-                                           Optional<SourceRealtimeTopology> realtimeTopologyOpt) throws MergedSupplyChainException {
-            final Optional<UIEnvironmentType> envType = scope.hasEnvironmentType() ?
-                Optional.of(UIEnvironmentType.fromEnvType(scope.getEnvironmentType())) :
-                Optional.empty();
+        /**
+         * Serve a supply chain request from the in-memory topology.
+         *
+         * @param request the request
+         * @param responseObserver the response observer
+         */
+        private void serveInMemoryRequest(
+                @Nonnull GetSupplyChainRequest request,
+                @Nonnull StreamObserver<GetSupplyChainResponse> responseObserver) {
+            // extract scope and desired environment type (if any),
+            // and desired included entity types (if any)
+            final SupplyChainScope scope = request.hasScope() ? request.getScope()
+                    : SupplyChainScope.getDefaultInstance();
+            final Optional<EnvironmentType> environmentType =
+                    scope.hasEnvironmentType() ? Optional.of(scope.getEnvironmentType()) : Optional.empty();
+            final Collection<String> includedEntityTypes =
+                    scope.getEntityTypesToIncludeList() == null ? Collections.emptyList()
+                            : scope.getEntityTypesToIncludeList();
+
+            // calculate user scope
+            final EntityAccessScope userScope = request.getEnforceUserScope()
+                    ? userSessionContext.getUserAccessScope()
+                    : EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE;
+
+            // calculate the entity filter of the traversal
+            // taking into account required environment, user scope
+            // and excluded types
+            final Predicate<RepoGraphEntity> entityPredicate =
+                    getEntityFilter(environmentType, getExcludedTypes(request), userScope);
+
             if (scope.getStartingEntityOidCount() > 0) {
-                return getMultiSourceSupplyChain(scope.getStartingEntityOidList(),
-                    scope.getEntityTypesToIncludeList(),
-                    envType,
-                    enforceUserScope,
-                    realtimeTopologyOpt);
+                // this is a scoped supply chain request
+                getScopedSupplyChain(scope.getStartingEntityOidList(), entityPredicate,
+                        translateTypeNamesToTypeIds(includedEntityTypes),
+                        responseObserver);
+            } else if (!userScope.containsAll()) {
+                // this is a user-scoped global supply chain request
+                getScopedSupplyChain(userScope.getScopeGroupIds(), entityPredicate,
+                        translateTypeNamesToTypeIds(includedEntityTypes), responseObserver);
             } else {
-                return getGlobalSupplyChain(scope.getEntityTypesToIncludeList(),
-                    envType,
-                    enforceUserScope,
-                    realtimeTopologyOpt);
+                // this is a global supply chain request
+                getGlobalSupplyChain(includedEntityTypes, environmentType, responseObserver);
             }
         }
 
         /**
-         * Fetch the supply chain for each element in a list of starting ServiceEntity OIDs.
-         * The result is a stream of {@link SupplyChainNode} elements, one per entity type
-         * in the supply chain. If requested, restrict the supply chain information to entities from
-         * a given list of entityTypes.
+         * Compute a scoped supply chain.
          *
-         * <p>The SupplyChainNodes returned represent the result of merging, without duplication,
-         * the supply chains derived from each of the starting Vertex OIDs. The elements merged
-         * into each SupplyChainNode are: connected_provider_types, connected_consumer_types,
-         * and member_oids.
-         *
-         * @param startingVertexOids the list of the ServiceEntity OIDs to start with, generating the
-         *                           supply
-         * @param entityTypesToIncludeList if given and not empty, restrict the supply chain nodes
-         *                                 to be returned to entityTypes in this list
-         * @param envType If set, the environment type restriction to apply to the supply chain.
-         * @param enforceUserScope whether or not user scope rules should be enforced
-         * @param realtimeTopologyOpt The topology to use to calculate the supply chain.
-         * @return The {@link SupplyChain} protobuf to return to the caller.
-         * @throws MergedSupplyChainException If there is an error assembling the supply chain.
+         * @param scope the initial seed
+         * @param entityPredicate predicate to be used to filter entities
+         *                        during the traversal
+         * @param includedTypes filter final result to only include entities
+         *                      of these types
+         * @param responseObserver use this observer to return the response
          */
-        private SupplyChain getMultiSourceSupplyChain(@Nonnull final Collection<Long> startingVertexOids,
-                                                      @Nonnull final List<String> entityTypesToIncludeList,
-                                                      @Nonnull final Optional<UIEnvironmentType> envType,
-                                                      final boolean enforceUserScope,
-                                                      @Nonnull final Optional<SourceRealtimeTopology> realtimeTopologyOpt)
-                throws MergedSupplyChainException {
-            if (!realtimeTopologyOpt.isPresent()) {
-                return SupplyChain.getDefaultInstance();
-            }
+        private void getScopedSupplyChain(@Nonnull Collection<Long> scope,
+                                          @Nonnull Predicate<RepoGraphEntity> entityPredicate,
+                                          @Nonnull Collection<Integer> includedTypes,
+                                          @Nonnull StreamObserver<GetSupplyChainResponse> responseObserver) {
+            try (DataMetricTimer timer =
+                     SINGLE_SOURCE_SUPPLY_CHAIN_DURATION_SUMMARY.labels("realtime").startTimer()) {
+                logger.debug("Getting a supply chain starting from {} in realtime topology", scope);
 
-            final SupplyChainMerger supplyChainMerger = new SupplyChainMerger();
+                // calculate supply chain
+                final Map<Integer, SupplyChainNode> supplyChainNodesMap =
+                    liveTopologyStore.getSourceTopology()
+                        .map(topologyGraph ->
+                                supplyChainCalculator.getSupplyChainNodes(topologyGraph.entityGraph(), scope,
+                                        entityPredicate, TRAVERSAL_RULES_LIBRARY))
+                        .orElse(Collections.emptyMap());
 
-            final SourceRealtimeTopology realtimeTopology = realtimeTopologyOpt.get();
-
-            final Map<UIEntityType, Set<Long>> startingOidsByType = realtimeTopology.entityGraph()
-                .getEntities(Sets.newHashSet(startingVertexOids))
-                .collect(Collectors.groupingBy(entity -> UIEntityType.fromType(entity.getEntityType()),
-                    Collectors.mapping(RepoGraphEntity::getOid, Collectors.toSet())));
-
-            startingOidsByType.forEach((type, entitiesOfType) -> {
-                final SingleSourceSupplyChain singleSourceSupplyChain =
-                    getRealtimeSingleSourceSupplyChain(entitiesOfType, envType,
-                        enforceUserScope, Collections.emptySet(), getExclusionEntityTypes(type),
-                        realtimeTopology);
-
-                // remove BusinessAccount from supply chain nodes, since we don't want to show it
-                if (type == UIEntityType.BUSINESS_ACCOUNT) {
-                    singleSourceSupplyChain.removeSupplyChainNodes(Sets.newHashSet(UIEntityType.BUSINESS_ACCOUNT));
+                // remove unwanted entity types from the result
+                if (!includedTypes.isEmpty()) {
+                    supplyChainNodesMap.keySet().removeIf(type -> !includedTypes.contains(type));
                 }
 
-                // add supply chain starting from original entity
-                supplyChainMerger.addSingleSourceSupplyChain(singleSourceSupplyChain);
-
-                // handle the special case for cloud if zone is returned in supply chain
-                getAndAddSupplyChainFromZoneForRealtime(singleSourceSupplyChain, supplyChainMerger,
-                    type, envType, enforceUserScope, realtimeTopology);
-            });
-
-            final MergedSupplyChain supplyChain = supplyChainMerger.merge();
-            return supplyChain.getSupplyChain(entityTypesToIncludeList);
-        }
-
-        /**
-         * Handles the special case for cloud if zone is returned in supply chain. In current cloud
-         * topology, we can not traverse to region if not starting from zone. So if any zone is in the
-         * supply chain, we need to get another supply chain starting from zone and then merge onto
-         * existing one.
-         *
-         * @param singleSourceSupplyChain The {@link SingleSourceSupplyChain} to check for the
-         *                                special case.
-         * @param supplyChainMerger The merger for the "final" supply chain currently being
-         *                          constructed. May be modified by this method.
-         * @param startingVertexEntityType The entity type of the starting vertex for the
-         *                                 {@link SingleSourceSupplyChain}.
-         * @param envType If set, the environment type restriction on the supply chain.
-         * @param enforceUserScope Whether or not to limit supply chain entities to the user's scope.
-         * @param realtimeTopology The topology to use to calculate the supply chain.
-         */
-        private void getAndAddSupplyChainFromZoneForRealtime(
-                @Nonnull SingleSourceSupplyChain singleSourceSupplyChain,
-                @Nonnull SupplyChainMerger supplyChainMerger,
-                @Nonnull UIEntityType startingVertexEntityType,
-                @Nonnull Optional<UIEnvironmentType> envType,
-                final boolean enforceUserScope,
-                @Nonnull final SourceRealtimeTopology realtimeTopology) {
-            // collect all the availability zones' ids returned by the supply chain
-            final Set<Long> zoneIds = singleSourceSupplyChain.getSupplyChainNodes().stream()
-                .filter(supplyChainNode ->
-                    UIEntityType.fromString(supplyChainNode.getEntityType()) == UIEntityType.AVAILABILITY_ZONE)
-                .flatMap(supplyChainNode -> RepositoryDTOUtil.getAllMemberOids(supplyChainNode).stream())
-                .collect(Collectors.toSet());
-            if (zoneIds.isEmpty()) {
-                return;
-            }
-
-            if (UIEntityType.REGION.equals(startingVertexEntityType)) {
-                // if starting from region, we can only get all related zones, we need to
-                // traverse all paths starting from zones to find other entities, so we set
-                // inclusionEntityTypes to be empty
-                final SingleSourceSupplyChain zonesSupplyChain =
-                    getRealtimeSingleSourceSupplyChain(zoneIds, envType, enforceUserScope,
-                        Collections.emptySet(), getExclusionEntityTypes(UIEntityType.AVAILABILITY_ZONE),
-                        realtimeTopology);
-                supplyChainMerger.addSingleSourceSupplyChain(zonesSupplyChain);
-            } else if (!UIEntityType.AVAILABILITY_ZONE.equals(startingVertexEntityType)) {
-                // if starting from other entity types (not zone, since we can get all we need
-                // starting from zone), it can not traverse to regions due to current
-                // topology relationship, we need to traverse from zone and get the related
-                // region, but we don't want to traverse all paths, so we set inclusionEntityTypes
-                // to be ["AvailabilityZone", "Region"] to improve performance
-                final SingleSourceSupplyChain zonesSupplyChain =
-                    getRealtimeSingleSourceSupplyChain(zoneIds, envType, enforceUserScope,
-                        Sets.newHashSet(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE),
-                        getExclusionEntityTypes(UIEntityType.AVAILABILITY_ZONE),
-                        realtimeTopology);
-                supplyChainMerger.addSingleSourceSupplyChain(zonesSupplyChain);
+                // return result
+                final Collection<SupplyChainNode> supplyChainNodes = supplyChainNodesMap.values();
+                responseObserver.onNext(GetSupplyChainResponse.newBuilder()
+                        .setSupplyChain(SupplyChain.newBuilder()
+                                .addAllSupplyChainNodes(supplyChainNodes))
+                        .build());
+                responseObserver.onCompleted();
             }
         }
 
@@ -416,93 +367,95 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
          * same supply chain information ({@link SupplyChainNode} calculated over all the
          * ServiceEntities in the given topology context. If requested, restrict the supply chain
          * information to entities from a given list of entityTypes.
-         *
-         * @param entityTypesToIncludeList if given and non-empty, then restrict supply chain nodes
-         *                                 returned to the entityTypes listed here
-         * @param environmentType If set, limit the supply chain to a particular environment.
-         * @param enforceUserScope If set, restrict the supply chain to entities in this user's scope.
-         * @param realtimeTopologyOpt The realtime topology to use to calculate the supply chain.
-         * @return The {@link SupplyChain} protobuf describing the supply chain.
-         * @throws MergedSupplyChainException If there is an error assembling the supply chain.
+         * @param entityTypesToIncludeList if given non-empty, then restrict supply chain nodes
+         *                                         returned to the entityTypes listed here
+         * @param environmentType possibly restrict results to one environment type
+         * @param responseObserver the gRPC response stream onto which each resulting SupplyChainNode is
          */
-        private SupplyChain getGlobalSupplyChain(@Nullable List<String> entityTypesToIncludeList,
-                                                 @Nonnull final Optional<UIEnvironmentType> environmentType,
-                                                 final boolean enforceUserScope,
-                                                 @Nonnull final Optional<SourceRealtimeTopology> realtimeTopologyOpt)
-            throws MergedSupplyChainException {
-            // If the user is scoped and we're enforcing scoping rules, then convert the
-            // request to a multi-source supply chain where the starting entities are the set of
-            // scope group entities.
-            if (enforceUserScope && userSessionContext.isUserScoped()) {
-                return getMultiSourceSupplyChain(userSessionContext.getUserAccessScope().getScopeGroupMembers().toSet(),
-                    entityTypesToIncludeList,
-                    environmentType,
-                    enforceUserScope,
-                    realtimeTopologyOpt);
-            }
+        private void getGlobalSupplyChain(
+                @Nonnull Collection<String> entityTypesToIncludeList,
+                @Nonnull final Optional<EnvironmentType> environmentType,
+                @Nonnull final StreamObserver<GetSupplyChainResponse> responseObserver) {
+            // compute a predicate that filters out supply chain nodes
+            // from the final result of the traversal,
+            // according to desired entity types
+            final Predicate<SupplyChainNode> filteringPredicate =
+                    entityTypesToIncludeList.isEmpty() ?
+                            node -> true : node -> entityTypesToIncludeList.contains(node.getEntityType());
 
-            try (DataMetricTimer timer = GLOBAL_SUPPLY_CHAIN_DURATION_SUMMARY.startTimer()) {
+            // compute and return the global supply chain
+            GLOBAL_SUPPLY_CHAIN_DURATION_SUMMARY.startTimer().time(() -> {
                 final SupplyChain.Builder supplyChainBuilder = SupplyChain.newBuilder();
-                realtimeTopologyOpt.ifPresent(realtimeTopology -> {
-                    realtimeTopology.globalSupplyChainNodes(environmentType, supplyChainResolver).values().stream()
-                        .filter(node -> CollectionUtils.isEmpty(entityTypesToIncludeList) || entityTypesToIncludeList.contains(node.getEntityType()))
-                        .forEach(supplyChainBuilder::addSupplyChainNodes);
-                });
-                return supplyChainBuilder.build();
-            }
+                liveTopologyStore.getSourceTopology().ifPresent(realtimeTopology ->
+                        realtimeTopology.globalSupplyChainNodes(environmentType).values().stream()
+                                .filter(filteringPredicate)
+                                .forEach(supplyChainBuilder::addSupplyChainNodes));
+                responseObserver.onNext(GetSupplyChainResponse.newBuilder()
+                        .setSupplyChain(supplyChainBuilder)
+                        .build());
+                responseObserver.onCompleted();
+            });
         }
 
         /**
-         * Get the exclusion entity types for the given starting entity type.
+         * Calculate which entity types should be not be considered
+         * in a supply chain traversal.  The returned set depends on
+         * whether the seed consists solely of business accounts or no.
          *
-         * @param startingVertexEntityType The starting entity type.
-         * @return The set of types to exclude for this starting vertex's supply chain.
+         * @param request the initial request
+         * @return the set of entity type ids to be excluded from
+         *         the traversal
          */
-        private Set<Integer> getExclusionEntityTypes(@Nonnull UIEntityType startingVertexEntityType) {
-            return UIEntityType.BUSINESS_ACCOUNT.equals(startingVertexEntityType)
-                ? IGNORED_ENTITY_TYPES_FOR_ACCOUNT_SUPPLY_CHAIN
-                : IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN;
+        private Collection<Integer> getExcludedTypes(@Nonnull GetSupplyChainRequest request) {
+            final boolean containsOnlyAccounts =
+                    request.getScope().getStartingEntityOidList().stream()
+                            .map(entityId ->
+                                    liveTopologyStore.getSourceTopology().get()
+                                            .entityGraph().getEntity(entityId).orElse(null))
+                            .filter(Objects::nonNull)
+                            .map(RepoGraphEntity::getEntityType)
+                            .allMatch(type -> type == EntityType.BUSINESS_ACCOUNT_VALUE);
+            return containsOnlyAccounts ?
+                    IGNORED_ENTITY_TYPES_FOR_ACCOUNT_SUPPLY_CHAIN :
+                    GlobalSupplyChainCalculator.IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN;
         }
 
         @Nonnull
-        private SingleSourceSupplyChain getRealtimeSingleSourceSupplyChain(
-                @Nonnull final Set<Long> startingVertexOid,
-                @Nonnull final Optional<UIEnvironmentType> envType,
-                final boolean enforceUserScope,
-                @Nonnull final Set<Integer> inclusionEntityTypes,
-                @Nonnull final Set<Integer> exclusionEntityTypes,
-                @Nonnull final SourceRealtimeTopology realtimeTopology) {
-            try (DataMetricTimer timer = SINGLE_SOURCE_SUPPLY_CHAIN_DURATION_SUMMARY.labels("realtime").startTimer()) {
-                logger.debug("Getting a supply chain starting from {} in realtime topology",
-                    startingVertexOid);
+        private static Collection<Integer> translateTypeNamesToTypeIds(
+                @Nonnull Collection<String> includedTypesStrings) {
+            return includedTypesStrings.stream()
+                    .map(entityType -> UIEntityType.fromString(entityType).typeNumber())
+                    .collect(Collectors.toList());
+        }
 
-                final SingleSourceSupplyChain singleSourceSupplyChain =
-                    new SingleSourceSupplyChain(startingVertexOid);
-
-                final Optional<EnvironmentType> targetEnvType = envType.flatMap(UIEnvironmentType::toEnvType);
-                final Optional<EntityAccessScope> scope;
-                if (enforceUserScope) {
-                    scope = Optional.of(userSessionContext.getUserAccessScope());
-                } else {
-                    scope = Optional.empty();
-                }
-
-                final Predicate<RepoGraphEntity> entityPredicate = e ->
-                    // No target env type, or matching target env type.
-                    (!targetEnvType.isPresent() || e.getEnvironmentType() == targetEnvType.get())
-                        // No inclusion entity types, or the entity's type is IN the inclusion.
-                        && (inclusionEntityTypes.isEmpty() || inclusionEntityTypes.contains(e.getEntityType()))
-                        // No exclusion entity types, or the entity's type is NOT in the exclusion.
-                        && (exclusionEntityTypes.isEmpty() || !exclusionEntityTypes.contains(e.getEntityType()))
-                        // No scope present, or the entity is in the scope.
-                        && (!scope.isPresent() || scope.get().contains(e.getOid()));
-
-                supplyChainResolver.getSupplyChainNodes(startingVertexOid,
-                    realtimeTopology.entityGraph(), entityPredicate).values()
-                        .forEach(singleSourceSupplyChain::addSupplyChainNode);
-
-                return singleSourceSupplyChain;
+        /**
+         * Calculate the entity predicate that should filter out entities
+         * during a scoped supply chain traversal, given various parameters.
+         *
+         * @param targetEnvType desired environment type, if there is one
+         * @param exclusionEntityTypes entity types to exclude
+         * @param scope returned entities should necessarily belong in this
+         *              set, if this set is specified
+         * @return the predicate that returns true iff an entity satisfies
+         *         all the above requirements
+         */
+        private Predicate<RepoGraphEntity> getEntityFilter(
+                @Nonnull Optional<EnvironmentType> targetEnvType,
+                @Nonnull Collection<Integer> exclusionEntityTypes,
+                @Nonnull EntityAccessScope scope) {
+            Predicate<RepoGraphEntity> predicateBuilder = e -> true;
+            if (targetEnvType.isPresent()) {
+                final EnvironmentType environmentType = targetEnvType.get();
+                predicateBuilder = predicateBuilder.and(e -> e.getEnvironmentType() == environmentType);
             }
+            if (!exclusionEntityTypes.isEmpty()) {
+                predicateBuilder = predicateBuilder.and(
+                        e -> !exclusionEntityTypes.contains(e.getEntityType()));
+            }
+            if (!scope.containsAll()) {
+                predicateBuilder = predicateBuilder.and(e -> scope.contains(e.getOid()));
+            }
+            return predicateBuilder;
         }
     }
 
@@ -519,5 +472,4 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
         .withHelp("Duration in seconds it takes repository to retrieve single source supply chain from the in-memory graph.")
         .build()
         .register();
-
 }

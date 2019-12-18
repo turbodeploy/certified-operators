@@ -85,7 +85,6 @@ import com.vmturbo.repository.graph.executor.ReactiveArangoDBExecutor;
 import com.vmturbo.repository.graph.executor.ReactiveGraphDBExecutor;
 import com.vmturbo.repository.listener.MarketTopologyListener;
 import com.vmturbo.repository.listener.TopologyEntitiesListener;
-import com.vmturbo.repository.listener.realtime.GlobalSupplyChainCalculator;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 import com.vmturbo.repository.search.SearchHandler;
@@ -107,7 +106,8 @@ import com.vmturbo.repository.topology.TopologyLifecycleManager;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufsManager;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.graph.search.filter.TopologyFilterFactory;
-import com.vmturbo.topology.graph.supplychain.SupplyChainResolver;
+import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
+import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
@@ -493,6 +493,11 @@ public class RepositoryComponent extends BaseVmtComponent {
     }
 
     @Bean
+    public SupplyChainCalculator supplyChainCalculator() {
+        return new SupplyChainCalculator();
+    }
+
+    @Bean
     public SupplyChainServiceImplBase supplyChainRpcService()
             throws InterruptedException, CommunicationException, URISyntaxException {
         // We always create the arango one, because we always use it for plans.
@@ -500,12 +505,12 @@ public class RepositoryComponent extends BaseVmtComponent {
             graphDBService(),
             supplyChainService(),
             userSessionConfig.userSessionContext());
-        return new TopologyGraphSupplyChainRpcService(userSessionConfig.userSessionContext(),
-            supplyChainResolver(),
-            liveTopologyStore(),
-            arangoService,
-            supplyChainStatistician(),
-            realtimeTopologyContextId);
+       return new TopologyGraphSupplyChainRpcService(userSessionConfig.userSessionContext(),
+                liveTopologyStore(),
+                arangoService,
+                supplyChainStatistician(),
+                supplyChainCalculator(),
+                realtimeTopologyContextId);
     }
 
     @Bean
@@ -518,19 +523,14 @@ public class RepositoryComponent extends BaseVmtComponent {
             GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()));
     }
 
-    /**
-     * The {@link SupplyChainResolver} to use for the realtime supply chain.
-     *
-     * @return The {@link SupplyChainResolver}.
-     */
     @Bean
-    public SupplyChainResolver<RepoGraphEntity> supplyChainResolver() {
-        return new SupplyChainResolver<>();
+    public GlobalSupplyChainCalculator globalSupplyChainCalculator() {
+        return new GlobalSupplyChainCalculator();
     }
 
     @Bean
     public LiveTopologyStore liveTopologyStore() {
-        return new LiveTopologyStore(GlobalSupplyChainCalculator.newFactory().newCalculator());
+        return new LiveTopologyStore(globalSupplyChainCalculator());
     }
 
     @Bean

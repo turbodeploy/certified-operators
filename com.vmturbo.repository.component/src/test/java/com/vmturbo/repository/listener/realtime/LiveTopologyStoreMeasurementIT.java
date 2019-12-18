@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Preconditions;
@@ -31,7 +30,8 @@ import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.listener.realtime.ProjectedRealtimeTopology.ProjectedTopologyBuilder;
 import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology.SourceRealtimeTopologyBuilder;
-import com.vmturbo.topology.graph.supplychain.SupplyChainResolver;
+import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
 
 /**
  * This test is ignored for automatic builds.
@@ -43,7 +43,8 @@ import com.vmturbo.topology.graph.supplychain.SupplyChainResolver;
 public class LiveTopologyStoreMeasurementIT {
     private final Logger logger = LogManager.getLogger();
 
-    private final SupplyChainResolver<RepoGraphEntity> supplyChainResolver = new SupplyChainResolver<>();
+    private final GlobalSupplyChainCalculator globalSupplyChainCalculator =
+            new GlobalSupplyChainCalculator();
 
     @Test
     @Ignore
@@ -53,8 +54,7 @@ public class LiveTopologyStoreMeasurementIT {
         Preconditions.checkArgument(!StringUtils.isEmpty(filePath));
         final BufferedReader reader =
             new BufferedReader(new FileReader(filePath));
-        final LiveTopologyStore liveTopologyStore =
-            new LiveTopologyStore(GlobalSupplyChainCalculator.newFactory().newCalculator());
+        final LiveTopologyStore liveTopologyStore = new LiveTopologyStore(globalSupplyChainCalculator);
         SourceRealtimeTopologyBuilder sourceRealtimeTopologyBuilder = liveTopologyStore.newRealtimeTopology(TopologyInfo.getDefaultInstance());
         int lineCnt = 0;
         Map<EntityType, MutableLong> countsByType = new HashMap<>();
@@ -76,7 +76,6 @@ public class LiveTopologyStoreMeasurementIT {
             }
         }
 
-
         logger.info(countsByType);
         stopwatch.start();
         sourceRealtimeTopologyBuilder.finish();
@@ -87,23 +86,35 @@ public class LiveTopologyStoreMeasurementIT {
             stopwatch.elapsed(TimeUnit.MILLISECONDS),
             FileUtils.byteCountToDisplaySize(ObjectSizeCalculator.getObjectSize(liveTopologyStore.getSourceTopology().get())));
 
-        stopwatch.reset();
-        stopwatch.start();
-        liveTopologyStore.getSourceTopology().get().globalSupplyChainNodes(Optional.empty(), supplyChainResolver);
-        liveTopologyStore.getSourceTopology().get().globalSupplyChainNodes(Optional.of(UIEnvironmentType.CLOUD), supplyChainResolver);
-        liveTopologyStore.getSourceTopology().get().globalSupplyChainNodes(Optional.of(UIEnvironmentType.ON_PREM), supplyChainResolver);
-        stopwatch.stop();
-        logger.info("GSC Took {}", stopwatch.elapsed(TimeUnit.MILLISECONDS));
-        logger.info("Size with global supply chain: {}", FileUtils.byteCountToDisplaySize(ObjectSizeCalculator.getObjectSize(liveTopologyStore.getSourceTopology().get())));
-
         final MutableInt cnt = new MutableInt(0);
         stopwatch.reset();
         stopwatch.start();
-        liveTopologyStore.getSourceTopology().get().entityGraph().entities()
-            .map(RepoGraphEntity::getTopologyEntity)
-            .forEach(e -> cnt.increment());
+        final TopologyGraph<RepoGraphEntity> topologyGraph = liveTopologyStore.getSourceTopology()
+                                                                       .get().entityGraph();
+        topologyGraph.entities()
+                .map(RepoGraphEntity::getTopologyEntity)
+                .forEach(e -> cnt.increment());
         stopwatch.stop();
         logger.info("Took {} to de-compress {} entities", stopwatch.elapsed(TimeUnit.SECONDS), cnt.intValue());
+
+        stopwatch.reset();
+        stopwatch.start();
+        globalSupplyChainCalculator.getSupplyChainNodes(topologyGraph, x -> true);
+        stopwatch.stop();
+        logger.info("Hybrid GSC Took {}", stopwatch.elapsed(TimeUnit.MILLISECONDS));
+        logger.info("Size with global supply chain: {}", FileUtils.byteCountToDisplaySize(ObjectSizeCalculator.getObjectSize(liveTopologyStore.getSourceTopology().get())));
+
+        stopwatch.reset();
+        stopwatch.start();
+        globalSupplyChainCalculator.getSupplyChainNodes(topologyGraph, UIEnvironmentType.CLOUD);
+        stopwatch.stop();
+        logger.info("Cloud GSC Took {}", stopwatch.elapsed(TimeUnit.MILLISECONDS));
+
+        stopwatch.reset();
+        stopwatch.start();
+        globalSupplyChainCalculator.getSupplyChainNodes(topologyGraph, UIEnvironmentType.ON_PREM);
+        stopwatch.stop();
+        logger.info("On-prem GSC Took {}", stopwatch.elapsed(TimeUnit.MILLISECONDS));
     }
 
     @Test
@@ -114,7 +125,7 @@ public class LiveTopologyStoreMeasurementIT {
         Preconditions.checkArgument(!StringUtils.isEmpty(filePath));
         final BufferedReader reader =
             new BufferedReader(new FileReader(filePath));
-        LiveTopologyStore liveTopologyStore = new LiveTopologyStore(GlobalSupplyChainCalculator.newFactory().newCalculator());
+        LiveTopologyStore liveTopologyStore = new LiveTopologyStore(globalSupplyChainCalculator);
 
         ProjectedTopologyBuilder ptbldr = liveTopologyStore.newProjectedTopology(1, TopologyInfo.getDefaultInstance());
 

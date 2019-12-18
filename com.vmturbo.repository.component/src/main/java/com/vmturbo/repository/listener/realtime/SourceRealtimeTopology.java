@@ -19,6 +19,7 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.base.Stopwatch;
 import com.google.gson.Gson;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -30,9 +31,9 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.StreamingDiagnosable;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity.Builder;
+import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphCreator;
-import com.vmturbo.topology.graph.supplychain.SupplyChainResolver;
 
 /**
  * Represents an in-memory "source" topology for the realtime (live) context.
@@ -51,6 +52,11 @@ public class SourceRealtimeTopology implements StreamingDiagnosable {
     private final TopologyGraph<RepoGraphEntity> entityGraph;
 
     /**
+     * A calculator of the global chain.
+     */
+    private final GlobalSupplyChainCalculator globalSupplyChainCalculator;
+
+    /**
      * Lazily-computed global supply chain.
      * The overhead on a topology of 200k is about 4MB.
      * It's lazily computed because we only need it if a user logs in and wants to see
@@ -58,8 +64,6 @@ public class SourceRealtimeTopology implements StreamingDiagnosable {
      * interval).
      */
     private final Map<UIEnvironmentType, SetOnce<Map<UIEntityType, SupplyChainNode>>> globalSupplyChain = new HashMap<>();
-
-    private final GlobalSupplyChainCalculator globalSupplyChainCalculator;
 
     private SourceRealtimeTopology(@Nonnull final TopologyInfo topologyInfo,
                                    @Nonnull final TopologyGraph<RepoGraphEntity> entityGraph,
@@ -96,13 +100,14 @@ public class SourceRealtimeTopology implements StreamingDiagnosable {
      * Get the global supply chain. This is lazily cached, so the first call will take longer
      * than the subsequent ones.
      *
+     * @param envType possibly restrict results to a specific environment type
      * @return (entity type) -> ({@link SupplyChainNode} for the entity type)
      */
     @Nonnull
     public synchronized Map<UIEntityType, SupplyChainNode> globalSupplyChainNodes(
-            @Nonnull final Optional<UIEnvironmentType> envType,
-            @Nonnull final SupplyChainResolver<RepoGraphEntity> supplyChainResolver) {
-        UIEnvironmentType environmentType = envType.orElse(UIEnvironmentType.HYBRID);
+            @Nonnull final Optional<EnvironmentType> envType) {
+        final UIEnvironmentType environmentType = envType.map(UIEnvironmentType::fromEnvType)
+                                                         .orElse(UIEnvironmentType.HYBRID);
         if (environmentType == UIEnvironmentType.UNKNOWN) {
             return Collections.emptyMap();
         }
@@ -110,8 +115,8 @@ public class SourceRealtimeTopology implements StreamingDiagnosable {
         final SetOnce<Map<UIEntityType, SupplyChainNode>> envTypeNodes =
             globalSupplyChain.computeIfAbsent(environmentType, k -> new SetOnce<>());
 
-        return envTypeNodes.ensureSet(() -> globalSupplyChainCalculator.computeGlobalSupplyChain(
-            entityGraph, environmentType, supplyChainResolver));
+        return envTypeNodes.ensureSet(() ->
+            globalSupplyChainCalculator.getSupplyChainNodes(entityGraph, environmentType));
     }
 
     @Nonnull
@@ -142,9 +147,7 @@ public class SourceRealtimeTopology implements StreamingDiagnosable {
 
         private final TopologyInfo topologyInfo;
         private final Consumer<SourceRealtimeTopology> onFinish;
-
         private final GlobalSupplyChainCalculator globalSupplyChainCalculator;
-
         private final TopologyGraphCreator<Builder, RepoGraphEntity> graphCreator =
             new TopologyGraphCreator<>();
 
@@ -168,12 +171,12 @@ public class SourceRealtimeTopology implements StreamingDiagnosable {
 
         SourceRealtimeTopologyBuilder(
                 @Nonnull final TopologyInfo topologyInfo,
-                @Nonnull final GlobalSupplyChainCalculator globalSupplyChainCalculator,
-                @Nonnull final Consumer<SourceRealtimeTopology> onFinish) {
+                @Nonnull final Consumer<SourceRealtimeTopology> onFinish,
+                @Nonnull final GlobalSupplyChainCalculator globalSupplyChainCalculator) {
             this.topologyInfo = topologyInfo;
             this.onFinish = onFinish;
-            this.globalSupplyChainCalculator = globalSupplyChainCalculator;
             this.compressionBuffer = new SharedByteBuffer(sharedBufferSize);
+            this.globalSupplyChainCalculator = globalSupplyChainCalculator;
         }
 
         public void addEntities(@Nonnull final Collection<TopologyEntityDTO> entities) {

@@ -24,16 +24,16 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.identity.ArrayOidSet;
-import com.vmturbo.repository.listener.realtime.GlobalSupplyChainCalculator;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology.SourceRealtimeTopologyBuilder;
+import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
 
 /**
- *
+ * Tests class {@link TopologyGraphRepositoryRpcService}.
  */
 public class TopologyGraphRepositoryRpcServiceTest {
 
-    private LiveTopologyStore liveTopologyStore = new LiveTopologyStore(GlobalSupplyChainCalculator.newFactory().newCalculator());
+    private LiveTopologyStore liveTopologyStore = new LiveTopologyStore(new GlobalSupplyChainCalculator());
 
     private final ArangoRepositoryRpcService arangoRepoRpcService = Mockito.mock(ArangoRepositoryRpcService.class);
 
@@ -106,5 +106,4 @@ public class TopologyGraphRepositoryRpcServiceTest {
                 .setEntityType(1)
                 .build();
     }
-
 }

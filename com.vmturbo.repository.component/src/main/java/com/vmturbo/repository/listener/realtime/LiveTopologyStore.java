@@ -11,23 +11,29 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.repository.listener.realtime.ProjectedRealtimeTopology.ProjectedTopologyBuilder;
 import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology.SourceRealtimeTopologyBuilder;
+import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
 
 public class LiveTopologyStore {
     private static final Logger logger = LogManager.getLogger();
 
     private final Object topologyLock = new Object();
 
+    private final GlobalSupplyChainCalculator globalSupplyChainCalculator;
+
+    /**
+     * Create a {@link LiveTopologyStore}.
+     *
+     * @param globalSupplyChainCalculator a global supply chain calculator
+     */
+    public LiveTopologyStore(@Nonnull GlobalSupplyChainCalculator globalSupplyChainCalculator) {
+        this.globalSupplyChainCalculator = globalSupplyChainCalculator;
+    }
+
     @GuardedBy("topologyLock")
     private Optional<SourceRealtimeTopology> realtimeTopology = Optional.empty();
 
     @GuardedBy("topologyLock")
     private Optional<ProjectedRealtimeTopology> projectedTopology = Optional.empty();
-
-    private final GlobalSupplyChainCalculator globalSupplyChainCalculator;
-
-    public LiveTopologyStore(@Nonnull final GlobalSupplyChainCalculator globalSupplyChainCalculator) {
-        this.globalSupplyChainCalculator = globalSupplyChainCalculator;
-    }
 
     private void updateRealtimeSourceTopology(@Nonnull final SourceRealtimeTopology newSourceRealtimeTopology) {
         synchronized (topologyLock) {
@@ -63,7 +69,7 @@ public class LiveTopologyStore {
 
     public SourceRealtimeTopologyBuilder newRealtimeTopology(@Nonnull final TopologyInfo topologyInfo) {
         return new SourceRealtimeTopologyBuilder(topologyInfo,
-            globalSupplyChainCalculator,
-            this::updateRealtimeSourceTopology);
+                                                 this::updateRealtimeSourceTopology,
+                                                 globalSupplyChainCalculator);
     }
 }
