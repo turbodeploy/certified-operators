@@ -1,16 +1,15 @@
 package com.vmturbo.history.stats.live;
 
+import static gnu.trove.impl.Constants.DEFAULT_CAPACITY;
+import static gnu.trove.impl.Constants.DEFAULT_LOAD_FACTOR;
+
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashBasedTable;
@@ -20,8 +19,17 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Table;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import gnu.trove.map.TIntObjectMap;
+import gnu.trove.map.TLongObjectMap;
+import gnu.trove.map.TObjectDoubleMap;
+import gnu.trove.map.hash.TIntObjectHashMap;
+import gnu.trove.map.hash.TLongObjectHashMap;
+import gnu.trove.map.hash.TObjectDoubleHashMap;
+
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
@@ -37,7 +45,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 /**
  * Handles receiving realtime topology by chunks, and while doing so
  * aggregates various realtime topology stats.
- *
  */
 public class LiveStatsAggregator {
 
@@ -55,17 +62,10 @@ public class LiveStatsAggregator {
     private final int writeTopologyChunkSize;
 
     /**
-     * Cache for commodities sold capacities.
-     * First key is provider oid, second key is commodity (numerical type) and value is the capacity.
+     * Cache for sold commodity capacities, so bought commodity records can include seller capacities.
      */
-    private Map<Long, Map<Integer, Double>> capacities = Maps.newHashMap();
-    /**
-     * Reusable capacity maps. The assumption is that there may be multiple providers selling
-     * commodities with exactly the same set of capacities. For example hosts in the same cluster,
-     * VMs deployed from the same template etc. Since we cache the capacities of all providers,
-     * in case we hit a consumer later, it could be efficient to reuse the maps when possible.
-     */
-    private Map<Map<Integer, Double>, Map<Integer, Double>> reusableCapacityMaps = Maps.newHashMap();
+    private CapacityCache capacityCache = new CapacityCache();
+
     /**
      * {@link MarketStatsAccumulator}s by base entity type and environment type.
      */
@@ -112,24 +112,17 @@ public class LiveStatsAggregator {
                 entityDTO.getEntityType() == EntityDTO.EntityType.VIRTUAL_VOLUME_VALUE) {
             // todo: currently volume doesn't sell any commodities, the capacity is stored as
             // properties, we should remove this logic once volume starts selling commodities
-            map = new HashMap<>();
             if (entityDTO.hasTypeSpecificInfo() && entityDTO.getTypeSpecificInfo().hasVirtualVolume()) {
                 VirtualVolumeInfo volume = entityDTO.getTypeSpecificInfo().getVirtualVolume();
-                map.put(CommodityType.STORAGE_AMOUNT.getNumber(), (double)volume.getStorageAmountCapacity());
-                map.put(CommodityType.STORAGE_ACCESS.getNumber(), (double)volume.getStorageAccessCapacity());
+                capacityCache.cacheCapacity(
+                        entityDTO.getOid(), CommodityType.STORAGE_AMOUNT.getNumber(), volume.getStorageAmountCapacity());
+                capacityCache.cacheCapacity(
+                        entityDTO.getOid(), CommodityType.STORAGE_ACCESS.getNumber(), volume.getStorageAccessCapacity());
             } else {
                 logger.warn("Capacity info is missing for volume {}", entityDTO.getOid());
             }
         } else {
-             map = entityDTO.getCommoditySoldListList().stream()
-                    .collect(Collectors.toMap(commSold -> (commSold.getCommodityType().getType()),
-                            CommoditySoldDTO::getCapacity, (k1, k2) -> k1));
-        }
-
-        if (!map.isEmpty()) {
-            // If such a map already exists then reuse it, otherwise put it in the map.
-            Map<Integer, Double> existingMap = reusableCapacityMaps.computeIfAbsent(map, key -> map);
-            capacities.put(entityDTO.getOid(), existingMap);
+            capacityCache.cacheCapacities(entityDTO);
         }
     }
 
@@ -137,6 +130,7 @@ public class LiveStatsAggregator {
      * Write commodities bought rows to the DB for commodities bought that were received before
      * their provider DTO (and therefore their sold capacities) was available. Now that we
      * processed the provider sold commodities, we can write these rows.
+     *
      * @param providerId the provider OID
      * @throws VmtDbException when there is a problem writing to the DD.
      */
@@ -189,7 +183,7 @@ public class LiveStatsAggregator {
             accumulatorsByEntityAndEnvType.put(baseEntityType, entityDTO.getEnvironmentType(), marketStatsAccumulator);
         }
 
-        marketStatsAccumulator.recordEntity(entityDTO, capacities, delayedCommoditiesBought, entityByOid);
+        marketStatsAccumulator.recordEntity(entityDTO, capacityCache, delayedCommoditiesBought, entityByOid);
     }
 
     /**
@@ -203,14 +197,13 @@ public class LiveStatsAggregator {
 
     /**
      * The sold commodities cache.
+     *
      * @return the sold commodities cache
      */
     @VisibleForTesting
-    protected Map<Long, Map<Integer, Double>> capacities() {
-        return Collections.unmodifiableMap(capacities);
+    CapacityCache capacities() {
+        return capacityCache;
     }
-
-
 
     /**
      * Persist the various per-entity-type aggregate stats and then write all remaining queued
@@ -240,5 +233,132 @@ public class LiveStatsAggregator {
         handleDelayedCommoditiesBought(entityDTO.getOid());
         // schedule the stats for the entity for persisting to db
         aggregateEntityStats(entityDTO, entityByOid);
+    }
+
+    /**
+     * Class to store capacities for all sold commodities encountered during the processing of a topology.
+     *
+     * <p>These may be needed to fill in capacities in the stats record created for corresponding bought
+     * commodities in other entities appearing in the topology.</p>
+     */
+    public static class CapacityCache {
+        // we're using trove collections to reduce memory footprint. They avoid boxing primitives.
+        // overall map can use default size and load factor, and since OIDs cannot be negative, we
+        // use a negative value for no-entry
+        TLongObjectMap<TIntObjectMap<TObjectDoubleMap<String>>> capacities
+                = new TLongObjectHashMap<>(DEFAULT_CAPACITY, DEFAULT_LOAD_FACTOR, -1L);
+
+        // Reusable capacity maps. The assumption is that there may be multiple providers selling
+        // commodities with exactly the same set of capacities. For example hosts in the same cluster,
+        // VMs deployed from the same template etc. To reduce overall memory footprint we use shared
+        // capacity structures among entities whose structures end up identical.
+        private Map<TIntObjectMap<TObjectDoubleMap<String>>, TIntObjectMap<TObjectDoubleMap<String>>>
+                reusableCapacityMaps = new HashMap<>();
+
+        /**
+         * Cache capacities for all commodities sold by the given entity.
+         *
+         * @param entity the entity
+         */
+        public void cacheCapacities(TopologyEntityDTO entity) {
+            if (entity.getCommoditySoldListCount() > 0) {
+                long oid = entity.getOid();
+                ensureCommTypeMap(oid, entity.getCommoditySoldListCount());
+                entity.getCommoditySoldListList().forEach(comm -> {
+                    int type = comm.getCommodityType().getType();
+                    String key = comm.getCommodityType().getKey();
+                    double capacity = comm.getCapacity();
+                    cacheCapacity(oid, type, key, capacity);
+                });
+                // check whether we have an identical capacities map for any prior entities
+                TIntObjectMap<TObjectDoubleMap<String>> entityCapacities = capacities.get(oid);
+                TIntObjectMap<TObjectDoubleMap<String>> reusableEntityCapacities
+                        = reusableCapacityMaps.get(entityCapacities);
+                if (reusableEntityCapacities != null) {
+                    // yes, replace ours with the shared instance
+                    capacities.put(oid, reusableEntityCapacities);
+                } else {
+                    // nope, remember this one for possible reuse
+                    reusableCapacityMaps.put(entityCapacities, entityCapacities);
+                }
+            }
+        }
+
+        /**
+         * Cache a sold commodity capacity.
+         *
+         * @param oid      sellilng entity OID
+         * @param type     commodity type
+         * @param key      commodity key, may be null
+         * @param capacity seller's capacity
+         */
+        public void cacheCapacity(long oid, int type, @Nullable String key, double capacity) {
+            TIntObjectMap<TObjectDoubleMap<String>> commTypeMap = ensureCommTypeMap(oid, 1);
+            TObjectDoubleMap<String> commKeyMap = commTypeMap.get(type);
+            if (commKeyMap == null) {
+                // we mostly only ever need one entry and no growth, and we'll use -1.0 to mean
+                // no entry
+                commKeyMap = new TObjectDoubleHashMap<>(1, 1f, -1.0);
+                commTypeMap.put(type, commKeyMap);
+            }
+            // protobuf default for a string field is "", so we'll use that here too
+            commKeyMap.put(key != null ? key : "", capacity);
+        }
+
+        /**
+         * Cache a sold capacity without a commodity key.
+         *
+         * @param oid      selling entity OID
+         * @param type     commodity type
+         * @param capacity seller's capacity
+         */
+        public void cacheCapacity(long oid, int type, double capacity) {
+            cacheCapacity(oid, type, null, capacity);
+        }
+
+        /**
+         * Check whehter we have any cached capacities for a given entity.
+         *
+         * @param providerId entity OID to check
+         * @return true if we have cached capacities for the entity
+         */
+        public boolean hasEntityCapacities(Long providerId) {
+            return capacities.containsKey(providerId);
+        }
+
+        /**
+         * Get the cached capacities map for a given entity.
+         *
+         * @param providerId entity OID
+         * @return that entity's cached sold capacities, or null if none
+         */
+        public TIntObjectMap<TObjectDoubleMap<String>> getEntityCapacities(long providerId) {
+            return capacities.get(providerId);
+        }
+
+        /**
+         * Allocate a new entry for the given oid if it's not already present in the cache.
+         *
+         * <p>The given size will be used as the initial map capacity, and since we hardly
+         * ever grow these maps after initial allocation, we'll set load factor to 1.</p>
+         *
+         * @param oid  oid of entity that needs a cache entry
+         * @param size # of commodity types sold by the entity
+         * @return the new or previously existing entry
+         */
+        private TIntObjectMap<TObjectDoubleMap<String>> ensureCommTypeMap(long oid, int size) {
+            TIntObjectMap<TObjectDoubleMap<String>> entry = capacities.get(oid);
+            if (entry == null) {
+                // all commodity types are positive, so use a negative value for no entry
+                entry = new TIntObjectHashMap<>(size, 1f, -1);
+                capacities.put(oid, entry);
+            }
+            return entry;
+        }
+
+        @VisibleForTesting
+        Collection<TIntObjectMap<TObjectDoubleMap<String>>> getAllEntityCapacities() {
+            return capacities.valueCollection();
+        }
     }
 }

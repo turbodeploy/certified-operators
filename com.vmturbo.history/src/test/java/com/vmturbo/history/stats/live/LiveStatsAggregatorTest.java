@@ -1,19 +1,19 @@
 package com.vmturbo.history.stats.live;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertSame;
 import static org.mockito.Mockito.when;
 
+import java.util.Collection;
 import java.util.Map;
-
-import org.jooq.InsertSetMoreStep;
-import org.jooq.InsertSetStep;
-import org.junit.BeforeClass;
-import org.junit.Test;
-import org.mockito.Mockito;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import org.jooq.InsertSetMoreStep;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -21,6 +21,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.stats.StatsTestUtils;
+import com.vmturbo.history.stats.live.LiveStatsAggregator.CapacityCache;
 
 /**
  * Unit tests for {@link LiveStatsAggregator}.
@@ -124,12 +125,16 @@ public class LiveStatsAggregatorTest {
      */
     @Test
     public void testCapacities() {
-        Object[] capacities = aggregator.capacities().values().toArray();
+        CapacityCache capacities = aggregator.capacities();
         // 3 entities with commodities sold (the 3 PMs)
-        assertEquals(3, capacities.length);
+        assertEquals(3, capacities.getAllEntityCapacities().size());
         // Verify that the sold commodities maps are being reused
-        assertSame(capacities[0], capacities[1]);
-        assertSame(capacities[0], capacities[2]);
+        assertEquals(ImmutableSet.of(3),
+                capacities.getAllEntityCapacities().stream()
+                        .collect(Collectors.groupingBy(cap -> System.identityHashCode(cap)))
+                        .values()
+                        .stream()
+                        .map(Collection::size)
+                        .collect(Collectors.toSet()));
     }
-
 }
