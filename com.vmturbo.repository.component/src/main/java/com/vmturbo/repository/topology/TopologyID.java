@@ -19,26 +19,40 @@ public class TopologyID implements Serializable {
     /**
      * The format for the database name for a {@link TopologyID}.
      * This is really:
-     *      topology-{contextId}-{type}-{topologyId}
+     *      {arangoDBNamespacePrefix}topology-{contextId}-{type}-{topologyId}
      * but basic string formatting in Java doesn't allow named parameters.
      */
-    private static final String DB_NAME_FORMAT = "topology-%d-%s-%d";
+    private static final String DB_NAME_FORMAT = "%stopology-%d-%s-%d";
 
     /**
      * The pattern that can be used to convert a database name to a {@link TopologyID}.
      * Should match {@link TopologyID#DB_NAME_FORMAT}.
      */
     private static final Pattern DB_NAME_PATTERN = Pattern.compile(
-            "topology-(?<contextId>\\d+)-(?<type>SOURCE|PROJECTED)-(?<topologyId>\\d+)");
+            "(?<arangoDBNamespacePrefix>.*)topology-(?<contextId>\\d+)-(?<type>SOURCE|PROJECTED)-(?<topologyId>\\d+)");
 
     private final long contextId;
     private final long topologyId;
     private final TopologyType type;
+    private final String arangoDBNamespacePrefix;
 
-    public TopologyID(final long contextId, final long topologyId, final TopologyType type) {
+    /**
+     * TopologyID containing identity-related properties of a topology, and allow comparing and
+     * grouping topologies.
+     *
+     * @param contextId               For a plan it is the plan ID, for real time topology it is a
+     *                                number that uniquely identifies the source topology processor.
+     * @param topologyId              Topology ID.
+     * @param type                    Topology type, either SOURCE or PROJECTED.
+     * @param arangoDBNamespacePrefix ArangoDB namespace prefix to be prepended to database names,
+     *                                e.g. "turbonomic-".
+     */
+    public TopologyID(final long contextId, final long topologyId, final TopologyType type,
+                      final String arangoDBNamespacePrefix) {
         this.contextId = contextId;
         this.topologyId = topologyId;
         this.type = type;
+        this.arangoDBNamespacePrefix = arangoDBNamespacePrefix;
     }
 
     /**
@@ -55,9 +69,10 @@ public class TopologyID implements Serializable {
             final String contextId = matcher.group("contextId");
             final String type = matcher.group("type");
             final String topologyId = matcher.group("topologyId");
+            final String arangoDBNamespacePrefix = matcher.group("arangoDBNamespacePrefix");
             if (contextId != null && type != null && topologyId != null) {
                 return Optional.of(new TopologyID(Long.parseLong(contextId),
-                        Long.parseLong(topologyId), TopologyType.valueOf(type)));
+                        Long.parseLong(topologyId), TopologyType.valueOf(type), arangoDBNamespacePrefix));
             }
         }
         return Optional.empty();
@@ -82,7 +97,7 @@ public class TopologyID implements Serializable {
      * @return The name to use for the database.
      */
     public String toDatabaseName() {
-        return String.format(DB_NAME_FORMAT, getContextId(), getType(), getTopologyId());
+        return String.format(DB_NAME_FORMAT, arangoDBNamespacePrefix, getContextId(), getType(), getTopologyId());
     }
 
     public TopologyDatabase database() {

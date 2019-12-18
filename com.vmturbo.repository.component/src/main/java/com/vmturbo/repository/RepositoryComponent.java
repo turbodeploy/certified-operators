@@ -27,6 +27,7 @@ import io.grpc.ServerInterceptor;
 import javaslang.circuitbreaker.CircuitBreakerConfig;
 import javaslang.circuitbreaker.CircuitBreakerRegistry;
 
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -67,7 +68,6 @@ import com.vmturbo.components.common.diagnostics.FileFolderZipper;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory.DefaultEntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
-import com.vmturbo.components.common.utils.EnvironmentUtils;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
@@ -90,7 +90,6 @@ import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 import com.vmturbo.repository.search.SearchHandler;
 import com.vmturbo.repository.service.ArangoRepositoryRpcService;
-import com.vmturbo.repository.service.ArangoSearchRpcService;
 import com.vmturbo.repository.service.ArangoSupplyChainRpcService;
 import com.vmturbo.repository.service.GraphDBService;
 import com.vmturbo.repository.service.LiveTopologyPaginator;
@@ -102,6 +101,8 @@ import com.vmturbo.repository.service.TopologyGraphRepositoryRpcService;
 import com.vmturbo.repository.service.TopologyGraphSearchRpcService;
 import com.vmturbo.repository.service.TopologyGraphSupplyChainRpcService;
 import com.vmturbo.repository.topology.GlobalSupplyChainManager;
+import com.vmturbo.repository.topology.TopologyID;
+import com.vmturbo.repository.topology.TopologyIDFactory;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufsManager;
 import com.vmturbo.topology.graph.search.SearchResolver;
@@ -293,7 +294,7 @@ public class RepositoryComponent extends BaseVmtComponent {
                     .host(arangoProps.getHost(), arangoProps.getPort())
                     .registerSerializer(TopologyDTO.Topology.class, TOPOLOGY_VPACK_SERIALIZER)
                     .registerDeserializer(TopologyDTO.Topology.class, TOPOLOGY_VPACK_DESERIALIZER)
-                    .password(dbPasswordUtil().getArangoDbRootPassword())
+                    .password(getArangoDBPassword())
                     .user(arangoProps.getUsername())
                     .maxConnections(arangoProps.getMaxConnections())
                     .build();
@@ -307,7 +308,6 @@ public class RepositoryComponent extends BaseVmtComponent {
                 topologyProtobufsManager(), realtimeTopologyContextId,
                 new ScheduledThreadPoolExecutor(1),
                 liveTopologyStore(),
-                realtimeInMemory(),
                 repositoryRealtimeTopologyDropDelaySecs,
                 numberOfExpectedRealtimeSourceDB,
                 numberOfExpectedRealtimeProjectedDB,
@@ -412,7 +412,7 @@ public class RepositoryComponent extends BaseVmtComponent {
 
     @Bean
     public TopologyProtobufsManager topologyProtobufsManager() {
-        return new TopologyProtobufsManager(arangoDatabaseFactory());
+        return new TopologyProtobufsManager(arangoDatabaseFactory(), getArangoDBNamespacePrefix());
     }
 
     @Bean
@@ -453,21 +453,17 @@ public class RepositoryComponent extends BaseVmtComponent {
             graphDBService(),
             planStatsService(),
             partialEntityConverter(),
-            maxEntitiesPerChunk);
+            maxEntitiesPerChunk,
+            topologyIDFactory());
 
-        if (realtimeInMemory()) {
-            // Return a topology-graph backed rpc service, which will fall back to arango for
-            // non-realtime queries.
-            return new TopologyGraphRepositoryRpcService(liveTopologyStore(),
-                arangoRpcService,
-                partialEntityConverter(),
-                realtimeTopologyContextId,
-                maxEntitiesPerChunk,
-                userSessionConfig.userSessionContext());
-        } else {
-            // Use arango for all the things!
-            return arangoRpcService;
-        }
+        // Return a topology-graph backed rpc service, which will fall back to arango for
+        // non-realtime queries.
+        return new TopologyGraphRepositoryRpcService(liveTopologyStore(),
+            arangoRpcService,
+            partialEntityConverter(),
+            realtimeTopologyContextId,
+            maxEntitiesPerChunk,
+            userSessionConfig.userSessionContext());
     }
 
     @Bean
@@ -483,24 +479,12 @@ public class RepositoryComponent extends BaseVmtComponent {
     }
 
     @Bean
-    public SearchServiceImplBase searchRpcService() throws InterruptedException, CommunicationException,
-            URISyntaxException {
-        if (realtimeInMemory()) {
-            return new TopologyGraphSearchRpcService(liveTopologyStore(),
-                searchResolver(), liveTopologyPaginator(),
-                partialEntityConverter(),
-                userSessionConfig.userSessionContext(),
-                maxEntitiesPerChunk);
-        } else {
-            return new ArangoSearchRpcService(supplyChainService(),
-                topologyManager(),
-                searchHandler(),
-                repositorySearchPaginationDefaultLimit,
-                repositorySearchPaginationMaxLimit,
-                userSessionConfig.userSessionContext(),
-                partialEntityConverter(),
-                maxEntitiesPerChunk);
-        }
+    public SearchServiceImplBase searchRpcService() {
+        return new TopologyGraphSearchRpcService(liveTopologyStore(),
+            searchResolver(), liveTopologyPaginator(),
+            partialEntityConverter(),
+            userSessionConfig.userSessionContext(),
+            maxEntitiesPerChunk);
     }
 
     @Bean
@@ -516,16 +500,12 @@ public class RepositoryComponent extends BaseVmtComponent {
             graphDBService(),
             supplyChainService(),
             userSessionConfig.userSessionContext());
-        if (realtimeInMemory()) {
-            return new TopologyGraphSupplyChainRpcService(userSessionConfig.userSessionContext(),
-                supplyChainResolver(),
-                liveTopologyStore(),
-                arangoService,
-                supplyChainStatistician(),
-                realtimeTopologyContextId);
-        } else {
-            return arangoService;
-        }
+        return new TopologyGraphSupplyChainRpcService(userSessionConfig.userSessionContext(),
+            supplyChainResolver(),
+            liveTopologyStore(),
+            arangoService,
+            supplyChainStatistician(),
+            realtimeTopologyContextId);
     }
 
     @Bean
@@ -585,36 +565,26 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Bean
     public TopologyEntitiesListener topologyEntitiesListener() {
         return new TopologyEntitiesListener(topologyManager(),
-                                            apiConfig.repositoryNotificationSender());
+                                            apiConfig.repositoryNotificationSender(), topologyIDFactory());
     }
 
     @Bean
     public MarketTopologyListener marketTopologyListener() {
         return new MarketTopologyListener(
                 apiConfig.repositoryNotificationSender(),
-                topologyManager());
+                topologyManager(), topologyIDFactory());
     }
 
     @Bean
     public TopologyProcessor topologyProcessor() {
         final TopologyProcessor topologyProcessor;
-        if (realtimeInMemory()) {
-            // If using the in-memory graph, we want to read from the beginning on restart
-            // so that we can populate the graph without waiting for the next broadcast.
-            topologyProcessor = tpClientConfig.topologyProcessor(
-                TopologyProcessorSubscription.forTopicWithStartFrom(
-                    TopologyProcessorSubscription.Topic.LiveTopologies, StartFrom.BEGINNING),
-                TopologyProcessorSubscription.forTopicWithStartFrom(
-                    TopologyProcessorSubscription.Topic.TopologySummaries, StartFrom.BEGINNING));
-        } else {
-            // If using the db-backed graph, we DON'T want to read from beginning on restart
-            // because we already have the latest broadcast saved.
-            topologyProcessor = tpClientConfig.topologyProcessor(
-                TopologyProcessorSubscription.forTopic(
-                    TopologyProcessorSubscription.Topic.LiveTopologies),
-                TopologyProcessorSubscription.forTopic(
-                    TopologyProcessorSubscription.Topic.TopologySummaries));
-        }
+        // If using the in-memory graph, we want to read from the beginning on restart
+        // so that we can populate the graph without waiting for the next broadcast.
+        topologyProcessor = tpClientConfig.topologyProcessor(
+            TopologyProcessorSubscription.forTopicWithStartFrom(
+                TopologyProcessorSubscription.Topic.LiveTopologies, StartFrom.BEGINNING),
+            TopologyProcessorSubscription.forTopicWithStartFrom(
+                TopologyProcessorSubscription.Topic.TopologySummaries, StartFrom.BEGINNING));
         topologyProcessor.addLiveTopologyListener(topologyEntitiesListener());
         topologyProcessor.addTopologySummaryListener(topologyEntitiesListener());
         return topologyProcessor;
@@ -622,24 +592,16 @@ public class RepositoryComponent extends BaseVmtComponent {
 
     @Bean
     public MarketComponent marketComponent() {
-        final MarketComponent market;
-        if (realtimeInMemory()) {
-            market = marketClientConfig.marketComponent(
-                // If using the in-memory graph, we want to read from the beginning on restart
-                // so that we can populate the graph without waiting for the next broadcast.
-                MarketSubscription.forTopicWithStartFrom(
-                    MarketSubscription.Topic.ProjectedTopologies, StartFrom.BEGINNING),
-                MarketSubscription.forTopicWithStartFrom(
-                    MarketSubscription.Topic.AnalysisSummary, StartFrom.BEGINNING),
-                // Plan analysis (source) topologies are always persisted, so there is no need to
-                // read this topic from the beginning.
-                MarketSubscription.forTopic(MarketSubscription.Topic.PlanAnalysisTopologies));
-        } else {
-            market = marketClientConfig.marketComponent(
-                MarketSubscription.forTopic(MarketSubscription.Topic.ProjectedTopologies),
-                MarketSubscription.forTopic(MarketSubscription.Topic.AnalysisSummary),
-                MarketSubscription.forTopic(MarketSubscription.Topic.PlanAnalysisTopologies));
-        }
+        final MarketComponent market = marketClientConfig.marketComponent(
+            // If using the in-memory graph, we want to read from the beginning on restart
+            // so that we can populate the graph without waiting for the next broadcast.
+            MarketSubscription.forTopicWithStartFrom(
+                MarketSubscription.Topic.ProjectedTopologies, StartFrom.BEGINNING),
+            MarketSubscription.forTopicWithStartFrom(
+                MarketSubscription.Topic.AnalysisSummary, StartFrom.BEGINNING),
+            // Plan analysis (source) topologies are always persisted, so there is no need to
+            // read this topic from the beginning.
+            MarketSubscription.forTopic(MarketSubscription.Topic.PlanAnalysisTopologies));
         market.addProjectedTopologyListener(marketTopologyListener());
         market.addAnalysisSummaryListener(marketTopologyListener());
         market.addPlanAnalysisTopologyListener(marketTopologyListener());
@@ -655,6 +617,16 @@ public class RepositoryComponent extends BaseVmtComponent {
                 .build();
 
         return CircuitBreakerRegistry.of(circuitBreakerConfig);
+    }
+
+    /**
+     * The {@link TopologyIDFactory} used to create {@link TopologyID}.
+     *
+     * @return {@link TopologyIDFactory}.
+     */
+    @Bean
+    public TopologyIDFactory topologyIDFactory() {
+        return new TopologyIDFactory(getArangoDBNamespacePrefix());
     }
 
     @Nonnull
@@ -677,12 +649,6 @@ public class RepositoryComponent extends BaseVmtComponent {
         return Collections.singletonList(jwtInterceptor);
     }
 
-    private static boolean realtimeInMemory() {
-        return EnvironmentUtils.getOptionalEnvProperty("realtime.topology.in.memory")
-            .map(Boolean::parseBoolean)
-            .orElse(true);
-    }
-
     /**
      * Starts the component.
      *
@@ -703,5 +669,25 @@ public class RepositoryComponent extends BaseVmtComponent {
             logger.info("Closing all arangodb client connections");
             arangoDB.getValue().ifPresent(ArangoDB::shutdown);
         }
+    }
+
+    /**
+     * Return password if specified, else return default ArangoDB root password.
+     *
+     * @return ArangoDB password.
+     */
+    private String getArangoDBPassword() {
+        return !StringUtils.isEmpty(arangoProps.getPassword()) ? arangoProps.getPassword() :
+            dbPasswordUtil().getArangoDbRootPassword();
+    }
+
+    /**
+     * Construct ArangoDB namespace prefix to be prepended to database names. For example, if ArangoDB
+     * namespace is "turbonomic", then the constructed arangoDBNamespacePrefix is "turbonomic-".
+     *
+     * @return Constructed ArangoDB namespace prefix to be prepended to database names.
+     */
+    private String getArangoDBNamespacePrefix() {
+        return StringUtils.isEmpty(arangoProps.getNamespace()) ? StringUtils.EMPTY : arangoProps.getNamespace() + "-";
     }
 }

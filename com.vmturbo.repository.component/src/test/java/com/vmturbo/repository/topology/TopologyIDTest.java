@@ -9,9 +9,12 @@ import com.vmturbo.repository.topology.TopologyID.TopologyType;
 
 public class TopologyIDTest {
 
+    private final TopologyIDFactory topologyIDFactory = new TopologyIDFactory("turbonomic-");
+
     @Test
     public void testDatabaseName() {
-        final TopologyID id = new TopologyID(1, 2, TopologyType.SOURCE);
+        final TopologyID id = topologyIDFactory.createTopologyID(1, 2, TopologyType.SOURCE);
+        assertEquals("turbonomic-topology-1-SOURCE-2", id.toDatabaseName());
         assertEquals(id, TopologyID.fromDatabaseName(id.toDatabaseName()).get());
     }
 

@@ -28,6 +28,7 @@ import com.vmturbo.repository.RepositoryNotificationSender;
 import com.vmturbo.repository.SharedMetrics;
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseException;
 import com.vmturbo.repository.topology.TopologyID;
+import com.vmturbo.repository.topology.TopologyIDFactory;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyEntitiesException;
@@ -46,14 +47,17 @@ public class MarketTopologyListener implements
     private final RepositoryNotificationSender notificationSender;
     private final TopologyLifecycleManager topologyManager;
     private final Object topologyInfoLock = new Object();
+    private final TopologyIDFactory topologyIDFactory;
 
     @GuardedBy("topologyInfoLock")
     private long latestKnownProjectedTopologyId = -1;
 
     public MarketTopologyListener(@Nonnull final RepositoryNotificationSender notificationSender,
-                                  @Nonnull final TopologyLifecycleManager topologyManager) {
+                                  @Nonnull final TopologyLifecycleManager topologyManager,
+                                  @Nonnull final TopologyIDFactory topologyIDFactory) {
         this.notificationSender = Objects.requireNonNull(notificationSender);
         this.topologyManager = Objects.requireNonNull(topologyManager);
+        this.topologyIDFactory = topologyIDFactory;
     }
 
     @Override
@@ -115,7 +119,7 @@ public class MarketTopologyListener implements
         }
 
         final long topologyContextId = originalTopologyInfo.getTopologyContextId();
-        final TopologyID tid = new TopologyID(topologyContextId, projectedTopologyId,
+        final TopologyID tid = topologyIDFactory.createTopologyID(topologyContextId, projectedTopologyId,
             TopologyID.TopologyType.PROJECTED);
 
         if (!shouldProcessTopology(originalTopologyInfo, projectedTopologyId)) {
@@ -224,7 +228,7 @@ public class MarketTopologyListener implements
         final DataMetricTimer timer = SharedMetrics.TOPOLOGY_DURATION_SUMMARY
                 .labels(SharedMetrics.SOURCE_LABEL)
                 .startTimer();
-        final TopologyID tid = new TopologyID(topologyContextId, topologyId, TopologyID.TopologyType.SOURCE);
+        final TopologyID tid = topologyIDFactory.createTopologyID(topologyContextId, topologyId, TopologyID.TopologyType.SOURCE);
         final TopologyCreator<TopologyEntityDTO> topologyCreator = topologyManager.newSourceTopologyCreator(tid, topologyInfo);
 
         TopologyEntitiesUtil.createTopology(entityIterator, topologyId, topologyContextId, timer,

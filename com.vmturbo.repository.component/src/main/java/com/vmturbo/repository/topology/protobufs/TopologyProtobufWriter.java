@@ -1,17 +1,14 @@
 package com.vmturbo.repository.topology.protobufs;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.arangodb.ArangoDBException;
 import com.arangodb.entity.BaseDocument;
-import com.google.common.collect.ImmutableMap;
 import com.google.gson.Gson;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 
@@ -28,8 +25,9 @@ public class TopologyProtobufWriter<E> extends TopologyProtobufHandler {
     private final Function<E, String> keyMappingFunction;
 
     protected TopologyProtobufWriter(ArangoDatabaseFactory arangoDatabaseFactory, long topologyId,
-                                     Function<E, String> entityOidMappingFunction) {
-        super(arangoDatabaseFactory, topologyId);
+                                     Function<E, String> entityOidMappingFunction,
+                                     String arangoDBNamespacePrefix) {
+        super(arangoDatabaseFactory, topologyId, arangoDBNamespacePrefix);
         this.keyMappingFunction = entityOidMappingFunction;
     }
 

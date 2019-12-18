@@ -63,10 +63,10 @@ public class TopologyProtobufReaderTest {
         when(doc.getProperties()).thenReturn(Maps.newHashMap());
         when(collection.getDocument(anyString(), any())).thenReturn(doc);
 
-        TopologyProtobufsManager tpm = new TopologyProtobufsManager(factory);
+        TopologyProtobufsManager tpm = new TopologyProtobufsManager(factory, "turbonomic-");
         final TopologyProtobufReader reader = tpm.createTopologyProtobufReader(1111,
                 Optional.empty());
-        verify(db).createDatabase(Mockito.eq("topology-protobufs"));
+        verify(db).createDatabase(Mockito.eq("turbonomic-topology-protobufs"));
         verify(database).collection(Mockito.eq("topology-dtos-1111"));
         // Reader does not create the collection
         verify(database, never()).createCollection(Mockito.eq("topology-dtos-1111"));

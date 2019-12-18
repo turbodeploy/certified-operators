@@ -26,7 +26,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.arangodb.ArangoDBException;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Collections2;
 
 import javaslang.Function1;
@@ -102,8 +101,6 @@ public class TopologyLifecycleManager implements Diagnosable {
 
     private final LiveTopologyStore liveTopologyStore;
 
-    private final boolean realtimeInMemory;
-
     private final GlobalSupplyChainManager globalSupplyChainManager;
 
     private final GraphDBExecutor graphDbExecutor;
@@ -114,14 +111,13 @@ public class TopologyLifecycleManager implements Diagnosable {
                                     final long realtimeTopologyContextId,
                                     @Nonnull final ScheduledExecutorService scheduler,
                                     @Nonnull final LiveTopologyStore liveTopologyStore,
-                                    final boolean realtimeInMemory,
                                     final long realtimeTopologyDropDelaySecs,
                                     final int numberOfExpectedRealtimeSourceDB,
                                     final int numberOfExpectedRealtimeProjectedDB,
                                     @Nonnull final GlobalSupplyChainManager globalSupplyChainManager,
                                     @Nonnull final GraphDBExecutor graphDBExecutor) {
         this(graphDatabaseDriverBuilder, graphDefinition, topologyProtobufsManager, realtimeTopologyContextId,
-            scheduler, liveTopologyStore, realtimeInMemory, realtimeTopologyDropDelaySecs, numberOfExpectedRealtimeSourceDB,
+            scheduler, liveTopologyStore, realtimeTopologyDropDelaySecs, numberOfExpectedRealtimeSourceDB,
             numberOfExpectedRealtimeProjectedDB, globalSupplyChainManager, graphDBExecutor, true);
     }
 
@@ -132,7 +128,6 @@ public class TopologyLifecycleManager implements Diagnosable {
             final long realtimeTopologyContextId,
             @Nonnull final ScheduledExecutorService scheduler,
             @Nonnull final LiveTopologyStore liveTopologyStore,
-            final boolean realtimeInMemory,
             final long realtimeTopologyDropDelaySecs,
             final int numberOfExpectedRealtimeSourceDB,
             final int numberOfExpectedRealtimeProjectedDB,
@@ -145,7 +140,6 @@ public class TopologyLifecycleManager implements Diagnosable {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.scheduler = scheduler;
         this.liveTopologyStore = liveTopologyStore;
-        this.realtimeInMemory = realtimeInMemory;
         this.realtimeTopologyDropDelaySecs = realtimeTopologyDropDelaySecs;
         this.numberOfExpectedRealtimeSourceDB = numberOfExpectedRealtimeSourceDB;
         this.numberOfExpectedRealtimeProjectedDB = numberOfExpectedRealtimeProjectedDB;
@@ -346,7 +340,7 @@ public class TopologyLifecycleManager implements Diagnosable {
 
     public TopologyCreator<TopologyEntityDTO> newSourceTopologyCreator(@Nonnull final TopologyID topologyID,
                                                                        @Nonnull final TopologyInfo topologyInfo) {
-        if (realtimeInMemory && topologyID.getContextId() == realtimeTopologyContextId) {
+        if (topologyID.getContextId() == realtimeTopologyContextId) {
             return new InMemorySourceTopologyCreator(liveTopologyStore.newRealtimeTopology(topologyInfo));
         } else {
             return new ArangoSourceTopologyCreator(
@@ -366,7 +360,7 @@ public class TopologyLifecycleManager implements Diagnosable {
 
     public TopologyCreator<ProjectedTopologyEntity> newProjectedTopologyCreator(@Nonnull final TopologyID topologyID,
                                                                                 @Nonnull final TopologyInfo originalTopologyInfo) {
-        if (realtimeInMemory && topologyID.getContextId() == realtimeTopologyContextId) {
+        if (topologyID.getContextId() == realtimeTopologyContextId) {
             return new InMemoryProjectedTopologyCreator(
                 liveTopologyStore.newProjectedTopology(topologyID.getTopologyId(), originalTopologyInfo));
         } else {
@@ -964,7 +958,7 @@ public class TopologyLifecycleManager implements Diagnosable {
     public class RealtimeTopologyID extends TopologyID {
 
         public RealtimeTopologyID(final long contextId, final TopologyType type) {
-            super(contextId, 0, type);
+            super(contextId, 0, type, "");
         }
 
         @Override

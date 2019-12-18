@@ -24,7 +24,6 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import com.vmturbo.auth.api.authorization.UserSessionContext;
@@ -44,7 +43,6 @@ import com.vmturbo.repository.topology.GlobalSupplyChain;
 import com.vmturbo.repository.topology.GlobalSupplyChainManager;
 import com.vmturbo.repository.topology.TopologyDatabase;
 import com.vmturbo.repository.topology.TopologyID;
-import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
 
 /**
@@ -110,7 +108,7 @@ public class SupplyChainServiceTest {
 
         @Bean
         public TopologyID getTopologyId(){
-            return new TopologyID(1, 2, TopologyID.TopologyType.SOURCE);
+            return new TopologyID(1, 2, TopologyID.TopologyType.SOURCE, "");
         }
 
         @Bean

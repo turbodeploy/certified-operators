@@ -54,14 +54,16 @@ public class TopologyCreatorTest {
 
     private final GraphDBExecutor graphDBExecutor = mock(GraphDBExecutor.class);
 
+    private final TopologyIDFactory topologyIDFactory = new TopologyIDFactory("turbonomic-");
+
     private final TopologyID realtimeSourceId =
-            new TopologyID(realtimeTopologyContextId, 1L, TopologyType.SOURCE);
+        topologyIDFactory.createTopologyID(realtimeTopologyContextId, 1L, TopologyType.SOURCE);
     private final TopologyID realtimeProjectedId =
-            new TopologyID(realtimeTopologyContextId, 1L, TopologyType.PROJECTED);
+        topologyIDFactory.createTopologyID(realtimeTopologyContextId, 1L, TopologyType.PROJECTED);
     private final TopologyID planSourceId =
-            new TopologyID(1L, 1L, TopologyType.SOURCE);
+        topologyIDFactory.createTopologyID(1L, 1L, TopologyType.SOURCE);
     private final TopologyID planProjectedId =
-            new TopologyID(1L, 1L, TopologyType.PROJECTED);
+        topologyIDFactory.createTopologyID(1L, 1L, TopologyType.PROJECTED);
 
 
     @Before

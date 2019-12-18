@@ -33,13 +33,16 @@ public abstract class TopologyProtobufHandler {
     /**
      * Create a collection for the given topology ID.
      *
-     * @param topologyId topology id of the raw topology
-     * @param arangoDatabaseFactory the dabase factory
+     * @param arangoDatabaseFactory the database factory.
+     * @param topologyId topology id of the raw topology.
+     * @param arangoDBNamespacePrefix ArangoDB namespace prefix to be prepended to database names,
+     *                                e.g. "turbonomic-".
      */
-    protected TopologyProtobufHandler(ArangoDatabaseFactory arangoDatabaseFactory, long topologyId) {
+    protected TopologyProtobufHandler(ArangoDatabaseFactory arangoDatabaseFactory, long topologyId,
+                                      final String arangoDBNamespacePrefix) {
         this.topologyId = topologyId;
         this.arangoFactory = arangoDatabaseFactory;
-        database = database();
+        database = database(arangoDBNamespacePrefix);
         topologyCollection = collection(getTopologyCollectionName(topologyId));
     }
 
@@ -61,25 +64,28 @@ public abstract class TopologyProtobufHandler {
     /**
      * Verify that the raw topologies database exists, and if not then create it.
      *
+     * @param arangoDBNamespacePrefix ArangoDB namespace prefix to be prepended to database names,
+     *                                e.g. "turbonomic-".
      * @return the raw topologies database
      */
-    private synchronized ArangoDatabase database() {
-        if (!arangoFactory.getArangoDriver().getDatabases().contains(RAW_TOPOLOGIES_DATABASE_NAME)) {
-            logger.info("Creating database {}", RAW_TOPOLOGIES_DATABASE_NAME);
+    private synchronized ArangoDatabase database(final String arangoDBNamespacePrefix) {
+        String arangoDBName = arangoDBNamespacePrefix + RAW_TOPOLOGIES_DATABASE_NAME;
+        if (!arangoFactory.getArangoDriver().getDatabases().contains(arangoDBName)) {
+            logger.info("Creating database {}", arangoDBName);
             try {
-                arangoFactory.getArangoDriver().createDatabase(RAW_TOPOLOGIES_DATABASE_NAME);
+                arangoFactory.getArangoDriver().createDatabase(arangoDBName);
             } catch (ArangoDBException adbe) {
                 // we will treat "duplicate name" errors as harmless -- this means someone else may
                 // have already created our database.
                 if (adbe.getErrorNum() == ArangoError.ERROR_ARANGO_DUPLICATE_NAME) {
-                    logger.info("Database {} already created.", RAW_TOPOLOGIES_DATABASE_NAME);
+                    logger.info("Database {} already created.", arangoDBName);
                 } else {
                     // we'll re-throw the other errors.
                     throw adbe;
                 }
             }
         }
-        return arangoFactory.getArangoDriver().db(RAW_TOPOLOGIES_DATABASE_NAME);
+        return arangoFactory.getArangoDriver().db(arangoDBName);
     }
 
     /**

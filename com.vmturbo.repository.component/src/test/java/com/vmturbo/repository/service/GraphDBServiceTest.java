@@ -28,6 +28,7 @@ import com.vmturbo.repository.graph.parameter.GraphCmd;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph;
 import com.vmturbo.repository.topology.TopologyDatabase;
 import com.vmturbo.repository.topology.TopologyID;
+import com.vmturbo.repository.topology.TopologyIDFactory;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
 
 /**
@@ -43,13 +44,15 @@ public class GraphDBServiceTest {
 
     private GraphDBService graphDBService;
 
+    private final TopologyIDFactory topologyIDFactory = new TopologyIDFactory("turbonomic-");
+
     @Before
     public void setup() throws Exception {
 
         final TopologyDatabase topologyDatabase = Mockito.mock(TopologyDatabase.class);
         when(result.getRealtimeDatabase())
             .thenReturn(Optional.of(topologyDatabase));
-        final TopologyID topologyId = new TopologyID(1, 2, TopologyID.TopologyType.SOURCE);
+        final TopologyID topologyId = topologyIDFactory.createTopologyID(1, 2, TopologyID.TopologyType.SOURCE);
         when(result.getRealtimeTopologyId()).thenReturn(Optional.of(topologyId));
 
         graphDBService = new GraphDBService(

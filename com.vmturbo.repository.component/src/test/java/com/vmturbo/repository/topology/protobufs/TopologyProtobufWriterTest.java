@@ -48,9 +48,9 @@ public class TopologyProtobufWriterTest {
 
     @Test
     public void testWriter() {
-        TopologyProtobufsManager tpm = new TopologyProtobufsManager(factory);
+        TopologyProtobufsManager tpm = new TopologyProtobufsManager(factory, "turbonomic-");
         final TopologyProtobufWriter writer = tpm.createProjectedTopologyProtobufWriter(2222);
-        verify(db).createDatabase(Mockito.eq("topology-protobufs"));
+        verify(db).createDatabase(Mockito.eq("turbonomic-topology-protobufs"));
         verify(database).collection(Mockito.eq("topology-dtos-2222"));
         verify(database).createCollection(Mockito.eq("topology-dtos-2222"));
         assertSame(writer.topologyCollection, collection);

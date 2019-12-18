@@ -23,7 +23,7 @@ public class TopologyProtobufsManagerTest {
         Mockito.when(exception.getResponseCode()).thenReturn(404);
         ArangoDatabaseFactory factory = Mockito.mock(ArangoDatabaseFactory.class);
         Mockito.when(factory.getArangoDriver()).thenThrow(exception);
-        TopologyProtobufsManager tpm = new TopologyProtobufsManager(factory);
+        TopologyProtobufsManager tpm = new TopologyProtobufsManager(factory, "turbonomic-");
         tpm.createTopologyProtobufReader(1111, Optional.empty());
     }
 
@@ -34,7 +34,7 @@ public class TopologyProtobufsManagerTest {
         Mockito.when(exception.getResponseCode()).thenReturn(200);
         ArangoDatabaseFactory factory = Mockito.mock(ArangoDatabaseFactory.class);
         Mockito.when(factory.getArangoDriver()).thenThrow(exception);
-        TopologyProtobufsManager tpm = new TopologyProtobufsManager(factory);
+        TopologyProtobufsManager tpm = new TopologyProtobufsManager(factory, "turbonomic-");
         tpm.createTopologyProtobufReader(1111, Optional.empty());
     }
 }

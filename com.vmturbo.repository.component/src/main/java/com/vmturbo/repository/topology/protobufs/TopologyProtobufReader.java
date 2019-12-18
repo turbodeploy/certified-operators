@@ -18,7 +18,6 @@ import com.google.gson.JsonParseException;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -38,8 +37,9 @@ public class TopologyProtobufReader extends TopologyProtobufHandler {
 
     protected TopologyProtobufReader(@Nonnull final ArangoDatabaseFactory arangoDatabaseFactory,
                                      final long topologyId,
-                                     @Nonnull final Optional<TopologyEntityFilter> entityFilter) {
-        super(arangoDatabaseFactory, topologyId);
+                                     @Nonnull final Optional<TopologyEntityFilter> entityFilter,
+                                     @Nonnull final String arangoDBNamespacePrefix) {
+        super(arangoDatabaseFactory, topologyId, arangoDBNamespacePrefix);
         count = topologyCollection.count().getCount();
         this.entityFilter = entityFilter;
     }

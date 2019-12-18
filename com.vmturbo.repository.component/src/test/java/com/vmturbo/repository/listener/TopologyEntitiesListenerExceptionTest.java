@@ -28,6 +28,7 @@ import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseExc
 import com.vmturbo.repository.graph.driver.GraphDatabaseDriver;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.topology.TopologyID;
+import com.vmturbo.repository.topology.TopologyIDFactory;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
 import com.vmturbo.repository.util.RepositoryTestUtil;
@@ -65,6 +66,8 @@ public class TopologyEntitiesListenerExceptionTest {
     private final TopologyDTO.Topology.DataSegment vmDTO;
     private final TopologyDTO.Topology.DataSegment pmDTO;
 
+    private final TopologyIDFactory topologyIDFactory = new TopologyIDFactory("turbonomic-");
+
     public TopologyEntitiesListenerExceptionTest() throws IOException {
         TopologyEntityDTO vmDTOE = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
         TopologyEntityDTO pmDTOE = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/pm-1.dto.json");
@@ -76,7 +79,7 @@ public class TopologyEntitiesListenerExceptionTest {
     public void setUp() throws Exception {
         topologyEntitiesListener = new TopologyEntitiesListener(
                 topologyManager,
-                notificationSender);
+                notificationSender, topologyIDFactory);
 
         // Simulates one chunk and then an exception
         when(entityIterator.nextChunk()).thenReturn(Sets.newHashSet(vmDTO, pmDTO))
@@ -89,7 +92,7 @@ public class TopologyEntitiesListenerExceptionTest {
         final long topologyContextId = realtimeTopologyContextId;
         final long topologyId = 22222L;
         final long creationTime = 33333L;
-        final TopologyID tid = new TopologyID(topologyContextId, topologyId,
+        final TopologyID tid = topologyIDFactory.createTopologyID(topologyContextId, topologyId,
                 TopologyID.TopologyType.SOURCE);
         final TopologyInfo tInfo = TopologyInfo.newBuilder()
             .setTopologyContextId(topologyContextId)
