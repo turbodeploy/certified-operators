@@ -338,6 +338,9 @@
                 <module>../com.vmturbo.mediation.gcp.conversion</module>
                 <module>../com.vmturbo.mediation.gcp.cost.component</module>
                 <module>../com.vmturbo.mediation.istio.component</module>
+                <module>../com.vmturbo.mediation.intersight.hyperflex.component</module>
+                <module>../com.vmturbo.mediation.intersight.server.component</module>
+                <module>../com.vmturbo.mediation.intersight.ucs.component</module>
                 <module>../com.vmturbo.mediation.hds.component</module>
                 <module>../com.vmturbo.mediation.horizon.component</module>
                 <module>../com.vmturbo.mediation.hpe3par.component</module>
@@ -426,6 +429,15 @@
             <id>mediation-aws-lambda</id>
             <modules>
                 <module>../com.vmturbo.mediation.aws.lambda.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+        <id>mediation-intersight</id>
+            <modules>
+                <module>../com.vmturbo.mediation.intersight.hyperflex.component</module>
+                <module>../com.vmturbo.mediation.intersight.server.component</module>
+                <module>../com.vmturbo.mediation.intersight.ucs.component</module>
             </modules>
         </profile>
 
@@ -996,6 +1008,9 @@
                 <module>../com.vmturbo.mediation.hyperflex.component</module>
                 <module>../com.vmturbo.mediation.hyperv.component</module>
                 <module>../com.vmturbo.mediation.hyperv.conversion</module>
+                <module>../com.vmturbo.mediation.intersight.hyperflex.component</module>
+                <module>../com.vmturbo.mediation.intersight.server.component</module>
+                <module>../com.vmturbo.mediation.intersight.ucs.component</module>
                 <module>../com.vmturbo.mediation.netapp.component</module>
                 <module>../com.vmturbo.mediation.newrelic.component</module>
                 <module>../com.vmturbo.mediation.appinsights.component</module>
