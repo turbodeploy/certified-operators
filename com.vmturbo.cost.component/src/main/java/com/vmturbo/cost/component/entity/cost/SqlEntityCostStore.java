@@ -39,6 +39,7 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.cost.calculation.CostJournal;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.component.util.CostFilter;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.sql.utils.DbException;
@@ -69,7 +70,8 @@ public class SqlEntityCostStore implements EntityCostStore {
      * {@inheritDoc}
      */
     @Override
-    public void persistEntityCosts(@Nonnull final List<EntityCost> entityCosts)
+    public void persistEntityCosts(@Nonnull final List<EntityCost> entityCosts,
+                                   @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology)
             throws DbException, InvalidEntityCostsException {
         final LocalDateTime curTime = LocalDateTime.now(clock);
         Objects.requireNonNull(entityCosts);
@@ -98,20 +100,32 @@ public class SqlEntityCostStore implements EntityCostStore {
                                     .set(ENTITY_COST.COST_TYPE, 0)
                                     .set(ENTITY_COST.COST_SOURCE, 1)
                                     .set(ENTITY_COST.CURRENCY, 0)
-                                    .set(ENTITY_COST.AMOUNT, BigDecimal.valueOf(0)));
+                                    .set(ENTITY_COST.AMOUNT, BigDecimal.valueOf(0))
+                                    .set(ENTITY_COST.ACCOUNT_ID, (Long)null)
+                                    .set(ENTITY_COST.AVAILABILITY_ZONE_ID, (Long)null)
+                                    .set(ENTITY_COST.REGION_ID, (Long)null)
+                    );
 
                     // Bind values to the batch insert statement. Each "bind" should have values for
                     // all fields set during batch initialization.
                     chunk.forEach(entityCost -> entityCost.getComponentCostList()
-                            .forEach(componentCost ->
-                                    batch.bind(entityCost.getAssociatedEntityId(),
-                                            curTime,
-                                            entityCost.getAssociatedEntityType(),
-                                            componentCost.getCategory().getNumber(),
-                                            componentCost.getCostSource().getNumber(),
-                                            entityCost.getTotalAmount().getCurrency(),
-                                            BigDecimal.valueOf(componentCost.getAmount().getAmount()))));
-
+                            .forEach(componentCost -> {
+                                final Long entityOid = entityCost.getAssociatedEntityId();
+                                batch.bind(entityOid,
+                                    curTime,
+                                    entityCost.getAssociatedEntityType(),
+                                    componentCost.getCategory().getNumber(),
+                                    componentCost.getCostSource().getNumber(),
+                                    entityCost.getTotalAmount().getCurrency(),
+                                    BigDecimal.valueOf(componentCost.getAmount().getAmount()),
+                                    cloudTopology.getOwner(entityOid)
+                                        .map(TopologyEntityDTO::getOid).orElse(null),
+                                    cloudTopology.getConnectedAvailabilityZone(entityOid)
+                                        .map(TopologyEntityDTO::getOid).orElse(null),
+                                    cloudTopology.getConnectedRegion(entityOid)
+                                        .map(TopologyEntityDTO::getOid).orElse(null));
+                                }
+                            ));
                     if (batch.size() > 0) {
                         logger.info("Persisting batch of size: {}", batch.size());
                         // Actually execute the batch insert.
@@ -128,7 +142,8 @@ public class SqlEntityCostStore implements EntityCostStore {
      * {@inheritDoc}
      */
     @Override
-    public void persistEntityCost(@Nonnull final Map<Long, CostJournal<TopologyEntityDTO>> costJournals) throws DbException {
+    public void persistEntityCost(@Nonnull final Map<Long, CostJournal<TopologyEntityDTO>> costJournals,
+                                  @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) throws DbException {
         final LocalDateTime curTime = LocalDateTime.now(clock);
         Objects.requireNonNull(costJournals);
         try {
@@ -152,15 +167,20 @@ public class SqlEntityCostStore implements EntityCostStore {
                                         .set(ENTITY_COST.COST_TYPE, 0)
                                         .set(ENTITY_COST.COST_SOURCE, 0)
                                         .set(ENTITY_COST.CURRENCY, 0)
-                                        .set(ENTITY_COST.AMOUNT, BigDecimal.valueOf(0)));
+                                        .set(ENTITY_COST.AMOUNT, BigDecimal.valueOf(0))
+                                        .set(ENTITY_COST.ACCOUNT_ID, (Long)null)
+                                        .set(ENTITY_COST.AVAILABILITY_ZONE_ID, (Long)null)
+                                        .set(ENTITY_COST.REGION_ID, (Long)null)
+                        );
 
                         // Bind values to the batch insert statement. Each "bind" should have values for
                         // all fields set during batch initialization.
                         chunk.forEach(journal -> journal.getCategories().forEach(costType -> {
                             for (CostSource costSource : CostSource.values()) {
                                 final TraxNumber categoryCost = journal.getHourlyCostBySourceAndCategory(costType, Optional.of(costSource));
+                                final Long entityOid = journal.getEntity().getOid();
                                 if (categoryCost != null) {
-                                    batch.bind(journal.getEntity().getOid(),
+                                    batch.bind(entityOid,
                                             curTime,
                                             journal.getEntity().getEntityType(),
                                             costType.getNumber(),
@@ -168,7 +188,14 @@ public class SqlEntityCostStore implements EntityCostStore {
                                             // TODO (roman, Sept 5 2018): Not handling currency in cost
                                             // calculation yet.
                                             CurrencyAmount.getDefaultInstance().getCurrency(),
-                                            BigDecimal.valueOf(categoryCost.getValue()));
+                                            BigDecimal.valueOf(categoryCost.getValue()),
+                                            cloudTopology.getOwner(entityOid)
+                                                .map(TopologyEntityDTO::getOid).orElse(null),
+                                            cloudTopology.getConnectedAvailabilityZone(entityOid)
+                                                .map(TopologyEntityDTO::getOid).orElse(null),
+                                            cloudTopology.getConnectedRegion(entityOid)
+                                                .map(TopologyEntityDTO::getOid).orElse(null)
+                                        );
 
                                 }
                             }

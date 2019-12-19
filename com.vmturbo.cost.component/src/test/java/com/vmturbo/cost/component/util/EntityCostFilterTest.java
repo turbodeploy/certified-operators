@@ -33,6 +33,9 @@ public class EntityCostFilterTest {
             .entityIds(Collections.singleton(5L))
             .costCategories(ImmutableSet.of(10, 11))
             .costSources(true, Collections.singleton(8))
+            .accountIds(ImmutableSet.of(20L, 21L))
+            .regionIds(ImmutableSet.of(30L, 31L))
+            .availabilityZoneIds(ImmutableSet.of(40L, 41L))
             .build();
         filter.toString();
 
@@ -44,7 +47,10 @@ public class EntityCostFilterTest {
                 .duration(1L, 2L)
                 .entityIds(Collections.singleton(5L))
                 .costCategories(ImmutableSet.of(10, 11))
-                .costSources(true, Collections.singleton(8));
+                .costSources(true, Collections.singleton(8))
+                .accountIds(ImmutableSet.of(20L, 21L))
+                .regionIds(ImmutableSet.of(30L, 31L))
+                .availabilityZoneIds(ImmutableSet.of(40L, 41L));
 
         assertTrue(filter.equals(builder.build()));
         assertFalse(filter.equals(null));
@@ -56,5 +62,9 @@ public class EntityCostFilterTest {
         builder.costCategories(ImmutableSet.of(10, 11));
         builder.costSources(false, Collections.singleton(8));
         assertFalse(filter.equals(builder.build()));
+
+        assertThat(filter.getAccountIds(), is(Optional.of(ImmutableSet.of(20L, 21L))));
+        assertThat(filter.getRegionIds(), is(Optional.of(ImmutableSet.of(30L, 31L))));
+        assertThat(filter.getAvailabilityZoneIds(), is(Optional.of(ImmutableSet.of(40L, 41L))));
     }
 }

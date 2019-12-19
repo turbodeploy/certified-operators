@@ -825,6 +825,15 @@ message GetCloudCostStatsRequest {
     // Filter associated cost based on its source, return cost from all sources if empty.
     optional CostSourceFilter cost_source_filter = 8;
 
+    // get entity cost filtered by region ids.
+    optional RegionFilter region_filter = 9;
+
+    // get entity cost filtered by availability zone ids.
+    optional AvailabilityZoneFilter availability_zone_filter = 10;
+
+    // get entity cost filtered by account ids.
+    optional AccountFilter account_filter = 11;
+
     enum GroupByType {
         // Cloud Cost Component
         COSTCOMPONENT = 1;

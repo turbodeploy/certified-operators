@@ -8,6 +8,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.CostJournal;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.component.util.CostFilter;
 import com.vmturbo.sql.utils.DbException;
 
@@ -18,18 +19,26 @@ public interface EntityCostStore {
     /**
      * Persist bulk entity costs based on EntityCost DTOs.
      *
+     * @param entityCosts                  the list of entity costs.
+     * @param cloudTopology                the cloud topology used for getting info related to
+     *                                     entities.
      * @throws DbException                 if anything goes wrong in the database
      * @throws InvalidEntityCostsException if the provided entity cost DTO is not valid
      */
-    void persistEntityCosts(@Nonnull final List<EntityCost> entityCosts) throws DbException, InvalidEntityCostsException;
+    void persistEntityCosts(@Nonnull List<EntityCost> entityCosts,
+                            @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology)
+        throws DbException, InvalidEntityCostsException;
 
     /**
      * Persist bulk entity costs based on {@link CostJournal}s.
      *
-     * @param costJournals The journals, arranged by entity ID.
+     * @param costJournals  The journals, arranged by entity ID.
+     * @param cloudTopology The cloud topology used for getting info related to
+*                           entities.
      * @throws DbException If there is an error saving to the database.
      */
-    void persistEntityCost(@Nonnull final Map<Long, CostJournal<TopologyEntityDTO>> costJournals) throws DbException;
+    void persistEntityCost(@Nonnull Map<Long, CostJournal<TopologyEntityDTO>> costJournals,
+                           @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) throws DbException;
 
     /**
      * Get entity costs based on the the entity cost filter .

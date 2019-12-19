@@ -7,6 +7,8 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -41,6 +43,9 @@ public class EntityCostFilter extends CostFilter {
     private final boolean excludeCostSources;
     private final Set<Integer> costSources;
     private final Set<Integer> costCategories;
+    private final Set<Long> accountIds;
+    private final Set<Long> availabilityZoneIds;
+    private final Set<Long> regionIds;
 
     private final List<Condition> conditions;
 
@@ -52,12 +57,18 @@ public class EntityCostFilter extends CostFilter {
                      final boolean excludeCostSources,
                      @Nullable final Set<Integer> costSources,
                      @Nullable final Set<Integer> costCategories,
+                     @Nullable final Set<Long> accountIds,
+                     @Nullable final Set<Long> availabilityZoneIds,
+                     @Nullable final Set<Long> regionIds,
                      final boolean latestTimeStampRequested) {
         super(entityFilters, entityTypeFilters, startDateMillis, endDateMillis, timeFrame,
             CREATED_TIME, latestTimeStampRequested);
         this.excludeCostSources = excludeCostSources;
         this.costSources = costSources;
         this.costCategories = costCategories;
+        this.accountIds = accountIds;
+        this.availabilityZoneIds = availabilityZoneIds;
+        this.regionIds = regionIds;
         this.conditions = generateConditions();
     }
 
@@ -107,6 +118,18 @@ public class EntityCostFilter extends CostFilter {
             }
         }
 
+        if (accountIds != null) {
+            conditions.add(table.field(ENTITY_COST.ACCOUNT_ID.getName()).in(accountIds));
+        }
+
+        if (availabilityZoneIds != null) {
+            conditions.add(table.field(ENTITY_COST.AVAILABILITY_ZONE_ID.getName()).in(availabilityZoneIds));
+        }
+
+        if (regionIds != null) {
+            conditions.add(table.field(ENTITY_COST.REGION_ID.getName()).in(regionIds));
+        }
+
         return conditions;
     }
 
@@ -144,13 +167,28 @@ public class EntityCostFilter extends CostFilter {
         return Optional.ofNullable(costCategories);
     }
 
+    public Optional<Set<Long>> getAccountIds() {
+        return Optional.ofNullable(accountIds);
+    }
+
+    public Optional<Set<Long>> getAvailabilityZoneIds() {
+        return Optional.ofNullable(availabilityZoneIds);
+    }
+
+    public Optional<Set<Long>> getRegionIds() {
+        return Optional.ofNullable(regionIds);
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (super.equals(obj)) {
             final EntityCostFilter other = (EntityCostFilter)obj;
             return Objects.equals(costSources, other.costSources)
                 && Objects.equals(costCategories, other.costCategories)
-                && excludeCostSources == other.excludeCostSources;
+                && excludeCostSources == other.excludeCostSources
+                && Objects.equals(accountIds, other.accountIds)
+                && Objects.equals(availabilityZoneIds, other.availabilityZoneIds)
+                && Objects.equals(regionIds, other.regionIds);
         }
         return false;
     }
@@ -161,7 +199,8 @@ public class EntityCostFilter extends CostFilter {
             .map(Object::hashCode).collect(Collectors.summingInt(Integer::intValue));
         return Objects.hash(setHashCode.apply(costSources),
             setHashCode.apply(costCategories),
-            excludeCostSources, super.hashCode());
+            excludeCostSources, setHashCode.apply(accountIds), setHashCode.apply(availabilityZoneIds),
+            setHashCode.apply(regionIds), super.hashCode());
     }
 
     @Override
@@ -173,8 +212,18 @@ public class EntityCostFilter extends CostFilter {
         builder.append("\n cost sources: ");
         builder.append((costSources == null) ? "NOT SET" :
             costSources.stream().map(String::valueOf).collect(Collectors.joining(",")));
+        builder.append("\n cost categories: ");
         builder.append((costCategories == null) ? "NOT SET" :
             costCategories.stream().map(String::valueOf).collect(Collectors.joining(",")));
+        builder.append("\n account ids: ");
+        builder.append((accountIds == null) ? "NOT SET" :
+            accountIds.stream().map(String::valueOf).collect(Collectors.joining(",")));
+        builder.append("\n availability zone ids: ");
+        builder.append((availabilityZoneIds == null) ? "NOT SET" :
+            availabilityZoneIds.stream().map(String::valueOf).collect(Collectors.joining(",")));
+        builder.append("\n region ids: ");
+        builder.append((regionIds == null) ? "NOT SET" :
+            regionIds.stream().map(String::valueOf).collect(Collectors.joining(",")));
         builder.append("\n conditions: ");
         builder.append(
             conditions.stream().map(Condition::toString).collect(Collectors.joining(" AND ")));
@@ -190,6 +239,9 @@ public class EntityCostFilter extends CostFilter {
         private boolean excludeCostSources = false;
         private Set<Integer> costSources = null;
         private Set<Integer> costCategories = null;
+        private Set<Long> accountIds = null;
+        private Set<Long> availabilityZoneIds = null;
+        private Set<Long> regionIds = null;
 
         private EntityCostFilterBuilder(@Nonnull TimeFrame timeFrame) {
             this.timeFrame = timeFrame;
@@ -210,7 +262,7 @@ public class EntityCostFilter extends CostFilter {
         public EntityCostFilter build() {
             return new EntityCostFilter(entityIds, entityTypeFilters, startDateMillis,
                 endDateMillis, timeFrame, excludeCostSources, costSources, costCategories,
-                latestTimeStampRequested);
+                accountIds, availabilityZoneIds, regionIds, latestTimeStampRequested);
         }
 
         /**
@@ -236,8 +288,44 @@ public class EntityCostFilter extends CostFilter {
          */
         @Nonnull
         public EntityCostFilterBuilder costCategories(
-                                                   @Nonnull Set<Integer> costCategories) {
-            this.costCategories = costCategories;
+                                                   @Nonnull Collection<Integer> costCategories) {
+            this.costCategories = new HashSet<>(costCategories);
+            return this;
+        }
+
+        /**
+         * Sets account ids to filter.
+         * @param accountIds the account ids for entities to include.
+         * @return the builder.
+         */
+        @Nonnull
+        public EntityCostFilterBuilder accountIds(
+            @Nonnull Collection<Long> accountIds) {
+            this.accountIds = new HashSet<>(accountIds);
+            return this;
+        }
+
+        /**
+         * Sets availability zone ids to filter.
+         * @param availabilityZoneIds the availability zone for entities to include.
+         * @return the builder.
+         */
+        @Nonnull
+        public EntityCostFilterBuilder availabilityZoneIds(
+            @Nonnull Collection<Long> availabilityZoneIds) {
+            this.availabilityZoneIds = new HashSet<>(availabilityZoneIds);
+            return this;
+        }
+
+        /**
+         * Sets region ids to filter.
+         * @param regionIds the region ids for entities to include.
+         * @return the builder.
+         */
+        @Nonnull
+        public EntityCostFilterBuilder regionIds(
+            @Nonnull Collection<Long> regionIds) {
+            this.regionIds = new HashSet<>(regionIds);
             return this;
         }
     }

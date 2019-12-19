@@ -778,12 +778,33 @@ public class CostRpcService extends CostServiceImplBase {
             filterBuilder.entityTypes(request.getEntityTypeFilter().getEntityTypeIdList());
         }
 
+        if (request.hasCostCategoryFilter()) {
+            filterBuilder.costCategories(Collections
+                .singleton(request.getCostCategoryFilter().getNumber()));
+        }
+
         if (request.hasCostSourceFilter()) {
             filterBuilder.costSources(request.getCostSourceFilter().getExclusionFilter(),
                 request.getCostSourceFilter().getCostSourcesList()
                     .stream()
                     .map(CostSource::getNumber)
                     .collect(Collectors.toSet()));
+        }
+
+        // Add account filters if present
+        if (request.hasAccountFilter()) {
+            filterBuilder.accountIds(request.getAccountFilter().getAccountIdList());
+        }
+
+        // Add availability zone filter if present
+        if (request.hasAvailabilityZoneFilter()) {
+            filterBuilder.availabilityZoneIds(request.getAvailabilityZoneFilter()
+                .getAvailabilityZoneIdList());
+        }
+
+        // Add region filter if present
+        if (request.hasRegionFilter()) {
+            filterBuilder.regionIds(request.getRegionFilter().getRegionIdList());
         }
 
         return filterBuilder;

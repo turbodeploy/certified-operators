@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.rpc;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.BDDMockito.given;
@@ -69,6 +70,7 @@ import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.entity.cost.ProjectedEntityCostStore;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
 import com.vmturbo.cost.component.util.BusinessAccountHelper;
+import com.vmturbo.cost.component.util.CostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter.EntityCostFilterBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -699,6 +701,43 @@ public class CostRpcServiceTest {
         costRpcService.getCloudCostStats(request, mockObserver);
         verify(mockObserver).onNext(builder.build());
         verify(mockObserver).onCompleted();
+    }
+
+    /**
+     * Tests the account, region, and availability zone filter convert properly
+     * to EntityCostFilter.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testGetEntityCostWithAccountRegionAzFilter() throws Exception {
+        // ARRANGE
+        final StreamObserver<GetCloudCostStatsResponse> mockObserver =
+            mock(StreamObserver.class);
+
+        final GetCloudCostStatsRequest request = GetCloudCostStatsRequest.newBuilder()
+            .setAccountFilter(Cost.AccountFilter.newBuilder().addAccountId(55L))
+            .setRegionFilter(Cost.RegionFilter.newBuilder().addRegionId(66L))
+            .setAvailabilityZoneFilter(Cost.AvailabilityZoneFilter.newBuilder()
+                .addAvailabilityZoneId(77L))
+            .build();
+
+        ArgumentCaptor<CostFilter> argumentCaptor =
+            ArgumentCaptor.forClass(CostFilter.class);
+        when(entityCostStore.getEntityCosts(argumentCaptor.capture()))
+            .thenReturn(Collections.emptyMap());
+
+        // ACT
+        costRpcService.getCloudCostStats(request, mockObserver);
+
+        // ASSERT
+        assertThat(argumentCaptor.getValue(), is(EntityCostFilter.EntityCostFilterBuilder
+            .newBuilder(TimeFrame.LATEST)
+            .accountIds(Collections.singleton(55L))
+            .regionIds(Collections.singleton(66L))
+            .availabilityZoneIds(Collections.singleton(77L))
+            .build()
+        ));
     }
 
     @Test

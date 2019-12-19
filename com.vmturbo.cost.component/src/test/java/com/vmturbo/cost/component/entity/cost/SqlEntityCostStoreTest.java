@@ -7,6 +7,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -16,6 +17,10 @@ import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
@@ -28,10 +33,6 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
@@ -40,8 +41,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.calculation.CostJournal;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter.EntityCostFilterBuilder;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.sql.utils.DbException;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
@@ -54,8 +57,14 @@ import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 public class SqlEntityCostStoreTest {
     private static final long ID1 = 1L;
     private static final long ID2 = 2L;
-    private final int ASSOCIATED_ENTITY_TYPE1 = 1;
-    private final int ASSOCIATED_ENTITY_TYPE2 = 2;
+    private static final int ASSOCIATED_ENTITY_TYPE1 = 1;
+    private static final int ASSOCIATED_ENTITY_TYPE2 = 2;
+    private static final long ACCOUNT1_ID = 10;
+    private static final long ACCOUNT2_ID = 11;
+    private static final long REGION1_ID = 20;
+    private static final long REGION2_ID = 21;
+    private static final long AZ1_ID = 31;
+    private static final long AZ2_ID = 32;
 
     private final ComponentCost componentCost = ComponentCost.newBuilder()
             .setAmount(CurrencyAmount.newBuilder().setAmount(3.111).setCurrency(1))
@@ -382,7 +391,11 @@ public class SqlEntityCostStoreTest {
     public void testStoreCostJournal() throws DbException {
         final CostJournal<TopologyEntityDTO> journal1 = mockCostJournal(ID1, ASSOCIATED_ENTITY_TYPE1,
                 ImmutableMap.of(CostCategory.ON_DEMAND_COMPUTE, 7.0, CostCategory.ON_DEMAND_LICENSE, 3.0));
-        store.persistEntityCost(ImmutableMap.of(ID1, journal1));
+        CloudTopology<TopologyEntityDTO> topology = mock(CloudTopology.class);
+        when(topology.getOwner(anyLong())).thenReturn(Optional.empty());
+        when(topology.getConnectedAvailabilityZone(anyLong())).thenReturn(Optional.empty());
+        when(topology.getConnectedRegion(anyLong())).thenReturn(Optional.empty());
+        store.persistEntityCost(ImmutableMap.of(ID1, journal1), topology);
 
         final Map<Long, Map<Long, EntityCost>> costs =
                 store.getEntityCosts(EntityCostFilterBuilder
@@ -414,6 +427,96 @@ public class SqlEntityCostStoreTest {
                         .build()));
     }
 
+    /**
+     * Test the case when we retrieve entity costs based on the account id.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testGetCostsForAccount() throws Exception {
+        // ARRANGE
+        EntityCostFilter entityCostFilter = EntityCostFilterBuilder
+            .newBuilder(TimeFrame.LATEST)
+            .accountIds(Collections.singleton(ACCOUNT1_ID))
+            .build();
+
+        // insert
+        saveCosts();
+
+        // ACT
+        Map<Long, Map<Long, EntityCost>> results = store.getEntityCosts(entityCostFilter);
+
+        //ASSERT
+        assertThat(results.size(), is(1));
+        final Map<Long, EntityCost> entityMap = results.values().iterator().next();
+        assertThat(entityMap.size(), is(1));
+        assertThat(entityMap.keySet().iterator().next(), is(ID1));
+        assertThat(entityMap.get(ID1), is(entityCost.toBuilder().clearTotalAmount().build()));
+
+
+        store.cleanEntityCosts(LocalDateTime.now(clock));
+    }
+
+    /**
+     * Test the case when we retrieve entity costs based on the availability zone id.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testGetCostsForAvailabilityZone() throws Exception {
+        // ARRANGE
+        EntityCostFilter entityCostFilter = EntityCostFilterBuilder
+            .newBuilder(TimeFrame.LATEST)
+            .availabilityZoneIds(Collections.singleton(AZ1_ID))
+            .build();
+
+        // insert
+        saveCosts();
+
+        // ACT
+        Map<Long, Map<Long, EntityCost>> results = store.getEntityCosts(entityCostFilter);
+
+        //ASSERT
+        assertThat(results.size(), is(1));
+        final Map<Long, EntityCost> entityMap = results.values().iterator().next();
+        assertThat(entityMap.size(), is(1));
+        assertThat(entityMap.keySet().iterator().next(), is(ID1));
+        assertThat(entityMap.get(ID1), is(entityCost.toBuilder().clearTotalAmount().build()));
+
+
+        store.cleanEntityCosts(LocalDateTime.now(clock));
+    }
+
+    /**
+     * Test the case when we retrieve entity costs based on the region id.
+     *
+     * @throws Exception if something goes wrong.
+     */
+    @Test
+    public void testGetCostsForRegion() throws Exception {
+        // ARRANGE
+        EntityCostFilter entityCostFilter = EntityCostFilterBuilder
+            .newBuilder(TimeFrame.LATEST)
+            .regionIds(Collections.singleton(REGION1_ID))
+            .build();
+
+        // insert
+        saveCosts();
+
+        // ACT
+        Map<Long, Map<Long, EntityCost>> results = store.getEntityCosts(entityCostFilter);
+
+        //ASSERT
+        assertThat(results.size(), is(1));
+        final Map<Long, EntityCost> entityMap = results.values().iterator().next();
+        assertThat(entityMap.size(), is(1));
+        assertThat(entityMap.keySet().iterator().next(), is(ID1));
+        assertThat(entityMap.get(ID1), is(entityCost.toBuilder().clearTotalAmount().build()));
+
+
+        store.cleanEntityCosts(LocalDateTime.now(clock));
+    }
+
     private CostJournal<TopologyEntityDTO> mockCostJournal(final long entityId, final int entityType,
                                                            final Map<CostCategory, Double> costsByCategory) {
         final TopologyEntityDTO entity = TopologyEntityDTO.newBuilder()
@@ -424,7 +527,8 @@ public class SqlEntityCostStoreTest {
         when(journal.getEntity()).thenReturn(entity);
         when(journal.getCategories()).thenReturn(costsByCategory.keySet());
         for (final CostCategory category : CostCategory.values()) {
-            when(journal.getHourlyCostBySourceAndCategory(category,Optional.of(CostSource.ON_DEMAND_RATE)))
+            when(journal.getHourlyCostBySourceAndCategory(category,
+                Optional.of(CostSource.ON_DEMAND_RATE)))
                     .thenReturn(trax(costsByCategory.getOrDefault(category, 0.0)));
             when(journal.getHourlyCostForCategory(category))
                     .thenReturn(trax(costsByCategory.getOrDefault(category, 0.0)));
@@ -432,10 +536,10 @@ public class SqlEntityCostStoreTest {
         return journal;
     }
 
-    private void validateResults(final Map<Long, Map<Long, EntityCost>> map
-            , final int expectedSizeOfEntries
-            , final int expectedSizeOfEntityCosts
-            , final int expectedSizeOfComponentCosts) {
+    private void validateResults(final Map<Long, Map<Long, EntityCost>> map,
+                                 final int expectedSizeOfEntries,
+                                 final int expectedSizeOfEntityCosts,
+                                 final int expectedSizeOfComponentCosts) {
         // ensure have expected entries (timestamps)
         assertEquals(expectedSizeOfEntries, map.size());
 
@@ -463,12 +567,42 @@ public class SqlEntityCostStoreTest {
     }
 
     private void saveCosts() throws DbException, InvalidEntityCostsException {
-        store.persistEntityCosts(ImmutableList.of(entityCost, entityCost1));
+        TopologyEntityDTO account1EntityDTO = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+            .setOid(ACCOUNT1_ID).build();
+        TopologyEntityDTO region1EntityDTO = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.REGION_VALUE)
+            .setOid(REGION1_ID).build();
+        TopologyEntityDTO az1EntityDTO = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
+            .setOid(AZ1_ID).build();
+        TopologyEntityDTO account2EntityDTO = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+            .setOid(ACCOUNT2_ID).build();
+        TopologyEntityDTO region2EntityDTO = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.REGION_VALUE)
+            .setOid(REGION2_ID).build();
+        TopologyEntityDTO az2EntityDTO = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
+            .setOid(AZ2_ID).build();
+
+        CloudTopology<TopologyEntityDTO> topology = mock(CloudTopology.class);
+        when(topology.getOwner(ID1)).thenReturn(Optional.of(account1EntityDTO));
+        when(topology.getConnectedAvailabilityZone(ID1)).thenReturn(Optional.of(az1EntityDTO));
+        when(topology.getConnectedRegion(ID1)).thenReturn(Optional.of(region1EntityDTO));
+        when(topology.getOwner(ID2)).thenReturn(Optional.of(account2EntityDTO));
+        when(topology.getConnectedAvailabilityZone(ID2)).thenReturn(Optional.of(az2EntityDTO));
+        when(topology.getConnectedRegion(ID2)).thenReturn(Optional.of(region2EntityDTO));
+        store.persistEntityCosts(ImmutableList.of(entityCost, entityCost1), topology);
     }
 
     private void saveCostsWithTwoTimeStamps() throws DbException, InvalidEntityCostsException {
-        store.persistEntityCosts(ImmutableList.of(entityCost, entityCost1));
+        CloudTopology<TopologyEntityDTO> topology = mock(CloudTopology.class);
+        when(topology.getOwner(anyLong())).thenReturn(Optional.empty());
+        when(topology.getConnectedAvailabilityZone(anyLong())).thenReturn(Optional.empty());
+        when(topology.getConnectedRegion(anyLong())).thenReturn(Optional.empty());
+        store.persistEntityCosts(ImmutableList.of(entityCost, entityCost1), topology);
         clock.changeInstant(clock.instant().plusMillis(1000));
-        store.persistEntityCosts(ImmutableList.of(entityCost, entityCost1));
+        store.persistEntityCosts(ImmutableList.of(entityCost, entityCost1), topology);
     }
 }
