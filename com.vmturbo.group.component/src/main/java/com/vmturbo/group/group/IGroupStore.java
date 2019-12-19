@@ -3,7 +3,6 @@ package com.vmturbo.group.group;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -12,6 +11,7 @@ import javax.annotation.concurrent.Immutable;
 
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.GroupFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
@@ -41,13 +41,13 @@ public interface IGroupStore {
             throws StoreOperationException;
 
     /**
-     * Retrieves group by id.
+     * Retrieves groups by id.
      *
      * @param groupId id of the group
-     * @return group or {@link Optional#empty} if none found.
+     * @return group or empty collection if none found.
      */
     @Nonnull
-    Optional<Grouping> getGroup(long groupId);
+    Collection<Grouping> getGroupsById(@Nonnull Collection<Long> groupId);
 
     /**
      * Updates group using new definition.
@@ -76,11 +76,12 @@ public interface IGroupStore {
     /**
      * Returns collection of group ids, conforming to the request specified.
      *
-     * @param groupFilter request to query
+     * @param groupFilter request to query. If the filter is empty, request will return all
+     *         the group ids existing in the component
      * @return collection of groups
      */
     @Nonnull
-    Collection<Long> getGroupIds(@Nonnull GroupDTO.GroupFilter groupFilter);
+    Collection<Long> getGroupIds(@Nonnull GroupFilters groupFilter);
 
     /**
      * Deletes the group specified by id.

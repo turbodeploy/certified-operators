@@ -698,14 +698,14 @@ public class PolicyRpcServiceTest {
     final Policy mergeCD = clusterMergePolicy(20L, "mergeCD", clusterC, clusterD);
 
     private void setupClusterTestMocks() {
-        when(groupStore.getGroup(1L))
-            .thenReturn(Optional.of(clusterA));
-        when(groupStore.getGroup(2L))
-            .thenReturn(Optional.of(clusterB));
-        when(groupStore.getGroup(3L))
-            .thenReturn(Optional.of(clusterC));
-        when(groupStore.getGroup(4L))
-            .thenReturn(Optional.of(clusterD));
+        when(groupStore.getGroupsById(Collections.singleton(1L))).thenReturn(
+                Collections.singleton(clusterA));
+        when(groupStore.getGroupsById(Collections.singleton(2L))).thenReturn(
+                Collections.singleton(clusterB));
+        when(groupStore.getGroupsById(Collections.singleton(3L))).thenReturn(
+                Collections.singleton(clusterC));
+        when(groupStore.getGroupsById(Collections.singleton(4L))).thenReturn(
+                Collections.singleton(clusterD));
     }
 
     /**

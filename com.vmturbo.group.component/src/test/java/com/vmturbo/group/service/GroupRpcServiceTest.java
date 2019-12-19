@@ -103,7 +103,6 @@ import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.components.common.identity.OidSet;
 import com.vmturbo.group.group.GroupDAO.DiscoveredGroupIdImpl;
 import com.vmturbo.group.group.GroupMembersPlain;
-import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
 import com.vmturbo.group.group.TemporaryGroupCache;
 import com.vmturbo.group.group.TemporaryGroupCache.InvalidTempGroupException;
@@ -131,7 +130,7 @@ public class GroupRpcServiceTest {
     private GroupStitchingManager groupStitchingManager;
 
     private MockTransactionProvider transactionProvider;
-    private IGroupStore groupStoreDAO;
+    private MockGroupStore groupStoreDAO;
     private GrpcTestServer testServer;
     private IdentityProvider identityProvider;
 
@@ -201,14 +200,15 @@ public class GroupRpcServiceTest {
     public void testGetGroups() {
         final long groupId = 1234L;
         final Grouping resultGroup = Grouping.newBuilder().setId(groupId).build();
+        groupStoreDAO.addGroup(resultGroup);
 
         final GetGroupsRequest genericGroupsRequest = GetGroupsRequest.newBuilder()
-                .setGroupFilter(GroupFilter.newBuilder().addId(groupId).build())
-                .build();
+                .setGroupFilter(GroupFilter.newBuilder().addId(groupId).build()).build();
+        Mockito.when(groupStoreDAO.getGroupIds(GroupFilters.newBuilder()
+                .addGroupFilter(genericGroupsRequest.getGroupFilter())
+                .build())).thenReturn(Collections.singleton(groupId));
         final StreamObserver<GroupDTO.Grouping> mockGroupingObserver =
                 Mockito.mock(StreamObserver.class);
-        Mockito.when(groupStoreDAO.getGroups(genericGroupsRequest.getGroupFilter()))
-                .thenReturn(Collections.singletonList(resultGroup));
         groupRpcService.getGroups(genericGroupsRequest, mockGroupingObserver);
         Mockito.verify(mockGroupingObserver).onNext(resultGroup);
         Mockito.verify(mockGroupingObserver).onCompleted();
@@ -228,8 +228,8 @@ public class GroupRpcServiceTest {
                 .build();
         final StreamObserver<GroupDTO.CountGroupsResponse> mockCountGroupObserver =
                 Mockito.mock(StreamObserver.class);
-        Mockito.when(groupStoreDAO.getGroups(genericGroupsRequest.getGroupFilter()))
-                .thenReturn(Collections.singletonList(resultGroup));
+        Mockito.when(groupStoreDAO.getGroupIds(Mockito.any()))
+                .thenReturn(Collections.singletonList(groupId));
         groupRpcService.countGroups(genericGroupsRequest, mockCountGroupObserver);
         Mockito.verify(mockCountGroupObserver).onCompleted();
         Mockito.verify(mockCountGroupObserver)
@@ -423,9 +423,11 @@ public class GroupRpcServiceTest {
      * Test when user request "all" groups (without certain groupIds) but have access only to
      * entities from one group. In this case will be filtered results and returned only
      * accessible ones.
+     *
+     * @throws Exception on exception occurred.
      */
     @Test
-    public void testGetGroupsWhenUserScoped() {
+    public void testGetGroupsWhenUserScoped() throws Exception {
         final long firstGroupId = 1L;
         final long secondGroupId = 2L;
         final long firstGroupMember = 11L;
@@ -435,7 +437,8 @@ public class GroupRpcServiceTest {
 
         final Grouping firstGrouping = createGrouping(firstGroupId, firstGroupMembers);
         final Grouping secondGrouping = createGrouping(secondGroupId, secondGroupMembers);
-        final List<Grouping> groups = Arrays.asList(firstGrouping, secondGrouping);
+        groupStoreDAO.addGroup(firstGrouping);
+        groupStoreDAO.addGroup(secondGrouping);
 
         final EntityAccessScope accessScope =
                 new EntityAccessScope(null, null,
@@ -449,10 +452,16 @@ public class GroupRpcServiceTest {
                 .build();
         when(userSessionContext.isUserScoped()).thenReturn(true);
         when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
-        Mockito.when(groupStoreDAO.getGroup(firstGroupId)).thenReturn(Optional.of(firstGrouping));
-        Mockito.when(groupStoreDAO.getGroup(secondGroupId)).thenReturn(Optional.of(secondGrouping));
-        Mockito.when(groupStoreDAO.getGroups(genericGroupsRequest.getGroupFilter()))
-                .thenReturn(groups);
+        Mockito.when(groupStoreDAO.getGroupIds(GroupFilters.newBuilder()
+                .addGroupFilter(genericGroupsRequest.getGroupFilter())
+                .build())).thenReturn(Arrays.asList(firstGroupId, secondGroupId));
+        Mockito.when(groupStoreDAO.getMembers(Collections.singleton(firstGroupId), true))
+                .thenReturn(new GroupMembersPlain(Collections.singleton(firstGroupMember),
+                        Collections.emptySet(), Collections.emptySet()));
+        Mockito.when(groupStoreDAO.getMembers(Collections.singleton(secondGroupId), true))
+                .thenReturn(new GroupMembersPlain(Collections.singleton(secondGroupMember),
+                        Collections.emptySet(), Collections.emptySet()));
+
         groupRpcService.getGroups(genericGroupsRequest, mockGroupingObserver);
         Mockito.verify(mockGroupingObserver).onNext(firstGrouping);
         Mockito.verify(mockGroupingObserver, Mockito.never()).onNext(secondGrouping);
@@ -479,21 +488,20 @@ public class GroupRpcServiceTest {
 
         final Grouping firstGrouping = createGrouping(firstGroupId, firstGroupMembers);
         final Grouping secondGrouping = createGrouping(secondGroupId, secondGroupMembers);
-        final List<Grouping> groups = Arrays.asList(firstGrouping, secondGrouping);
+        groupStoreDAO.addGroup(firstGrouping);
+        groupStoreDAO.addGroup(secondGrouping);
 
         final StreamObserver<GroupDTO.Grouping> mockGroupingObserver =
                 Mockito.mock(StreamObserver.class);
         final GetGroupsRequest genericGroupsRequest = GetGroupsRequest
                 .newBuilder()
                 .setGroupFilter(GroupFilter.newBuilder().addAllId(Arrays.asList(firstGroupId,
-                        secondGroupId)))
-                .build();
+                        secondGroupId))).build();
+        Mockito.when(groupStoreDAO.getGroupIds(GroupFilters.newBuilder()
+                .addGroupFilter(genericGroupsRequest.getGroupFilter())
+                .build())).thenReturn(Sets.newHashSet(firstGroupId, secondGroupId));
         when(userSessionContext.isUserScoped()).thenReturn(true);
         when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
-        Mockito.when(groupStoreDAO.getGroup(firstGroupId)).thenReturn(Optional.of(firstGrouping));
-        Mockito.when(groupStoreDAO.getGroup(secondGroupId)).thenReturn(Optional.of(secondGrouping));
-        Mockito.when(groupStoreDAO.getGroups(genericGroupsRequest.getGroupFilter()))
-                .thenReturn(groups);
         groupRpcService.getGroups(genericGroupsRequest, mockGroupingObserver);
         Mockito.verify(mockGroupingObserver).onNext(firstGrouping);
         Mockito.verify(mockGroupingObserver, Mockito.never()).onNext(secondGrouping);
@@ -633,8 +641,6 @@ public class GroupRpcServiceTest {
         EntityAccessScope scope = new EntityAccessScope(null, null,
                 OidSet.EMPTY_OID_SET, null);
         when(userSessionContext.getUserAccessScope()).thenReturn(scope);
-        given(groupStoreDAO.getGroup(groupId))
-            .willReturn(Optional.of(Grouping.getDefaultInstance()));
 
         final StreamObserver<GroupDTO.DeleteGroupResponse> mockObserver =
                 mock(StreamObserver.class);
@@ -729,7 +735,8 @@ public class GroupRpcServiceTest {
         final StreamObserver<GroupDTO.GetMembersResponse> mockObserver =
                 mock(StreamObserver.class);
 
-        given(groupStoreDAO.getGroup(groupId)).willReturn(Optional.of(group));
+        Mockito.when(groupStoreDAO.getGroupsById(Collections.singleton(groupId)))
+                .thenReturn(Collections.singleton(group));
         Mockito.when(searchServiceMole.searchEntityOids(Mockito.any()))
                 .thenReturn(Search.SearchEntityOidsResponse.newBuilder()
                         .addAllEntities(mockSearchResults)
@@ -775,10 +782,9 @@ public class GroupRpcServiceTest {
                                         )
                         .build();
 
+        groupStoreDAO.addGroup(grouping);
         final StreamObserver<GroupDTO.GetMembersResponse> mockObserver =
                 mock(StreamObserver.class);
-
-        given(groupStoreDAO.getGroup(groupId)).willReturn(Optional.of(grouping));
 
         groupRpcService.getMembers(req, mockObserver);
 
@@ -792,7 +798,7 @@ public class GroupRpcServiceTest {
     }
 
     @Test
-    public void testGetMembersExpansion() {
+    public void testGetMembersExpansion() throws StoreOperationException {
         final long groupId = 1234L;
         final List<Long> clusterGroupMembers = Arrays.asList(1L, 2L);
         final List<Long> cluster1Members = Arrays.asList(10L, 11L);
@@ -854,23 +860,9 @@ public class GroupRpcServiceTest {
                                 )
                             )
                         ).build();
-
-        given(groupStoreDAO.getGroup(groupId)).willReturn(Optional.of(groupOfClusters));
-        given(groupStoreDAO.getGroup(1L)).willReturn(Optional.of(cluster1));
-        given(groupStoreDAO.getGroup(2L)).willReturn(Optional.of(cluster2));
-
-        final GetGroupsRequest clusterGroupMemberRequest = GetGroupsRequest
-                        .newBuilder()
-                        .setGroupFilter(
-                            GroupFilter
-                                .newBuilder()
-                                .addAllId(clusterGroupMembers)
-                                .build()
-                        ).build();
-
-
-        given(groupStoreDAO.getGroups(clusterGroupMemberRequest.getGroupFilter())).willReturn(
-                        Arrays.asList(cluster1, cluster2));
+        groupStoreDAO.addGroup(cluster1);
+        groupStoreDAO.addGroup(cluster2);
+        groupStoreDAO.addGroup(groupOfClusters);
 
         final StreamObserver<GroupDTO.GetMembersResponse> mockObserver =
                 mock(StreamObserver.class);
@@ -906,6 +898,8 @@ public class GroupRpcServiceTest {
     @Test
     public void testGetMembersExpansionDynamic() throws Exception {
         final long groupId = 1234L;
+        final long cluster1Id = 1L;
+        final long cluster2Id = 2L;
         final List<Long> cluster1Members = Arrays.asList(10L, 11L);
         final List<Long> cluster2Members = Arrays.asList(20L, 21L);
 
@@ -932,7 +926,7 @@ public class GroupRpcServiceTest {
 
         final Grouping cluster1 = Grouping
                         .newBuilder()
-                        .setId(1L)
+                        .setId(cluster1Id)
                         .setDefinition(GroupDefinition
                             .newBuilder()
                             .setType(GroupType.COMPUTE_HOST_CLUSTER)
@@ -951,7 +945,7 @@ public class GroupRpcServiceTest {
 
         final Grouping cluster2 = Grouping
                         .newBuilder()
-                        .setId(2L)
+                        .setId(cluster2Id)
                         .setDefinition(GroupDefinition
                             .newBuilder()
                             .setType(GroupType.COMPUTE_HOST_CLUSTER)
@@ -968,16 +962,17 @@ public class GroupRpcServiceTest {
                             )
                         ).build();
 
-        given(groupStoreDAO.getGroup(groupId)).willReturn(Optional.of(dynamicGroupOfClusters));
-        given(groupStoreDAO.getGroup(1L)).willReturn(Optional.of(cluster1));
-        given(groupStoreDAO.getGroup(2L)).willReturn(Optional.of(cluster2));
+        groupStoreDAO.addGroup(dynamicGroupOfClusters);
+        groupStoreDAO.addGroup(cluster1);
+        groupStoreDAO.addGroup(cluster2);
 
         GetGroupsRequest request = GetGroupsRequest
                         .newBuilder()
                         .setGroupFilter(groupFilter)
                         .build();
 
-        Mockito.when(groupStoreDAO.getGroupIds(request.getGroupFilter()))
+        Mockito.when(groupStoreDAO.getGroupIds(
+                GroupFilters.newBuilder().addGroupFilter(request.getGroupFilter()).build()))
                 .thenReturn(Collections.singleton(1L));
         final StreamObserver<GroupDTO.GetMembersResponse> mockObserver =
                 mock(StreamObserver.class);
@@ -995,9 +990,6 @@ public class GroupRpcServiceTest {
 
         verify(mockObserver).onNext(expectedNonExpandedResponse);
 
-        Mockito.when(groupStoreDAO.getMembers(Mockito.any(), Mockito.anyBoolean()))
-                .thenReturn(new GroupMembersPlain(new HashSet<>(cluster1Members),
-                        Collections.emptySet(), Collections.emptySet()));
         // verify that a request WITH expansion should get all of the cluster members.
         final GroupDTO.GetMembersRequest requestExpanded = GroupDTO.GetMembersRequest.newBuilder()
                 .setId(groupId)
@@ -1024,9 +1016,11 @@ public class GroupRpcServiceTest {
         final StreamObserver<GroupDTO.GetMembersResponse> mockObserver =
                 mock(StreamObserver.class);
 
-        given(groupStoreDAO.getGroup(groupId)).willReturn(Optional.empty());
+        given(groupStoreDAO.getGroupsById(Mockito.anyCollectionOf(Long.class))).willReturn(
+                Collections.emptyList());
 
         groupRpcService.getMembers(req, mockObserver);
+        Mockito.verify(groupStoreDAO).getGroupsById(Collections.singleton(groupId));
 
         verify(mockObserver).onError(any(IllegalArgumentException.class));
         verify(mockObserver, never()).onNext(any(GroupDTO.GetMembersResponse.class));
@@ -1918,7 +1912,7 @@ public class GroupRpcServiceTest {
                         .build();
 
         Mockito.doThrow(new DataAccessException("ERR1"))
-            .when(groupStoreDAO).getGroup(Mockito.anyLong());
+            .when(groupStoreDAO).getGroupsById(Mockito.anyCollectionOf(Long.class));
 
         groupRpcService.getGroup(groupId, mockObserver);
 
@@ -2063,9 +2057,11 @@ public class GroupRpcServiceTest {
                 .build();
         final Grouping subGroup1 = createGrouping(subGroup1Id, members1);
         final Grouping subGroup2 = createGrouping(subGroup2Id, members2);
+        groupStoreDAO.addGroup(subGroup1);
+        groupStoreDAO.addGroup(subGroup2);
+        groupStoreDAO.addGroup(mainGroup);
         Mockito.when(groupStoreDAO.getGroups(Mockito.any()))
                 .thenReturn(Arrays.asList(subGroup1, subGroup2));
-        Mockito.when(groupStoreDAO.getGroup(groupId)).thenReturn(Optional.of(mainGroup));
 
         final Set<Long> searchResults = Sets.newHashSet(111L, 112L, 113L, 114L, 115L, 116L);
         final Set<Long> members = new HashSet<>();

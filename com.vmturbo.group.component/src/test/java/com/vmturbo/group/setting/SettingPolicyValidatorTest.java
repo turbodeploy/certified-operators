@@ -79,9 +79,10 @@ public class SettingPolicyValidatorTest {
     public void setup() throws Exception {
         groupStore = mock(IGroupStore.class);
         validator = new DefaultSettingPolicyValidator(specStore, groupStore);
-        when(groupStore.getGroup(eq(GROUP_ID))).thenReturn(Optional.of(Grouping.newBuilder()
-                .addExpectedTypes(MemberType.newBuilder().setEntity(ENTITY_TYPE))
-                .build()));
+        when(groupStore.getGroupsById(Collections.singleton(GROUP_ID))).thenReturn(
+                Collections.singleton(Grouping.newBuilder()
+                        .addExpectedTypes(MemberType.newBuilder().setEntity(ENTITY_TYPE))
+                        .build()));
         when(specStore.getSettingSpec(any())).thenReturn(Optional.empty());
         Mockito.when(groupStore.getGroups(Mockito.any()))
                 .thenReturn(Collections.singleton(Grouping.newBuilder()

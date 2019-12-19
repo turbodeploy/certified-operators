@@ -1,6 +1,7 @@
 package com.vmturbo.group.service;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
@@ -304,11 +305,14 @@ public class PolicyRpcService extends PolicyServiceImplBase {
     }
 
     private String getClusterName(long clusterId, String defaultName) {
-        Optional<GroupDTO.Grouping> clusterGroup = groupStore.getGroup(clusterId);
-        return clusterGroup.isPresent() && clusterGroup.get().hasDefinition()
-                        && clusterGroup.get().getDefinition().hasDisplayName()
-            ? clusterGroup.get().getDefinition().getDisplayName()
-            : defaultName;
+        final Collection<GroupDTO.Grouping> clusterGroups =
+                groupStore.getGroupsById(Collections.singleton(clusterId));
+        if (clusterGroups.isEmpty()) {
+            return defaultName;
+        }
+        final GroupDTO.Grouping clusterGroup = clusterGroups.iterator().next();
+        return clusterGroup.hasDefinition() && clusterGroup.getDefinition().hasDisplayName() ?
+                clusterGroup.getDefinition().getDisplayName() : defaultName;
     }
 
     private void checkPolicyAccess(Policy policy) throws StoreOperationException {

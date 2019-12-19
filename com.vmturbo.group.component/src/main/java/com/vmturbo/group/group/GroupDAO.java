@@ -484,10 +484,9 @@ public class GroupDAO implements IGroupStore {
 
     @Nonnull
     @Override
-    public Optional<GroupDTO.Grouping> getGroup(long groupId) {
+    public Collection<GroupDTO.Grouping> getGroupsById(@Nonnull Collection<Long> groupIds) {
         try {
-            return Optional.ofNullable(
-                    getGroupInternal(Collections.singleton(groupId)).get(groupId));
+            return getGroupInternal(groupIds).values();
         } catch (DataAccessException e) {
             GROUP_STORE_ERROR_COUNT.labels(GET_LABEL).increment();
             throw e;
@@ -496,20 +495,26 @@ public class GroupDAO implements IGroupStore {
 
     @Nonnull
     private Map<Long, GroupDTO.Grouping> getGroupInternal(@Nonnull Collection<Long> groupIds) {
-        final List<Grouping> groupings = dslContext.selectFrom(GROUPING)
+        if (groupIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        final Map<Long, Grouping> groupings = dslContext.selectFrom(GROUPING)
                 .where(GROUPING.ID.in(groupIds))
-                .fetchInto(Grouping.class);
+                .fetchInto(Grouping.class)
+                .stream()
+                .collect(Collectors.toMap(Grouping::getId, Function.identity()));
         if (groupings.isEmpty()) {
             return Collections.emptyMap();
         }
-        final Grouping grouping = groupings.iterator().next();
         final Table<Long, MemberType, Boolean> expectedMembers = getExpectedMemberTypes(groupIds);
-        final Map<Long, Origin> groupsOrigins = getGroupOrigin(groupings);
+        final Map<Long, Origin> groupsOrigins = getGroupOrigin(groupings.values());
         final Map<Long, Tags> groupTags = getGroupTags(groupIds);
         final Map<Long, StaticMembers> staticMembers =
                 getStaticMembersMessage(groupIds, expectedMembers);
         final Map<Long, GroupDTO.Grouping> result = new HashMap<>(groupIds.size());
-        for (long groupId: groupIds) {
+        for (Entry<Long, Grouping> record: groupings.entrySet()) {
+            final long groupId = record.getKey();
+            final Grouping grouping = record.getValue();
             final GroupDTO.Grouping.Builder builder = GroupDTO.Grouping.newBuilder();
             builder.setId(groupId);
             builder.addAllExpectedTypes(expectedMembers.row(groupId).keySet());
@@ -893,8 +898,7 @@ public class GroupDAO implements IGroupStore {
     }
 
     @Nonnull
-    @Override
-    public Set<Long> getGroupIds(@Nonnull GroupDTO.GroupFilter filter) {
+    private Collection<Long> getGroupIds(@Nonnull GroupDTO.GroupFilter filter) {
         final Condition sqlCondition = createGroupCondition(filter);
         final Set<Long> groupingIds = dslContext.select(GROUPING.ID)
                 .from(GROUPING)
@@ -908,9 +912,15 @@ public class GroupDAO implements IGroupStore {
     }
 
     @Nonnull
-    private Set<Long> getGroupIds(@Nonnull GroupFilters filters) {
+    @Override
+    public Set<Long> getGroupIds(@Nonnull GroupFilters filters) {
         if (filters.getGroupFilterCount() == 0) {
-            return Collections.emptySet();
+            return Collections.unmodifiableSet(dslContext.select(GROUPING.ID)
+                    .from(GROUPING)
+                    .fetch()
+                    .stream()
+                    .map(Record1::value1)
+                    .collect(Collectors.toSet()));
         }
         final Iterator<GroupFilter> iterator = filters.getGroupFilterList().iterator();
         final Set<Long> initialSet = new HashSet<>(getGroupIds(iterator.next()));

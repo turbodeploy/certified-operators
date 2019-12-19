@@ -324,7 +324,8 @@ message GetMembersRequest {
     optional bool enforce_user_scope = 3 [default = false];
 
     // if true, then any groups contained within the requested group will be also expanded, and it's
-    // members returned as part of the response.
+    // members returned as part of the response. If true, no groups will appear in the result of
+    // the call as they are substituted with their entity members.
     optional bool expand_nested_groups = 4 [default = false];
 }
 

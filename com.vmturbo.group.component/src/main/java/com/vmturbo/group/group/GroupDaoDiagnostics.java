@@ -136,7 +136,6 @@ public class GroupDaoDiagnostics implements Diagnosable {
         logger.info("Removed all the groups.");
         final Collection<DiscoveredGroup> discoveredGroupsConverted =
                 new ArrayList<>(discoveredGroups.size());
-//        final Map<String, Long> srcId2oid = new HashMap<>(discoveredGroups.size());
         for (GroupDTO.Grouping group : discoveredGroups) {
             final Origin.Discovered origin = group.getOrigin().getDiscovered();
             final DiscoveredGroup discoveredGroup =
@@ -144,7 +143,6 @@ public class GroupDaoDiagnostics implements Diagnosable {
                             origin.getSourceIdentifier(),
                             new HashSet<>(origin.getDiscoveringTargetIdList()),
                             group.getExpectedTypesList(), group.getSupportsMemberReverseLookup());
-//            srcId2oid.put(origin.getSourceIdentifier(), group.getId());
             discoveredGroupsConverted.add(discoveredGroup);
         }
         groupStore.updateDiscoveredGroups(discoveredGroupsConverted, Collections.emptyList(),
