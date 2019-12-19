@@ -46,6 +46,7 @@ public class PreStitchingOperationLibrary {
         EntityType.COMPUTE_TIER,
         EntityType.DATABASE_TIER,
         EntityType.REGION,
+        EntityType.RESERVED_INSTANCE,
         EntityType.STORAGE_TIER);
 
 

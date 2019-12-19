@@ -78,7 +78,7 @@ public class SharedCloudEntityPreStitchingOperation implements PreStitchingOpera
     private void mergeSharedEntities(@Nonnull final List<StitchingEntity> sharedEntityInstances,
                                     @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder) {
         Preconditions.checkArgument(sharedEntityInstances.size() > 1, "There must be multiple instances of a " +
-            "shared volume.");
+            "shared cloud entity.");
         logger.debug("Merging shared entities: {}", sharedEntityInstances);
 
         // Pick an entity to keep.
