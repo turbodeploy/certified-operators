@@ -616,11 +616,23 @@ public class SearchServiceTest {
                 Collections.singleton(CloudType.AZURE.name())
             )
         );
+        final SearchFilter antiAwsSearchFilter = SearchProtoUtil.searchFilterProperty(
+            SearchProtoUtil.stringPropertyFilterExact(SearchableProperties.CLOUD_PROVIDER,
+                Collections.singleton(CloudType.AWS.name()), false, false
+            )
+        );
+        final SearchFilter antiAzureSearchFilter = SearchProtoUtil.searchFilterProperty(
+            SearchProtoUtil.stringPropertyFilterExact(SearchableProperties.CLOUD_PROVIDER,
+                Collections.singleton(CloudType.AZURE.name()), false, false
+            )
+        );
         final SearchFilter nonCloudProviderSearchFilter = SearchFilter.getDefaultInstance();
 
         final SearchParameters params = SearchParameters.newBuilder()
             .addSearchFilter(awsSearchFilter)
             .addSearchFilter(azureSearchFilter)
+            .addSearchFilter(antiAwsSearchFilter)
+            .addSearchFilter(antiAzureSearchFilter)
             .addSearchFilter(nonCloudProviderSearchFilter)
             .build();
 
@@ -636,9 +648,12 @@ public class SearchServiceTest {
         final TargetApiDTO azureTarget2 = new TargetApiDTO();
         azureTarget2.setType(SDKProbeType.AZURE.getProbeType());
         azureTarget2.setUuid("4");
+        final TargetApiDTO unknownTarget = new TargetApiDTO();
+        unknownTarget.setType(SDKProbeType.VCENTER.getProbeType());
+        unknownTarget.setUuid("5");
 
-        when(targetsService.getAllTargets(any()))
-            .thenReturn(ImmutableList.of(awsTarget1, awsTarget2, azureTarget1, azureTarget2));
+        when(targetsService.getAllTargets(any())).thenReturn(
+            ImmutableList.of(awsTarget1, awsTarget2, azureTarget1, azureTarget2, unknownTarget));
 
         final SearchFilter resolvedAwsFilter = SearchProtoUtil.searchFilterProperty(
             SearchProtoUtil.discoveredBy(ImmutableSet.of(1L, 2L))
@@ -646,13 +661,21 @@ public class SearchServiceTest {
         final SearchFilter resolvedAzureFilter = SearchProtoUtil.searchFilterProperty(
             SearchProtoUtil.discoveredBy(ImmutableSet.of(3L, 4L))
         );
+        final SearchFilter resolvedAntiAwsFilter = SearchProtoUtil.searchFilterProperty(
+            SearchProtoUtil.discoveredBy(ImmutableSet.of(3L, 4L, 5L))
+        );
+        final SearchFilter resolvedAntiAzureFilter = SearchProtoUtil.searchFilterProperty(
+            SearchProtoUtil.discoveredBy(ImmutableSet.of(1L, 2L, 5L))
+        );
 
         final SearchParameters resolvedParams = searchService.resolveCloudProviderFilters(params);
-        assertEquals(3, resolvedParams.getSearchFilterCount());
+        assertEquals(5, resolvedParams.getSearchFilterCount());
         final List<SearchFilter> resultFilters = resolvedParams.getSearchFilterList();
         assertTrue(resultFilters.contains(nonCloudProviderSearchFilter));
         assertTrue(resultFilters.contains(resolvedAwsFilter));
         assertTrue(resultFilters.contains(resolvedAzureFilter));
+        assertTrue(resultFilters.contains(resolvedAntiAwsFilter));
+        assertTrue(resultFilters.contains(resolvedAntiAzureFilter));
     }
 
     /**

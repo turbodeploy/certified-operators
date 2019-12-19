@@ -97,6 +97,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
@@ -894,9 +895,10 @@ public class SearchService implements ISearchService {
         if (!isCloudProviderFilter(originalFilter)) {
             return originalFilter;
         }
-        final List<String> providerOptions = originalFilter.getPropertyFilter().getStringFilter().getOptionsList();
+        final StringFilter inner = originalFilter.getPropertyFilter().getStringFilter();
         final Set<Long> targetOptions = targetsService.getAllTargets(null).stream()
-            .filter(dto -> providerOptions.contains(CloudType.fromProbeType(dto.getType()).name()))
+            .filter(dto -> inner.getPositiveMatch() ==
+                inner.getOptionsList().contains(CloudType.fromProbeType(dto.getType()).name()))
             .map(dto -> Long.valueOf(dto.getUuid()))
             .collect(Collectors.toSet());
 
