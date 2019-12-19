@@ -214,33 +214,37 @@ public class GroupDaoTest {
 
     /**
      * Test the case where a group is created by system and then gets updated.
+     *
      * @throws Exception if exceptions occurred.
      */
     @Test
     public void testUpdateSystemGroup() throws Exception {
         final GroupDefinition groupDefinition = createGroupDefinition();
         final Origin origin = createSystemOrigin();
-        final Set<MemberType> memberTypes = Collections.singleton(MemberType.newBuilder()
-            .setEntity(1).build());
+        final Set<MemberType> memberTypes =
+                Collections.singleton(MemberType.newBuilder().setEntity(1).build());
 
         groupStore.createGroup(OID1, origin, groupDefinition, memberTypes, true);
 
         final Grouping originalGroup = groupStore.getGroup(OID1).get();
 
         GroupDefinition updatedGroupDefinition = GroupDefinition.newBuilder(groupDefinition)
-            .setDisplayName("Updated display name").build();
+                .setDisplayName("Updated display name")
+                .build();
 
         Grouping updatedGrouping =
                 groupStore.updateGroup(OID1, updatedGroupDefinition, memberTypes, true);
 
         Assert.assertEquals("Updated display name",
-            updatedGrouping.getDefinition().getDisplayName());
+                updatedGrouping.getDefinition().getDisplayName());
 
         Assert.assertEquals(originalGroup.getOrigin(), updatedGrouping.getOrigin());
         Assert.assertEquals(originalGroup.getExpectedTypesList(),
-            updatedGrouping.getExpectedTypesList());
-        Assert.assertEquals(groupDefinition, updatedGrouping.getDefinition().toBuilder()
-            .setDisplayName(groupDefinition.getDisplayName()).build());
+                updatedGrouping.getExpectedTypesList());
+        Assert.assertEquals(groupDefinition, updatedGrouping.getDefinition()
+                .toBuilder()
+                .setDisplayName(groupDefinition.getDisplayName())
+                .build());
     }
 
     /**
@@ -441,8 +445,8 @@ public class GroupDaoTest {
         groupStore.createGroup(OID2, origin2, groupDefinition2, memberTypes, false);
         final GroupDTO.Grouping group1 = groupStore.getGroup(OID1).get();
         final GroupDTO.Grouping group2 = groupStore.getGroup(OID2).get();
-        Assert.assertEquals(groupDefinition1, group1.getDefinition());
-        Assert.assertEquals(groupDefinition2, group2.getDefinition());
+        Assert.assertThat(group1.getDefinition(), new GroupDefinitionMatcher(groupDefinition1));
+        Assert.assertThat(group2.getDefinition(), new GroupDefinitionMatcher(groupDefinition2));
 
         expectedException.expect(new StoreExceptionMatcher(Status.ALREADY_EXISTS));
         groupStore.createGroup(OID3, origin1, groupDuplicated, memberTypes, false);
@@ -704,7 +708,8 @@ public class GroupDaoTest {
 
     private void assertGroupsEqual(@Nonnull DiscoveredGroup expectedDiscGroup,
             @Nonnull GroupDTO.Grouping actual) {
-        Assert.assertEquals(expectedDiscGroup.getDefinition(), actual.getDefinition());
+        Assert.assertThat(actual.getDefinition(),
+                new GroupDefinitionMatcher(expectedDiscGroup.getDefinition()));
         Assert.assertEquals(expectedDiscGroup.getSourceIdentifier(),
                 actual.getOrigin().getDiscovered().getSourceIdentifier());
         Assert.assertEquals(new HashSet<>(expectedDiscGroup.getExpectedMembers()),
@@ -766,6 +771,17 @@ public class GroupDaoTest {
         @Override
         public void describeTo(Description description) {
 
+        }
+    }
+
+    /**
+     * A matcher for group definition. It is used instead of equality operator in order to
+     * match orderless collections inside.
+     */
+    private static class GroupDefinitionMatcher extends ProtobufMessageMatcher<GroupDefinition> {
+
+        GroupDefinitionMatcher(@Nonnull GroupDefinition expected) {
+            super(expected, Sets.newHashSet("tags.tags.value.values"));
         }
     }
 }

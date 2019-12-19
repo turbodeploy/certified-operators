@@ -33,8 +33,15 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
+import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
+import com.google.common.collect.Table;
+import com.google.common.collect.Table.Cell;
 import com.google.protobuf.InvalidProtocolBufferException;
 
 import io.grpc.Status;
@@ -479,10 +486,8 @@ public class GroupDAO implements IGroupStore {
     @Override
     public Optional<GroupDTO.Grouping> getGroup(long groupId) {
         try {
-            return dslContext.transactionResult(configuration -> {
-                final DSLContext transactionContext = DSL.using(configuration);
-                return getGroupInternal(transactionContext, groupId);
-            });
+            return Optional.ofNullable(
+                    getGroupInternal(Collections.singleton(groupId)).get(groupId));
         } catch (DataAccessException e) {
             GROUP_STORE_ERROR_COUNT.labels(GET_LABEL).increment();
             throw e;
@@ -490,53 +495,59 @@ public class GroupDAO implements IGroupStore {
     }
 
     @Nonnull
-    private Optional<GroupDTO.Grouping> getGroupInternal(@Nonnull DSLContext context, long groupId) {
-        final List<Grouping> groupings = context.selectFrom(GROUPING)
-                .where(GROUPING.ID.eq(groupId))
+    private Map<Long, GroupDTO.Grouping> getGroupInternal(@Nonnull Collection<Long> groupIds) {
+        final List<Grouping> groupings = dslContext.selectFrom(GROUPING)
+                .where(GROUPING.ID.in(groupIds))
                 .fetchInto(Grouping.class);
         if (groupings.isEmpty()) {
-            return Optional.empty();
-        }
-        if (groupings.size() > 1) {
-            throw new RuntimeException("Unexpected duplicated groups with the same ID " + groupId);
+            return Collections.emptyMap();
         }
         final Grouping grouping = groupings.iterator().next();
-        final GroupDTO.Grouping.Builder builder = GroupDTO.Grouping.newBuilder();
-        final Map<MemberType, Boolean> expectedMembers = getExpectedMemberTypes(context, groupId);
-        builder.setId(groupId);
-        builder.addAllExpectedTypes(expectedMembers.keySet());
-        builder.setSupportsMemberReverseLookup(grouping.getSupportsMemberReverseLookup());
-        builder.setOrigin(getGroupOrigin(context, grouping));
-        final GroupDefinition.Builder defBuilder = GroupDefinition.newBuilder();
-        defBuilder.setType(grouping.getGroupType());
-        defBuilder.setDisplayName(grouping.getDisplayName());
-        defBuilder.setIsHidden(grouping.getIsHidden());
-        if (grouping.getOwnerId() != null) {
-            defBuilder.setOwner(grouping.getOwnerId());
-        }
-        getOptimizationMetadata(grouping).ifPresent(defBuilder::setOptimizationMetadata);
-        // optimization metadata
-        // selection criteria
-        defBuilder.setTags(getGroupTags(context, groupId));
-        try {
-            if (grouping.getEntityFilters() != null) {
-                defBuilder.setEntityFilters(EntityFilters.parseFrom(grouping.getEntityFilters()));
-            } else if (grouping.getGroupFilters() != null) {
-                defBuilder.setGroupFilters(GroupFilters.parseFrom(grouping.getGroupFilters()));
-            } else {
-                // If a group does not have any members, we still fill the StaticMembers
-                // field in order to show that the group is a static one
-                final StaticMembers staticMembers =
-                        getStaticMembersMessage(context, groupId, expectedMembers).orElse(
-                                StaticMembers.getDefaultInstance());
-                defBuilder.setStaticGroupMembers(staticMembers);
+        final Table<Long, MemberType, Boolean> expectedMembers = getExpectedMemberTypes(groupIds);
+        final Map<Long, Origin> groupsOrigins = getGroupOrigin(groupings);
+        final Map<Long, Tags> groupTags = getGroupTags(groupIds);
+        final Map<Long, StaticMembers> staticMembers =
+                getStaticMembersMessage(groupIds, expectedMembers);
+        final Map<Long, GroupDTO.Grouping> result = new HashMap<>(groupIds.size());
+        for (long groupId: groupIds) {
+            final GroupDTO.Grouping.Builder builder = GroupDTO.Grouping.newBuilder();
+            builder.setId(groupId);
+            builder.addAllExpectedTypes(expectedMembers.row(groupId).keySet());
+            builder.setSupportsMemberReverseLookup(grouping.getSupportsMemberReverseLookup());
+            builder.setOrigin(groupsOrigins.get(groupId));
+            final GroupDefinition.Builder defBuilder = GroupDefinition.newBuilder();
+            defBuilder.setType(grouping.getGroupType());
+            defBuilder.setDisplayName(grouping.getDisplayName());
+            defBuilder.setIsHidden(grouping.getIsHidden());
+            if (grouping.getOwnerId() != null) {
+                defBuilder.setOwner(grouping.getOwnerId());
             }
-        } catch (InvalidProtocolBufferException e) {
-            throw new IllegalStateException(
-                    "Failed to parse dynamic selection criteria for group " + groupId, e);
+            getOptimizationMetadata(grouping).ifPresent(defBuilder::setOptimizationMetadata);
+            // optimization metadata
+            // selection criteria
+            Optional.ofNullable(groupTags.get(groupId)).ifPresent(defBuilder::setTags);
+            try {
+                if (grouping.getEntityFilters() != null) {
+                    defBuilder.setEntityFilters(
+                            EntityFilters.parseFrom(grouping.getEntityFilters()));
+                } else if (grouping.getGroupFilters() != null) {
+                    defBuilder.setGroupFilters(GroupFilters.parseFrom(grouping.getGroupFilters()));
+                } else {
+                    // If a group does not have any members, we still fill the StaticMembers
+                    // field in order to show that the group is a static one
+                    final StaticMembers groupStaticMembers = staticMembers.get(groupId);
+                    if (groupStaticMembers != null) {
+                        defBuilder.setStaticGroupMembers(groupStaticMembers);
+                    }
+                }
+            } catch (InvalidProtocolBufferException e) {
+                throw new IllegalStateException(
+                        "Failed to parse dynamic selection criteria for group " + groupIds, e);
+            }
+            builder.setDefinition(defBuilder);
+            result.put(groupId, builder.build());
         }
-        builder.setDefinition(defBuilder);
-        return Optional.of(builder.build());
+        return result;
     }
 
     @Nonnull
@@ -557,57 +568,73 @@ public class GroupDAO implements IGroupStore {
     }
 
     @Nonnull
-    private Map<MemberType, Boolean> getExpectedMemberTypes(@Nonnull DSLContext context,
-            long groupId) {
-        final List<Record2<Integer, Boolean>> expectedMembersEntities =
-                context.select(GROUP_EXPECTED_MEMBERS_ENTITIES.ENTITY_TYPE,
+    private Table<Long, MemberType, Boolean> getExpectedMemberTypes(Collection<Long> groupId) {
+        final List<Record3<Long, Integer, Boolean>> expectedMembersEntities =
+                dslContext.select(GROUP_EXPECTED_MEMBERS_ENTITIES.GROUP_ID,
+                        GROUP_EXPECTED_MEMBERS_ENTITIES.ENTITY_TYPE,
                         GROUP_EXPECTED_MEMBERS_ENTITIES.DIRECT_MEMBER)
                         .from(GROUP_EXPECTED_MEMBERS_ENTITIES)
-                        .where(GROUP_EXPECTED_MEMBERS_ENTITIES.GROUP_ID.eq(groupId))
+                        .where(GROUP_EXPECTED_MEMBERS_ENTITIES.GROUP_ID.in(groupId))
                         .fetch();
-        final List<Record2<GroupType, Boolean>> expectedMembersGroups =
-                context.select(GROUP_EXPECTED_MEMBERS_GROUPS.GROUP_TYPE,
+        final List<Record3<Long, GroupType, Boolean>> expectedMembersGroups =
+                dslContext.select(GROUP_EXPECTED_MEMBERS_GROUPS.GROUP_ID,
+                        GROUP_EXPECTED_MEMBERS_GROUPS.GROUP_TYPE,
                         GROUP_EXPECTED_MEMBERS_GROUPS.DIRECT_MEMBER)
                         .from(GROUP_EXPECTED_MEMBERS_GROUPS)
-                        .where(GROUP_EXPECTED_MEMBERS_GROUPS.GROUP_ID.eq(groupId))
+                        .where(GROUP_EXPECTED_MEMBERS_GROUPS.GROUP_ID.in(groupId))
                         .fetch();
-        final Map<MemberType, Boolean> result = new HashMap<>();
-        for (Record2<Integer, Boolean> member : expectedMembersEntities) {
+        final Table<Long, MemberType, Boolean> result = HashBasedTable.create();
+        for (Record3<Long, Integer, Boolean> member : expectedMembersEntities) {
             final MemberType memberType =
-                    MemberType.newBuilder().setEntity(member.value1()).build();
-            result.put(memberType, member.value2());
+                    MemberType.newBuilder().setEntity(member.value2()).build();
+            result.put(member.value1(), memberType, member.value3());
         }
-        for (Record2<GroupType, Boolean> member : expectedMembersGroups) {
+        for (Record3<Long, GroupType, Boolean> member : expectedMembersGroups) {
             final MemberType memberType =
-                    MemberType.newBuilder().setGroup(member.value1()).build();
-            result.put(memberType, member.value2());
+                    MemberType.newBuilder().setGroup(member.value2()).build();
+            result.put(member.value1(), memberType, member.value3());
         }
         return result;
     }
 
     @Nonnull
-    private Origin getGroupOrigin(@Nonnull DSLContext context, @Nonnull Grouping group) {
-        if (group.getOriginSystemDescription() != null) {
-            return Origin.newBuilder()
-                    .setSystem(Origin.System.newBuilder()
-                            .setDescription(group.getOriginSystemDescription()))
-                    .build();
-        } else if (group.getOriginUserCreator() != null) {
-            return Origin.newBuilder()
-                    .setUser(Origin.User.newBuilder().setUsername(group.getOriginUserCreator()))
-                    .build();
-        } else if (group.getDisplayName() != null) {
-            final List<Record1<Long>> targets = context.select(GROUP_DISCOVER_TARGETS.TARGET_ID)
-                    .from(GROUP_DISCOVER_TARGETS)
-                    .where(GROUP_DISCOVER_TARGETS.GROUP_ID.eq(group.getId()))
-                    .fetch();
-            final Origin.Discovered.Builder builder = Origin.Discovered.newBuilder();
-            targets.stream().map(Record1::value1).forEach(builder::addDiscoveringTargetId);
-            builder.setSourceIdentifier(group.getOriginDiscoveredSrcId());
-            return Origin.newBuilder().setDiscovered(builder).build();
-        } else {
-            throw new RuntimeException("Unknown origin for the group " + group.getId());
+    private Map<Long, Origin> getGroupOrigin(@Nonnull Collection<Grouping> groups) {
+        final Set<Long> discoveredGroups = groups.stream()
+                .filter(group -> group.getOriginSystemDescription() == null &&
+                        group.getOriginUserCreator() == null)
+                .map(Grouping::getId)
+                .collect(Collectors.toSet());
+        final Multimap<Long, Long> groupTargets = HashMultimap.create();
+        dslContext.select(GROUP_DISCOVER_TARGETS.GROUP_ID, GROUP_DISCOVER_TARGETS.TARGET_ID)
+                .from(GROUP_DISCOVER_TARGETS)
+                .where(GROUP_DISCOVER_TARGETS.GROUP_ID.in(discoveredGroups))
+                .fetch()
+                .forEach(record -> groupTargets.put(record.value1(), record.value2()));
+        final Map<Long, Origin> origins = new HashMap<>(groups.size());
+        for (Grouping group: groups) {
+            final Origin origin;
+            if (group.getOriginSystemDescription() != null) {
+                origin = Origin.newBuilder()
+                        .setSystem(Origin.System.newBuilder()
+                                .setDescription(group.getOriginSystemDescription()))
+                        .build();
+            } else if (group.getOriginUserCreator() != null) {
+                origin = Origin.newBuilder()
+                        .setUser(Origin.User.newBuilder().setUsername(group.getOriginUserCreator()))
+                        .build();
+            } else if (group.getDisplayName() != null) {
+                final Collection<Long> targets = groupTargets.get(group.getId());
+                origin = Origin.newBuilder()
+                        .setDiscovered(Origin.Discovered.newBuilder()
+                                .addAllDiscoveringTargetId(targets)
+                                .setSourceIdentifier(group.getOriginDiscoveredSrcId()))
+                        .build();
+            } else {
+                throw new RuntimeException("Unknown origin for the group " + group.getId());
+            }
+            origins.put(group.getId(), origin);
         }
+        return origins;
     }
 
     @Nonnull
@@ -686,71 +713,98 @@ public class GroupDAO implements IGroupStore {
     }
 
     @Nonnull
-    private Optional<StaticMembers> getStaticMembersMessage(@Nonnull DSLContext context,
-            long groupId, @Nonnull Map<MemberType, Boolean> membersTypes) {
-        final Set<MemberType> expectedDirectTypes = membersTypes.entrySet()
-                .stream()
-                .filter(Entry::getValue)
-                .map(Entry::getKey)
-                .collect(Collectors.toSet());
-        final List<Record2<Integer, Long>> staticMembersEntities =
-                context.select(GROUP_STATIC_MEMBERS_ENTITIES.ENTITY_TYPE,
+    private Map<Long, Map<MemberType, Set<Long>>> getStaticMembers(
+            @Nonnull Collection<Long> groupIds,
+            @Nonnull SetMultimap<Long, MemberType> expectedDirectTypes) {
+        final List<Record3<Long, Integer, Long>> staticMembersEntities =
+                dslContext.select(GROUP_STATIC_MEMBERS_ENTITIES.GROUP_ID,
+                        GROUP_STATIC_MEMBERS_ENTITIES.ENTITY_TYPE,
                         GROUP_STATIC_MEMBERS_ENTITIES.ENTITY_ID)
                         .from(GROUP_STATIC_MEMBERS_ENTITIES)
-                        .where(GROUP_STATIC_MEMBERS_ENTITIES.GROUP_ID.eq(groupId))
+                        .where(GROUP_STATIC_MEMBERS_ENTITIES.GROUP_ID.in(groupIds))
                         .fetch();
-        final List<Record2<Long, GroupType>> staticMembersGroups =
-                context.select(GROUP_STATIC_MEMBERS_GROUPS.CHILD_GROUP_ID, GROUPING.GROUP_TYPE)
+        final List<Record3<Long, Long, GroupType>> staticMembersGroups =
+                dslContext.select(GROUP_STATIC_MEMBERS_GROUPS.PARENT_GROUP_ID,
+                        GROUP_STATIC_MEMBERS_GROUPS.CHILD_GROUP_ID, GROUPING.GROUP_TYPE)
                         .from(GROUP_STATIC_MEMBERS_GROUPS)
                         .join(GROUPING)
                         .on(GROUP_STATIC_MEMBERS_GROUPS.CHILD_GROUP_ID.eq(GROUPING.ID))
-                        .where(GROUP_STATIC_MEMBERS_GROUPS.PARENT_GROUP_ID.eq(groupId))
+                        .where(GROUP_STATIC_MEMBERS_GROUPS.PARENT_GROUP_ID.in(groupIds))
                         .fetch();
-        final Map<MemberType, Set<Long>> staticMembers = new HashMap<>();
-        for (Record2<Integer, Long> record : staticMembersEntities) {
-            final MemberType type = MemberType.newBuilder().setEntity(record.value1()).build();
+        final Map<Long, Map<MemberType, Set<Long>>> staticMembers = new HashMap<>();
+        expectedDirectTypes.entries()
+                .forEach(entry -> staticMembers.computeIfAbsent(entry.getKey(),
+                        key -> new HashMap<>()).put(entry.getValue(), new HashSet<>()));
+        for (Record3<Long, Integer, Long> record : staticMembersEntities) {
+            final MemberType type = MemberType.newBuilder().setEntity(record.value2()).build();
+            final long member = record.value3();
+            final Map<MemberType, Set<Long>> members =
+                    staticMembers.computeIfAbsent(record.value1(), key -> new HashMap<>());
+            members.computeIfAbsent(type, key -> new HashSet<>()).add(member);
+        }
+        for (Record3<Long, Long, GroupType> record : staticMembersGroups) {
+            final MemberType type = MemberType.newBuilder().setGroup(record.value3()).build();
             final long member = record.value2();
-            staticMembers.computeIfAbsent(type, key -> new HashSet<>()).add(member);
+            final Map<MemberType, Set<Long>> members =
+                    staticMembers.computeIfAbsent(record.value1(), key -> new HashMap<>());
+            members.computeIfAbsent(type, key -> new HashSet<>()).add(member);
         }
-        for (Record2<Long, GroupType> record : staticMembersGroups) {
-            final MemberType type = MemberType.newBuilder().setGroup(record.value2()).build();
-            final long member = record.value1();
-            staticMembers.computeIfAbsent(type, key -> new HashSet<>()).add(member);
-        }
-        // We fill in the empty collections to create a StaticMembersByType record for every
-        // expected direct member.
-        for (MemberType memberType: expectedDirectTypes) {
-            if (!staticMembers.containsKey(memberType)) {
-                staticMembers.put(memberType, Collections.emptySet());
-            }
-        }
-        final StaticMembers.Builder resultBuilder = StaticMembers.newBuilder();
-        for (Entry<MemberType, Set<Long>> entry : staticMembers.entrySet()) {
-            resultBuilder.addMembersByType(StaticMembersByType.newBuilder()
-                    .setType(entry.getKey())
-                    .addAllMembers(entry.getValue())
-                    .build());
-        }
-        return Optional.of(resultBuilder.build());
+        return staticMembers;
     }
 
     @Nonnull
-    private Tags getGroupTags(@Nonnull DSLContext context, long groupId) {
-        final List<Record2<String, String>> tags =
-                context.select(GROUP_TAGS.TAG_KEY, GROUP_TAGS.TAG_VALUE)
-                        .from(GROUP_TAGS)
-                        .where(GROUP_TAGS.GROUP_ID.eq(groupId))
-                        .fetch();
-        final Map<String, List<Record2<String, String>>> grouppedTags =
-                tags.stream().collect(Collectors.groupingBy(Record2::value1));
-        final Tags.Builder builder = Tags.newBuilder();
-        for (Entry<String, List<Record2<String, String>>> entry : grouppedTags.entrySet()) {
-            final String tagKey = entry.getKey();
-            final TagValuesDTO.Builder tagValue = TagValuesDTO.newBuilder();
-            entry.getValue().stream().map(Record2::value2).forEach(tagValue::addValues);
-            builder.putTags(tagKey, tagValue.build());
+    private Map<Long, StaticMembers> getStaticMembersMessage(@Nonnull Collection<Long> groupIds,
+            @Nonnull Table<Long, MemberType, Boolean> membersTypes) {
+        final SetMultimap<Long, MemberType> expectedDirectTypes = HashMultimap.create();
+        membersTypes.cellSet()
+                .stream()
+                .filter(Cell::getValue)
+                .forEach(cell -> expectedDirectTypes.put(cell.getRowKey(), cell.getColumnKey()));
+        final Map<Long, Map<MemberType, Set<Long>>> staticMembers =
+                getStaticMembers(groupIds, expectedDirectTypes);
+        final Map<Long, StaticMembers> result = new HashMap<>(groupIds.size());
+        for (long groupId : groupIds) {
+            // We fill in the empty collections to create a StaticMembersByType record for every
+            // expected direct member.
+            final Map<MemberType, Set<Long>> groupStaticMembers =
+                    staticMembers.getOrDefault(groupId, new HashMap<>());
+            final StaticMembers.Builder resultBuilder = StaticMembers.newBuilder();
+            for (Entry<MemberType, Set<Long>> entry : groupStaticMembers.entrySet()) {
+                resultBuilder.addMembersByType(StaticMembersByType.newBuilder()
+                        .setType(entry.getKey())
+                        .addAllMembers(entry.getValue())
+                        .build());
+            }
+            result.put(groupId, resultBuilder.build());
         }
-        return builder.build();
+        return result;
+    }
+
+    @Nonnull
+    private Map<Long, Tags> getGroupTags(@Nonnull Collection<Long> groupIds) {
+        final List<Record3<Long, String, String>> tags =
+                dslContext.select(GROUP_TAGS.GROUP_ID, GROUP_TAGS.TAG_KEY, GROUP_TAGS.TAG_VALUE)
+                        .from(GROUP_TAGS)
+                        .where(GROUP_TAGS.GROUP_ID.in(groupIds))
+                        .fetch();
+        final Map<Long, Multimap<String, String>> tagsMultimap = new HashMap<>(groupIds.size());
+        for (Record3<Long, String, String> record : tags) {
+            tagsMultimap.computeIfAbsent(record.value1(), key -> HashMultimap.create())
+                    .put(record.value2(), record.value3());
+        }
+        final Map<Long, Tags> result = new HashMap<>(groupIds.size());
+        for (Entry<Long, Multimap<String, String>> groupEntry : tagsMultimap.entrySet()) {
+            final Tags.Builder tagsBuilder = Tags.newBuilder();
+            for (Entry<String, Collection<String>> tagEntry : groupEntry.getValue()
+                    .asMap()
+                    .entrySet()) {
+                final TagValuesDTO values =
+                        TagValuesDTO.newBuilder().addAllValues(tagEntry.getValue()).build();
+                tagsBuilder.putTags(tagEntry.getKey(), values);
+            }
+            result.put(groupEntry.getKey(), tagsBuilder.build());
+        }
+        return result;
     }
 
     @Nonnull
@@ -763,9 +817,13 @@ public class GroupDAO implements IGroupStore {
         pojo.setSupportsMemberReverseLookup(supportReverseLookups);
         try {
             updateGroup(dslContext, pojo, groupDefinition, supportedMemberTypes);
-            return getGroupInternal(dslContext, groupId)
-                .orElseThrow(() -> new StoreOperationException(Status.INTERNAL, "Cannot find the " +
-                    "updated group."));
+            final GroupDTO.Grouping grouping =
+                    getGroupInternal(Collections.singleton(groupId)).get(groupId);
+            if (grouping == null) {
+                throw new StoreOperationException(Status.INTERNAL,
+                        "Cannot find the updated group by id " + groupId);
+            }
+            return grouping;
         } catch (DataAccessException e) {
             GROUP_STORE_ERROR_COUNT.labels(UPDATE_LABEL).increment();
             throw e;
@@ -829,18 +887,14 @@ public class GroupDAO implements IGroupStore {
 
     @Nonnull
     @Override
-    public Set<GroupDTO.Grouping> getGroups(@Nonnull GroupDTO.GroupFilter filter) {
+    public Collection<GroupDTO.Grouping> getGroups(@Nonnull GroupDTO.GroupFilter filter) {
         final Collection<Long> groupingIds = getGroupIds(filter);
-        return groupingIds.stream()
-                .map(id -> getGroupInternal(dslContext, id))
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .collect(Collectors.toSet());
+        return getGroupInternal(groupingIds).values();
     }
 
     @Nonnull
     @Override
-    public Collection<Long> getGroupIds(@Nonnull GroupDTO.GroupFilter filter) {
+    public Set<Long> getGroupIds(@Nonnull GroupDTO.GroupFilter filter) {
         final Condition sqlCondition = createGroupCondition(filter);
         final Set<Long> groupingIds = dslContext.select(GROUPING.ID)
                 .from(GROUPING)
@@ -849,8 +903,8 @@ public class GroupDAO implements IGroupStore {
                 .stream()
                 .map(Record1::value1)
                 .collect(Collectors.toSet());
-        final Collection<Long> postSqlFiltered = filterPostSQL(dslContext, groupingIds, filter);
-        return Collections.unmodifiableCollection(postSqlFiltered);
+        final Set<Long> postSqlFiltered = filterPostSQL(dslContext, groupingIds, filter);
+        return Collections.unmodifiableSet(postSqlFiltered);
     }
 
     @Nonnull
@@ -911,7 +965,7 @@ public class GroupDAO implements IGroupStore {
      * @return filtered group OIDs. If there is nothing to apply, just return {@code groupIds}
      */
     @Nonnull
-    private Collection<Long> filterPostSQL(@Nonnull DSLContext context, @Nonnull Set<Long> groupIds,
+    private Set<Long> filterPostSQL(@Nonnull DSLContext context, @Nonnull Set<Long> groupIds,
             @Nonnull GroupDTO.GroupFilter filter) {
         if (filter.getPropertyFiltersCount() == 0) {
             return groupIds;
@@ -1361,16 +1415,7 @@ public class GroupDAO implements IGroupStore {
                 .stream()
                 .map(Record1::value1)
                 .collect(Collectors.toSet());
-        final Set<GroupDTO.Grouping> groupings = new HashSet<>();
-        for (Long oid : parentGroups) {
-            final Optional<GroupDTO.Grouping> group = getGroupInternal(context, oid);
-            if (!group.isPresent()) {
-                throw new IllegalStateException("Group with id " + oid +
-                        " is absent but is referenced as static owner of entity " + entityId);
-            }
-            groupings.add(group.get());
-        }
-        return Collections.unmodifiableSet(groupings);
+        return ImmutableSet.copyOf(getGroupInternal(parentGroups).values());
     }
 
     private static void requireTrue(boolean condition, @Nonnull String message)
