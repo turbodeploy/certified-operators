@@ -30,6 +30,14 @@ public final class EconomySettings implements Serializable {
     public static final int DEFAULT_MAX_PLACEMENT_ITERATIONS = 1000;
 
     /**
+     * The value returned by {@link #getUseQuoteCacheDuringSNM()} when called on a newly
+     * constructed instance.
+     */
+    // The default is false because we have found more topologies that are negatively impacted by
+    // enabling the quote cache than topologies that are positively impacted.
+    public static final boolean DEFAULT_USE_QUOTE_CACHE_DURING_SNM = false;
+
+    /**
      * The value returned by {@link #getQuoteFactor()} when called on a newly constructed instance.
      */
     // 0.75 corresponding to a 25% improvement seemed reasonable but there is no particular reason
@@ -47,6 +55,7 @@ public final class EconomySettings implements Serializable {
     private boolean isEstimatesEnabled_ = true;
     private boolean isResizeDependentCommodities_ = true;
     private int maxPlacementIterations_ = DEFAULT_MAX_PLACEMENT_ITERATIONS;
+    private boolean useQuoteCacheDuringSNM_ = DEFAULT_USE_QUOTE_CACHE_DURING_SNM;
     private boolean sortShoppingLists_ = false;
     private float discountedComputeCostFactor = -1f;
 
@@ -244,6 +253,35 @@ public final class EconomySettings implements Serializable {
         return this;
     }
 
+    /**
+     * Returns whether quotes should be cached for reuse during SNM-enabled placement analysis.
+     *
+     * <p>Setting to true can improve performance in some cases. Usually those cases involve a high
+     * number of biclique overlaps and volumes per VM.</p>
+     *
+     * @see #setUseQuoteCacheDuringSNM(boolean)
+     */
+    @Pure
+    public boolean getUseQuoteCacheDuringSNM(@ReadOnly EconomySettings this) {
+        return useQuoteCacheDuringSNM_;
+    }
+
+    /**
+     * Sets the value of the <b>use quote cache during SNM</b> field.
+     *
+     * <p>Has no observable side-effects except setting the above field.</p>
+     *
+     * @param useQuoteCacheDuringSNM the new value for the field.
+     * @return {@code this}
+     *
+     * @see #getUseQuoteCacheDuringSNM()
+     */
+    @Deterministic
+    public EconomySettings setUseQuoteCacheDuringSNM(boolean useQuoteCacheDuringSNM) {
+        useQuoteCacheDuringSNM_ = useQuoteCacheDuringSNM;
+        return this;
+    }
+
     public float getDiscountedComputeCostFactor() {
         return discountedComputeCostFactor;
     }
@@ -263,13 +301,12 @@ public final class EconomySettings implements Serializable {
      * Resets {@code this} {@link EconomySettings} instance to the state it was in just after
      * construction.
      *
-     * <p>
-     *  It has no other observable side-effects.
-     * </p>
+     * <p>It has no other observable side-effects.</p>
      */
     public void clear() {
         minSellersForParallelism_ = DEFAULT_MIN_SELLERS_FOR_PARALLELISM;
         quoteFactor_ = DEFAULT_QUOTE_FACTOR;
         maxPlacementIterations_ = DEFAULT_MAX_PLACEMENT_ITERATIONS;
+        useQuoteCacheDuringSNM_ = DEFAULT_USE_QUOTE_CACHE_DURING_SNM;
     }
 } // end EconomySettings class
