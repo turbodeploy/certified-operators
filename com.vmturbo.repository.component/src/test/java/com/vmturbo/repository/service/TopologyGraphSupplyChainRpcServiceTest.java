@@ -174,7 +174,7 @@ public class TopologyGraphSupplyChainRpcServiceTest {
 
     /**
      * Tests that supply chain creation works, when scoped on account works.
-     * The account should be pulled in.
+     * The account shouldn't be pulled in.
      *
      * @throws InterruptedException should not happen
      */
@@ -196,14 +196,12 @@ public class TopologyGraphSupplyChainRpcServiceTest {
         Assert.assertEquals(1, responseObserver.getResults().size());
 
         final GetSupplyChainResponse response = responseObserver.getResults().get(0);
-        Assert.assertEquals(3, response.getSupplyChain().getSupplyChainNodesCount());
+        Assert.assertEquals(2, response.getSupplyChain().getSupplyChainNodesCount());
         Assert.assertThat(response.getSupplyChain().getSupplyChainNodesList().stream()
                                 .map(SupplyChainNode::getEntityType)
                                 .collect(Collectors.toList()),
                           containsInAnyOrder(UIEntityType.fromType(EntityType.REGION_VALUE).apiStr(),
                                              UIEntityType.fromType(EntityType.VIRTUAL_MACHINE_VALUE)
-                                                     .apiStr(),
-                                             UIEntityType.fromType(EntityType.BUSINESS_ACCOUNT_VALUE)
                                                      .apiStr()));
     }
 

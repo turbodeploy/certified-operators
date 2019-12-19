@@ -352,6 +352,9 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
                     supplyChainNodesMap.keySet().removeIf(type -> !includedTypes.contains(type));
                 }
 
+                // remove business accounts from the result
+                supplyChainNodesMap.remove(EntityType.BUSINESS_ACCOUNT_VALUE);
+
                 // return result
                 final Collection<SupplyChainNode> supplyChainNodes = supplyChainNodesMap.values();
                 responseObserver.onNext(GetSupplyChainResponse.newBuilder()
