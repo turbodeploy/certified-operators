@@ -75,15 +75,17 @@ public class AccountExpensesUploader {
      * Upload the cloud business account expenses.
      *
      * Called in the topology pipeline after the stitching context has been created, but before
-     * it has been converted to a topology map. Ths is because a lot of the data we need is in the
+     * it has been converted to a topology map. This is because a lot of the data we need is in the
      * raw cloud entity data, much of which we lose in the conversion to topology map.
      *
-     * We will be cross-referencing data from the cost DTO's, non-market entities, and topology
+     * We will be cross-referencing data from the cost DTOs, non-market entities, and topology
      * entities (in stitching entity form), from the billing and discovery probes. So there may be
      * some sensitivity to discovery mismatches between billing and discovery probe data.
      *
-     * @param topologyInfo
-     * @param stitchingContext
+     * @param costDataByTarget mapping of target OID to {@link TargetCostData}
+     * @param topologyInfo the topology info
+     * @param stitchingContext the stitching context, containing the stitched entities
+     * @param cloudEntitiesMap cloud entities
      */
     public synchronized void uploadAccountExpenses(Map<Long, TargetCostData> costDataByTarget,
                                                    TopologyInfo topologyInfo,
@@ -140,21 +142,18 @@ public class AccountExpensesUploader {
         buildTimer.observe();
         logger.debug("Building account expenses upload request took {} secs", buildTimer.getTimeElapsedSecs());
 
-        // check the last processed hash to see if we should upload again
-        long lastProcessedHash = costServiceClient.getAccountExpensesChecksum(
+        // check if this requests checksum is different than the last requests checksum.
+        // the checksum function is indifferent to the order of the expenses or the service/tier expenses.
+        long lastRequestChecksum = costServiceClient.getAccountExpensesChecksum(
                 GetAccountExpensesChecksumRequest.getDefaultInstance()).getChecksum();
-
-        // generate a hash of the intermediate build - we won't add topology id in yet because that
-        // is expected to change each iteration.
-        long requestHash = requestBuilder.build().hashCode();
-        if (requestHash != lastProcessedHash) {
-            // set the topology id after calculating the hash, so it doesn't affect the hash calc
+        long newRequestChecksum = calcAccountExpensesUploadRequestChecksum(requestBuilder.build());
+        if (newRequestChecksum != lastRequestChecksum) {
             requestBuilder.setTopologyId(topologyInfo.getTopologyId());
-            requestBuilder.setChecksum(requestHash);
+            requestBuilder.setChecksum(newRequestChecksum);
             requestBuilder.setCreatedTime(System.currentTimeMillis());
 
             logger.debug("Request hash [{}] is different from last processed hash [{}], will upload this request.",
-                    Long.toUnsignedString(requestHash), Long.toUnsignedString(lastProcessedHash));
+                    Long.toUnsignedString(newRequestChecksum), Long.toUnsignedString(lastRequestChecksum));
             try (DataMetricTimer uploadTimer = CLOUD_COST_UPLOAD_TIME.labels(
                     CLOUD_COST_EXPENSES_SECTION, UPLOAD_REQUEST_UPLOAD_STAGE).startTimer()) {
                 // we should probably upload empty data too, if we are relying on this as a way to
@@ -168,6 +167,65 @@ public class AccountExpensesUploader {
         } else {
             logger.info("Cloud Account Expenses upload step calculated same hash as the last processed hash -- will skip this upload.");
         }
+    }
+
+    /**
+     * This method calculates a hash of all the account expenses in the request, regardless of
+     * their order in the expenses list.
+     *
+     * @param request The upload account expenses request
+     * @return a hash of all the account expenses in the request
+     */
+    @VisibleForTesting
+    long calcAccountExpensesUploadRequestChecksum(UploadAccountExpensesRequest request) {
+        long hash = 41L;
+        if (request.getAccountExpensesCount() > 0) {
+            hash = (53L * hash) + request.getAccountExpensesList().stream()
+                    .map(this::calcAccountExpensesChecksum)
+                    .reduce(Long::sum)
+                    .get();
+        }
+        return hash;
+    }
+
+    /**
+     * This method calculates the hash of the service and tier expenses, regardless of their
+     * order in the ServiceExpenses and TierExpenses lists in the account expenses info.
+     *
+     * @param accountExpenses The account expenses
+     * @return a hash of all the service and tier expenses in the account expenses
+     */
+    private long calcAccountExpensesChecksum(AccountExpenses accountExpenses) {
+        long hash = 41L;
+
+        if (accountExpenses.hasAssociatedAccountId()) {
+            hash = (53L * hash) + com.google.protobuf.Internal.hashLong(
+                    accountExpenses.getAssociatedAccountId());
+        }
+
+        if (accountExpenses.hasExpenseReceivedTimestamp()) {
+            hash = (53L * hash) + com.google.protobuf.Internal.hashLong(
+                    accountExpenses.getExpenseReceivedTimestamp());
+        }
+
+        if (accountExpenses.hasAccountExpensesInfo()) {
+            AccountExpenses.AccountExpensesInfo info = accountExpenses.getAccountExpensesInfo();
+
+            if (info.getServiceExpensesCount() > 0) {
+                hash = (53L * hash) + info.getServiceExpensesList().stream()
+                        .map(ServiceExpenses::hashCode)
+                        .reduce(Integer::sum)
+                        .get();
+            }
+            if (info.getTierExpensesCount() > 0) {
+                hash = (53L * hash) + info.getTierExpensesList().stream()
+                        .map(TierExpenses::hashCode)
+                        .reduce(Integer::sum)
+                        .get();
+            }
+        }
+
+        return hash;
     }
 
     /**

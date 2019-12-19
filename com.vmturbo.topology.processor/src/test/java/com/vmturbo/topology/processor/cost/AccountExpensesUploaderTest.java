@@ -8,7 +8,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import com.google.common.collect.ImmutableMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -21,6 +24,7 @@ import org.mockito.Mockito;
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
+import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo.TierExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.UploadAccountExpensesRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UploadAccountExpensesResponse;
@@ -37,6 +41,7 @@ import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO;
 import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO.CloudServiceData;
 import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO.CloudServiceData.BillingData;
 import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO.NonMarketEntityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.TargetCostData;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -61,6 +66,15 @@ public class AccountExpensesUploaderTest {
     private static final long PROBE_ID_AWS_BILLING = 2;
     private static final long TARGET_ID_AWS_DISCOVERY_1 = 1;
     private static final long TARGET_ID_AWS_BILLING_1 = 2;
+
+    private static final long ACCOUNT_ID_1 = 1L;
+    private static final long ACCOUNT_ID_2 = 2L;
+    private static final long USAGE_DATE_1 = 1576800000000L;
+    private static final long USAGE_DATE_2 = 1576886400000L;
+    private static final long CLOUD_SERVICE_ID_1 = 3L;
+    private static final long CLOUD_SERVICE_ID_2 = 4L;
+    private static final double COST_AMOUNT_1 = 100d;
+    private static final double COST_AMOUNT_2 = 200d;
 
     private static final String AWS_CS_ID = "aws::192821421245::CS::AmazonS3";
     private static final String AZURE_CS_ID = "azure::CS::Storage::26080bd2-d98f-4420-a737-9de8";
@@ -359,6 +373,108 @@ public class AccountExpensesUploaderTest {
         Assert.assertEquals(0, awsAccount2Expenses.getAccountExpensesInfo().getTierExpensesCount());
     }
 
+    /**
+     * Check that the same account expenses in different order have the same checksum.
+     */
+    @Test
+    public void testAccountExpensesChecksumSingleService() {
+
+        AccountExpenses.Builder expenses1 = createAccountExpenses(ACCOUNT_ID_1, USAGE_DATE_1,
+                ImmutableMap.of(CLOUD_SERVICE_ID_1, COST_AMOUNT_1));
+        AccountExpenses.Builder expenses2 = createAccountExpenses(ACCOUNT_ID_2, USAGE_DATE_2,
+                ImmutableMap.of(CLOUD_SERVICE_ID_1, COST_AMOUNT_2));
+
+        UploadAccountExpensesRequest.Builder requestBuilder1 = UploadAccountExpensesRequest.newBuilder();
+        requestBuilder1.addAccountExpenses(expenses1);
+        requestBuilder1.addAccountExpenses(expenses2);
+
+        UploadAccountExpensesRequest.Builder requestBuilder2 = UploadAccountExpensesRequest.newBuilder();
+        requestBuilder2.addAccountExpenses(expenses2);
+        requestBuilder2.addAccountExpenses(expenses1);
+
+        long checksum1 = accountExpensesUploader
+                .calcAccountExpensesUploadRequestChecksum(requestBuilder1.build());
+        long checksum2 = accountExpensesUploader
+                .calcAccountExpensesUploadRequestChecksum(requestBuilder2.build());
+
+        Assert.assertEquals(checksum1, checksum2);
+    }
+
+    /**
+     * Check that the same account expenses with service expenses in different order has the same checksum.
+     */
+    @Test
+    public void testAccountExpensesChecksumMultipleServices() {
+
+        // The service expenses order is different in these 2 account expenses.
+        AccountExpenses.Builder expenses1 = createAccountExpenses(ACCOUNT_ID_1, USAGE_DATE_1,
+                ImmutableMap.of(CLOUD_SERVICE_ID_1, COST_AMOUNT_1, CLOUD_SERVICE_ID_2, COST_AMOUNT_1));
+        AccountExpenses.Builder expenses2 = createAccountExpenses(ACCOUNT_ID_1, USAGE_DATE_1,
+                ImmutableMap.of(CLOUD_SERVICE_ID_2, COST_AMOUNT_1, CLOUD_SERVICE_ID_1, COST_AMOUNT_1));
+
+        UploadAccountExpensesRequest.Builder requestBuilder1 = UploadAccountExpensesRequest.newBuilder();
+        requestBuilder1.addAccountExpenses(expenses1);
+
+        UploadAccountExpensesRequest.Builder requestBuilder2 = UploadAccountExpensesRequest.newBuilder();
+        requestBuilder2.addAccountExpenses(expenses2);
+
+        long checksum1 = accountExpensesUploader
+                .calcAccountExpensesUploadRequestChecksum(requestBuilder1.build());
+        long checksum2 = accountExpensesUploader
+                .calcAccountExpensesUploadRequestChecksum(requestBuilder2.build());
+
+        Assert.assertEquals(checksum1, checksum2);
+    }
+
+    /**
+     * Check that account expenses with different usage dates don't have the same checksum.
+     */
+    @Test
+    public void testAccountExpensesChecksumDifferentUsageDate() {
+
+        Map<Long, Double> serviceIdToAmount = ImmutableMap.of(CLOUD_SERVICE_ID_1, COST_AMOUNT_1);
+
+        // The usage date is different in these 2 account expenses.
+        AccountExpenses.Builder expenses1 = createAccountExpenses(ACCOUNT_ID_1, USAGE_DATE_1,
+                serviceIdToAmount);
+        AccountExpenses.Builder expenses2 = createAccountExpenses(ACCOUNT_ID_1, USAGE_DATE_2,
+                serviceIdToAmount);
+
+        UploadAccountExpensesRequest.Builder requestBuilder1 = UploadAccountExpensesRequest.newBuilder();
+        requestBuilder1.addAccountExpenses(expenses1);
+
+        UploadAccountExpensesRequest.Builder requestBuilder2 = UploadAccountExpensesRequest.newBuilder();
+        requestBuilder2.addAccountExpenses(expenses2);
+
+        long checksum1 = accountExpensesUploader
+                .calcAccountExpensesUploadRequestChecksum(requestBuilder1.build());
+        long checksum2 = accountExpensesUploader
+                .calcAccountExpensesUploadRequestChecksum(requestBuilder2.build());
+
+        Assert.assertNotEquals(checksum1, checksum2);
+    }
+
+    private AccountExpenses.Builder createAccountExpenses(long accountId, long usageDate,
+                                                          Map<Long, Double> serviceIdToAmount) {
+        AccountExpenses.AccountExpensesInfo.Builder accountExpensesInfoBuilder =
+                createAccountExpenseInfo(serviceIdToAmount);
+        return AccountExpenses.newBuilder()
+                .setAssociatedAccountId(accountId)
+                .setExpenseReceivedTimestamp(usageDate)
+                .setAccountExpensesInfo(accountExpensesInfoBuilder.build());
+    }
+
+    private AccountExpensesInfo.Builder createAccountExpenseInfo(final Map<Long, Double> serviceIdToAmount) {
+        List<AccountExpenses.AccountExpensesInfo.ServiceExpenses> serviceExpenses =
+                serviceIdToAmount.entrySet().stream().map(pair ->
+                        AccountExpenses.AccountExpensesInfo.ServiceExpenses.newBuilder()
+                                .setAssociatedServiceId(pair.getKey())
+                                .setExpenses(CurrencyAmount.newBuilder()
+                                        .setAmount(pair.getValue())
+                                        .setCurrency(840)
+                                        .build()).build()).collect(Collectors.toList());
+        return AccountExpenses.AccountExpensesInfo.newBuilder().addAllServiceExpenses(serviceExpenses);
+    }
 
     @Test
     public void testSanitizeCloudServiceId() {
