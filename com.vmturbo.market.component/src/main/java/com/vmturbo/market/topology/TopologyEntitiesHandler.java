@@ -36,7 +36,12 @@ import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.ProvisionBase;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
-import com.vmturbo.platform.analysis.economy.*;
+import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
+import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.EconomySettings;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
+import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.platform.analysis.ledger.PriceStatement;
@@ -419,6 +424,7 @@ public class TopologyEntitiesHandler {
                                            @Nonnull final AnalysisConfig analysisConfig) {
 
         economySettings.setEstimatesEnabled(false);
+        economySettings.setUseQuoteCacheDuringSNM(analysisConfig.getUseQuoteCacheDuringSNM());
         economySettings.setRightSizeLower(analysisConfig.getRightsizeLowerWatermark());
         economySettings.setRightSizeUpper(analysisConfig.getRightsizeUpperWatermark());
         if (analysisConfig.getDiscountedComputeCostFactor() > 0) {

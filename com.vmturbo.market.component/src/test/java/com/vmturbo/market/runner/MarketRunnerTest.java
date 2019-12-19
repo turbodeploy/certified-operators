@@ -94,6 +94,7 @@ public class MarketRunnerTest {
     private final SettingServiceMole testSettingService =
                  spy(new SettingServiceMole());
     private Optional<Integer> maxPlacementsOverride = Optional.empty();
+    private static final boolean USE_QUOTE_CACHE_DURING_SNM = false;
     private final static float rightsizeLowerWatermark = 0.1f;
     private final static float rightsizeUpperWatermark = 0.7f;
     private static final float discountedComputeCostFactor = 4f;
@@ -177,7 +178,8 @@ public class MarketRunnerTest {
     @Test
     public void testGetRuns() throws Exception {
         Analysis analysis = runner.scheduleAnalysis(topologyInfo, dtos(true), true,
-            maxPlacementsOverride, rightsizeLowerWatermark, rightsizeUpperWatermark,
+            maxPlacementsOverride, USE_QUOTE_CACHE_DURING_SNM,
+            rightsizeLowerWatermark, rightsizeUpperWatermark,
             discountedComputeCostFactor);
         assertTrue(runner.getRuns().contains(analysis));
         while (!analysis.isDone()) {
@@ -203,14 +205,17 @@ public class MarketRunnerTest {
         Set<TopologyEntityDTO> dtos = dtos(true);
         Analysis analysis1 =
             runner.scheduleAnalysis(topologyInfo, dtos, true,  maxPlacementsOverride,
-                    rightsizeLowerWatermark, rightsizeLowerWatermark, discountedComputeCostFactor);
+                USE_QUOTE_CACHE_DURING_SNM, rightsizeLowerWatermark, rightsizeLowerWatermark,
+                discountedComputeCostFactor);
         Analysis analysis2 =
             runner.scheduleAnalysis(topologyInfo, dtos, true,  maxPlacementsOverride,
-                    rightsizeLowerWatermark, rightsizeUpperWatermark, discountedComputeCostFactor);
+                USE_QUOTE_CACHE_DURING_SNM, rightsizeLowerWatermark, rightsizeUpperWatermark,
+                discountedComputeCostFactor);
         Analysis analysis3 = runner.scheduleAnalysis(topologyInfo.toBuilder()
-                        .setTopologyContextId(topologyInfo.getTopologyContextId() + 1)
-                        .build(), dtos, true, maxPlacementsOverride,
-                    rightsizeLowerWatermark, rightsizeUpperWatermark, discountedComputeCostFactor);
+                            .setTopologyContextId(topologyInfo.getTopologyContextId() + 1).build(),
+                        dtos, true, maxPlacementsOverride, USE_QUOTE_CACHE_DURING_SNM,
+                        rightsizeLowerWatermark, rightsizeUpperWatermark,
+                        discountedComputeCostFactor);
         assertSame(analysis1, analysis2);
         assertNotSame(analysis1, analysis3);
     }
@@ -232,9 +237,9 @@ public class MarketRunnerTest {
         when(badAnalysis.getState()).thenReturn(AnalysisState.FAILED);
 
         Analysis analysis =
-            runner.scheduleAnalysis(topologyInfo, badDtos, true,
-                    maxPlacementsOverride, rightsizeLowerWatermark, rightsizeUpperWatermark,
-                    discountedComputeCostFactor);
+            runner.scheduleAnalysis(topologyInfo, badDtos, true, maxPlacementsOverride,
+                USE_QUOTE_CACHE_DURING_SNM, rightsizeLowerWatermark, rightsizeUpperWatermark,
+                discountedComputeCostFactor);
 
         assertSame(badAnalysis, analysis);
 
@@ -249,9 +254,9 @@ public class MarketRunnerTest {
      */
     @Test
     public void testMarketRunning() {
-        runner.scheduleAnalysis(rtTopologyInfo, dtos(true), true,
-                maxPlacementsOverride, rightsizeLowerWatermark, rightsizeUpperWatermark,
-                discountedComputeCostFactor);
+        runner.scheduleAnalysis(rtTopologyInfo, dtos(true), true, maxPlacementsOverride,
+            USE_QUOTE_CACHE_DURING_SNM, rightsizeLowerWatermark, rightsizeUpperWatermark,
+            discountedComputeCostFactor);
         assertTrue(runner.isAnalysisRunningForRtTopology(rtTopologyInfo));
         // assert if the plan analysis is not running
         assertFalse(runner.isAnalysisRunningForRtTopology(topologyInfo));
