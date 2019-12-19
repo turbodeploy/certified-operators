@@ -321,6 +321,10 @@ data:
             repositoryRealtimeTopologyDropDelaySecs: 30
             numberOfExpectedRealtimeSourceDB: 2
             numberOfExpectedRealtimeProjectedDB: 2
+            # we are defaulting to 5 entities per chunk. Serialized entities were in the 1 ~ 5k
+            # range in a quick anecdotal test, and this would put the message chunk size at 25 - 125k range.
+            # This overlaps reasonably with the rumored optimal message size seems to be 16-64k as per
+            # https://github.com/grpc/grpc.github.io/issues/371
             repositoryMaxEntitiesPerChunk: 5
         topology-processor:
             # suppress inspection "UnusedProperty" for whole file
