@@ -5,14 +5,13 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.time.Clock;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import org.junit.Assert;
@@ -34,6 +33,9 @@ import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServi
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
+import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
+import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter;
+import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtilizationFilter;
 
 /**
  * Test the ReservedInstanceUtilizationCoverageRpcService public methods which get coverage
@@ -55,16 +57,13 @@ public class ReservedInstanceUtilizationCoverageRpcServiceTest {
 
     private TimeFrameCalculator timeFrameCalculator = mock(TimeFrameCalculator.class);
 
-    private Clock clock = Clock.systemUTC();
-
     private ReservedInstanceUtilizationCoverageRpcService service =
         new ReservedInstanceUtilizationCoverageRpcService(
                reservedInstanceUtilizationStore,
                reservedInstanceCoverageStore,
                projectedRICoverageStore,
                entityReservedInstanceMappingStore,
-               timeFrameCalculator,
-               clock);
+               timeFrameCalculator);
 
     /**
      * Set up a test GRPC server.
@@ -113,12 +112,19 @@ public class ReservedInstanceUtilizationCoverageRpcServiceTest {
         final ReservedInstanceStatsRecord historicalRIUtilizationStats =
                 createRIStatsRecord(riUtilizationHistoricCapacity, riUtilizationHistoricUsedValue,
                         riUtilizationHistoricCoverageSnapshotDate);
-        when(reservedInstanceUtilizationStore.getLatestReservedInstanceStatsRecords(any()))
-                .thenReturn(Collections.singleton(latestRICoverageStats));
+
         final List<ReservedInstanceStatsRecord> historicalStatsList = new ArrayList<>();
         historicalStatsList.add(historicalRIUtilizationStats);
         when(reservedInstanceUtilizationStore.getReservedInstanceUtilizationStatsRecords(any()))
-                .thenReturn(historicalStatsList);
+                .thenReturn(historicalStatsList)
+                .thenReturn(Lists.newArrayList(latestRICoverageStats));
+
+        //set projected to return nothing
+        final ReservedInstanceStatsRecord projectedRICoverageStatRecord =
+            createRIStatsRecord(0, 0,
+                    now + 50);
+        when(projectedRICoverageStore.getReservedInstanceCoverageStats(any()))
+                .thenReturn(projectedRICoverageStatRecord);
     }
 
     private void mockRICoverageStore() {
@@ -130,12 +136,19 @@ public class ReservedInstanceUtilizationCoverageRpcServiceTest {
         final ReservedInstanceStatsRecord historicalRICoverageStats =
                 createRIStatsRecord(riCoverageHistoricCapacity, riCoverageHistoricUsedValue,
                         riCoverageHistoricSnapshotDate);
-        when(reservedInstanceCoverageStore.getLatestReservedInstanceStatsRecords(any()))
-                .thenReturn(Collections.singleton(latestRICoverageStats));
+
         final List<ReservedInstanceStatsRecord> historicalStatsList = new ArrayList<>();
         historicalStatsList.add(historicalRICoverageStats);
         when(reservedInstanceCoverageStore.getReservedInstanceCoverageStatsRecords(any()))
-                .thenReturn(historicalStatsList);
+                .thenReturn(historicalStatsList)
+                .thenReturn(Lists.newArrayList(latestRICoverageStats));
+
+        //set projected to return nothing
+        final ReservedInstanceStatsRecord projectedRIUtilizationStatRecord =
+                createRIStatsRecord(0, 0,
+                        now + 50);
+        when(projectedRICoverageStore.getReservedInstanceUtilizationStats(any()))
+                .thenReturn(projectedRIUtilizationStatRecord);
     }
 
     private ReservedInstanceStatsRecord createRIStatsRecord(final float capacity,

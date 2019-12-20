@@ -106,9 +106,9 @@ public class ReservedInstanceUtil {
         final ReservedInstanceStatsRecord.Builder statsRecord = ReservedInstanceStatsRecord.newBuilder();
         statsRecord.setCapacity(StatValue.newBuilder()
                 .setTotal(totalCoupons)
-                .setAvg(usedCoupons)
-                .setMax(usedCoupons)
-                .setMin(usedCoupons));
+                .setAvg(totalCoupons)
+                .setMax(totalCoupons)
+                .setMin(totalCoupons));
         statsRecord.setValues(StatValue.newBuilder()
                 .setTotal(usedCoupons)
                 .setAvg(usedCoupons)

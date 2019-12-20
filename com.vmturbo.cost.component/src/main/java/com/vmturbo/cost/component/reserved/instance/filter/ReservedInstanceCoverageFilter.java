@@ -1,17 +1,22 @@
 package com.vmturbo.cost.component.reserved.instance.filter;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.lang3.ArrayUtils;
+import org.jooq.Condition;
+import org.jooq.DSLContext;
 import org.jooq.Table;
 
+import com.google.common.collect.ImmutableList;
+
+import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceUtil;
 
 /**
  * A filter to restrict the reserved instance coverage records from the
@@ -21,24 +26,16 @@ import com.vmturbo.cost.component.db.Tables;
  */
 public class ReservedInstanceCoverageFilter extends ReservedInstanceStatsFilter {
 
-    /**
-     * Constructor for ReservedInstanceCoverageFilter.
-     *
-     * @param scopeIds The scope(s) Ids.
-     * @param scopeEntityType The scope(s) entity type.
-     * @param startDateMillis Start time in ms.
-     * @param endDateMillis End time in ms.
-     * @param timeFrame The timeframe for which to obtain stats.
-     */
-    private ReservedInstanceCoverageFilter(@Nonnull final Set<Long> scopeIds,
-                                           final Optional<Integer> scopeEntityType,
-                                           final long startDateMillis,
-                                           final long endDateMillis,
-                                           @Nullable final TimeFrame timeFrame) {
-        super(scopeIds, scopeEntityType, startDateMillis, endDateMillis,
-              timeFrame);
+    private final EntityFilter entityFilter;
+
+    private ReservedInstanceCoverageFilter(@Nonnull Builder builder) {
+        super(builder);
+        this.entityFilter = builder.entityFilter;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public Table<?> getTableName() {
         if (this.timeFrame == null || this.timeFrame.equals(TimeFrame.LATEST)) {
@@ -53,6 +50,53 @@ public class ReservedInstanceCoverageFilter extends ReservedInstanceStatsFilter 
     }
 
     /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Condition[] generateConditions(@Nonnull final DSLContext dslContext) {
+
+        final Condition[] conditions = super.generateConditions(dslContext);
+
+        if (entityFilter.getEntityIdCount() > 0 ) {
+            final Table<?> table = getTableName();
+            final Condition entityIdCondition = table.field(ReservedInstanceUtil.ENTITY_ID)
+                    .in(entityFilter.getEntityIdList());
+            return ArrayUtils.add(conditions, entityIdCondition);
+        } else {
+            return conditions;
+        }
+    }
+
+    /**
+     * Provides the OIDs for each underlying entity type-specific filter of this filter. The returned
+     * OIDs will represent any region, account, availability zone, or entity filters configured
+     * in this filter instance.
+     * <p>
+     * The returned oids can be used to scope RI coverage for entities through
+     * the supply chain, in which the scoping information may not be readily available.
+     * @return The scope OIDs of this filter or and empty list if this is a global filter. The order
+     * of the list is irrelevant. The returned list is not modifiable.
+     */
+    public List<Long> getScopeOids() {
+        return ImmutableList.<Long>builder()
+                .addAll(regionFilter.getRegionIdList())
+                .addAll(accountFilter.getAccountIdList())
+                .addAll(availabilityZoneFilter.getAvailabilityZoneIdList())
+                .addAll(entityFilter.getEntityIdList())
+                .build();
+    }
+
+    public ReservedInstanceCoverageFilter toLatestFilter() {
+        return ReservedInstanceCoverageFilter.newBuilder()
+                .regionFilter(regionFilter)
+                .availabilityZoneFilter(availabilityZoneFilter)
+                .accountFilter(accountFilter)
+                .entityFilter(entityFilter)
+                .timeFrame(TimeFrame.LATEST)
+                .build();
+    }
+
+    /**
      * Create a builder used to construct a filter.
      *
      * @return The builder object.
@@ -61,68 +105,32 @@ public class ReservedInstanceCoverageFilter extends ReservedInstanceStatsFilter 
         return new ReservedInstanceCoverageFilter.Builder();
     }
 
-    public static class Builder {
-        // The set of scope oids.
-        private Set<Long> scopeIds = new HashSet<>();
-        // The scope's entity type.
-        private Integer scopeEntityType;
-        private long startDateMillis = 0;
-        private long endDateMillis = 0;
-        private TimeFrame timeFrame = null;
+    /**
+     * A builder class for {@link ReservedInstanceCoverageFilter}
+     */
+    public static class Builder extends
+            ReservedInstanceStatsFilter.Builder<ReservedInstanceCoverageFilter, Builder> {
 
-        private Builder() {}
+        private EntityFilter entityFilter = EntityFilter.getDefaultInstance();
 
+        /**
+         * Set an entity filter, filtering the queried entity coverage by entity OID.
+         * @param entityFilter The target {@link EntityFilter}, or null if no filtering by entity
+         *                     OID is requested.
+         * @return The {@link Builder} for method chaining
+         */
+        public Builder entityFilter(@Nullable EntityFilter entityFilter) {
+            this.entityFilter = Optional.ofNullable(entityFilter)
+                    .orElseGet(EntityFilter::getDefaultInstance);
+            return this;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
         public ReservedInstanceCoverageFilter build() {
-            return new ReservedInstanceCoverageFilter(scopeIds, getScopeEntityType(),
-                                              startDateMillis, endDateMillis, timeFrame);
-        }
-
-        /**
-         * Add all scope ids that are part of the plan sope.
-         *
-         * @param ids The scope oids that represent the filtering conditions.
-         * @return Builder for this class.
-         */
-        @Nonnull
-        public Builder addAllScopeId(final List<Long> ids) {
-            this.scopeIds.addAll(ids);
-            return this;
-        }
-
-        /**
-         * Set the plan scopes' entity type.
-         *
-         * @param entityType  The scope's entity type as defined in
-         *          @see com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType
-         * @return Builder for this class.
-         */
-        @Nonnull
-        public Builder setScopeEntityType(@Nullable final Integer entityType) {
-            this.scopeEntityType = entityType;
-            return this;
-        }
-
-        @Nonnull
-        public ReservedInstanceCoverageFilter.Builder setStartDateMillis(final long millis) {
-            this.startDateMillis = millis;
-            return this;
-        }
-
-        @Nonnull
-        public ReservedInstanceCoverageFilter.Builder setEndDateMillis(final long millis) {
-            this.endDateMillis = millis;
-            return this;
-        }
-
-        @Nonnull
-        public ReservedInstanceCoverageFilter.Builder setTimeFrame(final TimeFrame timeFrame) {
-            this.timeFrame = timeFrame;
-            return this;
-        }
-
-        @Nonnull
-        public Optional<Integer> getScopeEntityType() {
-            return Optional.ofNullable(scopeEntityType);
+            return new ReservedInstanceCoverageFilter(this);
         }
     }
 }

@@ -32,8 +32,7 @@ import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCover
  * each entity, and also used the {@link EntityReservedInstanceMappingStore} which has the latest
  * used coupons for each entity. And it will combine these data and store into database.
  */
-public class ReservedInstanceCoverageStore
-        extends ReservedInstanceStatsStore<ReservedInstanceCoverageFilter> {
+public class ReservedInstanceCoverageStore {
 
     //TODO: set this chunk config through consul.
     private final static int chunkSize = 1000;
@@ -78,21 +77,12 @@ public class ReservedInstanceCoverageStore
         final Table<?> table = filter.getTableName();
         final Result<Record> records = dsl.select(createSelectFieldsForRIUtilizationCoverage(table))
                 .from(table)
-                .where(filter.getConditions())
+                .where(filter.generateConditions(dsl))
                 .groupBy(table.field(SNAPSHOT_TIME))
                 .fetch();
         return records.stream()
                 .map(ReservedInstanceUtil::convertRIUtilizationCoverageRecordToRIStatsRecord)
                 .collect(Collectors.toList());
-    }
-
-    @Override
-    protected Result getLatestRecords(@Nonnull final ReservedInstanceCoverageFilter filter) {
-        return dsl.select(createSelectFieldsForRIUtilizationCoverage(
-                RESERVED_INSTANCE_COVERAGE_LATEST)).from(RESERVED_INSTANCE_COVERAGE_LATEST)
-                .where(filter.getConditions()).and(RESERVED_INSTANCE_COVERAGE_LATEST.SNAPSHOT_TIME
-                        .eq(dsl.select(DSL.max(RESERVED_INSTANCE_COVERAGE_LATEST.SNAPSHOT_TIME))
-                                .from(RESERVED_INSTANCE_COVERAGE_LATEST))).fetch();
     }
 
     /**
@@ -116,11 +106,11 @@ public class ReservedInstanceCoverageStore
     }
 
     @Nonnull
-    protected Map<Long, Double> getEntitiesCouponCapacity(ReservedInstanceCoverageFilter filter) {
+    public Map<Long, Double> getEntitiesCouponCapacity(ReservedInstanceCoverageFilter filter) {
         Map<Long, Double> entitiesCouponCapacity = new HashMap<>();
         dsl.select(RESERVED_INSTANCE_COVERAGE_LATEST.ENTITY_ID, RESERVED_INSTANCE_COVERAGE_LATEST.TOTAL_COUPONS)
                 .from(Tables.RESERVED_INSTANCE_COVERAGE_LATEST)
-                .where((filter.getConditions())).and(RESERVED_INSTANCE_COVERAGE_LATEST.SNAPSHOT_TIME.eq(
+                .where((filter.generateConditions(dsl))).and(RESERVED_INSTANCE_COVERAGE_LATEST.SNAPSHOT_TIME.eq(
                         dsl.select(RESERVED_INSTANCE_COVERAGE_LATEST.SNAPSHOT_TIME.max())
                                 .from(Tables.RESERVED_INSTANCE_COVERAGE_LATEST)))
                 .fetch()

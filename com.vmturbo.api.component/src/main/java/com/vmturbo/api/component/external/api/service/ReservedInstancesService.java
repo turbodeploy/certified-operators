@@ -18,7 +18,9 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
@@ -29,6 +31,7 @@ import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
@@ -43,8 +46,12 @@ import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IReservedInstancesService;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
+import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByTopologyRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceSpecByIdsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
@@ -52,13 +59,12 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.ReservedInstanceSpecServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
 public class ReservedInstancesService implements IReservedInstancesService {
 
@@ -106,7 +112,8 @@ public class ReservedInstancesService implements IReservedInstancesService {
     }
 
     @Override
-    public List<ReservedInstanceApiDTO> getReservedInstances(@Nullable String scope) throws Exception {
+    public List<ReservedInstanceApiDTO> getReservedInstances(@Nullable String scopeUuid) throws Exception {
+        final ApiId scope = uuidMapper.fromUuid(scopeUuid);
         final Collection<ReservedInstanceBought> reservedInstancesBought = getReservedInstancesBought(scope);
         final Set<Long> reservedInstanceSpecIds = reservedInstancesBought.stream()
                 .map(ReservedInstanceBought::getReservedInstanceBoughtInfo)
@@ -162,44 +169,66 @@ public class ReservedInstancesService implements IReservedInstancesService {
      * @return a list of {@link ReservedInstanceBought}.
      * @throws UnknownObjectException if the input scope type is not supported.
      */
-    private Collection<ReservedInstanceBought> getReservedInstancesBought(@Nullable final String scope)
+    private Collection<ReservedInstanceBought> getReservedInstancesBought(@Nonnull ApiId scope)
             throws UnknownObjectException {
-        final Optional<Grouping> groupOptional = groupExpander.getGroup(scope);
-        if (isGlobalScope(scope, groupOptional)) {
-            return reservedInstanceService.getReservedInstanceBoughtByFilter(
-                    GetReservedInstanceBoughtByFilterRequest.newBuilder().build())
-                    .getReservedInstanceBoughtsList();
-        } else if (groupOptional.isPresent()) {
-            final Set<UIEntityType> groupEntityType =
-                    GroupProtoUtil.getEntityTypes(groupOptional.get());
-            final Set<Long> expandedOidsList = groupExpander.expandUuid(scope);
-            Map<Long, ReservedInstanceBought> result = new HashMap<>();
-            groupEntityType.retainAll(SUPPORTED_RI_FILTER_TYPES);
 
-            for (UIEntityType entityType : groupEntityType) {
-                final GetReservedInstanceBoughtByFilterRequest request =
-                                createGetReservedInstanceBoughtByFilterRequest(
-                                                expandedOidsList, entityType.typeNumber());
-                reservedInstanceService.getReservedInstanceBoughtByFilter(request)
-                    .getReservedInstanceBoughtsList()
-                    .forEach(ri -> result.put(ri.getId(), ri));
+        if (isValidScopeForRIBoughtQuery(scope)) {
+            final Optional<PlanInstance> optPlan = scope.getPlanInstance();
+            if (optPlan.isPresent()) {
+                final PlanInstance plan = optPlan.get();
+                final Set<Long> scopeIds = MarketMapper.getPlanScopeIds(plan);
+                final long scopeId = scopeIds.iterator().next();
+                final int scopeEntityType = repositoryApi.entityRequest(scopeId)
+                        .getMinimalEntity()
+                        .orElseThrow(() -> new UnknownObjectException("Unknown scope id: " + scopeId))
+                        .getEntityType();
+
+                final GetReservedInstanceBoughtByTopologyRequest request =
+                        GetReservedInstanceBoughtByTopologyRequest.newBuilder()
+                                .setTopologyType(TopologyType.PLAN)
+                                .setScopeEntityType(scopeEntityType)
+                                .addAllScopeSeedOids(scopeIds)
+                                .build();
+                return reservedInstanceService.getReservedInstanceBoughtByTopology(request)
+                        .getReservedInstanceBoughtList();
+            } else { // this must be a realtime scope
+
+                final GetReservedInstanceBoughtByFilterRequest.Builder requestBuilder =
+                        GetReservedInstanceBoughtByFilterRequest.newBuilder();
+
+                // add any scope filters
+                scope.getScopeEntitiesByType().forEach((entityType, entityOids) -> {
+                    switch (entityType) {
+                        case REGION:
+                            requestBuilder.setRegionFilter(
+                                    RegionFilter.newBuilder()
+                                            .addAllRegionId(entityOids)
+                                            .build());
+                            break;
+                        case AVAILABILITY_ZONE:
+                            requestBuilder.setZoneFilter(
+                                    AvailabilityZoneFilter.newBuilder()
+                                            .addAllAvailabilityZoneId(entityOids)
+                                            .build());
+                            break;
+                        case BUSINESS_ACCOUNT:
+                            requestBuilder.setAccountFilter(
+                                    AccountFilter.newBuilder()
+                                            .addAllAccountId(entityOids)
+                                            .build());
+                            break;
+                        default:
+                            // This is an unsupported scope type, therefore we'll ignore it
+                            break;
+                    }
+                });
+
+                return reservedInstanceService
+                        .getReservedInstanceBoughtByFilter(requestBuilder.build())
+                        .getReservedInstanceBoughtsList();
             }
-
-            return result.values();
         } else {
-            // if cloud plan, use plan scope ids for the RI request
-            final Optional<PlanInstance> optPlan = fetchPlanInstance(scope);
-            final Set<Long> scopeIds = optPlan.map(MarketMapper::getPlanScopeIds)
-                .orElse(Sets.newHashSet(Long.valueOf(scope)));
-            final long scopeId = scopeIds.iterator().next();
-            final int scopeEntityType = repositoryApi.entityRequest(scopeId)
-                .getMinimalEntity()
-                .orElseThrow(() -> new UnknownObjectException("Unknown scope id: " + scopeId))
-                .getEntityType();
-            final GetReservedInstanceBoughtByFilterRequest request =
-                    createGetReservedInstanceBoughtByFilterRequest(scopeIds, scopeEntityType);
-            return reservedInstanceService.getReservedInstanceBoughtByFilter(request)
-                    .getReservedInstanceBoughtsList();
+            return Collections.emptySet();
         }
     }
 
@@ -231,26 +260,6 @@ public class ReservedInstancesService implements IReservedInstancesService {
                     .getApplicableBusinessAccountIdList());
         }
         return relateEntityIds;
-    }
-
-    /**
-     * Create a {@link GetReservedInstanceBoughtByFilterRequest} based on input filter type and filter ids.
-     *
-     * @param filterIds a list of ids need to filter by.
-     * @param filterType the filter entity type.
-     * @return {@link GetReservedInstanceBoughtByFilterRequest}
-     * @throws UnknownObjectException
-     */
-    private GetReservedInstanceBoughtByFilterRequest createGetReservedInstanceBoughtByFilterRequest(
-            @Nonnull final Set<Long> filterIds,
-            final int filterType) throws UnknownObjectException {
-        final GetReservedInstanceBoughtByFilterRequest.Builder request =
-                GetReservedInstanceBoughtByFilterRequest.newBuilder();
-        if (!SUPPORTED_RI_FILTER_TYPES.contains(filterType)) {
-           throw new UnknownObjectException("filter type: "  + filterType + " is not supported.");
-        }
-        request.addAllScopeSeedOids(filterIds).setScopeEntityType(filterType);
-        return request.build();
     }
 
     /**
@@ -325,5 +334,16 @@ public class ReservedInstancesService implements IReservedInstancesService {
         } catch (IllegalArgumentException | StatusRuntimeException e) {
             return Optional.empty();
         }
+    }
+
+    private boolean isValidScopeForRIBoughtQuery(@Nonnull ApiId scope) {
+
+        return scope.getScopeTypes()
+                // If this is scoped to a set of entity types, if any of the scope entity types
+                // are supported, RIs will be scoped through the supported types and non-supported
+                // types will be ignored
+                .map(scopeEntityTypes -> !Sets.union(SUPPORTED_RI_FILTER_TYPES, scopeEntityTypes).isEmpty())
+                // this is a global or plan scope
+                .orElse(true);
     }
 }

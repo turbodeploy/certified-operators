@@ -24,6 +24,8 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
+import com.google.common.collect.Lists;
+
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
@@ -52,6 +54,7 @@ import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 
@@ -247,7 +250,11 @@ public class UuidMapperTest {
         when(groupExpander.getMembersForGroup(any())).thenReturn(
             ImmutableGroupAndMembers.builder().group(Grouping.newBuilder().build())
                 .members(Collections.emptyList()).entities(Collections.emptyList()).build());
-        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReqEmpty();
+        final MinimalEntity vmEntity = MinimalEntity.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setOid(456)
+                .build();
+        final MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Lists.newArrayList(vmEntity));
         when(repositoryApi.entitiesRequest(any())).thenReturn(req);
 
         doReturn(GetGroupResponse.newBuilder()
@@ -427,7 +434,11 @@ public class UuidMapperTest {
         when(groupExpander.getMembersForGroup(any())).thenReturn(
             ImmutableGroupAndMembers.builder().group(Grouping.newBuilder().build())
                 .members(Collections.emptyList()).entities(Collections.emptyList()).build());
-        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReqEmpty();
+        final MinimalEntity vmEntity = MinimalEntity.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setOid(456)
+                .build();
+        final MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Lists.newArrayList(vmEntity));
         when(repositoryApi.entitiesRequest(any())).thenReturn(req);
 
         GroupID groupID = GroupID.newBuilder()

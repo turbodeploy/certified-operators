@@ -1,222 +1,114 @@
 package com.vmturbo.cost.component.reserved.instance.filter;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.jooq.Condition;
 
+import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.cost.component.db.Tables;
-import com.vmturbo.platform.common.dto.CommonDTO;
 
 /**
- * Abstract Class serving as a parent class for Filters that operate on the ReservedInstanceBought Table.
+ * Abstract Class serving as a parent class for filters that operate on the ReservedInstanceBought Table.
  */
 public abstract class ReservedInstanceBoughtTableFilter extends ReservedInstanceFilter {
 
-    //List of conditions.
-    private final List<Condition> conditions;
+    protected final Cost.ReservedInstanceBoughtFilter riBoughtFilter;
 
     // Needs to set to true, if any filter needs to get from reserved instance spec table.
     protected boolean joinWithSpecTable;
 
-    // The cloud scopes. Map keyed by EntityType to List of OIDs for each EntityType in scope.
-    // For example REGION --> (Region1Oid, Region2Oid)
-    // VIRTUAL_MACHINE --> (VM1Oid, VM2Oid, VM3Oid)
-    // For real-time and global plans it stays empty as we don't need to filter by these types (
-    // if we were to need this in the future,  we could fetch all entities and populate the map).
-    // For a scoped plan, it will contain a mapping of entities in scope.
-    private Map<CommonDTO.EntityDTO.EntityType, Set<Long>> cloudScopesTuple;
-
-    /**
-     * Constructor that takes scopeId(s) and scopeEntityType as arguments.
-     *
-     * @param scopeIds The scope(s) ids.  Region/BusinessAccount/AvalilabilityZone etc.
-     * @param scopeEntityType  The scopes' enity type.  In general, this parameter is homegeneous and
-     * the scopeEntityType determines the type of entities contained in it.  Exceptions are mixed groups.
-     * @param cloudScopesTuple The Cloud Scopes Tuple for the topology scope.
-     * @param joinWithSpecTable True if any filter needs to get from reserved instance spec table.
-     */
-    public ReservedInstanceBoughtTableFilter(@Nonnull Set<Long> scopeIds, Optional<Integer> scopeEntityType,
-                    @Nonnull final Map<CommonDTO.EntityDTO.EntityType, Set<Long>> cloudScopesTuple,
-                    final boolean joinWithSpecTable) {
-        super(scopeIds, scopeEntityType);
-        this.cloudScopesTuple = cloudScopesTuple;
-        this.joinWithSpecTable = joinWithSpecTable;
-        // Note that cloudScopesTuple should be set for Group scopes, and hence associated
-        // Regions, AZ's and BA's should be set.
-        if (!scopeIds.isEmpty()) {
-            // when REGION is involved, we need to join with the reserved_instance_spec table.
-            if (scopeEntityType.isPresent() && scopeEntityType.get() == CommonDTO.EntityDTO.EntityType.REGION_VALUE) {
-                this.joinWithSpecTable = true;
-            }
-            this.conditions = generateConditions(scopeIds, scopeEntityType);
-        } else {
-            // There could be a combination of REGION and BILLING ACCOUNT for e.g.
-            // and we would need to join with the spec table.
-            if (cloudScopesTuple.size() > 1) {
-                this.joinWithSpecTable = true;
-            }
-            this.conditions = generateConditions(this.cloudScopesTuple);
-        }
+    protected ReservedInstanceBoughtTableFilter(@Nonnull Builder builder) {
+        super(builder);
+        this.riBoughtFilter = Objects.requireNonNull(builder.riBoughtFilter);
+        this.joinWithSpecTable = regionFilter.getRegionIdCount() > 0;
     }
 
     /**
-     * Get the array of {@link Condition} representing the conditions of this filter.
-     *
-     * @return The array of {@link Condition} representing the filter.
+     * If true, indicates the ReservedInstanceBought table should be joined with the ReservedInstanceSpec
+     * table, allowing for filtering of RIs based on RI spec attributes.
+     * @return True, if the ReservedInstanceBought table should be joined with the
+     * ReservedInstanceSpec table
      */
-    public Condition[] getConditions() {
-        return this.conditions.toArray(new Condition[conditions.size()]);
-    }
-
     public boolean isJoinWithSpecTable() {
         return this.joinWithSpecTable;
     }
 
     /**
-     * Generate a list of {@link Condition} based on different fields.
-     *
-     * @param scopeIds scope ids scope OIDs to filter by.  REGION/BA/AZ or other in the fiture.
-     * @param scopeEntityType The scope(s) entity type.
-     * @return a list of {@link Condition}.
+     * Generate the conditions to be used as filters in querying for RI instances.
+     * @return The generated SQL conditions.
      */
-    @Override
-    protected List<Condition> generateConditions(@Nonnull final Set<Long> scopeIds,
-                    final Optional<Integer> scopeEntityType) {
-        final List<Condition> conditions = new ArrayList<>();
-        if (scopeIds.isEmpty()) {
-            return conditions;
-        }
-        if (scopeEntityType.isPresent()) {
-            switch (scopeEntityType.get()) {
-                case CommonDTO.EntityDTO.EntityType.REGION_VALUE:
-                    conditions.add(Tables.RESERVED_INSTANCE_SPEC.REGION_ID.in(scopeIds));
-                    break;
-                case CommonDTO.EntityDTO.EntityType.AVAILABILITY_ZONE_VALUE:
-                    conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.AVAILABILITY_ZONE_ID.in(scopeIds));
-                    break;
-                case CommonDTO.EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE:
-                    conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.BUSINESS_ACCOUNT_ID.in(scopeIds));
-                    break;
-                // Mixed scope of optimizable entities is handled by generateConditions(cloudScopesTuple).
-                default:
-                    break;
-            }
-        }
-        return conditions;
-    }
+    @Nonnull
+    public Condition[] generateConditions() {
 
-    /**
-     * Generate a list of {@link Condition} based on different fields.
-     *
-     * @param cloudScopesTuple Cloud scopes Tuple of (Regions/AZ's/BA's/..) for the topology.
-     * @return a list of {@link Condition}.
-     */
-    protected List<Condition> generateConditions(
-                    @Nonnull final Map<CommonDTO.EntityDTO.EntityType, Set<Long>> cloudScopesTuple) {
         final List<Condition> conditions = new ArrayList<>();
-        if (cloudScopesTuple.isEmpty()) {
-            return conditions;
-        }
-        // TODO: Since there is business specific logic, a similar method may be needed for Azure
-        // with Azure specific entity types or this method extended.
-        Set<Long> entityRegionOids =  cloudScopesTuple.get(CommonDTO.EntityDTO.EntityType.REGION);
-        Set<Long> entityAzOids = cloudScopesTuple.get(CommonDTO.EntityDTO.EntityType.AVAILABILITY_ZONE);
-        boolean regionAndAzExist = entityRegionOids != null && entityAzOids != null;
-        Set<Long> entityBfOids = cloudScopesTuple.get(CommonDTO.EntityDTO.EntityType.BUSINESS_ACCOUNT);
-        if (regionAndAzExist) {
-            Condition conditionRegion = Tables.RESERVED_INSTANCE_SPEC.REGION_ID.in(entityRegionOids);
-            Condition conditionAz = Tables.RESERVED_INSTANCE_BOUGHT.AVAILABILITY_ZONE_ID.in(entityAzOids);
+
+        final boolean scopedByRegionAndAZ = regionFilter.getRegionIdCount() > 0 &&
+                availabilityZoneFilter.getAvailabilityZoneIdCount() > 0;
+
+        // If filtering by both region and AZ are requested, create a single
+        // condition where an either matches the region filter OR matches the AZ filter
+        if (scopedByRegionAndAZ) {
+            Condition conditionRegion = Tables.RESERVED_INSTANCE_SPEC.REGION_ID.in(
+                    regionFilter.getRegionIdList());
+            Condition conditionAz = Tables.RESERVED_INSTANCE_BOUGHT.AVAILABILITY_ZONE_ID.in(
+                    availabilityZoneFilter.getAvailabilityZoneIdList());
             conditions.add(conditionRegion.or(conditionAz));
-            if (entityBfOids != null) {
-                conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.BUSINESS_ACCOUNT_ID.in(entityBfOids));
-            }
+
         } else {
-            for (Map.Entry<CommonDTO.EntityDTO.EntityType, Set<Long>> entry : cloudScopesTuple.entrySet()) {
-                Set<Long> entityOids = entry.getValue();
-                conditions.addAll(generateConditions(entityOids, Optional.of(entry.getKey().getNumber())));
+            if (regionFilter.getRegionIdCount() > 0) {
+                conditions.add(Tables.RESERVED_INSTANCE_SPEC.REGION_ID.in(
+                        regionFilter.getRegionIdList()));
+            }
+
+            if (availabilityZoneFilter.getAvailabilityZoneIdCount() > 0) {
+                conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.AVAILABILITY_ZONE_ID.in(
+                        availabilityZoneFilter.getAvailabilityZoneIdList()));
             }
         }
-        return conditions;
+
+        if (accountFilter.getAccountIdCount() > 0) {
+            conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.BUSINESS_ACCOUNT_ID.in(
+                    accountFilter.getAccountIdList()));
+        }
+
+
+        if (riBoughtFilter.getRiBoughtIdCount() > 0) {
+            if (riBoughtFilter.getExclusionFilter()) {
+                conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.ID.notIn(
+                        riBoughtFilter.getRiBoughtIdList()));
+            } else {
+                conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.ID.in(
+                        riBoughtFilter.getRiBoughtIdList()));
+            }
+        }
+
+        return conditions.toArray(new Condition[conditions.size()]);
     }
 
-    /**
-     * Abstract Class serving as parent class for Builders to build the required Filters.
-     *
-     * @param <T> Child Filter Classes that extend the ReservedInstanceBoughtTableFilter class.
-     * @param <U> Child Bulilder Classes that extend the AbstractBuilder class.
-     */
-    abstract static class AbstractBuilder<T extends ReservedInstanceBoughtTableFilter, U extends AbstractBuilder<T, U>> {
-        // The set of scope oids.
-        final Set<Long> scopeIds = new HashSet<>();
-        Optional<Integer> scopeEntityType = Optional.empty();
-        // Cloud scopes Tuple of (Regions/AZ's/BA's/..)
-        final Map<CommonDTO.EntityDTO.EntityType, Set<Long>> cloudScopesTuple = new HashMap<>();
-        // Needs to set to true, if any filter needs to get from reserved instance spec table.
-        boolean joinWithSpecTable;
+    protected abstract static class Builder<
+            T extends ReservedInstanceBoughtTableFilter,
+            U extends Builder> extends ReservedInstanceFilter.Builder<T, U> {
 
-        AbstractBuilder() {}
-
-        public abstract T build();
-
-        abstract U getThis();
+        private Cost.ReservedInstanceBoughtFilter riBoughtFilter =
+                Cost.ReservedInstanceBoughtFilter.getDefaultInstance();
 
         /**
-         * Add all scope ids that are part of the plan sope.
-         *
-         * @param ids The relevant business account Ids, in one or more billing families in scope.
-         * @return Builder for this class.
+         * Add an {@link Cost.ReservedInstanceBoughtFilter} to this filter, in order to filter RI
+         * instances by ID.
+         * @param riBoughtFilter The RI filter, or null if no filtering based on RI ID is desired.
+         * @return The instance of {@link Builder} for method chaining
          */
         @Nonnull
-        public U addAllScopeId(@Nonnull final List<Long> ids) {
-            this.scopeIds.addAll(ids);
-            return getThis();
-        }
-
-        /**
-         * Set the plan scopes' entity type.
-         *
-         * @param entityType  The scope's entity type as defined in
-         *          @see com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType
-         * @return Builder for this class.
-         */
-        @Nonnull
-        public U setScopeEntityType(@Nonnull final Optional<Integer> entityType) {
-            this.scopeEntityType = entityType;
-            return getThis();
-        }
-
-        /**
-         * Set the plan scopes tuple.
-         *
-         * @param cloudScopesTuple  The scopes tuple.
-         * @return Builder for this class.
-         */
-        @Nonnull
-        public U setCloudScopesTuple(@Nonnull final Map<CommonDTO.EntityDTO.EntityType, Set<Long>>
-                        cloudScopesTuple) {
-            this.cloudScopesTuple.putAll(cloudScopesTuple);
-            return getThis();
-        }
-
-        /**
-         * Set the flag to indicate if an SQL join with the Reserved Instance Specification Table is needed.
-         *
-         * @param isJoinWithSpecTable boolean flag indicating if we need to perform a SQL join with
-         *                            Reserved Instance Specification Table.
-         * @return Builder for this class.
-         */
-        @Nonnull
-        public U setJoinWithSpecTable(@Nonnull final boolean isJoinWithSpecTable) {
-            this.joinWithSpecTable = isJoinWithSpecTable;
-            return getThis();
+        public U riBoughtFilter(@Nullable Cost.ReservedInstanceBoughtFilter riBoughtFilter) {
+            this.riBoughtFilter = Optional.ofNullable(riBoughtFilter)
+                    .orElseGet(Cost.ReservedInstanceBoughtFilter::getDefaultInstance);
+            return (U)this;
         }
     }
 }

@@ -129,7 +129,7 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
             .from(RESERVED_INSTANCE_BOUGHT)
             .join(RESERVED_INSTANCE_SPEC)
             .on(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID.eq(RESERVED_INSTANCE_SPEC.ID))
-            .where(filter.getConditions())
+            .where(filter.generateConditions())
             .groupBy(RESERVED_INSTANCE_SPEC.TIER_ID)
             .fetch()
             .forEach(record -> retMap.put(record.value1(), record.value2().longValue()));
@@ -144,7 +144,7 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
                                         .join(RESERVED_INSTANCE_SPEC)
                                         .on(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID
                                                         .eq(RESERVED_INSTANCE_SPEC.ID))
-                                        .where(filter.getConditions()).fetch();
+                                        .where(filter.generateConditions()).fetch();
         final List<Double> aggregatedRICostList =
                         riAggregatedCostResult.getValues(RI_AMORTIZED_SUM, Double.class);
         return aggregatedRICostList.stream().findFirst().orElse(0D);
@@ -168,7 +168,7 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
                             .eq(RESERVED_INSTANCE_SPEC.ID));
         }
 
-        from.where(filter.getConditions()).groupBy(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID);
+        from.where(filter.generateConditions()).groupBy(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID);
 
         final Result<Record2<ReservedInstanceBoughtInfo, BigDecimal>> riCountMap = from.fetch();
 
@@ -232,7 +232,8 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
                 Sets.difference(existingRIsProbeKeyToRecord.keySet(), newRIsProbeKeysToRI.keySet()).stream()
                         .map(existingRIsProbeKeyToRecord::get)
                         .collect(Collectors.toSet());
-        final Map<String, Double> probeRIIDToAmortizedCost = reservedInstanceCostCalculator.calculateReservedInstanceAmortizedCost(newReservedInstances);
+        final Map<String, Double> probeRIIDToAmortizedCost =
+                reservedInstanceCostCalculator.calculateReservedInstanceAmortizedCost(newReservedInstances);
 
         internalInsert(context, reservedInstanceToAdd, probeRIIDToAmortizedCost);
         internalUpdate(context, reservedInstanceUpdates, existingRIsProbeKeyToRecord, probeRIIDToAmortizedCost);
@@ -329,12 +330,12 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
                     .from(RESERVED_INSTANCE_BOUGHT)
                     .join(RESERVED_INSTANCE_SPEC)
                     .on(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID.eq(RESERVED_INSTANCE_SPEC.ID))
-                    .where(filter.getConditions())
+                    .where(filter.generateConditions())
                     .fetch()
                     .into(RESERVED_INSTANCE_BOUGHT);
         } else {
             return context.selectFrom(RESERVED_INSTANCE_BOUGHT)
-                    .where(filter.getConditions())
+                    .where(filter.generateConditions())
                     .fetch();
         }
     }

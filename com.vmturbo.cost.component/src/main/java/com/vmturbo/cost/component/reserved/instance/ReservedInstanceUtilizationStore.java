@@ -37,8 +37,7 @@ import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtili
  * reserved instance, and also used the {@link ReservedInstanceBoughtStore} which has the latest
  * reserved instance information. And it will combine these data and store into database.
  */
-public class ReservedInstanceUtilizationStore
-        extends ReservedInstanceStatsStore<ReservedInstanceUtilizationFilter> {
+public class ReservedInstanceUtilizationStore {
 
     private final static Logger logger = LogManager.getLogger();
 
@@ -110,7 +109,7 @@ public class ReservedInstanceUtilizationStore
         final Table<?> table = filter.getTableName();
         final Result<Record> records = dsl.select(createSelectFieldsForRIUtilizationCoverage(table))
                 .from(table)
-                .where(filter.getConditions())
+                .where(filter.generateConditions(dsl))
                 .groupBy(table.field(SNAPSHOT_TIME))
                 .fetch();
         return records.stream()
@@ -142,16 +141,5 @@ public class ReservedInstanceUtilizationStore
                 new ReservedInstanceUtilizationLatestRecord(curTime, riId, riSpecIdToRegionMap.get(riSpecId),
                         riBoughtInfo.getAvailabilityZoneId(), riBoughtInfo.getBusinessAccountId(),
                         riTotalCoupons, riUsedCouponsMap.getOrDefault(riId, 0.0),null,null,null));
-    }
-
-    @Override
-    protected Result getLatestRecords(@Nonnull final ReservedInstanceUtilizationFilter filter) {
-        return dsl.select(createSelectFieldsForRIUtilizationCoverage(
-                RESERVED_INSTANCE_UTILIZATION_LATEST)).from(RESERVED_INSTANCE_UTILIZATION_LATEST)
-                .where(filter.getConditions())
-                .and(RESERVED_INSTANCE_UTILIZATION_LATEST.SNAPSHOT_TIME.eq(
-                        dsl.select(DSL.max(RESERVED_INSTANCE_UTILIZATION_LATEST.SNAPSHOT_TIME))
-                        .from(RESERVED_INSTANCE_UTILIZATION_LATEST)))
-                .fetch();
     }
 }

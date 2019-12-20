@@ -1,30 +1,36 @@
 package com.vmturbo.cost.component.reserved.instance.filter;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.jooq.Condition;
 
+import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.cost.component.db.Tables;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * A filter used to extract data for a scoped set of Reserved Instance oids from EntityToReservedInstance
  * mapping.
  */
-public class EntityReservedInstanceMappingFilter extends ReservedInstanceFilter {
+public class EntityReservedInstanceMappingFilter {
+
+    @Nullable
+    private final EntityFilter entityFilter;
+
+    @Nullable
+    private final Cost.ReservedInstanceBoughtFilter riBoughtFilter;
 
     private final List<Condition> conditions;
 
-    private EntityReservedInstanceMappingFilter(@Nonnull final Set<Long> scopeIds, int entityType) {
-        super(scopeIds, Optional.of(entityType));
-        this.conditions = generateConditions(scopeIds, Optional.of(entityType));
+    private EntityReservedInstanceMappingFilter(@Nonnull Builder builder) {
+        this.entityFilter = builder.entityFilter;
+        this.riBoughtFilter = builder.riBoughtFilter;
+        this.conditions = generateConditions();
     }
 
     /**
@@ -35,18 +41,24 @@ public class EntityReservedInstanceMappingFilter extends ReservedInstanceFilter 
     public Condition[] getConditions() {
         return this.conditions.toArray(new Condition[conditions.size()]);
     }
-
-    @Override
-    List<Condition> generateConditions(@Nonnull Set<Long> scopeIds, Optional<Integer> scopeEntityType) {
+    List<Condition> generateConditions() {
         final List<Condition> conditions = new ArrayList<>();
-        if (scopeIds.isEmpty()) {
-            return conditions;
+
+        if (entityFilter.getEntityIdCount() > 0) {
+            conditions.add(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.ENTITY_ID
+                    .in(entityFilter.getEntityIdList()));
         }
-        if (scopeEntityType.isPresent() && scopeEntityType.get() == EntityType.VIRTUAL_MACHINE_VALUE) {
-            conditions.add(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.ENTITY_ID.in(scopeIds));
-        } else {
-            conditions.add(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID.in(scopeIds));
+
+        if (riBoughtFilter.getRiBoughtIdCount() > 0) {
+            if (riBoughtFilter.getExclusionFilter()) {
+                conditions.add(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID
+                        .notIn(riBoughtFilter.getRiBoughtIdList()));
+            } else {
+                conditions.add(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID
+                        .in(riBoughtFilter.getRiBoughtIdList()));
+            }
         }
+
         return conditions;
     }
 
@@ -63,42 +75,30 @@ public class EntityReservedInstanceMappingFilter extends ReservedInstanceFilter 
      * Builder class to construct a filter.
      */
     public static class Builder {
-        // The set of scope oids.
-        private Set<Long> scopeIds = new HashSet<>();
-        private int entityType;
 
-        private Builder() {}
+        private EntityFilter entityFilter =  EntityFilter.getDefaultInstance();
+        private Cost.ReservedInstanceBoughtFilter riBoughtFilter =
+                Cost.ReservedInstanceBoughtFilter.getDefaultInstance();
 
-        /**
-         * Build the required filter object of type EntityReservedInstanceMappingFilter.
-         *
-         * @return an object of type EntityReservedInstanceMappingFilter.
-         */
+
+        @Nonnull
+        public Builder entityFilter(@Nullable EntityFilter entityFilter) {
+            this.entityFilter = Optional.ofNullable(entityFilter)
+                    .orElse(EntityFilter.getDefaultInstance());
+            return this;
+        }
+
+        @Nonnull
+        public Builder riBoughtFilter(@Nullable Cost.ReservedInstanceBoughtFilter riBoughtFilter) {
+            this.riBoughtFilter = Optional.ofNullable(riBoughtFilter)
+                    .orElse(Cost.ReservedInstanceBoughtFilter.getDefaultInstance());
+            return this;
+        }
+
+        @Nonnull
         public EntityReservedInstanceMappingFilter build() {
-            return new EntityReservedInstanceMappingFilter(scopeIds, entityType);
+            return new EntityReservedInstanceMappingFilter(this);
         }
 
-        /**
-         * Add all scope ids that are part of the requested riOids.
-         *
-         * @param ids The scope oids that represent the filtering conditions.
-         * @return Builder for this class.
-         */
-        @Nonnull
-        public Builder addAllScopeId(final List<Long> ids) {
-            this.scopeIds.addAll(ids);
-            return this;
-        }
-
-        /**
-         * Add entity type for the Uuids being sent in scopeIds.
-         * @param entityType - Entity Type number value.
-         * @return Builder for this class.
-         */
-        @Nonnull
-        public Builder addEntityType(int entityType) {
-            this.entityType = entityType;
-            return this;
-        }
     }
 }

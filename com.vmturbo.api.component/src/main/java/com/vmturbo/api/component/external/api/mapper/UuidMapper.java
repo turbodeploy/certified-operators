@@ -214,26 +214,23 @@ public class UuidMapper {
 
         private final GroupType groupType;
 
-        private final Set<UIEntityType> entityTypes;
-
         private final Set<GroupType> nestedGroupTypes;
 
         private final String name;
 
         private final Set<Long> discoveringTargetIds;
 
-        private final Set<Long> entityIds;
+        private final Map<UIEntityType, Set<Long>> entityOidsByType;
 
         /**
          * @param envTypeFromMember the environment type of a member of the group, or
          *                          EnvironmentType.UNKNOWN_ENV if it could not be determined. It
          *                          is used if the group's environment type is not already provided.
+         * @param entityOidsByType The entity OIDs contained within the group, indexed by their
+         *                         {@link UIEntityType}.
          */
         private CachedGroupInfo(Grouping group, final Set<Long> discoveringTargetIds,
-                EnvironmentType envTypeFromMember, Set<Long> entityIds) {
-            this.entityTypes = GroupProtoUtil.getEntityTypes(group)
-                            .stream()
-                            .collect(Collectors.toSet());
+                EnvironmentType envTypeFromMember, Map<UIEntityType, Set<Long>> entityOidsByType) {
 
             this.nestedGroupTypes = group.getExpectedTypesList().stream()
                 .filter(GroupDTO.MemberType::hasGroup)
@@ -253,7 +250,7 @@ public class UuidMapper {
                     && group.getDefinition().getOptimizationMetadata().hasEnvironmentType()) ?
                 group.getDefinition().getOptimizationMetadata().getEnvironmentType()
                 : envTypeFromMember;
-            this.entityIds = entityIds;
+            this.entityOidsByType = entityOidsByType;
         }
 
         public boolean isGlobalTempGroup() {
@@ -262,7 +259,7 @@ public class UuidMapper {
 
         @Nonnull
         public Set<UIEntityType> getEntityTypes() {
-            return entityTypes;
+            return Collections.unmodifiableSet(entityOidsByType.keySet());
         }
 
         /**
@@ -293,7 +290,14 @@ public class UuidMapper {
         }
 
         public Set<Long> getEntityIds() {
-            return entityIds;
+            return entityOidsByType.values()
+                    .stream()
+                    .flatMap(Set::stream)
+                    .collect(Collectors.toSet());
+        }
+
+        public Map<UIEntityType, Set<Long>> getEntityOidsByType() {
+            return Collections.unmodifiableMap(entityOidsByType);
         }
     }
 
@@ -523,11 +527,16 @@ public class UuidMapper {
                         .setId(oid)
                         .build());
                     if (resp.hasGroup()) {
-                        final Collection<Long> entities =
+                        final Collection<Long> entityOids =
                             groupExpander.getMembersForGroup(resp.getGroup()).entities();
                         final Set<MinimalEntity> minimalMembers =
-                            repositoryApi.entitiesRequest(Sets.newHashSet(entities)).getMinimalEntities()
+                            repositoryApi.entitiesRequest(Sets.newHashSet(entityOids)).getMinimalEntities()
                                 .collect(Collectors.toSet());
+                        final Map<UIEntityType, Set<Long>> entityOidsByType = minimalMembers.stream()
+                                .collect(Collectors.groupingBy(
+                                        UIEntityType::fromMinimalEntity,
+                                        Collectors.mapping(MinimalEntity::getOid,
+                                                Collectors.toSet())));
 
                         final EnvironmentType envTypeFromMember = minimalMembers.isEmpty() ?
                             EnvironmentType.UNKNOWN_ENV :
@@ -538,7 +547,7 @@ public class UuidMapper {
                                 .flatMap(minEntity -> minEntity.getDiscoveringTargetIdsList().stream())
                                 .collect(Collectors.toSet());
                         return Optional.of(new CachedGroupInfo(resp.getGroup(), discoveringTargetIds,
-                            envTypeFromMember, ImmutableSet.copyOf(entities)));
+                            envTypeFromMember, entityOidsByType));
                     } else {
                         return Optional.empty();
                     }
@@ -635,6 +644,19 @@ public class UuidMapper {
                 return getCachedEntityInfo().map(CachedEntityInfo::getDiscoveringTargetIds)
                     .orElseGet(Collections::emptySet);
             }
+        }
+
+        @Nonnull
+        public Map<UIEntityType, Set<Long>> getScopeEntitiesByType() {
+            return getCachedGroupInfo()
+                    .map(CachedGroupInfo::getEntityOidsByType)
+                    .orElseGet(() ->
+                            getCachedEntityInfo()
+                                    .map(entityInfo ->
+                                            Collections.singletonMap(
+                                                    entityInfo.getEntityType(),
+                                                    Collections.singleton(oid)))
+                                    .orElse(Collections.emptyMap()));
         }
 
         @Override

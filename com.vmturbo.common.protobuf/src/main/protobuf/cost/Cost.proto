@@ -618,21 +618,40 @@ message EntityTypeFilter {
     repeated int32 entity_type_id = 1;
 }
 
-// A request to get reserved instance bought by some filter condition. If provider more than one
-// different filter type, it will perform AND logic.
-message GetReservedInstanceBoughtByFilterRequest {
-    // get reserved instance bought filter by scope oid, the OIDs specified here seed the scoping expansion.
-    // Combined with scopeEntityType, a scope oid can represent Region/BusinessAccount/AvailabilityZone or other scope.
-    repeated int64 scope_seed_oids = 1;
+message ReservedInstanceBoughtFilter {
+    optional bool exclusion_filter = 1 [default = false];
+    repeated int64 ri_bought_id = 2;
+}
 
-    // Scope's Entity Type (can be one of the values in .common_dto.EntityDTO.EntityType)
-    optional int32 scope_entity_type = 2;
+// A request to get reserved instance bought by some filter condition. If both region
+// and availability zone filters are provided, they will be OR'd. EIther filter
+// will be AND'd with the account filter (if configured)
+message GetReservedInstanceBoughtByFilterRequest {
+    optional RegionFilter region_filter = 1;
+    optional AvailabilityZoneFilter zone_filter = 2;
+    optional AccountFilter account_filter = 3;
 }
 
 // A response contains a list reserved instance bought.
 message GetReservedInstanceBoughtByFilterResponse {
     // A list of reserved instance bought.
     repeated ReservedInstanceBought reserved_instance_boughts = 1;
+}
+
+message GetReservedInstanceBoughtByTopologyRequest {
+
+    // If a topology context ID is not specified, the realtime context ID will be used to
+    // resolve RIs in scope
+    optional int64 topology_context_id = 1;
+    optional .topology.TopologyType topology_type = 2;
+    optional int32 scope_entity_type = 3;
+    repeated int64 scope_seed_oids = 4;
+}
+
+// A response contains a list reserved instance bought.
+message GetReservedInstanceBoughtByTopologyResponse {
+    // A list of reserved instance bought.
+    repeated ReservedInstanceBought reserved_instance_bought = 1;
 }
 
 // A request to get Buy reserved instances by some filter condition. If there is more than one
@@ -990,6 +1009,9 @@ service ReservedInstanceBoughtService {
     // to include spec definitions.
     rpc GetReservedInstanceBoughtByFilter(GetReservedInstanceBoughtByFilterRequest) returns
     (GetReservedInstanceBoughtByFilterResponse);
+
+    rpc GetReservedInstanceBoughtByTopology(GetReservedInstanceBoughtByTopologyRequest) returns
+        (GetReservedInstanceBoughtByTopologyResponse);
 
     // Get reserved instance count in the users inventory by template type
     rpc GetReservedInstanceBoughtCountByTemplateType(GetReservedInstanceBoughtCountRequest) returns

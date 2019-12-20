@@ -3,12 +3,14 @@ package com.vmturbo.cost.component.reserved.instance;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
@@ -22,6 +24,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
+import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceCoverageLatestRecord;
 import com.vmturbo.cost.component.identity.IdentityProvider;
@@ -135,10 +138,10 @@ public class ReservedInstanceCoverageStoreTest {
         ids.add(125L);
         final ReservedInstanceCoverageFilter filter = ReservedInstanceCoverageFilter
                 .newBuilder()
-                .setStartDateMillis(0)
-                .setEndDateMillis(System.currentTimeMillis() + 10000000)
-                .setTimeFrame(TimeFrameCalculator.TimeFrame.LATEST)
-                .addAllScopeId(ids)
+                .timeFrame(TimeFrame.LATEST)
+                .entityFilter(EntityFilter.newBuilder()
+                        .addAllEntityId(ids)
+                        .build())
                 .build();
         final List<ReservedInstanceStatsRecord> riStatsRecords =
                 reservedInstanceCoverageStore.getReservedInstanceCoverageStatsRecords(filter);
@@ -152,7 +155,9 @@ public class ReservedInstanceCoverageStoreTest {
         assertEquals(60L, riStatsRecord.getValues().getTotal(), DELTA);
 
         final Collection<ReservedInstanceStatsRecord> riLatestStatsRecords =
-                reservedInstanceCoverageStore.getLatestReservedInstanceStatsRecords(filter);
+                reservedInstanceCoverageStore.getReservedInstanceCoverageStatsRecords(filter);
         assertEquals(1, riLatestStatsRecords.size());
     }
+
+
 }

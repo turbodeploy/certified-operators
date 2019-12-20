@@ -176,7 +176,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
         final List<ReservedInstanceBought> allReservedInstancesBought =
                         reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(
                                               reservedInstanceBoughtFilterBuilder
-                                              .setCloudScopesTuple(
+                                              .cloudScopeTuples(
                            repositoryClient.getEntityOidsByType(topoInfo.getScopeSeedOidsList(),
                                                            realtimeTopologyContextId,
                                                            this.supplyChainServiceBlockingStub))
@@ -313,7 +313,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
         final List<ReservedInstanceBought> projectedReservedInstancesBought =
                 reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter
                         .newBuilder()
-                        .setCloudScopesTuple(
+                        .cloudScopeTuples(
                         repositoryClient.getEntityOidsByType(topoInfo.getScopeSeedOidsList(),
                                 realtimeTopologyContextId, this.supplyChainServiceBlockingStub))
                         .build())

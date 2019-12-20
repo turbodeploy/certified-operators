@@ -217,7 +217,7 @@ public class ReservedInstanceUtilizationStoreTest {
         assertEquals(50L, riStatRecord.getValues().getMax(), DELTA);
 
         final Collection<ReservedInstanceStatsRecord> riLatestStatsRecords =
-                reservedInstanceUtilizationStore.getLatestReservedInstanceStatsRecords(filter);
+                reservedInstanceUtilizationStore.getReservedInstanceUtilizationStatsRecords(filter);
         assertEquals(1, riLatestStatsRecords.size());
     }
 

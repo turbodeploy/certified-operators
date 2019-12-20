@@ -11,6 +11,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.StringUtil;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntityOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -158,6 +159,17 @@ public enum UIEntityType {
 
     @Nonnull
     public static UIEntityType fromEntity(@Nonnull final TopologyEntityDTOOrBuilder entity) {
+        return fromType(entity.getEntityType());
+    }
+
+    /**
+     * Converts a {@link com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity}
+     * to the corresponding {@link UIEntityType}, based on the entity's type
+     * @param entity The target {@link MinimalEntityOrBuilder}
+     * @return The {@link UIEntityType} of the entity
+     */
+    @Nonnull
+    public static UIEntityType fromMinimalEntity(@Nonnull MinimalEntityOrBuilder entity) {
         return fromType(entity.getEntityType());
     }
 

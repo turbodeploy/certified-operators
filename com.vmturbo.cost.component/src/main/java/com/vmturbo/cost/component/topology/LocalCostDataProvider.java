@@ -86,7 +86,7 @@ public class LocalCostDataProvider implements CloudCostDataProvider {
         final Map<Long, ReservedInstanceBought> riBoughtById =
             riBoughtStore.getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter
                         .newBuilder()
-                        .setCloudScopesTuple(
+                        .cloudScopeTuples(
                         repositoryClient.getEntityOidsByType(topoInfo.getScopeSeedOidsList(),
                                     realtimeTopologyContextId, this.supplyChainServiceBlockingStub))
                     .build()).stream()

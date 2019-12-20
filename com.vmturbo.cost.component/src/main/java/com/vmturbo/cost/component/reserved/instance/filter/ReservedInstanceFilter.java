@@ -1,73 +1,95 @@
 package com.vmturbo.cost.component.reserved.instance.filter;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-
-import org.jooq.Condition;
-
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
+import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
+import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 
 /**
- * A abstract class represents the filter object which will be used to query reserved instance tables.
+ * A abstract class represents the filter object which will be used to query tables related to
+ * RIs (coverage/utilization/details/cost). This filter is not applicable to entity RI coverage.
  */
 public abstract class ReservedInstanceFilter {
-    protected final Set<Long> scopeIds;
-    protected final Optional<Integer> scopeEntityType;
 
-    protected static final Set<Integer> SUPPORTED_RI_FILTER_TYPES =
-        ImmutableSet.of(EntityDTO.EntityType.REGION_VALUE,
-                        EntityDTO.EntityType.AVAILABILITY_ZONE_VALUE,
-                        EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE);
+    protected final RegionFilter regionFilter;
+
+    protected final AccountFilter accountFilter;
+
+    protected final AvailabilityZoneFilter availabilityZoneFilter;
 
     /**
-     * Constructor that takes scopeId(s) and scopeEntityType as arguments.
-     *
-     * @param scopeIds
-     *     The scope(s) ids. Region/BusinessAccount/AvalilabilityZone etc.
-     * @param scopeEntityType
-     *     The scopes' entity type. In general, this ScopeIds is homegeneous and the scopeEntityType
-     *     determines the type of entities contained in it. Exceptions are mixed groups including
-     *     ResourceGroups for which a new scope entity type would likely be needed.
+     * Construct a {@link ReservedInstanceFilter} instance.
+     * @param builder The {@link Builder} instance, used in contructing the filter
      */
-    public ReservedInstanceFilter(@Nonnull final Set<Long> scopeIds,
-                                  final Optional<Integer> scopeEntityType) {
-        this.scopeIds = ImmutableSet.copyOf(Objects.requireNonNull(scopeIds));
-        this.scopeEntityType = scopeEntityType;
+    public ReservedInstanceFilter(@Nonnull Builder builder) {
+        this.regionFilter = Objects.requireNonNull(builder.regionFilter);
+        this.accountFilter = Objects.requireNonNull(builder.accountFilter);
+        this.availabilityZoneFilter = Objects.requireNonNull(builder.availabilityZoneFilter);
     }
 
     /**
-     * Generate a list of {@link Condition} based on different fields.
-     *
-     * @param scopeIds scope ids need to filter by.
-     * @param scopeEntityType scope(s) entity type.
-     * @return a list of {@link Condition}.
+     * An abstract builder class for subclasses of {@link ReservedInstanceFilter}
+     * @param <FILTER_CLASS> The subclass of {@link ReservedInstanceFilter}
+     * @param <FILTER_BUILDER_CLASS> The subclass of this {@link Builder}, used in defining the correct
+     *                              return type of the builder methods
      */
-    abstract List<Condition> generateConditions(@Nonnull Set<Long> scopeIds,
-                                                Optional<Integer> scopeEntityType);
+    protected abstract static class Builder<
+            FILTER_CLASS extends ReservedInstanceFilter,
+            FILTER_BUILDER_CLASS extends Builder> {
 
-    /**
-     * For access to scopeIds outside child classes.
-     *
-     * @return an immutable copy of the scopeIds Set.
-     */
-    @Nonnull
-    public List<Long> getScopeIds() {
-        return ImmutableList.copyOf(scopeIds);
-    }
+        protected RegionFilter regionFilter = RegionFilter.getDefaultInstance();
+        protected AccountFilter accountFilter = AccountFilter.getDefaultInstance();
+        protected AvailabilityZoneFilter availabilityZoneFilter =
+                AvailabilityZoneFilter.getDefaultInstance();
 
-    /**
-     * For access to entityType outside child classes.
-     *
-     * @return The entityType.
-     */
-    public Optional<Integer> getEntityType() {
-        return scopeEntityType;
+        /**
+         * Add a {@link RegionFilter} to this aggregate filter. If both a {@link RegionFilter} and
+         * {@link AvailabilityZoneFilter} are configured, they will be OR'd together
+         * @param regionFilter The region filter, or null if no filtering based on region is desired
+         * @return The instance of {@link Builder} for method chaining
+         */
+        @Nonnull
+        public FILTER_BUILDER_CLASS regionFilter(@Nullable RegionFilter regionFilter) {
+            this.regionFilter = Optional.ofNullable(regionFilter)
+                    .orElseGet(RegionFilter::getDefaultInstance);
+            return (FILTER_BUILDER_CLASS)this;
+        }
+
+        /**
+         * Add an {@link AccountFilter} to this filter.
+         * @param accountFilter The account filter, or null if no filtering based on account is desired.
+         * @return The instance of {@link Builder} for method chaining
+         */
+        @Nonnull
+        public FILTER_BUILDER_CLASS accountFilter(@Nullable AccountFilter accountFilter) {
+            this.accountFilter = Optional.ofNullable(accountFilter)
+                    .orElseGet(AccountFilter::getDefaultInstance);
+            return (FILTER_BUILDER_CLASS)this;
+        }
+
+        /**
+         * Add an {@link AvailabilityZoneFilter} to this filter. If both an AZ and region filter are
+         * configured, they will be OR'd as part of the query
+         * @param azFilter The AZ filter, or null if no filtering based on AZ is desired.
+         * @return The instance of {@link Builder} for method chaining
+         */
+        @Nonnull
+        public FILTER_BUILDER_CLASS availabilityZoneFilter(@Nullable AvailabilityZoneFilter azFilter) {
+            this.availabilityZoneFilter = Optional.ofNullable(azFilter)
+                    .orElseGet(AvailabilityZoneFilter::getDefaultInstance);
+            return (FILTER_BUILDER_CLASS)this;
+        }
+
+        /**
+         * Builds an instance of {@link FILTER_CLASS}.
+         * @return The newly built instance of {@link FILTER_CLASS}.
+         */
+        @Nonnull
+        public abstract FILTER_CLASS build();
     }
 }

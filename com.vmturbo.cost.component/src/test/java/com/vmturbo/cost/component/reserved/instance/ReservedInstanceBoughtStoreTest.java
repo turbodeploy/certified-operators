@@ -2,7 +2,10 @@ package com.vmturbo.cost.component.reserved.instance;
 
 import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_BOUGHT;
 import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_SPEC;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -26,8 +29,13 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
+import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
+import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCostFilter;
@@ -209,8 +217,9 @@ public class ReservedInstanceBoughtStoreTest {
         List<Long> scopeIds = new ArrayList<>();
         scopeIds.add(0L);
         final ReservedInstanceBoughtFilter zeroAzFilter = ReservedInstanceBoughtFilter.newBuilder()
-                .addAllScopeId(scopeIds)
-                .setScopeEntityType(Optional.of(AVAILABILITYZONE_VALUE))
+                .availabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
+                        .addAllAvailabilityZoneId(scopeIds)
+                        .build())
                 .build();
         final List<ReservedInstanceBought> reservedInstancesByZeroAzFilter =
                 reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(zeroAzFilter);
@@ -218,8 +227,9 @@ public class ReservedInstanceBoughtStoreTest {
 
         scopeIds.add(100L);
         final ReservedInstanceBoughtFilter azFilter = ReservedInstanceBoughtFilter.newBuilder()
-                .addAllScopeId(scopeIds)
-                .setScopeEntityType(Optional.of(AVAILABILITYZONE_VALUE))
+                .availabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
+                        .addAllAvailabilityZoneId(scopeIds)
+                        .build())
                 .build();
         final List<ReservedInstanceBought> reservedInstancesByAzFilter =
                 reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(azFilter);
@@ -234,9 +244,9 @@ public class ReservedInstanceBoughtStoreTest {
         List<Long> scopeIds = new ArrayList<>();
         scopeIds.add(0L);
         final ReservedInstanceBoughtFilter zeroRegionIdFilter = ReservedInstanceBoughtFilter.newBuilder()
-                .addAllScopeId(scopeIds)
-                .setScopeEntityType(Optional.of(REGION_VALUE))
-                .setJoinWithSpecTable(true)
+                .regionFilter(RegionFilter.newBuilder()
+                        .addAllRegionId(scopeIds)
+                        .build())
                 .build();
         final List<ReservedInstanceBought> reservedInstancesByZeroRegionIdFilter =
                 reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(zeroRegionIdFilter);
@@ -244,9 +254,9 @@ public class ReservedInstanceBoughtStoreTest {
 
         scopeIds.add(77L);
         final ReservedInstanceBoughtFilter regionIdFilter = ReservedInstanceBoughtFilter.newBuilder()
-                .addAllScopeId(scopeIds)
-                .setScopeEntityType(Optional.of(REGION_VALUE))
-                .setJoinWithSpecTable(true)
+                .regionFilter(RegionFilter.newBuilder()
+                        .addAllRegionId(scopeIds)
+                        .build())
                 .build();
         final List<ReservedInstanceBought> reservedInstancesByRegionIdFilter =
                 reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(regionIdFilter);
@@ -254,6 +264,51 @@ public class ReservedInstanceBoughtStoreTest {
         assertEquals("bar", reservedInstancesByRegionIdFilter.get(0)
                 .getReservedInstanceBoughtInfo().getProbeReservedInstanceId());
 
+    }
+
+    @Test
+    public void testGetReservedInstanceByRIFilter() {
+        final List<ReservedInstanceBoughtInfo> reservedInstanceInfos = Arrays.asList(
+                riInfoOne,
+                riInfoTwo,
+                riInfoThree,
+                riInfoFour);
+        reservedInstanceBoughtStore.updateReservedInstanceBought(dsl, reservedInstanceInfos);
+
+        // find the newly inserted RI id
+        long riTwoId = dsl.select(RESERVED_INSTANCE_BOUGHT.ID)
+                .from(RESERVED_INSTANCE_BOUGHT)
+                .where(RESERVED_INSTANCE_BOUGHT.PROBE_RESERVED_INSTANCE_ID.eq(
+                        riInfoTwo.getProbeReservedInstanceId()))
+                .fetch()
+                .get(0).value1();
+
+        // create the RI Filter
+        final ReservedInstanceBoughtFilter riFilter = ReservedInstanceBoughtFilter.newBuilder()
+                .riBoughtFilter(Cost.ReservedInstanceBoughtFilter
+                        .newBuilder()
+                        .setExclusionFilter(false)
+                        .addRiBoughtId(riTwoId)
+                        .build())
+                .build();
+        /*
+        Invoke SUT
+         */
+        final List<ReservedInstanceBought> actualRIBoughtInstances =
+                reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(riFilter);
+
+        /*
+        Assertions
+         */
+        assertThat(actualRIBoughtInstances, hasSize(1));
+        assertThat(actualRIBoughtInstances.get(0).getReservedInstanceBoughtInfo(), equalTo(
+                riInfoTwo.toBuilder()
+                        // This will be stitched to ReservedInstanceUtilizationStore, which
+                        // will return 0
+                        .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder()
+                                .setNumberOfCouponsUsed(0)
+                                .build())
+                        .build()));
     }
 
     /**
@@ -268,9 +323,9 @@ public class ReservedInstanceBoughtStoreTest {
         List<Long> scopeIds = new ArrayList<>();
         scopeIds.add(0L);
         final ReservedInstanceBoughtFilter zeroAccountIdFilter = ReservedInstanceBoughtFilter.newBuilder()
-                .addAllScopeId(scopeIds)
-                .setScopeEntityType(Optional.of(BUSINESS_ACCOUNT_VALUE))
-                .setJoinWithSpecTable(false)
+                .accountFilter(AccountFilter.newBuilder()
+                        .addAllAccountId(scopeIds)
+                        .build())
                 .build();
         final List<ReservedInstanceBought> reservedInstancesByZeroAccountIdFilter =
                 reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(zeroAccountIdFilter);
@@ -279,9 +334,9 @@ public class ReservedInstanceBoughtStoreTest {
         scopeIds.add(123L);
         scopeIds.add(456L);
         final ReservedInstanceBoughtFilter accountIdFilter = ReservedInstanceBoughtFilter.newBuilder()
-                .addAllScopeId(scopeIds)
-                .setScopeEntityType(Optional.of(BUSINESS_ACCOUNT_VALUE))
-                .setJoinWithSpecTable(false)
+                .accountFilter(AccountFilter.newBuilder()
+                        .addAllAccountId(scopeIds)
+                        .build())
                 .build();
         final List<ReservedInstanceBought> reservedInstancesByAccountIdFilter =
                 reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(accountIdFilter);
@@ -315,8 +370,9 @@ public class ReservedInstanceBoughtStoreTest {
         List<Long> scopeIds = new ArrayList<>();
         scopeIds.add(77L);
         final ReservedInstanceBoughtFilter filter = ReservedInstanceBoughtFilter.newBuilder()
-                .addAllScopeId(scopeIds)
-                .setScopeEntityType(Optional.of(REGION_VALUE))
+                .regionFilter(RegionFilter.newBuilder()
+                        .addAllRegionId(scopeIds)
+                        .build())
                 .build();
         final Map<Long, Long> riCountMap = reservedInstanceBoughtStore.getReservedInstanceCountMap(filter);
         final long countForSpecOne = riCountMap.get(88L);
@@ -333,8 +389,9 @@ public class ReservedInstanceBoughtStoreTest {
         List<Long> scopeIds = new ArrayList<>();
         scopeIds.add(100L);
         final ReservedInstanceBoughtFilter filter = ReservedInstanceBoughtFilter.newBuilder()
-                .addAllScopeId(scopeIds)
-                .setScopeEntityType(Optional.of(AVAILABILITYZONE_VALUE))
+                .availabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
+                        .addAllAvailabilityZoneId(scopeIds)
+                        .build())
                 .build();
         final Map<Long, Long> riCountMap = reservedInstanceBoughtStore.getReservedInstanceCountMap(filter);
         final long countForSpecOne = riCountMap.get(88L);
@@ -354,12 +411,13 @@ public class ReservedInstanceBoughtStoreTest {
         List<Long> scopeIds = new ArrayList<>();
         scopeIds.add(100L);
         final ReservedInstanceCostFilter filter = ReservedInstanceCostFilter.newBuilder()
-                        .addAllScopeId(scopeIds)
-                        .setScopeEntityType(Optional.of(AVAILABILITYZONE_VALUE))
-                        .build();
+                .availabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
+                        .addAllAvailabilityZoneId(scopeIds)
+                        .build())
+                .build();
         final List<ReservedInstanceBoughtRecord> reservedInstanceBoughtRecords =
                         dsl.selectFrom(Tables.RESERVED_INSTANCE_BOUGHT)
-                                        .where(filter.getConditions()).fetch();
+                                        .where(filter.generateConditions()).fetch();
         final double expectedAggregatedAmortizedCost = calculateExpectedAggregatedAmortizedCosts(reservedInstanceBoughtRecords);
         final Double reservedInstanceSummedCost = reservedInstanceBoughtStore.getReservedInstanceAggregatedAmortizedCost(filter);
         assertEquals(expectedAggregatedAmortizedCost, reservedInstanceSummedCost, 0D);
@@ -376,15 +434,16 @@ public class ReservedInstanceBoughtStoreTest {
         List<Long> scopeIds = new ArrayList<>();
         scopeIds.add(77L);
         final ReservedInstanceCostFilter filter = ReservedInstanceCostFilter.newBuilder()
-                        .addAllScopeId(scopeIds)
-                        .setScopeEntityType(Optional.of(REGION_VALUE))
-                        .build();
+                .regionFilter(RegionFilter.newBuilder()
+                        .addAllRegionId(scopeIds)
+                        .build())
+                .build();
         final Result<ReservedInstanceBoughtRecord> reservedInstanceBoughtRecords =
                         dsl.select(RESERVED_INSTANCE_BOUGHT.fields()).from(RESERVED_INSTANCE_BOUGHT)
                                         .join(RESERVED_INSTANCE_SPEC)
                                         .on(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID
                                                         .eq(RESERVED_INSTANCE_SPEC.ID))
-                                        .where(filter.getConditions()).fetch().into(RESERVED_INSTANCE_BOUGHT);
+                                        .where(filter.generateConditions()).fetch().into(RESERVED_INSTANCE_BOUGHT);
         final double expectedAggregatedAmortizedCost = calculateExpectedAggregatedAmortizedCosts(reservedInstanceBoughtRecords);
         final Double reservedInstanceSummedCost = reservedInstanceBoughtStore.getReservedInstanceAggregatedAmortizedCost(filter);
         assertEquals(expectedAggregatedAmortizedCost, reservedInstanceSummedCost, 0D);
@@ -401,12 +460,13 @@ public class ReservedInstanceBoughtStoreTest {
         List<Long> scopeIds = new ArrayList<>();
         scopeIds.add(789L);
         final ReservedInstanceCostFilter filter = ReservedInstanceCostFilter.newBuilder()
-                        .addAllScopeId(scopeIds)
-                        .setScopeEntityType(Optional.of(BUSINESS_ACCOUNT_VALUE))
-                        .build();
+                .accountFilter(AccountFilter.newBuilder()
+                        .addAllAccountId(scopeIds)
+                        .build())
+                .build();
         final List<ReservedInstanceBoughtRecord> reservedInstanceBoughtRecords =
                         dsl.selectFrom(Tables.RESERVED_INSTANCE_BOUGHT)
-                                        .where(filter.getConditions()).fetch();
+                                        .where(filter.generateConditions()).fetch();
         final double expectedAggregatedAmortizedCost = calculateExpectedAggregatedAmortizedCosts(reservedInstanceBoughtRecords);
         final Double reservedInstanceSummedCost = reservedInstanceBoughtStore.getReservedInstanceAggregatedAmortizedCost(filter);
         assertEquals(expectedAggregatedAmortizedCost, reservedInstanceSummedCost, 0D);

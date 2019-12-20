@@ -19,16 +19,13 @@ import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc.BuyReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageResponse;
-import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
-import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterResponse;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByTopologyRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByTopologyResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceSpecByIdsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceSpecByIdsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
-import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterResponse;
-import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc;
-import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc.BuyReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc;
@@ -96,14 +93,15 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
                     .getAccountPricingDataByBusinessAccount(cloudTopo);
 
             // Get the existing RI bought.
-            final GetReservedInstanceBoughtByFilterResponse riBoughtResponse =
-                riBoughtServiceClient.getReservedInstanceBoughtByFilter(
-                    GetReservedInstanceBoughtByFilterRequest.newBuilder()
-                    .addAllScopeSeedOids(topoInfo.getScopeSeedOidsList())
-                    .setScopeEntityType(topoInfo.getScopeEntityType())
-                    .build());
+            final GetReservedInstanceBoughtByTopologyResponse riBoughtResponse =
+                riBoughtServiceClient.getReservedInstanceBoughtByTopology(
+                        GetReservedInstanceBoughtByTopologyRequest.newBuilder()
+                                .setTopologyType(topoInfo.getTopologyType())
+                                .setScopeEntityType(topoInfo.getScopeEntityType())
+                                .addAllScopeSeedOids(topoInfo.getScopeSeedOidsList())
+                                .build());
             final Map<Long, ReservedInstanceBought> riBoughtById =
-                    new HashMap<>(riBoughtResponse.getReservedInstanceBoughtsCount());
+                    new HashMap<>(riBoughtResponse.getReservedInstanceBoughtCount());
 
             // Get the new RI bought.
             final GetBuyReservedInstancesByFilterResponse buyRIBoughtResponse =
@@ -116,7 +114,7 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
             // Retrieve only the ones that are referenced to by existing RI purchases.
             // Use a set to remove duplicates.
             final Set<Long> riSpecIdsToRetrieve = new HashSet<>();
-            riBoughtResponse.getReservedInstanceBoughtsList().forEach(riBought -> {
+            riBoughtResponse.getReservedInstanceBoughtList().forEach(riBought -> {
                 riBoughtById.put(riBought.getId(), riBought);
                 riSpecIdsToRetrieve.add(
                     riBought.getReservedInstanceBoughtInfo().getReservedInstanceSpec());
