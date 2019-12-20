@@ -23,6 +23,7 @@ public class HeaderAuthenticationToken extends AbstractAuthenticationToken {
     private final Optional<String> role;
     private final String jwtToken;
     private final Optional<PublicKey> publicKey;
+    private final boolean isLatest;
 
     private HeaderAuthenticationToken(Builder builder) {
         // not passing in any permission
@@ -34,6 +35,7 @@ public class HeaderAuthenticationToken extends AbstractAuthenticationToken {
         this.jwtToken = builder.jwtToken;
         this.publicKey = builder.publicKey;
         this.headerMapper = builder.headerMapper;
+        this.isLatest = builder.isLatest;
     }
 
     /**
@@ -139,6 +141,15 @@ public class HeaderAuthenticationToken extends AbstractAuthenticationToken {
     }
 
     /**
+     * Getter to indicate is the latest version.
+     *
+     * @return is latest version.
+     */
+    public boolean isLatest() {
+        return isLatest;
+    }
+
+    /**
      * Builder.
      */
     public static class Builder {
@@ -149,6 +160,7 @@ public class HeaderAuthenticationToken extends AbstractAuthenticationToken {
         private String remoteIpAddress;
         private String jwtToken;
         private Optional<String> role;
+        private boolean isLatest = true;
 
         private Builder(@Nonnull String user, @Nonnull String group,
                 @Nonnull String remoteIpAddress) {
@@ -171,7 +183,7 @@ public class HeaderAuthenticationToken extends AbstractAuthenticationToken {
          * Set user role.
          *
          * @param role user roles
-         * @return user role.
+         * @return builder.
          */
         public Builder setRole(@Nonnull Optional<String> role) {
             Objects.requireNonNull(role);
@@ -186,6 +198,17 @@ public class HeaderAuthenticationToken extends AbstractAuthenticationToken {
          */
         public HeaderAuthenticationToken build() {
             return new HeaderAuthenticationToken(this);
+        }
+
+        /**
+         * Is latest version.
+         *
+         * @param isLatest latest version?
+         * @return builder.
+         */
+        public Builder setIsLatest(boolean isLatest) {
+            this.isLatest = isLatest;
+            return this;
         }
     }
 }

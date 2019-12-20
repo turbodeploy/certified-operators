@@ -44,12 +44,21 @@ public interface HeaderMapper {
     String getAuthGroup(@Nullable String externalRole);
 
     /**
-     * Vender dependent implementation to build {@link PublicKey} to verify vendor's JWT token.
+     * Vendor dependent implementation to build {@link PublicKey} to verify vendor's JWT token. It could be previous
+     * supported version.
      *
      * @param jwtTokenPublicKey the vendor's public key in text format.
      * @return the public key in {@link PublicKey} format.
      */
     Optional<PublicKey> buildPublicKey(Optional<String> jwtTokenPublicKey);
+
+    /**
+     * Vendor dependent implementation to build latest {@link PublicKey} to verify vendor's JWT token.
+     *
+     * @param jwtTokenPublicKey the vendor's public key in text format.
+     * @return the public key in {@link PublicKey} format.
+     */
+    Optional<PublicKey> buildPublicKeyLatest(Optional<String> jwtTokenPublicKey);
 
     /**
      * Retrieve the property name that will have JWT token as value.

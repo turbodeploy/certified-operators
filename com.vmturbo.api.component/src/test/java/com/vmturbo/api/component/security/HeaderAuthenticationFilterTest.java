@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.security;
 
+import static com.vmturbo.api.component.security.IntersightIdTokenVerifierTest.PUBLIC_KEY_WITH_PREFIX_SUBFIX_ES256;
 import static com.vmturbo.api.component.security.IntersightIdTokenVerifierTest.PUBLIC_KEY_WITH_PREFIX_SUFFIX;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.X_TURBO_ROLE;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.X_TURBO_TOKEN;
@@ -65,7 +66,7 @@ public class HeaderAuthenticationFilterTest {
         filter = new HeaderAuthenticationFilter(
                 new IntersightHeaderMapper(INTERSIGHT_TO_COWM_ROLE_MAPPING, X_TURBO_USER,
                         X_TURBO_ROLE, X_STARSHIP_AUTH_TOKEN_PUBLIC_KEY, X_STARSHIP_AUTH_TOKEN),
-                Optional.of(PUBLIC_KEY_WITH_PREFIX_SUFFIX));
+                Optional.of(PUBLIC_KEY_WITH_PREFIX_SUBFIX_ES256), true);
         chain = mock(FilterChain.class);
     }
 
@@ -84,7 +85,7 @@ public class HeaderAuthenticationFilterTest {
         filter = new HeaderAuthenticationFilter(
                 new IntersightHeaderMapper(INTERSIGHT_TO_COWM_ROLE_MAPPING, X_TURBO_USER,
                         X_TURBO_ROLE, X_STARSHIP_AUTH_TOKEN_PUBLIC_KEY, X_STARSHIP_AUTH_TOKEN),
-                Optional.empty());
+                Optional.empty(), true);
         filter.doFilterInternal(request, response, chain);
         assertTrue(SecurityContextHolder.getContext()
                 .getAuthentication() instanceof HeaderAuthenticationToken);
@@ -108,6 +109,33 @@ public class HeaderAuthenticationFilterTest {
     public void testDoFilterInternalJwtWithKeyFromStartup() throws ServletException, IOException {
         when(request.getHeader(X_TURBO_TOKEN)).thenReturn(TOKEN_1);
         when(request.getHeader(X_STARSHIP_AUTH_TOKEN)).thenReturn(TOKEN_1);
+        filter = new HeaderAuthenticationFilter(
+                new IntersightHeaderMapper(INTERSIGHT_TO_COWM_ROLE_MAPPING, X_TURBO_USER,
+                        X_TURBO_ROLE, X_STARSHIP_AUTH_TOKEN_PUBLIC_KEY, X_STARSHIP_AUTH_TOKEN),
+                Optional.of(PUBLIC_KEY_WITH_PREFIX_SUFFIX), false);
+        filter.doFilterInternal(request, response, chain);
+        assertTrue(SecurityContextHolder.getContext()
+                .getAuthentication() instanceof HeaderAuthenticationToken);
+        HeaderAuthenticationToken authentication =
+                (HeaderAuthenticationToken)SecurityContextHolder.getContext().getAuthentication();
+        assertEquals(TOKEN_1, authentication.getJwtToken().get());
+        assertNull(authentication.getGroup());
+        assertEquals("anonymous", authentication.getUserName());
+        // ensure this user doesn't have permission
+        assertTrue(authentication.getAuthorities().isEmpty());
+    }
+
+    /**
+     * Verify method will properly create authentication token with JWT only. When the public key
+     * is injected when starting up.
+     *
+     * @throws ServletException should not throw
+     * @throws IOException should not throw
+     */
+    @Test
+    public void testDoFilterInternalJwtWithKeyFromStartupLatest() throws ServletException, IOException {
+        when(request.getHeader(X_TURBO_TOKEN)).thenReturn(TOKEN_1);
+        when(request.getHeader(X_STARSHIP_AUTH_TOKEN)).thenReturn(TOKEN_1);
         filter.doFilterInternal(request, response, chain);
         assertTrue(SecurityContextHolder.getContext()
                 .getAuthentication() instanceof HeaderAuthenticationToken);
@@ -128,6 +156,35 @@ public class HeaderAuthenticationFilterTest {
      * @throws IOException should not throw
      */
     @Test
+    public void testDoFilterInternalJwtWithKeyFromRequestLatest() throws ServletException, IOException {
+        when(request.getHeader(X_TURBO_TOKEN)).thenReturn(TOKEN_1);
+        when(request.getHeader(X_STARSHIP_AUTH_TOKEN)).thenReturn(TOKEN_1);
+
+        when(request.getHeader("X-Starship-Auth-Token-PublicKey")).thenReturn(PUBLIC_KEY_WITH_PREFIX_SUBFIX_ES256);
+        filter = new HeaderAuthenticationFilter(
+                new IntersightHeaderMapper(INTERSIGHT_TO_COWM_ROLE_MAPPING, X_TURBO_USER,
+                        X_TURBO_ROLE, X_STARSHIP_AUTH_TOKEN_PUBLIC_KEY, X_STARSHIP_AUTH_TOKEN),
+                Optional.empty(), true);
+        filter.doFilterInternal(request, response, chain);
+        assertTrue(SecurityContextHolder.getContext()
+                .getAuthentication() instanceof HeaderAuthenticationToken);
+        HeaderAuthenticationToken authentication =
+                (HeaderAuthenticationToken)SecurityContextHolder.getContext().getAuthentication();
+        assertEquals(TOKEN_1, authentication.getJwtToken().get());
+        assertNull(authentication.getGroup());
+        assertEquals("anonymous", authentication.getUserName());
+        // ensure this user doesn't have permission
+        assertTrue(authentication.getAuthorities().isEmpty());
+    }
+
+    /**
+     * Verify method will properly create authentication token with JWT only. When the public key
+     * is passed in along with request. This is to test previous version behavior.
+     *
+     * @throws ServletException should not throw
+     * @throws IOException should not throw
+     */
+    @Test
     public void testDoFilterInternalJwtWithKeyFromRequest() throws ServletException, IOException {
         when(request.getHeader(X_TURBO_TOKEN)).thenReturn(TOKEN_1);
         when(request.getHeader(X_STARSHIP_AUTH_TOKEN)).thenReturn(TOKEN_1);
@@ -136,7 +193,7 @@ public class HeaderAuthenticationFilterTest {
         filter = new HeaderAuthenticationFilter(
                 new IntersightHeaderMapper(INTERSIGHT_TO_COWM_ROLE_MAPPING, X_TURBO_USER,
                         X_TURBO_ROLE, X_STARSHIP_AUTH_TOKEN_PUBLIC_KEY, X_STARSHIP_AUTH_TOKEN),
-                Optional.empty());
+                Optional.empty(), false);
         filter.doFilterInternal(request, response, chain);
         assertTrue(SecurityContextHolder.getContext()
                 .getAuthentication() instanceof HeaderAuthenticationToken);

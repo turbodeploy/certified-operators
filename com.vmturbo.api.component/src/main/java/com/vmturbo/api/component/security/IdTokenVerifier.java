@@ -21,7 +21,7 @@ public interface IdTokenVerifier {
     int CLOCK_SKEW_SEC = 60;
 
     /**
-     * Verify vender's JWT token.
+     * Verify vender's JWT token. It could be previous supported version.
      *
      * @param jwtPublicKey public key to verify JWT token.
      * @param jwtToken JWT token to verify.
@@ -31,5 +31,18 @@ public interface IdTokenVerifier {
      */
     Pair<String, String> verify(@Nonnull Optional<PublicKey> jwtPublicKey,
             @Nonnull Optional<String> jwtToken, long clockSkewSecond)
+            throws AuthenticationException;
+
+    /**
+     * Verify vender's JWT token current version.
+     *
+     * @param jwtPublicKey public key to verify JWT token.
+     * @param jwtToken JWT token to verify.
+     * @param clockSkewSecond clock skew seconds.
+     * @return {@link Pair} with claimed username and role in JWT token.
+     * @throws AuthenticationException if JWT token verification failed.
+     */
+    Pair<String, String> verifyLatest(@Nonnull Optional<PublicKey> jwtPublicKey,
+                                @Nonnull Optional<String> jwtToken, long clockSkewSecond)
             throws AuthenticationException;
 }

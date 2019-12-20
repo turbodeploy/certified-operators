@@ -59,6 +59,9 @@ public class HeaderApiSecurityConfig extends ApiSecurityConfig {
     @Value("${vendor_request_jwt_token:X-Starship-Auth-Token}")
     private String jwtTokenTag;
 
+    @Value("${vendor_latest_version:true}")
+    private String isLatestVersion;
+
     @Autowired(required = false)
     private HeaderAuthenticationProvider headerAuthenticationProvider;
 
@@ -96,13 +99,18 @@ public class HeaderApiSecurityConfig extends ApiSecurityConfig {
                 "Enabled header authentication and authorization.", true)
                 .targetName(LOGIN_MANAGER)
                 .audit();
-        return new HeaderAuthenticationFilter(headerMapper, getPublicKey());
+        return new HeaderAuthenticationFilter(headerMapper, getPublicKey(), isLatestVersion());
     }
 
     // If the public key is not default value, use it, otherwise just Optional.empty().
     private Optional<String> getPublicKey() {
         return jwtTokenPublicKey.equalsIgnoreCase(PUBLIC_KEY) ? Optional.empty() :
                 Optional.of(jwtTokenPublicKey);
+    }
+
+    // Assume always use the latest mapping, unless "isLatestVersion" is set to false.
+    private boolean isLatestVersion() {
+        return isLatestVersion.equalsIgnoreCase("true") ? true : false;
     }
 }
 

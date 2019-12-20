@@ -90,10 +90,12 @@ public class HeaderAuthenticationProvider extends RestAuthenticationProvider {
         final Optional<String> jwtToken = authorizationToken.getJwtToken();
         final Optional<PublicKey> publicKey = authorizationToken.getPublicKey();
         final HeaderMapper headerMapper = authorizationToken.getHeaderMapper();
+        final boolean isLatest = authorizationToken.isLatest();
 
         try {
             if (publicKey.isPresent() && jwtToken.isPresent()) {
-                final Pair<String, String> userAndRolePair =
+                final Pair<String, String> userAndRolePair = isLatest ?
+                        idTokenVerifier.verifyLatest(publicKey, jwtToken, clockSkewSecond) :
                         idTokenVerifier.verify(publicKey, jwtToken, clockSkewSecond);
                 final String tokenUserName = userAndRolePair.first;
                 final Optional<String> tokenGroup =
