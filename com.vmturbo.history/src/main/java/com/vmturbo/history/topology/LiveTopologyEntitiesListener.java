@@ -65,6 +65,8 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
                 SharedMetrics.SOURCE_TOPOLOGY_TYPE_LABEL, SharedMetrics.
                         LIVE_CONTEXT_TYPE_LABEL).startTimer()) {
             handleLiveTopology(topologyInfo, topologyDTOs);
+        } catch (Exception e) {
+            logger.error("An error happened while persisting the plan topology.", e);
         }
     }
 
@@ -92,7 +94,8 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
     }
 
     private void handleLiveTopology(TopologyInfo topologyInfo,
-                                    RemoteIterator<DataSegment> dtosIterator) {
+                                    RemoteIterator<DataSegment> dtosIterator)
+            throws CommunicationException, InterruptedException {
         final long topologyContextId = topologyInfo.getTopologyContextId();
         final long topologyId = topologyInfo.getTopologyId();
         final long creationTime = topologyInfo.getCreationTime();
@@ -108,14 +111,17 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
         }
         try {
             int numEntities = statsWriteCoordinator.processChunks(topologyInfo, dtosIterator);
-            availabilityTracker.topologyAvailable(topologyContextId, TopologyContextType.LIVE);
+            availabilityTracker.topologyAvailable(topologyContextId, TopologyContextType.LIVE,
+                    true);
 
             SharedMetrics.TOPOLOGY_ENTITY_COUNT_HISTOGRAM
                 .labels(SharedMetrics.SOURCE_TOPOLOGY_TYPE_LABEL, SharedMetrics.LIVE_CONTEXT_TYPE_LABEL)
                 .observe((double)numEntities);
         } catch (Exception e) {
             logger.warn("Error occurred while processing data for realtime topology broadcast "
-                            + topologyInfo.getTopologyId(), e);
+                    + topologyInfo.getTopologyId(), e);
+            availabilityTracker.topologyAvailable(topologyContextId, TopologyContextType.LIVE,
+                    false);
         } finally {
             // remove from the in-progress list
             synchronized (topologiesInProcess) {

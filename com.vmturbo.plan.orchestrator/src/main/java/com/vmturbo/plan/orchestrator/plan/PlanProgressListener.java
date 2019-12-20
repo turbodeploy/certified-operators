@@ -310,7 +310,13 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
         if (planId != realtimeTopologyContextId) {
             logger.info("Plan {} has stats available", planId);
             try {
-                planDao.updatePlanInstance(planId, PlanProgressListener::processStatsAvailable);
+                if (statsAvailable.hasUpdateFailure()) {
+                    logger.error("Stats failed for plan {}. {}.", planId,
+                            statsAvailable.getUpdateFailure().getErrorMessage());
+                    planDao.updatePlanInstance(planId, PlanProgressListener::processStatsFailure);
+                } else {
+                    planDao.updatePlanInstance(planId, PlanProgressListener::processStatsAvailable);
+                }
             } catch (IntegrityException e) {
                 logger.error("Could not change plan's "
                         + planId + " state according to stats available.", e);
@@ -326,6 +332,11 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
     private static void processStatsAvailable(@Nonnull final PlanInstance.Builder plan) {
         plan.setStatsAvailable(true);
         plan.setStatus(getPlanStatusBasedOnPlanType(plan));
+    }
+
+    private static void processStatsFailure(@Nonnull final PlanInstance.Builder plan) {
+        plan.setStatsAvailable(false);
+        plan.setStatus(PlanStatus.FAILED);
     }
 
     private static void processSourceTopology(@Nonnull final PlanInstance.Builder plan,

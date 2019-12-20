@@ -69,15 +69,19 @@ public class StatsAvailabilityTracker {
     }
 
     public StatsAvailabilityStatus topologyAvailable(final long topologyContextId,
-            TopologyContextType contextType) throws CommunicationException, InterruptedException {
+                                                     TopologyContextType contextType,
+                                                     boolean isAvailable)
+            throws CommunicationException, InterruptedException {
         return statsPartAvailable(topologyContextId, contextType,
-                AvailabilityInfo::markTopologyAvailable);
+                ai -> ai.markTopologyAvailable(isAvailable));
     }
 
     public StatsAvailabilityStatus projectedTopologyAvailable(final long topologyContextId,
-            TopologyContextType contextType) throws CommunicationException, InterruptedException {
+                                                              TopologyContextType contextType,
+                                                              boolean isAvailable)
+            throws CommunicationException, InterruptedException {
         return statsPartAvailable(topologyContextId, contextType,
-                AvailabilityInfo::markProjectedTopologyAvailable);
+                ai -> ai.markProjectedTopologyAvailable(isAvailable));
     }
 
     public boolean isTracking(final long topologyContextId) {
@@ -87,11 +91,12 @@ public class StatsAvailabilityTracker {
     }
 
     private StatsAvailabilityStatus statsPartAvailable(final long topologyContextId,
-            final TopologyContextType contextType,
-            @Nonnull final Consumer<AvailabilityInfo> availabilityInfoConsumer)
-            throws CommunicationException, InterruptedException {
+                                                       final TopologyContextType contextType,
+                                                       @Nonnull final Consumer<AvailabilityInfo>
+                                                               availabilityInfoConsumer) {
         Objects.requireNonNull(availabilityInfoConsumer);
         boolean allAvailable;
+        boolean isUnavailable;
 
         synchronized (statsAvailabilityLock) {
             AvailabilityInfo availabilityInfo = statsAvailabilityMap.get(topologyContextId);
@@ -104,13 +109,16 @@ public class StatsAvailabilityTracker {
             }
             availabilityInfoConsumer.accept(availabilityInfo);
             allAvailable = availabilityInfo.areAllAvailable();
-            if (allAvailable) {
+            isUnavailable = availabilityInfo.anyUnavailable();
+            if (availabilityInfo.allAvailabilityKnown()) {
                 statsAvailabilityMap.remove(topologyContextId);
             }
         }
 
         if (allAvailable) {
             notificationSender.statsAvailable(topologyContextId);
+        } else if (isUnavailable) {
+            notificationSender.statsFailure(topologyContextId);
         }
 
         return allAvailable ? StatsAvailabilityStatus.AVAILABLE : StatsAvailabilityStatus.UNAVAILABLE;
@@ -124,24 +132,33 @@ public class StatsAvailabilityTracker {
      * projected topology.
      */
     private static class AvailabilityInfo {
-        private boolean topology = false;
-        private boolean projectedTopology = false;
+        private Boolean topology = null;
+        private Boolean projectedTopology = null;
         private TopologyContextType contextType;
 
         private AvailabilityInfo(final TopologyContextType contextType) {
             this.contextType = contextType;
         }
 
-        void markTopologyAvailable() {
-            topology = true;
+        void markTopologyAvailable(boolean isAvailable) {
+            topology = isAvailable;
         }
 
-        void markProjectedTopologyAvailable() {
-            projectedTopology = true;
+        void markProjectedTopologyAvailable(boolean isAvailable) {
+            projectedTopology = isAvailable;
         }
 
         boolean areAllAvailable() {
-            return topology && projectedTopology;
+            return topology != null && topology && projectedTopology != null && projectedTopology;
+        }
+
+        boolean anyUnavailable() {
+            return (topology != null && !topology) ||
+                    (projectedTopology != null && !projectedTopology);
+        }
+
+        boolean allAvailabilityKnown() {
+            return topology != null && projectedTopology != null;
         }
 
         public TopologyContextType getContextType() {

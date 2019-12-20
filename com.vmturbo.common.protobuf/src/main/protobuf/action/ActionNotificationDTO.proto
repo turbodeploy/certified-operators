@@ -4,7 +4,6 @@ package action;
 option java_package = "com.vmturbo.common.protobuf.action";
 
 import "action/ActionDTO.proto";
-import "plan/PlanDTO.proto";
 
 // Sent as an update when an action is in progress.
 message ActionProgress {

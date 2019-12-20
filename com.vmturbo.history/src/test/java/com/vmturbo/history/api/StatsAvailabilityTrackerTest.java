@@ -28,7 +28,8 @@ public class StatsAvailabilityTrackerTest {
     @Test
     public void testOnlyTopologyAvailable() throws Exception {
         StatsAvailabilityStatus status =
-            availabilityTracker.topologyAvailable(LIVE_CONTEXT_ID, TopologyContextType.LIVE);
+                availabilityTracker.topologyAvailable(LIVE_CONTEXT_ID, TopologyContextType.LIVE,
+                        true);
         assertEquals(StatsAvailabilityStatus.UNAVAILABLE, status);
 
         assertTrue(availabilityTracker.isTracking(LIVE_CONTEXT_ID));
@@ -38,7 +39,8 @@ public class StatsAvailabilityTrackerTest {
     @Test
     public void testOnlyProjectedTopologyAvailable() throws Exception {
         StatsAvailabilityStatus status =
-            availabilityTracker.projectedTopologyAvailable(PLAN_CONTEXT_ID, TopologyContextType.PLAN);
+            availabilityTracker.projectedTopologyAvailable(PLAN_CONTEXT_ID,
+                    TopologyContextType.PLAN,true);
         assertEquals(StatsAvailabilityStatus.UNAVAILABLE, status);
 
         assertTrue(availabilityTracker.isTracking(PLAN_CONTEXT_ID));
@@ -47,9 +49,11 @@ public class StatsAvailabilityTrackerTest {
 
     @Test
     public void testAllAvailable() throws Exception {
-        availabilityTracker.topologyAvailable(PLAN_CONTEXT_ID, TopologyContextType.PLAN);
+        availabilityTracker.topologyAvailable(PLAN_CONTEXT_ID, TopologyContextType.PLAN,
+                true);
         StatsAvailabilityStatus status =
-            availabilityTracker.projectedTopologyAvailable(PLAN_CONTEXT_ID, TopologyContextType.PLAN);
+                availabilityTracker.projectedTopologyAvailable(PLAN_CONTEXT_ID,
+                        TopologyContextType.PLAN, true);
 
         assertEquals(StatsAvailabilityStatus.AVAILABLE, status);
         verify(notificationSender).statsAvailable(eq(PLAN_CONTEXT_ID));
@@ -57,11 +61,13 @@ public class StatsAvailabilityTrackerTest {
 
     @Test
     public void testTrackingRemovedAfterAvailable() throws Exception {
-        availabilityTracker.topologyAvailable(PLAN_CONTEXT_ID, TopologyContextType.PLAN);
+        availabilityTracker.topologyAvailable(PLAN_CONTEXT_ID, TopologyContextType.PLAN,
+                true);
 
         assertTrue(availabilityTracker.isTracking(PLAN_CONTEXT_ID));
 
-        availabilityTracker.projectedTopologyAvailable(PLAN_CONTEXT_ID, TopologyContextType.PLAN);
+        availabilityTracker.projectedTopologyAvailable(PLAN_CONTEXT_ID, TopologyContextType.PLAN,
+                true);
 
         assertFalse(availabilityTracker.isTracking(PLAN_CONTEXT_ID));
     }

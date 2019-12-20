@@ -88,7 +88,8 @@ public class LiveTopologyListenerTest {
         t1Future.get();
 
         // verify that one topology (the first one) was marked available.
-        verify(availabilityTracker).topologyAvailable(eq(REALTIME_TOPOLOGY_ID), eq(TopologyContextType.LIVE));
+        verify(availabilityTracker).topologyAvailable(eq(REALTIME_TOPOLOGY_ID),
+                eq(TopologyContextType.LIVE), eq(true));
 
         // verify that the next one goes through fine
         TopologyInfo topology3 = TopologyInfo.newBuilder()

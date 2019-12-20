@@ -63,25 +63,29 @@ public class PlanTopologyEntitiesListener implements PlanAnalysisTopologyListene
                 SharedMetrics.SOURCE_TOPOLOGY_TYPE_LABEL, SharedMetrics.PLAN_CONTEXT_TYPE_LABEL)
                 .startTimer()) {
             handleScopedTopology(topologyInfo, topologyDTOs);
+        } catch (Exception e) {
+            logger.error("And error happened while persisting the plan topology.", e);
         }
     }
 
     private void handleScopedTopology(TopologyInfo topologyInfo,
-            RemoteIterator<TopologyDTO.Topology.DataSegment> dtosIterator) {
+            RemoteIterator<TopologyDTO.Topology.DataSegment> dtosIterator) throws CommunicationException, InterruptedException {
         final long topologyContextId = topologyInfo.getTopologyContextId();
         final long topologyId = topologyInfo.getTopologyId();
         logger.info("Receiving plan topology, context: {}, id: {}", topologyContextId, topologyId);
         try {
             int numEntities = planStatsWriter.processChunks(topologyInfo, dtosIterator);
-            availabilityTracker.topologyAvailable(topologyContextId, TopologyContextType.PLAN);
+            availabilityTracker.topologyAvailable(topologyContextId, TopologyContextType.PLAN,
+                    true);
 
             SharedMetrics.TOPOLOGY_ENTITY_COUNT_HISTOGRAM
                     .labels(SharedMetrics.SOURCE_TOPOLOGY_TYPE_LABEL, SharedMetrics.PLAN_CONTEXT_TYPE_LABEL)
                     .observe((double)numEntities);
-        } catch (CommunicationException | TimeoutException | InterruptedException
-                | VmtDbException e) {
+        } catch (Exception e) {
             logger.warn("Error occurred while processing data for topology broadcast "
                     + topologyInfo.getTopologyId(), e);
+            availabilityTracker.topologyAvailable(topologyContextId, TopologyContextType.PLAN,
+                    false);
         }
     }
 }

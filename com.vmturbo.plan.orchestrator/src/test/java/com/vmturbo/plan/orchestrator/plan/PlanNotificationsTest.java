@@ -45,6 +45,7 @@ import com.vmturbo.components.api.test.IntegrationTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable;
+import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable.UpdateFailure;
 import com.vmturbo.plan.orchestrator.api.PlanListener;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
 import com.vmturbo.plan.orchestrator.reservation.ReservationPlacementHandler;
@@ -211,6 +212,58 @@ public class PlanNotificationsTest {
         Mockito.verify(listener, Mockito.timeout(TIMEOUT)).onPlanStatusChanged(matcher.capture());
         final PlanInstance plan = matcher.getValue();
         assertPlan(plan, planId);
+    }
+
+    /**
+     * Tests if the plan fails if the stats has any failure message.
+     *
+     * @throws Exception The exception
+     */
+    @Test
+    public void testPlanFailsWhenStatsFails() throws Exception {
+        final PlanListener listener = Mockito.mock(PlanListener.class);
+        client.addPlanListener(listener);
+        final long planId = planDao.createPlanInstance(CreatePlanRequest.getDefaultInstance()).getPlanId();
+        actionsListener.onProjectedTopologyAvailable(TOPOLOGY_ID, planId);
+        actionsListener.onStatsAvailable(StatsAvailable.newBuilder()
+                .setUpdateFailure(UpdateFailure.newBuilder()
+                        .setErrorMessage("The stats failure message").build())
+                .setTopologyContextId(planId)
+                .build());
+        Mockito.verify(listener, Mockito.never()).onPlanStatusChanged(planSucceeded());
+        final StatusMatcher inprogressMatcher = new StatusMatcher(PlanStatus.WAITING_FOR_RESULT);
+        Mockito.verify(listener, Mockito.timeout(TIMEOUT))
+                .onPlanStatusChanged(inprogressMatcher.capture());
+        Assert.assertEquals(TOPOLOGY_ID, inprogressMatcher.getValue().getProjectedTopologyId());
+        Assert.assertEquals(PlanStatus.WAITING_FOR_RESULT, inprogressMatcher.getValue().getStatus());
+
+        actionsListener.onActionsUpdated(
+                ActionsUpdated.newBuilder()
+                        .setActionPlanId(ACT_PLAN_ID)
+                        .setActionPlanInfo(ActionPlanInfo.newBuilder()
+                                .setMarket(MarketActionPlanInfo.newBuilder()
+                                        .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                                                .setTopologyContextId(planId)))).build());
+        actionsListener
+                .onStatsAvailable(StatsAvailable.newBuilder()
+                        .setUpdateFailure(UpdateFailure.newBuilder()
+                                .setErrorMessage("The stats failure message").build())
+                        .setTopologyContextId(1).build());
+        actionsListener.onProjectedTopologyAvailable(TOPOLOGY_ID, planId);
+        actionsListener.onSourceTopologyAvailable(TOPOLOGY_ID, planId);
+        actionsListener.onCostNotificationReceived(CostNotification.newBuilder()
+                .setStatusUpdate(StatusUpdate.newBuilder()
+                        .setType(StatusUpdateType.PROJECTED_RI_COVERAGE_UPDATE)
+                        .setStatus(Status.SUCCESS)
+                        .build())
+                .build());
+        actionsListener.onCostNotificationReceived(CostNotification.newBuilder()
+                .setStatusUpdate(StatusUpdate.newBuilder()
+                        .setType(StatusUpdateType.PROJECTED_COST_UPDATE)
+                        .setStatus(Status.SUCCESS)
+                        .build())
+                .build());
+        Assert.assertEquals(planDao.getPlanInstance(planId).get().getStatus(), PlanStatus.FAILED);
     }
 
     @Nonnull
