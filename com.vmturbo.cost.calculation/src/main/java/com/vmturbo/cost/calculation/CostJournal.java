@@ -27,14 +27,14 @@ import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Table;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.stringtemplate.v4.ST;
+
 import de.vandermeer.asciitable.AsciiTable;
 import de.vandermeer.asciitable.CWC_LongestLine;
 import de.vandermeer.asciithemes.a7.A7_Grids;
 import de.vandermeer.skb.interfaces.transformers.textformat.TextAlignment;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.stringtemplate.v4.ST;
 
 import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
@@ -104,7 +104,7 @@ public class CostJournal<ENTITY_CLASS> {
 
     private final Map<CostCategory, SortedSet<JournalEntry<ENTITY_CLASS>>> costEntries;
 
-    private Table<CostCategory, CostSource, TraxNumber> finalCostsByCategoryAndSource = HashBasedTable.create();
+    private final Table<CostCategory, CostSource, TraxNumber> finalCostsByCategoryAndSource = HashBasedTable.create();
 
     /**
      * We calculate the costs from the journal entries the first time costs are actually requested.
@@ -293,7 +293,7 @@ public class CostJournal<ENTITY_CLASS> {
     }
 
     @Nonnull
-    public Map<CostSource, TraxNumber> getHourlyCostForCategoryBySource(CostCategory category) {
+    private Map<CostSource, TraxNumber> getHourlyCostForCategoryBySource(CostCategory category) {
         calculateCosts();
         return Collections.unmodifiableMap(finalCostsByCategoryAndSource.row(category));
     }
@@ -655,7 +655,7 @@ public class CostJournal<ENTITY_CLASS> {
                         .compute("discount coefficient");
                 final TraxNumber discountedUnitPrice = unitPrice.times(discountPercentage).compute("discounted unit price");
                 final TraxNumber totalPrice = discountedUnitPrice.times(unitsBought).compute("total price");
-                logger.trace("Buying {} units at unit price {} with discount percentage {}",
+                logger.trace("Buying {} {} at unit price {} with discount percentage {}",
                         unitsBought, price.getUnit().name(), unitPrice, discountPercentage);
                 final TraxNumber cost;
                 switch (price.getUnit()) {
@@ -687,6 +687,7 @@ public class CostJournal<ENTITY_CLASS> {
                 return cost;
             }
 
+        @Nonnull
         @Override
         public Optional<CostSource> getCostSource() {
             return costSource;

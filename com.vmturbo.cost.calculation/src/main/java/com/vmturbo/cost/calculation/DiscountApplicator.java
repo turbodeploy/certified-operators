@@ -8,9 +8,6 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.TextFormat;
 
@@ -135,7 +132,7 @@ public class DiscountApplicator<ENTITY_CLASS> {
                 discountInfo.getTierLevelDiscount();
         final Double tierDiscount = tierLevelDiscount.getDiscountPercentageByTierIdMap().get(providerId);
         if (tierDiscount != null) {
-            return trax(tierDiscount, "Tier discount");
+            return trax(convertPercentage(tierDiscount), "Tier discount");
         }
 
         final ServiceLevelDiscount serviceLevelDiscount = discountInfo.getServiceLevelDiscount();
@@ -144,14 +141,25 @@ public class DiscountApplicator<ENTITY_CLASS> {
                 .map(serviceId -> serviceLevelDiscount.getDiscountPercentageByServiceIdMap().get(serviceId))
                 .orElse(null);
         if (serviceDiscount != null) {
-            return trax(serviceDiscount, "Service discount");
+            return trax(convertPercentage(serviceDiscount), "Service discount");
         }
 
         if (discountInfo.getAccountLevelDiscount().hasDiscountPercentage()) {
-            return trax(discountInfo.getAccountLevelDiscount().getDiscountPercentage(), "Account discount");
+            return trax(convertPercentage(discountInfo.getAccountLevelDiscount().getDiscountPercentage()),
+                    "Account discount");
         } else {
             return NO_DISCOUNT;
         }
+    }
+
+    /**
+     * Converts percentage value (e.g. 50%) to fraction number (e.g. 0.5).
+     *
+     * @param value Original percentage.
+     * @return Converted fraction.
+     */
+    private static double convertPercentage(final double value) {
+        return value / 100;
     }
 
     @Override
@@ -203,8 +211,6 @@ public class DiscountApplicator<ENTITY_CLASS> {
      * use {@link DiscountApplicator#newFactory()}.
      */
     private static class DefaultDiscountApplicatorFactory<ENTITY_CLASS> implements DiscountApplicatorFactory<ENTITY_CLASS> {
-
-        private static final Logger logger = LogManager.getLogger();
 
         private DefaultDiscountApplicatorFactory() {}
 
