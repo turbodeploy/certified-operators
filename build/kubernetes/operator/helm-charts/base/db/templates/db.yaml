@@ -143,7 +143,7 @@ metadata:
 spec:
   ports:
   - name: mysql-db
-    port: 3306
+    port: {{ .Values.global.externalDbPort | default 3306 }}
 {{- if .Values.global }}
   {{- if .Values.global.externalDBName }}
   type: ExternalName
