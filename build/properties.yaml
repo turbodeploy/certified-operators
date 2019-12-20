@@ -122,6 +122,14 @@ defaultProperties:
         # which is one week of data.
         riMinimumDataPoints : 168
         # Number of records to commit in one batch.
+        reservedInstanceStatCleanup.corePoolSize: 1
+        # One thread per table - latest, hourly, daily, monthly for RI coverage and utilization
+        reservedInstanceStatCleanup.maxPoolSize: 8
+        reservedInstanceStatCleanup.threadKeepAliveMins: 1
+        reservedInstanceStatCleanup.executorQueueSize: 10
+        reservedInstanceStatCleanup.minTimeBetweenCleanupsMinutes: 60
+        # Schedule for the Reserved Instance tables scheduler
+        reservedInstanceStatCleanup.scheduler: 360000
         statsRecordsCommitBatchSize : 5000
         # Number of results to return when fetching lazily.
         statsRecordsQueryBatchSize : 5000

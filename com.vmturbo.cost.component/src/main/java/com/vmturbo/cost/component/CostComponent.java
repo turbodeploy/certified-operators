@@ -31,6 +31,7 @@ import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
 import com.vmturbo.cost.component.rpc.CostDebugConfig;
+import com.vmturbo.cost.component.stats.ReservedInstanceStatsConfig;
 import com.vmturbo.cost.component.topology.TopologyListenerConfig;
 import com.vmturbo.trax.TraxConfiguration;
 import com.vmturbo.trax.TraxConfiguration.TopicSettings;
@@ -51,6 +52,7 @@ import com.vmturbo.trax.TraxThrottlingLimit;
     SpringSecurityConfig.class,
     TopologyListenerConfig.class,
     CostDebugConfig.class,
+    ReservedInstanceStatsConfig.class,
     ReservedInstanceSpecConfig.class})
 public class CostComponent extends BaseVmtComponent {
     /**
@@ -87,6 +89,9 @@ public class CostComponent extends BaseVmtComponent {
      */
     @Autowired
     private SpringSecurityConfig securityConfig;
+
+    @Autowired
+    private ReservedInstanceStatsConfig reservedInstanceStatsConfig;
 
     @Autowired
     private CostDebugConfig costDebugConfig;
