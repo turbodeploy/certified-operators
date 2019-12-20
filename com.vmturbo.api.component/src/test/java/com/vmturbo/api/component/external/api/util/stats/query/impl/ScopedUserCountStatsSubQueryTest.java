@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.util.stats.query.impl;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -12,8 +13,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -30,6 +31,7 @@ import com.vmturbo.api.component.external.api.util.stats.StatsTestUtil;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -98,11 +100,21 @@ public class ScopedUserCountStatsSubQueryTest {
         when(repositoryApi.entitiesRequest(Collections.singleton(1L))).thenReturn(request);
         when(request.restrictTypes(anyList())).thenReturn(request);
 
-        final Map<Long, List<StatApiDTO>> ret = query.getAggregateStats(
+        final List<StatSnapshotApiDTO> results = query.getAggregateStats(
             Collections.singleton(StatsTestUtil.statInput(StringConstants.NUM_VMS)), context);
 
         // ASSERT
-        assertThat(ret.keySet(), containsInAnyOrder(millis, timeWindow.endTime()));
-        assertThat(ret.get(timeWindow.endTime()).get(0).getValue(), is(1F));
+        assertEquals(2, results.size());
+        assertThat(results.stream()
+                .map(StatSnapshotApiDTO::getDate)
+                .map(DateTimeUtil::parseTime)
+                .collect(Collectors.toList()),
+            containsInAnyOrder(millis, timeWindow.endTime()));
+
+        final StatSnapshotApiDTO endSnapshot = results.stream()
+            .filter(snapshot -> timeWindow.endTime() == DateTimeUtil.parseTime(snapshot.getDate()))
+            .findFirst()
+            .get();
+        assertThat(endSnapshot.getStatistics().get(0).getValue(), is(1F));
     }
 }

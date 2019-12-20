@@ -12,9 +12,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.junit.Before;
@@ -31,14 +29,15 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.StatsTestUtil;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.PlanCommodityStatsSubQuery.RequestMapper;
-import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
+import com.vmturbo.common.protobuf.stats.Stats.StatEpoch;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
@@ -65,14 +64,6 @@ public class PlanCommodityStatsSubQueryTest {
         // For uniqueness/equality comparison.
         .setSnapshotDate(MILLIS)
         .build();
-
-    private static final StatSnapshotApiDTO MAPPED_STAT_SNAPSHOT;
-
-    static {
-        MAPPED_STAT_SNAPSHOT = new StatSnapshotApiDTO();
-        MAPPED_STAT_SNAPSHOT.setDate(DateTimeUtil.toString(MILLIS));
-        MAPPED_STAT_SNAPSHOT.setStatistics(Collections.singletonList(StatsTestUtil.stat("foo")));
-    }
 
     private static final Set<StatApiInputDTO> REQ_STATS =
         Collections.singleton(StatsTestUtil.statInput("foo"));
@@ -110,7 +101,12 @@ public class PlanCommodityStatsSubQueryTest {
 
         when(statsMapper.newPeriodStatsFilter(any())).thenReturn(FILTER);
 
-        when(statsMapper.toStatSnapshotApiDTO(HISTORY_STAT_SNAPSHOT)).thenReturn(MAPPED_STAT_SNAPSHOT);
+        final StatSnapshotApiDTO mappedStatSnapshot;
+        mappedStatSnapshot = new StatSnapshotApiDTO();
+        mappedStatSnapshot.setDate(DateTimeUtil.toString(MILLIS));
+        mappedStatSnapshot.setEpoch(Epoch.PLAN_PROJECTED);
+        mappedStatSnapshot.setStatistics(Collections.singletonList(StatsTestUtil.stat("foo")));
+        when(statsMapper.toStatSnapshotApiDTO(HISTORY_STAT_SNAPSHOT)).thenReturn(mappedStatSnapshot);
 
         doReturn(Collections.singletonList(HISTORY_STAT_SNAPSHOT))
             .when(backend).getAveragedEntityStats(any());
@@ -210,28 +206,61 @@ public class PlanCommodityStatsSubQueryTest {
         when(mockRequestMapper.toAveragedEntityStatsRequest(REQ_STATS, context))
             .thenReturn(MAPPED_REQUEST);
 
+        final long planStartTime = MILLIS;
+        final long planEndTime = MILLIS + 1000;
         final StatSnapshot curSnapshot = StatSnapshot.newBuilder()
-            .setSnapshotDate(MILLIS)
+            .setSnapshotDate(planStartTime)
+            .setStatEpoch(StatEpoch.PLAN_SOURCE)
             .addStatRecords(StatRecord.newBuilder()
                 .setName("currentFoo"))
             .build();
         final StatSnapshot projSnapshot = StatSnapshot.newBuilder()
-            .setSnapshotDate(MILLIS)
+            .setSnapshotDate(planEndTime)
+            .setStatEpoch(StatEpoch.PLAN_PROJECTED)
             .addStatRecords(StatRecord.newBuilder()
                 .setName("foo"))
             .build();
 
         doReturn(Lists.newArrayList(curSnapshot, projSnapshot))
             .when(backend).getAveragedEntityStats(any());
-        when(statsMapper.toStatSnapshotApiDTO(curSnapshot)).thenReturn(MAPPED_STAT_SNAPSHOT);
-        when(statsMapper.toStatSnapshotApiDTO(projSnapshot)).thenReturn(MAPPED_STAT_SNAPSHOT);
+
+        final StatSnapshotApiDTO mappedSourceSnapshot;
+        mappedSourceSnapshot = new StatSnapshotApiDTO();
+        mappedSourceSnapshot.setDate(DateTimeUtil.toString(planStartTime));
+        mappedSourceSnapshot.setEpoch(Epoch.PLAN_SOURCE);
+        mappedSourceSnapshot.setStatistics(Collections.singletonList(StatsTestUtil.stat("foo")));
+        final StatSnapshotApiDTO mappedProjectedSnapshot;
+        mappedProjectedSnapshot = new StatSnapshotApiDTO();
+        mappedProjectedSnapshot.setDate(DateTimeUtil.toString(planEndTime));
+        mappedProjectedSnapshot.setEpoch(Epoch.PLAN_PROJECTED);
+        mappedProjectedSnapshot.setStatistics(Collections.singletonList(StatsTestUtil.stat("foo")));
+        when(statsMapper.toStatSnapshotApiDTO(curSnapshot)).thenReturn(mappedSourceSnapshot);
+        when(statsMapper.toStatSnapshotApiDTO(projSnapshot)).thenReturn(mappedProjectedSnapshot);
 
         // ACT
-        final Map<Long, List<StatApiDTO>> ret = query.getAggregateStats(REQ_STATS, context);
+        final List<StatSnapshotApiDTO> response = query.getAggregateStats(REQ_STATS, context);
 
-        assertThat(ret.keySet(), containsInAnyOrder(MILLIS, MILLIS + TimeUnit.MINUTES.toMillis(30)));
-        assertThat(ret.get(MILLIS), is(MAPPED_STAT_SNAPSHOT.getStatistics()));
-        assertThat(ret.get(MILLIS + TimeUnit.MINUTES.toMillis(30)), is(MAPPED_STAT_SNAPSHOT.getStatistics()));
+        assertThat(response.stream()
+                .map(StatSnapshotApiDTO::getDate)
+                .map(DateTimeUtil::parseTime)
+                .collect(Collectors.toList()),
+            containsInAnyOrder(planStartTime, planEndTime));
+        assertThat(response.stream()
+                .map(StatSnapshotApiDTO::getEpoch)
+                .collect(Collectors.toList()),
+            containsInAnyOrder(Epoch.PLAN_SOURCE, Epoch.PLAN_PROJECTED));
+        assertThat(response.stream()
+                .filter(statSnapshotApiDTO -> Epoch.PLAN_SOURCE == statSnapshotApiDTO.getEpoch())
+                .map(StatSnapshotApiDTO::getStatistics)
+                .findFirst()
+                .get(),
+            is(mappedSourceSnapshot.getStatistics()));
+        assertThat(response.stream()
+                .filter(statSnapshotApiDTO -> Epoch.PLAN_PROJECTED == statSnapshotApiDTO.getEpoch())
+                .map(StatSnapshotApiDTO::getStatistics)
+                .findFirst()
+                .get(),
+            is(mappedProjectedSnapshot.getStatistics()));
     }
 
 }

@@ -4,6 +4,7 @@ package com.vmturbo.api.component.external.api.util.stats.query.impl;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -179,7 +180,7 @@ public class RIStatsSubQueryTest {
             .thenReturn(Collections.singletonList(utilMappedSnapshot));
 
         // ACT
-        Map<Long, List<StatApiDTO>> ret = query.getAggregateStats(Sets.newHashSet(CVG_INPUT, UTL_INPUT), context);
+        final List<StatSnapshotApiDTO> results = query.getAggregateStats(Sets.newHashSet(CVG_INPUT, UTL_INPUT), context);
 
         // VERIFY
         verify(mapper).createCoverageRequest(context);
@@ -190,8 +191,12 @@ public class RIStatsSubQueryTest {
         verify(backend).getReservedInstanceUtilizationStats(utilReq);
 
         // Should be merged into one time
-        assertThat(ret.keySet(), containsInAnyOrder(MILLIS));
-        assertThat(ret.get(MILLIS), containsInAnyOrder(cvgMappedSnapshot.getStatistics().get(0), utilMappedSnapshot.getStatistics().get(0)));
+        assertEquals(1, results.size());
+        final StatSnapshotApiDTO resultSnapshot = results.get(0);
+        assertEquals(MILLIS, DateTimeUtil.parseTime(resultSnapshot.getDate()).longValue());
+        final List<StatApiDTO> stats = resultSnapshot.getStatistics();
+        assertThat(stats.size(), is(2));
+        assertThat(stats, containsInAnyOrder(cvgMappedSnapshot.getStatistics().get(0), utilMappedSnapshot.getStatistics().get(0)));
     }
 
     /**
@@ -213,11 +218,12 @@ public class RIStatsSubQueryTest {
         when(mapper.convertNumRIStatsRecordsToStatSnapshotApiDTO(any())).thenCallRealMethod();
         final StatApiInputDTO request = new StatApiInputDTO();
         request.setName(StringConstants.NUM_RI);
-        final Map<Long, List<StatApiDTO>> result =
+        final List<StatSnapshotApiDTO> results =
                 query.getAggregateStats(Collections.singleton(request),
                 context);
-        Assert.assertFalse(result.isEmpty());
-        final List<StatApiDTO> statApiDTOS = result.values().iterator().next();
+        assertEquals(1, results.size());
+        final StatSnapshotApiDTO resultSnapshot = results.get(0);
+        final List<StatApiDTO> statApiDTOS = resultSnapshot.getStatistics();
         Assert.assertFalse(statApiDTOS.isEmpty());
         final StatApiDTO statApiDTO = statApiDTOS.iterator().next();
         Assert.assertEquals(TIER_NAME, statApiDTO.getFilters().iterator().next().getValue());

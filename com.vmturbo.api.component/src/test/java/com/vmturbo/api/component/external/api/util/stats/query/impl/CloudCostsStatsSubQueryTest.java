@@ -341,18 +341,19 @@ public class CloudCostsStatsSubQueryTest {
 
         // test
         try {
-            Map<Long, List<StatApiDTO>> stats = query.getAggregateStats(requestedStats, context);
+            List<StatSnapshotApiDTO> statSnapshots = query.getAggregateStats(requestedStats, context);
 
             // assert
-            assertThat(stats.size(), is(1));
+            assertThat(statSnapshots.size(), is(1));
 
-            Map<String, List<StatFilterApiDTO>> cloudServiceToFilters = stats.values().stream()
-                    .flatMap(List::stream)
-                    .collect(Collectors.toList())
-                    .stream()
-                    .collect(Collectors.toMap(
-                            statApiDTO -> statApiDTO.getRelatedEntity().getUuid(),
-                            StatApiDTO::getFilters));
+            Map<String, List<StatFilterApiDTO>> cloudServiceToFilters = statSnapshots.stream()
+                .map(StatSnapshotApiDTO::getStatistics)
+                .flatMap(List::stream)
+                .collect(Collectors.toList())
+                .stream()
+                .collect(Collectors.toMap(
+                    statApiDTO -> statApiDTO.getRelatedEntity().getUuid(),
+                    StatApiDTO::getFilters));
 
             assertThat(cloudServiceToFilters.get(Long.toString(CLOUD_SERVICE_ID_1)).size(), is(1));
             assertThat(cloudServiceToFilters.get(Long.toString(CLOUD_SERVICE_ID_1)).get(0), is(filter1));

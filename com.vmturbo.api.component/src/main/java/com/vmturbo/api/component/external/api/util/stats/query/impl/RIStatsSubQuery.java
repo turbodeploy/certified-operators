@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -27,6 +28,7 @@ import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
+import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
@@ -100,8 +102,8 @@ public class RIStatsSubQuery implements StatsSubQuery {
 
     @Nonnull
     @Override
-    public Map<Long, List<StatApiDTO>> getAggregateStats(@Nonnull final Set<StatApiInputDTO> stats,
-                                                         @Nonnull final StatsQueryContext context)
+    public List<StatSnapshotApiDTO> getAggregateStats(@Nonnull final Set<StatApiInputDTO> stats,
+                                                      @Nonnull final StatsQueryContext context)
             throws OperationFailedException {
         final List<StatSnapshotApiDTO> snapshots = new ArrayList<>();
         if (containsStat(StringConstants.NUM_RI, stats) && isValidScopeForNumRIRequest(context)) {
@@ -145,14 +147,17 @@ public class RIStatsSubQuery implements StatsSubQuery {
 
         return snapshots.stream()
             .collect(Collectors.toMap(snapshot -> DateTimeUtil.parseTime(snapshot.getDate()),
-                StatSnapshotApiDTO::getStatistics, (v1, v2) -> {
+                Function.identity(), (v1, v2) -> {
                     // Merge stats lists with the same date.
+                    final List<StatApiDTO> stats1 = v1.getStatistics();
+                    final List<StatApiDTO> stats2 = v2.getStatistics();
                     final List<StatApiDTO> combinedList =
-                        new ArrayList<>(v1.size() + v2.size());
-                    combinedList.addAll(v1);
-                    combinedList.addAll(v2);
-                    return combinedList;
-                }));
+                        new ArrayList<>(stats1.size() + stats2.size());
+                    combinedList.addAll(stats1);
+                    combinedList.addAll(stats2);
+                    v1.setStatistics(combinedList);
+                    return v1;
+                })).values().stream().collect(Collectors.toList());
     }
 
     /**
@@ -377,6 +382,7 @@ public class RIStatsSubQuery implements StatsSubQuery {
             final List<StatSnapshotApiDTO> response = new ArrayList<>();
             final StatSnapshotApiDTO snapshotApiDTO = new StatSnapshotApiDTO();
             snapshotApiDTO.setDate(DateTimeUtil.toString(Clock.systemUTC().millis()));
+            snapshotApiDTO.setEpoch(Epoch.CURRENT);
             List<StatApiDTO> statApiDTOList = new ArrayList<>();
             for (String template : records.keySet()) {
                 statApiDTOList.add(createNumRIStatApiDTO(template, records.get(template)));
@@ -401,6 +407,8 @@ public class RIStatsSubQuery implements StatsSubQuery {
                 .map(record -> {
                     final StatSnapshotApiDTO snapshotApiDTO = new StatSnapshotApiDTO();
                     snapshotApiDTO.setDate(DateTimeUtil.toString(record.getSnapshotDate()));
+                    // TODO: Can these be projected?
+                    snapshotApiDTO.setEpoch(Epoch.HISTORICAL);
                     final StatApiDTO statApiDTO = createRIUtilizationStatApiDTO(record, isRICoverage);
                     snapshotApiDTO.setStatistics(Lists.newArrayList(statApiDTO));
                     return snapshotApiDTO;

@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -29,7 +30,9 @@ import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactor
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
+import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
@@ -181,8 +184,10 @@ public class CloudPlanNumEntitiesByTierSubQueryTest {
         final StatApiInputDTO requestedStats =
                                              new StatApiInputDTO(StringConstants.NUM_VIRTUAL_DISKS,
                                                                  null, null, null);
-        final PlanInstance planInstance = PlanInstance.newBuilder().setStartTime(BEFORE_TIME)
-                        .setPlanId(0L).setStatus(PlanStatus.SUCCEEDED).build();
+        final PlanInstance planInstance = PlanInstance.newBuilder()
+            .setStartTime(BEFORE_TIME)
+            .setEndTime(AFTER_TIME)
+            .setPlanId(0L).setStatus(PlanStatus.SUCCEEDED).build();
         final StatsQueryContext context = mock(StatsQueryContext.class, Mockito.RETURNS_DEEP_STUBS);
         Mockito.when(context.getPlanInstance()).thenReturn(Optional.of(planInstance));
         Mockito.when(context.getInputScope().oid()).thenReturn(22222L);
@@ -195,14 +200,20 @@ public class CloudPlanNumEntitiesByTierSubQueryTest {
                         .thenReturn(PROJECTED_VOLUMES_ENTITIES);
         Mockito.when(request.getMinimalEntities()).thenReturn(SOURCE_TIERS_ENTITIES)
                         .thenReturn(PROJECTED_TIERS_ENTITIES);
-        final Map<Long, List<StatApiDTO>> result = query
+        final List<StatSnapshotApiDTO> result = query
                         .getAggregateStats(Collections.singleton(requestedStats), context);
-        checkStats(result, BEFORE_TIME, 2);
-        checkStats(result, AFTER_TIME, 1);
+        checkResult(result, BEFORE_TIME, 2);
+        checkResult(result, AFTER_TIME, 1);
     }
 
-    private static void checkStats(Map<Long, List<StatApiDTO>> result, Long time, int filtersSize) {
-        final List<StatApiDTO> statsList = result.get(time);
+    private static void checkResult(List<StatSnapshotApiDTO> result, Long time, int filtersSize) {
+        final List<StatApiDTO> statsList = result.stream()
+            // We must compare datetimes as Strings because our ISO format lacks millisecond precision,
+            // and thus converting back to a long will be lossy and the values may not be equal.
+            .filter(statSnapshotApiDTO -> DateTimeUtil.toString(time).equals(statSnapshotApiDTO.getDate()))
+            .map(StatSnapshotApiDTO::getStatistics)
+            .flatMap(Collection::stream)
+            .collect(Collectors.toList());
         Assert.assertNotNull(statsList);
         final StatApiDTO stats = statsList.get(0);
         List<StatFilterApiDTO> filters = stats.getFilters();
