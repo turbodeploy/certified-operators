@@ -7,11 +7,11 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.AnalysisDTO;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisResponse;
@@ -21,13 +21,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
-import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
-import com.vmturbo.topology.processor.topology.pipeline.PlanPipelineFactory;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.TopologyPipelineException;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService.QueueCapacityExceededException;
 
 /**
  * See: topology/AnalysisDTO.proto.
@@ -40,24 +38,20 @@ public class AnalysisRpcService extends AnalysisServiceImplBase {
 
     private final Clock clock;
 
-    private PlanPipelineFactory planPipelineFactory;
+    private final TopologyPipelineExecutorService pipelineExecutorService;
 
     private final TopologyHandler topologyHandler;
 
-    private EntityStore entityStore;
-
     private final StitchingJournalFactory journalFactory;
 
-    AnalysisRpcService(@Nonnull final PlanPipelineFactory planPipelineFactory,
+    AnalysisRpcService(@Nonnull final TopologyPipelineExecutorService pipelineExecutorService,
                        @Nonnull final TopologyHandler topologyHandler,
                        @Nonnull final IdentityProvider identityProvider,
-                       @Nonnull final EntityStore entityStore,
                        @Nonnull final StitchingJournalFactory journalFactory,
                        @Nonnull final Clock clock) {
-        this.planPipelineFactory = Objects.requireNonNull(planPipelineFactory);
+        this.pipelineExecutorService = Objects.requireNonNull(pipelineExecutorService);
         this.topologyHandler = topologyHandler;
         this.identityProvider = Objects.requireNonNull(identityProvider);
-        this.entityStore = Objects.requireNonNull(entityStore);
         this.journalFactory = Objects.requireNonNull(journalFactory);
         this.clock = Objects.requireNonNull(clock);
     }
@@ -96,30 +90,19 @@ public class AnalysisRpcService extends AnalysisServiceImplBase {
                 .build();
 
         try {
-            final TopologyBroadcastInfo broadcastInfo;
-
             if (request.hasTopologyId()) {
-                broadcastInfo = planPipelineFactory.planOverOldTopology(topologyInfo,
-                        request.getScenarioChangeList(), request.getPlanScope())
-                    .run(request.getTopologyId());
+                pipelineExecutorService.queuePlanOverPlanPipeline(request.getTopologyId(), topologyInfo,
+                    request.getScenarioChangeList(), request.getPlanScope());
             } else {
-                broadcastInfo = planPipelineFactory.planOverLiveTopology(topologyInfo,
-                        request.getScenarioChangeList(), request.getPlanScope(), journalFactory)
-                    .run(entityStore);
+                pipelineExecutorService.queuePlanPipeline(topologyInfo,
+                    request.getScenarioChangeList(), request.getPlanScope(), journalFactory);
             }
-            responseObserver.onNext(StartAnalysisResponse.newBuilder()
-                    .setEntitiesBroadcast(broadcastInfo.getEntityCount())
-                    .setTopologyId(broadcastInfo.getTopologyId())
-                    .setTopologyContextId(broadcastInfo.getTopologyContextId())
-                    .build());
+
+            responseObserver.onNext(StartAnalysisResponse.getDefaultInstance());
             responseObserver.onCompleted();
-        } catch (TopologyPipelineException e) {
-            logger.error("Analysis failed with pipeline exception.", e);
-            responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            logger.error("Analysis interrupted: {}", e.getMessage());
-            responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
+        } catch (QueueCapacityExceededException e) {
+            responseObserver.onError(Status.UNAVAILABLE.withDescription(e.getMessage())
+                .asException());
         }
     }
 

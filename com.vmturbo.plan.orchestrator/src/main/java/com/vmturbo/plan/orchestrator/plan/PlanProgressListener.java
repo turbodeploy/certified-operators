@@ -6,10 +6,10 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.action.orchestrator.api.ActionsListener;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
@@ -24,6 +24,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.Builder;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanProgressStatusEnum.Status;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.cost.api.CostNotificationListener;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.StatsAvailable;
@@ -31,12 +32,13 @@ import com.vmturbo.history.component.api.StatsListener;
 import com.vmturbo.market.component.api.AnalysisStatusNotificationListener;
 import com.vmturbo.plan.orchestrator.reservation.ReservationPlacementHandler;
 import com.vmturbo.repository.api.RepositoryListener;
+import com.vmturbo.topology.processor.api.TopologySummaryListener;
 
 /**
  * Listener for action orchestrator's notifications.
  */
 public class PlanProgressListener implements ActionsListener, RepositoryListener, StatsListener,
-        CostNotificationListener, AnalysisStatusNotificationListener {
+        CostNotificationListener, TopologySummaryListener, AnalysisStatusNotificationListener {
 
     private final PlanDao planDao;
 
@@ -56,6 +58,33 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
         this.planService = planService;
         this.reservationPlacementHandler = Objects.requireNonNull(reservationPlacementHandler);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
+    }
+
+    @Override
+    public void onTopologySummary(@Nonnull TopologySummary topologySummary) {
+        final long planId = topologySummary.getTopologyInfo().getTopologyContextId();
+        // Ignore realtime notifications.
+        if (planId == realtimeTopologyContextId) {
+            logger.debug("Dropping realtime broadcast success notification: {}", topologySummary);
+            return;
+        }
+
+        try {
+            final PlanInstance plan = planDao.updatePlanInstance(planId, planBuilder -> {
+                planBuilder.getPlanProgressBuilder()
+                    .setSourceTopologySummary(topologySummary);
+                if (planBuilder.getStatus() == PlanStatus.CONSTRUCTING_TOPOLOGY) {
+                    planBuilder.setStatus(PlanStatus.RUNNING_ANALYSIS);
+                }
+            });
+            logger.info("Received broadcast success notification for plan {}. New status: {}",
+                planId, plan.getStatus());
+        } catch (IntegrityException e) {
+            logger.error("Could not change plan's {} state after broadcast of topology ",
+                topologySummary.getTopologyInfo().getTopologyId());
+        } catch (NoSuchObjectException e) {
+            logger.error("Could not find plan by topology context id {}", planId, e);
+        }
     }
 
     /**

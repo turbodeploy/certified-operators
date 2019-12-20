@@ -159,10 +159,6 @@ public class PlanNotificationsTest {
                 new StatusMatcher(PlanStatus.CONSTRUCTING_TOPOLOGY);
         Mockito.verify(listener, Mockito.timeout(TIMEOUT).atLeastOnce())
                 .onPlanStatusChanged(constructingTopologyMatcher.capture());
-
-        final StatusMatcher analysisMatcher = new StatusMatcher(PlanStatus.RUNNING_ANALYSIS);
-        Mockito.verify(listener, Mockito.timeout(TIMEOUT).atLeastOnce())
-                .onPlanStatusChanged(analysisMatcher.capture());
     }
 
     /**

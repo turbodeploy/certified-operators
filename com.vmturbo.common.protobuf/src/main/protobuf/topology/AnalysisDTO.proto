@@ -40,15 +40,6 @@ message StartAnalysisRequest {
 }
 
 message StartAnalysisResponse {
-    // The number of entities in the broadcast topology.
-    optional int64 entities_broadcast = 10;
-
-    // The ID of the topology that was broadcast.
-    optional int64 topology_id = 11;
-
-    // The ID of the topology context for which this broadcast occurred.
-    // Used to differentiate, for example, between real and plan contexts.
-    optional int64 topology_context_id = 12;
 }
 
 // The Analysis service is the interface to trigger analyses in

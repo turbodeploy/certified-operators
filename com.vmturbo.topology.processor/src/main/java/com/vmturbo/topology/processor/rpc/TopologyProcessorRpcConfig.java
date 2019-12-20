@@ -1,6 +1,9 @@
 package com.vmturbo.topology.processor.rpc;
 
+import java.util.concurrent.TimeUnit;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -73,6 +76,9 @@ public class TopologyProcessorRpcConfig {
     @Autowired
     private SdkServerConfig sdkServerConfig;
 
+    @Value("${waitForBroadcastTimeoutMin:60}")
+    private long waitForBroadcastTimeoutMin;
+
     @Bean
     public DiscoveredGroupRpcService discoveredGroupRpcService() {
         return new DiscoveredGroupRpcService(groupConfig.discoveredGroupUploader());
@@ -86,13 +92,14 @@ public class TopologyProcessorRpcConfig {
     @Bean
     public TopologyRpcService topologyRpcService() {
         return new TopologyRpcService(topologyConfig.topologyHandler(),
-            topologyConfig.livePipelineFactory(),
+            topologyConfig.pipelineExecutorService(),
             identityProviderConfig.identityProvider(),
-            entityConfig.entityStore(),
             schedulerConfig.scheduler(),
             stitchingConfig.stitchingJournalFactory(),
             topologyConfig.realtimeTopologyContextId(),
-            clockConfig.clock());
+            clockConfig.clock(),
+            waitForBroadcastTimeoutMin,
+            TimeUnit.MINUTES);
     }
 
     @Bean

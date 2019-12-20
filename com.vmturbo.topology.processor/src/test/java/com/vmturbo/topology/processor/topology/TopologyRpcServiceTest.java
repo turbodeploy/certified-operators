@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -23,13 +24,13 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.stubbing.Answer;
-
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
@@ -50,30 +51,33 @@ import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
-import com.vmturbo.topology.processor.topology.pipeline.LivePipelineFactory;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Stage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.StageResult;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService.TopologyPipelineRequest;
 
 public class TopologyRpcServiceTest {
+
+    private static final long TIMEOUT_MS = 5;
 
     private TopologyServiceGrpc.TopologyServiceBlockingStub topologyRpcClient;
 
     private TopologyHandler topologyHandler = mock(TopologyHandler.class);
 
-    private final LivePipelineFactory livePipelineFactory = mock(LivePipelineFactory.class);
+    private final TopologyPipelineExecutorService pipelineExecutorService = mock(TopologyPipelineExecutorService.class);
     private final IdentityProvider identityProvider = mock(IdentityProvider.class);
-    private final EntityStore entityStore = mock(EntityStore.class);
     private final long realtimeTopologyContextId = 1234567L;
     private final Clock clock = mock(Clock.class);
     private final Scheduler scheduler = mock(Scheduler.class);
 
     private TopologyRpcService topologyRpcServiceBackend = new TopologyRpcService(topologyHandler,
-        livePipelineFactory, identityProvider, entityStore, scheduler,
-        StitchingJournalFactory.emptyStitchingJournalFactory(), realtimeTopologyContextId, clock);
+        pipelineExecutorService, identityProvider, scheduler,
+        StitchingJournalFactory.emptyStitchingJournalFactory(), realtimeTopologyContextId, clock,
+        TIMEOUT_MS, TimeUnit.MILLISECONDS);
 
     @Rule
     public GrpcTestServer server = GrpcTestServer.newServer(topologyRpcServiceBackend);
@@ -220,21 +224,26 @@ public class TopologyRpcServiceTest {
         // Set up an answer that builds a fake pipeline whose sole purpose is to inject
         // the DTO above into a broadcast stage that pushes the topology through the
         // grpc broadcast manager we provide.
-        Answer<TopologyPipeline<EntityStore, TopologyBroadcastInfo>> answer = invocation -> {
+        Answer<TopologyPipelineRequest> answer = invocation -> {
             final TopologyInfo info = invocation.getArgumentAt(0, TopologyInfo.class);
             final List<TopoBroadcastManager> broadcastManager =
                 (List<TopoBroadcastManager>)invocation.getArgumentAt(1, List.class);
             final TopologyPipelineContext context =
                 new TopologyPipelineContext(groupResolver, info);
 
-            return TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context)
-                .addStage(new MockGraphStage(entityDto))
-                .addStage(new BroadcastStage(Collections.singletonList(broadcastManager.get(0)),
-                                             matrix))
-                .build();
+            TopologyPipeline<EntityStore, TopologyBroadcastInfo> pipeline =
+                TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context)
+                    .addStage(new MockGraphStage(entityDto))
+                    .addStage(new BroadcastStage(Collections.singletonList(broadcastManager.get(0)),
+                                                 matrix))
+                    .build();
+            TopologyBroadcastInfo broadcastInfo = pipeline.run(mock(EntityStore.class));
+            TopologyPipelineRequest req = mock(TopologyPipelineRequest.class);
+            when(req.waitForBroadcast(TIMEOUT_MS, TimeUnit.MILLISECONDS)).thenReturn(broadcastInfo);
+            return req;
         };
 
-        when(livePipelineFactory.liveTopology(any(TopologyInfo.class), any(),
+        when(pipelineExecutorService.queueLivePipeline(any(TopologyInfo.class), any(),
                 any(StitchingJournalFactory.class))).thenAnswer(answer);
 
         Iterable<Topology> topologyIter =
@@ -312,8 +321,10 @@ public class TopologyRpcServiceTest {
 
     @Test
     public void testBroadcastAndReturnTopologyException() throws Exception {
-        when(livePipelineFactory.liveTopology(any(TopologyInfo.class), any(),
-                any(StitchingJournalFactory.class))).thenThrow(new RuntimeException("foo"));
+        TopologyPipelineRequest req = mock(TopologyPipelineRequest.class);
+        when(req.waitForBroadcast(TIMEOUT_MS, TimeUnit.MILLISECONDS)).thenThrow(new RuntimeException("foo"));
+        when(pipelineExecutorService.queueLivePipeline(any(TopologyInfo.class), any(),
+                any(StitchingJournalFactory.class))).thenReturn(req);
 
         try {
             Iterable<Topology> topologyIter =

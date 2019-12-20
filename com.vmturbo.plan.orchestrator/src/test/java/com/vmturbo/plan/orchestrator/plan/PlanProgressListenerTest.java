@@ -1,11 +1,23 @@
 package com.vmturbo.plan.orchestrator.plan;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.when;
+
+import java.util.function.Consumer;
+
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.support.AnnotationConfigContextLoader;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
+import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
@@ -18,15 +30,16 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RISett
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastSuccess;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.plan.orchestrator.reservation.ReservationPlacementHandler;
 
 /**
  * Tests the methods in the plan progress listener.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(loader = AnnotationConfigContextLoader.class,
-        classes = {PlanTestConfig.class})
 public class PlanProgressListenerTest {
 
     /**
@@ -57,6 +70,83 @@ public class PlanProgressListenerTest {
      * Plan failed.
      */
     private static final PlanStatus FAILED = PlanStatus.FAILED;
+
+        private static final long REALTIME_CONTEXT_ID = 777;
+
+    private PlanDao planDao = mock(PlanDao.class);
+
+    private PlanRpcService planRpcService = mock(PlanRpcService.class);
+
+    private ReservationPlacementHandler reservationPlacementHandler =
+        mock(ReservationPlacementHandler.class);
+
+    private PlanProgressListener planProgressListener = new PlanProgressListener(
+        planDao, planRpcService, reservationPlacementHandler, REALTIME_CONTEXT_ID);
+
+    @Captor
+    private ArgumentCaptor<Consumer<PlanInstance.Builder>> builderCaptor;
+
+    /**
+     * Common setup code to run before each test method.
+     */
+    @Before
+    public void setup() {
+        MockitoAnnotations.initMocks(this);
+    }
+
+    /**
+     * Test that the plan status gets updated correctly on receipt of a notification about a
+     * topology broadcast by the Topology Processor.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test
+    public void testOnBroadcastPlan() throws Exception {
+        when(planDao.updatePlanInstance(anyLong(), any())).thenReturn(PlanInstance.getDefaultInstance());
+
+        final long planId = 123;
+        TopologySummary topologySummary = TopologySummary.newBuilder()
+            .setTopologyInfo(TopologyInfo.newBuilder()
+                .setTopologyContextId(planId))
+            .setSuccess(TopologyBroadcastSuccess.getDefaultInstance())
+            .build();
+        planProgressListener.onTopologySummary(topologySummary);
+
+        verify(planDao).updatePlanInstance(eq(planId), builderCaptor.capture());
+
+        final Consumer<PlanInstance.Builder> builderModifier = builderCaptor.getValue();
+        final PlanInstance.Builder constructingTopologyBuilder = PlanInstance.newBuilder()
+            // This is the initial status once broadcast is queued.
+            .setStatus(PlanStatus.CONSTRUCTING_TOPOLOGY);
+        builderModifier.accept(constructingTopologyBuilder);
+        assertThat(constructingTopologyBuilder.getStatus(), is(PlanStatus.RUNNING_ANALYSIS));
+        assertThat(constructingTopologyBuilder.getPlanProgress().getSourceTopologySummary(),
+            is(topologySummary));
+
+        // It's VERY unlikely, but it's possible that for some reason the "broadcast success"
+        // message got delayed, and we already processed a "later" message. In that case we
+        // shouldn't reset the status back to the "RUNNING ANALYSIS" state.
+        final PlanInstance.Builder unexpectedlyAdvancedBuilder = PlanInstance.newBuilder()
+            .setStatus(PlanStatus.WAITING_FOR_RESULT);
+        builderModifier.accept(unexpectedlyAdvancedBuilder);
+        assertThat(unexpectedlyAdvancedBuilder.getStatus(), is(PlanStatus.WAITING_FOR_RESULT));
+        assertThat(unexpectedlyAdvancedBuilder.getPlanProgress().getSourceTopologySummary(),
+            is(topologySummary));
+    }
+
+    /**
+     * Test that a realtime topology broadcast success is ignored.
+     */
+    @Test
+    public void testBroadcastSuccessRealtimeIgnored() {
+        planProgressListener.onTopologySummary(TopologySummary.newBuilder()
+            .setTopologyInfo(TopologyInfo.newBuilder()
+                .setTopologyContextId(REALTIME_CONTEXT_ID))
+            .setSuccess(TopologyBroadcastSuccess.getDefaultInstance())
+            .build());
+
+        verifyZeroInteractions(planDao);
+    }
 
     /**
      * Tests get OCP with buy RI and optimize services successfully.

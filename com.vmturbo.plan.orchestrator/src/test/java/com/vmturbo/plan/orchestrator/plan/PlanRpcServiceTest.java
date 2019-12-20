@@ -7,6 +7,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.MoreExecutors;
 
@@ -59,13 +60,14 @@ public class PlanRpcServiceTest {
     @Before
     public void setup() {
         planService = new PlanRpcService(mock(PlanDao.class),
-                                         AnalysisServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                                         mock(PlanNotificationSender.class),
-                                         sameThreadExecutor,
-                                         mock(UserSessionContext.class),
-                                         BuyRIAnalysisServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                                         GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-                                         RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+            AnalysisServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            mock(PlanNotificationSender.class),
+            sameThreadExecutor,
+            mock(UserSessionContext.class),
+            BuyRIAnalysisServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            1, TimeUnit.SECONDS);
     }
 
     /**

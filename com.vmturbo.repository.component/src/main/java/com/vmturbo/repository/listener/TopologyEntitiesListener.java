@@ -12,6 +12,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.DataSegment;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary.ResultCase;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
@@ -63,7 +64,8 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
         // will keep track of the most recently received one and use it to try to detect situations
         // where we may be processing stale realtime topologies.
         final TopologyInfo topologyInfo = topologySummary.getTopologyInfo();
-        if (topologyInfo.getTopologyType() == TopologyType.REALTIME) {
+        if (topologyInfo.getTopologyType() == TopologyType.REALTIME &&
+                topologySummary.getResultCase() == ResultCase.SUCCESS) {
             synchronized (topologyInfoLock) {
                 logger.info("Received topology summary. Setting latest known realtime topology" +
                     " id to {}", topologyInfo.getTopologyId());

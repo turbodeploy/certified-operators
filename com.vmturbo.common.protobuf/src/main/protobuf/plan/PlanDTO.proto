@@ -112,6 +112,13 @@ message PlanProgress {
 
     // The status of the market analysis run.  Re-using statuses defined in CostNotification.proto
     optional Status analysis_status = 3 [default = UNKNOWN];
+
+    // If set, summary describing the source topology broadcast for this plan - including whether
+    // or not it failed.
+    //
+    // If unset, the source topology for this plan is still being processed in the topology
+    // processor.
+    optional .topology.TopologySummary source_topology_summary = 10;
 }
 
 // A request to create a plan.

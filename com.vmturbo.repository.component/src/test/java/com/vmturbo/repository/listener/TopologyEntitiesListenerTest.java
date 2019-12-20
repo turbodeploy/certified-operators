@@ -18,6 +18,7 @@ import org.mockito.runners.MockitoJUnitRunner;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastSuccess;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
@@ -116,11 +117,12 @@ public class TopologyEntitiesListenerTest {
         // it's "stale".
         // first we'll prime the topology listener with a "newer" topology summary.
         topologyEntitiesListener.onTopologySummary(TopologySummary.newBuilder()
-                .setTopologyInfo(TopologyInfo.newBuilder()
-                    .setTopologyId(2L) // "2" will be newer than "1"
-                    .setCreationTime(2)
-                    .setTopologyContextId(realtimeTopologyContextId))
-                .build());
+            .setTopologyInfo(TopologyInfo.newBuilder()
+                .setTopologyId(2L) // "2" will be newer than "1"
+                .setCreationTime(2)
+                .setTopologyContextId(realtimeTopologyContextId))
+            .setSuccess(TopologyBroadcastSuccess.getDefaultInstance())
+            .build());
         final long topologyId = 1L;
         final TopologyID tid = topologyIDFactory.createTopologyID(realtimeTopologyContextId, topologyId,
                 TopologyID.TopologyType.SOURCE);

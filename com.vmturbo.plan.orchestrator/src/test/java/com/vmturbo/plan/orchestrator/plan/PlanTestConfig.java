@@ -5,6 +5,7 @@ import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
@@ -143,8 +144,9 @@ public class PlanTestConfig {
     @Bean
     public PlanRpcService planServer() throws IOException {
         return new PlanRpcService(planDao(),
-                analysisClient(), planNotificationSender(), startAnalysisThreadPool(),
-                userSessionContext(), buyRIService(), groupServiceBlockingStub(), repositoryServiceBlockingStub());
+            analysisClient(), planNotificationSender(), startAnalysisThreadPool(),
+            userSessionContext(), buyRIService(), groupServiceBlockingStub(),
+            repositoryServiceBlockingStub(), 1, TimeUnit.SECONDS);
     }
 
     @Bean

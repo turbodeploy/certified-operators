@@ -9,15 +9,16 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CaseFormat;
 import com.google.common.base.Preconditions;
 
 import io.grpc.StatusRuntimeException;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
@@ -77,6 +78,20 @@ public class TopologyPipeline<PipelineInput, PipelineOutput> {
         this.stages = stages;
         this.context = context;
         this.pipelineSummary = new TopologyPipelineSummary(Clock.systemUTC(), context, stages);
+    }
+
+    /**
+     * Get the {@link TopologyInfo} describing the topology being constructed by this pipeline.
+     * This returns the current version of the {@link TopologyInfo}. Some stages may edit the
+     * {@link TopologyInfo}, and those changes may or may not be present in the snapshot depending
+     * on whether the stage has run or not. To get the guaranteed "final" version of the
+     * {@link TopologyInfo}, call this method only after {@link TopologyPipeline#run(Object)}.
+     *
+     * @return The {@link TopologyInfo} describing the topology constructed by this pipeline.
+     */
+    @Nonnull
+    public TopologyInfo getTopologyInfo() {
+        return context.getTopologyInfo();
     }
 
     /**

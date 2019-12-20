@@ -1,22 +1,22 @@
 package com.vmturbo.topology.processor.topology;
 
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
-import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
-import com.vmturbo.matrix.component.external.MatrixInterface;
-import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
-import com.vmturbo.topology.processor.actions.ActionsConfig;
-import com.vmturbo.topology.processor.ncm.MatrixConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
+import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.topology.processor.ClockConfig;
+import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
+import com.vmturbo.topology.processor.actions.ActionsConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
 import com.vmturbo.topology.processor.controllable.ControllableConfig;
 import com.vmturbo.topology.processor.cost.CloudCostConfig;
@@ -26,6 +26,7 @@ import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicySca
 import com.vmturbo.topology.processor.historical.HistoricalUtilizationDatabase;
 import com.vmturbo.topology.processor.history.HistoryAggregationConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
+import com.vmturbo.topology.processor.ncm.MatrixConfig;
 import com.vmturbo.topology.processor.plan.PlanConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.repository.RepositoryConfig;
@@ -38,6 +39,7 @@ import com.vmturbo.topology.processor.template.TemplateConfig;
 import com.vmturbo.topology.processor.topology.pipeline.CachedTopology;
 import com.vmturbo.topology.processor.topology.pipeline.LivePipelineFactory;
 import com.vmturbo.topology.processor.topology.pipeline.PlanPipelineFactory;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService;
 import com.vmturbo.topology.processor.workflow.WorkflowConfig;
 
 /**
@@ -139,15 +141,25 @@ public class TopologyConfig {
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
+    @Value("${waitForBroadcastTimeoutMin:60}")
+    private long waitForBroadcastTimeoutMin;
+
+    @Value("${concurrentPlanPipelinesAllowed:1}")
+    private int concurrentPlanPipelinesAllowed;
+
+    @Value("${maxQueuedPipelinesAllowed:1000}")
+    private int maxQueuedPlanPipelinesAllowed;
+
     @Bean
     public TopologyHandler topologyHandler() {
         return new TopologyHandler(realtimeTopologyContextId(),
-                livePipelineFactory(),
-                identityProviderConfig.identityProvider(),
-                entityConfig.entityStore(),
-                probeConfig.probeStore(),
-                targetConfig.targetStore(),
-                clockConfig.clock());
+            pipelineExecutorService(),
+            identityProviderConfig.identityProvider(),
+            probeConfig.probeStore(),
+            targetConfig.targetStore(),
+            clockConfig.clock(),
+            waitForBroadcastTimeoutMin,
+            TimeUnit.MINUTES);
     }
 
     @Bean
@@ -259,6 +271,18 @@ public class TopologyConfig {
                 historyAggregationConfig.historyAggregationStage(),
                 dmandOverriddenCommodityEditor()
         );
+    }
+
+    /**
+     * The entrance point for triggering broadcasts.
+     *
+     * @return The {@link TopologyPipelineExecutorService}.
+     */
+    @Bean
+    public TopologyPipelineExecutorService pipelineExecutorService() {
+        return new TopologyPipelineExecutorService(concurrentPlanPipelinesAllowed, maxQueuedPlanPipelinesAllowed, livePipelineFactory(),
+            planPipelineFactory(), entityConfig.entityStore(),
+            apiConfig.topologyProcessorNotificationSender());
     }
 
     /**

@@ -8,7 +8,6 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.topology.AnalysisDTOREST.AnalysisServiceController;
 import com.vmturbo.topology.processor.ClockConfig;
-import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.plan.PlanConfig;
 import com.vmturbo.topology.processor.repository.RepositoryConfig;
@@ -21,7 +20,6 @@ import com.vmturbo.topology.processor.topology.TopologyConfig;
 @Configuration
 @Import({
     TopologyConfig.class,
-    EntityConfig.class,
     IdentityProviderConfig.class,
     RepositoryConfig.class,
     StitchingConfig.class,
@@ -30,9 +28,6 @@ public class AnalysisConfig {
 
     @Autowired
     private TopologyConfig topologyConfig;
-
-    @Autowired
-    private EntityConfig entityConfig;
 
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
@@ -51,10 +46,9 @@ public class AnalysisConfig {
 
     @Bean
     public AnalysisRpcService analysisService() {
-        return new AnalysisRpcService(topologyConfig.planPipelineFactory(),
+        return new AnalysisRpcService(topologyConfig.pipelineExecutorService(),
                 topologyConfig.topologyHandler(),
                 identityProviderConfig.identityProvider(),
-                entityConfig.entityStore(),
                 stichingConfig.stitchingJournalFactory(),
                 clockConfig.clock());
     }

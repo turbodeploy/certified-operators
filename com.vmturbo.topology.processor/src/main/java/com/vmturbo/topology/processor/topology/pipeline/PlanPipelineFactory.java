@@ -176,7 +176,7 @@ public class PlanPipelineFactory {
      * @return The {@link TopologyPipeline}. This pipeline will accept an {@link EntityStore}
      *         and return the {@link TopologyBroadcastInfo} of the successful broadcast.
      */
-    public TopologyPipeline<EntityStore, TopologyBroadcastInfo> planOverLiveTopology(
+    TopologyPipeline<EntityStore, TopologyBroadcastInfo> planOverLiveTopology(
             @Nonnull final TopologyInfo topologyInfo,
             @Nonnull final List<ScenarioChange> changes,
             @Nullable final PlanScope scope,
@@ -232,7 +232,7 @@ public class PlanPipelineFactory {
      * @return The {@link TopologyPipeline}. This pipeline will accept a long (the ID of the old
      *         topology) and return the {@link TopologyBroadcastInfo} of the successful broadcast.
      */
-    public TopologyPipeline<Long, TopologyBroadcastInfo> planOverOldTopology(
+    TopologyPipeline<Long, TopologyBroadcastInfo> planOverOldTopology(
             @Nonnull final TopologyInfo topologyInfo,
             @Nonnull final List<ScenarioChange> changes,
             @Nullable final PlanScope scope) {

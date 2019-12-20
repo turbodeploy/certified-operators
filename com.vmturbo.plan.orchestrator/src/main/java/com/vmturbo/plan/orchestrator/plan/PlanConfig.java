@@ -3,6 +3,7 @@ package com.vmturbo.plan.orchestrator.plan;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
@@ -70,6 +71,9 @@ public class PlanConfig {
     @Value("${realtimeTopologyContextId}")
     private Long realtimeTopologyContextId;
 
+    @Value("${startAnalysisRetryTimeoutMin:30}")
+    private long startAnalysisRetryTimeoutMin;
+
     @Autowired
     private PlanOrchestratorDBConfig dbConfig;
 
@@ -131,13 +135,15 @@ public class PlanConfig {
     @Bean
     public PlanRpcService planService() {
         return new PlanRpcService(planDao(),
-                analysisService(),
-                planNotificationSender(),
-                startAnalysisThreadPool(),
-                userSessionConfig.userSessionContext(),
-                buyRIService(),
-                groupServiceBlockingStub(),
-                repositoryServiceBlockingStub());
+            analysisService(),
+            planNotificationSender(),
+            startAnalysisThreadPool(),
+            userSessionConfig.userSessionContext(),
+            buyRIService(),
+            groupServiceBlockingStub(),
+            repositoryServiceBlockingStub(),
+            startAnalysisRetryTimeoutMin,
+            TimeUnit.MINUTES);
     }
 
     @Bean

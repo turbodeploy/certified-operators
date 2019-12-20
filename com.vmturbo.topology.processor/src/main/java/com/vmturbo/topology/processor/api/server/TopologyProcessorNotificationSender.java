@@ -211,7 +211,7 @@ public class TopologyProcessorNotificationSender
     @Nonnull
     @Override
     public TopologyBroadcast broadcastLiveTopology(@Nonnull final TopologyInfo topologyInfo) {
-        return new TopologyBroadcastImpl(liveTopologySender, topologyInfo, this::broadcastTopologySummary);
+        return new TopologyBroadcastImpl(liveTopologySender, topologyInfo);
     }
 
     @Nonnull
@@ -227,11 +227,14 @@ public class TopologyProcessorNotificationSender
         return new TopologyBroadcastImpl(schedPlanTopologySender, topologyInfo);
     }
 
-    public void broadcastTopologySummary(@Nonnull final TopologyInfo topologyInfo) {
+    /**
+     * Broadcast a {@link TopologySummary} describing a successful or failed topology broadcast.
+     *
+     * @param topologySummary The {@link TopologySummary} message.
+     */
+    public void broadcastTopologySummary(@Nonnull final TopologySummary topologySummary) {
         try {
-            topologySummarySender.sendMessage(TopologySummary.newBuilder()
-                    .setTopologyInfo(topologyInfo)
-                    .build());
+            topologySummarySender.sendMessage(topologySummary);
         } catch (CommunicationException|InterruptedException e) {
             getLogger().error("Could not send TopologySummary message", e);
         }

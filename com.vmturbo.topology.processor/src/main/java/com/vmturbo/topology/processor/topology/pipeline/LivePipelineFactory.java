@@ -204,7 +204,7 @@ public class LivePipelineFactory {
      * @return The {@link TopologyPipeline}. This pipeline will accept an {@link EntityStore}
      *         and return the {@link TopologyBroadcastInfo} of the successful broadcast.
      */
-    public TopologyPipeline<EntityStore, TopologyBroadcastInfo> liveTopology(
+    TopologyPipeline<EntityStore, TopologyBroadcastInfo> liveTopology(
             @Nonnull final TopologyInfo topologyInfo,
             @Nonnull final List<TopoBroadcastManager> additionalBroadcastManagers,
             @Nonnull final StitchingJournalFactory journalFactory) {

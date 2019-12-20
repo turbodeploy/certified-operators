@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -13,6 +15,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import io.grpc.Status;
+import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
@@ -31,15 +34,16 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
-import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScenario;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
+import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceImplBase;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
-import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceImplBase;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisRequest;
-import com.vmturbo.common.protobuf.topology.AnalysisDTO.StartAnalysisResponse;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceBlockingStub;
+import com.vmturbo.components.api.RetriableOperation;
+import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
 
@@ -66,6 +70,8 @@ public class PlanRpcService extends PlanServiceImplBase {
 
     private final UserSessionContext userSessionContext;
 
+    private final long startAnalysisRetryMs;
+
     public PlanRpcService(@Nonnull final PlanDao planDao,
                           @Nonnull final AnalysisServiceBlockingStub analysisService,
                           @Nonnull final PlanNotificationSender planNotificationSender,
@@ -73,7 +79,9 @@ public class PlanRpcService extends PlanServiceImplBase {
                           @Nonnull final UserSessionContext userSessionContext,
                           @Nonnull final BuyRIAnalysisServiceBlockingStub buyRIService,
                           @Nonnull final GroupServiceBlockingStub groupServiceClient,
-                          @Nonnull final RepositoryServiceBlockingStub repositoryServiceClient) {
+                          @Nonnull final RepositoryServiceBlockingStub repositoryServiceClient,
+                          final long startAnalysisRetryTimeout,
+                          @Nonnull final TimeUnit startAnalysisRetryTimeUnit) {
         this.planDao = Objects.requireNonNull(planDao);
         this.analysisService = Objects.requireNonNull(analysisService);
         this.planNotificationSender = Objects.requireNonNull(planNotificationSender);
@@ -82,6 +90,7 @@ public class PlanRpcService extends PlanServiceImplBase {
         this.buyRIService = buyRIService;
         this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
         this.repositoryServiceClient = Objects.requireNonNull(repositoryServiceClient);
+        this.startAnalysisRetryMs = startAnalysisRetryTimeUnit.toMillis(startAnalysisRetryTimeout);
     }
 
     @Override
@@ -390,34 +399,44 @@ public class PlanRpcService extends PlanServiceImplBase {
         // running more than one plan under a plan project (once we have those) or
         // a scenario.
         analysisExecutor.submit(() -> {
-            // TODO (roman, Dec. 29 2016): If this try block throws an exception
-            // we should send a notification indicating that the plan has failed.
             try {
                 planDao.updatePlanInstance(request.getPlanId(), oldInstance ->
                         oldInstance.setStatus(PlanStatus.CONSTRUCTING_TOPOLOGY));
 
-                final StartAnalysisResponse response = analysisService.startAnalysis(request);
-                logger.info("Started analysis for plan {} on topology {} with {} entities", request.getPlanId(),
-                        request.getTopologyId(), response.getEntitiesBroadcast());
+                try {
+                    RetriableOperation.newOperation(() -> analysisService.startAnalysis(request))
+                        // Retry if unavailable.
+                        .retryOnException(e -> (e instanceof StatusRuntimeException) &&
+                            ((StatusRuntimeException)e).getStatus().getCode() == Code.UNAVAILABLE)
+                        .run(startAnalysisRetryMs, TimeUnit.MILLISECONDS);
+                    logger.info("Started analysis for plan {} on topology {}", request.getPlanId());
+                } catch (InterruptedException | TimeoutException | RetriableOperationFailedException e) {
+                    if (e instanceof InterruptedException) {
+                        // Reset interrupt status.
+                        Thread.currentThread().interrupt();
+                    }
+                    // This can happen if there is an error calling the topology processor. In this
+                    // case we should mark the plan as failed.
+                    logger.error("Failed to start analysis for plan " + request.getPlanId()
+                            + " because the gRPC call to the Analysis Service failed.", e);
 
-                // TODO (roman, Dec. 29 2016): Consider doing this
-                // to a notification from the market instead of assuming
-                // that once startAnalysis returns the analysis has actually started.
-                // For instance, the plan could be queued in the market component and not
-                // running yet at the time startAnalysis returns.
-                planDao.updatePlanInstance(request.getPlanId(),
+                    // Set the plan status to failed, since it didn't even get out of the gate.
+                    planDao.updatePlanInstance(request.getPlanId(),
                         oldInstance -> {
-                            oldInstance.setStatus(PlanStatus.RUNNING_ANALYSIS);
+                            oldInstance.setStatus(PlanStatus.FAILED);
+                            oldInstance.setStatusMessage("Failed to start analysis due to " +
+                                "Topology Processor error: " + e.getMessage());
                         });
+                }
             } catch (NoSuchObjectException e) {
                 // This could happen in the rare case where the plan got deleted
                 // between queueing the analysis and starting it.
-                logger.warn("Failed to start analysis for plan " + request.getPlanId() +
+                logger.error("Failed to start analysis for plan " + request.getPlanId() +
                         ". Did the plan get deleted?", e);
             } catch (IntegrityException e) {
                 // This could happen in the rare case where some of the plan's
                 // dependencies got deleted between queueing the analysis and starting it.
-                logger.warn("Failed to start analysis for plan " + request.getPlanId() +
+                logger.error("Failed to start analysis for plan " + request.getPlanId() +
                         " due to integrity exception.", e);
             } catch (StatusRuntimeException e) {
                 logger.error("Failed to start analysis for plan {}  because the gRPC " +

@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -14,12 +15,12 @@ import java.time.Clock;
 import java.util.Collections;
 import java.util.List;
 
+import io.grpc.stub.StreamObserver;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockitoAnnotations;
-
-import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
@@ -31,13 +32,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
-import com.vmturbo.topology.processor.topology.pipeline.PlanPipelineFactory;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService.TopologyPipelineRequest;
 
 /**
  * Unit tests for the {@link AnalysisRpcService}.
@@ -48,16 +48,14 @@ public class AnalysisRpcServiceTest {
 
     private Clock clock = mock(Clock.class);
 
-    private EntityStore entityStore = mock(EntityStore.class);
-
-    private PlanPipelineFactory pipelineFactory = mock(PlanPipelineFactory.class);
+    private TopologyPipelineExecutorService pipelineExecutorService = mock(TopologyPipelineExecutorService.class);
 
     private final TopologyHandler topologyHandler = mock(TopologyHandler.class);
 
     private StitchingJournalFactory journalFactory = StitchingJournalFactory.emptyStitchingJournalFactory();
 
     private AnalysisRpcService analysisService =
-            new AnalysisRpcService(pipelineFactory, topologyHandler, identityProvider, entityStore,
+            new AnalysisRpcService(pipelineExecutorService, topologyHandler, identityProvider,
                 journalFactory, clock);
 
     private final long returnEntityNum = 1337;
@@ -105,12 +103,9 @@ public class AnalysisRpcServiceTest {
     @Test
     public void testStartAnalysisOldTopology() throws Exception {
         // arrange
-        final TopologyPipeline<Long, TopologyBroadcastInfo> planOverPlanPipeline =
-                (TopologyPipeline<Long, TopologyBroadcastInfo>)mock(TopologyPipeline.class);
-        when(planOverPlanPipeline.run(eq(topologyId)))
-                .thenReturn(broadcastInfo);
-        when(pipelineFactory.planOverOldTopology(eq(topologyInfo), eq(Collections.emptyList()), any()))
-            .thenReturn(planOverPlanPipeline);
+        final TopologyPipelineRequest req = mock(TopologyPipelineRequest.class);
+        when(pipelineExecutorService.queuePlanOverPlanPipeline(eq(topologyId), eq(topologyInfo), eq(Collections.emptyList()), any()))
+            .thenReturn(req);
 
         // act
         StreamObserver<StartAnalysisResponse> responseObserver = mock(StreamObserver.class);
@@ -124,15 +119,8 @@ public class AnalysisRpcServiceTest {
                     .setPlanSubType(testPlanSubType)
                     .build(), responseObserver);
 
-        final ArgumentCaptor<StartAnalysisResponse> responseCaptor =
-                ArgumentCaptor.forClass(StartAnalysisResponse.class);
-        verify(responseObserver).onNext(responseCaptor.capture());
+        verify(responseObserver).onNext(StartAnalysisResponse.getDefaultInstance());
         verify(responseObserver).onCompleted();
-
-        final StartAnalysisResponse response = responseCaptor.getValue();
-        assertThat(response.getEntitiesBroadcast(), is(broadcastInfo.getEntityCount()));
-        assertThat(response.getTopologyContextId(), is(broadcastInfo.getTopologyContextId()));
-        assertThat(response.getTopologyId(), is(broadcastInfo.getTopologyId()));
     }
 
     /**
@@ -142,14 +130,11 @@ public class AnalysisRpcServiceTest {
     @Test
     public void testStartAnalysisPlan() throws Exception {
         // arrange
-        final TopologyPipeline<EntityStore, TopologyBroadcastInfo> planPipeline =
-                (TopologyPipeline<EntityStore, TopologyBroadcastInfo>)mock(TopologyPipeline.class);
         when(identityProvider.generateTopologyId()).thenReturn(topologyId);
-        when(planPipeline.run(eq(entityStore)))
-                .thenReturn(broadcastInfo);
-        when(pipelineFactory.planOverLiveTopology(eq(topologyInfo), eq(Collections.emptyList()), any(),
+        final TopologyPipelineRequest topologyPipelineRequest = mock(TopologyPipelineRequest.class);
+        when(pipelineExecutorService.queuePlanPipeline(eq(topologyInfo), eq(Collections.emptyList()), any(),
             any(StitchingJournalFactory.class)))
-            .thenReturn(planPipeline);
+            .thenReturn(topologyPipelineRequest);
 
         // act
         StreamObserver<StartAnalysisResponse> responseObserver = mock(StreamObserver.class);
@@ -162,29 +147,19 @@ public class AnalysisRpcServiceTest {
                 // Don't set topology ID.
                 .build(), responseObserver);
 
-        verify(pipelineFactory).planOverLiveTopology(eq(topologyInfo), eq(Collections.emptyList()),
+        verify(pipelineExecutorService).queuePlanPipeline(eq(topologyInfo), eq(Collections.emptyList()),
             any(), any(StitchingJournalFactory.class));
 
-        final ArgumentCaptor<StartAnalysisResponse> responseCaptor =
-                ArgumentCaptor.forClass(StartAnalysisResponse.class);
-        verify(responseObserver).onNext(responseCaptor.capture());
+        verify(responseObserver).onNext(StartAnalysisResponse.getDefaultInstance());
         verify(responseObserver).onCompleted();
-
-        final StartAnalysisResponse response = responseCaptor.getValue();
-        assertThat(response.getEntitiesBroadcast(), is(broadcastInfo.getEntityCount()));
-        assertThat(response.getTopologyContextId(), is(broadcastInfo.getTopologyContextId()));
-        assertThat(response.getTopologyId(), is(broadcastInfo.getTopologyId()));
     }
 
     @Test
     public void testWastedFilesAnalysisIncludedForAddWorkloadPlan() throws Exception {
-        final TopologyPipeline<EntityStore, TopologyBroadcastInfo> planPipeline =
-            (TopologyPipeline<EntityStore, TopologyBroadcastInfo>)mock(TopologyPipeline.class);
         when(identityProvider.generateTopologyId()).thenReturn(topologyId);
-        when(planPipeline.run(eq(entityStore)))
-            .thenReturn(broadcastInfo);
-        when(pipelineFactory.planOverLiveTopology(any(), any(), any(),
-            any(StitchingJournalFactory.class))).thenReturn(planPipeline);
+        final TopologyPipelineRequest topologyPipelineRequest = mock(TopologyPipelineRequest.class);
+        when(pipelineExecutorService.queuePlanPipeline(any(), any(), any(),
+            any(StitchingJournalFactory.class))).thenReturn(topologyPipelineRequest);
         // include wasted files (there are wasted files related targets)
         when(topologyHandler.includesWastedFiles()).thenReturn(true);
 
@@ -197,10 +172,10 @@ public class AnalysisRpcServiceTest {
 
         // capture argument
         final ArgumentCaptor<TopologyInfo> responseCaptor = ArgumentCaptor.forClass(TopologyInfo.class);
-        verify(pipelineFactory).planOverLiveTopology(responseCaptor.capture(),
-            ArgumentCaptor.forClass(List.class).capture(),
-            ArgumentCaptor.forClass(PlanScope.class).capture(),
-            ArgumentCaptor.forClass(StitchingJournalFactory.class).capture());
+        verify(pipelineExecutorService).queuePlanPipeline(responseCaptor.capture(),
+            isA(List.class),
+            isA(PlanScope.class),
+            isA(StitchingJournalFactory.class));
 
         // verify it includes wasted files analysis
         final TopologyInfo response = responseCaptor.getValue();
@@ -211,13 +186,10 @@ public class AnalysisRpcServiceTest {
 
     @Test
     public void testWastedFilesAnalysisNotIncludedForCloudMigrationPlan() throws Exception {
-        final TopologyPipeline<EntityStore, TopologyBroadcastInfo> planPipeline =
-            (TopologyPipeline<EntityStore, TopologyBroadcastInfo>)mock(TopologyPipeline.class);
         when(identityProvider.generateTopologyId()).thenReturn(topologyId);
-        when(planPipeline.run(eq(entityStore)))
-            .thenReturn(broadcastInfo);
-        when(pipelineFactory.planOverLiveTopology(any(), any(), any(),
-            any(StitchingJournalFactory.class))).thenReturn(planPipeline);
+        final TopologyPipelineRequest topologyPipelineRequest = mock(TopologyPipelineRequest.class);
+        when(pipelineExecutorService.queuePlanPipeline(any(), any(), any(),
+            any(StitchingJournalFactory.class))).thenReturn(topologyPipelineRequest);
         // include wasted files (there are wasted files related targets)
         when(topologyHandler.includesWastedFiles()).thenReturn(true);
 
@@ -230,10 +202,10 @@ public class AnalysisRpcServiceTest {
 
         // capture argument
         final ArgumentCaptor<TopologyInfo> responseCaptor = ArgumentCaptor.forClass(TopologyInfo.class);
-        verify(pipelineFactory).planOverLiveTopology(responseCaptor.capture(),
-            ArgumentCaptor.forClass(List.class).capture(),
-            ArgumentCaptor.forClass(PlanScope.class).capture(),
-            ArgumentCaptor.forClass(StitchingJournalFactory.class).capture());
+        verify(pipelineExecutorService).queuePlanPipeline(responseCaptor.capture(),
+            isA(List.class),
+            isA(PlanScope.class),
+            isA(StitchingJournalFactory.class));
 
         // verify it doesn't include wasted files analysis
         final TopologyInfo response = responseCaptor.getValue();

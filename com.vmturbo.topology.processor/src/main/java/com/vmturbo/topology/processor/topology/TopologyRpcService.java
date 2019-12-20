@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -32,11 +33,10 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.MessageChunker;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
-import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
-import com.vmturbo.topology.processor.topology.pipeline.LivePipelineFactory;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService;
 
 /**
  * Implementation of the TopologyService defined in topology/TopologyDTO.proto.
@@ -45,30 +45,33 @@ public class TopologyRpcService extends TopologyServiceImplBase {
     private static final Logger logger = LogManager.getLogger();
 
     private final TopologyHandler topologyHandler;
-    private final LivePipelineFactory livePipelineFactory;
+    private final TopologyPipelineExecutorService pipelineExecutorService;
     private final StitchingJournalFactory journalFactory;
     private final IdentityProvider identityProvider;
-    private final EntityStore entityStore;
     private final long realtimeTopologyContextId;
     private final Clock clock;
     private final Scheduler scheduler;
+    private final long waitForBroadcastTimeout;
+    private final TimeUnit waitForBroadcastTimeUnit;
 
     public TopologyRpcService(@Nonnull final TopologyHandler topologyHandler,
-                              @Nonnull final LivePipelineFactory livePipelineFactory,
+                              @Nonnull final TopologyPipelineExecutorService pipelineExecutorService,
                               @Nonnull final IdentityProvider identityProvider,
-                              @Nonnull final EntityStore entityStore,
                               @Nonnull final Scheduler scheduler,
                               @Nonnull final StitchingJournalFactory journalFactory,
                               final long realtimeTopologyContextId,
-                              @Nonnull final Clock clock) {
+                              @Nonnull final Clock clock,
+                              final long waitForBroadcastTimeout,
+                              @Nonnull final TimeUnit waitForBroadcastTimeUnit) {
         this.topologyHandler = Objects.requireNonNull(topologyHandler);
-        this.livePipelineFactory = Objects.requireNonNull(livePipelineFactory);
+        this.pipelineExecutorService = Objects.requireNonNull(pipelineExecutorService);
         this.identityProvider = Objects.requireNonNull(identityProvider);
-        this.entityStore = Objects.requireNonNull(entityStore);
         this.scheduler = Objects.requireNonNull(scheduler);
         this.journalFactory = Objects.requireNonNull(journalFactory);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.clock = Objects.requireNonNull(clock);
+        this.waitForBroadcastTimeout = waitForBroadcastTimeout;
+        this.waitForBroadcastTimeUnit = waitForBroadcastTimeUnit;
     }
 
     @Override
@@ -110,11 +113,10 @@ public class TopologyRpcService extends TopologyServiceImplBase {
             // Because this RPC triggers a broadcast, be sure to reset the broadcast schedule
             // so that we don't send too many in close succession.
             scheduler.resetBroadcastSchedule();
-            livePipelineFactory
-                .liveTopology(topologyInfo.build(),
+            pipelineExecutorService.queueLivePipeline(topologyInfo.build(),
                               Collections.singletonList(new GrpcBroadcastManager(responseObserver)),
                               journalFactory)
-                .run(entityStore);
+                .waitForBroadcast(waitForBroadcastTimeout, waitForBroadcastTimeUnit);
         } catch (Exception e) {
             logger.error("Unable to get broadcast topology due to error: ", e);
             responseObserver.onError(Status.INTERNAL
