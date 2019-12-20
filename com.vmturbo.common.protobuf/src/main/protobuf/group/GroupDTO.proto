@@ -304,6 +304,11 @@ message DeleteGroupResponse {
 message GetGroupsRequest {
     optional GroupFilter group_filter = 1;
     optional bool replaceGroupPropertyWithGroupMembershipFilter = 2 [default = false];
+    // list of scopes used to filter the groups, all returned groups will be within the given list
+    // of scopes, in other words, all members of a group in the response will be within the range
+    // of entities which are accessible through supply chain traversal starting from these scopes
+    // for example: limit the Clusters to be in a DataCenter scope.
+    repeated int64 scopes = 3;
 }
 
 message GetMembersRequest {

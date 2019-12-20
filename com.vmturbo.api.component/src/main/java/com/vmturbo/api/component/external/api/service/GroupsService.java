@@ -34,6 +34,7 @@ import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -1143,11 +1144,27 @@ public class GroupsService implements IGroupsService {
     @VisibleForTesting
     GetGroupsRequest.Builder getGroupsRequestForFilters(@Nonnull GroupType groupType,
                     @Nonnull List<FilterApiDTO> filterList) throws OperationFailedException {
-        return
-            GetGroupsRequest
-                .newBuilder()
-                .setGroupFilter(groupFilterMapper
-                                .apiFilterToGroupFilter(groupType, filterList));
+        return getGroupsRequestForFilters(groupType, filterList, Collections.emptySet());
+    }
+
+    /**
+     * Create a GetGroupsRequest based on the given filterList and scopes. The resulting groups
+     * will be within the range of the given scopes.
+     *
+     * @param groupType the group type we are creating request for.
+     * @param filterList a list of FilterApiDTO to be applied to this group; only "groupsByName" is
+     *                   currently supported
+     * @param scopes list of scopes which are used to filter the resulting groups
+     * @return a GetGroupsRequest with the filtering set if an item in the filterList is found
+     * @throws OperationFailedException when input filters do not apply to group type.
+     */
+    private GetGroupsRequest.Builder getGroupsRequestForFilters(
+            @Nonnull GroupType groupType,
+            @Nonnull List<FilterApiDTO> filterList,
+            @Nonnull Set<Long> scopes) throws OperationFailedException {
+        return GetGroupsRequest.newBuilder()
+                .setGroupFilter(groupFilterMapper.apiFilterToGroupFilter(groupType, filterList))
+                .addAllScopes(scopes);
     }
 
     /**
@@ -1331,20 +1348,44 @@ public class GroupsService implements IGroupsService {
             .map(Optional::get)
             .forEach(grAndMem -> {
                 if (isNestedGroupOfType(grAndMem, groupType)) {
+                    // group of clusters (resource groups, etc.), requested groupType is same type
+                    // like: cluster (RG, etc.), can not use user scope framework to handle this
                     grAndMem.members().forEach(builder::addId);
-                } else if (grAndMem.group()
+                } else if (groupType == GroupType.RESOURCE && grAndMem.group()
                         .getExpectedTypesList()
                         .contains(GroupDTO.MemberType.newBuilder()
                                 .setEntity(EntityType.BUSINESS_ACCOUNT_VALUE)
                                 .build())) {
+                    // group of business accounts, requested groups can only be resource groups
                     // get resource groups owned by business accounts
                     builder.addPropertyFilters(
                             SearchProtoUtil.stringPropertyFilterExact(SearchableProperties.ACCOUNT_ID,
                                     grAndMem.members().stream().map(Object::toString).collect(Collectors.toList())));
                 } else {
-                    builder.addId(grAndMem.group().getId());
+                    if (groupType != GroupType.REGULAR &&
+                            groupType == grAndMem.group().getDefinition().getType()) {
+                        // if scope is special group and requested type is of same type, then add itself
+                        // for example: a single resource group, requested groupType is RG; a
+                        // single cluster, requested type is cluster
+                        builder.addId(grAndMem.group().getId());
+                    } else {
+                        // scope is normal group or requested groupType is different type from scope
+                        // use user scope framework to handle this case (find groups of different
+                        // types in group)
+                        // for example: group of clusters, requested groupType is storage cluster.
+                        reqBuilder.addScopes(grAndMem.group().getId());
+                    }
                 }
             });
+        // if explicitly requesting group ids, it means these are special groups in this context,
+        // we should not provide scopes if any, this is used to avoid some issues due to mixed scopes
+        // for example: if scopes contains one group of RGs (g1), and the other is group of VMs (g2),
+        // requested group type is RG, then it will set id to be members of g1, scopes to be g2,
+        // we only want RG and ids are already decided, we should clear scopes, otherwise it will
+        // return empty since members of g1 are not within scope g2
+        if (builder.getIdCount() > 0) {
+            reqBuilder.clearScopes();
+        }
         reqBuilder.setGroupFilter(builder);
         return getGroupApiDTOS(reqBuilder.build(), true, environmentType);
     }
@@ -1414,9 +1455,11 @@ public class GroupsService implements IGroupsService {
      * Get {@link GroupApiDTO} describing groups in the system that match certain criteria.
      *
      * @param groupType The type of the group.
-     * @param scopes The scopes to look for groups in. Could be entities (in which case we look
-     *               for the groups of the entities) or groups-of-groups (in which case we
-     *               look for groups in the group).
+     * @param scopes The scopes to look for groups in, which can be either group or entity. usually
+     *               the scopes will be handled by user scope framework, they represent supply chain
+     *               scopes, all entities in resulting groups will be within the entities accessible
+     *               from the scopes using a supply chain traversal. in some special cases (like:
+     *               ResourceGroup, BusinessAccount, Cluster, etc.), the scopes are handled separately,
      * @param filterList The list of filters to apply to the groups.
      * @param environmentType type of the environment to include in response, if null, all are included
      * @return the list of groups.
@@ -1427,9 +1470,6 @@ public class GroupsService implements IGroupsService {
             @Nullable final List<String> scopes,
             @Nonnull final List<FilterApiDTO> filterList,
             @Nullable EnvironmentType environmentType) throws OperationFailedException {
-        // If we're looking for clusters with a scope there are two possibilities:
-        //   - The scope is a group of clusters, in which case we want the clusters in the group.
-        //   - The scope is a list of entities, in which case we want the clusters the entities are in.
         // We assume it's either-or - i.e. either all scopes are groups, or all scopes are entities.
         if (UuidMapper.hasLimitedScope(scopes)) {
             if (scopes.stream().anyMatch(uuid -> {
@@ -1441,14 +1481,23 @@ public class GroupsService implements IGroupsService {
             })) {
                 return getNestedGroupsInGroups(groupType, scopes, filterList, environmentType);
             } else {
-                // Note - for now (March 29 2019) we don't have cases where we need to apply the
-                // filter list. But in the future we may need to.
-
                 // get resource groups associated with business account from scope
                 if (groupType.equals(GroupType.RESOURCE)) {
+                    // handle RG specially since it's the only group owned by an entity (BA)
+                    // use BA ids to find owned RGs, if scopes are BusinessAccounts, it will return
+                    // owned RGs, if scopes are not BusinessAccounts, it's fine since it will
+                    // return empty anyway
                     return getResourceGroupsOwnedByAccount(scopes, environmentType);
                 }
-                return getClustersOfEntities(groupType, scopes, environmentType);
+
+                // general case of finding groups in entities (like: find clusters in datacenters)
+                // use user scope framework to handle it
+                final Set<Long> scopeOids = ListUtils.emptyIfNull(scopes).stream()
+                        .map(Long::valueOf)
+                        .collect(Collectors.toSet());
+                final GetGroupsRequest request = getGroupsRequestForFilters(groupType, filterList,
+                        scopeOids).build();
+                return getGroupApiDTOS(request, true, environmentType);
             }
         } else {
             return getGroupApiDTOS(getGroupsRequestForFilters(groupType, filterList).build(),
@@ -1480,9 +1529,9 @@ public class GroupsService implements IGroupsService {
      * Get {@link GroupApiDTO} describing groups in the system that match certain criteria.
      *
      * @param groupType The type of the group.
-     * @param scopes The scopes to look for groups in. Could be entities (in which case we look
-     *               for the groups of the entities) or groups-of-groups (in which case we
-     *               look for groups in the group).
+     * @param scopes The scopes to look for groups in, which can be either group or entity. The
+     *               scopes represent supply chain scopes, all entities in resulting groups will be
+     *               within the entities accessible from the scopes using a supply chain traversal.
      * @param filterList The list of filters to apply to the groups.
      * @return the list of groups.
      * @throws OperationFailedException when the filters don't match the group type.

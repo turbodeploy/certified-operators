@@ -130,7 +130,7 @@ public class UserSessionContextTest {
                 .build();
 
         populateUserSessionWithScope(Arrays.asList(1L));
-        doReturn(response).when(userScopeService).getCurrentUserEntityAccessScopeMembers(any());
+        doReturn(response).when(userScopeService).getEntityAccessScopeMembers(any());
         EntityAccessScope accessScope = userSessionContext.getUserAccessScope();
         Assert.assertEquals(3, accessScope.accessibleOids().size());
         Assert.assertTrue(accessScope.contains(oidsInScope));
@@ -140,7 +140,7 @@ public class UserSessionContextTest {
         Assert.assertEquals(3, accessScope.accessibleOids().size());
         Assert.assertTrue(accessScope.contains(oidsInScope));
         // verify two fetches fetch were performed, i.e. the value was not cached.
-        verify(userScopeService, times(2)).getCurrentUserEntityAccessScopeMembers(any());
+        verify(userScopeService, times(2)).getEntityAccessScopeMembers(any());
     }
 
     @Test
@@ -159,7 +159,7 @@ public class UserSessionContextTest {
                 .build();
 
         populateUserSessionWithScope(Arrays.asList(1L));
-        doReturn(response).when(userScopeService).getCurrentUserEntityAccessScopeMembers(any());
+        doReturn(response).when(userScopeService).getEntityAccessScopeMembers(any());
         EntityAccessScope accessScope = userSessionContext.getUserAccessScope();
         Assert.assertEquals(3, accessScope.accessibleOids().size());
         Assert.assertTrue(accessScope.contains(oidsInScope));
@@ -169,7 +169,7 @@ public class UserSessionContextTest {
         Assert.assertEquals(3, accessScope.accessibleOids().size());
         Assert.assertTrue(accessScope.contains(oidsInScope));
         // verify only one fetch was performed, i.e. the value was cached for the second call.
-        verify(userScopeService, times(1)).getCurrentUserEntityAccessScopeMembers(any());
+        verify(userScopeService, times(1)).getEntityAccessScopeMembers(any());
     }
 
     /**
@@ -196,7 +196,7 @@ public class UserSessionContextTest {
         int startTime = 1;
         // set the clock to startTime
         when(mockClock.instant()).thenReturn(Instant.ofEpochSecond(startTime));
-        doReturn(response).when(userScopeService).getCurrentUserEntityAccessScopeMembers(any());
+        doReturn(response).when(userScopeService).getEntityAccessScopeMembers(any());
         EntityAccessScope accessScope = userSessionContext.getUserAccessScope();
         Assert.assertEquals(3, accessScope.accessibleOids().size());
         Assert.assertTrue(accessScope.contains(oidsInScope));
@@ -210,7 +210,7 @@ public class UserSessionContextTest {
                 .build();
         doReturn(EntityAccessScopeResponse.newBuilder()
             .setEntityAccessScopeContents(newContents)
-            .build()).when(userScopeService).getCurrentUserEntityAccessScopeMembers(any());
+            .build()).when(userScopeService).getEntityAccessScopeMembers(any());
 
         // advance the clock just shy of the expiration time
         when(mockClock.instant()).thenReturn(Instant.ofEpochSecond(startTime + cacheExpirationSecs - 1));
@@ -219,7 +219,7 @@ public class UserSessionContextTest {
         Assert.assertEquals(3, accessScope.accessibleOids().size());
         Assert.assertTrue(accessScope.contains(oidsInScope));
         // verify only one fetch was performed, i.e. the value was cached for the second call.
-        verify(userScopeService, times(1)).getCurrentUserEntityAccessScopeMembers(any());
+        verify(userScopeService, times(1)).getEntityAccessScopeMembers(any());
 
         // advance the clock again, past the cache expiry time
         when(mockClock.instant()).thenReturn(Instant.ofEpochSecond(startTime + cacheExpirationSecs + 1));

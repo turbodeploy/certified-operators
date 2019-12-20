@@ -29,6 +29,9 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainReq
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.userscope.UserScope.CurrentUserEntityAccessScopeRequest;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeContents;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeRequest;
@@ -112,6 +115,8 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
 
     private final SupplyChainServiceBlockingStub supplyChainServiceStub;
 
+    private final SearchServiceBlockingStub searchServiceStub;
+
     private final Clock clock;
 
     private boolean cacheEnabled = true;
@@ -122,9 +127,12 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
             = Collections.synchronizedMap(new HashMap<>());
 
     public UserScopeService(GroupServiceBlockingStub groupServiceStub,
-                            SupplyChainServiceBlockingStub supplyChainServiceStub, Clock clock) {
+                            SupplyChainServiceBlockingStub supplyChainServiceStub,
+                            SearchServiceBlockingStub searchServiceStub,
+                            Clock clock) {
         this.groupServiceStub = groupServiceStub;
         this.supplyChainServiceStub = supplyChainServiceStub;
+        this.searchServiceStub = searchServiceStub;
         this.clock = clock;
     }
 
@@ -254,23 +262,35 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
 
         // get the scope groups
         logger.debug("User has scope with {} groups. Will create an access scope.", scopeGroupOids.size());
-        // turn the user's scope groups into the entity set they have access to.
+        // turn the user's scopes into the entity set they have access to.
         // We will do this by:
-        // 1) Getting the members of all the groups in the user's access scope.
+        // 1) Getting the members of all the groups in the user's access scope if it's a group, or
+        //    the entity itself if it's an entity
         // 2) Getting the supply chain for all of the entities in the set created in step (1)
         // 3) The resulting set of entities will become the user's entity access scope.
         Set<Long> scopeGroupEntityOids = new HashSet<>();
-        for (Long groupOid : scopeGroupOids) {
-            GetMembersRequest getGroupMembersReq = GetMembersRequest.newBuilder()
-                    .setId(groupOid)
-                    .setEnforceUserScope(false) // disable this for the purposes of calculating scope
-                    .setExpandNestedGroups(true)
-                    .setExpectPresent(false)
-                    .build();
-            GetMembersResponse groupMembersResponse = groupServiceStub.getMembers(getGroupMembersReq);
-            List<Long> members = groupMembersResponse.getMembers().getIdsList();
-            logger.debug("Adding {} members from group {} to user scope", members.size(), groupOid);
-            members.forEach(scopeGroupEntityOids::add);
+        for (Long scopeOid : scopeGroupOids) {
+            // check if this scope is an entity or group
+            SearchEntityOidsResponse searchEntityOidsResponse = searchServiceStub.searchEntityOids(
+                    SearchEntityOidsRequest.newBuilder().addEntityOid(scopeOid).build());
+            if (searchEntityOidsResponse.getEntitiesCount() == 1 &&
+                    searchEntityOidsResponse.getEntities(0) == scopeOid) {
+                // this is an entity, for example: DataCenter
+                logger.debug("Adding entity {} to user scope", scopeOid);
+                scopeGroupEntityOids.add(scopeOid);
+            } else {
+                // this is a group, for example: host cluster. try to get its members
+                GetMembersRequest getGroupMembersReq = GetMembersRequest.newBuilder()
+                        .setId(scopeOid)
+                        .setEnforceUserScope(false) // disable this for the purposes of calculating scope
+                        .setExpandNestedGroups(true)
+                        .setExpectPresent(false)
+                        .build();
+                GetMembersResponse groupMembersResponse = groupServiceStub.getMembers(getGroupMembersReq);
+                List<Long> members = groupMembersResponse.getMembers().getIdsList();
+                logger.debug("Adding {} members from group {} to user scope", members.size(), scopeOid);
+                scopeGroupEntityOids.addAll(members);
+            }
         }
         Instant groupFetchTime = clock.instant();
         logger.debug("fetching {} groups for user scope took {} ms", scopeGroupOids.size(),

@@ -52,7 +52,7 @@ public class UserScopeServiceConfig {
     @Bean
     public UserScopeService userScopeService() {
         UserScopeService userScopeService = new UserScopeService(groupRpcService(),
-                supplyChainRpcService(), clock());
+                supplyChainRpcService(), repositoryClientConfig.searchServiceClient(), clock());
         if (!userScopeServiceCacheEnabled) {
             userScopeService.setCacheEnabled(userScopeServiceCacheEnabled);
         }

@@ -12,6 +12,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.logging.log4j.LogManager;
@@ -20,8 +22,8 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.auth.api.authorization.scoping.AccessScopeCacheKey;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
-import com.vmturbo.common.protobuf.userscope.UserScope.CurrentUserEntityAccessScopeRequest;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeContents;
+import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeRequest;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeResponse;
 import com.vmturbo.common.protobuf.userscope.UserScope.OidSetDTO;
 import com.vmturbo.common.protobuf.userscope.UserScopeServiceGrpc.UserScopeServiceBlockingStub;
@@ -132,16 +134,23 @@ public class UserSessionContext implements AutoCloseable {
 
     public EntityAccessScope getUserAccessScope() {
         USER_SESSION_CONTEXT_REQUEST_COUNT.increment();
+        return getAccessScope(UserScopeUtils.getUserScopeGroups());
+    }
 
+    /**
+     * Get the access scope object {@link EntityAccessScope} for the given list of scopes. This can
+     * be used for plan scoping and check if the a group/entity is within plan scope.
+     *
+     * @param scopeIds list of oids of the scopes, which can be either entity or group
+     * @return an instance of {@link EntityAccessScope}
+     */
+    public EntityAccessScope getAccessScope(@Nullable List<Long> scopeIds) {
         // check the fast and most common path for unscoped users.
-        List<Long> currentUserScopeGroups = UserScopeUtils.getUserScopeGroups();
-
-        if (currentUserScopeGroups == null || currentUserScopeGroups.isEmpty()) {
+        if (scopeIds == null || scopeIds.isEmpty()) {
             return EntityAccessScope.DEFAULT_ENTITY_ACCESS_SCOPE;
         }
-
         // if a user has a scope, use the slower caching mechanism
-        return getCachedUserAccessScope(new AccessScopeCacheKey(currentUserScopeGroups, UserScopeUtils.isUserShared()));
+        return getCachedEntityAccessScope(new AccessScopeCacheKey(scopeIds, UserScopeUtils.isUserShared()));
     }
 
     private void purgeExpiredScopes() {
@@ -173,10 +182,10 @@ public class UserSessionContext implements AutoCloseable {
      * @param cacheKey the cache key to look up
      * @return the {@link EntityAccessScope} for the list of scope groups
      */
-    private synchronized EntityAccessScope getCachedUserAccessScope(AccessScopeCacheKey cacheKey) {
+    private synchronized EntityAccessScope getCachedEntityAccessScope(AccessScopeCacheKey cacheKey) {
         // the user is scoped and we need to work with our local cache.
         EntityAccessScopeCacheEntry accessScopeEntry = userAccessScopes.get(cacheKey);
-        CurrentUserEntityAccessScopeRequest.Builder requestBuilder = CurrentUserEntityAccessScopeRequest.newBuilder();
+        EntityAccessScopeRequest.Builder requestBuilder = EntityAccessScopeRequest.newBuilder();
         if (accessScopeEntry != null) {
             // check if the cached data has expired
             Instant now = clock.instant();
@@ -194,11 +203,16 @@ public class UserSessionContext implements AutoCloseable {
             requestBuilder.setCurrentScopeHash(accessScopeEntry.hash);
         }
 
+        // use the scopes provided in AccessScopeCacheKey, which can be either user scopes or
+        // more general scopes (like: plan scopes)
+        requestBuilder.addAllGroupId(cacheKey.getScopeGroupOids());
+        requestBuilder.setIncludeInfrastructureEntities(!cacheKey.excludesInfrastructureEntities());
+
         logger.trace("Sending user access scope request for {} groups.", cacheKey.getScopeGroupOids().size());
         EntityAccessScopeResponse response
-                = userScopeServiceClient.getCurrentUserEntityAccessScopeMembers(requestBuilder.build());
+                = userScopeServiceClient.getEntityAccessScopeMembers(requestBuilder.build());
 
-        if (! response.hasEntityAccessScopeContents() && accessScopeEntry != null) {
+        if (!response.hasEntityAccessScopeContents() && accessScopeEntry != null) {
             // scope data hasn't changed -- update the cache expiry time.
             logger.debug("Scope data still valid.");
             accessScopeEntry.updateAccessTime();

@@ -174,7 +174,7 @@ public class GroupRpcService extends GroupServiceImplBase {
         final Set<Long> requestedIds = new HashSet<>(request.getGroupFilter().getIdList());
         final List<Long> filteredIds = new ArrayList<>(groupIds.size());
         for (long groupId: groupIds) {
-            if (userScopeFilter(groupId, requestedIds, groupStore)) {
+            if (userScopeFilter(groupId, requestedIds, request.getScopesList(), groupStore)) {
                 filteredIds.add(groupId);
             }
         }
@@ -192,21 +192,34 @@ public class GroupRpcService extends GroupServiceImplBase {
     }
 
     private boolean userScopeFilter(long groupId, @Nonnull Set<Long> requestedIds,
-            @Nonnull IGroupStore groupStore) throws StoreOperationException {
+            @Nonnull List<Long> scopes, @Nonnull IGroupStore groupStore) throws StoreOperationException {
         // if the user is scoped, set up a filter to restrict the results based on their scope.
+        // if the request contains scopes limit, set up a filter to restrict the results based on it.
         // if the request is for "all" groups: we will filter results and only return accessible ones.
         // If the request was for a specific set of groups: we will use a filter that will throw an
         // access exception if any groups are deemed "out of scope".
-        if (!userSessionContext.isUserScoped()) {
+        if (!userSessionContext.isUserScoped() && scopes.isEmpty()) {
             return true;
         }
-        final Collection<Long> members =
-                getGroupMembers(groupStore, Collections.singleton(groupId), true);
-        if (requestedIds.isEmpty()) {
-            return userSessionContext.getUserAccessScope().contains(members);
-        } else {
-            return UserScopeUtils.checkAccess(userSessionContext, members);
+
+        final Collection<Long> members = getGroupMembers(groupStore, Collections.singleton(groupId), true);
+        boolean result = true;
+        // filter by user scopes
+        if (userSessionContext.isUserScoped()) {
+            if (requestedIds.isEmpty()) {
+                result = userSessionContext.getUserAccessScope().contains(members);
+            } else {
+                // trigger an access denied exception if an requested id is inaccessible
+                // if user is not scoped, just not return it, no need to throw exception
+                result = UserScopeUtils.checkAccess(userSessionContext, members);
+            }
         }
+        // filter by limited scopes in request to ensure all results are within those scopes
+        if (!scopes.isEmpty()) {
+            result = result && userSessionContext.getAccessScope(scopes).contains(members);
+        }
+
+        return result;
     }
 
     @Override

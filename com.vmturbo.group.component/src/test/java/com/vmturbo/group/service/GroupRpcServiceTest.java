@@ -40,6 +40,7 @@ import io.grpc.StatusException;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
+import org.assertj.core.util.Lists;
 import org.hamcrest.CoreMatchers;
 import org.jooq.exception.DataAccessException;
 import org.junit.After;
@@ -506,6 +507,54 @@ public class GroupRpcServiceTest {
         Mockito.verify(mockGroupingObserver).onNext(firstGrouping);
         Mockito.verify(mockGroupingObserver, Mockito.never()).onNext(secondGrouping);
         Mockito.verify(mockGroupingObserver).onCompleted();
+    }
+
+    /**
+     * Test when user request groups but provided scopes limit in the request, only filtered groups
+     * which are within the scopes are returned.
+     *
+     * @throws StoreOperationException if exception occurred operating with a group store
+     */
+    @Test
+    public void testGetGroupsWithScopesLimit() throws StoreOperationException {
+        final long dcId = 3L;
+        final long clusterId1 = 1L;
+        final long clusterId2 = 2L;
+        final long clusterMember1 = 11L;
+        final long clusterMember2 = 21L;
+
+        final StreamObserver<GroupDTO.Grouping> mockGroupingObserver = Mockito.mock(StreamObserver.class);
+        final GetGroupsRequest genericGroupsRequest = GetGroupsRequest
+                .newBuilder()
+                .setGroupFilter(GroupFilter.getDefaultInstance())
+                .addScopes(dcId)
+                .build();
+        when(userSessionContext.isUserScoped()).thenReturn(false);
+        final EntityAccessScope accessScope = new EntityAccessScope(null, null,
+                new ArrayOidSet(Collections.singletonList(clusterMember1)), null);
+        when(userSessionContext.getAccessScope(Collections.singletonList(dcId))).thenReturn(accessScope);
+
+        final Grouping cluster1 = createGrouping(clusterId1, Collections.singletonList(clusterMember1));
+        final Grouping cluster2 = createGrouping(clusterId2, Collections.singletonList(clusterMember2));
+
+        when(groupStoreDAO.getGroups(genericGroupsRequest.getGroupFilter()))
+                .thenReturn(Arrays.asList(cluster1, cluster2));
+        when(groupStoreDAO.getGroupIds(any())).thenReturn(Arrays.asList(clusterId1, clusterId2));
+        when(groupStoreDAO.getMembers(Collections.singleton(clusterId1), true)).thenReturn(
+                new GroupMembersPlain(Collections.singleton(clusterMember1),
+                        Collections.emptySet(), Collections.emptySet()));
+        when(groupStoreDAO.getMembers(Collections.singleton(clusterId2), true)).thenReturn(
+                new GroupMembersPlain(Collections.singleton(clusterMember2),
+                        Collections.emptySet(), Collections.emptySet()));
+        when(groupStoreDAO.getGroupsById(Lists.newArrayList(clusterId1))).thenReturn(
+                Lists.newArrayList(cluster1));
+
+        // act
+        groupRpcService.getGroups(genericGroupsRequest, mockGroupingObserver);
+        // verify only cluster1 is returned
+        verify(mockGroupingObserver).onNext(cluster1);
+        verify(mockGroupingObserver, Mockito.never()).onNext(cluster2);
+        verify(mockGroupingObserver).onCompleted();
     }
 
     /**

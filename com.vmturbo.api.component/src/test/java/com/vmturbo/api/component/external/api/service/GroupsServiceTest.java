@@ -700,15 +700,20 @@ public class GroupsServiceTest {
             .entities(Collections.emptyList())
             .build();
 
-        when(groupExpander.getMembersForGroup(cluster)).thenReturn(clusterAndMembers);
         when(groupMapper.getEnvironmentAndCloudTypeForGroup(clusterAndMembers)).thenReturn(new EntityEnvironment(EnvironmentType.ONPREM, CloudType.UNKNOWN));
         when(groupMapper.toGroupApiDto(clusterAndMembers, EnvironmentType.ONPREM, CloudType.UNKNOWN, true)).thenReturn(groupApiDtoMock);
-        when(groupServiceSpy.getGroupForEntity(GetGroupForEntityRequest.newBuilder()
-                .setEntityId(1L)
-                .build()))
-                .thenReturn(GetGroupForEntityResponse.newBuilder()
-                    .addGroup(cluster)
-                    .build());
+        when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.COMPUTE_HOST_CLUSTER),
+                eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
+                .setGroupType(GroupType.COMPUTE_HOST_CLUSTER).build());
+
+        final GetGroupsRequest groupsRequest = GetGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder()
+                        .setGroupType(GroupType.COMPUTE_HOST_CLUSTER))
+                .addScopes(1L)
+                .build();
+        when(groupExpander.getGroupsWithMembers(eq(groupsRequest))).thenReturn(
+                Stream.of(clusterAndMembers));
+
         final ApiId entityApiId = mock(ApiId.class);
         when(entityApiId.isGroup()).thenReturn(false);
 
@@ -799,7 +804,7 @@ public class GroupsServiceTest {
 
         final GroupFilter groupFilter = GroupFilter.newBuilder()
             .setGroupType(GroupType.RESOURCE)
-            .addAllId(Arrays.asList(2L, 10L))
+            .addAllId(Arrays.asList(2L))
             .build();
 
         final GetGroupsRequest groupsRequest = GetGroupsRequest.newBuilder()
@@ -1049,6 +1054,10 @@ public class GroupsServiceTest {
         groupApiDto2.setUuid("2");
         groupApiDto2.setEnvironmentType(EnvironmentType.CLOUD);
 
+        when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.REGULAR),
+                eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
+                .setGroupType(GroupType.REGULAR).build());
+
         // onprem group
         final Grouping group1 = Grouping.newBuilder()
                 .setId(1L)
@@ -1064,6 +1073,7 @@ public class GroupsServiceTest {
         when(groupExpander.getMembersForGroup(group1)).thenReturn(groupAndMembers1);
         when(groupMapper.getEnvironmentAndCloudTypeForGroup(groupAndMembers1)).thenReturn(new EntityEnvironment(EnvironmentType.ONPREM, CloudType.UNKNOWN));
         when(groupMapper.toGroupApiDto(groupAndMembers1, EnvironmentType.ONPREM, CloudType.UNKNOWN, true)).thenReturn(groupApiDto1);
+
         // cloud group
         final Grouping group2 = Grouping.newBuilder()
                 .setId(2L)
@@ -1079,7 +1089,6 @@ public class GroupsServiceTest {
         when(groupExpander.getMembersForGroup(group2)).thenReturn(groupAndMembers2);
         when(groupMapper.getEnvironmentAndCloudTypeForGroup(groupAndMembers2)).thenReturn(new EntityEnvironment(EnvironmentType.CLOUD, CloudType.AWS));
         when(groupMapper.toGroupApiDto(groupAndMembers2, EnvironmentType.CLOUD, CloudType.AWS, true)).thenReturn(groupApiDto2);
-
         when(groupServiceSpy.getGroupForEntity(GetGroupForEntityRequest.newBuilder()
                 .setEntityId(111L)
                 .build()))
@@ -1087,10 +1096,19 @@ public class GroupsServiceTest {
                         .addGroup(group1)
                         .addGroup(group2)
                         .build());
+
         final ApiId entityApiId = mock(ApiId.class);
         when(entityApiId.isGroup()).thenReturn(false);
         when(uuidMapper.fromUuid("111")).thenReturn(entityApiId);
+        final GetGroupsRequest groupsRequest = GetGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder()
+                        .setGroupType(GroupType.REGULAR)
+                        .build())
+                .addScopes(111L)
+                .build();
 
+        when(groupExpander.getGroupsWithMembers(eq(groupsRequest)))
+                .thenAnswer(invocation -> Stream.of(groupAndMembers1, groupAndMembers2));
         // check filter by onprem
         List<GroupApiDTO> groupApiDTOs = groupsService.getGroupsByType(GroupType.REGULAR,
                 Collections.singletonList("111"), Collections.emptyList(),
