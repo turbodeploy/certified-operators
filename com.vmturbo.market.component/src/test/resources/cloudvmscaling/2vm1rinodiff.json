@@ -1,0 +1,100 @@
+{
+  "Contexts": [
+    {
+      "context": {
+        "csp": AWS,
+        "os": LINUX,
+        "region": sydney,
+        "billingAccount": biac1,
+        "tenancy": DEFAULT
+      },
+      "Templates": [
+        {
+          "name": template1,
+          "family": family1,
+          "onDemandCost": {
+            "compute": 100.0,
+            "license": 20.0
+          },
+          "discountedCost": {
+            "compute": 0.0,
+            "license": 0.0
+          },
+          "coupons": 3
+        },
+        {
+          "name": template2,
+          "family": family2,
+          "onDemandCost": {
+            "compute": 120.0,
+            "license": 20.0
+          },
+          "discountedCost": {
+            "compute": 0.0,
+            "license": 0.0
+          },
+          "coupons": 3
+        },
+        {
+          "name": template3,
+          "family": family3,
+          "onDemandCost": {
+            "compute": 140.0,
+            "license": 20.0
+          },
+          "discountedCost": {
+            "compute": 0.0,
+            "license": 0.0
+          },
+          "coupons": 3
+        }
+      ],
+      "VirtualMachines": [
+        {
+          "name": VM2,
+          "businessAccount": buac1,
+          "providers": [
+            template2,
+            template3
+          ],
+          "zone": 1a,
+          "currentRICoverage": 0,
+          "currentTemplate": template1
+        },
+        {
+          "name": VM1,
+          "businessAccount": buac1,
+          "providers": [
+            template2,
+            template3
+          ],
+          "zone": 1a,
+          "currentRICoverage": 0,
+          "currentTemplate": template1
+        }
+      ],
+      "ReservedInstances": [
+        {
+          "name": RI1,
+          "businessAccount": buac1,
+          "utilization": 0,
+          "zone": 1a,
+          "template": template3,
+          "count": 1
+        }
+      ],
+      "Matching": [
+        {
+          "VirtualMachine": VM1,
+          "Template": template1
+        },
+        {
+          "VirtualMachine": VM2,
+          "ReservedInstance": RI1,
+          "Template": template3,
+          "DiscountedCoupons": 3
+        }
+      ]
+    }
+  ]
+}

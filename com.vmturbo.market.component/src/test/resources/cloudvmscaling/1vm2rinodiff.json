@@ -1,0 +1,99 @@
+{
+  "Contexts": [
+    {
+      "context": {
+        "csp": "AWS",
+        "os": "LINUX",
+        "region": 31,
+        "billingAccount": 1,
+        "tenancy": "DEFAULT"
+      },
+      "Templates": [
+        {
+	  "oid": 100001,
+          "name": "t3.small",
+          "family": "t3",
+          "onDemandCost": {
+            "compute": 4.0,
+            "license": 0.0
+          },
+          "discountedCost": {
+            "compute": 0.0,
+            "license": 0.0
+          },
+          "coupons": 4
+        },
+        {
+	  "oid": 100002,
+          "name": "t3a.small",
+          "family": "t3a",
+          "onDemandCost": {
+            "compute": 4.1,
+            "license": 0.0
+          },
+          "discountedCost": {
+            "compute": 0.0,
+            "license": 0.0
+          },
+          "coupons": 4
+        },
+        {
+	  "oid": 100003,
+          "name": "t2.small",
+          "family": "t2",
+          "onDemandCost": {
+            "compute": 4.1,
+            "license": 0.0
+          },
+          "discountedCost": {
+            "compute": 0.0,
+            "license": 0.0
+          },
+          "coupons": 4
+        }
+      ],
+      "VirtualMachines": [
+        {
+	  "oid": 2000001,
+          "name": "VM1",
+          "businessAccount": 11,
+          "providers": [
+            100001,
+            100002
+          ],
+          "zone": 21,
+          "currentRICoverage": 0,
+          "currentTemplate": 100003
+        }
+      ],
+      "ReservedInstances": [
+        {
+	  "oid": 1000002,
+          "name": "RI2",
+          "businessAccount": 11,
+          "zone": 21,
+          "utilization": 0,
+          "template": 100002,
+          "count": 1
+        },
+        {
+	  "oid": 1000001,
+          "name": "RI1",
+          "businessAccount": 11,
+          "zone": 21,
+          "utilization": 0,
+          "template": 100001,
+          "count": 1
+        }
+      ],
+      "Matching": [
+        {
+          "VirtualMachine": 2000001,
+          "ReservedInstance": 1000001,
+          "Template": 100001,
+          "DiscountedCoupons": 4
+        }
+      ]
+    }
+  ]
+}

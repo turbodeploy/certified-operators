@@ -1,0 +1,69 @@
+{
+  "Contexts": [
+    {
+      "context": {
+        "csp": "AWS",
+        "os": "LINUX",
+        "region": 31,
+        "billingAccount": 1,
+        "tenancy": DEFAULT
+      },
+      "Templates": [
+        {
+          "oid": 100001,
+          "name": "template1",
+          "family": "family1",
+          "onDemandCost": {
+            "compute": 100.0,
+            "license": 20.0
+          },
+          "discountedCost": {
+            "compute": 10.0,
+            "license": 2.0
+          },
+          "coupons": 3
+        }
+      ],
+      "VirtualMachines": [
+        {
+          "oid": 2000001,
+          "name": "VM1",
+          "businessAccount": 11,
+          "providers": [
+            100001
+          ],
+          "zone": 21,
+          "currentRICoverage": 0,
+          "currentTemplate": 100001
+        }
+      ],
+      "ReservedInstances": [
+        {
+          "oid": 1000002,
+          "name": "RI2",
+          "businessAccount": 11,
+          "utilization": 0,
+          "template": 100001,
+          "count": 1
+        },
+        {
+          "oid": 1000001,
+          "name": "RI1",
+          "businessAccount": 11,
+          "utilization": 0,
+          "zone": 21,
+          "template": 100001,
+          "count": 1
+        }
+      ],
+      "Matching": [
+        {
+          "VirtualMachine": 2000001,
+          "ReservedInstance": 1000001,
+          "Template": 100001,
+          "DiscountedCoupons": 3
+        }
+      ]
+    }
+  ]
+}
