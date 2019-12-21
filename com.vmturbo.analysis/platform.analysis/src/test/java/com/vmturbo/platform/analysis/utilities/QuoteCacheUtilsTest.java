@@ -5,12 +5,12 @@ import static org.junit.Assert.assertEquals;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
+
+import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Basket;
@@ -48,8 +48,8 @@ public class QuoteCacheUtilsTest {
     public void testInvalidate(QuoteCache cache, Move move, Double[][] expectedCacheState) {
         QuoteCacheUtils.invalidate(cache, move);
 
-        for (int rowIndex = 0 ; rowIndex < expectedCacheState.length ; ++rowIndex) {
-            for (int colIndex = 0 ; colIndex < expectedCacheState[rowIndex].length ; ++colIndex) {
+        for (int rowIndex = 0; rowIndex < expectedCacheState.length; ++rowIndex) {
+            for (int colIndex = 0; colIndex < expectedCacheState[rowIndex].length; ++colIndex) {
                 assertEquals(expectedCacheState[rowIndex][colIndex],
                     cache.get(rowIndex, colIndex) == null
                         ? null : cache.get(rowIndex, colIndex).getQuoteValue());

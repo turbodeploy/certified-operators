@@ -46,7 +46,7 @@ public class EconomySettingsTest {
     }
 
     @Test
-    @Parameters({"0","1","10","100","1000","2147483647"})
+    @Parameters({"0", "1", "10", "100", "1000", "2147483647"})
     @TestCaseName("Test #{index}: (set|get)MinSellersForParallelism({0})")
     public final void testSetGetMinSellersForParallelism_NormalInput(int minSellers) {
         fixture_.setMinSellersForParallelism(minSellers);
@@ -54,14 +54,14 @@ public class EconomySettingsTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
-    @Parameters({"-1","-2","-100","-2147483648"})
+    @Parameters({"-1", "-2", "-100", "-2147483648"})
     @TestCaseName("Test #{index}: setMinSellersForParallelism({0})")
     public final void testSetGetMinSellersForParallelism_InvalidInput(int minSellers) {
         fixture_.setMinSellersForParallelism(minSellers);
     }
 
     @Test
-    @Parameters({"0","0.1","2","100","10e15"})
+    @Parameters({"0", "0.1", "2", "100", "10e15"})
     @TestCaseName("Test #{index}: (set|get)QuoteFactor({0})")
     public final void testSetGetQuoteFactor_NormalInput(double quoteFactor) {
         fixture_.setQuoteFactor(quoteFactor);
@@ -69,7 +69,7 @@ public class EconomySettingsTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
-    @Parameters({"-0.1","-2","-100","-1e15"})
+    @Parameters({"-0.1", "-2", "-100", "-1e15"})
     @TestCaseName("Test #{index}: setQuoteFactor({0})")
     public final void testSetGetQuoteFactor_InvalidInput(double quoteFactor) {
         fixture_.setQuoteFactor(quoteFactor);
@@ -80,15 +80,21 @@ public class EconomySettingsTest {
      * retrieved. Also that the setter is suitable for cascading.
      */
     @Test
-    @Parameters({"true","false"})
+    @Parameters({"true", "false"})
     @TestCaseName("Test #{index}: (set|get)UseQuoteCacheDuringSNM({0})")
     public final void testSetGetUseQuoteCacheDuringSNM(boolean useQuoteCacheDuringSNM) {
         assertSame(fixture_, fixture_.setUseQuoteCacheDuringSNM(useQuoteCacheDuringSNM));
         assertEquals(useQuoteCacheDuringSNM, fixture_.getUseQuoteCacheDuringSNM());
     }
 
+    /**
+     * Tests that {@link EconomySettings#clear()} correctly resets fields to their default value.
+     *
+     * TODO (Vaptistis): The clear method isn't currently used in production and appears to be out-
+     * of-maintenance. Not sure if we should bring it up to date or remove it.
+     */
     @Test
-    @Parameters({"0,true","1,true","10,true","100,false","1000,false","2147483647,false"})
+    @Parameters({"0,true", "1,true", "10,true", "100,false", "1000,false", "2147483647,false"})
     @TestCaseName("Test #{index}: clear() with minSellersForParallelism == {0} " +
                                         "and useQuoteCacheDuringSNM == {1}")
     public final void testClear(int minSellers, boolean useQuoteCacheDuringSNM) {

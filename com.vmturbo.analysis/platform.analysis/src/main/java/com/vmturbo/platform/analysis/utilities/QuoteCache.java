@@ -83,8 +83,8 @@ public final class QuoteCache {
 
         rowAssignments = new int[nTradersInEconomy];
 
-        cache = new MutableQuote[(Math.min(nPotentialSellers, nTradersInEconomy) + 1)
-                                 * nBuyerShoppingLists];
+        cache = new MutableQuote[
+            (Math.min(nPotentialSellers, nTradersInEconomy) + 1) * nBuyerShoppingLists];
         nShoppingLists = nBuyerShoppingLists;
         nextRowAssignment = 1; // 1st trader gets row 1: row 0 is the sentinel row.
     } // end QuoteCache constructor
