@@ -116,6 +116,16 @@ public class UtilizationCountStore {
     }
 
     /**
+     * Store the data from a persisted percentile record into the latest window counts array.
+     *
+     * @param record serialized record
+     * @throws HistoryCalculationException when passed data are not valid
+     */
+    public void addLatestCountsRecord(PercentileRecord record) throws HistoryCalculationException {
+        latest.deserialize(record, fieldReference.toString());
+    }
+
+    /**
      * Store the data from a persisted percentile record into the latest and full window counts arrays.
      *
      * @param record serialized record

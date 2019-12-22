@@ -70,7 +70,7 @@ public class PercentilePersistenceTask extends
      */
     public PercentilePersistenceTask(@Nonnull StatsHistoryServiceStub statsHistoryClient,
                                      long startTimestamp) {
-        this.statsHistoryClient = Objects.requireNonNull(statsHistoryClient);
+        this.statsHistoryClient = statsHistoryClient;
         this.startTimestamp = startTimestamp;
     }
 

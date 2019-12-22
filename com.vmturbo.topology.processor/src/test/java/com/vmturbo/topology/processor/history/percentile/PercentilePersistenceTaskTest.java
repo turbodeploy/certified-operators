@@ -238,15 +238,6 @@ public class PercentilePersistenceTaskTest {
     }
 
     /**
-     * Test that {@link PercentilePersistenceTask#PercentilePersistenceTask(StatsHistoryServiceStub)} throws {@link NullPointerException}
-     * upon null argument.
-     */
-    @Test(expected = NullPointerException.class)
-    public void testDefaultConstructorStubIsNotNull() {
-        new PercentilePersistenceTask(null);
-    }
-
-    /**
      * Accumulate chunks into a single array.
      */
     private static class TestWriter extends CallStreamObserver<PercentileChunk> {

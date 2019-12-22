@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -93,7 +94,6 @@ public class PercentileEditor extends
                                .withHelp("The time spent on daily maintenance of percentile cache "
                                          + "(this is also part of tp_historical_completion_time_percentile)")
                                .build();
-    private static final String TOTAL = "total";
 
     private final Clock clock;
     private boolean historyInitialized;
@@ -195,6 +195,12 @@ public class PercentileEditor extends
     @Nonnull
     public List<? extends Callable<List<EntityCommodityFieldReference>>>
            createPreparationTasks(@Nonnull List<EntityCommodityReference> commodityRefs) {
+        initializeCacheValues(commodityRefs);
+        return Collections.emptyList();
+    }
+
+    private void initializeCacheValues(
+                    @Nonnull Collection<? extends EntityCommodityReference> commodityRefs) {
         // percentile data will be loaded in a single-threaded way into blobs (not chunked)
         // initialize cache values for entries from topology
         // in order to get the percentiles for them calculated as well if they do not get read
@@ -208,7 +214,6 @@ public class PercentileEditor extends
                 return data;
             });
         });
-        return Collections.emptyList();
     }
 
     @Override
@@ -411,64 +416,70 @@ public class PercentileEditor extends
         final Stopwatch sw = Stopwatch.createStarted();
         try (DataMetricTimer timer = MAINTENANCE_SUMMARY_METRIC.startTimer();
                         CacheBackup backup = createCacheBackup()) {
-            logger.debug("Performing percentile cache maintenance {} for {}", ++checkpoints, checkpointMs);
+            logger.debug("Performing percentile cache maintenance {} for {}",
+                         ++checkpoints,
+                         Instant.ofEpochMilli(checkpointMs));
             if (enforceMaintenance
-                            && lastCheckpointMs + getMaintenanceWindowInMs() > checkpointMs) {
-                persistBlob(PercentilePersistenceTask.TOTAL_TIMESTAMP, lastCheckpointMs,
-                                store -> store.checkpoint(Collections.emptyList()));
-                backup.keepCacheOnClose();
-                return;
-            }
-            final Map<Long, Integer> entity2period = getEntityToPeriod(graph);
-            final Set<Integer> periods = new HashSet<>(entity2period.values());
-            final PercentileCounts.Builder total = PercentileCounts.newBuilder();
+                && lastCheckpointMs + getMaintenanceWindowInMs() > checkpointMs) {
+                enforcedMaintenance(checkpointMs);
+            } else {
+                final Map<Long, Integer> entity2period = getEntityToPeriod(graph);
+                final Set<Integer> periods = new HashSet<>(entity2period.values());
 
-            /*
-             Process outdated percentiles day by day:
+                /*
+                 Process outdated percentiles day by day:
 
-             We take all possible periods of observation (7 days, 30 days and 90 days)
-             For each period:
-                 outdatedPercentiles = load outdated percentiles from (lastCheckpointDay - period) day
-                 for each entity in cache:
-                     if outdatedPercentiles contain entity:
-                         subtract outdated utilization counts from cache
-             Save current cache to DB.
-            */
-            for (long currentCheckpointMs = lastCheckpointMs + getMaintenanceWindowInMs();
-                 currentCheckpointMs <= checkpointMs;
-                 currentCheckpointMs += getMaintenanceWindowInMs()) {
-                for (Integer periodInDays : periods) {
-                    final long outdatedTimestamp = currentCheckpointMs - periodInDays
-                                                                         * TimeInMillisConstants.DAY_LENGTH_IN_MILLIS;
-                    final PercentilePersistenceTask loadOutdated = createTask(outdatedTimestamp);
-                    logger.debug("Started checkpoint percentile cache for timestamp {} with period of {} days. Outdated percentile timestamp is {} ",
-                                 currentCheckpointMs,
-                                 periodInDays,
-                                 outdatedTimestamp);
+                 We take all possible periods of observation (7 days, 30 days and 90 days)
+                 For each period:
+                     outdatedPercentiles = load outdated percentiles from (lastCheckpointDay - period) day
+                     for each entity in cache:
+                         if outdatedPercentiles contain entity:
+                             subtract outdated utilization counts from cache
+                 Save current cache to DB.
+                */
+                Map<PercentileCommodityData, List<PercentileRecord>> dataRef2outdatedRecords = new HashMap<>();
+                // initialize with empty collections
+                getCache().values().forEach(dataRef -> dataRef2outdatedRecords.put(dataRef, new LinkedList<>()));
+                for (long currentCheckpointMs = lastCheckpointMs + getMaintenanceWindowInMs();
+                     currentCheckpointMs <= checkpointMs;
+                     currentCheckpointMs += getMaintenanceWindowInMs()) {
+                    for (Integer periodInDays : periods) {
+                        final long outdatedTimestamp = currentCheckpointMs - periodInDays
+                                                                             * TimeInMillisConstants.DAY_LENGTH_IN_MILLIS;
+                        final PercentilePersistenceTask loadOutdated = createTask(outdatedTimestamp);
+                        logger.debug("Started checkpoint percentile cache for timestamp {} with period of {} days. Outdated percentile timestamp is {} ",
+                                     currentCheckpointMs,
+                                     periodInDays,
+                                     outdatedTimestamp);
 
-                    final Map<EntityCommodityFieldReference, PercentileRecord> oldValues =
-                                    loadOutdated.load(Collections.emptyList(), getConfig());
-                    for (Map.Entry<EntityCommodityFieldReference, PercentileCommodityData> entry : getCache()
-                                    .entrySet()) {
-                        final EntityCommodityFieldReference ref = entry.getKey();
-                        if (!periodInDays.equals(entity2period.get(ref.getEntityOid()))) {
-                            continue;
+                        final Map<EntityCommodityFieldReference, PercentileRecord> oldValues =
+                                        loadOutdated.load(Collections.emptyList(), getConfig());
+                        for (Map.Entry<EntityCommodityFieldReference, PercentileCommodityData> fieldRef2data : getCache()
+                                        .entrySet()) {
+                            final EntityCommodityFieldReference ref = fieldRef2data.getKey();
+                            if (!periodInDays.equals(entity2period.get(ref.getEntityOid()))) {
+                                continue;
+                            }
+                            final PercentileRecord oldRecord = oldValues.get(ref);
+                            if (oldRecord != null) {
+                                // accumulate daily records that go out of observation window for each cached commodity reference
+                                dataRef2outdatedRecords.get(fieldRef2data.getValue()).add(oldRecord);
+                            }
                         }
-
-                        final PercentileRecord oldRecord = oldValues.get(ref);
-                        final Collection<PercentileRecord> oldValuesForCurrentRef =
-                                        oldRecord != null ? Collections.singletonList(oldRecord) :
-                                                        Collections.emptyList();
-                        logger.trace("Checkpoint record for entity reference {}", ref);
-                        final PercentileRecord.Builder checkpoint =
-                                        entry.getValue().getUtilizationCountStore()
-                                                        .checkpoint(oldValuesForCurrentRef);
-                        total.addPercentileRecords(checkpoint);
                     }
                 }
+
+                final PercentileCounts.Builder total = PercentileCounts.newBuilder();
+                for (Map.Entry<PercentileCommodityData, List<PercentileRecord>> entry : dataRef2outdatedRecords.entrySet()) {
+                    final PercentileRecord.Builder checkpoint =
+                                    entry.getKey().getUtilizationCountStore()
+                                                    .checkpoint(entry.getValue());
+                    total.addPercentileRecords(checkpoint);
+                }
+                writeBlob(total, checkpointMs, PercentilePersistenceTask.TOTAL_TIMESTAMP);
+                lastCheckpointMs = checkpointMs;
             }
-            writeBlob(total, checkpointMs, PercentilePersistenceTask.TOTAL_TIMESTAMP);
-            lastCheckpointMs = checkpointMs;
+
             backup.keepCacheOnClose();
 
         } catch (HistoryCalculationException e) {
@@ -480,6 +491,37 @@ public class PercentileEditor extends
             logger.info("Percentile cache {}maintenance {} took {}",
                             enforceMaintenance ? "enforced " : "", checkpoints, sw);
         }
+    }
+
+    private void enforcedMaintenance(long checkpointMs)
+                    throws InterruptedException, HistoryCalculationException {
+        logger.debug("Performing enforced percentile cache maintenance for {}",
+                     () -> Instant.ofEpochMilli(checkpointMs));
+        final long yesterday = checkpointMs - getMaintenanceWindowInMs();
+        final Map<EntityCommodityFieldReference, PercentileRecord> yesterdayRecords =
+                        createTask(yesterday).load(Collections.emptyList(), getConfig());
+
+        // initialize LATEST in cache for each entry in loaded percentile data
+        initializeCacheValues(yesterdayRecords.keySet());
+
+        // accumulate current day's LATEST in cache with data from yesterday
+        for (Map.Entry<EntityCommodityFieldReference, PercentileRecord> entry : yesterdayRecords
+                        .entrySet()) {
+            final PercentileCommodityData percentileCommodityData = getCache().get(entry.getKey());
+            if (percentileCommodityData != null) {
+                percentileCommodityData.getUtilizationCountStore()
+                                .addLatestCountsRecord(entry.getValue());
+            }
+        }
+
+        // persist the blobs into DB
+        persistBlob(yesterday,
+                    getMaintenanceWindowInMs(),
+                    UtilizationCountStore::getLatestCountsRecord);
+        // checkpoint() also clears latest
+        persistBlob(PercentilePersistenceTask.TOTAL_TIMESTAMP,
+                    lastCheckpointMs,
+                    store -> store.checkpoint(Collections.emptyList()));
     }
 
     /**
@@ -497,8 +539,8 @@ public class PercentileEditor extends
 
     private void writeBlob(PercentileCounts.Builder blob, long periodMs, long startTimestamp)
                     throws HistoryCalculationException, InterruptedException {
-        logger.debug("Writing percentile with timestamp {} and period {}", startTimestamp,
-                        periodMs);
+        logger.debug("Writing {} percentile entries with timestamp {} and period {}",
+                     blob.getPercentileRecordsCount(), startTimestamp, periodMs);
         createTask(startTimestamp).save(blob.build(), periodMs, getConfig());
     }
 
