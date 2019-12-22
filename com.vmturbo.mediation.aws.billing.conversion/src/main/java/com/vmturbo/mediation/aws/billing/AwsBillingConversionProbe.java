@@ -59,6 +59,14 @@ public class AwsBillingConversionProbe extends AwsBillingProbe {
               @Nullable DiscoveryContextDTO discoveryContext)
         throws InterruptedException {
         return super.discoverTarget(awsAccount, discoveryContext);
-    }
+     }
 
+    /**
+     * Creates a definition templates that describes current probe`s discovered objects.
+     * @return a set of templates.
+     */
+    @Override
+    public Set<TemplateDTO> getSupplyChainDefinition() {
+        return new AwsBillingSupplychainConverter(super.getSupplyChainDefinition()).convert();
+    }
 }
