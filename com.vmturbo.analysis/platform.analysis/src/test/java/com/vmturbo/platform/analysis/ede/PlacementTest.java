@@ -901,8 +901,8 @@ public class PlacementTest {
             final ShoppingList sl1 = getSl(e, traders[0]);
             Action[] expectedActions = {
                 new Move(e, sl1, seller).setImportance(Double.POSITIVE_INFINITY),
-                new Move(e, getSl(e, traders[2]), seller).setImportance(Double.POSITIVE_INFINITY),
                 new Move(e, getSl(e, traders[1]), seller).setImportance(Double.POSITIVE_INFINITY),
+                new Move(e, getSl(e, traders[2]), seller).setImportance(Double.POSITIVE_INFINITY)
             };
 
             PlacementResults results = Placement.generateShopAlonePlacementDecisions(e, sl1);
@@ -918,8 +918,8 @@ public class PlacementTest {
             final ShoppingList sl1 = getSl(e, traders[0]);
             Action[] expectedActions = {
                 new Reconfigure(e, sl1).setImportance(Double.POSITIVE_INFINITY),
-                new Reconfigure(e, getSl(e, traders[2])).setImportance(Double.POSITIVE_INFINITY),
-                new Reconfigure(e, getSl(e, traders[1])).setImportance(Double.POSITIVE_INFINITY)
+                new Reconfigure(e, getSl(e, traders[1])).setImportance(Double.POSITIVE_INFINITY),
+                new Reconfigure(e, getSl(e, traders[2])).setImportance(Double.POSITIVE_INFINITY)
             };
 
             PlacementResults results = Placement.generateShopAlonePlacementDecisions(e, sl1);
