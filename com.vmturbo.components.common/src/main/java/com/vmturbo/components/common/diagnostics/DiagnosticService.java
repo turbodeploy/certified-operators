@@ -31,7 +31,8 @@ public class DiagnosticService {
     private Logger logger_ = LogManager.getLogger(DiagnosticService.class);
 
     /**
-     * The pre-set diags URL
+     * The pre-set diags URL that connects to an http server that is initialized when the containers
+     * startup in diags.py
      */
     private static final String DIAGS_URL = "http://127.128.129.130:58888/diags";
 
@@ -43,7 +44,7 @@ public class DiagnosticService {
     /**
      * The diags destination directory.
      */
-    private static final String DIAGS_DIRECTORY = "/tmp/diags";
+    private static final String SYSTEM_DIAGS_DIRECTORY = "/tmp/diags/system-data";
 
     /**
      * The diags completion flag file.
@@ -108,7 +109,7 @@ public class DiagnosticService {
      * @throws DiagnosticsException if there is an error writing data to the diagnostics zip stream
      */
     public void dumpSystemDiags(ZipOutputStream diagnosticZip) throws DiagnosticsException {
-        Path diagsDir = Paths.get(DIAGS_DIRECTORY);
+        Path diagsDir = Paths.get(SYSTEM_DIAGS_DIRECTORY);
         // zip files in the temp directory onto the diagnosticZip stream
         try {
             getSystemDiags();

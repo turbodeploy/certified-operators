@@ -69,10 +69,10 @@ public class DiagnosticServiceTest {
 
         // Assert
         verify(mockFileFolderZipper).zipFilesInFolder(PropertyTestConfiguration.testInstanceId,
-                mockZipOutputStream, Paths.get("/tmp/diags"));
+                mockZipOutputStream, Paths.get("/tmp/diags/system-data"));
 
         // dumpDiags should clean up the temporary folder.
-        assertThat(Files.exists(Paths.get("/tmp/diags")), is(false));
+        assertThat(Files.exists(Paths.get("/tmp/diags/system-data")), is(false));
     }
 }
 
