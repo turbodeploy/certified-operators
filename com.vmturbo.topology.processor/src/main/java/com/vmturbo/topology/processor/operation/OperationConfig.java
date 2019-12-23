@@ -1,11 +1,15 @@
 package com.vmturbo.topology.processor.operation;
 
+import java.time.Clock;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.notification.api.NotificationApiConfig;
+import com.vmturbo.notification.api.NotificationSender;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
 import com.vmturbo.topology.processor.communication.SdkServerConfig;
 import com.vmturbo.topology.processor.controllable.ControllableConfig;
@@ -15,6 +19,7 @@ import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.ncm.MatrixConfig;
+import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 import com.vmturbo.topology.processor.plan.PlanConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
@@ -38,6 +43,7 @@ import com.vmturbo.topology.processor.workflow.WorkflowConfig;
     WorkflowConfig.class,
     CloudCostConfig.class,
     ComponentBasedTargetDumpingSettingsConfig.class,
+    NotificationApiConfig.class,
     MatrixConfig.class
 })
 public class OperationConfig {
@@ -79,6 +85,9 @@ public class OperationConfig {
     private ComponentBasedTargetDumpingSettingsConfig componentBasedTargetDumpingSettingsConfig;
 
     @Autowired
+    private NotificationApiConfig notificationApiConfig;
+
+    @Autowired
     private MatrixConfig matrixConfig;
 
     @Value("${discoveryTimeoutSeconds}")
@@ -99,6 +108,30 @@ public class OperationConfig {
     @Value("${probeDiscoveryPermitWaitTimeoutIntervalMins}")
     private int probeDiscoveryPermitWaitTimeoutIntervalMins;
 
+    /**
+     * Returns the notification sender implementation used to send notifications
+     * to the system like probe failures.
+     *
+     * @return the configured notification sender.
+     */
+    @Bean
+    public NotificationSender notificationSender() {
+        return new NotificationSender(
+            notificationApiConfig.notificationMessageSender(),
+            Clock.systemUTC());
+    }
+
+    /**
+     * Returns the systemNotificationProducer that translates and sends notifications from probes
+     * to the system.
+     *
+     * @return the configured system notification producer.
+     */
+    @Bean
+    public SystemNotificationProducer systemNotificationProducer() {
+        return new SystemNotificationProducer(notificationSender());
+    }
+
     @Bean
     public IOperationManager operationManager() {
         return new OperationManager(identityProviderConfig.identityProvider(),
@@ -115,6 +148,7 @@ public class OperationConfig {
             targetConfig.derivedTargetParser(),
             targetConfig.groupScopeResolver(),
             componentBasedTargetDumpingSettingsConfig.componentBasedTargetDumpingSettings(),
+            systemNotificationProducer(),
             discoveryTimeoutSeconds,
             validationTimeoutSeconds,
             actionTimeoutSeconds,

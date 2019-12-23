@@ -82,6 +82,7 @@ import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
+import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 import com.vmturbo.topology.processor.operation.OperationTestUtilities.TrackingOperationListener;
 import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
@@ -126,6 +127,8 @@ public class OperationManagerTest {
     private final GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
 
     private final TargetDumpingSettings targetDumpingSettings = Mockito.mock(TargetDumpingSettings.class);
+
+    private final SystemNotificationProducer systemNotificationProducer = Mockito.mock(SystemNotificationProducer.class);
 
     private final TargetStore targetStore = new KVBackedTargetStore(kvStore, probeStore,
             targetIdentityStore);
@@ -173,7 +176,7 @@ public class OperationManagerTest {
         operationManager = new OperationManager(identityProvider, targetStore, probeStore,
             mockRemoteMediationServer, operationListener, entityStore, discoveredGroupUploader,
             discoveredWorkflowUploader, discoveredCloudCostUploader, discoveredTemplatesUploader,
-            entityActionDao, derivedTargetParser, groupScopeResolver, targetDumpingSettings, 10, 10, 10,
+            entityActionDao, derivedTargetParser, groupScopeResolver, targetDumpingSettings, systemNotificationProducer, 10, 10, 10,
             5, 1, 1, TheMatrix.instance());
         IdentityGenerator.initPrefix(0);
         when(identityProvider.generateOperationId()).thenAnswer((invocation) -> IdentityGenerator.next());

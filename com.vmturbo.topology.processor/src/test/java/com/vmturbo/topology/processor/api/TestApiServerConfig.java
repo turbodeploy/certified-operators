@@ -56,6 +56,7 @@ import com.vmturbo.topology.processor.identity.IdentityService;
 import com.vmturbo.topology.processor.identity.services.HeuristicsMatcher;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore;
+import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 import com.vmturbo.topology.processor.operation.OperationManager;
 import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileUploader;
 import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
@@ -264,18 +265,38 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
         return targetDumpingSettings;
     }
 
+    /**
+     * Returns mocked system notification producer.
+     *
+     * @return mocked system notification producer.
+     */
+    @Bean
+    SystemNotificationProducer systemNotificationProducer() {
+        SystemNotificationProducer systemNotificationProducer = Mockito.mock(SystemNotificationProducer.class);
+        return systemNotificationProducer;
+    }
+
     @Bean
     public OperationManager operationManager() {
 
-        return new OperationManager(identityProvider(), targetStore(), probeStore(),
-            remoteMediation(), topologyProcessorNotificationSender(),
-            entityRepository(), groupRecorder(), workflowRecorder(),
+        return new OperationManager(identityProvider(),
+            targetStore(),
+            probeStore(),
+            remoteMediation(),
+            topologyProcessorNotificationSender(),
+            entityRepository(),
+            groupRecorder(),
+            workflowRecorder(),
             cloudCostUploadRecorder(),
-            discoveredTemplatesUploader(), controllableDao(),
-            derivedTargetParser(), groupScopeResolver(),
-            targetDumpingSettings(), 1L, 1L, 1L,
-                                    5, 1, 1,
-                                    TheMatrix.instance());
+            discoveredTemplatesUploader(),
+            controllableDao(),
+            derivedTargetParser(),
+            groupScopeResolver(),
+            targetDumpingSettings(),
+            systemNotificationProducer(),
+            1L, 1L, 1L,
+            5, 1, 1,
+            TheMatrix.instance());
     }
 
     @Bean

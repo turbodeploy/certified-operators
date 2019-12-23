@@ -77,6 +77,7 @@ import com.vmturbo.topology.processor.identity.IdentityService;
 import com.vmturbo.topology.processor.identity.services.HeuristicsMatcher;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore;
+import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 import com.vmturbo.topology.processor.operation.Operation;
 import com.vmturbo.topology.processor.operation.OperationListener;
 import com.vmturbo.topology.processor.operation.OperationManager;
@@ -211,6 +212,18 @@ public class OperationControllerTest {
             return targetDumpingSettings;
         }
 
+        /**
+         * Returns the systemNotificationProducer that translates and sends notifications from probes
+         * to the system.
+         *
+         * @return the configured system notification producer.
+         */
+        @Bean
+        SystemNotificationProducer systemNotificationProducer() {
+            SystemNotificationProducer systemNotificationProducer = Mockito.mock(SystemNotificationProducer.class);
+            return systemNotificationProducer;
+        }
+
         @SuppressWarnings("unchecked")
         OperationListener operationListener() {
             return Mockito.mock(OperationListener.class);
@@ -232,6 +245,7 @@ public class OperationControllerTest {
                                         derivedTargetParser(),
                                         groupScopeResolver(),
                                         targetDumpingSettings(),
+                                        systemNotificationProducer(),
                                         10, 10, 10,
                                         5, 1, 1,
                                         TheMatrix.instance());

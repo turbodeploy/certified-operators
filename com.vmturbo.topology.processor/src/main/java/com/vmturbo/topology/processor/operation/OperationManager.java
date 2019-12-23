@@ -71,6 +71,7 @@ import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
+import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.action.ActionMessageHandler;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
@@ -160,15 +161,17 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     private final GroupScopeResolver groupScopeResolver;
 
+    private final TargetDumpingSettings targetDumpingSettings;
+
+    private DiscoveryDumper discoveryDumper = null;
+
+    private final SystemNotificationProducer systemNotificationProducer;
+
     private final long discoveryTimeoutMs;
 
     private final long validationTimeoutMs;
 
     private final long actionTimeoutMs;
-
-    private final TargetDumpingSettings targetDumpingSettings;
-
-    private DiscoveryDumper discoveryDumper = null;
 
     /**
      *  Executor service for handling async responses from the probe.
@@ -249,6 +252,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             @Nonnull final DerivedTargetParser derivedTargetParser,
                             @Nonnull final GroupScopeResolver groupScopeResolver,
                             @Nonnull final TargetDumpingSettings targetDumpingSettings,
+                            @Nonnull final SystemNotificationProducer systemNotificationProducer,
                             final long discoveryTimeoutSeconds,
                             final long validationTimeoutSeconds,
                             final long actionTimeoutSeconds,
@@ -267,6 +271,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         this.entityActionDao = Objects.requireNonNull(entityActionDao);
         this.derivedTargetParser = Objects.requireNonNull(derivedTargetParser);
         this.groupScopeResolver = Objects.requireNonNull(groupScopeResolver);
+        this.systemNotificationProducer = Objects.requireNonNull(systemNotificationProducer);
         this.discoveredTemplateDeploymentProfileNotifier = Objects.requireNonNull(discoveredTemplateDeploymentProfileNotifier);
         this.discoveryTimeoutMs = TimeUnit.MILLISECONDS.convert(discoveryTimeoutSeconds, TimeUnit.SECONDS);
         this.validationTimeoutMs = TimeUnit.MILLISECONDS.convert(validationTimeoutSeconds, TimeUnit.SECONDS);
@@ -1043,6 +1048,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                         if (response.hasDiscoveryContext()) {
                             currentTargetDiscoveryContext.put(targetId, response.getDiscoveryContext());
                         }
+                        systemNotificationProducer.sendSystemNotification(response.getNotificationList(), target.get());
                         if (discoveryDumper != null) {
                             final Optional<ProbeInfo> probeInfo = probeStore.getProbe(discovery.getProbeId());
                             String displayName = target.isPresent()

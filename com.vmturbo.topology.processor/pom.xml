@@ -230,6 +230,10 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>cost-api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>system-notification-sender</artifactId>
+        </dependency>
 
         <!--  Gson: Java to Json conversion -->
         <dependency>
