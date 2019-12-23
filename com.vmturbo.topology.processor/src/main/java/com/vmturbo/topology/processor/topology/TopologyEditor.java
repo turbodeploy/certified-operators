@@ -506,8 +506,11 @@ public class TopologyEditor {
                     clonedProvider.addCommodityBought(commodityBought);
                 }
             });
-            cloneBuilder.addCommoditiesBoughtFromProviders(clonedProvider.build());
-            oldProvidersMap.put(noProvider, oldProvider);
+            // Create the Comm bought grouping if it will have at least one commodity bought
+            if (!clonedProvider.getCommodityBoughtList().isEmpty()) {
+                cloneBuilder.addCommoditiesBoughtFromProviders(clonedProvider.build());
+                oldProvidersMap.put(noProvider, oldProvider);
+            }
         }
 
         long cloneId = identityProvider.getCloneId(entity);
