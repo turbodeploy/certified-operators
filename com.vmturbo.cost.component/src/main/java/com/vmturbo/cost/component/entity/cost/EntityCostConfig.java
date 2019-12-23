@@ -10,15 +10,19 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.MarketListenerConfig;
+import com.vmturbo.cost.component.SupplyChainServiceConfig;
 import com.vmturbo.cost.component.notification.CostNotificationConfig;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
+import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 
 @Configuration
 @Import({MarketClientConfig.class,
         MarketListenerConfig.class,
         CostDBConfig.class,
-        CostNotificationConfig.class})
+        CostNotificationConfig.class,
+        RepositoryClientConfig.class,
+        SupplyChainServiceConfig.class})
 public class EntityCostConfig {
 
     @Autowired
@@ -33,6 +37,15 @@ public class EntityCostConfig {
     @Autowired
     private MarketComponent marketComponent;
 
+    @Value("${realtimeTopologyContextId}")
+    private long realtimeTopologyContextId;
+
+    @Autowired
+    private RepositoryClientConfig repositoryClientConfig;
+
+    @Autowired
+    private SupplyChainServiceConfig supplyChainServiceConfig;
+
     @Bean
     public EntityCostStore entityCostStore() {
         return new SqlEntityCostStore(databaseConfig.dsl(), Clock.systemUTC(), persistEntityCostChunkSize);
@@ -40,12 +53,14 @@ public class EntityCostConfig {
 
     @Bean
     public ProjectedEntityCostStore projectedEntityCostStore() {
-        return new ProjectedEntityCostStore();
+        return new ProjectedEntityCostStore(repositoryClientConfig.repositoryClient(),
+                supplyChainServiceConfig.supplyChainRpcService(), realtimeTopologyContextId);
     }
 
     @Bean
     public PlanProjectedEntityCostStore planProjectedEntityCostStore() {
-        return new PlanProjectedEntityCostStore(databaseConfig.dsl(), persistEntityCostChunkSize);
+        return new PlanProjectedEntityCostStore(databaseConfig.dsl(),
+                persistEntityCostChunkSize);
     }
 
     @Bean

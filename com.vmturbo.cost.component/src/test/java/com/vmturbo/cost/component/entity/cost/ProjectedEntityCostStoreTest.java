@@ -3,14 +3,20 @@ package com.vmturbo.cost.component.entity.cost;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import io.grpc.Channel;
+
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -24,11 +30,15 @@ import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
+import com.vmturbo.cost.component.util.EntityCostFilter;
 import com.vmturbo.cost.component.util.EntityCostFilter.EntityCostFilterBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 /**
@@ -46,6 +56,7 @@ public class ProjectedEntityCostStoreTest {
     private static final long VM1_OID = 7L;
     private static final long VM2_OID = 8L;
     private static final long DB1_OID = 9L;
+    private static final long realTimeContextId = 777777L;
 
     private static final ComponentCost VM1_ON_DEM_COST = ComponentCost.newBuilder()
             .setCategory(CostCategory.ON_DEMAND_COMPUTE)
@@ -101,9 +112,15 @@ public class ProjectedEntityCostStoreTest {
             .addComponentCost(DB1_ON_DEM_COST)
             .build();
 
+    private RepositoryClient repositoryClient;
+    private SupplyChainServiceBlockingStub serviceBlockingStub;
+
     @Before
-    public void setup() throws Exception {
-        store = new ProjectedEntityCostStore();
+    public void setup() {
+        repositoryClient = mock(RepositoryClient.class);
+        serviceBlockingStub = SupplyChainServiceGrpc.newBlockingStub(mock(Channel.class));
+        store = new ProjectedEntityCostStore(repositoryClient, serviceBlockingStub,
+                realTimeContextId);
     }
 
     @Test
@@ -224,6 +241,73 @@ public class ProjectedEntityCostStoreTest {
         assertThat(costs.get(VM2_OID).getComponentCostList(), containsInAnyOrder(VM2_ON_DEM_COST,
             VM2_STORAGE_COST));
         assertThat(costs.get(DB1_OID), is(DB1_COST));
+    }
 
+    /**
+     * Test that with region AND account filter, the returned projected costs contains costs for
+     * entities present in *both* the region scope *and* account scope but not the entities that
+     * are present either only in region scope or only in account scope (intersection set).
+     */
+    @Test
+    public void testGetProjectedEntityCostsRegionalAndAccountFilter() {
+        final long regionId = 11111L;
+        final long accountId = 22222L;
+        store.updateProjectedEntityCosts(Arrays.asList(VM1_COST, VM2_COST));
+        final EntityCostFilter costFilterWithRegion = EntityCostFilterBuilder
+                .newBuilder(TimeFrame.LATEST)
+                .regionIds(Collections.singleton(regionId))
+                .accountIds(Collections.singleton(accountId))
+                .build();
+        when(repositoryClient.getEntityOidsByType(Collections.singletonList(regionId),
+                realTimeContextId, serviceBlockingStub)).thenReturn(Collections.singletonMap(
+                EntityType.VIRTUAL_MACHINE, new HashSet<>(Arrays.asList(VM1_OID, VM2_OID))));
+        when(repositoryClient.getEntityOidsByType(Collections.singletonList(accountId),
+                realTimeContextId, serviceBlockingStub)).thenReturn(Collections.singletonMap(
+                        EntityType.VIRTUAL_MACHINE, Collections.singleton(VM2_OID)));
+        final Map<Long, EntityCost> costMap = store.getProjectedEntityCosts(costFilterWithRegion);
+        Assert.assertEquals(1, costMap.size());
+        Assert.assertEquals(VM2_COST, costMap.get(VM2_OID));
+    }
+
+    /**
+     * Test that empty account filter scope and non-empty region filter scope results in empty
+     * projected costs being returned.
+     */
+    @Test
+    public void testGetProjectedEntityCostsEmptyAccountFilter() {
+        final long regionId = 11111L;
+        final long accountId = 22222L;
+        store.updateProjectedEntityCosts(Arrays.asList(VM1_COST, VM2_COST));
+        final EntityCostFilter costFilterWithRegion = EntityCostFilterBuilder
+                .newBuilder(TimeFrame.LATEST)
+                .regionIds(Collections.singleton(regionId))
+                .accountIds(Collections.singleton(accountId))
+                .build();
+        when(repositoryClient.getEntityOidsByType(Collections.singletonList(regionId),
+                realTimeContextId, serviceBlockingStub)).thenReturn(Collections.singletonMap(
+                EntityType.VIRTUAL_MACHINE, new HashSet<>(Arrays.asList(VM1_OID, VM2_OID))));
+        when(repositoryClient.getEntityOidsByType(Collections.singletonList(accountId),
+                realTimeContextId, serviceBlockingStub)).thenReturn(Collections.emptyMap());
+        final Map<Long, EntityCost> costMap = store.getProjectedEntityCosts(costFilterWithRegion);
+        Assert.assertTrue(costMap.isEmpty());
+    }
+
+    /**
+     * Test that with region filter only, correct projected costs are returned.
+     */
+    @Test
+    public void testGetProjectedEntityCostsRegionalFilter() {
+        final long regionId = 11111L;
+        store.updateProjectedEntityCosts(Arrays.asList(VM1_COST, VM2_COST));
+        final EntityCostFilter costFilterWithRegion = EntityCostFilterBuilder
+                .newBuilder(TimeFrame.LATEST)
+                .regionIds(Collections.singleton(regionId))
+                .build();
+        when(repositoryClient.getEntityOidsByType(Collections.singletonList(regionId),
+                realTimeContextId, serviceBlockingStub)).thenReturn(Collections.singletonMap(
+                EntityType.VIRTUAL_MACHINE, Collections.singleton(VM1_OID)));
+        final Map<Long, EntityCost> costMap = store.getProjectedEntityCosts(costFilterWithRegion);
+        Assert.assertFalse(costMap.isEmpty());
+        Assert.assertEquals(VM1_COST, costMap.get(VM1_OID));
     }
 }
