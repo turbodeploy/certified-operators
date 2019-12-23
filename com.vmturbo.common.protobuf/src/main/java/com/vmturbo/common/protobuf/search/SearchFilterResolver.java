@@ -1,5 +1,8 @@
 package com.vmturbo.common.protobuf.search;
 
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.Objects;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -12,6 +15,7 @@ import com.vmturbo.common.protobuf.search.Search.GroupMembershipFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceBlockingStub;
 
 /**
  * This is an object able to resolve filters. There are some filters that could not be executed
@@ -25,6 +29,16 @@ import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 public abstract class SearchFilterResolver {
 
     private final Logger logger = LogManager.getLogger(getClass());
+    private final TargetSearchServiceBlockingStub targetSearchService;
+
+    /**
+     * Constructs search filter resolver.
+     *
+     * @param targetSearchService gRPC to resolve target searches
+     */
+    protected SearchFilterResolver(@Nonnull TargetSearchServiceBlockingStub targetSearchService) {
+        this.targetSearchService = Objects.requireNonNull(targetSearchService);
+    }
 
     /**
      * Returns a set of OIDs of all the members for the groups specified by a group filter.
@@ -42,15 +56,15 @@ public abstract class SearchFilterResolver {
      *
      * @param searchParameters A SearchParameters object that may contain cluster filters.
      * @return A SearchParameters object that has had any cluster filters in it resolved. Will be
-     *         the
-     *         original object if there were no group filters inside.
+     *         the original object if there were no group filters inside.
      */
     @Nonnull
-    public SearchParameters resolveGroupFilters(@Nonnull SearchParameters searchParameters) {
+    public SearchParameters resolveExternalFilters(@Nonnull SearchParameters searchParameters) {
         // return the original object if no group member filters inside
         if (searchParameters.getSearchFilterList()
                 .stream()
-                .noneMatch(SearchFilter::hasGroupMembershipFilter)) {
+                .noneMatch(filter -> filter.hasGroupMembershipFilter() ||
+                        isTargetFilter(filter))) {
             return searchParameters;
         }
         // We have one or more Group Member Filters to resolve. Rebuild the SearchParameters.
@@ -62,7 +76,7 @@ public abstract class SearchFilterResolver {
             searchParamBuilder.addSearchFilter(convertGroupMemberFilter(sf));
         }
 
-        return searchParamBuilder.build();
+        return convertTargetFilters(searchParamBuilder.build());
     }
 
     /**
@@ -102,4 +116,48 @@ public abstract class SearchFilterResolver {
                 .build();
         return searchFilter;
     }
+
+    /**
+     * For any Cloud Provider filter within the given search parameters, convert it to a
+     * Discovered By Target filter. Fetch the ids of all targets belonging to the cloud provider(s)
+     * indicated in the original filter, and add them to the converted filter as options.
+     *
+     * @param searchParams original search parameters, possibly containing cloud provider
+     *         filter
+     * @return search parameters with any cloud provider filters converted to target filters
+     */
+    @Nonnull
+    private SearchParameters convertTargetFilters(@Nonnull SearchParameters searchParams) {
+        if (searchParams.getSearchFilterList().stream().noneMatch(this::isTargetFilter)) {
+            return searchParams;
+        }
+        final SearchParameters.Builder paramBuilder = SearchParameters.newBuilder(searchParams);
+        paramBuilder.clearSearchFilter();
+        final Iterator<SearchFilter> iterator = searchParams.getSearchFilterList().iterator();
+        while (iterator.hasNext()) {
+            final SearchFilter filter = iterator.next();
+            if (isTargetFilter(filter)) {
+                final SearchFilter targetFilter = iterator.next();
+                if (!targetFilter.hasPropertyFilter()) {
+                    throw new IllegalArgumentException(
+                            "Target search property must have a property filter: " + targetFilter);
+                }
+                final Collection<Long> matchingTargets =
+                        targetSearchService.searchTargets(targetFilter.getPropertyFilter())
+                                .getTargetsList();
+                paramBuilder.addSearchFilter(SearchFilter.newBuilder()
+                        .setPropertyFilter(SearchProtoUtil.discoveredBy(matchingTargets)));
+            } else {
+                paramBuilder.addSearchFilter(filter);
+            }
+        }
+        return paramBuilder.build();
+    }
+
+    private boolean isTargetFilter(@Nonnull final SearchFilter searchFilter) {
+        return searchFilter.hasPropertyFilter() && searchFilter.getPropertyFilter()
+                .getPropertyName()
+                .equals(SearchableProperties.TARGET_FILTER_MARKER);
+    }
 }
+

@@ -90,11 +90,18 @@ public class RepositoryApi {
      */
     @Nonnull
     public SearchRequest newSearchRequest(@Nonnull final SearchParameters params) {
-        return newSearchRequest(Collections.singleton(params));
+        return newSearchRequestMulti(Collections.singleton(params));
     }
 
+    /**
+     * Create a new search request.
+     *
+     * @param params The {@link SearchParameters} to use for the request. Use the utility methods
+     *               in {@link com.vmturbo.common.protobuf.search.SearchProtoUtil} where possible.
+     * @return The {@link SearchRequest}, which can be further customized.
+     */
     @Nonnull
-    private SearchRequest newSearchRequest(@Nonnull Collection<SearchParameters> params) {
+    public SearchRequest newSearchRequestMulti(@Nonnull Collection<SearchParameters> params) {
         return new SearchRequest(realtimeTopologyContextId, searchServiceBlockingStub,
             severityPopulator, serviceEntityMapper, params);
     }

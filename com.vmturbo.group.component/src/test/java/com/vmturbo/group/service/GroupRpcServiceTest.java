@@ -95,8 +95,11 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
+import com.vmturbo.common.protobuf.search.SearchMoles.TargetSearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc;
+import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -116,12 +119,13 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 /**
- * This class tests {@link GroupRpcServiceTest}.
+ * This class tests {@link GroupRpcService}.
  */
 public class GroupRpcServiceTest {
 
     private AtomicReference<List<Long>> mockDataReference = new AtomicReference<>(Collections.emptyList());
     private SearchServiceMole searchServiceMole;
+    private TargetSearchServiceMole targetSearchServiceMole;
     private TemporaryGroupCache temporaryGroupCache = mock(TemporaryGroupCache.class);
 
     private GroupRpcService groupRpcService;
@@ -168,11 +172,15 @@ public class GroupRpcServiceTest {
     @Before
     public void setUp() throws Exception {
         searchServiceMole = Mockito.spy(new SearchServiceMole());
+        targetSearchServiceMole = Mockito.spy(new TargetSearchServiceMole());
         testServer = GrpcTestServer.newServer(searchServiceMole);
         testServer.start();
         identityProvider = Mockito.spy(new IdentityProvider(0));
         groupStitchingManager = new GroupStitchingManager(identityProvider);
-        SearchServiceBlockingStub searchServiceRpc = SearchServiceGrpc.newBlockingStub(testServer.getChannel());
+        final SearchServiceBlockingStub searchServiceRpc =
+                SearchServiceGrpc.newBlockingStub(testServer.getChannel());
+        final TargetSearchServiceBlockingStub targetSearchServiceRpc =
+                TargetSearchServiceGrpc.newBlockingStub(testServer.getChannel());
         transactionProvider = new MockTransactionProvider();
         groupStoreDAO = transactionProvider.getGroupStore();
         groupRpcService = new GroupRpcService(temporaryGroupCache,
@@ -180,7 +188,8 @@ public class GroupRpcServiceTest {
                 userSessionContext,
                 groupStitchingManager,
                 transactionProvider,
-                identityProvider);
+                identityProvider,
+                targetSearchServiceRpc);
         when(temporaryGroupCache.getGrouping(anyLong())).thenReturn(Optional.empty());
         when(temporaryGroupCache.deleteGrouping(anyLong())).thenReturn(Optional.empty());
         MockitoAnnotations.initMocks(this);

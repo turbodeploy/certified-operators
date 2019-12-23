@@ -18,6 +18,7 @@ import com.vmturbo.topology.processor.communication.SdkServerConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
+import com.vmturbo.topology.processor.operation.OperationConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.probes.ProbeRpcService;
 import com.vmturbo.topology.processor.scheduling.SchedulerConfig;
@@ -39,7 +40,8 @@ import com.vmturbo.topology.processor.topology.TopologyRpcService;
     ProbeConfig.class,
     TargetConfig.class,
     StitchingConfig.class,
-    SdkServerConfig.class
+    SdkServerConfig.class,
+    OperationConfig.class
 })
 public class TopologyProcessorRpcConfig {
 
@@ -79,11 +81,25 @@ public class TopologyProcessorRpcConfig {
     @Value("${waitForBroadcastTimeoutMin:60}")
     private long waitForBroadcastTimeoutMin;
 
+    @Autowired
+    private OperationConfig operationConfig;
+
     @Bean
     public DiscoveredGroupRpcService discoveredGroupRpcService() {
         return new DiscoveredGroupRpcService(groupConfig.discoveredGroupUploader());
     }
 
+    @Bean
+    public TargetSearchRpcService targetSearchRpcService() {
+        return new TargetSearchRpcService(targetConfig.targetStore(), probeConfig.probeStore(),
+                operationConfig.operationManager());
+    }
+
+    /**
+     * Discovered groups service controller.
+     *
+     * @return discovered groups service controller
+     */
     @Bean
     public DiscoveredGroupServiceController debugServiceController() {
         return new DiscoveredGroupServiceController(discoveredGroupRpcService());

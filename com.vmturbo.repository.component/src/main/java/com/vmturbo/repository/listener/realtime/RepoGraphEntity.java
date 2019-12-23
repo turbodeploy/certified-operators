@@ -16,12 +16,12 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableMap;
 import com.google.protobuf.InvalidProtocolBufferException;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4FastDecompressor;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -427,6 +427,11 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
         return discoveredTargetData.values().stream()
             .filter(PerTargetEntityInformation::hasVendorId)
             .map(PerTargetEntityInformation::getVendorId);
+    }
+
+    @Override
+    public String toString() {
+        return displayName + "@" + oid;
     }
 
     /**

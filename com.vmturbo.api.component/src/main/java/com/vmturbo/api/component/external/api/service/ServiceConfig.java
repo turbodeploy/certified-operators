@@ -54,6 +54,7 @@ import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.kvstore.ComponentJwtStore;
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.auth.api.widgets.AuthClientConfig;
+import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.components.common.utils.BuildProperties;
 import com.vmturbo.kvstore.KeyValueStoreConfig;
 import com.vmturbo.kvstore.PublicKeyStoreConfig;
@@ -229,7 +230,9 @@ public class ServiceConfig {
             communicationConfig.groupExpander(),
             communicationConfig.groupRpcService(),
             communicationConfig.costServiceBlockingStub(),
-            communicationConfig.thinTargetCache());
+            communicationConfig.thinTargetCache(),
+            mapperConfig.entityFilterMapper(),
+            searchFilterResolver());
     }
 
     /**
@@ -439,6 +442,17 @@ public class ServiceConfig {
     }
 
     @Bean
+    public SearchFilterResolver searchFilterResolver() {
+        return new SearchServiceFilterResolver(communicationConfig.targetSearchService(),
+                communicationConfig.groupExpander());
+    }
+
+    /**
+     * Search service fulfilling requests from search REST controller.
+     *
+     * @return search service.
+     */
+    @Bean
     public SearchService searchService() {
         return new SearchService(
                 communicationConfig.repositoryApi(),
@@ -459,7 +473,8 @@ public class ServiceConfig {
                 communicationConfig.groupRpcService(),
                 communicationConfig.serviceEntityMapper(),
                 mapperConfig.entityFilterMapper(),
-                mapperConfig.entityAspectMapper());
+                mapperConfig.entityAspectMapper(),
+                searchFilterResolver());
     }
 
     @Bean

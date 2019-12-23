@@ -172,7 +172,7 @@ public class GroupMapperTest {
                 businessAccountRetriever, CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 CONTEXT_ID, targetCache, cloudTypeMapper);
         SearchRequest req = ApiTestUtils.mockSearchCountReq(0);
-        when(repositoryApi.newSearchRequest(any())).thenReturn(req);
+        when(repositoryApi.newSearchRequest(any(SearchParameters.class))).thenReturn(req);
     }
 
     /**

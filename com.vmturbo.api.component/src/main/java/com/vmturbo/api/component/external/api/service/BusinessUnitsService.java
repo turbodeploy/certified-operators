@@ -123,7 +123,7 @@ public class BusinessUnitsService implements IBusinessUnitsService {
                     .build());
             return mapper.toDiscountBusinessUnitApiDTO(discounts);
         } else if (BusinessUnitType.DISCOVERED.equals(type)) {
-            return businessAccountRetriever.getBusinessAccountsInScope(Collections.emptyList());
+            return businessAccountRetriever.getBusinessAccountsInScope(Collections.emptyList(), null);
         }
         return ImmutableList.of(new BusinessUnitApiDTO());
     }

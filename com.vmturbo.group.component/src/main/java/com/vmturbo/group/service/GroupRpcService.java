@@ -62,11 +62,12 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsPoliciesS
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
+import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.group.group.GroupMembersPlain;
@@ -100,6 +101,8 @@ public class GroupRpcService extends GroupServiceImplBase {
     private final GroupStitchingManager groupStitchingManager;
     private final IdentityProvider identityProvider;
 
+    private final TargetSearchServiceBlockingStub targetSearchService;
+
     /**
      * Constructs group gRPC service.
      * @param tempGroupCache temporary groups cache to store temp groups
@@ -108,19 +111,22 @@ public class GroupRpcService extends GroupServiceImplBase {
      * @param groupStitchingManager groups stitching manager
      * @param transactionProvider transaction provider
      * @param identityProvider identity provider to assign OIDs to user groups
+     * @param targetSearchService target search service for dynamic groups
      */
     public GroupRpcService(@Nonnull final TemporaryGroupCache tempGroupCache,
                            @Nonnull final SearchServiceBlockingStub searchServiceRpc,
                            @Nonnull final UserSessionContext userSessionContext,
                            @Nonnull final GroupStitchingManager groupStitchingManager,
             @Nonnull TransactionProvider transactionProvider,
-            @Nonnull IdentityProvider identityProvider) {
+            @Nonnull IdentityProvider identityProvider,
+            @Nonnull TargetSearchServiceBlockingStub targetSearchService) {
         this.tempGroupCache = Objects.requireNonNull(tempGroupCache);
         this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
         this.groupStitchingManager = Objects.requireNonNull(groupStitchingManager);
         this.transactionProvider = Objects.requireNonNull(transactionProvider);
         this.identityProvider = Objects.requireNonNull(identityProvider);
+        this.targetSearchService = Objects.requireNonNull(targetSearchService);
     }
 
     @Override
@@ -417,7 +423,7 @@ public class GroupRpcService extends GroupServiceImplBase {
             return group; // not a dynamic group -- return original group
         }
         final GroupComponentSearchFilterResolver filterResolver =
-                new GroupComponentSearchFilterResolver(groupStore);
+                new GroupComponentSearchFilterResolver(targetSearchService, groupStore);
         Grouping.Builder newGrouping = Grouping.newBuilder(group);
         newGrouping.getDefinitionBuilder()
             .getEntityFiltersBuilder().clearEntityFilter();
@@ -439,7 +445,7 @@ public class GroupRpcService extends GroupServiceImplBase {
                 group.getDefinition().getDisplayName());
             final List<SearchParameters> searchParamsBuilder = new ArrayList<>();
             for (SearchParameters params : searchParameters) {
-                searchParamsBuilder.add(filterResolver.resolveGroupFilters(params));
+                searchParamsBuilder.add(filterResolver.resolveExternalFilters(params));
             }
 
             newGrouping.getDefinitionBuilder().getEntityFiltersBuilder()
@@ -783,10 +789,10 @@ public class GroupRpcService extends GroupServiceImplBase {
             Search.SearchEntityOidsRequest.Builder searchRequestBuilder =
                     Search.SearchEntityOidsRequest.newBuilder();
             final SearchFilterResolver searchFilterResolver =
-                    new GroupComponentSearchFilterResolver(groupStore);
+                    new GroupComponentSearchFilterResolver(targetSearchService, groupStore);
             for (SearchParameters params : searchParameters) {
                 searchRequestBuilder.addSearchParameters(
-                        searchFilterResolver.resolveGroupFilters(params));
+                        searchFilterResolver.resolveExternalFilters(params));
             }
             final Search.SearchEntityOidsRequest searchRequest = searchRequestBuilder.build();
             final Search.SearchEntityOidsResponse searchResponse =

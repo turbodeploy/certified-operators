@@ -9,6 +9,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
 import javax.servlet.ServletException;
 
+import io.grpc.BindableService;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.jetty.websocket.jsr356.server.deploy.WebSocketServerContainerInitializer;
@@ -44,8 +46,6 @@ import com.vmturbo.topology.processor.supplychain.SupplyChainValidationConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.template.TemplateConfig;
 import com.vmturbo.topology.processor.topology.TopologyConfig;
-
-import io.grpc.BindableService;
 
 /**
  * The main class of the Topology Processor.
@@ -161,7 +161,8 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
             identityProviderConfig.identityRpcService(),
             topologyProcessorRpcConfig.discoveredGroupRpcService(),
             probeConfig.probeActionPoliciesService(),
-            topologyProcessorRpcConfig.probeService());
+            topologyProcessorRpcConfig.probeService(),
+            topologyProcessorRpcConfig.targetSearchRpcService());
     }
 
     /**

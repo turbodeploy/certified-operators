@@ -14,6 +14,8 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlock
 import com.vmturbo.common.protobuf.group.GroupDTOREST.GroupServiceController;
 import com.vmturbo.common.protobuf.group.PolicyDTOREST.PolicyServiceController;
 import com.vmturbo.common.protobuf.schedule.ScheduleProtoREST.ScheduleServiceController;
+import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc;
+import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProtoREST.SettingPolicyServiceController;
 import com.vmturbo.common.protobuf.setting.SettingProtoREST.SettingServiceController;
 import com.vmturbo.group.GroupComponentDBConfig;
@@ -24,6 +26,7 @@ import com.vmturbo.group.schedule.ScheduleConfig;
 import com.vmturbo.group.setting.SettingConfig;
 import com.vmturbo.group.stitching.GroupStitchingManager;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 
 @Configuration
 @Import({ActionOrchestratorClientConfig.class,
@@ -34,7 +37,8 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
         RepositoryClientConfig.class,
         SettingConfig.class,
         ScheduleConfig.class,
-        UserSessionConfig.class})
+        UserSessionConfig.class,
+        TopologyProcessorClientConfig.class})
 public class RpcConfig {
 
     @Autowired
@@ -63,6 +67,9 @@ public class RpcConfig {
 
     @Autowired
     private UserSessionConfig userSessionConfig;
+
+    @Autowired
+    private TopologyProcessorClientConfig topologyProcessorClientConfig;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -97,9 +104,20 @@ public class RpcConfig {
         return new GroupRpcService(groupConfig.temporaryGroupCache(),
                 repositoryClientConfig.searchServiceClient(),
                 userSessionConfig.userSessionContext(), groupStitchingManager(),
-                transactionProvider(), identityProviderConfig.identityProvider());
+                transactionProvider(), identityProviderConfig.identityProvider(),
+                targetSearchService());
     }
 
+    /**
+     * Target search service.
+     *
+     * @return target search service
+     */
+    @Bean
+    public TargetSearchServiceBlockingStub targetSearchService() {
+        return TargetSearchServiceGrpc.newBlockingStub(
+                topologyProcessorClientConfig.topologyProcessorChannel());
+    }
     /**
      * An instance of group stitching manager.
      *

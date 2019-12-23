@@ -72,7 +72,6 @@ import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.dto.search.CriteriaOptionApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
-import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
@@ -95,14 +94,15 @@ import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse.Builder;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.CloudType;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
@@ -125,6 +125,7 @@ import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus;
 
 /**
  * Service entry points to search the Repository.
@@ -170,7 +171,7 @@ public class SearchService implements ISearchService {
     private final ServiceEntityMapper serviceEntityMapper;
 
     private final EntityFilterMapper entityFilterMapper;
-    private final SearchServiceFilterResolver filterResolver;
+    private final SearchFilterResolver filterResolver;
 
     private static Map<String, CriteriaOptionProvider> criteriaOptionProviders;
 
@@ -192,7 +193,8 @@ public class SearchService implements ISearchService {
                   @Nonnull final GroupServiceBlockingStub groupServiceRpc,
                   @Nonnull final ServiceEntityMapper serviceEntityMapper,
                   @Nonnull final EntityFilterMapper entityFilterMapper,
-                  @Nonnull final EntityAspectMapper entityAspectMapper) {
+                  @Nonnull final EntityAspectMapper entityAspectMapper,
+                  @Nonnull final SearchFilterResolver searchFilterResolver) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.marketsService = Objects.requireNonNull(marketsService);
         this.groupsService = Objects.requireNonNull(groupsService);
@@ -213,7 +215,7 @@ public class SearchService implements ISearchService {
         this.entityFilterMapper = Objects.requireNonNull(entityFilterMapper);
         this.entityAspectMapper = Objects.requireNonNull(entityAspectMapper);
 
-        this.filterResolver = new SearchServiceFilterResolver(groupExpander);
+        this.filterResolver = Objects.requireNonNull(searchFilterResolver);
         criteriaOptionProviders = ImmutableMap.<String, CriteriaOptionProvider>builder().put(STATE,
                 (a, b, c) -> getStateOptions())
                 .put(StringConstants.TAGS_ATTR, this::getSTagAttributeOptions)
@@ -226,8 +228,9 @@ public class SearchService implements ISearchService {
                 .put(CONNECTED_STORAGE_TIER_FILTER_PATH,
                         (a, b, c) -> getConnectionStorageTierOptions())
                 .put(REGION_FILTER_PATH, (a, b, c) -> getRegionFilterOptions())
-                .put(SearchableProperties.CLOUD_PROVIDER, (a, b, c) -> getCloudProviderOptions())
+                .put("discoveredBy:cloudProvider", (a, b, c) -> getCloudProviderOptions())
                 .put(EntityFilterMapper.RESROUCE_GROUP_OID, (a, b, c) -> getResourceGroupsOptions())
+                .put("discoveredBy:validationStatus", (a, b, c) -> getValidationStatusOptions())
                 .build();
 
     }
@@ -364,9 +367,8 @@ public class SearchService implements ISearchService {
                 final Collection<TargetApiDTO> targets = targetsService.getTargets(null);
                 return paginationRequest.allResultsResponse(Lists.newArrayList(targets));
             } else if (typesHashSet.contains(UIEntityType.BUSINESS_ACCOUNT.apiStr())) {
-                // TODO handle different scopes (not just target scope)
                 final Collection<BusinessUnitApiDTO> businessAccounts =
-                        businessAccountRetriever.getBusinessAccountsInScope(scopes);
+                        businessAccountRetriever.getBusinessAccountsInScope(scopes, null);
                 return paginationRequest.allResultsResponse(Lists.newArrayList(businessAccounts));
             } else if (typesHashSet.contains(StringConstants.BILLING_FAMILY)) {
                 return paginationRequest.allResultsResponse(
@@ -469,7 +471,8 @@ public class SearchService implements ISearchService {
                             inputDTO.getEnvironmentType())));
         } else if (BUSINESS_ACCOUNT.equals(className)) {
             return paginationRequest.allResultsResponse(Lists.newArrayList(
-                businessAccountRetriever.getBusinessAccountsInScope(inputDTO.getScope())));
+                    businessAccountRetriever.getBusinessAccountsInScope(inputDTO.getScope(),
+                            inputDTO.getCriteriaList())));
         } else if (WORKLOAD.equals(className)) {
             List<String> scope = inputDTO.getScope();
 
@@ -559,8 +562,7 @@ public class SearchService implements ISearchService {
         List<SearchParameters> searchParameters = entityFilterMapper.convertToSearchParameters(
                 inputDTO.getCriteriaList(), entityTypes, updatedQuery).stream()
                 // Convert any cluster membership filters to property filters.
-                .map(filterResolver::resolveGroupFilters)
-                .map(this::resolveCloudProviderFilters)
+                .map(filterResolver::resolveExternalFilters)
                 .map(this::resolveRegionFilters)
                 .collect(Collectors.toList());
 
@@ -866,48 +868,6 @@ public class SearchService implements ISearchService {
     }
 
     /**
-     * For any Cloud Provider filter within the given search parameters, convert it to a
-     * Discovered By Target filter. Fetch the ids of all targets belonging to the cloud provider(s)
-     * indicated in the original filter, and add them to the converted filter as options.
-     *
-     * @param searchParams original search parameters, possibly containing cloud provider filter
-     * @return search parameters with any cloud provider filters converted to target filters
-     */
-    @VisibleForTesting
-    SearchParameters resolveCloudProviderFilters(SearchParameters searchParams) {
-        if (searchParams.getSearchFilterList().stream().noneMatch(this::isCloudProviderFilter)) {
-            return searchParams;
-        }
-        final SearchParameters.Builder paramBuilder = SearchParameters.newBuilder(searchParams);
-        paramBuilder.clearSearchFilter();
-        for (SearchFilter filter : searchParams.getSearchFilterList()) {
-            paramBuilder.addSearchFilter(convertCloudProviderFilter(filter));
-        }
-
-        return paramBuilder.build();
-    }
-
-    private boolean isCloudProviderFilter(final SearchFilter searchFilter) {
-        return searchFilter.hasPropertyFilter() && searchFilter.getPropertyFilter().getPropertyName().equals(SearchableProperties.CLOUD_PROVIDER);
-    }
-
-    private SearchFilter convertCloudProviderFilter(SearchFilter originalFilter) {
-        if (!isCloudProviderFilter(originalFilter)) {
-            return originalFilter;
-        }
-        final StringFilter inner = originalFilter.getPropertyFilter().getStringFilter();
-        final Set<Long> targetOptions = targetsService.getAllTargets(null).stream()
-            .filter(dto -> inner.getPositiveMatch() ==
-                inner.getOptionsList().contains(CloudType.fromProbeType(dto.getType()).name()))
-            .map(dto -> Long.valueOf(dto.getUuid()))
-            .collect(Collectors.toSet());
-
-        return SearchFilter.newBuilder()
-            .setPropertyFilter(SearchProtoUtil.discoveredBy(targetOptions))
-            .build();
-    }
-
-    /**
      * Given a set of search parameters containing a region entityType filter immediately followed
      * by an OID filter, substitute those two filters for a new OID filter.
      *
@@ -995,8 +955,8 @@ public class SearchService implements ISearchService {
     private String extractPropertyName(final PropertyFilter propertyFilter) {
         if (propertyFilter.getPropertyName().equals(SearchableProperties.ENTITY_TYPE)) {
             return propertyFilter.hasNumericFilter() &&
-                propertyFilter.getNumericFilter().getValue() == EntityType.REGION_VALUE ?
-                propertyFilter.getPropertyName() : null;
+                    propertyFilter.getNumericFilter().getValue() == EntityType.REGION_VALUE ?
+                    propertyFilter.getPropertyName() : null;
         }
         return propertyFilter.getPropertyName();
     }
@@ -1127,15 +1087,19 @@ public class SearchService implements ISearchService {
 
     @Nonnull
     private List<CriteriaOptionApiDTO> getCloudProviderOptions() {
-        final List<CriteriaOptionApiDTO> optionApiDTOs = new ArrayList<>();
-        targetsService.getProbes().stream()
-                .map(probe -> CloudType.fromProbeType(probe.getType())).distinct()
-                .forEach(providerType -> {
-                    CriteriaOptionApiDTO crOpt = new CriteriaOptionApiDTO();
-                    crOpt.setValue(providerType.name());
-                    optionApiDTOs.add(crOpt);
-                });
-        return optionApiDTOs;
+        return targetsService.getProbes()
+                .stream()
+                .map(probe -> CloudType.fromProbeType(probe.getType()))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .map(CloudType::name)
+                .distinct()
+                .map(providerType -> {
+                    final CriteriaOptionApiDTO crOpt = new CriteriaOptionApiDTO();
+                    crOpt.setValue(providerType);
+                    return crOpt;
+                })
+                .collect(Collectors.toList());
     }
 
     @Nonnull
@@ -1148,6 +1112,20 @@ public class SearchService implements ISearchService {
             option.setDisplayName(group.getDisplayName());
             option.setValue(group.getUuid());
             result.add(option);
+        }
+        return Collections.unmodifiableList(result);
+    }
+
+    @Nonnull
+    private List<CriteriaOptionApiDTO> getValidationStatusOptions() {
+        final List<CriteriaOptionApiDTO> result =
+                new ArrayList<>(OperationStatus.Status.values().length - 1);
+        for (OperationStatus.Status status : OperationStatus.Status.values()) {
+            if (status != OperationStatus.Status.IN_PROGRESS) {
+                final CriteriaOptionApiDTO option = new CriteriaOptionApiDTO();
+                option.setValue(status.name());
+                result.add(option);
+            }
         }
         return Collections.unmodifiableList(result);
     }

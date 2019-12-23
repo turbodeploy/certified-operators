@@ -24,11 +24,15 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
+import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever.BusinessAccountMapper;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever.SupplementaryData;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever.SupplementaryDataFactory;
@@ -54,6 +58,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
@@ -108,18 +114,37 @@ public class BusinessAccountRetrieverTest {
 
     private GroupExpander mockGroupExpander = mock(GroupExpander.class);
 
-    private BusinessAccountRetriever businessAccountRetriever =
-        new BusinessAccountRetriever(repositoryApi, mockGroupExpander, thinTargetCache, mockMapper);
+    private EntityFilterMapper entityFilterMapper;
+
+    private SearchFilterResolver searchFilterResolver;
+
+    private BusinessAccountRetriever businessAccountRetriever;
+
+    /**
+     * Sets up the tests.
+     */
+    @Before
+    public void init() {
+        final GroupUseCaseParser groupUseCaseParser =
+                new GroupUseCaseParser("groupBuilderUsecases.json");
+        this.entityFilterMapper = new EntityFilterMapper(groupUseCaseParser);
+        searchFilterResolver = Mockito.mock(SearchFilterResolver.class);
+        Mockito.when(searchFilterResolver.resolveExternalFilters(Mockito.any()))
+                .thenAnswer(invocation -> invocation.getArguments()[0]);
+        businessAccountRetriever =
+                new BusinessAccountRetriever(repositoryApi, mockGroupExpander, thinTargetCache,
+                        entityFilterMapper, mockMapper, searchFilterResolver);
+    }
 
     /**
      * Test getting all business accounts via
-     * {@link BusinessAccountRetriever#getBusinessAccountsInScope(List)}.
+     * {@link BusinessAccountRetriever#getBusinessAccountsInScope(List, List)}.
      */
     @Test
     public void testGetBusinessAccountsInScopeNoTargets() {
         // ARRANGE
         final RepositoryApi.SearchRequest mockReq = ApiTestUtils.mockSearchFullReq(Collections.singletonList(ACCOUNT));
-        when(repositoryApi.newSearchRequest(any()))
+        when(repositoryApi.newSearchRequestMulti(any()))
             .thenReturn(mockReq);
 
         final BusinessUnitApiDTO convertedDto = mock(BusinessUnitApiDTO.class);
@@ -127,12 +152,12 @@ public class BusinessAccountRetrieverTest {
             .thenReturn(Collections.singletonList(convertedDto));
 
         // ACT
-        final List<BusinessUnitApiDTO> results = businessAccountRetriever.getBusinessAccountsInScope(null);
+        final List<BusinessUnitApiDTO> results = businessAccountRetriever.getBusinessAccountsInScope(null, null);
 
         // ASSERT
-        verify(repositoryApi).newSearchRequest(SearchProtoUtil.makeSearchParameters(
-                SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT))
-            .build());
+        verify(repositoryApi).newSearchRequestMulti(Collections.singletonList(
+                SearchProtoUtil.makeSearchParameters(
+                        SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT)).build()));
         verify(mockMapper).convert(Collections.singletonList(ACCOUNT), true);
 
         assertThat(results, is(Collections.singletonList(convertedDto)));
@@ -145,11 +170,11 @@ public class BusinessAccountRetrieverTest {
     public void testGetBusinessAccountsNone() {
         // ARRANGE
         final RepositoryApi.SearchRequest mockReq = ApiTestUtils.mockEmptySearchReq();
-        when(repositoryApi.newSearchRequest(any()))
+        when(repositoryApi.newSearchRequestMulti(any()))
             .thenReturn(mockReq);
 
         // ACT
-        final List<BusinessUnitApiDTO> results = businessAccountRetriever.getBusinessAccountsInScope(null);
+        final List<BusinessUnitApiDTO> results = businessAccountRetriever.getBusinessAccountsInScope(null, null);
 
         // ASSERT
         assertThat(results, is(Collections.emptyList()));
@@ -167,7 +192,7 @@ public class BusinessAccountRetrieverTest {
         // Mock the search request to return the matching account
         final RepositoryApi.SearchRequest mockReq =
             ApiTestUtils.mockSearchFullReq(Collections.singletonList(ACCOUNT));
-        when(repositoryApi.newSearchRequest(any()))
+        when(repositoryApi.newSearchRequestMulti(any()))
             .thenReturn(mockReq);
 
         // Mock the mapper to convert the account to an API DTO.
@@ -180,14 +205,16 @@ public class BusinessAccountRetrieverTest {
 
         // ACT
         final List<BusinessUnitApiDTO> results = businessAccountRetriever.getBusinessAccountsInScope(
-            Lists.newArrayList(Long.toString(targetId), Long.toString(nonTargetId)));
+            Lists.newArrayList(Long.toString(targetId), Long.toString(nonTargetId)), null);
 
         // ASSERT
-        verify(repositoryApi).newSearchRequest(SearchProtoUtil.makeSearchParameters(
-            SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT))
-                .addSearchFilter(SearchProtoUtil.searchFilterProperty(
-                    SearchProtoUtil.discoveredBy(targetId)))
-            .build());
+        Mockito.verify(repositoryApi)
+                .newSearchRequestMulti(Collections.singletonList(
+                        SearchProtoUtil.makeSearchParameters(
+                                SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT))
+                                .addSearchFilter(SearchProtoUtil.searchFilterProperty(
+                                        SearchProtoUtil.discoveredBy(targetId)))
+                                .build()));
         // "allAccounts" false, because we're scoped to a target.
         verify(mockMapper).convert(Collections.singletonList(ACCOUNT), false);
 
@@ -206,7 +233,7 @@ public class BusinessAccountRetrieverTest {
         // Mock the search request to return the matching accounts
         final RepositoryApi.SearchRequest mockReq =
             ApiTestUtils.mockSearchFullReq(Lists.newArrayList(ACCOUNT));
-        when(repositoryApi.newSearchRequest(any()))
+        when(repositoryApi.newSearchRequestMulti(Mockito.anyCollectionOf(SearchParameters.class)))
             .thenReturn(mockReq);
 
         when(thinTargetCache.getTargetInfo(Long.parseLong(groupId))).thenReturn(Optional.empty());
@@ -225,14 +252,15 @@ public class BusinessAccountRetrieverTest {
 
         // ACT
         final List<BusinessUnitApiDTO> results = businessAccountRetriever.getBusinessAccountsInScope(
-            Lists.newArrayList(groupId));
+            Lists.newArrayList(groupId), null);
 
         // ASSERT
-        verify(repositoryApi).newSearchRequest(SearchProtoUtil.makeSearchParameters(
-            SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT))
-                .addSearchFilter(SearchProtoUtil.searchFilterProperty(
-                    SearchProtoUtil.idFilter(expandedOids)))
-            .build());
+        verify(repositoryApi).newSearchRequestMulti(Collections.singletonList(
+                SearchProtoUtil.makeSearchParameters(
+                        SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT))
+                        .addSearchFilter(SearchProtoUtil.searchFilterProperty(
+                                SearchProtoUtil.idFilter(expandedOids)))
+                        .build()));
 
         verify(mockMapper).convert(Lists.newArrayList(ACCOUNT), false);
 
@@ -314,7 +342,7 @@ public class BusinessAccountRetrieverTest {
         // Set up the search request to return the parent and child accounts
         RepositoryApi.SearchRequest mockReq = ApiTestUtils.mockSearchFullReq(
             Arrays.asList(ACCOUNT, parentAccount));
-        when(repositoryApi.newSearchRequest(any()))
+        when(repositoryApi.newSearchRequestMulti(any()))
             .thenReturn(mockReq);
 
         // Set up the converted account DTOs. We need them to put together the billing

@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.util;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -17,6 +18,7 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.mutable.MutableFloat;
 import org.apache.commons.lang3.mutable.MutableInt;
@@ -24,8 +26,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.mapper.EntityFilterMapper;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.group.BillingFamilyApiDTO;
+import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.BusinessUnitType;
@@ -44,6 +48,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
@@ -74,6 +79,10 @@ public class BusinessAccountRetriever {
 
     private final BusinessAccountMapper businessAccountMapper;
 
+    private final EntityFilterMapper entityFilterMapper;
+
+    private final SearchFilterResolver filterResolver;
+
     /**
      * Public constructor for the retriever.
      *
@@ -83,26 +92,34 @@ public class BusinessAccountRetriever {
      * @param costService Stub to get cost/expense information.
      * @param thinTargetCache Utility that cashes target-related information we need on each
      *                        business account.
+     * @param entityFilterMapper entity filter mapping to perform search using FilterApiDTO
+     * @param filterResolver filter resolver to search for criteria using services other then
+     *          search service
      */
     public BusinessAccountRetriever(@Nonnull final RepositoryApi repositoryApi,
                                     @Nonnull final GroupExpander groupExpander,
                                     @Nonnull final GroupServiceBlockingStub groupService,
                                     @Nonnull final CostServiceBlockingStub costService,
-                                    @Nonnull final ThinTargetCache thinTargetCache) {
-        this(repositoryApi, groupExpander, thinTargetCache,
+                                    @Nonnull final ThinTargetCache thinTargetCache,
+                                    @Nonnull final EntityFilterMapper entityFilterMapper,
+                                    @Nonnull final SearchFilterResolver filterResolver) {
+        this(repositoryApi, groupExpander, thinTargetCache, entityFilterMapper,
                 new BusinessAccountMapper(thinTargetCache,
-                        new SupplementaryDataFactory(costService, groupService)));
+                        new SupplementaryDataFactory(costService, groupService)), filterResolver);
     }
 
-    @VisibleForTesting
-    BusinessAccountRetriever(@Nonnull final RepositoryApi repositoryApi,
+    protected BusinessAccountRetriever(@Nonnull final RepositoryApi repositoryApi,
                              @Nonnull final GroupExpander groupExpander,
                              @Nonnull final ThinTargetCache thinTargetCache,
-                             @Nonnull final BusinessAccountMapper businessAccountMapper) {
+                             @Nonnull final EntityFilterMapper entityFilterMapper,
+                             @Nonnull final BusinessAccountMapper businessAccountMapper,
+                             @Nonnull final SearchFilterResolver filterResolver) {
         this.repositoryApi = repositoryApi;
         this.groupExpander = groupExpander;
         this.thinTargetCache = thinTargetCache;
         this.businessAccountMapper = businessAccountMapper;
+        this.entityFilterMapper = Objects.requireNonNull(entityFilterMapper);
+        this.filterResolver = Objects.requireNonNull(filterResolver);
     }
 
 
@@ -113,7 +130,7 @@ public class BusinessAccountRetriever {
      * @return list of BillingFamilyApiDTOs
      */
     public List<BillingFamilyApiDTO> getBillingFamilies() {
-        final List<BusinessUnitApiDTO> businessAccounts = getBusinessAccountsInScope(null);
+        final List<BusinessUnitApiDTO> businessAccounts = getBusinessAccountsInScope(null, null);
         final Map<String, BusinessUnitApiDTO> accountsByUuid = businessAccounts.stream()
             .collect(Collectors.toMap(BusinessUnitApiDTO::getUuid, Function.identity()));
         return businessAccounts.stream()
@@ -128,27 +145,32 @@ public class BusinessAccountRetriever {
      * or empty, return all discovered business units.
      *
      * @param scopeUuids The list of input IDs.
+     * @param criterias criteria list the query is requested for
      * @return The set of discovered business units.
      */
-    public List<BusinessUnitApiDTO> getBusinessAccountsInScope(@Nullable List<String> scopeUuids) {
+    public List<BusinessUnitApiDTO> getBusinessAccountsInScope(@Nullable List<String> scopeUuids,
+            @Nullable List<FilterApiDTO> criterias) {
         boolean allAccounts = true;
-        final SearchParameters.Builder builder = SearchProtoUtil.makeSearchParameters(SearchProtoUtil
-            .entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT));
+        final List<SearchParameters> searchParameters = new ArrayList<>();
 
-        Set<Long> numericIds = CollectionUtils.emptyIfNull(scopeUuids).stream()
-            .filter(StringUtils::isNumeric)
-            .map(Long::parseLong).collect(Collectors.toSet());
+        final Set<Long> numericIds = CollectionUtils.emptyIfNull(scopeUuids)
+                .stream()
+                .filter(StringUtils::isNumeric)
+                .map(Long::parseLong)
+                .collect(Collectors.toSet());
 
         if (!numericIds.isEmpty()) {
             // We need to distinguish between the "get all business accounts" case and the
             // "get some" business accounts case. For now, the presence of scope targets is
             // sufficient. When we support additional scopes this will need to change.
             allAccounts = false;
-
             final Set<Long> targetIds = numericIds.stream()
                 .filter(oid -> thinTargetCache.getTargetInfo(oid).isPresent())
                 .collect(Collectors.toSet());
 
+            final SearchParameters.Builder builder = SearchParameters.newBuilder();
+            builder.setStartingFilter(
+                    SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT));
             if (!targetIds.isEmpty()) {
                 // The search will only return business accounts discovered by the specific targets.
                 builder.addSearchFilter(SearchProtoUtil.searchFilterProperty(
@@ -168,13 +190,24 @@ public class BusinessAccountRetriever {
                         .searchFilterProperty(SearchProtoUtil.idFilter(numericIds)));
                 }
             }
+            searchParameters.add(builder.build());
         } else {
             logger.debug("The input scope list doesn't contain numeric IDs. Returning all Business Units.");
         }
-
-        List<TopologyEntityDTO> businessAccounts = repositoryApi.newSearchRequest(builder.build())
-            .getFullEntities()
-            .collect(Collectors.toList());
+        // We add the usual entity search filter if there is somthing to filter on or if
+        // there is nothing in search parameters yet.
+        if ((!CollectionUtils.isEmpty(criterias)) || searchParameters.isEmpty()) {
+            searchParameters.addAll(
+                    entityFilterMapper.convertToSearchParameters(ListUtils.emptyIfNull(criterias),
+                            UIEntityType.BUSINESS_ACCOUNT.apiStr(), null));
+        }
+        final List<SearchParameters> effectiveParameters = searchParameters.stream()
+                .map(filterResolver::resolveExternalFilters)
+                .collect(Collectors.toList());
+        final List<TopologyEntityDTO> businessAccounts =
+                repositoryApi.newSearchRequestMulti(effectiveParameters)
+                        .getFullEntities()
+                        .collect(Collectors.toList());
 
         return businessAccountMapper.convert(businessAccounts, allAccounts);
     }
@@ -482,7 +515,9 @@ public class BusinessAccountRetriever {
                 .findFirst()
                 .map(ThinTargetInfo::probeInfo)
                 .map(ThinProbeInfo::type)
-                .map(CloudType::fromProbeType)
+                .map(probeType -> com.vmturbo.common.protobuf.search.CloudType.fromProbeType(
+                            probeType).orElse(null))
+                .map(cloud -> CloudType.fromSimilarEnum(cloud).orElse(null))
                 .orElse(CloudType.UNKNOWN);
 
             businessUnitApiDTO.setCloudType(cloudType);

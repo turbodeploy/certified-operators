@@ -73,6 +73,8 @@ import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChain
 import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc;
 import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc.ScheduleServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
+import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc;
+import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
@@ -189,6 +191,16 @@ public class CommunicationConfig {
     @Bean
     public TopologyServiceBlockingStub topologyService() {
         return TopologyServiceGrpc.newBlockingStub(tpClientConfig.topologyProcessorChannel());
+    }
+
+    /**
+     * gRPC service to perform target-related searches.
+     *
+     * @return target search service
+     */
+    @Bean
+    public TargetSearchServiceBlockingStub targetSearchService() {
+        return TargetSearchServiceGrpc.newBlockingStub(tpClientConfig.topologyProcessorChannel());
     }
 
     @Bean

@@ -2,6 +2,7 @@ package com.vmturbo.common.protobuf.search;
 
 import static org.hamcrest.Matchers.is;
 
+import java.io.IOException;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -11,6 +12,7 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -25,6 +27,9 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.SearchMoles.TargetSearchServiceMole;
+import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceBlockingStub;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
@@ -35,14 +40,31 @@ public class SearchFilterResolverTest {
     @Mock
     private Function<GroupFilter, Set<Long>> groupsGetter;
     private SearchFilterResolver filterResolver;
+    private GrpcTestServer server;
+    private TargetSearchServiceMole targetService;
 
     /**
      * Set up the teset.
+     *
+     * @throws IOException on exceptions occcurred
      */
     @Before
-    public void initialize() {
+    public void initialize() throws IOException {
         MockitoAnnotations.initMocks(this);
-        filterResolver = new TestSearchFilterResolver(groupsGetter);
+        targetService = Mockito.spy(new TargetSearchServiceMole());
+        server = GrpcTestServer.newServer(targetService);
+        server.start();
+        final TargetSearchServiceBlockingStub targetSearchService =
+                TargetSearchServiceGrpc.newBlockingStub(server.getChannel());
+        filterResolver = new TestSearchFilterResolver(groupsGetter, targetSearchService);
+    }
+
+    /**
+     * Cleans up the environment.
+     */
+    @After
+    public void shutdown() {
+        server.close();
     }
 
     /**
@@ -62,7 +84,7 @@ public class SearchFilterResolverTest {
                                 .setGroupType(GroupType.COMPUTE_HOST_CLUSTER)))
                 .build();
         Mockito.when(groupsGetter.apply(Mockito.any())).thenReturn(Sets.newHashSet(1L, 2L));
-        final SearchParameters resolvedParams = filterResolver.resolveGroupFilters(params);
+        final SearchParameters resolvedParams = filterResolver.resolveExternalFilters(params);
 
         // we should get the members of cluster 1 in the static filter
         final StringFilter stringFilter =
@@ -97,7 +119,7 @@ public class SearchFilterResolverTest {
                 .build();
 
         Mockito.when(groupsGetter.apply(Mockito.any())).thenReturn(Sets.newHashSet(1L, 2L));
-        final SearchParameters resolvedParams = filterResolver.resolveGroupFilters(params);
+        final SearchParameters resolvedParams = filterResolver.resolveExternalFilters(params);
 
         // we should get the members of cluster 1 in the static filter
         final StringFilter stringFilter =
@@ -120,7 +142,7 @@ public class SearchFilterResolverTest {
     public void testNoGroupMembershiptFilters() {
         final SearchParameters params =
                 SearchParameters.newBuilder().addSearchFilter(createNonGroupFilter()).build();
-        final SearchParameters resolvedParams = filterResolver.resolveGroupFilters(params);
+        final SearchParameters resolvedParams = filterResolver.resolveExternalFilters(params);
         Assert.assertEquals(params, resolvedParams);
         Mockito.verify(groupsGetter, Mockito.never()).apply(Mockito.any());
     }
@@ -142,7 +164,7 @@ public class SearchFilterResolverTest {
                 .addSearchFilter(createNonGroupFilter())
                 .build();
         Mockito.when(groupsGetter.apply(Mockito.any())).thenReturn(Sets.newHashSet(1L, 2L));
-        final SearchParameters resolvedParams = filterResolver.resolveGroupFilters(params);
+        final SearchParameters resolvedParams = filterResolver.resolveExternalFilters(params);
         Assert.assertEquals(params.getSearchFilter(1), resolvedParams.getSearchFilter(1));
         Assert.assertEquals(Sets.newHashSet(1L, 2L), resolvedParams.getSearchFilter(0)
                 .getPropertyFilter()
@@ -170,7 +192,9 @@ public class SearchFilterResolverTest {
 
         private final Function<GroupFilter, Set<Long>> function;
 
-        TestSearchFilterResolver(Function<GroupFilter, Set<Long>> function) {
+        TestSearchFilterResolver(Function<GroupFilter, Set<Long>> function,
+                @Nonnull TargetSearchServiceBlockingStub targetSearchService) {
+            super(targetSearchService);
             this.function = function;
         }
 

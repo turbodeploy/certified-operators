@@ -1,3 +1,4 @@
+
 {
     "VirtualMachine" : {
         "criteria" : [
@@ -174,7 +175,7 @@
         {"inputType": "s", "elements": "virtualVolumeInfoRepoDTO.attachmentState", "filterCategory": "property", "filterType": "volumeByAttachmentState", "loadOptions": true},
         {"inputType": "s", "elements": "StorageTier:oid:CONNECTED_FROM:1", "filterCategory": "entity", "filterType": "volumeByTier", "loadOptions": true},
         {"inputType": "s", "elements": "Region:oid:CONNECTED_FROM:VirtualVolume", "filterCategory": "entity", "filterType": "volumeByRegion", "loadOptions": true},
-        {"inputType": "s", "elements": "cloudProvider", "filterCategory": "property", "filterType": "volumeByCloudProvider", "loadOptions": true},
+        {"inputType": "s", "elements": "discoveredBy:cloudProvider", "filterCategory": "property", "filterType": "volumeByCloudProvider", "loadOptions": true},
         {"inputType": "*", "elements": "vendorId", "filterCategory": "property", "filterType": "volumeById"},
         {"inputType": "s", "elements": "MemberOf:ResourceGroup:uuid", "filterCategory": "entity", "filterType": "volumeByResourceGroup", "loadOptions": true}
       ]
@@ -193,6 +194,15 @@
                 "filterCategory": "property",
                 "filterType": "netsByName"
             }
+        ]
+    },
+
+    "BusinessAccount" : {
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "businessAccountByName"},
+            {"inputType": "s", "elements": "discoveredBy:cloudProvider", "filterCategory": "property", "filterType": "businessAccountCloudProvider", "loadOptions": true},
+            {"inputType": "*", "elements": "discoveredBy:displayName", "filterCategory": "property", "filterType": "businessAccountTargetName"},
+            {"inputType": "s", "elements": "discoveredBy:validationStatus", "filterCategory": "property", "filterType": "businessAccountValidationStatus", "loadOptions": true}
         ]
     }
 }

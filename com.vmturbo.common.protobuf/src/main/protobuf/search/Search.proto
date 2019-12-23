@@ -352,3 +352,12 @@ service SearchService {
 
     rpc SearchTags(SearchTagsRequest) returns (SearchTagsResponse);
 }
+
+message SearchTargetsResponse {
+    repeated int64 targets = 1;
+}
+
+service TargetSearchService {
+    // Search targets for a specific filter
+    rpc SearchTargets(PropertyFilter) returns (SearchTargetsResponse);
+}

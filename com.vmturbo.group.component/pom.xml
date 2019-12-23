@@ -58,6 +58,10 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>auth-api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>topology-processor-api</artifactId>
+        </dependency>
 
         <!-- Other Dependencies -->
         <dependency>

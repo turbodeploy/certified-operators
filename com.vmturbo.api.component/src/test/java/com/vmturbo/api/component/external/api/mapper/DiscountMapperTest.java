@@ -34,6 +34,7 @@ import com.vmturbo.common.protobuf.cost.Cost.Discount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.ServiceLevelDiscount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.TierLevelDiscount;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 
@@ -182,7 +183,7 @@ public class DiscountMapperTest {
                 .setDisplayName("Cloud Service")
                 .build()
         ));
-        when(repositoryApi.newSearchRequest(any())).thenReturn(req);
+        when(repositoryApi.newSearchRequest(any(SearchParameters.class))).thenReturn(req);
 
         BusinessUnitPriceAdjustmentApiDTO businessUnitApiDTO = discountMapper.toDiscountApiDTO(discount1);
         assertEquals(1, businessUnitApiDTO.getServicePriceAdjustments().size());

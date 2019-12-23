@@ -82,5 +82,14 @@ public class SearchableProperties {
 
     public static final String VM_CONNECTED_NETWORKS = "connectedNetworks";
 
+    /**
+     * Status of a target.
+     */
+    public static final String TARGET_VALIDATION_STATUS = "validationStatus";
+    /**
+     * Marker of a filter that should to though TargetSearchRpc service.
+     */
+    public static final String TARGET_FILTER_MARKER = "discoveredBy";
+
     private SearchableProperties() {}
 }
