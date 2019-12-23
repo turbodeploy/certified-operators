@@ -6,6 +6,7 @@ import static org.apache.commons.lang.time.DateUtils.MILLIS_PER_DAY;
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -80,7 +81,9 @@ import com.vmturbo.common.protobuf.stats.Stats.SetAuditLogDataRetentionSettingRe
 import com.vmturbo.common.protobuf.stats.Stats.SetPercentileCountsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingResponse;
+import com.vmturbo.common.protobuf.stats.Stats.StatEpoch;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.Builder;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
@@ -650,6 +653,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                 StatSnapshot.Builder statSnapshotResponseBuilder = StatSnapshot.newBuilder();
                 resultMap.get(recordDate).forEach(statSnapshotResponseBuilder::addStatRecords);
                 statSnapshotResponseBuilder.setSnapshotDate(recordDate.getTime());
+                // Currently, all cluster stats are historical
+                statSnapshotResponseBuilder.setStatEpoch(StatEpoch.HISTORICAL);
                 responseObserver.onNext(statSnapshotResponseBuilder.build());
             }
 
@@ -843,11 +848,15 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         Optional<ScenariosRecord> planStatsRecord = historydbIO.getScenariosRecord(topologyContextId);
         if (planStatsRecord.isPresent()) {
             final long planTime = planStatsRecord.get().getCreateTime().getTime();
+            final Timestamp updateTime = planStatsRecord.get().getUpdateTime();
+            final long planEndTime = updateTime == null ? planTime : updateTime.getTime();
 
             beforePlanStatSnapshotResponseBuilder.setSnapshotDate(planTime);
+            beforePlanStatSnapshotResponseBuilder.setStatEpoch(StatEpoch.PLAN_SOURCE);
             responseObserver.onNext(beforePlanStatSnapshotResponseBuilder.build());
 
-            afterPlanStatSnapshotResponseBuilder.setSnapshotDate(planTime);
+            afterPlanStatSnapshotResponseBuilder.setSnapshotDate(planEndTime);
+            beforePlanStatSnapshotResponseBuilder.setStatEpoch(StatEpoch.PLAN_PROJECTED);
             responseObserver.onNext(afterPlanStatSnapshotResponseBuilder.build());
 
             responseObserver.onCompleted();
@@ -899,8 +908,12 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         }
 
         // organize the stats DB records into StatSnapshots and return them to the caller
-        return statSnapshotCreator.createStatSnapshots(statDBRecords, fullMarket,
-            statsFilter.getCommodityRequestsList()).map(StatSnapshot.Builder::build);
+        final List<Builder> statSnapshots = statSnapshotCreator
+            .createStatSnapshots(statDBRecords, fullMarket, statsFilter.getCommodityRequestsList())
+            .collect(Collectors.toList());
+        // All live market stats are considered historical for now
+        statSnapshots.stream().forEach(statSnapshot -> statSnapshot.setStatEpoch(StatEpoch.HISTORICAL));
+        return statSnapshots.stream().map(Builder::build);
     }
 
     /**

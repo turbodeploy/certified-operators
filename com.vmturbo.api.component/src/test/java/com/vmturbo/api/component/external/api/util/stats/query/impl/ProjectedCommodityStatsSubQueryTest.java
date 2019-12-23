@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.util.stats.query.impl;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -31,6 +32,7 @@ import com.vmturbo.api.component.external.api.util.stats.StatsTestUtil;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsResponse;
@@ -145,7 +147,7 @@ public class ProjectedCommodityStatsSubQueryTest {
 
         when(statsMapper.toStatSnapshotApiDTO(snapshot)).thenReturn(mappedSnapshot);
 
-        final Map<Long, List<StatApiDTO>> ret = query.getAggregateStats(
+        final List<StatSnapshotApiDTO> results = query.getAggregateStats(
             Collections.singleton(StatsTestUtil.statInput("foo")), context);
 
         // ASSERT
@@ -156,7 +158,11 @@ public class ProjectedCommodityStatsSubQueryTest {
         assertThat(req.getCommodityNameList(), containsInAnyOrder("foo"));
         assertThat(req.getEntitiesList(), containsInAnyOrder(1L));
 
-        assertThat(ret.keySet(), containsInAnyOrder(timeWindow.endTime()));
-        assertThat(ret.get(timeWindow.endTime()), is(mappedSnapshot.getStatistics()));
+        assertEquals(1, results.size());
+        final StatSnapshotApiDTO resultSnapshot = results.get(0);
+        assertEquals(timeWindow.endTime(), DateTimeUtil.parseTime(resultSnapshot.getDate()).longValue());
+        final List<StatApiDTO> stats = resultSnapshot.getStatistics();
+        assertThat(stats.size(), is(1));
+        assertThat(stats, is(mappedSnapshot.getStatistics()));
     }
 }

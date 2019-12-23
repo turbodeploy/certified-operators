@@ -2,7 +2,7 @@ package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
-
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -14,7 +14,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import org.junit.Before;
@@ -25,7 +24,6 @@ import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.StatsTestUtil;
-import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
@@ -150,11 +148,12 @@ public class ClusterStatsSubQueryTest {
         when(statsMapper.toStatSnapshotApiDTO(statSnapshot)).thenReturn(mappedApiSnapshot);
 
         // ACT
-        final Map<Long, List<StatApiDTO>> ret =
+        final List<StatSnapshotApiDTO> results =
             query.getAggregateStats(Collections.singleton(apiInputDto), context);
 
-        assertThat(ret.size(), is(1));
-        assertThat(ret.get(1_000_000L), is(mappedApiSnapshot.getStatistics()));
+        assertEquals(1, results.size());
+        final StatSnapshotApiDTO resultSnapshot = results.iterator().next();
+        assertThat(resultSnapshot.getStatistics(), is(mappedApiSnapshot.getStatistics()));
     }
 
 }

@@ -4,6 +4,7 @@ package com.vmturbo.api.component.external.api.util.stats.query.impl;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -35,6 +37,7 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
@@ -65,6 +68,7 @@ public class HistoricalCommodityStatsSubQueryTest {
     static {
         MAPPED_STAT_SNAPSHOT = new StatSnapshotApiDTO();
         MAPPED_STAT_SNAPSHOT.setDate(DateTimeUtil.toString(MILLIS));
+        MAPPED_STAT_SNAPSHOT.setEpoch(Epoch.HISTORICAL);
         MAPPED_STAT_SNAPSHOT.setStatistics(Collections.singletonList(StatsTestUtil.stat("foo")));
     }
 
@@ -150,7 +154,7 @@ public class HistoricalCommodityStatsSubQueryTest {
         when(context.getQueryScope()).thenReturn(queryScope);
 
         // ACT
-        final Map<Long, List<StatApiDTO>> ret = query.getAggregateStats(REQ_STATS, context);
+        final List<StatSnapshotApiDTO> results = query.getAggregateStats(REQ_STATS, context);
 
         verify(context).newPeriodInputDto(REQ_STATS);
         verify(statsMapper).newPeriodStatsFilter(NEW_PERIOD_INPUT_DTO);
@@ -161,8 +165,11 @@ public class HistoricalCommodityStatsSubQueryTest {
         assertThat(req.getEntitiesList(), containsInAnyOrder(1L));
         assertThat(req.getGlobalFilter(), is(GlobalFilter.getDefaultInstance()));
 
-        assertThat(ret.keySet(), containsInAnyOrder(MILLIS));
-        assertThat(ret.get(MILLIS), is(MAPPED_STAT_SNAPSHOT.getStatistics()));
+        assertEquals(1, results.size());
+        final StatSnapshotApiDTO resultSnapshot = results.get(0);
+        assertEquals(MILLIS, DateTimeUtil.parseTime(resultSnapshot.getDate()).longValue());
+        assertThat(resultSnapshot.getStatistics(), is(MAPPED_STAT_SNAPSHOT.getStatistics()));
+        assertEquals(MAPPED_STAT_SNAPSHOT, resultSnapshot);
     }
 
     @Test
@@ -188,7 +195,7 @@ public class HistoricalCommodityStatsSubQueryTest {
             UIEntityType.VIRTUAL_MACHINE.apiStr());
 
         // ACT
-        final Map<Long, List<StatApiDTO>> ret = query.getAggregateStats(REQ_STATS, context);
+        final List<StatSnapshotApiDTO> results = query.getAggregateStats(REQ_STATS, context);
 
         verify(context).newPeriodInputDto(REQ_STATS);
         // We should pass the global type to the stats mapper.
@@ -203,8 +210,11 @@ public class HistoricalCommodityStatsSubQueryTest {
         assertThat(req.getGlobalFilter().getRelatedEntityTypeList(), containsInAnyOrder(UIEntityType.VIRTUAL_MACHINE.apiStr()));
         assertThat(req.getGlobalFilter().getEnvironmentType(), is(EnvironmentType.CLOUD));
 
-        assertThat(ret.keySet(), containsInAnyOrder(MILLIS));
-        assertThat(ret.get(MILLIS), is(MAPPED_STAT_SNAPSHOT.getStatistics()));
+        assertEquals(1, results.size());
+        final StatSnapshotApiDTO resultSnapshot = results.get(0);
+        assertEquals(MILLIS, DateTimeUtil.parseTime(resultSnapshot.getDate()).longValue());
+        assertThat(resultSnapshot.getStatistics(), is(MAPPED_STAT_SNAPSHOT.getStatistics()));
+        assertEquals(MAPPED_STAT_SNAPSHOT, resultSnapshot);
     }
 
     @Test
@@ -223,7 +233,7 @@ public class HistoricalCommodityStatsSubQueryTest {
         when(context.getQueryScope()).thenReturn(queryScope);
 
         // ACT
-        final Map<Long, List<StatApiDTO>> ret = query.getAggregateStats(REQ_STATS, context);
+        final List<StatSnapshotApiDTO> results = query.getAggregateStats(REQ_STATS, context);
 
         verify(context).newPeriodInputDto(REQ_STATS);
         // Shouldn't treat it as a GLOBAL temp group.
@@ -236,8 +246,11 @@ public class HistoricalCommodityStatsSubQueryTest {
         assertThat(req.getEntitiesList(), containsInAnyOrder(1L));
         assertThat(req.getGlobalFilter(), is(GlobalFilter.getDefaultInstance()));
 
-        assertThat(ret.keySet(), containsInAnyOrder(MILLIS));
-        assertThat(ret.get(MILLIS), is(MAPPED_STAT_SNAPSHOT.getStatistics()));
+        assertEquals(1, results.size());
+        final StatSnapshotApiDTO resultSnapshot = results.get(0);
+        assertEquals(MILLIS, DateTimeUtil.parseTime(resultSnapshot.getDate()).longValue());
+        assertThat(resultSnapshot.getStatistics(), is(MAPPED_STAT_SNAPSHOT.getStatistics()));
+        assertEquals(MAPPED_STAT_SNAPSHOT, resultSnapshot);
     }
 
     @Test
@@ -248,12 +261,15 @@ public class HistoricalCommodityStatsSubQueryTest {
         // Not a global temp group.
         when(vmGroupScope.isGlobalTempGroup()).thenReturn(false);
 
+        final long startTime = MILLIS;
+        final long currentTime = MILLIS * 2;
+
         // Include current stats.
         when(context.includeCurrent()).thenReturn(true);
-        when(context.getCurTime()).thenReturn(MILLIS * 2);
+        when(context.getCurTime()).thenReturn(currentTime);
         when(context.getTimeWindow()).thenReturn(Optional.of(ImmutableTimeWindow.builder()
-            .startTime(MILLIS)
-            .endTime(MILLIS + 1_000)
+            .startTime(startTime)
+            .endTime(startTime + 1_000)
             .build()));
 
         // These entities in the scope.
@@ -261,7 +277,7 @@ public class HistoricalCommodityStatsSubQueryTest {
         when(context.getQueryScope()).thenReturn(queryScope);
 
         // ACT
-        final Map<Long, List<StatApiDTO>> ret = query.getAggregateStats(REQ_STATS, context);
+        final List<StatSnapshotApiDTO> results = query.getAggregateStats(REQ_STATS, context);
 
         verify(context).newPeriodInputDto(REQ_STATS);
         verify(statsMapper).newPeriodStatsFilter(NEW_PERIOD_INPUT_DTO);
@@ -272,8 +288,22 @@ public class HistoricalCommodityStatsSubQueryTest {
         assertThat(req.getEntitiesList(), containsInAnyOrder(1L));
         assertThat(req.getGlobalFilter(), is(GlobalFilter.getDefaultInstance()));
 
-        assertThat(ret.keySet(), containsInAnyOrder(MILLIS, MILLIS * 2));
-        assertThat(ret.get(MILLIS), is(MAPPED_STAT_SNAPSHOT.getStatistics()));
-        assertThat(ret.get(MILLIS * 2), is(MAPPED_STAT_SNAPSHOT.getStatistics()));
+        // The same stat snapshot will be included in the results twice--once at the requested time,
+        // and once at the "current" time.
+        assertEquals(2, results.size());
+        final List<StatSnapshotApiDTO> resultsAtStartTime = results.stream()
+            .filter(statSnapshotApiDTO -> startTime == DateTimeUtil.parseTime(statSnapshotApiDTO.getDate()))
+            .collect(Collectors.toList());
+        assertEquals(1, resultsAtStartTime.size());
+        final StatSnapshotApiDTO startTimeSnapshot = resultsAtStartTime.get(0);
+        assertEquals(MAPPED_STAT_SNAPSHOT.getStatistics(), startTimeSnapshot.getStatistics());
+        assertEquals(Epoch.HISTORICAL, startTimeSnapshot.getEpoch());
+        final List<StatSnapshotApiDTO> resultsAtCurrentTime = results.stream()
+            .filter(statSnapshotApiDTO -> currentTime == DateTimeUtil.parseTime(statSnapshotApiDTO.getDate()))
+            .collect(Collectors.toList());
+        assertEquals(1, resultsAtCurrentTime.size());
+        final StatSnapshotApiDTO currentTimeSnapshot = resultsAtCurrentTime.get(0);
+        assertEquals(MAPPED_STAT_SNAPSHOT.getStatistics(), currentTimeSnapshot.getStatistics());
+        assertEquals(Epoch.CURRENT, currentTimeSnapshot.getEpoch());
     }
 }

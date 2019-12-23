@@ -14,7 +14,6 @@ import static org.mockito.Mockito.when;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -23,14 +22,14 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
-
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
@@ -42,6 +41,7 @@ import com.vmturbo.api.component.external.api.util.stats.query.SubQuerySupported
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
+import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.search.Search;
@@ -188,7 +188,7 @@ public class StorageStatsSubQueryTest {
         Set<StatApiInputDTO> requestedStats =
             Sets.newHashSet(createStatApiInputDTO(NUM_VOLUMES, UIEntityType.VIRTUAL_VOLUME, Collections.singletonList(StringConstants.ATTACHMENT)));
 
-        Map<Long, List<StatApiDTO>> results = query.getAggregateStats(requestedStats, context);
+        final List<StatSnapshotApiDTO> results = query.getAggregateStats(requestedStats, context);
 
         // assert that querying Repository API for getting VVs in the scope
         List<Search.SearchParameters> searchParameters = searchParametersArgumentCaptor.getAllValues();
@@ -212,10 +212,9 @@ public class StorageStatsSubQueryTest {
 
         // assert that to get one statistic with two records: attached and unattached
         assertThat(results.size(), is(1));
-        assertThat(results.values().stream().findAny().get().size(), is(2));
-
-        List<StatApiDTO> dtos = results.values().stream().findAny().get();
-        dtos.forEach(dto -> {
+        final List<StatApiDTO> statistics = results.get(0).getStatistics();
+        assertThat(statistics.size(), is(2));
+        statistics.forEach(dto -> {
             assertThat(dto.getName(), is(NUM_VOLUMES));
             assertThat(dto.getRelatedEntityType(), is(UIEntityType.VIRTUAL_VOLUME.apiStr()));
 
@@ -270,7 +269,7 @@ public class StorageStatsSubQueryTest {
         Set<StatApiInputDTO> requestedStats =
             Sets.newHashSet(createStatApiInputDTO(NUM_VOLUMES, UIEntityType.VIRTUAL_VOLUME, Collections.singletonList(UIEntityType.STORAGE_TIER.apiStr())));
 
-        Map<Long, List<StatApiDTO>> results = query.getAggregateStats(requestedStats, context);
+        final List<StatSnapshotApiDTO> results = query.getAggregateStats(requestedStats, context);
 
         List<Search.SearchParameters> searchParameters = searchParametersArgumentCaptor.getAllValues();
         assertThat(searchParameters.size(), is(2));
@@ -296,10 +295,9 @@ public class StorageStatsSubQueryTest {
             containsInAnyOrder("1000", "2000", "3000"));
 
         assertThat(results.size(), is(1));
-        assertThat(results.values().stream().findAny().get().size(), is(3));
-
-        List<StatApiDTO> dtos = results.values().stream().findAny().get();
-        dtos.forEach(dto -> {
+        final List<StatApiDTO> statistics = results.get(0).getStatistics();
+        assertThat(statistics.size(), is(3));
+        statistics.forEach(dto -> {
             assertThat(dto.getName(), is(NUM_VOLUMES));
             assertThat(dto.getRelatedEntityType(), is(UIEntityType.VIRTUAL_VOLUME.apiStr()));
 
@@ -375,7 +373,7 @@ public class StorageStatsSubQueryTest {
         Set<StatApiInputDTO> requestedStats =
             Sets.newHashSet(createStatApiInputDTO(NUM_VOLUMES, UIEntityType.VIRTUAL_VOLUME, Collections.singletonList(UIEntityType.STORAGE_TIER.apiStr())));
 
-        Map<Long, List<StatApiDTO>> results = query.getAggregateStats(requestedStats, context);
+        final List<StatSnapshotApiDTO> results = query.getAggregateStats(requestedStats, context);
 
         List<Search.SearchParameters> searchParameters = searchParametersArgumentCaptor.getAllValues();
         assertThat(searchParameters.size(), is(2));
@@ -400,10 +398,9 @@ public class StorageStatsSubQueryTest {
             containsInAnyOrder("1000", "2000", "3000"));
 
         assertThat(results.size(), is(1));
-        assertThat(results.values().stream().findAny().get().size(), is(3));
-
-        List<StatApiDTO> dtos = results.values().stream().findAny().get();
-        dtos.forEach(dto -> {
+        final List<StatApiDTO> statistics = results.get(0).getStatistics();
+        assertThat(statistics.size(), is(3));
+        statistics.forEach(dto -> {
             assertThat(dto.getName(), is(NUM_VOLUMES));
             assertThat(dto.getRelatedEntityType(), is(UIEntityType.VIRTUAL_VOLUME.apiStr()));
 
@@ -453,12 +450,12 @@ public class StorageStatsSubQueryTest {
         Set<StatApiInputDTO> requestedStats =
             Sets.newHashSet(createStatApiInputDTO(NUM_VOLUMES, null, Collections.emptyList()));
 
-        Map<Long, List<StatApiDTO>> results = query.getAggregateStats(requestedStats, context);
+        final List<StatSnapshotApiDTO> results = query.getAggregateStats(requestedStats, context);
 
         assertEquals(1, results.size());
-        final List<StatApiDTO> resultStatList = results.values().iterator().next();
-        assertEquals(1, resultStatList.size());
-        final StatApiDTO resultStat = resultStatList.get(0);
+        final List<StatApiDTO> statistics = results.get(0).getStatistics();
+        assertEquals(1, statistics.size());
+        final StatApiDTO resultStat = statistics.get(0);
         assertEquals(NUM_VOLUMES, resultStat.getName());
 
         assertTrue(resultStat.getFilters().isEmpty());
@@ -513,7 +510,7 @@ public class StorageStatsSubQueryTest {
         // when getting stat
         Set<StatApiInputDTO> requestedStats =
             Sets.newHashSet(createStatApiInputDTO(NUM_VOLUMES, UIEntityType.VIRTUAL_VOLUME, Collections.singletonList(UIEntityType.STORAGE_TIER.apiStr())));
-        Map<Long, List<StatApiDTO>> results = query.getAggregateStats(requestedStats, context);
+        final List<StatSnapshotApiDTO> results = query.getAggregateStats(requestedStats, context);
 
         // Result
 
@@ -540,10 +537,9 @@ public class StorageStatsSubQueryTest {
             containsInAnyOrder("1000", "2000", "3000"));
 
         assertThat(results.size(), is(1));
-        assertThat(results.values().stream().findAny().get().size(), is(3));
-
-        List<StatApiDTO> dtos = results.values().stream().findAny().get();
-        dtos.forEach(dto -> {
+        final List<StatApiDTO> statistics = results.get(0).getStatistics();
+        assertThat(statistics.size(), is(3));
+        statistics.forEach(dto -> {
             assertThat(dto.getName(), is(NUM_VOLUMES));
             assertThat(dto.getRelatedEntityType(), is(UIEntityType.VIRTUAL_VOLUME.apiStr()));
 

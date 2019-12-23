@@ -2,8 +2,6 @@ package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
 import static com.vmturbo.common.protobuf.GroupProtoUtil.WORKLOAD_ENTITY_TYPES_API_STR;
 
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -16,6 +14,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
@@ -30,7 +29,10 @@ import com.vmturbo.api.component.external.api.util.stats.query.SubQuerySupported
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
+import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
@@ -112,13 +114,13 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
 
     @Nonnull
     @Override
-    public Map<Long, List<StatApiDTO>> getAggregateStats(@Nonnull final Set<StatApiInputDTO> requestedStats,
-                                                         @Nonnull final StatsQueryContext context)
+    public List<StatSnapshotApiDTO> getAggregateStats(@Nonnull final Set<StatApiInputDTO> requestedStats,
+                                                      @Nonnull final StatsQueryContext context)
             throws OperationFailedException {
         // Check if it's not a cloud plan type.
         Optional<PlanInstance> planInstanceOpt = context.getPlanInstance();
         if (!planInstanceOpt.isPresent()) {
-            return Collections.emptyMap();
+            return Collections.emptyList();
         }
 
         final PlanInstance planInstance = planInstanceOpt.get();
@@ -140,13 +142,21 @@ public class CloudPlanNumEntitiesByTierSubQuery implements StatsSubQuery {
         }
 
         // set stats
-        // set stats time, use plan start time as startDate, use one day later as endDate
-        final long statsBeforeTime = planInstance.getStartTime();
-        final long statsAfterTime = Instant.ofEpochMilli(statsBeforeTime)
-            .plus(1, ChronoUnit.DAYS)
-            .toEpochMilli();
+        // set stats time, use plan start time as startDate, use plan end time as endDate
+        final String beforeTime = DateTimeUtil.toString(planInstance.getStartTime());
+        final String afterTime = DateTimeUtil.toString(planInstance.getEndTime());
 
-        return ImmutableMap.of(statsBeforeTime, statsBeforePlan, statsAfterTime, statsAfterPlan);
+        final StatSnapshotApiDTO beforeSnapshot = new StatSnapshotApiDTO();
+        beforeSnapshot.setDate(beforeTime);
+        beforeSnapshot.setEpoch(Epoch.PLAN_SOURCE);
+        beforeSnapshot.setStatistics(statsBeforePlan);
+
+        final StatSnapshotApiDTO afterSnapshot = new StatSnapshotApiDTO();
+        afterSnapshot.setDate(afterTime);
+        afterSnapshot.setEpoch(Epoch.PLAN_PROJECTED);
+        afterSnapshot.setStatistics(statsAfterPlan);
+
+        return ImmutableList.of(beforeSnapshot, afterSnapshot);
     }
 
     private List<StatApiDTO> getNumVirtualDisksStats(@Nonnull Set<Long> scopes,

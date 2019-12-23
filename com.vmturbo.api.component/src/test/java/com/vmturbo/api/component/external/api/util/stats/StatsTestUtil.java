@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.util.stats;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
@@ -10,6 +11,9 @@ import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
+import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.enums.Epoch;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -49,6 +53,21 @@ public class StatsTestUtil {
         StatApiInputDTO apiInputDTO = new StatApiInputDTO();
         apiInputDTO.setName(name);
         return apiInputDTO;
+    }
+
+    /**
+     * A helper method to create a StatSnapshotApiDTO containing a single stat
+     *
+     * @param time the date/time as a long
+     * @param stats the stats to include in this snapshot
+     * @return a StatSnapshotApiDTO containing a single stat
+     */
+    public static StatSnapshotApiDTO snapshotWithStats(long time, StatApiDTO... stats) {
+        final StatSnapshotApiDTO snapshot = new StatSnapshotApiDTO();
+        snapshot.setDate(DateTimeUtil.toString(time));
+        snapshot.setEpoch(Epoch.CURRENT);
+        snapshot.setStatistics(Arrays.asList(stats));
+        return snapshot;
     }
 
     /**
