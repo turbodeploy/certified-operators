@@ -24,6 +24,7 @@ import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -665,6 +666,7 @@ public class EntitySettingsApplicatorTest {
      * Checks that when instance store aware scaling setting is enabled than VM instance which has
      * instance store disks, will have 3 additional commodities after setting application.
      */
+    @Ignore
     @Test
     public void checkVmInstanceStoreSettings() {
         final long computeTierOid = 777_777L;

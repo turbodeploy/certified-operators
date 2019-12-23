@@ -22,6 +22,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
 import com.vmturbo.cost.component.CostDBConfig;
 import com.vmturbo.cost.component.IdentityProviderConfig;
+import com.vmturbo.cost.component.SupplyChainServiceConfig;
 import com.vmturbo.cost.component.TopologyProcessorListenerConfig;
 import com.vmturbo.cost.component.discount.CostConfig;
 import com.vmturbo.cost.component.discount.DiscountConfig;
@@ -51,7 +52,8 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
         RepositoryClientConfig.class,
         BuyRIAnalysisConfig.class,
         ReservedInstanceSpecConfig.class,
-        CostDBConfig.class})
+        CostDBConfig.class,
+        SupplyChainServiceConfig.class})
 public class TopologyListenerConfig {
     private static final Logger logger = LogManager.getLogger();
 
@@ -90,6 +92,9 @@ public class TopologyListenerConfig {
 
     @Autowired
     private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
+
+    @Autowired
+    private SupplyChainServiceConfig supplyChainServiceConfig;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -186,7 +191,7 @@ public class TopologyListenerConfig {
                 reservedInstanceSpecConfig.reservedInstanceSpecStore(),
                 reservedInstanceConfig.entityReservedInstanceMappingStore(),
                 repositoryClientConfig.repositoryClient(),
-                reservedInstanceConfig.supplyChainRpcService(),
+                supplyChainServiceConfig.supplyChainRpcService(),
                 realtimeTopologyContextId, identityProviderConfig.identityProvider(),
                 discountApplicatorFactory(), topologyEntityInfoExtractor());
     }
