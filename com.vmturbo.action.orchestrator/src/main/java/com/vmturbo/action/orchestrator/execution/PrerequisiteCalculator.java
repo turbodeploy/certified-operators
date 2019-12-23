@@ -210,8 +210,9 @@ class PrerequisiteCalculator {
             @Nonnull final Map<String, Setting> settingsForTargetEntity) {
         if (settingsForTargetEntity != null) {
             Setting ignoreNvmeSetting = settingsForTargetEntity.get(IgnoreNvmePreRequisite.getSettingName());
-            boolean ignoreNvme = ignoreNvmeSetting.hasBooleanSettingValue()
-                && ignoreNvmeSetting.getBooleanSettingValue().getValue();
+            boolean ignoreNvme = ignoreNvmeSetting != null &&
+                ignoreNvmeSetting.hasBooleanSettingValue() &&
+                ignoreNvmeSetting.getBooleanSettingValue().getValue();
             if (!ignoreNvme) {
                 // Check if the compute tier supports only NVMe vms.
                 final boolean computeTierSupportsOnlyNVMeVms = computeTierInfo.hasSupportedCustomerInfo() &&
