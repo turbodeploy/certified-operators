@@ -81,6 +81,8 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMemberOrderBy;
 import com.vmturbo.api.pagination.GroupMembersPaginationRequest.GroupMembersPaginationResponse;
+import com.vmturbo.api.pagination.SearchPaginationRequest;
+import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
@@ -101,6 +103,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin.Type;
+import com.vmturbo.common.protobuf.group.GroupDTO.OriginFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
@@ -1247,4 +1251,109 @@ public class GroupsServiceTest {
         Assert.assertEquals(UIEntityType.values().length, actionApiInputDTO.getRelatedEntityTypes().size());
     }
 
+    /**
+     * Test that if the scope is user groups, we should set a group filter with origin to be user.
+     *
+     * @throws Exception any error happens
+     */
+    @Test
+    public void testGetPaginatedGroupApiDTOsWithScopes() throws Exception {
+        when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.REGULAR),
+                eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
+                .setGroupType(GroupType.REGULAR).build());
+        GetGroupsRequest expectedRequest = GetGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder()
+                        .setGroupType(GroupType.REGULAR)
+                        .setOriginFilter(OriginFilter.newBuilder()
+                                .addOrigin(Type.USER)))
+                .build();
+        when(groupExpander.getGroupsWithMembers(expectedRequest)).thenReturn(Stream.empty());
+
+        groupsService.getPaginatedGroupApiDTOs(Collections.emptyList(),
+                new SearchPaginationRequest(null, null, true, null), null, null,
+                Lists.newArrayList(GroupsService.USER_GROUPS));
+
+        // verify that group filter is populated to origin USER
+        verify(groupExpander).getGroupsWithMembers(expectedRequest);
+    }
+
+    /**
+     * Test that getPaginatedGroupApiDTOs works as expected for both groups of entities (group of
+     * VMs) and groups of groups (group of clusters).
+     *
+     * @throws Exception any error happens
+     */
+    @Test
+    public void testGetPaginatedGroupApiDTOsUserGroupsOfEntitiesOrGroups() throws Exception {
+        when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.REGULAR),
+                eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
+                .setGroupType(GroupType.REGULAR).build());
+        GetGroupsRequest expectedRequest = GetGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder()
+                        .setGroupType(GroupType.REGULAR)
+                        .setOriginFilter(OriginFilter.newBuilder()
+                                .addOrigin(Type.USER)))
+                .build();
+
+        final Grouping groupOfClusters = Grouping.newBuilder()
+                .setId(11L)
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType.newBuilder()
+                                        .setType(MemberType.newBuilder()
+                                                .setGroup(GroupType.COMPUTE_HOST_CLUSTER)))))
+                .build();
+        final Grouping groupOfVMs = Grouping.newBuilder()
+                .setId(12L)
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType.newBuilder()
+                                        .setType(MemberType.newBuilder()
+                                                .setEntity(EntityType.VIRTUAL_MACHINE_VALUE)))))
+                .build();
+
+        final GroupAndMembers group1 = ImmutableGroupAndMembers.builder()
+                .group(groupOfClusters)
+                .members(Collections.emptyList())
+                .entities(Collections.emptyList())
+                .build();
+        final GroupAndMembers group2 = ImmutableGroupAndMembers.builder()
+                .group(groupOfVMs)
+                .members(Collections.emptyList())
+                .entities(Collections.emptyList())
+                .build();
+        when(groupExpander.getGroupsWithMembers(expectedRequest)).thenAnswer(c ->
+                Stream.of(group1, group2));
+
+        GroupApiDTO groupApiDTO1 = new GroupApiDTO();
+        groupApiDTO1.setUuid(String.valueOf(groupOfClusters.getId()));
+        GroupApiDTO groupApiDTO2 = new GroupApiDTO();
+        groupApiDTO2.setUuid(String.valueOf(groupOfVMs.getId()));
+
+        when(groupMapper.toGroupApiDtoWithoutActiveEntities(group1, EnvironmentType.UNKNOWN,
+                CloudType.UNKNOWN)).thenReturn(groupApiDTO1);
+        when(groupMapper.toGroupApiDtoWithoutActiveEntities(group2, EnvironmentType.UNKNOWN,
+                CloudType.UNKNOWN)).thenReturn(groupApiDTO2);
+
+        // search for group of clusters
+        SearchPaginationResponse response = groupsService.getPaginatedGroupApiDTOs(
+                Collections.emptyList(), new SearchPaginationRequest(null, null, true, null),
+                "Cluster", null, Lists.newArrayList(GroupsService.USER_GROUPS));
+
+        assertThat(response.getRestResponse().getBody().stream()
+                .map(BaseApiDTO::getUuid)
+                .map(Long::valueOf)
+                .collect(Collectors.toList()), containsInAnyOrder(groupOfClusters.getId()));
+
+        // search for group of VMs
+        response = groupsService.getPaginatedGroupApiDTOs(Collections.emptyList(),
+                new SearchPaginationRequest(null, null, true, null), "VirtualMachine", null,
+                Lists.newArrayList(GroupsService.USER_GROUPS));
+        assertThat(response.getRestResponse().getBody().stream()
+                .map(BaseApiDTO::getUuid)
+                .map(Long::valueOf)
+                .collect(Collectors.toList()), containsInAnyOrder(groupOfVMs.getId()));
+    }
 }

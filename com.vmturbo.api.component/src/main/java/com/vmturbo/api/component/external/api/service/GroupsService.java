@@ -34,7 +34,6 @@ import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -168,7 +167,11 @@ public class GroupsService implements IGroupsService {
         ImmutableSet.of(StringConstants.CLUSTER, StringConstants.STORAGE_CLUSTER,
                 StringConstants.VIRTUAL_MACHINE_CLUSTER);
 
-    private static final String USER_GROUPS = "GROUP-MyGroups";
+    /**
+     * Hardcoded uuid of the parent group of all user groups.
+     */
+    @VisibleForTesting
+    static final String USER_GROUPS = "GROUP-MyGroups";
 
     private static final String CLUSTER_HEADROOM_GROUP_UUID = "GROUP-PhysicalMachineByCluster";
     private static final String STORAGE_CLUSTER_HEADROOM_GROUP_UUID = "GROUP-StorageByStorageCluster";
@@ -270,7 +273,7 @@ public class GroupsService implements IGroupsService {
 
     /**
      * Get groups from the group component. This method is not optimized in case we need to
-     * paginate the results. Consider using {@link #getPaginatedGroupApiDTOS} instead.
+     * paginate the results. Consider using {@link #getPaginatedGroupApiDTOs} instead.
      *
      * @return a list of {@link GroupApiDTO}.
      */
@@ -1093,30 +1096,56 @@ public class GroupsService implements IGroupsService {
      * @param paginationRequest Contains the limit, the order and a potential cursor
      * @param groupType Contains the type of the group members
      * @param environmentType type of the environment to include in response, if null, all are included
+     * @param scopes all result groups should be within this list of scopes, which can be entity or group
      *
      * @return The list of {@link GroupApiDTO} objects.
      * @throws InvalidOperationException When the cursor is invalid.
      * @throws OperationFailedException when the input filters do not apply.
      */
     @Nonnull
-    public SearchPaginationResponse getPaginatedGroupApiDTOS(final List<FilterApiDTO> filterList,
+    public SearchPaginationResponse getPaginatedGroupApiDTOs(final List<FilterApiDTO> filterList,
                                                              final SearchPaginationRequest paginationRequest,
                                                              final String groupType,
-                                                             @Nullable EnvironmentType environmentType)
-        throws InvalidOperationException, OperationFailedException {
-
-        final GetGroupsRequest groupsRequest = getGroupsRequestForFilters(GroupType.REGULAR, filterList)
-            .build();
-
-        List<GroupAndMembers> groupsWithMembers;
+                                                             @Nullable EnvironmentType environmentType,
+                                                             @Nullable List<String> scopes)
+            throws InvalidOperationException, OperationFailedException {
+        final GetGroupsRequest groupsRequest = getGroupsRequestForFilters(GroupType.REGULAR,
+                filterList, scopes).build();
+        final List<GroupAndMembers> groupsWithMembers;
         if (groupType != null) {
-            MemberType groupMembersType =
-                MemberType.newBuilder()
-                    .setEntity(UIEntityType.fromString(groupType).typeNumber())
-                    .build();
+            final MemberType groupMembersType;
+            if (GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.containsKey(groupType)) {
+                // group of groups, for example: group of Clusters, group of ResourceGroups
+                groupMembersType = MemberType.newBuilder()
+                        .setGroup(GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.get(groupType))
+                        .build();
+            } else {
+                // group of entities
+                groupMembersType = MemberType.newBuilder()
+                        .setEntity(UIEntityType.fromString(groupType).typeNumber())
+                        .build();
+            }
             groupsWithMembers = groupExpander.getGroupsWithMembers(groupsRequest)
-                .filter(g -> g.group().getExpectedTypesList().contains(groupMembersType))
-                .collect(Collectors.toList());
+                .filter(g -> {
+                    final GroupDefinition group = g.group().getDefinition();
+                    if (group.hasStaticGroupMembers()) {
+                        // static group
+                        return group.getStaticGroupMembers().getMembersByTypeList().stream()
+                                .anyMatch(staticMembersByType ->
+                                        staticMembersByType.getType().equals(groupMembersType));
+                    } else if (group.hasGroupFilters()) {
+                        // dynamic group of groups
+                        return group.getGroupFilters().getGroupFilterList().stream()
+                                .anyMatch(groupFilter -> groupFilter.getGroupType() ==
+                                        groupMembersType.getGroup());
+                    } else if (group.hasEntityFilters()) {
+                        // dynamic group of entities
+                        return group.getEntityFilters().getEntityFilterList().stream()
+                                .anyMatch(entityFilter -> entityFilter.getEntityType() ==
+                                        groupMembersType.getEntity());
+                    }
+                    return false;
+                }).collect(Collectors.toList());
         } else {
             groupsWithMembers =
                 groupExpander.getGroupsWithMembers(groupsRequest).collect(Collectors.toList());
@@ -1143,7 +1172,7 @@ public class GroupsService implements IGroupsService {
     @VisibleForTesting
     GetGroupsRequest.Builder getGroupsRequestForFilters(@Nonnull GroupType groupType,
                     @Nonnull List<FilterApiDTO> filterList) throws OperationFailedException {
-        return getGroupsRequestForFilters(groupType, filterList, Collections.emptySet());
+        return getGroupsRequestForFilters(groupType, filterList, Collections.emptyList());
     }
 
     /**
@@ -1160,10 +1189,23 @@ public class GroupsService implements IGroupsService {
     private GetGroupsRequest.Builder getGroupsRequestForFilters(
             @Nonnull GroupType groupType,
             @Nonnull List<FilterApiDTO> filterList,
-            @Nonnull Set<Long> scopes) throws OperationFailedException {
-        return GetGroupsRequest.newBuilder()
-                .setGroupFilter(groupFilterMapper.apiFilterToGroupFilter(groupType, filterList))
-                .addAllScopes(scopes);
+            @Nullable List<String> scopes) throws OperationFailedException {
+        GetGroupsRequest.Builder request = GetGroupsRequest.newBuilder()
+                .setGroupFilter(groupFilterMapper.apiFilterToGroupFilter(groupType, filterList));
+        if (scopes != null) {
+            if (scopes.size() == 1 && scopes.get(0).equals(USER_GROUPS)) {
+                // if we are looking for groups created by user, we should also add a origin filter
+                request.getGroupFilterBuilder().setOriginFilter(
+                        OriginFilter.newBuilder()
+                                .addOrigin(GroupDTO.Origin.Type.USER));
+            } else {
+                // add scopes to filter resulting groups
+                request.addAllScopes(scopes.stream()
+                        .map(Long::valueOf)
+                        .collect(Collectors.toSet()));
+            }
+        }
+        return request;
     }
 
     /**
@@ -1491,11 +1533,8 @@ public class GroupsService implements IGroupsService {
 
                 // general case of finding groups in entities (like: find clusters in datacenters)
                 // use user scope framework to handle it
-                final Set<Long> scopeOids = ListUtils.emptyIfNull(scopes).stream()
-                        .map(Long::valueOf)
-                        .collect(Collectors.toSet());
                 final GetGroupsRequest request = getGroupsRequestForFilters(groupType, filterList,
-                        scopeOids).build();
+                        scopes).build();
                 return getGroupApiDTOS(request, true, environmentType);
             }
         } else {
