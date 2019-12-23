@@ -205,6 +205,21 @@ public class EntityCostFilter extends CostFilter {
         return Optional.ofNullable(regionIds);
     }
 
+    /**
+     * Returns true if none of the scopes fields are set.
+     *
+     * @return true if none of the scopes fields are set.
+     */
+    public boolean isGlobalScope() {
+        return !getEntityTypeFilters().isPresent()
+                && !getEntityFilters().isPresent()
+                && !getRegionIds().isPresent()
+                && !getAccountIds().isPresent()
+                && !getAvailabilityZoneIds().isPresent()
+                && !getCostCategoryFilter().isPresent()
+                && !getCostSources().isPresent();
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (super.equals(obj)) {

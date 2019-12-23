@@ -281,23 +281,19 @@ public class RepositoryClient {
     public Map<EntityType, Set<Long>>
            parseSupplyChainResponseToEntityOidsMap(@Nonnull final GetSupplyChainResponse response,
                                                    final Long realtimeTopologyContextId) {
-        if (response == null) {
-            logger.warn("No Supply Chain retrieved to parse");
-            return Collections.emptyMap();
-        }
         try {
             List<SupplyChainNode> supplyChainNodes = response.getSupplyChain()
                             .getSupplyChainNodesList();
             Map<EntityType, Set<Long>> entitiesMap = new HashMap<>();
             for (SupplyChainNode node : supplyChainNodes) {
-                Map<Integer, SupplyChainNode.MemberList> relatedEntitiesByType = node
+                final Map<Integer, SupplyChainNode.MemberList> relatedEntitiesByType = node
                                 .getMembersByStateMap();
+                final String entityTypeName = node.getEntityType();
+                final EntityType entityType = UIEntityType.fromString(entityTypeName).sdkType();
                 for (SupplyChainNode.MemberList members : relatedEntitiesByType.values()) {
-                    String entityTypeName = node.getEntityType();
-                    EntityType entityType = UIEntityType.fromString(entityTypeName).sdkType();
-                    List<Long> memberOids = members.getMemberOidsList();
-                    entitiesMap.put(entityType, memberOids.stream()
-                                            .collect(Collectors.toSet()));
+                    final List<Long> memberOids = members.getMemberOidsList();
+                    entitiesMap.computeIfAbsent(entityType, (key) -> new HashSet<>())
+                            .addAll(memberOids);
                 }
             }
             return entitiesMap;
