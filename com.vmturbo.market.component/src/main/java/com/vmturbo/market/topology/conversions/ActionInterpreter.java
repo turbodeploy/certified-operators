@@ -54,6 +54,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.CostJournal;
+import com.vmturbo.cost.calculation.CostJournal.CostSourceFilter;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.market.topology.MarketTier;
@@ -329,8 +330,16 @@ public class ActionInterpreter {
                                                     CostJournal<TopologyEntityDTO> journal) {
         final TraxNumber totalOnDemandCost;
         if (TopologyDTOUtil.isPrimaryTierEntityType(marketTier.getTier().getEntityType())) {
-            TraxNumber onDemandComputeCost = journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_COMPUTE);
-            TraxNumber licenseCost = journal.getHourlyCostForCategory(CostCategory.ON_DEMAND_LICENSE);
+
+            // In determining on-demand costs for SCALE actions, the savings from buy RI actions
+            // should be ignored. Therefore, we lookup the on-demand cost, ignoring savings
+            // from CostSource.BUY_RI_DISCOUNT
+            TraxNumber onDemandComputeCost = journal.getHourlyCostFilterEntries(
+                    CostCategory.ON_DEMAND_COMPUTE,
+                    CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER);
+            TraxNumber licenseCost = journal.getHourlyCostFilterEntries(
+                    CostCategory.ON_DEMAND_LICENSE,
+                    CostSourceFilter.EXCLUDE_BUY_RI_DISCOUNT_FILTER);
             TraxNumber ipCost = journal.getHourlyCostForCategory(CostCategory.IP);
             totalOnDemandCost = Stream.of(onDemandComputeCost, licenseCost, ipCost)
                 .collect(TraxCollectors.sum(marketTier.getTier().getDisplayName() + " total cost"));

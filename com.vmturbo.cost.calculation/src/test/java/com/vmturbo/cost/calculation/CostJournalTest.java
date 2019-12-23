@@ -225,7 +225,7 @@ public class CostJournalTest {
                        .recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, payee, computePrice, trax(1))
                        .recordOnDemandCost(CostCategory.ON_DEMAND_LICENSE, payee, licensePrice, trax(1))
                        .recordRiCost(riData, trax(1), trax(25))
-                       .recordRIDiscountedCost(CostCategory.ON_DEMAND_COMPUTE, riData, trax(0.25))
+                       .recordRIDiscount(CostCategory.ON_DEMAND_COMPUTE, riData, trax(0.25))
                        .build();
        CostSourceFilter filter = (costSource -> costSource.equals(CostSource.ON_DEMAND_RATE));
        TraxNumber ans = journal.getHourlyCostFilterEntries(CostCategory.ON_DEMAND_COMPUTE, filter);
@@ -233,7 +233,7 @@ public class CostJournalTest {
        System.out.println(ans);
        assertThat(ans.getValue(), is(100.0));
        assertThat(journal.getHourlyCostBySourceAndCategory(CostCategory.ON_DEMAND_COMPUTE,
-               Optional.of(CostSource.RI_INVENTORY_DISCOUNT)).getValue(), is(-25.0));
+               CostSource.RI_INVENTORY_DISCOUNT).getValue(), is(-25.0));
    }
 
     @Test
@@ -270,6 +270,38 @@ public class CostJournalTest {
         assertThat(journal.getHourlyCostForCategory(CostCategory.STORAGE).getValue(), is(100.0));
 
         System.out.println(journal.toString());
+    }
+
+    @Test
+    public void testBuyRIDiscountJournalEntry() {
+        final Price computePrice = createPrice(Unit.HOURS, TOTAL_PRICE);
+        final Price licensePrice = createPrice(Unit.HOURS, TOTAL_PRICE / 10);
+        final TestEntityClass entity = TestEntityClass.newBuilder(7L)
+                .build(infoExtractor);
+        final TestEntityClass region = TestEntityClass.newBuilder(77).build(infoExtractor);
+        final TestEntityClass payee = TestEntityClass.newBuilder(123).build(infoExtractor);
+        final ReservedInstanceData riData = new ReservedInstanceData(
+                ReservedInstanceBought.getDefaultInstance(),
+                ReservedInstanceSpec.newBuilder()
+                        .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder()
+                                .setTierId(payee.getId()))
+                        .build());
+        final DiscountApplicator<TestEntityClass> discountApplicator = mock(DiscountApplicator.class);
+        when(discountApplicator.getDiscountPercentage(any(TestEntityClass.class))).thenReturn(trax(0));
+        when(discountApplicator.getDiscountPercentage(anyLong())).thenReturn(trax(0));
+        final CostJournal<TestEntityClass> journal =
+                CostJournal.newBuilder(entity, infoExtractor, region, discountApplicator, e -> null)
+                        .recordOnDemandCost(CostCategory.ON_DEMAND_COMPUTE, payee, computePrice, trax(1))
+                        .recordOnDemandCost(CostCategory.ON_DEMAND_LICENSE, payee, licensePrice, trax(1))
+                        .recordBuyRIDiscount(CostCategory.ON_DEMAND_COMPUTE, riData, trax(0.25))
+                        .build();
+        CostSourceFilter filter = (costSource -> costSource.equals(CostSource.ON_DEMAND_RATE));
+        TraxNumber ans = journal.getHourlyCostFilterEntries(CostCategory.ON_DEMAND_COMPUTE, filter);
+        System.out.println(journal.toString());
+        System.out.println(ans);
+        assertThat(ans.getValue(), is(100.0));
+        assertThat(journal.getHourlyCostBySourceAndCategory(CostCategory.ON_DEMAND_COMPUTE,
+                CostSource.BUY_RI_DISCOUNT).getValue(), is(-25.0));
     }
 
     private Price createPrice(Unit timeUnit, double amount){

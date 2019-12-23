@@ -17,7 +17,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableTable;
-import com.google.common.collect.Maps;
+import com.google.common.collect.Table;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
@@ -143,33 +143,23 @@ public class BuyRIImpactAnalysisTest {
                 cloudTopology,
                 cloudCostData,
                 entityRICoverageInput);
-        final Map<Long, EntityReservedInstanceCoverage> entityRICoverageOutput =
-                coverageAnalysis.createCoverageFromBuyRIImpactAnalysis();
+        final Table<Long, Long, Double> entityRICoverageOutput =
+                coverageAnalysis.allocateCoverageFromBuyRIImpactAnalysis();
 
 
         /*
         Expected results
          */
-        final Map<Long, EntityReservedInstanceCoverage> expectedEntityRICoverage = ImmutableMap.of(
-                1L, EntityReservedInstanceCoverage.newBuilder()
-                        .setEntityId(1L)
-                        .putCouponsCoveredByRi(4L, 2.0)
-                        .putCouponsCoveredByRi(5L, 2.0)
-                        .build(),
-                2L, EntityReservedInstanceCoverage.newBuilder()
-                        .setEntityId(2L)
-                        .putCouponsCoveredByRi(5L, 4.0)
-                        .build(),
-                3L, EntityReservedInstanceCoverage.newBuilder()
-                        .setEntityId(3L)
-                        .putCouponsCoveredByRi(6L, 4.0)
-                        .build());
+        final Table<Long, Long, Double> expectedEntityRICoverage = ImmutableTable.<Long, Long, Double>builder()
+                .put(1L, 5L, 2.0)
+                .put(3L, 6L, 4.0)
+                .build();
 
         /*
         Assertions
          */
-        assertThat(entityRICoverageOutput.size(), equalTo(3));
-        assertTrue(Maps.difference(entityRICoverageOutput, expectedEntityRICoverage).areEqual());
+        assertThat(entityRICoverageOutput.size(), equalTo(2));
+        assertThat(entityRICoverageOutput, equalTo(expectedEntityRICoverage));
 
     }
 }

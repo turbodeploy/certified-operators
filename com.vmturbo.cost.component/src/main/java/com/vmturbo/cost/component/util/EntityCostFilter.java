@@ -25,6 +25,11 @@ import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.Table;
 
+import com.google.common.collect.ImmutableSet;
+
+import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
+import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.db.Tables;
 
@@ -42,7 +47,7 @@ public class EntityCostFilter extends CostFilter {
 
     private final boolean excludeCostSources;
     private final Set<Integer> costSources;
-    private final Set<Integer> costCategories;
+    private final CostCategoryFilter costCategoryFilter;
     private final Set<Long> accountIds;
     private final Set<Long> availabilityZoneIds;
     private final Set<Long> regionIds;
@@ -56,7 +61,7 @@ public class EntityCostFilter extends CostFilter {
                      @Nullable final TimeFrame timeFrame,
                      final boolean excludeCostSources,
                      @Nullable final Set<Integer> costSources,
-                     @Nullable final Set<Integer> costCategories,
+                     @Nullable final CostCategoryFilter costCategoryFilter,
                      @Nullable final Set<Long> accountIds,
                      @Nullable final Set<Long> availabilityZoneIds,
                      @Nullable final Set<Long> regionIds,
@@ -65,10 +70,11 @@ public class EntityCostFilter extends CostFilter {
             CREATED_TIME, latestTimeStampRequested);
         this.excludeCostSources = excludeCostSources;
         this.costSources = costSources;
-        this.costCategories = costCategories;
+        this.costCategoryFilter = costCategoryFilter;
         this.accountIds = accountIds;
         this.availabilityZoneIds = availabilityZoneIds;
         this.regionIds = regionIds;
+
         this.conditions = generateConditions();
     }
 
@@ -101,8 +107,18 @@ public class EntityCostFilter extends CostFilter {
             conditions.add(table.field(ENTITY_COST.ASSOCIATED_ENTITY_ID.getName()).in(entityFilters));
         }
 
-        if (costCategories != null) {
-            conditions.add(table.field(ENTITY_COST.COST_TYPE.getName()).in(costCategories));
+        if (costCategoryFilter != null) {
+
+            Set<Integer> costCategoryValues = costCategoryFilter.getCostCategoryList()
+                    .stream()
+                    .map(CostCategory::getNumber)
+                    .collect(ImmutableSet.toImmutableSet());
+
+            if (costCategoryFilter.getExclusionFilter()) {
+                conditions.add(table.field(ENTITY_COST.COST_TYPE.getName()).notIn(costCategoryValues));
+            } else {
+                conditions.add(table.field(ENTITY_COST.COST_TYPE.getName()).in(costCategoryValues));
+            }
         }
 
         if (costSources != null) {
@@ -163,10 +179,20 @@ public class EntityCostFilter extends CostFilter {
         return Optional.ofNullable(costSources);
     }
 
-    public Optional<Set<Integer>> getCostCategories() {
-        return Optional.ofNullable(costCategories);
+    public Optional<CostCategoryFilter> getCostCategoryFilter() {
+        return Optional.ofNullable(costCategoryFilter);
     }
 
+    /**
+     * Determines whether a {@link EntityCost.ComponentCost} is within scope of this filter.
+     *
+     * @param componentCost The {@link EntityCost.ComponentCost} to test
+     * @return True, if this filter includes {@code componentCost}, false otherwise
+     */
+    public boolean filterComponentCost(EntityCost.ComponentCost componentCost) {
+        return filterComponentCostByCostSource(componentCost) &&
+                filterComponentCostByCostCategory(componentCost);
+    }
     public Optional<Set<Long>> getAccountIds() {
         return Optional.ofNullable(accountIds);
     }
@@ -184,7 +210,7 @@ public class EntityCostFilter extends CostFilter {
         if (super.equals(obj)) {
             final EntityCostFilter other = (EntityCostFilter)obj;
             return Objects.equals(costSources, other.costSources)
-                && Objects.equals(costCategories, other.costCategories)
+                && Objects.equals(costCategoryFilter, other.costCategoryFilter)
                 && excludeCostSources == other.excludeCostSources
                 && Objects.equals(accountIds, other.accountIds)
                 && Objects.equals(availabilityZoneIds, other.availabilityZoneIds)
@@ -198,7 +224,7 @@ public class EntityCostFilter extends CostFilter {
         Function<Set<?>, Integer> setHashCode = (set) -> (set == null) ? 0 : set.stream()
             .map(Object::hashCode).collect(Collectors.summingInt(Integer::intValue));
         return Objects.hash(setHashCode.apply(costSources),
-            setHashCode.apply(costCategories),
+            costCategoryFilter,
             excludeCostSources, setHashCode.apply(accountIds), setHashCode.apply(availabilityZoneIds),
             setHashCode.apply(regionIds), super.hashCode());
     }
@@ -212,9 +238,8 @@ public class EntityCostFilter extends CostFilter {
         builder.append("\n cost sources: ");
         builder.append((costSources == null) ? "NOT SET" :
             costSources.stream().map(String::valueOf).collect(Collectors.joining(",")));
-        builder.append("\n cost categories: ");
-        builder.append((costCategories == null) ? "NOT SET" :
-            costCategories.stream().map(String::valueOf).collect(Collectors.joining(",")));
+        builder.append("\n cost category filter: ");
+        builder.append((costCategoryFilter == null) ? "NOT SET" : costCategoryFilter);
         builder.append("\n account ids: ");
         builder.append((accountIds == null) ? "NOT SET" :
             accountIds.stream().map(String::valueOf).collect(Collectors.joining(",")));
@@ -231,6 +256,34 @@ public class EntityCostFilter extends CostFilter {
         return builder.toString();
     }
 
+    private boolean filterComponentCostByCostSource(@Nonnull EntityCost.ComponentCost componentCost) {
+
+        return getCostSources().map(costSources -> {
+
+            // If this is exclusion filter, it covers those entries that don't have cost source and
+            // those that have cost source and is in the filter
+            if (excludeCostSources) {
+                return !componentCost.hasCostSource()
+                        || !costSources.contains(componentCost.getCostSource().getNumber());
+            } else {
+                // if this is inclusion filter only return true if the cost component has a cost source
+                // and its value is in input filter
+                return componentCost.hasCostSource()
+                        && costSources.contains(componentCost.getCostSource().getNumber());
+            }
+        }).orElse(true);
+    }
+
+    private boolean filterComponentCostByCostCategory(@Nonnull EntityCost.ComponentCost componentCost) {
+        return getCostCategoryFilter().map(filter -> {
+            if (filter.getExclusionFilter()) {
+                return !filter.getCostCategoryList().contains(componentCost.getCategory());
+            } else {
+                return filter.getCostCategoryList().contains(componentCost.getCategory());
+            }
+        }).orElse(true);
+    }
+
     /**
      * The builder class for {@link EntityCostFilter}.
      */
@@ -238,7 +291,7 @@ public class EntityCostFilter extends CostFilter {
             EntityCostFilter> {
         private boolean excludeCostSources = false;
         private Set<Integer> costSources = null;
-        private Set<Integer> costCategories = null;
+        private CostCategoryFilter costCategoryFilter = null;
         private Set<Long> accountIds = null;
         private Set<Long> availabilityZoneIds = null;
         private Set<Long> regionIds = null;
@@ -261,7 +314,7 @@ public class EntityCostFilter extends CostFilter {
         @Nonnull
         public EntityCostFilter build() {
             return new EntityCostFilter(entityIds, entityTypeFilters, startDateMillis,
-                endDateMillis, timeFrame, excludeCostSources, costSources, costCategories,
+                endDateMillis, timeFrame, excludeCostSources, costSources, costCategoryFilter,
                 accountIds, availabilityZoneIds, regionIds, latestTimeStampRequested);
         }
 
@@ -282,14 +335,13 @@ public class EntityCostFilter extends CostFilter {
         }
 
         /**
-         * Sets cost categories to filter.
-         * @param costCategories the cost categories to include.
+         * Sets cost category filter.
+         * @param costCategoryFilter The filter for cost categories
          * @return the builder.
          */
         @Nonnull
-        public EntityCostFilterBuilder costCategories(
-                                                   @Nonnull Collection<Integer> costCategories) {
-            this.costCategories = new HashSet<>(costCategories);
+        public EntityCostFilterBuilder costCategoryFilter(@Nonnull CostCategoryFilter costCategoryFilter) {
+            this.costCategoryFilter = costCategoryFilter;
             return this;
         }
 

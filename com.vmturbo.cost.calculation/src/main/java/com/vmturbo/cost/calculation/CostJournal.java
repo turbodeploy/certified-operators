@@ -41,6 +41,7 @@ import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.CloudCostCalculator.DependentCostLookup;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
@@ -194,6 +195,7 @@ public class CostJournal<ENTITY_CLASS> {
      */
     @FunctionalInterface
     public interface CostSourceFilter {
+
         /**
          * filter by cost source.
          *
@@ -202,6 +204,12 @@ public class CostJournal<ENTITY_CLASS> {
          * @return true if cost source is of the same type.
          */
         boolean filter(@Nonnull CostSource costSource);
+
+        /**
+         * A cost source filter that only filters {@link CostSource#BUY_RI_DISCOUNT}.
+         */
+        CostSourceFilter EXCLUDE_BUY_RI_DISCOUNT_FILTER =
+                (costSource) -> costSource != CostSource.BUY_RI_DISCOUNT;
     }
 
     /**
@@ -253,7 +261,7 @@ public class CostJournal<ENTITY_CLASS> {
                 .setAmount(getTotalHourlyCost().getValue()));
         getCategories().forEach(category -> {
             for (CostSource source: CostSource.values()) {
-                TraxNumber costBySource = getHourlyCostBySourceAndCategory(category, Optional.of(source));
+                TraxNumber costBySource = getHourlyCostBySourceAndCategory(category, source);
                 if (costBySource != null) {
                     costBuilder.addComponentCost(ComponentCost.newBuilder()
                             .setCategory(category)
@@ -343,9 +351,9 @@ public class CostJournal<ENTITY_CLASS> {
      *
      * @return A trax number representing the final cost for a given category and source.
      */
-    public TraxNumber getHourlyCostBySourceAndCategory(CostCategory category, Optional<CostSource> source) {
+    public TraxNumber getHourlyCostBySourceAndCategory(CostCategory category, CostSource source) {
         calculateCosts();
-        return finalCostsByCategoryAndSource.get(category, source.get());
+        return finalCostsByCategoryAndSource.get(category, source);
     }
 
 
@@ -560,14 +568,18 @@ public class CostJournal<ENTITY_CLASS> {
 
         private final CostSource costSource;
 
+        private final boolean isBuyRI;
+
         RIDiscountJournalEntry(@Nonnull final ReservedInstanceData riData,
                                final TraxNumber riBoughtPercentage,
                                @Nonnull final CostCategory targetCostCategory,
-                               @Nonnull final CostSource costSource) {
+                               @Nonnull final CostSource costSource,
+                               boolean isBuyRI) {
             this.riData = riData;
             this.riBoughtPercentage = riBoughtPercentage;
             this.targetCostCategory = targetCostCategory;
             this.costSource = costSource;
+            this.isBuyRI = isBuyRI;
         }
 
         @Override
@@ -583,7 +595,11 @@ public class CostJournal<ENTITY_CLASS> {
             onDemandRate = rateExtractor.lookupCostWithFilter(targetCostCategory, costSource1 -> costSource1.equals(CostSource.ON_DEMAND_RATE));
             onDemandRate = trax(riBoughtPercentage.dividedBy(1).compute().times(-1).getValue())
                     .times(onDemandRate).compute();
-            return onDemandRate.times(fullPricePercentage).compute("RI discounted {} cost", targetCostCategory.getDescriptorForType().getFullName());
+
+            return onDemandRate.times(fullPricePercentage)
+                    .compute(String.format("RI discounted %s cost (BuyRI=%s)",
+                            targetCostCategory.getDescriptorForType().getFullName(),
+                            isBuyRI));
         }
 
         @Override
@@ -781,7 +797,7 @@ public class CostJournal<ENTITY_CLASS> {
         }
 
         /**
-         * Record the RI disocunted cost.
+         * Record the RI discounted cost.
          *
          * @param category The cost category.
          * @param riData The RI data containing the RI related info.
@@ -790,14 +806,40 @@ public class CostJournal<ENTITY_CLASS> {
          * @return Builder containing the RI Discount journal entry.
          */
         @Nonnull
-        public Builder<ENTITY_CLASS_> recordRIDiscountedCost(
+        public Builder<ENTITY_CLASS_> recordRIDiscount(
                 @Nonnull final CostCategory category,
                 @Nonnull final ReservedInstanceData riData,
                 @Nonnull final TraxNumber riBoughtPercentage) {
             final Set<JournalEntry<ENTITY_CLASS_>> prices = costEntries.computeIfAbsent(category, k -> new TreeSet<>());
-            prices.add(new RIDiscountJournalEntry<>(riData, riBoughtPercentage, category, CostSource.RI_INVENTORY_DISCOUNT));
+            prices.add(new RIDiscountJournalEntry<>(riData, riBoughtPercentage, category, CostSource.RI_INVENTORY_DISCOUNT, false));
             return this;
         }
+
+        /**
+         * Record the RI buy discount.
+         *
+         * @param category The cost category.
+         * @param riData An {@link ReservedInstanceData} instance, used to access the
+         * {@link ReservedInstanceBought} providing the discount.
+         * @param riBoughtPercentage The percentage of the RI covering the VM.
+         *
+         * @return Builder containing the RI Discount journal entry.
+         */
+        @Nonnull
+        public Builder<ENTITY_CLASS_> recordBuyRIDiscount(
+                @Nonnull final CostCategory category,
+                @Nonnull final ReservedInstanceData riData,
+                @Nonnull final TraxNumber riBoughtPercentage) {
+            final Set<JournalEntry<ENTITY_CLASS_>> prices = costEntries.computeIfAbsent(category, k -> new TreeSet<>());
+            prices.add(new RIDiscountJournalEntry<>(
+                    riData,
+                    riBoughtPercentage,
+                    category,
+                    CostSource.BUY_RI_DISCOUNT,
+                    true));
+            return this;
+        }
+
 
         @Nonnull
         public Builder<ENTITY_CLASS_> inheritCost(@Nonnull final ENTITY_CLASS_ entity) {

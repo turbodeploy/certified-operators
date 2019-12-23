@@ -117,8 +117,13 @@ public interface CloudCostDataProvider {
             return Optional.ofNullable(riBoughtDataById.get(riBoughtId));
         }
 
+        @Nonnull
+        public Optional<ReservedInstanceData> getBuyRIData(final long riBoughtId) {
+            return Optional.ofNullable(buyRIBoughtDataById.get(riBoughtId));
+        }
+
         /**
-         * This will return a read only collection of {@link ReservedInstanceData} representing
+         * This will return a read-only collection of {@link ReservedInstanceData} representing
          * all the existing RIs in the inventory. This will be used in real time analysis.
          *
          * @return Collection of {@link ReservedInstanceData} representing the existing RIs.
@@ -129,11 +134,11 @@ public interface CloudCostDataProvider {
         }
 
         /**
-         * This will return a read only collection of {@link ReservedInstanceData} representing
+         * This will return a read-only collection of {@link ReservedInstanceData} representing
          * all the existing RIs in the inventory and the Buy RI recommendations. This will be used
          * during Optimize Cloud Plans.
          *
-         * @return Read only Collection of {@link ReservedInstanceData} representing the existing
+         * @return Read-only Collection of {@link ReservedInstanceData} representing the existing
          * RIs bought and the Buy RI recommendations
          */
         @Nonnull
@@ -144,6 +149,12 @@ public interface CloudCostDataProvider {
             return Collections.unmodifiableCollection(allRiData);
         }
 
+        /**
+         * Gets the Buy RI instances within scope of they topology
+         *
+         * @return A read-only collection of {@link ReservedInstanceData} representing
+         * all buy RI recommendations.
+         */
         @Nonnull
         public Collection<ReservedInstanceData> getAllBuyRIs() {
             return Collections.unmodifiableCollection(buyRIBoughtDataById.values());

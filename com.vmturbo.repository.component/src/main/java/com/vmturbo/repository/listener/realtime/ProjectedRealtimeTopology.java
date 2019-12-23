@@ -2,6 +2,7 @@ package com.vmturbo.repository.listener.realtime;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -74,7 +75,8 @@ public class ProjectedRealtimeTopology implements StreamingDiagnosable {
         final Stream<Long> oids;
         if (!targetTypes.isEmpty()) {
             oids = targetTypes.stream()
-                .flatMap(type -> entitiesByType.get(type).stream());
+                .flatMap(type ->
+                        entitiesByType.getOrDefault(type, Collections.emptySet()).stream());
         } else {
             oids = projectedEntities.keySet().stream();
         }

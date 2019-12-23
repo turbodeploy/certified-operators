@@ -25,6 +25,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import com.google.common.collect.Table;
 
 import io.grpc.StatusRuntimeException;
 
@@ -675,8 +676,6 @@ public class Analysis {
                 projectedCloudTopology.size() > 0) {
 
             try (DataMetricTimer timer = BUY_RI_IMPACT_ANALYSIS_SUMMARY.startTimer()) {
-                logger.info("Running buy RI impact analysis (Topo Context ID={}, Topology ID={}",
-                        topologyInfo.getTopologyContextId(), topologyInfo.getTopologyId());
 
                 final BuyRIImpactAnalysis buyRIImpactAnalysis =
                         buyRIImpactAnalysisFactory.createAnalysis(
@@ -684,7 +683,10 @@ public class Analysis {
                                 projectedCloudTopology,
                                 cloudCostData,
                                 converter.getProjectedReservedInstanceCoverage());
-                buyRIImpactAnalysis.createCoverageFromBuyRIImpactAnalysis();
+                final Table<Long, Long, Double> entityBuyRICoverage =
+                        buyRIImpactAnalysis.allocateCoverageFromBuyRIImpactAnalysis();
+
+                converter.addBuyRICoverageToProjectedRICoverage(entityBuyRICoverage);
             } catch (Exception e) {
                 logger.error("Error executing buy RI impact analysis (Context ID={}, Topology ID={})",
                         topologyInfo.getTopologyContextId(), topologyInfo.getTopologyId(), e);

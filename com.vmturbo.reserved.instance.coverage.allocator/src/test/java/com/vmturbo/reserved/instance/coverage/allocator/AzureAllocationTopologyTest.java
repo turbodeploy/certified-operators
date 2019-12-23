@@ -11,6 +11,7 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
@@ -42,7 +43,8 @@ class AzureAllocationTopologyTest {
                             .setNumCoupons(1)))
             .setOrigin(Origin.newBuilder()
                     .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                            .addDiscoveringTargetIds(OID_PROVIDER.incrementAndGet())
+                            .putDiscoveredTargetData(OID_PROVIDER.incrementAndGet(),
+                                    PerTargetEntityInformation.newBuilder().build())
                             .build())
                     .build())
             .build();
@@ -58,7 +60,8 @@ class AzureAllocationTopologyTest {
                             .setNumCoupons(2)))
             .setOrigin(Origin.newBuilder()
                     .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                            .addDiscoveringTargetIds(OID_PROVIDER.incrementAndGet())
+                            .putDiscoveredTargetData(OID_PROVIDER.incrementAndGet(),
+                                    PerTargetEntityInformation.newBuilder().build())
                             .build())
                     .build())
             .build();
@@ -70,7 +73,8 @@ class AzureAllocationTopologyTest {
             .setEnvironmentType(EnvironmentType.CLOUD)
             .setOrigin(Origin.newBuilder()
                     .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                            .addDiscoveringTargetIds(OID_PROVIDER.incrementAndGet())
+                            .putDiscoveredTargetData(OID_PROVIDER.incrementAndGet(),
+                                    PerTargetEntityInformation.newBuilder().build())
                             .build())
                     .build())
             .build();
@@ -94,7 +98,8 @@ class AzureAllocationTopologyTest {
                     .setConnectionType(ConnectionType.AGGREGATED_BY_CONNECTION))
             .setOrigin(Origin.newBuilder()
                     .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                            .addDiscoveringTargetIds(OID_PROVIDER.incrementAndGet())
+                            .putDiscoveredTargetData(OID_PROVIDER.incrementAndGet(),
+                                    PerTargetEntityInformation.newBuilder().build())
                             .build())
                     .build())
             .build();
@@ -111,7 +116,8 @@ class AzureAllocationTopologyTest {
                     .setConnectionType(ConnectionType.OWNS_CONNECTION))
             .setOrigin(Origin.newBuilder()
                     .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
-                            .addDiscoveringTargetIds(OID_PROVIDER.incrementAndGet())
+                            .putDiscoveredTargetData(OID_PROVIDER.incrementAndGet(),
+                                    PerTargetEntityInformation.newBuilder().build())
                             .build())
                     .build())
             .build();

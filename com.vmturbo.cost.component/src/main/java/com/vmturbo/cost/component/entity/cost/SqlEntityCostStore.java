@@ -177,7 +177,7 @@ public class SqlEntityCostStore implements EntityCostStore {
                         // all fields set during batch initialization.
                         chunk.forEach(journal -> journal.getCategories().forEach(costType -> {
                             for (CostSource costSource : CostSource.values()) {
-                                final TraxNumber categoryCost = journal.getHourlyCostBySourceAndCategory(costType, Optional.of(costSource));
+                                final TraxNumber categoryCost = journal.getHourlyCostBySourceAndCategory(costType, costSource);
                                 final Long entityOid = journal.getEntity().getOid();
                                 if (categoryCost != null) {
                                     batch.bind(entityOid,

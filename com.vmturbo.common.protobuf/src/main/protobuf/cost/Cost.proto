@@ -209,10 +209,15 @@ message EntityReservedInstanceCoverage {
     // The number of coupons of the compute tier on which this entity is residing or it is going to
     // reside on (in case of projected).
     optional int32 entity_coupon_capacity = 11;
+
+    // The number of coupons covered by BuyRI instances. This is applicable to only the projected
+    // topology, in which BuyRIImpactAnalysis allocated buy RI instances on the projected topology
+    // to estimate potential savings from buy RI recommendations
+    map<int64, double> coupons_covered_by_buy_ri = 12;
 }
 
-// Actual message that gets sent across the wire from market component
-// containing projected ri coverage of entities in topology.
+// Message broadcast from the market component representing the after actions/projected
+// ri coverage of entities in topology.
 message ProjectedEntityReservedInstanceCoverage {
     // The ID of the projected topology the cost is for.
     optional int64 projected_topology_id = 1;
@@ -813,6 +818,11 @@ message GetCloudExpenseStatsRequest {
     }
 }
 
+message CostCategoryFilter {
+    optional bool exclusion_filter = 1 [default = false];
+    repeated CostCategory cost_category = 2;
+}
+
 // A request to get bottom up Cloud cost stats
 message GetCloudCostStatsRequest {
     // The start date of the request
@@ -833,7 +843,7 @@ message GetCloudCostStatsRequest {
     optional EntityFilter entity_filter = 3;
 
     // Cost category filter, return all entities if not set
-    optional CostCategory cost_category_filter = 4;
+    optional CostCategoryFilter cost_category_filter = 4;
 
     // Entity type filter, could be VM or APP, return all entities if not set
     optional EntityTypeFilter entity_type_filter = 5;

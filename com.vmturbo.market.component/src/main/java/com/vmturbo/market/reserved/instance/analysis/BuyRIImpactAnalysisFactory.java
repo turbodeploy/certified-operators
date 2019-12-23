@@ -83,6 +83,7 @@ public interface BuyRIImpactAnalysisFactory {
 
             final Collection<ReservedInstanceData> buyRIData =
                     cloudCostData.getAllBuyRIs();
+
             final CoverageTopology coverageTopology = coverageTopologyFactory.createCoverageTopology(
                     cloudTopology,
                     buyRIData.stream()

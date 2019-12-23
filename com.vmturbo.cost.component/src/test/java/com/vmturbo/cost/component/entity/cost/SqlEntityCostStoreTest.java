@@ -34,6 +34,7 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
@@ -354,7 +355,10 @@ public class SqlEntityCostStoreTest {
             .newBuilder(TimeFrame.LATEST)
             .entityIds(Collections.singleton(1L))
             .costSources(false, Collections.singleton(CostSource.ON_DEMAND_RATE.getNumber()))
-            .costCategories(Collections.singleton(CostCategory.ON_DEMAND_COMPUTE.getNumber()))
+            .costCategoryFilter(CostCategoryFilter.newBuilder()
+                    .setExclusionFilter(false)
+                    .addCostCategory(CostCategory.ON_DEMAND_COMPUTE)
+                    .build())
             .latestTimestampRequested(true).build()).values().iterator().next();
 
         assertEquals(costsBySourceAndCategory.get(1L).getComponentCostCount(), 1);
@@ -527,8 +531,7 @@ public class SqlEntityCostStoreTest {
         when(journal.getEntity()).thenReturn(entity);
         when(journal.getCategories()).thenReturn(costsByCategory.keySet());
         for (final CostCategory category : CostCategory.values()) {
-            when(journal.getHourlyCostBySourceAndCategory(category,
-                Optional.of(CostSource.ON_DEMAND_RATE)))
+            when(journal.getHourlyCostBySourceAndCategory(category, CostSource.ON_DEMAND_RATE))
                     .thenReturn(trax(costsByCategory.getOrDefault(category, 0.0)));
             when(journal.getHourlyCostForCategory(category))
                     .thenReturn(trax(costsByCategory.getOrDefault(category, 0.0)));

@@ -98,9 +98,14 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
+import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest.CostSourceFilter;
+import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest.GroupByType;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetTierPriceForEntitiesRequest;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
@@ -1523,31 +1528,40 @@ public class ActionSpecMapper {
         EntityFilter entityFilter = EntityFilter.newBuilder().addEntityId(entityUuid).build();
         GetCloudCostStatsRequest cloudCostStatsRequest = GetCloudCostStatsRequest
                 .newBuilder()
-                .setStartDate(System.currentTimeMillis())
                 .setRequestProjected(true)
                 .setEntityFilter(entityFilter)
-                .setCostSourceFilter(GetCloudCostStatsRequest.CostSourceFilter.newBuilder()
-                    .setExclusionFilter(true)
-                    .addCostSources(Cost.CostSource.BUY_RI_DISCOUNT)
-                    .build())
-                .setGroupBy(GetCloudCostStatsRequest.GroupByType.COSTCOMPONENT)
+                .setCostCategoryFilter(CostCategoryFilter.newBuilder()
+                        .setExclusionFilter(false)
+                        .addCostCategory(CostCategory.ON_DEMAND_COMPUTE)
+                        .addCostCategory(CostCategory.ON_DEMAND_LICENSE)
+                        .build())
+                // For cloud scale actions, the action savings will reflect only the savings from
+                // accepting the specific action, ignoring any potential discount from Buy RI actions.
+                // Therefore, we want the projected on-demand cost in the actions details to only
+                // reflect the cost from accepting this action. We filter out BUY_RI_DISCOUNT here
+                // to be consistent with the action savings calculation and to avoid double counting
+                // potential savings from Buy RI actions
+                .setCostSourceFilter(CostSourceFilter.newBuilder()
+                        .setExclusionFilter(true)
+                        .addCostSources(CostSource.BUY_RI_DISCOUNT)
+                        .build())
+                .setGroupBy(GroupByType.COSTCOMPONENT)
                 .build();
         GetCloudCostStatsResponse response = costServiceBlockingStub.getCloudCostStats(cloudCostStatsRequest);
         int statRecordListSize = response.getCloudStatRecordList().size();
         if (statRecordListSize == 2) {
             // get real-time
-            final List<Cost.CloudCostStatRecord.StatRecord> realTimeCostRecords = response.getCloudStatRecordList().get(statRecordListSize - 2).getStatRecordsList()
+            Double onDemandCostBefore = response.getCloudStatRecord(0).getStatRecordsList()
                     .stream()
-                    .filter(s -> s.getCategory() == Cost.CostCategory.ON_DEMAND_COMPUTE || s.getCategory() == CostCategory.ON_DEMAND_LICENSE)
-                    .collect(Collectors.toList());
+                    .map(StatRecord::getValues)
+                    .mapToDouble(StatRecord.StatValue::getTotal)
+                    .sum();
             // get projected
-            final List<Cost.CloudCostStatRecord.StatRecord> projectedTimeCostRecords = response.getCloudStatRecordList().get(statRecordListSize - 1).getStatRecordsList()
+            Double onDemandCostAfter = response.getCloudStatRecord(1).getStatRecordsList()
                     .stream()
-                    .filter(s -> s.getCategory() == Cost.CostCategory.ON_DEMAND_COMPUTE || s.getCategory() == CostCategory.ON_DEMAND_LICENSE)
-                    .collect(Collectors.toList());
-            Double onDemandCostBefore = realTimeCostRecords.stream().mapToDouble(s -> s.getValues().getTotal()).sum();
-            Double onDemandCostAfter = projectedTimeCostRecords.stream().mapToDouble(s -> s.getValues().getTotal()).sum();
-            // set on-demand costs
+                    .map(StatRecord::getValues)
+                    .mapToDouble(StatRecord.StatValue::getTotal)
+                    .sum();
             cloudResizeActionDetailsApiDTO.setOnDemandCostBefore(onDemandCostBefore.floatValue());
             cloudResizeActionDetailsApiDTO.setOnDemandCostAfter(onDemandCostAfter.floatValue());
         }
@@ -1559,6 +1573,7 @@ public class ActionSpecMapper {
      * @param cloudResizeActionDetailsApiDTO - cloud resize action details DTO
      */
     private void setOnDemandRates(long entityUuid, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
+
         // Get the on Demand compute costs
         GetTierPriceForEntitiesRequest requestOnDemandComputeCosts = GetTierPriceForEntitiesRequest.newBuilder().setOid(entityUuid)
                 .setCostCategory(CostCategory.ON_DEMAND_COMPUTE).build();

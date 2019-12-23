@@ -43,6 +43,7 @@ import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.CreateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.CreateDiscountResponse;
@@ -192,7 +193,10 @@ public class CostRpcService extends CostServiceImplBase {
             Map<Long, Map<Long, EntityCost>> queryResult =
                 entityCostStore.getEntityCosts(EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
                     .entityIds(Collections.singleton(oid))
-                    .costCategories(Collections.singleton(category.getNumber()))
+                    .costCategoryFilter(CostCategoryFilter.newBuilder()
+                            .setExclusionFilter(false)
+                            .addCostCategory(category)
+                            .build())
                     .latestTimestampRequested(true)
                     .costSources(false,
                         Collections.singleton(CostSource.ON_DEMAND_RATE.getNumber()))
@@ -635,113 +639,106 @@ public class CostRpcService extends CostServiceImplBase {
     public void getCloudCostStats(GetCloudCostStatsRequest request,
                                   StreamObserver<GetCloudCostStatsResponse> responseObserver) {
         try {
-            if (!request.hasCostCategoryFilter()) {
-                final EntityCostFilterBuilder filterBuilder = createEntityCostFilter(request);
-                final EntityCostFilter entityCostFilter = filterBuilder.build();
+            final EntityCostFilterBuilder filterBuilder = createEntityCostFilter(request);
+            final EntityCostFilter entityCostFilter = filterBuilder.build();
 
-                Map<Long, Map<Long, EntityCost>> snapshotToEntityCostMap = entityCostStore
-                    .getEntityCosts(entityCostFilter);
+            Map<Long, Map<Long, EntityCost>> snapshotToEntityCostMap = entityCostStore
+                .getEntityCosts(entityCostFilter);
 
-                if (request.getRequestProjected()) {
-                    final long projectedStatTime = (request.hasEndDate() ? request.getEndDate() : clock.millis())
-                        + TimeUnit.HOURS.toMillis(PROJECTED_STATS_TIME_IN_FUTURE_HOURS);
-                    final Map<Long, EntityCost> projectedEntityCostMap =
-                                    projectedEntityCostStore.getProjectedEntityCosts(entityCostFilter);
-                    if (projectedEntityCostMap.isEmpty()) {
-                        // Change the request to only get the the latest timestamp info
-                        // we will use that as projected cost
-                        EntityCostFilter latestFilter = filterBuilder
-                            .removeDuration()
-                            .timeFrame(TimeFrame.LATEST)
-                            .latestTimestampRequested(true)
-                            .build();
-                        final Map<Long, Map<Long, EntityCost>> latestEntityCostMapWithTimestamp =
-                            entityCostStore.getEntityCosts(latestFilter);
-                        final Collection<Map<Long, EntityCost>> values =
-                                        latestEntityCostMapWithTimestamp.values();
+            if (request.getRequestProjected()) {
+                final long projectedStatTime = (request.hasEndDate() ? request.getEndDate() : clock.millis())
+                    + TimeUnit.HOURS.toMillis(PROJECTED_STATS_TIME_IN_FUTURE_HOURS);
+                final Map<Long, EntityCost> projectedEntityCostMap =
+                                projectedEntityCostStore.getProjectedEntityCosts(entityCostFilter);
+                if (projectedEntityCostMap.isEmpty()) {
+                    // Change the request to only get the the latest timestamp info
+                    // we will use that as projected cost
+                    EntityCostFilter latestFilter = filterBuilder
+                        .removeDuration()
+                        .timeFrame(TimeFrame.LATEST)
+                        .latestTimestampRequested(true)
+                        .build();
+                    final Map<Long, Map<Long, EntityCost>> latestEntityCostMapWithTimestamp =
+                        entityCostStore.getEntityCosts(latestFilter);
+                    final Collection<Map<Long, EntityCost>> values =
+                                    latestEntityCostMapWithTimestamp.values();
 
-                        try {
-                            Map<Long, EntityCost> entityCostMap = Iterables.getOnlyElement(values);
-                            snapshotToEntityCostMap.put(projectedStatTime, entityCostMap);
-                        } catch (IllegalArgumentException ex) {
-                            logger.warn("Found more than one entry for latest entity cost for " +
-                                    "following filter {}. Setting projected entity cost to empty",
-                                latestFilter);
-                            snapshotToEntityCostMap.put(projectedStatTime, Collections.emptyMap());
-                        } catch (NoSuchElementException ex) {
-                            logger.warn("Unable to find latest entity cost for filter {}. Setting" +
-                                    " projected entity cost to empty",
-                                latestFilter);
-                            snapshotToEntityCostMap.put(projectedStatTime, Collections.emptyMap());
-                        }
-                    } else {
-                        snapshotToEntityCostMap.put(projectedStatTime, projectedEntityCostMap);
+                    try {
+                        Map<Long, EntityCost> entityCostMap = Iterables.getOnlyElement(values);
+                        snapshotToEntityCostMap.put(projectedStatTime, entityCostMap);
+                    } catch (IllegalArgumentException ex) {
+                        logger.warn("Found more than one entry for latest entity cost for " +
+                                "following filter {}. Setting projected entity cost to empty",
+                            latestFilter);
+                        snapshotToEntityCostMap.put(projectedStatTime, Collections.emptyMap());
+                    } catch (NoSuchElementException ex) {
+                        logger.warn("Unable to find latest entity cost for filter {}. Setting" +
+                                " projected entity cost to empty",
+                            latestFilter);
+                        snapshotToEntityCostMap.put(projectedStatTime, Collections.emptyMap());
                     }
+                } else {
+                    snapshotToEntityCostMap.put(projectedStatTime, projectedEntityCostMap);
                 }
+            }
 
-                final List<CloudCostStatRecord> cloudStatRecords = Lists.newArrayList();
-                snapshotToEntityCostMap.forEach((time, costsByEntity) -> {
-                            final List<CloudCostStatRecord.StatRecord> statRecords = Lists.newArrayList();
-                            // GroupBy Cost components, e.g. compute, IP, storage, license
-                            if (request.hasGroupBy()
-                                    && request.getGroupBy().equals(GetCloudCostStatsRequest.GroupByType.COSTCOMPONENT)) {
-                                final CloudCostStatRecord.StatRecord.Builder builder = CloudCostStatRecord.StatRecord.newBuilder();
-                                aggregateEntityCostByCostType(costsByEntity.values())
-                                        .forEach(componentCost -> {
-                                            builder.setAssociatedEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
-                                            builder.setCategory(componentCost.costCategory);
+            final List<CloudCostStatRecord> cloudStatRecords = Lists.newArrayList();
+            snapshotToEntityCostMap.forEach((time, costsByEntity) -> {
+                        final List<CloudCostStatRecord.StatRecord> statRecords = Lists.newArrayList();
+                        // GroupBy Cost components, e.g. compute, IP, storage, license
+                        if (request.hasGroupBy()
+                                && request.getGroupBy().equals(GetCloudCostStatsRequest.GroupByType.COSTCOMPONENT)) {
+                            final CloudCostStatRecord.StatRecord.Builder builder = CloudCostStatRecord.StatRecord.newBuilder();
+                            aggregateEntityCostByCostType(costsByEntity.values())
+                                    .forEach(componentCost -> {
+                                        builder.setAssociatedEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
+                                        builder.setCategory(componentCost.costCategory);
+                                        builder.setName(StringConstants.COST_PRICE);
+                                        builder.setUnits("$/h");
+                                        builder.setValues(CloudCostStatRecord.StatRecord.StatValue.newBuilder()
+                                                .setAvg((float) componentCost.geAvg().orElse(0))
+                                                .setMax((float) componentCost.getMax().orElse(0))
+                                                .setMin((float) componentCost.getMin().orElse(0))
+                                                .setTotal((float) componentCost.getTotal())
+                                                .build());
+                                        statRecords.add(builder.build());
+                                    });
+                        } else {  // populate cost per entity, and up to the caller to aggregate as needed.
+                            costsByEntity.values().forEach(entityCost -> {
+                                entityCost.getComponentCostList().forEach(componentCost -> {
+                                            final CloudCostStatRecord.StatRecord.Builder builder = CloudCostStatRecord.StatRecord.newBuilder();
+                                            final float amount = (float) componentCost.getAmount().getAmount();
+                                            builder.setAssociatedEntityId(entityCost.getAssociatedEntityId());
+                                            builder.setAssociatedEntityType(entityCost.getAssociatedEntityType());
+                                            builder.setCategory(componentCost.getCategory());
                                             builder.setName(StringConstants.COST_PRICE);
                                             builder.setUnits("$/h");
                                             builder.setValues(CloudCostStatRecord.StatRecord.StatValue.newBuilder()
-                                                    .setAvg((float) componentCost.geAvg().orElse(0))
-                                                    .setMax((float) componentCost.getMax().orElse(0))
-                                                    .setMin((float) componentCost.getMin().orElse(0))
-                                                    .setTotal((float) componentCost.getTotal())
+                                                    .setAvg(amount)
+                                                    .setMax(amount)
+                                                    .setMin(amount)
+                                                    .setTotal(amount)
                                                     .build());
                                             statRecords.add(builder.build());
-                                        });
-                            } else {  // populate cost per entity, and up to the caller to aggregate as needed.
-                                costsByEntity.values().forEach(entityCost -> {
-                                    entityCost.getComponentCostList().forEach(componentCost -> {
-                                                final CloudCostStatRecord.StatRecord.Builder builder = CloudCostStatRecord.StatRecord.newBuilder();
-                                                final float amount = (float) componentCost.getAmount().getAmount();
-                                                builder.setAssociatedEntityId(entityCost.getAssociatedEntityId());
-                                                builder.setAssociatedEntityType(entityCost.getAssociatedEntityType());
-                                                builder.setCategory(componentCost.getCategory());
-                                                builder.setName(StringConstants.COST_PRICE);
-                                                builder.setUnits("$/h");
-                                                builder.setValues(CloudCostStatRecord.StatRecord.StatValue.newBuilder()
-                                                        .setAvg(amount)
-                                                        .setMax(amount)
-                                                        .setMin(amount)
-                                                        .setTotal(amount)
-                                                        .build());
-                                                statRecords.add(builder.build());
-                                            }
-                                    );
-                                });
-                            }
-                            final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
-                                    .setSnapshotDate(time)
-                                    .addAllStatRecords(statRecords)
-                                    .build();
-                            cloudStatRecords.add(cloudStatRecord);
-
+                                        }
+                                );
+                            });
                         }
-                );
-                cloudStatRecords.sort(Comparator.comparingLong(CloudCostStatRecord::getSnapshotDate));
-                GetCloudCostStatsResponse response =
-                        GetCloudCostStatsResponse.newBuilder()
-                                .addAllCloudStatRecord(cloudStatRecords)
+                        final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
+                                .setSnapshotDate(time)
+                                .addAllStatRecords(statRecords)
                                 .build();
-                responseObserver.onNext(response);
-                responseObserver.onCompleted();
-            } else {
-                responseObserver.onError(Status.INTERNAL
-                        .withDescription("The request includes unsupported filter type: " + request
-                                + ", currently only workload type is supported")
-                        .asException());
-            }
+                        cloudStatRecords.add(cloudStatRecord);
+
+                    }
+            );
+            cloudStatRecords.sort(Comparator.comparingLong(CloudCostStatRecord::getSnapshotDate));
+            GetCloudCostStatsResponse response =
+                    GetCloudCostStatsResponse.newBuilder()
+                            .addAllCloudStatRecord(cloudStatRecords)
+                            .build();
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
         } catch (DbException e) {
             logger.error("Error getting stats snapshots for {}", request);
             logger.error("    ", e);
@@ -779,17 +776,16 @@ public class CostRpcService extends CostServiceImplBase {
             filterBuilder.entityTypes(request.getEntityTypeFilter().getEntityTypeIdList());
         }
 
-        if (request.hasCostCategoryFilter()) {
-            filterBuilder.costCategories(Collections
-                .singleton(request.getCostCategoryFilter().getNumber()));
-        }
-
         if (request.hasCostSourceFilter()) {
             filterBuilder.costSources(request.getCostSourceFilter().getExclusionFilter(),
                 request.getCostSourceFilter().getCostSourcesList()
                     .stream()
                     .map(CostSource::getNumber)
                     .collect(Collectors.toSet()));
+        }
+
+        if (request.hasCostCategoryFilter()) {
+            filterBuilder.costCategoryFilter(request.getCostCategoryFilter());
         }
 
         // Add account filters if present

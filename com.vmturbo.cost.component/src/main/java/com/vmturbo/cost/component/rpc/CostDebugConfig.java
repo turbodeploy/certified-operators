@@ -1,14 +1,18 @@
 package com.vmturbo.cost.component.rpc;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.cost.CostDebugREST.CostDebugServiceController;
 import com.vmturbo.common.protobuf.trax.TraxREST.TraxConfigurationServiceController;
+import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisConfig;
+import com.vmturbo.cost.component.reserved.instance.BuyRIImpactReportGenerator;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecConfig;
 import com.vmturbo.cost.component.topology.TopologyListenerConfig;
 import com.vmturbo.trax.rpc.TraxConfigurationRpcService;
 
@@ -20,8 +24,10 @@ import com.vmturbo.trax.rpc.TraxConfigurationRpcService;
  */
 @Configuration
 @Import({ReservedInstanceConfig.class,
-    TopologyListenerConfig.class,
-    BuyRIAnalysisConfig.class
+        TopologyListenerConfig.class,
+        BuyRIAnalysisConfig.class,
+        ReservedInstanceSpecConfig.class,
+        EntityCostConfig.class
 })
 public class CostDebugConfig {
 
@@ -34,6 +40,15 @@ public class CostDebugConfig {
     @Autowired
     private BuyRIAnalysisConfig buyRIAnalysisConfig;
 
+    @Autowired
+    private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
+
+    @Autowired
+    private EntityCostConfig entityCostConfig;
+
+    @Value("${realtimeTopologyContextId}")
+    private long realtimeTopologyContextId;
+
     /**
      * Cost debug service, which provides various endpoints useful for debugging the cost component.
      *
@@ -41,9 +56,11 @@ public class CostDebugConfig {
      */
     @Bean
     public CostDebugRpcService costDebugRpcService() {
-        return new CostDebugRpcService(topologyListenerConfig.costJournalRecorder(),
-            reservedInstanceConfig.entityReservedInstanceMappingStore(),
-            buyRIAnalysisConfig.reservedInstanceAnalysisInvoker());
+        return new CostDebugRpcService(
+                topologyListenerConfig.costJournalRecorder(),
+                reservedInstanceConfig.entityReservedInstanceMappingStore(),
+                buyRIAnalysisConfig.reservedInstanceAnalysisInvoker(),
+                buyRIImpactReportGenerator());
     }
 
     /**
@@ -74,5 +91,17 @@ public class CostDebugConfig {
     @Bean
     public TraxConfigurationServiceController traxConfigurationServiceController() {
         return new TraxConfigurationServiceController(traxConfigurationRpcService());
+    }
+
+    @Bean
+    public BuyRIImpactReportGenerator buyRIImpactReportGenerator() {
+        return new BuyRIImpactReportGenerator(
+                buyRIAnalysisConfig.repositoryServiceClient(),
+                buyRIAnalysisConfig.buyReservedInstanceStore(),
+                reservedInstanceSpecConfig.reservedInstanceSpecStore(),
+                reservedInstanceConfig.projectedEntityRICoverageAndUtilStore(),
+                entityCostConfig.projectedEntityCostStore(),
+                reservedInstanceConfig.cloudTopologyFactory(),
+                realtimeTopologyContextId);
     }
 }

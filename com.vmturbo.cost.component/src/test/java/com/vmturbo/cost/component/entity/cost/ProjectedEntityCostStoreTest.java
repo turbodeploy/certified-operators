@@ -20,10 +20,12 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
+import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
 import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
+import com.vmturbo.components.common.utils.TimeFrameCalculator.TimeFrame;
 import com.vmturbo.cost.component.util.EntityCostFilter.EntityCostFilterBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
@@ -176,8 +178,11 @@ public class ProjectedEntityCostStoreTest {
     public void testGetProjectedEntityCostsWithCostFilterOnCategory() {
         store.updateProjectedEntityCosts(Arrays.asList(VM1_COST, VM2_COST, DB1_COST));
         Map<Long, EntityCost> costs = store.getProjectedEntityCosts(EntityCostFilterBuilder
-            .newBuilder(TimeFrameCalculator.TimeFrame.LATEST)
-            .costCategories(ImmutableSet.of(CostCategory.STORAGE_VALUE))
+            .newBuilder(TimeFrame.LATEST)
+            .costCategoryFilter(CostCategoryFilter.newBuilder()
+                    .setExclusionFilter(false)
+                    .addCostCategory(CostCategory.STORAGE)
+                    .build())
             .build());
         assertThat(costs.keySet(), containsInAnyOrder(VM2_OID));
         assertThat(costs.get(VM2_OID).getComponentCostCount(), is(1));

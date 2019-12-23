@@ -82,6 +82,15 @@ message TriggerBuyRIAlgorithmRequest {
 message TriggerBuyRIAlgorithmResponse {
 }
 
+message GetBuyRIImpactCsvRequest {
+
+    optional int64 topology_context_id = 1;
+}
+
+message GetBuyRIImpactCsvResponse {
+    optional string csv_string = 1;
+}
+
 // A service for debugging-related information in the cost component.
 // This shouldn't be called from the core "application" code - it's helper
 // methods to help diagnose errors.
@@ -121,4 +130,8 @@ service CostDebugService {
     // This is a way to get around the fact that we run it at regular intervals - for debugging
     // we may want to force it.
     rpc TriggerBuyRIAlgorithm(TriggerBuyRIAlgorithmRequest) returns (TriggerBuyRIAlgorithmResponse);
+
+    // Generates a csv-formatted report of Buy RI savings. This is a way to verify the
+    // BuyRIImpactAnalysis output from the market component.
+    rpc GetBuyRIImpactCsv(GetBuyRIImpactCsvRequest) returns (GetBuyRIImpactCsvResponse);
 }

@@ -6,6 +6,7 @@ import static com.vmturbo.trax.Trax.traxConstant;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 
@@ -88,28 +89,20 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
                 final TraxNumber totalRequired = trax(entityInfoExtractor.getComputeTierConfig(computeTier)
                     .orElseThrow(() -> new IllegalArgumentException("Expected compute tier with compute tier config."))
                     .getNumCoupons(), "coupons required");
-                TraxNumber totalCovered = trax(0);
-                for (Map.Entry<Long, Double> entry : entityRiCoverage.getCouponsCoveredByRiMap().entrySet()) {
-                    final long riBoughtId = entry.getKey();
-                    final TraxNumber coveredCoupons = trax(entry.getValue(), "Covered by " + riBoughtId);
-                    Optional<ReservedInstanceData> riDataOpt = cloudCostData.getExistingRiBoughtData(riBoughtId);
-                    if (riDataOpt.isPresent()) {
-                        // Since we can calculate the cost, the coupons covered by this instance
-                        // contribute to the RI coverage of the entity.
-                        totalCovered = totalCovered.plus(coveredCoupons).compute();
-                        final ReservedInstanceData riData = riDataOpt.get();
-                        final TraxNumber riBoughtPercentage = calculateRiBoughtPercentage(entityId,
-                                coveredCoupons, riData);
-                        journal.recordRiCost(riData, coveredCoupons, calculateEffectiveHourlyCost(riBoughtPercentage, riData));
-                        journal.recordRIDiscountedCost(CostCategory.ON_DEMAND_LICENSE, riData, riBoughtPercentage);
-                        journal.recordRIDiscountedCost(CostCategory.ON_DEMAND_COMPUTE, riData, riBoughtPercentage);
-                    } else {
-                        // If we don't know about this reserved instance, we can't calculate a cost for
-                        // it and we shouldn't include it in the cost calculation.
-                        logger.error("Mismatched RI Coverage and RI Bought Store: " +
-                                "No bought record for RI {}! Not including it in cost calculation", riBoughtId);
-                    }
-                }
+
+                final TraxNumber coverageByRIInventory = recordRICoverageEntries(
+                        entityId,
+                        totalRequired,
+                        entityRiCoverage.getCouponsCoveredByRiMap(),
+                        cloudCostData::getExistingRiBoughtData,
+                        false);
+                final TraxNumber coverageByBuyRIs = recordRICoverageEntries(
+                        entityId,
+                        totalRequired,
+                        entityRiCoverage.getCouponsCoveredByBuyRiMap(),
+                        cloudCostData::getBuyRIData,
+                        true);
+                final TraxNumber totalCovered = coverageByRIInventory.plus(coverageByBuyRIs).compute();
 
                 if (totalCovered.getValue() == totalRequired.getValue()) {
                     // Handle the equality case separately to avoid division by 0 if
@@ -123,6 +116,48 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
                     return totalCovered.dividedBy(totalRequired).compute("coverage");
                 }
             }).orElse(NO_COVERAGE);
+    }
+
+    private TraxNumber recordRICoverageEntries(long entityOid,
+                                               @Nonnull TraxNumber totalCoverageCapacity,
+                                               @Nonnull Map<Long, Double> riCoverageEntries,
+                                               @Nonnull Function<Long, Optional<ReservedInstanceData>> riDataResolver,
+                                               boolean isBuyRI) {
+
+        TraxNumber totalCovered = trax(0);
+        for (Map.Entry<Long, Double> riCoverageEntry : riCoverageEntries.entrySet()) {
+
+            final long riOid = riCoverageEntry.getKey();
+            final double coverageAmount = riCoverageEntry.getValue();
+
+            final TraxNumber coveredCoupons =
+                    trax(coverageAmount, String.format("Covered by %s (Buy RI=%s)", riOid, isBuyRI));
+            Optional<ReservedInstanceData> riDataOpt = riDataResolver.apply(riOid);
+            if (riDataOpt.isPresent()) {
+                final ReservedInstanceData riData = riDataOpt.get();
+                final TraxNumber coveragePercentage = coveredCoupons.dividedBy(totalCoverageCapacity)
+                        .compute("Coverage percentage");
+
+                if (isBuyRI) {
+                    journal.recordBuyRIDiscount(CostCategory.ON_DEMAND_LICENSE, riData, coveragePercentage);
+                    journal.recordBuyRIDiscount(CostCategory.ON_DEMAND_COMPUTE, riData, coveragePercentage);
+                } else {
+                    final TraxNumber riBoughtPercentage =
+                            calculateRiBoughtPercentage(entityOid, coveredCoupons, riData);
+                    journal.recordRiCost(riData, coveredCoupons, calculateEffectiveHourlyCost(riBoughtPercentage, riData));
+
+                    journal.recordRIDiscount(CostCategory.ON_DEMAND_LICENSE, riData, coveragePercentage);
+                    journal.recordRIDiscount(CostCategory.ON_DEMAND_COMPUTE, riData, coveragePercentage);
+                }
+
+                totalCovered = totalCovered.plus(coveredCoupons).compute();
+            } else {
+                logger.error("Unable to resolve RI data for entity " +
+                        "(Entity OID={}, RI OID={}, Buy RI={})", entityOid, riOid, isBuyRI);
+            }
+        }
+
+        return totalCovered;
     }
 
     /**

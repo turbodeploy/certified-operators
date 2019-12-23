@@ -19,6 +19,7 @@ import javax.annotation.Nullable;
 
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Joiner;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.HashBiMap;
@@ -2554,6 +2555,36 @@ public class TopologyConverter {
      */
     public Map<Long, EntityReservedInstanceCoverage> getProjectedReservedInstanceCoverage() {
         return Collections.unmodifiableMap(projectedReservedInstanceCoverage);
+    }
+
+    /**
+     * Adds the provided RI coverage to the projected RI coverage.
+     * @param entityBuyRICoverage The RI coverage to add, formatted as
+     * {@literal <Entity OID, RI ID, Coverage Amount>}
+     */
+    public void addBuyRICoverageToProjectedRICoverage(@Nonnull Table<Long, Long, Double> entityBuyRICoverage) {
+        entityBuyRICoverage.rowMap().forEach((entityOid, buyRICoverage) -> {
+            if (projectedReservedInstanceCoverage.containsKey(entityOid)) {
+                final EntityReservedInstanceCoverage entityRICoverage =
+                        projectedReservedInstanceCoverage.get(entityOid);
+
+                projectedReservedInstanceCoverage.put(entityOid,
+                        entityRICoverage.toBuilder()
+                                .putAllCouponsCoveredByBuyRi(buyRICoverage)
+                                .build());
+                logger.debug("Updated projected RI coverage for entity with buy RI coverage" +
+                        "(Entity OID={}, Buy RI coverage={})",
+                        () -> entityOid,
+                        () -> Joiner.on(", ")
+                                .withKeyValueSeparator("=>")
+                                .join(buyRICoverage));
+            } else {
+                // It is expected that calculateProjectedRiCoverage() will add a record
+                // for every entity in the projected topology
+                logger.error("Projected RI coverage for entity could not be found in adding buy RI coverage" +
+                        "(Entity OID={})", entityOid);
+            }
+        });
     }
 
     /**

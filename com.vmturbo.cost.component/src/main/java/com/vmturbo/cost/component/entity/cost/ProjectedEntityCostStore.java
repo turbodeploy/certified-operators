@@ -83,7 +83,7 @@ public class ProjectedEntityCostStore {
     public Map<Long, EntityCost> getProjectedEntityCosts(@Nonnull final EntityCostFilter filter) {
         if (!filter.getEntityTypeFilters().isPresent()
             && !filter.getEntityFilters().isPresent()
-            && !filter.getCostCategories().isPresent()
+            && !filter.getCostCategoryFilter().isPresent()
             && !filter.getCostSources().isPresent()) {
             return getAllProjectedEntitiesCosts();
         } else {
@@ -119,11 +119,7 @@ public class ProjectedEntityCostStore {
 
         List<EntityCost.ComponentCost> filteredComponentCosts = entityCost.getComponentCostList()
             .stream()
-            // apply cost source filter
-            .filter(cc -> costSourceFilter(cc, filter))
-            // apply cost category filter
-            .filter(cc -> !filter.getCostCategories().isPresent()
-                || filter.getCostCategories().get().contains(cc.getCategory().getNumber()))
+            .filter(filter::filterComponentCost)
             .collect(Collectors.toList());
 
         if (filteredComponentCosts.isEmpty()) {
@@ -136,25 +132,6 @@ public class ProjectedEntityCostStore {
         return Optional.of(builder.build());
     }
 
-    private boolean costSourceFilter(@Nonnull EntityCost.ComponentCost componentCost,
-                                     @Nonnull  EntityCostFilter filter) {
-        // If there is no cost source filter pass the filter
-        if (!filter.getCostSources().isPresent()) {
-            return  true;
-        }
-
-        // If this is exclusion filter, it covers those entries that don't have cost source and
-        // those that have cost source and is in the filter
-        if (filter.isCostSourcesToBeExcluded()) {
-            return !componentCost.hasCostSource()
-                || !filter.getCostSources().get().contains(componentCost.getCostSource().getNumber());
-        }
-
-        // if this is inclusion filter only return true if the cost component has a cost source
-        // and its value is in input filter
-        return componentCost.hasCostSource()
-            && filter.getCostSources().get().contains(componentCost.getCostSource().getNumber());
-    }
 
     @Nonnull
     public Map<Long, EntityCost> getAllProjectedEntitiesCosts() {

@@ -39,6 +39,8 @@ import com.vmturbo.reserved.instance.coverage.allocator.topology.CoverageTopolog
  */
 public class BuyRIImpactAnalysis {
 
+    private static final Table<Long, Long, Double> EMPTY_COVERAGE_ALLOCATION = ImmutableTable.of();
+
     /**
      * A summary metric collecting the total runtime duration of coverage analysis
      */
@@ -253,12 +255,12 @@ public class BuyRIImpactAnalysis {
      * the projected topology, in which RI coverage from RIs in inventory takes precedence over
      * buy RI recommendations.
      *
-     * @return A map of entity OID -> {@link EntityReservedInstanceCoverage}, in which the
-     * {@link EntityReservedInstanceCoverage} instances contain both the input RI coverage (intended to
-     * be from RIs in inventory) and coverage from buy RI recommendations
+     * @return A table, representing {@literal <Entity OID, RI ID, Coverage Amount>}. This will represent
+     * only allocated coverage as part of this analysis and will not include the RI coverage input
+     * in constructing the analysis.
      */
     @Nonnull
-    public Map<Long, EntityReservedInstanceCoverage> createCoverageFromBuyRIImpactAnalysis() {
+    public Table<Long, Long, Double> allocateCoverageFromBuyRIImpactAnalysis() {
         try {
             logger.info("Running BuyRIImpactAnalysis (Topology Context ID={}, Topology ID={})",
                     topologyInfo.getTopologyContextId(), topologyInfo.getTopologyId());
@@ -281,11 +283,10 @@ public class BuyRIImpactAnalysis {
                     coverageTopology.getAllReservedInstances().size(),
                     coverageAllocation.allocatorCoverageTable().size());
 
-            return convertCoverageAllocationToEntityRICoverage(coverageAllocation);
+            return coverageAllocation.allocatorCoverageTable();
         } catch (Exception e) {
             logger.error("Error running buy RI analysis (TopologyInfo={})", topologyInfo, e);
-            // return the original RI coverage
-            return riCoverageByEntityOid;
+            return EMPTY_COVERAGE_ALLOCATION;
         }
     }
 
