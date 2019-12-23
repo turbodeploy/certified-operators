@@ -137,6 +137,14 @@ data:
             statsRecordsCommitBatchSize : 5000
             # Number of results to return when fetching lazily.
             statsRecordsQueryBatchSize : 5000
+            reservedInstanceStatCleanup.corePoolSize: 1
+            # One thread per table - latest, hourly, daily, monthly for RI coverage and utilization
+            reservedInstanceStatCleanup.maxPoolSize: 8
+            reservedInstanceStatCleanup.threadKeepAliveMins: 1
+            reservedInstanceStatCleanup.executorQueueSize: 10
+            reservedInstanceStatCleanup.minTimeBetweenCleanupsMinutes: 60
+            # Schedule for the Reserved Instance tables cleanup scheduler
+            reservedInstanceStatCleanup.scheduler: 360000
             retention.updateRetentionIntervalSeconds: 10
             projectedTopologyListenerTimeOut: 3600
         group:

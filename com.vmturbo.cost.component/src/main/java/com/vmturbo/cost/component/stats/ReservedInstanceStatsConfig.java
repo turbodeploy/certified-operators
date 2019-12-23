@@ -35,22 +35,22 @@ public class ReservedInstanceStatsConfig {
     @Value("${retention.numRetainedMinutes}")
     private int numRetainedMinutes;
 
-    @Value("${reservedInstanceStatCleanup.minTimeBetweenCleanupsMinutes}")
+    @Value("${reservedInstanceStatCleanup.minTimeBetweenCleanupsMinutes:60}")
     private int minTimeBetweenCleanupsMinutes;
 
-    @Value("${reservedInstanceStatCleanup.corePoolSize}")
+    @Value("${reservedInstanceStatCleanup.corePoolSize:1}")
     private int cleanupCorePoolSize;
 
-    @Value("${reservedInstanceStatCleanup.maxPoolSize}")
+    @Value("${reservedInstanceStatCleanup.maxPoolSize:8}")
     private int cleanupMaxPoolSize;
 
-    @Value("${reservedInstanceStatCleanup.threadKeepAliveMins}")
+    @Value("${reservedInstanceStatCleanup.threadKeepAliveMins:1}")
     private int cleanupThreadKeepAliveMins;
 
-    @Value("${reservedInstanceStatCleanup.executorQueueSize}")
+    @Value("${reservedInstanceStatCleanup.executorQueueSize:10}")
     private int cleanupExecutorQueueSize;
 
-    @Value("${reservedInstanceStatCleanup.scheduler}")
+    @Value("${reservedInstanceStatCleanup.scheduler:360000}")
     private int cleanupSchedulerPeriod;
 
     @Autowired
