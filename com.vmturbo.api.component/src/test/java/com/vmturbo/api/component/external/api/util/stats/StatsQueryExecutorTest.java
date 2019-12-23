@@ -1,6 +1,5 @@
 package com.vmturbo.api.component.external.api.util.stats;
 
-import static com.vmturbo.api.component.external.api.util.stats.StatsTestUtil.snapshotWithStats;
 import static com.vmturbo.api.component.external.api.util.stats.StatsTestUtil.stat;
 import static com.vmturbo.api.component.external.api.util.stats.StatsTestUtil.statInput;
 import static com.vmturbo.api.component.external.api.util.stats.StatsTestUtil.statWithKey;
@@ -22,6 +21,7 @@ import java.util.Optional;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
@@ -91,22 +91,22 @@ public class StatsQueryExecutorTest {
         when(statsSubQuery1.applicableInContext(statsQueryContext)).thenReturn(true);
         when(statsSubQuery2.applicableInContext(statsQueryContext)).thenReturn(false);
 
+
         final StatApiDTO stat = stat("foo");
-        StatSnapshotApiDTO snapshot = snapshotWithStats(MILLIS, stat);
         when(statsSubQuery1.getAggregateStats(any(), any()))
-            .thenReturn(Collections.singletonList(snapshot));
+            .thenReturn(ImmutableMap.of(MILLIS, Collections.singletonList(stat)));
 
         // ACT
-        List<StatSnapshotApiDTO> results = executor.getAggregateStats(scope, period);
+        List<StatSnapshotApiDTO> stats = executor.getAggregateStats(scope, period);
 
         // ASSERT
         verify(contextFactory).newContext(scope, expandedScope, period);
 
-        assertThat(results.size(), is(1));
+        assertThat(stats.size(), is(1));
 
-        final StatSnapshotApiDTO resultSnapshot = results.get(0);
-        assertThat(resultSnapshot.getDate(), is(DateTimeUtil.toString(MILLIS)));
-        assertThat(resultSnapshot.getStatistics(), containsInAnyOrder(stat));
+        final StatSnapshotApiDTO snapshotApiDTO = stats.get(0);
+        assertThat(snapshotApiDTO.getDate(), is(DateTimeUtil.toString(MILLIS)));
+        assertThat(snapshotApiDTO.getStatistics(), containsInAnyOrder(stat));
     }
 
     @Test
@@ -123,12 +123,10 @@ public class StatsQueryExecutorTest {
 
         final StatApiDTO stat1 = stat("foo");
         final StatApiDTO stat2 = stat("bar");
-        StatSnapshotApiDTO snapshot1 = snapshotWithStats(MILLIS, stat1);
-        StatSnapshotApiDTO snapshot2 = snapshotWithStats(MILLIS, stat2);
         when(statsSubQuery1.getAggregateStats(any(), any()))
-            .thenReturn(Collections.singletonList(snapshot1));
+            .thenReturn(ImmutableMap.of(MILLIS, Collections.singletonList(stat1)));
         when(statsSubQuery2.getAggregateStats(any(), any()))
-            .thenReturn(Collections.singletonList(snapshot2));
+            .thenReturn(ImmutableMap.of(MILLIS, Collections.singletonList(stat2)));
 
         // ACT
         List<StatSnapshotApiDTO> stats = executor.getAggregateStats(scope, period);
@@ -167,12 +165,10 @@ public class StatsQueryExecutorTest {
 
         final StatApiDTO stat1 = stat("foo");
         final StatApiDTO stat2 = stat("bar");
-        StatSnapshotApiDTO snapshot1 = snapshotWithStats(MILLIS, stat1);
-        StatSnapshotApiDTO snapshot2 = snapshotWithStats(MILLIS, stat2);
         when(statsSubQuery1.getAggregateStats(any(), any()))
-            .thenReturn(Collections.singletonList(snapshot1));
+            .thenReturn(ImmutableMap.of(MILLIS, Collections.singletonList(stat1)));
         when(statsSubQuery2.getAggregateStats(any(), any()))
-            .thenReturn(Collections.singletonList(snapshot2));
+            .thenReturn(ImmutableMap.of(MILLIS, Collections.singletonList(stat2)));
 
         // ACT
         List<StatSnapshotApiDTO> stats = executor.getAggregateStats(scope, period);
@@ -212,12 +208,10 @@ public class StatsQueryExecutorTest {
 
         final StatApiDTO stat1 = stat("foo");
         final StatApiDTO stat2 = stat("bar");
-        StatSnapshotApiDTO snapshot1 = snapshotWithStats(MILLIS, stat1);
-        StatSnapshotApiDTO snapshot2 = snapshotWithStats(MILLIS, stat2);
         when(statsSubQuery1.getAggregateStats(any(), any()))
-            .thenReturn(Collections.singletonList(snapshot1));
+            .thenReturn(ImmutableMap.of(MILLIS, Collections.singletonList(stat1)));
         when(statsSubQuery2.getAggregateStats(any(), any()))
-            .thenReturn(Collections.singletonList(snapshot2));
+            .thenReturn(ImmutableMap.of(MILLIS, Collections.singletonList(stat2)));
 
         // ACT
         List<StatSnapshotApiDTO> stats = executor.getAggregateStats(scope, period);
@@ -247,12 +241,11 @@ public class StatsQueryExecutorTest {
 
         final StatApiDTO stat1 = stat("foo", "11");
         final StatApiDTO stat2 = stat("foo", "12");
-        StatSnapshotApiDTO snapshot1 = snapshotWithStats(MILLIS, stat1);
-        StatSnapshotApiDTO snapshot2 = snapshotWithStats(MILLIS, stat2);
+
         when(statsSubQuery1.getAggregateStats(any(), any()))
-            .thenReturn(Collections.singletonList(snapshot1));
+            .thenReturn(ImmutableMap.of(MILLIS, Collections.singletonList(stat1)));
         when(statsSubQuery2.getAggregateStats(any(), any()))
-            .thenReturn(Collections.singletonList(snapshot2));
+            .thenReturn(ImmutableMap.of(MILLIS, Collections.singletonList(stat2)));
 
         // ACT
         List<StatSnapshotApiDTO> stats = executor.getAggregateStats(scope, period);
@@ -277,12 +270,11 @@ public class StatsQueryExecutorTest {
 
         final StatApiDTO stat1 = statWithKey("foo", "key1");
         final StatApiDTO stat2 = statWithKey("foo", "key2");
-        StatSnapshotApiDTO snapshot1 = snapshotWithStats(MILLIS, stat1);
-        StatSnapshotApiDTO snapshot2 = snapshotWithStats(MILLIS, stat2);
+
         when(statsSubQuery1.getAggregateStats(any(), any()))
-            .thenReturn(Collections.singletonList(snapshot1));
+            .thenReturn(ImmutableMap.of(MILLIS, Collections.singletonList(stat1)));
         when(statsSubQuery2.getAggregateStats(any(), any()))
-            .thenReturn(Collections.singletonList(snapshot2));
+            .thenReturn(ImmutableMap.of(MILLIS, Collections.singletonList(stat2)));
 
         // ACT
         List<StatSnapshotApiDTO> stats = executor.getAggregateStats(scope, period);
@@ -307,12 +299,10 @@ public class StatsQueryExecutorTest {
 
         final StatApiDTO stat1 = stat("Cooling");
         final StatApiDTO stat2 = stat("foo");
-        StatSnapshotApiDTO snapshot1 = snapshotWithStats(MILLIS, stat1);
-        StatSnapshotApiDTO snapshot2 = snapshotWithStats(MILLIS, stat2);
         when(statsSubQuery1.getAggregateStats(any(), any()))
-            .thenReturn(Collections.singletonList(snapshot1));
+            .thenReturn(ImmutableMap.of(MILLIS, Collections.singletonList(stat1)));
         when(statsSubQuery2.getAggregateStats(any(), any()))
-            .thenReturn(Collections.singletonList(snapshot2));
+            .thenReturn(ImmutableMap.of(MILLIS, Collections.singletonList(stat2)));
 
         // Create a list of targets.
         List<ThinTargetInfo> thinTargetInfos = Lists.newArrayList(
@@ -346,5 +336,4 @@ public class StatsQueryExecutorTest {
         assertTrue(snapshotApiDTO.getStatistics().stream()
             .anyMatch(stat -> "Cooling".equalsIgnoreCase(stat.getName())));
     }
-
 }

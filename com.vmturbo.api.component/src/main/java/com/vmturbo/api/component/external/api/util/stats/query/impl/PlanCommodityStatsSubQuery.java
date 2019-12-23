@@ -1,24 +1,27 @@
 package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
 import org.apache.commons.lang3.StringUtils;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Streams;
 
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.SubQuerySupportedStats;
+import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.components.common.utils.StringConstants;
@@ -68,15 +71,37 @@ public class PlanCommodityStatsSubQuery implements StatsSubQuery {
 
     @Nonnull
     @Override
-    public List<StatSnapshotApiDTO> getAggregateStats(@Nonnull final Set<StatApiInputDTO> stats,
-                                                      @Nonnull final StatsQueryContext context)
+    public Map<Long, List<StatApiDTO>> getAggregateStats(@Nonnull final Set<StatApiInputDTO> stats,
+                                                         @Nonnull final StatsQueryContext context)
             throws OperationFailedException {
         final GetAveragedEntityStatsRequest request =
             requestMapper.toAveragedEntityStatsRequest(stats, context);
 
-        return Streams.stream(statsServiceRpc.getAveragedEntityStats(request))
-            .map(snapshot -> statsMapper.toStatSnapshotApiDTO(snapshot))
-            .collect(Collectors.toList());
+        final Map<Long, List<StatApiDTO>> retStatsByTime = new HashMap<>();
+        statsServiceRpc.getAveragedEntityStats(request).forEachRemaining(snapshot -> {
+            final StatSnapshotApiDTO snapshotApiDTO = statsMapper.toStatSnapshotApiDTO(snapshot);
+
+            // The history component groups the stats with the "current" prefix and the stats without
+            // it into two snapshot. We rely on that behaviour in the following logic.
+            final long time;
+            // Note - we check the names in the original snapshot, not the mapped snapshot, because
+            // the mapping process removes the "current" prefix.
+            if (snapshot.getStatRecordsList().stream()
+                    .allMatch(record -> record.getName().startsWith(StringConstants.STAT_PREFIX_CURRENT))) {
+                // The stats with a "current" prefix are "source" stats in the plan.
+                // The time for these stats should be the plan time.
+                time = DateTimeUtil.parseTime(snapshotApiDTO.getDate());
+            } else {
+                // The stats without a "current" prefix are the "projected" stats in the plan.
+                // The time for these stats should be later than the plan time.
+                // We set it to 30 minutes, but it doesn't actually matter as long as the time
+                // is valid.
+                time = DateTimeUtil.parseTime(snapshotApiDTO.getDate()) + TimeUnit.MINUTES.toMillis(30);
+            }
+            retStatsByTime.put(time, snapshotApiDTO.getStatistics());
+        });
+
+        return retStatsByTime;
     }
 
     /**

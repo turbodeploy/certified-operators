@@ -27,11 +27,8 @@ import com.vmturbo.api.component.external.api.util.stats.query.SubQuerySupported
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
-import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
-import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.OperationFailedException;
-import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
@@ -50,8 +47,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Sub-query responsible for getting storage stats with virtual volume specific grouping.
- *
- * <p>For now, it supports:
+ * For now, it supports:
  * 1. {
  *       "name": "numVolumes",
  *       "relatedEntityType": "VirtualVolume",
@@ -62,7 +58,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  *       "relatedEntityType": "VirtualVolume",
  *       "groupBy": ["attachment"]
  *    }
- *    </p>
  */
 public class StorageStatsSubQuery implements StatsSubQuery {
 
@@ -114,12 +109,14 @@ public class StorageStatsSubQuery implements StatsSubQuery {
 
     @Nonnull
     @Override
-    public List<StatSnapshotApiDTO> getAggregateStats(@Nonnull final Set<StatApiInputDTO> requestedStats,
-                                                      @Nonnull final StatsQueryContext context) throws OperationFailedException {
+    public Map<Long, List<StatApiDTO>> getAggregateStats(@Nonnull final Set<StatApiInputDTO> requestedStats,
+                                                         @Nonnull final StatsQueryContext context) throws OperationFailedException {
 
         if (!context.isGlobalScope() && context.getQueryScope().getEntities().isEmpty()) {
-            return Collections.emptyList();
+            return Collections.emptyMap();
         }
+
+        Map<Long, List<StatApiDTO>> retStats = new HashMap<>();
 
         List<StatApiDTO> results = new ArrayList<>();
         for (StatApiInputDTO requestedStat : requestedStats) {
@@ -244,12 +241,10 @@ public class StorageStatsSubQuery implements StatsSubQuery {
             }
         }
 
-        // Build a snapshot to represent the results
-        StatSnapshotApiDTO currentStorageStatsSnapshot = new StatSnapshotApiDTO();
-        currentStorageStatsSnapshot.setDate(DateTimeUtil.toString(context.getCurTime()));
-        currentStorageStatsSnapshot.setEpoch(Epoch.CURRENT);
-        currentStorageStatsSnapshot.setStatistics(results);
-        return Collections.singletonList(currentStorageStatsSnapshot);
+        if (!results.isEmpty()) {
+            retStats.put(context.getCurTime(), results);
+        }
+        return retStats;
     }
 
     /**

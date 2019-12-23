@@ -25,9 +25,7 @@ import com.vmturbo.api.component.external.api.util.stats.StatsTestUtil;
 import com.vmturbo.api.component.external.api.util.stats.query.SubQuerySupportedStats;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
-import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
-import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.CountGroupsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
@@ -124,7 +122,7 @@ public class NumClustersStatsSubQueryTest {
         when(context.getCurTime()).thenReturn(curTime);
 
         // ACT
-        final List<StatSnapshotApiDTO> results = query.getAggregateStats(Collections.singleton(
+        final Map<Long, List<StatApiDTO>> retStats = query.getAggregateStats(Collections.singleton(
             StatsTestUtil.statInput(StringConstants.NUM_CLUSTERS)), context);
 
         ArgumentCaptor<GetGroupsRequest> requestCaptor = ArgumentCaptor.forClass(GetGroupsRequest.class);
@@ -133,11 +131,9 @@ public class NumClustersStatsSubQueryTest {
         GetGroupsRequest req = requestCaptor.getValue();
         assertEquals(GroupType.COMPUTE_HOST_CLUSTER, req.getGroupFilter().getGroupType());
 
-        assertEquals(1, results.size());
-        final StatSnapshotApiDTO resultSnapshot = results.get(0);
-        assertEquals(curTime, DateTimeUtil.parseTime(resultSnapshot.getDate()).longValue());
-        assertThat(resultSnapshot.getStatistics().size(), is(1));
-        final StatApiDTO stat = resultSnapshot.getStatistics().get(0);
+        assertThat(retStats.keySet(), containsInAnyOrder(curTime));
+        assertThat(retStats.get(curTime).size(), is(1));
+        final StatApiDTO stat = retStats.get(curTime).get(0);
         assertThat(stat.getName(), is(StringConstants.NUM_CLUSTERS));
         assertThat(stat.getValue(), is(count));
         assertThat(stat.getValues().getTotal(), is(count));

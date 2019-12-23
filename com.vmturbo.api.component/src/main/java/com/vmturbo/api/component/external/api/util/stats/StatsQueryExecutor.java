@@ -36,7 +36,6 @@ import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
-import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.StatsUtils;
@@ -84,15 +83,10 @@ public class StatsQueryExecutor {
     /**
      * Get a set of aggregated stats for a particular scope.
      *
-     * <p>"Aggregated" means that all entities in the scope are rolled into a single value for each
-     * (snapshot time, stat name) tuple.</p>
+     * "Aggregated" means that all entities in the scope are rolled into a single value for each
+     * (snapshot time, stat name) tuple.
      *
-     * <p>This call may result in multiple sub-queries depending on the requested stats.</p>
-     *
-     * <p>The results are organized into a collection of {@link StatSnapshotApiDTO}s, each
-     * representing a particular stats snapshot time. Within a particular stat snapshot, a
-     * particular stat should appear at most once. Results are ordered by snapshot time, ascending.
-     * </p>
+     * This call may result in multiple sub-queries depending on the requested stats.
      *
      * @param scope The scope for the query.
      * @param inputDTO Describes the target time range and stats.
@@ -116,18 +110,16 @@ public class StatsQueryExecutor {
         final Map<StatsSubQuery, SubQueryInput> inputsByQuery = assignInputToQueries(context);
 
         // table <date, stat identifier, stat>
-        final Table<StatTimeAndEpoch, String, StatApiDTO> statsByDateAndId = HashBasedTable.create();
+        final Table<Long, String, StatApiDTO> statsByDateAndId = HashBasedTable.create();
         // Run the individual queries and assemble their results.
         for (Entry<StatsSubQuery, SubQueryInput> entry : inputsByQuery.entrySet()) {
             final StatsSubQuery query = entry.getKey();
             final SubQueryInput subQueryInput = entry.getValue();
             if (subQueryInput.shouldRunQuery()) {
                 try {
-                    query.getAggregateStats(subQueryInput.getRequestedStats(), context).forEach(statSnapshotApiDTO -> {
-                        final long date = DateTimeUtil.parseTime(statSnapshotApiDTO.getDate());
-                        final Epoch epoch = statSnapshotApiDTO.getEpoch();
-                        statSnapshotApiDTO.getStatistics().forEach(statApiDTO -> {
-                            final StatApiDTO prevValue = statsByDateAndId.put(new StatTimeAndEpoch(date, epoch),
+                    query.getAggregateStats(subQueryInput.getRequestedStats(), context).forEach((date, stats) -> {
+                        stats.forEach(statApiDTO -> {
+                            final StatApiDTO prevValue = statsByDateAndId.put(date,
                                 createStatIdentifier(statApiDTO), statApiDTO);
                             if (prevValue != null) {
                                 logger.warn("Sub-query {} returned stat {}," +
@@ -150,14 +142,13 @@ public class StatsQueryExecutor {
         }
 
         // Sort the stats in ascending order by time.
-        final Comparator<Entry<StatTimeAndEpoch, Map<String, StatApiDTO>>> ascendingByTime =
-            Comparator.comparingLong(entry -> entry.getKey().getTime());
+        final Comparator<Entry<Long, Map<String, StatApiDTO>>> ascendingByTime =
+            Comparator.comparingLong(Entry::getKey);
         final List<StatSnapshotApiDTO> stats = statsByDateAndId.rowMap().entrySet().stream()
             .sorted(ascendingByTime)
             .map(entry -> {
                 final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
-                statSnapshotApiDTO.setDate(DateTimeUtil.toString(entry.getKey().getTime()));
-                statSnapshotApiDTO.setEpoch(entry.getKey().getEpoch());
+                statSnapshotApiDTO.setDate(DateTimeUtil.toString(entry.getKey()));
                 statSnapshotApiDTO.setStatistics(new ArrayList<>(entry.getValue().values()));
                 return statSnapshotApiDTO;
             })
@@ -178,7 +169,6 @@ public class StatsQueryExecutor {
         // If the request does not contain a start or end time and the response statistics are more
         // than one record, flatten into one record. The API expects one timestamp, the latest.
         // todo: Roman Zimine OM-52892 Allow the ability to specify which query is required.
-        // TODO: Why do we only change the date/epoch when there are multiple stats?
         if (inputDTO.getStartDate() == null && inputDTO.getEndDate() == null && stats.size() > 1) {
             List<StatApiDTO> statistics = new ArrayList<>();
             for (StatSnapshotApiDTO stat: stats) {
@@ -187,7 +177,6 @@ public class StatsQueryExecutor {
             stats.clear();
             StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
             statSnapshotApiDTO.setDate(DateTimeUtil.getNow());
-            statSnapshotApiDTO.setEpoch(Epoch.CURRENT);
             statSnapshotApiDTO.setStatistics(statistics);
             stats.add(statSnapshotApiDTO);
         }
@@ -305,46 +294,6 @@ public class StatsQueryExecutor {
         }
 
         return sb.toString();
-    }
-
-    /**
-     * A helper class to disambiguate stat snapshots by the combination of time and epoch
-     */
-    private class StatTimeAndEpoch {
-
-        private final long time;
-        private final Epoch epoch;
-
-        StatTimeAndEpoch(final long time, @Nonnull final Epoch epoch) {
-            this.time = time;
-            this.epoch = Objects.requireNonNull(epoch);
-        }
-
-        public long getTime() {
-            return time;
-        }
-
-        public Epoch getEpoch() {
-            return epoch;
-        }
-
-        @Override
-        public boolean equals(final Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (!(o instanceof StatTimeAndEpoch)) {
-                return false;
-            }
-            final StatTimeAndEpoch that = (StatTimeAndEpoch)o;
-            return time == that.time &&
-                epoch == that.epoch;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(time, epoch);
-        }
     }
 
     /**

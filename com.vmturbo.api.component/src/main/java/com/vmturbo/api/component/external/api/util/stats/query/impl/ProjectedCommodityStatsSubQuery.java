@@ -1,22 +1,23 @@
 package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
 import java.time.Duration;
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext.TimeWindow;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.SubQuerySupportedStats;
+import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
-import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.OperationFailedException;
-import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
@@ -49,8 +50,8 @@ public class ProjectedCommodityStatsSubQuery implements StatsSubQuery {
 
     @Nonnull
     @Override
-    public List<StatSnapshotApiDTO> getAggregateStats(@Nonnull final Set<StatApiInputDTO> stats,
-                                                      @Nonnull final StatsQueryContext context) throws OperationFailedException {
+    public Map<Long, List<StatApiDTO>> getAggregateStats(@Nonnull final Set<StatApiInputDTO> stats,
+                                                         @Nonnull final StatsQueryContext context) throws OperationFailedException {
         final ProjectedStatsRequest.Builder builder = ProjectedStatsRequest.newBuilder()
             .addAllEntities(context.getQueryScope().getEntities());
         stats.forEach(statApiInputDTO -> {
@@ -68,16 +69,13 @@ public class ProjectedCommodityStatsSubQuery implements StatsSubQuery {
             response.getSnapshot());
 
         // set the time of the snapshot to "future" using the "endDate" of the request
-        projectedStatSnapshot.setDate(DateTimeUtil.toString(
-            context.getTimeWindow()
-                .map(TimeWindow::endTime)
-                // If the request didn't have an explicit end time, set the time the future (and beyond).
-                // We want it to be out of the "live stats retrieval window" (to keep the semantics
-                // that anything within the live stats retrieval window = current stats), so we add
-                // a minute.
-                .orElseGet(() ->
-                    context.getCurTime() + liveStatsRetrievalWindow.plusMinutes(1).toMillis())));
-        projectedStatSnapshot.setEpoch(Epoch.PROJECTED);
-        return Collections.singletonList(projectedStatSnapshot);
+        return ImmutableMap.of(context.getTimeWindow()
+            .map(TimeWindow::endTime)
+            // If the request didn't have an explicit end time, set the time the future (and beyond).
+            // We want it to be out of the "live stats retrieval window" (to keep the semantics
+            // that anything within the live stats retrieval window = current stats), so we add
+            // a minute.
+            .orElseGet(() -> context.getCurTime() + liveStatsRetrievalWindow.plusMinutes(1).toMillis()),
+                projectedStatSnapshot.getStatistics());
     }
 }

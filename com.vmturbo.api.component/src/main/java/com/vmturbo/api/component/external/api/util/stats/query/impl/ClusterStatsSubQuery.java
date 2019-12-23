@@ -1,21 +1,23 @@
 package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Streams;
 
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.SubQuerySupportedStats;
+import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
@@ -76,14 +78,17 @@ public class ClusterStatsSubQuery implements StatsSubQuery {
 
     @Nonnull
     @Override
-    public List<StatSnapshotApiDTO> getAggregateStats(@Nonnull final Set<StatApiInputDTO> requestedStats,
-                                                      @Nonnull final StatsQueryContext context) throws OperationFailedException {
+    public Map<Long, List<StatApiDTO>> getAggregateStats(@Nonnull final Set<StatApiInputDTO> requestedStats,
+                                                         @Nonnull final StatsQueryContext context) throws OperationFailedException {
         final ClusterStatsRequest clusterStatsRequest = statsMapper.toClusterStatsRequest(
             context.getInputScope().uuid(),
             context.newPeriodInputDto(requestedStats));
 
-        return Streams.stream(statsServiceRpc.getClusterStats(clusterStatsRequest))
-            .map(snapshot -> statsMapper.toStatSnapshotApiDTO(snapshot))
-            .collect(Collectors.toList());
+        Map<Long, List<StatApiDTO>> stats = new HashMap<>();
+        statsServiceRpc.getClusterStats(clusterStatsRequest).forEachRemaining(snapshot -> {
+            final StatSnapshotApiDTO apiSnapshot = statsMapper.toStatSnapshotApiDTO(snapshot);
+            stats.put(DateTimeUtil.parseTime(apiSnapshot.getDate()), apiSnapshot.getStatistics());
+        });
+        return stats;
     }
 }

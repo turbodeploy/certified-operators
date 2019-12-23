@@ -1,9 +1,12 @@
 package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -12,9 +15,9 @@ import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactor
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.GlobalScope;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.SubQuerySupportedStats;
+import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
-import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
@@ -22,6 +25,7 @@ import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.UIEntityType;
 
 /**
  * Sub-query responsible for getting historical entity commodity stats. This is the most common
@@ -52,8 +56,8 @@ public class HistoricalCommodityStatsSubQuery implements StatsSubQuery {
 
     @Nonnull
     @Override
-    public List<StatSnapshotApiDTO> getAggregateStats(@Nonnull final Set<StatApiInputDTO> requestedStats,
-                                                      @Nonnull final StatsQueryContext context) throws OperationFailedException {
+    public Map<Long, List<StatApiDTO>> getAggregateStats(@Nonnull final Set<StatApiInputDTO> requestedStats,
+                                                         @Nonnull final StatsQueryContext context) throws OperationFailedException {
         final GetAveragedEntityStatsRequest request =
             toAveragedEntityStatsRequest(requestedStats, context);
 
@@ -68,7 +72,6 @@ public class HistoricalCommodityStatsSubQuery implements StatsSubQuery {
         // The reason to do it is that DB may not necessarily have records that
         // matches with the time point when API queries stats data, therefore we decide to use the
         // value from the latest record in history to represent it.
-        // TODO: Why do we apply this rule only to this subquery and not others?
         final boolean copyLast = context.includeCurrent() && context.getTimeWindow()
             .map(timeWindow -> timeWindow.startTime() != timeWindow.endTime())
             .orElse(false);
@@ -77,13 +80,15 @@ public class HistoricalCommodityStatsSubQuery implements StatsSubQuery {
             if (latestSnapshot != null &&  context.getCurTime() != DateTimeUtil.parseTime(latestSnapshot.getDate())) {
                 final StatSnapshotApiDTO clone = new StatSnapshotApiDTO();
                 clone.setDate(DateTimeUtil.toString(context.getCurTime()));
-                clone.setEpoch(Epoch.CURRENT);
                 clone.setStatistics(latestSnapshot.getStatistics());
                 statsList.add(clone);
             }
         }
 
-        return statsList;
+        return statsList.stream()
+            .collect(Collectors.toMap(
+                snapshot -> DateTimeUtil.parseTime(snapshot.getDate()),
+                StatSnapshotApiDTO::getStatistics));
     }
 
     /**

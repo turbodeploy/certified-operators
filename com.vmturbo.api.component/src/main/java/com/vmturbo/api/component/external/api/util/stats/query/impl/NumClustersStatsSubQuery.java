@@ -2,20 +2,20 @@ package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.SubQuerySupportedStats;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
-import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
-import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.OperationFailedException;
-import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -57,8 +57,8 @@ public class NumClustersStatsSubQuery implements StatsSubQuery {
 
     @Nonnull
     @Override
-    public List<StatSnapshotApiDTO> getAggregateStats(@Nonnull final Set<StatApiInputDTO> stats,
-                                                      @Nonnull final StatsQueryContext context) throws OperationFailedException {
+    public Map<Long, List<StatApiDTO>> getAggregateStats(@Nonnull final Set<StatApiInputDTO> stats,
+                                                         @Nonnull final StatsQueryContext context) throws OperationFailedException {
         final int numClusters = groupRpcService.countGroups(GetGroupsRequest.newBuilder()
                 .setGroupFilter(GroupFilter.newBuilder()
                                 .setGroupType(GroupType.COMPUTE_HOST_CLUSTER))
@@ -76,11 +76,6 @@ public class NumClustersStatsSubQuery implements StatsSubQuery {
 
         statApiDTO.setValues(values);
 
-        StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
-        statSnapshotApiDTO.setDate(DateTimeUtil.toString(context.getCurTime()));
-        statSnapshotApiDTO.setEpoch(Epoch.CURRENT);
-        statSnapshotApiDTO.setStatistics(Collections.singletonList(statApiDTO));
-
-        return Collections.singletonList(statSnapshotApiDTO);
+        return ImmutableMap.of(context.getCurTime(), Collections.singletonList(statApiDTO));
     }
 }

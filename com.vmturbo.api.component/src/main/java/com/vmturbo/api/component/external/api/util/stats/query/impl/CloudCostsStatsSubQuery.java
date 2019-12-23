@@ -173,15 +173,17 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
 
     @Nonnull
     @Override
-    public List<StatSnapshotApiDTO> getAggregateStats(@Nonnull final Set<StatApiInputDTO> requestedStats,
-                                                      @Nonnull final StatsQueryContext context) throws OperationFailedException {
+    public Map<Long, List<StatApiDTO>> getAggregateStats(@Nonnull final Set<StatApiInputDTO> requestedStats,
+                                                         @Nonnull final StatsQueryContext context) throws OperationFailedException {
         final Set<String> requestGroupBySet = requestedStats.stream()
             .filter(dto -> dto.getGroupBy() != null)
             .flatMap(apiInputDTO -> apiInputDTO.getGroupBy().stream())
             .collect(Collectors.toSet());
 
-        final List<StatSnapshotApiDTO> statsResponse;
+        final Map<Long, List<StatApiDTO>> retStats;
         if (isTopDownRequest(requestGroupBySet)) {
+            retStats = new HashMap<>();
+
             // get the type function and value function according to the "groupBy" part of the query.
             // they will be used to populate the filters in StatApiDTO
             final Supplier<String> typeFunction = getTypeFunction(requestGroupBySet);
@@ -197,12 +199,14 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                 getCloudExpensesRecordList(requestGroupBySet,
                     cloudServiceDTOs.keySet(),
                     context);
-            statsResponse = cloudStatRecords.stream()
+            cloudStatRecords.stream()
                 .map(snapshot -> toStatSnapshotApiDTO(snapshot,
                     typeFunction,
                     valueFunction,
                     cloudServiceDTOs))
-                .collect(Collectors.toList());
+                .forEach(statSnapshot -> {
+                    retStats.put(DateTimeUtil.parseTime(statSnapshot.getDate()), statSnapshot.getStatistics());
+                });
         } else if (context.getInputScope().isRealtimeMarket() || context.getInputScope().isPlan() ||
                 context.getInputScope().isCloud()) {
             final Set<Long> cloudEntityOids;
@@ -258,7 +262,11 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                 }
 
                 // merge any same date record together in results from group by attachment and group by storage tier
-                statsResponse = mergeStatSnapshotApiDTOWithDate(statSnapshots);
+                statSnapshots = mergeStatSnapshotApiDTOWithDate(statSnapshots);
+
+                retStats = statSnapshots.stream()
+                    .collect(Collectors.toMap(snapshot -> DateTimeUtil.parseTime(snapshot.getDate()),
+                        StatSnapshotApiDTO::getStatistics));
             } else {
                 List<StatSnapshotApiDTO> statSnapshots = cloudCostStatRecords.stream()
                     .map(this::toCloudStatSnapshotApiDTO)
@@ -285,12 +293,14 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                         });
                     }
                 }
-                statsResponse = statSnapshots;
+                retStats = statSnapshots.stream()
+                    .collect(Collectors.toMap(snapshot -> DateTimeUtil.parseTime(snapshot.getDate()),
+                        StatSnapshotApiDTO::getStatistics));
             }
         } else {
-            statsResponse = Collections.emptyList();
+            retStats = Collections.emptyMap();
         }
-        return statsResponse;
+        return retStats;
     }
 
     /**
@@ -746,7 +756,6 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
            @Nonnull final BiFunction<Long, Map<Long, MinimalEntity>, Optional<String>> valueFunction,
            @Nonnull final Map<Long, MinimalEntity> cloudServiceDTOs) {
         final StatSnapshotApiDTO dto = new StatSnapshotApiDTO();
-        // TODO: Store Epoch information in the CloudCostStatRecord, and map it here
         if (statSnapshot.hasSnapshotDate()) {
             dto.setDate(DateTimeUtil.toString(statSnapshot.getSnapshotDate()));
         }

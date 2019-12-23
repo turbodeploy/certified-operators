@@ -2,9 +2,9 @@ package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -20,8 +20,8 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
-import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
@@ -38,11 +38,11 @@ public class ScopedUserCountStatsSubQuery implements StatsSubQuery {
 
 
     public ScopedUserCountStatsSubQuery(@Nonnull final Duration liveStatsRetrievalWindow,
-                                        @Nonnull final UserSessionContext userSessionContext,
-                                        @Nonnull final RepositoryApi repositoryApi) {
-        this.liveStatsRetrievalWindow = Objects.requireNonNull(liveStatsRetrievalWindow);
-        this.userSessionContext = Objects.requireNonNull(userSessionContext);
-        this.repositoryApi = Objects.requireNonNull(repositoryApi);
+                                            @Nonnull final UserSessionContext userSessionContext,
+                                            @Nonnull final RepositoryApi repositoryApi) {
+        this.liveStatsRetrievalWindow = liveStatsRetrievalWindow;
+        this.userSessionContext = userSessionContext;
+        this.repositoryApi = repositoryApi;
     }
 
     @Override
@@ -57,10 +57,10 @@ public class ScopedUserCountStatsSubQuery implements StatsSubQuery {
 
     @Nonnull
     @Override
-    public List<StatSnapshotApiDTO> getAggregateStats(@Nonnull final Set<StatApiInputDTO> requestedStats,
-                                                      @Nonnull final StatsQueryContext context) throws OperationFailedException {
-        List<StatSnapshotApiDTO> statSnapShots = new ArrayList<>();
-        List<StatApiDTO> statList = new ArrayList<>();
+    public Map<Long, List<StatApiDTO>> getAggregateStats(@Nonnull final Set<StatApiInputDTO> requestedStats,
+                                                         @Nonnull final StatsQueryContext context) throws OperationFailedException {
+        Map<Long, List<StatApiDTO>> statSnapShots = new HashMap<>();
+        List <StatApiDTO> statList = new ArrayList<>();
         requestedStats.stream()
             .map(StatApiInputDTO::getName)
             .forEach(statName -> {
@@ -76,17 +76,15 @@ public class ScopedUserCountStatsSubQuery implements StatsSubQuery {
                 // We want it to be out of the "live stats retrieval window" (to keep the semantics
                 // that anything within the live stats retrieval window = current stats), so we add
                 // a minute.
-                .orElseGet(() -> context.getCurTime()
-                    + liveStatsRetrievalWindow.plusMinutes(1).toMillis()).toString());
-            projectedStatSnapshot.setEpoch(Epoch.PROJECTED);
+                .orElseGet(() -> context.getCurTime() + liveStatsRetrievalWindow.plusMinutes(1).toMillis()).toString());
             projectedStatSnapshot.setStatistics(statList);
-            statSnapShots.add(projectedStatSnapshot);
+            statSnapShots.put(DateTimeUtil.parseTime(projectedStatSnapshot.getDate()),
+                projectedStatSnapshot.getStatistics());
         }
         StatSnapshotApiDTO currentSnapshot = new StatSnapshotApiDTO();
         currentSnapshot.setDate(Long.toString(context.getCurTime()));
-        currentSnapshot.setEpoch(Epoch.CURRENT);
         currentSnapshot.setStatistics(statList);
-        statSnapShots.add(currentSnapshot);
+        statSnapShots.put(DateTimeUtil.parseTime(currentSnapshot.getDate()), currentSnapshot.getStatistics());
 
         setCurrentEntityCount(statSnapShots, context);
 
@@ -94,10 +92,9 @@ public class ScopedUserCountStatsSubQuery implements StatsSubQuery {
     }
 
     @Nonnull
-    private void setCurrentEntityCount(@Nonnull List<StatSnapshotApiDTO> statSnapShots,
-                                        @Nonnull final StatsQueryContext context) {
-        final List<UIEntityType> entityTypes = statSnapShots.stream()
-            .map(statSnapshotApiDTO -> statSnapshotApiDTO.getStatistics())
+    private void setCurrentEntityCount (@Nonnull Map<Long, List<StatApiDTO>> statSnapShots, @Nonnull final StatsQueryContext context){
+
+        final List<UIEntityType> entityTypes = statSnapShots.values().stream()
             .flatMap(List::stream)
             .map(dto -> StatsUtils.COUNT_ENTITY_METRIC_NAMES.get(dto.getName()))
             .collect(Collectors.toList());
@@ -109,8 +106,7 @@ public class ScopedUserCountStatsSubQuery implements StatsSubQuery {
                 .map(MinimalEntity::getEntityType)
                 .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
 
-        statSnapShots.stream()
-            .map(statSnapshotApiDTO -> statSnapshotApiDTO.getStatistics())
+        statSnapShots.values().stream()
             .flatMap(List::stream)
             .filter(dto -> StatsUtils.COUNT_ENTITY_METRIC_NAMES.containsKey(dto.getName()))
             .forEach(statApiDTO -> {
