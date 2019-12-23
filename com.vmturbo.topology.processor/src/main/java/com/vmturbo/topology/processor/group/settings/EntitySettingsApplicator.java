@@ -137,9 +137,20 @@ public class EntitySettingsApplicator {
                 new ResizeIncrementApplicator(EntitySettingSpecs.StorageIncrement,
                         CommodityType.STORAGE_AMOUNT),
                 new ResizeTargetUtilizationCommodityBoughtApplicator(
-                        EntitySettingSpecs.ResizeTargetUtilizationIoThroughput, CommodityType.IO_THROUGHPUT),
+                        EntitySettingSpecs.ResizeTargetUtilizationImageCPU,
+                        CommodityType.IMAGE_CPU),
                 new ResizeTargetUtilizationCommodityBoughtApplicator(
-                        EntitySettingSpecs.ResizeTargetUtilizationNetThroughput, CommodityType.NET_THROUGHPUT),
+                        EntitySettingSpecs.ResizeTargetUtilizationImageMem,
+                        CommodityType.IMAGE_MEM),
+                new ResizeTargetUtilizationCommodityBoughtApplicator(
+                        EntitySettingSpecs.ResizeTargetUtilizationImageStorage,
+                        CommodityType.IMAGE_STORAGE),
+                new ResizeTargetUtilizationCommodityBoughtApplicator(
+                        EntitySettingSpecs.ResizeTargetUtilizationIoThroughput,
+                        CommodityType.IO_THROUGHPUT),
+                new ResizeTargetUtilizationCommodityBoughtApplicator(
+                        EntitySettingSpecs.ResizeTargetUtilizationNetThroughput,
+                        CommodityType.NET_THROUGHPUT),
                 new ResizeTargetUtilizationCommoditySoldApplicator(
                         EntitySettingSpecs.ResizeTargetUtilizationVcpu, CommodityType.VCPU),
                 new ResizeTargetUtilizationCommoditySoldApplicator(

@@ -303,8 +303,8 @@ public enum EntitySettingSpecs {
     PercentileAggressivenessBusinessUser("percentileAggressivenessBusinessUser",
             SettingConstants.AGGRESSIVENESS,
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
-            SettingTiebreaker.BIGGER,
-            EnumSet.of(EntityType.BUSINESS_USER), numeric(90.0f, 100.0f, 95.0f), true),
+            SettingTiebreaker.BIGGER, EnumSet.of(EntityType.BUSINESS_USER),
+            numeric(90.0f, 100.0f, 95.0f), true),
 
     /**
      * Aggressiveness for virtual machine.
@@ -312,32 +312,62 @@ public enum EntitySettingSpecs {
     PercentileAggressivenessVirtualMachine("percentileAggressivenessVirtualMachine",
             SettingConstants.AGGRESSIVENESS,
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
-            SettingTiebreaker.BIGGER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), numeric(90.0f, 100.0f, 95.0f), true),
+            SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            numeric(90.0f, 100.0f, 95.0f), true),
 
     /**
      * Min observation period for business user.
      */
     MinObservationPeriodVirtualMachine("minObservationPeriodVirtualMachine",
             "Min Observation Period",
-            Collections.singletonList("resizeRecommendationsConstants"), SettingTiebreaker.BIGGER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), numeric(0.0f, 7.0f, 0.0f), true),
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            numeric(0.0f, 7.0f, 0.0f), true),
 
     /**
      * Max observation period for business user.
      */
     MaxObservationPeriodBusinessUser("maxObservationPeriodBusinessUser",
             SettingConstants.MAX_OBSERVATION_PERIOD,
-            Collections.singletonList("resizeRecommendationsConstants"), SettingTiebreaker.BIGGER,
-            EnumSet.of(EntityType.BUSINESS_USER), numeric(7.0f, 90.0f, 30.0f), true),
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.BIGGER, EnumSet.of(EntityType.BUSINESS_USER),
+            numeric(7.0f, 90.0f, 30.0f), true),
 
     /**
      * Max observation period for virtual machine.
      */
     MaxObservationPeriodVirtualMachine("maxObservationPeriodVirtualMachine",
             SettingConstants.MAX_OBSERVATION_PERIOD,
-            Collections.singletonList("resizeRecommendationsConstants"), SettingTiebreaker.BIGGER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), numeric(7.0f, 90.0f, 30.0f), true),
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            numeric(7.0f, 90.0f, 30.0f), true),
+
+    /**
+     * Resize target Utilization for Image CPU.
+     */
+    ResizeTargetUtilizationImageCPU("resizeTargetUtilizationImageCPU",
+            "Image CPU Target Utilization",
+            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.BUSINESS_USER),
+            numeric(1.0f, 100.0f, 100.0f), true),
+
+    /**
+     * Resize target Utilization for Image Mem.
+     */
+    ResizeTargetUtilizationImageMem("resizeTargetUtilizationImageMem",
+            "Image Mem Target Utilization",
+            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.BUSINESS_USER),
+            numeric(1.0f, 100.0f, 100.0f), true),
+
+    /**
+     * Resize target Utilization for Image Storage.
+     */
+    ResizeTargetUtilizationImageStorage("resizeTargetUtilizationImageStorage",
+            "Image Storage Target Utilization",
+            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.BUSINESS_USER),
+            numeric(1.0f, 100.0f, 100.0f), true),
 
     /**
      * Resize target Utilization for Net Throughput.
@@ -399,8 +429,7 @@ public enum EntitySettingSpecs {
      */
     VcpuIncrement("usedIncrement_VCPU", "Increment constant for VCPU [MHz]",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
-            SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER),
             numeric(0.0f/*min*/, 1000000.0f/*max*/, 1800.0f/*default*/), true),
 
     /**
@@ -408,8 +437,7 @@ public enum EntitySettingSpecs {
      */
     VmemIncrement("usedIncrement_VMEM", "Increment constant for VMem [MB]",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
-            SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER),
             numeric(0.0f/*min*/, 1000000.0f/*max*/, 1024.0f/*default*/), true),
 
     /**
@@ -417,26 +445,24 @@ public enum EntitySettingSpecs {
      */
     VstorageIncrement("usedIncrement_VStorage", "Increment constant for VStorage [GB]",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
-            SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
             numeric(0.0f/*min*/, 999999.0f/*max*/, 999999.0f/*default*/), true),
 
     /**
      * Excluded Templates.
      */
     ExcludedTemplates("excludedTemplatesOids", "Excluded templates",
-        Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
-        SettingTiebreaker.UNION,
-        EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER),
-        sortedSetOfOid(Type.ENTITY), true),
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.UNION,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.DATABASE, EntityType.DATABASE_SERVER),
+            sortedSetOfOid(Type.ENTITY), true),
 
     /**
      * Storage Increment.
      */
     StorageIncrement("usedIncrement_StAmt", "Increment constant for Storage Amount [GB]",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
-            SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.STORAGE),
             numeric(0.0f/*min*/, 100000.0f/*max*/, 100.0f/*default*/), true),
 
     /**
@@ -494,7 +520,7 @@ public enum EntitySettingSpecs {
      * Orchestration workflow to invoke when a resize action is generated and executed.
      */
     MoveActionWorkflow("moveActionWorkflow", "Move Workflow",
-        Collections.singletonList("automation"),
+        Collections.singletonList(CategoryPathConstants.AUTOMATION),
         SettingTiebreaker.SMALLER,
         EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD,
                 EntityType.CONTAINER, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
@@ -711,15 +737,16 @@ public enum EntitySettingSpecs {
      * Heap utilization threshold.
      */
     HeapUtilization("heapUtilization", "Heap Utilization",
-            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.APPLICATION, EntityType.APPLICATION_SERVER),
+            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS),
+            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.APPLICATION, EntityType.APPLICATION_SERVER),
             numeric(20f, 100f, 80f), true),
 
     /**
      * Collection time utilization threshold.
      */
     CollectionTimeUtilization("collectionTimeUtilization", "Collection Time Utilization",
-            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS),
+            SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.APPLICATION, EntityType.APPLICATION_SERVER),
             numeric(1f, 100f, 10f), true),
 

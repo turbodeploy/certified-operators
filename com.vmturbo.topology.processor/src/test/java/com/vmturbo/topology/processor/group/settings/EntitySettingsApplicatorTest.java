@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -142,6 +143,21 @@ public class EntitySettingsApplicatorTest {
                     .setSettingSpecName(EntitySettingSpecs.VstorageIncrement.getSettingName())
                     .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(5000))
                     .build();
+
+    private static final Setting BU_IMAGE_STORAGE_RESIZE_TARGET_UTILIZATION = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeTargetUtilizationImageStorage.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(80))
+            .build();
+
+    private static final Setting BU_IMAGE_MEM_RESIZE_TARGET_UTILIZATION = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeTargetUtilizationImageMem.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(70))
+            .build();
+
+    private static final Setting BU_IMAGE_CPU_RESIZE_TARGET_UTILIZATION = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeTargetUtilizationImageCPU.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(60))
+            .build();
 
     private static final Setting VM_IO_THROUGHPUT_RESIZE_TARGET_UTILIZATION = Setting.newBuilder()
             .setSettingSpecName(
@@ -1004,69 +1020,67 @@ public class EntitySettingsApplicatorTest {
     }
 
     /**
-     * Test virtual machine io throughput resize target utilization.
+     * Test resize target utilization commodity sold ang bought applicators.
      */
     @Test
-    public void testVmIoThroughputResizeTargetUtilization() {
-        testResizeTargetUtilizationCommodityBoughtApplicator(CommodityType.IO_THROUGHPUT,
-                VM_IO_THROUGHPUT_RESIZE_TARGET_UTILIZATION);
-    }
+    public void testResizeTargetUtilizationCommodityApplicator() {
+        Stream.of(new Object[][]{
+                {CommodityType.VCPU, VM_VCPU_THROUGHPUT_RESIZE_TARGET_UTILIZATION},
+                {CommodityType.VMEM, VM_VMEM_THROUGHPUT_RESIZE_TARGET_UTILIZATION}})
+                .forEach(data -> testResizeTargetUtilizationCommoditySoldApplicator(
+                        EntityType.VIRTUAL_MACHINE, (CommodityType)data[0], (Setting)data[1]));
 
-    /**
-     * Test virtual machine net throughput resize target utilization.
-     */
-    @Test
-    public void testVmNetThroughputResizeTargetUtilization() {
-        testResizeTargetUtilizationCommodityBoughtApplicator(CommodityType.NET_THROUGHPUT,
-                VM_NET_THROUGHPUT_RESIZE_TARGET_UTILIZATION);
+        Stream.of(new Object[][]{
+                {EntityType.VIRTUAL_MACHINE, CommodityType.IO_THROUGHPUT,
+                        VM_IO_THROUGHPUT_RESIZE_TARGET_UTILIZATION},
+                {EntityType.VIRTUAL_MACHINE, CommodityType.NET_THROUGHPUT,
+                        VM_NET_THROUGHPUT_RESIZE_TARGET_UTILIZATION},
+                {EntityType.BUSINESS_USER, CommodityType.IMAGE_CPU,
+                        BU_IMAGE_CPU_RESIZE_TARGET_UTILIZATION},
+                {EntityType.BUSINESS_USER, CommodityType.IMAGE_MEM,
+                        BU_IMAGE_MEM_RESIZE_TARGET_UTILIZATION},
+                {EntityType.BUSINESS_USER, CommodityType.IMAGE_STORAGE,
+                        BU_IMAGE_STORAGE_RESIZE_TARGET_UTILIZATION}})
+                .forEach(data -> testResizeTargetUtilizationCommodityBoughtApplicator(
+                        (EntityType)data[0], (CommodityType)data[1], (Setting)data[2]));
     }
 
     /**
      * Test resize target utilization commodity bought applicator.
+     *
+     * @param entityType the {@link EntityType}
+     * @param commodityType the {@link CommodityType}
+     * @param resizeTargetUtilizationSetting the resize target utilization {@link Setting}
      */
-    private void testResizeTargetUtilizationCommodityBoughtApplicator(CommodityType commodityType,
-            Setting resizeTargetUtilizationSetting) {
-        final TopologyEntityDTO.Builder virtualMachine = TopologyEntityDTO.newBuilder()
-                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+    private void testResizeTargetUtilizationCommodityBoughtApplicator(EntityType entityType,
+            CommodityType commodityType, Setting resizeTargetUtilizationSetting) {
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                .setEntityType(entityType.getNumber())
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                         .addCommodityBought(CommodityBoughtDTO.newBuilder()
                                 .setCommodityType(TopologyDTO.CommodityType.newBuilder()
                                         .setType(commodityType.getNumber()))));
-        applySettings(TOPOLOGY_INFO, virtualMachine, resizeTargetUtilizationSetting);
-        assertEquals(virtualMachine.getCommoditiesBoughtFromProviders(0)
+        applySettings(TOPOLOGY_INFO, entity, resizeTargetUtilizationSetting);
+        assertEquals(resizeTargetUtilizationSetting.getNumericSettingValue().getValue() / 100,
+                entity.getCommoditiesBoughtFromProviders(0)
                         .getCommodityBoughtList()
                         .get(0)
-                        .getResizeTargetUtilization(),
-                resizeTargetUtilizationSetting.getNumericSettingValue().getValue() / 100, DELTA);
-    }
-
-    /**
-     * Test virtual machine vmem resize target utilization.
-     */
-    @Test
-    public void testVmVMemResizeTargetUtilization() {
-        testResizeTargetUtilizationCommoditySoldApplicator(CommodityType.VMEM,
-                VM_VMEM_THROUGHPUT_RESIZE_TARGET_UTILIZATION);
-    }
-
-    /**
-     * Test virtual machine vmem resize target utilization.
-     */
-    @Test
-    public void testVmVCpuResizeTargetUtilization() {
-        testResizeTargetUtilizationCommoditySoldApplicator(CommodityType.VCPU,
-                VM_VCPU_THROUGHPUT_RESIZE_TARGET_UTILIZATION);
+                        .getResizeTargetUtilization(), DELTA);
     }
 
     /**
      * Test resize target utilization commodity sold applicator.
+     *
+     * @param entityType the {@link EntityType}
+     * @param commodityType the {@link CommodityType}
+     * @param resizeTargetUtilizationSetting the resize target utilization {@link Setting}
      */
-    private void testResizeTargetUtilizationCommoditySoldApplicator(CommodityType commodityType,
-            Setting resizeTargetUtilizationSetting) {
-        final TopologyEntityDTO.Builder virtualMachine =
-                createEntityWithCommodity(EntityType.VIRTUAL_MACHINE, commodityType);
-        applySettings(TOPOLOGY_INFO, virtualMachine, resizeTargetUtilizationSetting);
-        assertEquals(virtualMachine.getCommoditySoldList(0).getResizeTargetUtilization(),
+    private void testResizeTargetUtilizationCommoditySoldApplicator(EntityType entityType,
+            CommodityType commodityType, Setting resizeTargetUtilizationSetting) {
+        final TopologyEntityDTO.Builder entity =
+                createEntityWithCommodity(entityType, commodityType);
+        applySettings(TOPOLOGY_INFO, entity, resizeTargetUtilizationSetting);
+        assertEquals(entity.getCommoditySoldList(0).getResizeTargetUtilization(),
                 resizeTargetUtilizationSetting.getNumericSettingValue().getValue() / 100, DELTA);
     }
 

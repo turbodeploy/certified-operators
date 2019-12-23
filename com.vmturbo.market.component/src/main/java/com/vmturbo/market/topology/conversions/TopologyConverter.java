@@ -1528,8 +1528,7 @@ public class TopologyConverter {
                             .filter(c -> c.getCommodityType().getType()
                                     == commBought.getCommodityType().getType())
                             .collect(Collectors.toList());
-            if (commoditiesSoldByProvider == null || commoditiesSoldByProvider.size() != 1 ||
-                    commoditiesSoldByProvider.get(0) == null) {
+            if (commoditiesSoldByProvider.size() != 1 || commoditiesSoldByProvider.get(0) == null) {
                 logger.warn("Could not find corresponding sold commodity from provider {} for" +
                                 "type {},  for entity {}. Using percentile used and peak without" +
                                 "applying the target utilization", providerTopologyEntity.getDisplayName(),

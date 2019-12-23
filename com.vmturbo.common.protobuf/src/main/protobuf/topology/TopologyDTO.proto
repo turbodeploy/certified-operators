@@ -1068,7 +1068,7 @@ message CommodityBoughtDTO {
     optional double reserved_capacity = 10 [default = 0.0];
 
     // The resize target utilization used as a coefficient when resizing commodity quantity.
-    optional double resize_target_utilization = 11;
+    optional double resize_target_utilization = 11 [default = 1.0];
 
     // Collection of commodity utilization points. The collection contains series of usage points
     // with given timestamp and interval between points.
@@ -1126,7 +1126,7 @@ message CommoditySoldDTO {
 
     // The resize target utilization. This will be used to resize entities already on cloud or
     // moving to the cloud in cloud migration plans.
-    optional double resize_target_utilization = 19;
+    optional double resize_target_utilization = 19 [default = 1.0];
 
     // for VMem and VCpu include info on hot add/hot remove
     optional HotResizeInfo hot_resize_info = 20;
