@@ -347,4 +347,43 @@ public class StatsQueryExecutorTest {
             .anyMatch(stat -> "Cooling".equalsIgnoreCase(stat.getName())));
     }
 
+    /**
+     * Test that the {@link StatsQueryExecutor} supports sub-queries returning stats with no epoch.
+     *
+     * @throws OperationFailedException when the getAggregateStats operation fails
+     */
+    @Test
+    public void testGetStatsWithNoEpoch() throws OperationFailedException {
+        // ARRANGE
+        when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
+        when(expandedScope.getEntities()).thenReturn(Collections.singleton(1L));
+
+        // One of the queries is applicable.
+        when(statsSubQuery1.applicableInContext(statsQueryContext)).thenReturn(true);
+        when(statsSubQuery2.applicableInContext(statsQueryContext)).thenReturn(false);
+
+        final StatApiDTO stat = stat("foo");
+        StatSnapshotApiDTO snapshot = snapshotWithStats(MILLIS, stat);
+
+        // The key to this test: unset the epoch field to see if this breaks anything!
+        snapshot.setEpoch(null);
+
+        when(statsSubQuery1.getAggregateStats(any(), any()))
+            .thenReturn(Collections.singletonList(snapshot));
+
+        final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
+
+        // ACT
+        List<StatSnapshotApiDTO> results = executor.getAggregateStats(scope, period);
+
+        // ASSERT
+        verify(contextFactory).newContext(scope, expandedScope, period);
+
+        assertThat(results.size(), is(1));
+
+        final StatSnapshotApiDTO resultSnapshot = results.get(0);
+        assertThat(resultSnapshot.getDate(), is(DateTimeUtil.toString(MILLIS)));
+        assertThat(resultSnapshot.getStatistics(), containsInAnyOrder(stat));
+    }
+
 }

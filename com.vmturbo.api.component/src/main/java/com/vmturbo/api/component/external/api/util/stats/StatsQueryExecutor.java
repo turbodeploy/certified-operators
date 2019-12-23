@@ -15,6 +15,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -315,15 +316,16 @@ public class StatsQueryExecutor {
         private final long time;
         private final Epoch epoch;
 
-        StatTimeAndEpoch(final long time, @Nonnull final Epoch epoch) {
+        StatTimeAndEpoch(final long time, @Nullable final Epoch epoch) {
             this.time = time;
-            this.epoch = Objects.requireNonNull(epoch);
+            this.epoch = epoch;
         }
 
         public long getTime() {
             return time;
         }
 
+        @Nullable
         public Epoch getEpoch() {
             return epoch;
         }
