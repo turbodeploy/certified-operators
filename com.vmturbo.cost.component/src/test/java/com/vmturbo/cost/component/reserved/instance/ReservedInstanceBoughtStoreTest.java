@@ -15,6 +15,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.vmturbo.common.protobuf.cost.Cost;
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.jooq.Result;
@@ -419,8 +420,9 @@ public class ReservedInstanceBoughtStoreTest {
                         dsl.selectFrom(Tables.RESERVED_INSTANCE_BOUGHT)
                                         .where(filter.generateConditions()).fetch();
         final double expectedAggregatedAmortizedCost = calculateExpectedAggregatedAmortizedCosts(reservedInstanceBoughtRecords);
-        final Double reservedInstanceSummedCost = reservedInstanceBoughtStore.getReservedInstanceAggregatedAmortizedCost(filter);
-        assertEquals(expectedAggregatedAmortizedCost, reservedInstanceSummedCost, 0D);
+        final Cost.ReservedInstanceCostStat reservedInstanceAggregatedCosts =
+                        reservedInstanceBoughtStore.getReservedInstanceAggregatedCosts(filter);
+        assertEquals(expectedAggregatedAmortizedCost, reservedInstanceAggregatedCosts.getAmortizedCost(), 0D);
     }
 
     /**
@@ -445,8 +447,9 @@ public class ReservedInstanceBoughtStoreTest {
                                                         .eq(RESERVED_INSTANCE_SPEC.ID))
                                         .where(filter.generateConditions()).fetch().into(RESERVED_INSTANCE_BOUGHT);
         final double expectedAggregatedAmortizedCost = calculateExpectedAggregatedAmortizedCosts(reservedInstanceBoughtRecords);
-        final Double reservedInstanceSummedCost = reservedInstanceBoughtStore.getReservedInstanceAggregatedAmortizedCost(filter);
-        assertEquals(expectedAggregatedAmortizedCost, reservedInstanceSummedCost, 0D);
+        final Cost.ReservedInstanceCostStat reservedInstanceAggregatedCosts =
+                        reservedInstanceBoughtStore.getReservedInstanceAggregatedCosts(filter);
+        assertEquals(expectedAggregatedAmortizedCost, reservedInstanceAggregatedCosts.getAmortizedCost(), 0D);
     }
 
     /**
@@ -468,8 +471,9 @@ public class ReservedInstanceBoughtStoreTest {
                         dsl.selectFrom(Tables.RESERVED_INSTANCE_BOUGHT)
                                         .where(filter.generateConditions()).fetch();
         final double expectedAggregatedAmortizedCost = calculateExpectedAggregatedAmortizedCosts(reservedInstanceBoughtRecords);
-        final Double reservedInstanceSummedCost = reservedInstanceBoughtStore.getReservedInstanceAggregatedAmortizedCost(filter);
-        assertEquals(expectedAggregatedAmortizedCost, reservedInstanceSummedCost, 0D);
+        final Cost.ReservedInstanceCostStat reservedInstanceAggregatedCosts =
+                        reservedInstanceBoughtStore.getReservedInstanceAggregatedCosts(filter);
+        assertEquals(expectedAggregatedAmortizedCost, reservedInstanceAggregatedCosts.getAmortizedCost(), 0D);
     }
 
     private void insertDefaultReservedInstanceSpec() {

@@ -1113,6 +1113,74 @@ service CostService {
     rpc GetCurrentAccountExpenses(GetCurrentAccountExpensesRequest) returns (GetCurrentAccountExpensesResponse);
 }
 
+// Stats Request Time Window with options for start_date and end_date.
+message StatsRequestTimeWindow {
+    message TimeWindow {
+        optional int64 start_date = 1;
+        optional int64 end_date = 2;
+    }
+
+    optional TimeWindow time_window = 1;
+    // if query_latest = true send bought RI info with current snapshot time. if false no current snapshot data is sent
+    optional bool query_latest = 2 [default = false];
+}
+
+// projectedRI = true && include buy RI = true - send projected snapshopt with bought RI info + ri buy info
+// projectedRI = true && include buy RI = false - send projected snapshot with bought RI info only.
+// projectedRI = false && include buy RI = true - do not send projected snapshot info.
+// projectedRI = false && include buy RI = false - do not send projected snapshot info.
+
+message GetReservedInstanceCostStatsRequest {
+    optional StatsRequestTimeWindow time_window = 1;
+    // if include projected = true - build projected snapshot with latest bought RI info
+    optional bool include_projected = 2 [default = false];
+    // if include buyRI = true - add ri Buy recommendation data to projected snapshot.
+    optional bool include_buy_ri = 3 [default = false];
+
+    // get buy reserved instance recommendations filter by topology context id
+    optional int64 topology_context_id = 4;
+
+    // get buy reserved instance recommendations filter by region ids.
+    optional RegionFilter region_filter = 5;
+
+    // ggetTierPriceForEntitieset buy reserved instance recommendations filter by account ids.
+    optional AccountFilter account_filter = 6;
+
+    optional AvailabilityZoneFilter availability_zone_filter = 7;
+
+    optional GroupBy group_by = 8;
+
+    enum GroupBy {
+        // if GroupBY = NONE, you will get individual costs for RIs in scope.
+        NONE = 0;
+        // if GroupBy = Snapshot, you will get aggregated costs of all RIs in scope.
+        SNAPSHOT_TIME = 1;
+    }
+}
+
+message GetReservedInstanceCostStatsResponse {
+    repeated ReservedInstanceCostStat stats = 1;
+}
+
+// Structure representing the RI Cost Stat obtained from ReservedInstanceCostService.
+message ReservedInstanceCostStat {
+    // Snapshot time for the requested stat
+    required uint64 snapshot_time = 1;
+    // RI oid. Will be null if request is grouped by SNAPSHOT_TIME.
+    optional int64 reserved_instance_oid = 2;
+    // Total RI Fixed Cost. This cost takes the number of RIs of a specific type into account. (count * individualRIFixedCost)
+    optional double fixed_cost = 3;
+    // Total RI Recurring Cost. This cost takes the number of RIs of a specific type into account. (count * individualRIRecurringCost)
+    optional double recurring_cost = 4;
+    // Total RI Amortized Cost. This cost takes the number of RIs of a specific type into account. (count * individualRIAmortizedCost)
+    optional double amortized_cost = 5;
+}
+
+// A service responsible for getting the RI Cost Stats for both current and projected RIs.
+service ReservedInstanceCostService {
+    rpc GetReservedInstanceCostStats(GetReservedInstanceCostStatsRequest) returns (GetReservedInstanceCostStatsResponse);
+}
+
 service RIAndExpenseUploadService {
     rpc UploadAccountExpenses(UploadAccountExpensesRequest) returns (UploadAccountExpensesResponse);
 

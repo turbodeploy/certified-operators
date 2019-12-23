@@ -2,6 +2,9 @@ package com.vmturbo.cost.component.discount;
 
 import java.time.Clock;
 
+import com.vmturbo.common.protobuf.cost.CostREST;
+import com.vmturbo.cost.component.CostComponentGlobalConfig;
+import com.vmturbo.cost.component.rpc.ReservedInstanceCostRpcService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -40,6 +43,9 @@ public class CostConfig {
     @Autowired
     private ReservedInstanceConfig reservedInstanceConfig;
 
+    @Autowired
+    private CostComponentGlobalConfig costComponentGlobalConfig;
+
     @Value("${persistEntityCostChunkSize}")
     private int persistEntityCostChunkSize;
 
@@ -61,6 +67,32 @@ public class CostConfig {
                 Clock.systemUTC());
     }
 
+    /**
+     * Create a bean for the rpc class ReservedInstanceCostRpcService.
+     *
+     * @return bean of type ReservedInstanceCostRpcService.
+     */
+    @Bean
+    public ReservedInstanceCostRpcService reservedInstanceCostRpcService() {
+        return new ReservedInstanceCostRpcService(reservedInstanceConfig.reservedInstanceBoughtStore(),
+                        reservedInstanceConfig.buyReservedInstanceStore(), costComponentGlobalConfig.clock());
+    }
+
+    /**
+     * Create a bean for the rpc controller ReservedInstanceCostServiceController.
+     *
+     * @return bean of type ReservedInstanceCostServiceController.
+     */
+    @Bean
+    public CostREST.ReservedInstanceCostServiceController reservedInstanceCostServiceController() {
+        return new CostREST.ReservedInstanceCostServiceController(reservedInstanceCostRpcService());
+    }
+
+    /**
+     * Create a bean of type BusinessAccountHelper.
+     *
+     * @return bean of type BusinessAccountHelper.
+     */
     @Bean
     public BusinessAccountHelper businessAccountHelper() {
         return new BusinessAccountHelper();

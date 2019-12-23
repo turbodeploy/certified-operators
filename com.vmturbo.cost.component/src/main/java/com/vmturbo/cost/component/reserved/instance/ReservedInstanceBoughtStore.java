@@ -5,6 +5,9 @@ import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_SPEC;
 import static org.jooq.impl.DSL.sum;
 
 import java.math.BigDecimal;
+import java.time.Clock;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,21 +25,22 @@ import com.google.common.collect.Sets;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
-import org.jooq.Record1;
 import org.jooq.Record2;
+import org.jooq.Record3;
+import org.jooq.Record4;
 import org.jooq.Result;
 import org.jooq.SelectJoinStep;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
 
+import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.identity.IdentityProvider;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCostFilter;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * This class is used to update reserved instance table by latest reserved instance bought data which
@@ -59,6 +63,16 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
     private final Flux<ReservedInstanceBoughtChangeType> updateEventFlux;
 
     private final ReservedInstanceCostCalculator reservedInstanceCostCalculator;
+
+    private static final String RI_RECURRING_COST_SUM = "ri_recurring_cost_sum";
+
+    private static final String RI_FIXED_COST_SUM = "ri_fixed_cost_sum";
+
+    private static final String RI_AMORTIZED_COST = "ri_amortized_cost";
+
+    private static final String RI_RECURRING_COST = "ri_recurring_cost";
+
+    private static final String RI_FIXED_COST = "ri_fixed_cost";
 
     /**
      * The statusEmitter is used to push updates to the statusFlux subscribers.
@@ -137,17 +151,93 @@ public class ReservedInstanceBoughtStore implements ReservedInstanceCostStore {
     }
 
     @Override
-    public Double getReservedInstanceAggregatedAmortizedCost(@Nonnull ReservedInstanceCostFilter filter) {
-        final Result<Record1<BigDecimal>> riAggregatedCostResult =
+    public Cost.ReservedInstanceCostStat getReservedInstanceAggregatedCosts(@Nonnull ReservedInstanceCostFilter filter) {
+        final Result<Record3<BigDecimal, BigDecimal, BigDecimal>> riAggregatedCostResult =
                         dsl.select(sum(RESERVED_INSTANCE_BOUGHT.PER_INSTANCE_AMORTIZED_COST_HOURLY.mul(RESERVED_INSTANCE_BOUGHT.COUNT))
-                                        .as(RI_AMORTIZED_SUM)).from(RESERVED_INSTANCE_BOUGHT)
+                                                        .as(RI_AMORTIZED_SUM),
+                                        sum(RESERVED_INSTANCE_BOUGHT.PER_INSTANCE_RECURRING_COST_HOURLY.mul(RESERVED_INSTANCE_BOUGHT.COUNT)).as(RI_RECURRING_COST_SUM),
+                                        sum(RESERVED_INSTANCE_BOUGHT.PER_INSTANCE_FIXED_COST.mul(RESERVED_INSTANCE_BOUGHT.COUNT)).as(RI_FIXED_COST_SUM)).from(RESERVED_INSTANCE_BOUGHT)
                                         .join(RESERVED_INSTANCE_SPEC)
                                         .on(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID
                                                         .eq(RESERVED_INSTANCE_SPEC.ID))
                                         .where(filter.generateConditions()).fetch();
-        final List<Double> aggregatedRICostList =
-                        riAggregatedCostResult.getValues(RI_AMORTIZED_SUM, Double.class);
-        return aggregatedRICostList.stream().findFirst().orElse(0D);
+
+        final Cost.ReservedInstanceCostStat reservedInstanceCostStat = Cost.ReservedInstanceCostStat.newBuilder()
+                        .setAmortizedCost(riAggregatedCostResult
+                                        .getValues(RI_AMORTIZED_SUM, Double.class).stream()
+                                        .findFirst().orElse(0D))
+                        .setRecurringCost(
+                                        riAggregatedCostResult.getValues(RI_RECURRING_COST_SUM,
+                                                        Double.class).stream().findFirst()
+                                                        .orElse(0D))
+                        .setFixedCost(riAggregatedCostResult
+                                        .getValues(RI_FIXED_COST_SUM, Double.class).stream()
+                                        .findFirst().orElse(0D))
+                        .setSnapshotTime(now()).build();
+        return reservedInstanceCostStat;
+    }
+
+    /**
+     * Get the Reserved instance cost stats for each RI Type. The amortized, fixed and recurring costs are
+     * multiplied by the number of counts of the RI Type to get the total costs for that RI Type.
+     *
+     * @param filter filter of type ReservedInstanceCostFilter.
+     * @return List of type ReservedInstanceCostStat containing the cost stats.
+     */
+    public List<Cost.ReservedInstanceCostStat> getReservedInstanceCostStats(@Nonnull ReservedInstanceCostFilter filter) {
+        final Result<Record4<Long, Double, Double, Double>> riCostResult =
+                        dsl.select(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID,
+                                        RESERVED_INSTANCE_BOUGHT.PER_INSTANCE_AMORTIZED_COST_HOURLY
+                                                        .mul(RESERVED_INSTANCE_BOUGHT.COUNT)
+                                                        .as(RI_AMORTIZED_COST),
+                                        RESERVED_INSTANCE_BOUGHT.PER_INSTANCE_FIXED_COST
+                                                        .mul(RESERVED_INSTANCE_BOUGHT.COUNT)
+                                                        .as(RI_FIXED_COST),
+                                        RESERVED_INSTANCE_BOUGHT.PER_INSTANCE_RECURRING_COST_HOURLY
+                                                        .mul(RESERVED_INSTANCE_BOUGHT.COUNT)
+                                                        .as(RI_RECURRING_COST))
+                                        .from(RESERVED_INSTANCE_BOUGHT).join(RESERVED_INSTANCE_SPEC)
+                                        .on(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID
+                                                        .eq(RESERVED_INSTANCE_SPEC.ID))
+                                        .where(filter.generateConditions()).fetch();
+        final List<Cost.ReservedInstanceCostStat> riCostStats = new ArrayList<>();
+        for (Record4<Long, Double, Double, Double> record : riCostResult) {
+            final Cost.ReservedInstanceCostStat riCostStat = Cost.ReservedInstanceCostStat.newBuilder()
+                            .setReservedInstanceOid(
+                                            record.get(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID))
+                            .setRecurringCost(record.get(RI_RECURRING_COST, Double.class))
+                            .setFixedCost(record.get(RI_FIXED_COST, Double.class))
+                            .setAmortizedCost(record.get(RI_AMORTIZED_COST, Double.class))
+                            .setSnapshotTime(now()).build();
+            riCostStats.add(riCostStat);
+        }
+        return riCostStats;
+    }
+
+    private static long now() {
+        return Clock.systemUTC().instant().toEpochMilli();
+    }
+
+    /**
+     * Method to query the ReservedInstanceBought Cost Stats. If GroupBy is based on SNAPSHOT_TIME, a single
+     * ReservedInstanceCostStat object is returned with the aggregated fixed, recurring and amortized costs
+     * for the RIs within the scope.
+     * If GroupBy is set to NONE, stats for individual RIs are returned.
+     *
+     * @param reservedInstanceCostFilter Filter of type ReservedInstanceCostFilter.
+     * @return List of type Cost.ReservedInstanceCostStat.
+     */
+    @Nonnull
+    public List<Cost.ReservedInstanceCostStat> queryReservedInstanceBoughtCostStats(@Nonnull ReservedInstanceCostFilter reservedInstanceCostFilter) {
+        final Cost.GetReservedInstanceCostStatsRequest.GroupBy groupBy =
+                        reservedInstanceCostFilter.getGroupBy();
+        if (Cost.GetReservedInstanceCostStatsRequest.GroupBy.SNAPSHOT_TIME == groupBy) {
+            final Cost.ReservedInstanceCostStat currentRIAggregatedCosts = getReservedInstanceAggregatedCosts(reservedInstanceCostFilter);
+            return Collections.singletonList(currentRIAggregatedCosts);
+        } else if (Cost.GetReservedInstanceCostStatsRequest.GroupBy.NONE == groupBy) {
+            return getReservedInstanceCostStats(reservedInstanceCostFilter);
+        }
+        return Collections.EMPTY_LIST;
     }
 
     /**
