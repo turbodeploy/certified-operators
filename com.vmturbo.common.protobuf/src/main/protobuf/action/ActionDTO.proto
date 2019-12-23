@@ -76,7 +76,7 @@ message Explanation {
             repeated topology.CommodityType __deprecated_under_utilized_commodities = 2 [deprecated = true];
 
             // For the cloud, true if increasing RI coverage is the main reason for the move
-            optional bool is_ri_coverage_increased = 3;
+            optional bool __deprecated_is_ri_coverage_increased = 3 [deprecated = true];
 
             // A list of commodities' base type which are cheaper at the destination.
             // For the cloud, these are the commodities sold by the target entity which are
@@ -85,7 +85,9 @@ message Explanation {
 
             // For the cloud, these are the commodities sold by the target entity which are
             // under-utilized
-            repeated ReasonCommodity under_utilized_commodities = 5;
+            // Congested commodity is the driver of congestion action. So we are deprecating
+            // under_utilized_commodities which is part of Effciency.
+            repeated ReasonCommodity __deprecated_under_utilized_reason_commodities = 5 [deprecated = true];
         }
 
         // A move explanation suggesting evacuation of buyers.
@@ -117,12 +119,17 @@ message Explanation {
 
             // These are the commodities sold by the target entity which are
             // congested / over-utilized
-            repeated ReasonCommodity congested_commodities = 4;
+            // Efficiency category is only if all the commodities are under-utilized.
+            // Under-utilized commodities are the drivers of efficiency action. So we are
+            // deprecating congested_commodities which is part of Effciency.
+            repeated ReasonCommodity __deprecated_congested_reason_commodities = 4 [deprecated = true];
 
             // These are the commodities sold by the target entity which are
             // under-utilized
             repeated ReasonCommodity under_utilized_commodities = 5;
 
+            // If the action was purely because destination was cheaper
+            optional bool is_wasted_cost = 6;
         }
     }
 

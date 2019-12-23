@@ -450,9 +450,9 @@ public class ActionInterpreter {
      * @return {@link ActionDTO.Move} representing the move
      */
     @Nonnull
-    private ActionDTO.Move interpretMoveAction(@Nonnull final MoveTO moveTO,
-                           @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
-                                               @NonNull CloudTopology<TopologyEntityDTO> originalCloudTopology) {
+    ActionDTO.Move interpretMoveAction(@Nonnull final MoveTO moveTO,
+                                       @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology,
+                                       @NonNull CloudTopology<TopologyEntityDTO> originalCloudTopology) {
         final ShoppingListInfo shoppingList =
                 shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
         if (shoppingList == null) {
@@ -921,8 +921,8 @@ public class ActionInterpreter {
                 break;
             case CONGESTION:
                 // For cloud entities we explain create either an efficiency or congestion change
-                // explanation based on the savings
-                changeProviderExplanation = changeExplanationBasedOnSavings(moveTO, savings).orElse(
+                // explanation
+                changeProviderExplanation = changeExplanationForCloud(moveTO, savings).orElse(
                     ChangeProviderExplanation.newBuilder().setCongestion(
                         ChangeProviderExplanation.Congestion.newBuilder()
                         .addAllCongestedCommodities(
@@ -959,8 +959,8 @@ public class ActionInterpreter {
                 break;
             case PERFORMANCE:
                 // For cloud entities we explain create either an efficiency or congestion change
-                // explanation based on the savings
-                changeProviderExplanation = changeExplanationBasedOnSavings(moveTO, savings)
+                // explanation
+                changeProviderExplanation = changeExplanationForCloud(moveTO, savings)
                     .orElse(ChangeProviderExplanation.newBuilder()
                         .setPerformance(ChangeProviderExplanation.Performance.getDefaultInstance()));
                 break;
@@ -974,66 +974,74 @@ public class ActionInterpreter {
         return changeProviderExplanation;
     }
 
-    /**
-     * For cloud entities, we calculate the change provider explanation of the action based on
-     * savings. If there are savings, then the explanation is efficiency, otherwise we say
-     * performance.
-     *
-     * @param moveTO the move for which we are computing the category
-     * @param savings the savings
-     * @return An optional {@link ChangeProviderExplanation.Builder}.
-     */
-    private Optional<ChangeProviderExplanation.Builder>
-    changeExplanationBasedOnSavings(@Nonnull final MoveTO moveTO, @Nonnull final CalculatedSavings savings) {
+    private Optional<ChangeProviderExplanation.Builder> changeExplanationForCloud(
+        @Nonnull final MoveTO moveTO, @Nonnull final CalculatedSavings savings) {
         Optional<ChangeProviderExplanation.Builder> explanation = Optional.empty();
         if (cloudTc.isMarketTier(moveTO.getSource()) && cloudTc.isMarketTier(moveTO.getDestination())) {
             ShoppingListInfo slInfo = shoppingListOidToInfos.get(moveTO.getShoppingListToMove());
-            if (savings.hasSavings()) {
-                boolean isPrimaryTierChange = TopologyDTOUtil.isPrimaryTierEntityType(
-                        cloudTc.getMarketTier(moveTO.getDestination()).getTier().getEntityType());
-                Map<CommodityUsageType, Set<CommodityType>> commsResizedByUsageType =
-                        cert.getCommoditiesResizedByUsageType(slInfo.getBuyerId());
-                Set<CommodityType> congestedComms = commsResizedByUsageType.get(CommodityUsageType.CONGESTED);
-                Set<CommodityType> underUtilizedComms = commsResizedByUsageType.get(CommodityUsageType.UNDER_UTILIZED);
-                if (savings.savingsAmount.getValue() >= 0) {
-                    Efficiency.Builder efficiencyBuilder = ChangeProviderExplanation.Efficiency.newBuilder();
-                    if (isPrimaryTierChange && cert.didCommoditiesOfEntityResize(slInfo.buyerId)) {
-                        if (congestedComms != null && !congestedComms.isEmpty()) {
-                            efficiencyBuilder
-                                .addAllCongestedCommodities(commTypes2ReasonCommodities(congestedComms));
-                        }
-                        if (underUtilizedComms != null && !underUtilizedComms.isEmpty()) {
-                            efficiencyBuilder
-                                .addAllUnderUtilizedCommodities(commTypes2ReasonCommodities(underUtilizedComms));
-                        }
-                    } else if (isPrimaryTierChange && projectedRiCoverage.get(slInfo.getBuyerId()) != null) {
-                        efficiencyBuilder.setIsRiCoverageIncreased(true);
-                    }
-                    explanation = Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
-                            efficiencyBuilder));
-                } else {
-                    Congestion.Builder congestionBuilder = ChangeProviderExplanation.Congestion.newBuilder();
-                    if (isPrimaryTierChange && cert.didCommoditiesOfEntityResize(slInfo.getBuyerId())) {
-                        if (congestedComms != null && !congestedComms.isEmpty()) {
-                            congestionBuilder
-                                .addAllCongestedCommodities(commTypes2ReasonCommodities(congestedComms));
-                        }
-                        if (underUtilizedComms != null && !underUtilizedComms.isEmpty()) {
-                            congestionBuilder
-                                .addAllUnderUtilizedCommodities(commTypes2ReasonCommodities(underUtilizedComms));
-                        }
-                    } else if (isPrimaryTierChange && projectedRiCoverage.get(slInfo.getBuyerId()) != null) {
-                        congestionBuilder.setIsRiCoverageIncreased(true);
-                    }
-                    explanation =  Optional.of(ChangeProviderExplanation.newBuilder().setCongestion(
-                            congestionBuilder));
-                }
+            Map<CommodityUsageType, Set<CommodityType>> commsResizedByUsageType =
+                cert.getCommoditiesResizedByUsageType(slInfo.getBuyerId());
+            Set<CommodityType> congestedComms = commsResizedByUsageType.get(CommodityUsageType.CONGESTED);
+            Set<CommodityType> underUtilizedComms = commsResizedByUsageType.get(CommodityUsageType.UNDER_UTILIZED);
+            boolean isPrimaryTierChange = TopologyDTOUtil.isPrimaryTierEntityType(
+                cloudTc.getMarketTier(moveTO.getDestination()).getTier().getEntityType());
+            // First, check if there was a congested commodity. If there was, then that is the one driving the action
+            if (!congestedComms.isEmpty()) {
+                Congestion.Builder congestionBuilder = ChangeProviderExplanation.Congestion.newBuilder()
+                    .addAllCongestedCommodities(commTypes2ReasonCommodities(congestedComms));
+                explanation =  Optional.of(ChangeProviderExplanation.newBuilder().setCongestion(
+                    congestionBuilder));
+            } else if (isPrimaryTierChange && didRiCoverageIncrease(slInfo.getBuyerId())) {
+                // Next, check if RI Coverage increased. If yes, that is the reason of the action.
+                Efficiency.Builder efficiencyBuilder = ChangeProviderExplanation.Efficiency.newBuilder()
+                        .setIsRiCoverageIncreased(true);
+                explanation = Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
+                    efficiencyBuilder));
+            } else if (!underUtilizedComms.isEmpty()) {
+                // Next, check if there are any underUtilized commodities. If yes, then that is the reason of the action.
+                Efficiency.Builder efficiencyBuilder = ChangeProviderExplanation.Efficiency.newBuilder()
+                    .addAllUnderUtilizedCommodities(commTypes2ReasonCommodities(underUtilizedComms));
+                explanation = Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
+                    efficiencyBuilder));
+            } else if (savings.savingsAmount.getValue() > 0) {
+                // There were no under-utilized commodities. Action is purely because the same
+                // requirements fit in a cheaper template.
+                explanation = Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
+                    Efficiency.newBuilder().setIsWastedCost(true)));
             } else {
-                logger.error("No savings present while trying to explain move for {}",
-                        originalTopology.get(slInfo.getBuyerId()).getDisplayName());
+                logger.error("Could not explain cloud scale action. MoveTO = {} .Entity oid = {}",
+                    moveTO, slInfo.getBuyerId());
+                explanation = Optional.of(ChangeProviderExplanation.newBuilder().setEfficiency(
+                    Efficiency.getDefaultInstance()));
             }
         }
         return explanation;
+    }
+
+    /**
+     * Check if RI coverage increased for entity.
+     * Get the original number of coupons covered from the original EntityReservedInstanceCoverage
+     * Get the projected number of coupons covered from the projected EntityReservedInstanceCoverage
+     * The RI coverage for the entity increased if the projected coupons covered is greater than
+     * the original coupons covered.
+     *
+     * @param entityId id of entity for which ri coverage increase is to be checked
+     * @return true if the RI coverage increased. False otherwise.
+     */
+    private boolean didRiCoverageIncrease(long entityId) {
+        double projectedCouponsCovered = 0;
+        double originalCouponsCovered = 0;
+        EntityReservedInstanceCoverage projectedCoverage = projectedRiCoverage.get(entityId);
+        if (projectedCoverage != null && !projectedCoverage.getCouponsCoveredByRiMap().isEmpty()) {
+            projectedCouponsCovered = projectedCoverage
+                .getCouponsCoveredByRiMap().values().stream().reduce(0.0, Double::sum);
+        }
+        Optional<EntityReservedInstanceCoverage> originalCoverage = cloudTc.getRiCoverageForEntity(entityId);
+        if (originalCoverage.isPresent() && !originalCoverage.get().getCouponsCoveredByRiMap().isEmpty()) {
+            originalCouponsCovered = originalCoverage.get()
+                .getCouponsCoveredByRiMap().values().stream().reduce(0.0, Double::sum);
+        }
+        return projectedCouponsCovered > originalCouponsCovered;
     }
 
     private ActionEntity createActionEntity(final long id,

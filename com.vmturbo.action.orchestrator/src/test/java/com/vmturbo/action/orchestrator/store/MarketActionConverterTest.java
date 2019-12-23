@@ -175,14 +175,12 @@ public class MarketActionConverterTest {
         Assert.assertTrue(cpe1.hasCongestion());
         Congestion convertedCongestion = cpe1.getCongestion();
         Assert.assertEquals(1, convertedCongestion.getCongestedCommoditiesCount());
-        Assert.assertEquals(0, convertedCongestion.getUnderUtilizedCommoditiesCount());
         Assert.assertEquals(deprecatedCongestion, convertedCongestion.getCongestedCommodities(0)
                         .getCommodityType().getType());
 
         ChangeProviderExplanation cpe2 = rexp.getChangeProviderExplanation(1);
         Assert.assertTrue(cpe2.hasEfficiency());
         Efficiency convertedEfficiency = cpe2.getEfficiency();
-        Assert.assertEquals(0, convertedEfficiency.getCongestedCommoditiesCount());
         Assert.assertEquals(1, convertedEfficiency.getUnderUtilizedCommoditiesCount());
         Assert.assertEquals(deprecatedEfficiency, convertedEfficiency.getUnderUtilizedCommodities(0)
                         .getCommodityType().getType());

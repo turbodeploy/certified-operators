@@ -129,13 +129,6 @@ public class MarketActionConverter implements Converter<byte[], Action> {
                                congestionBuilderCreator,
                                congestion.getDeprecatedCongestedCommoditiesList(),
                                Congestion.Builder::addCongestedCommodities);
-            patched = copyCommodityTypes(dbAction,
-                               patched,
-                               congestion.getDeprecatedUnderUtilizedCommoditiesCount(),
-                               congestion.getUnderUtilizedCommoditiesCount(),
-                               congestionBuilderCreator,
-                               congestion.getDeprecatedUnderUtilizedCommoditiesList(),
-                               Congestion.Builder::addUnderUtilizedCommodities);
         }
         return patched;
     }
@@ -154,13 +147,6 @@ public class MarketActionConverter implements Converter<byte[], Action> {
                                 .getMoveBuilder()
                                 .getChangeProviderExplanationBuilder(movePartIndex)
                                 .getEfficiencyBuilder();
-            patched = copyCommodityTypes(dbAction,
-                               patched,
-                               efficiency.getDeprecatedCongestedCommoditiesCount(),
-                               efficiency.getCongestedCommoditiesCount(),
-                               efficiencyBuilderCreator,
-                               efficiency.getDeprecatedCongestedCommoditiesList(),
-                               Efficiency.Builder::addCongestedCommodities);
             patched = copyCommodityTypes(dbAction,
                                patched,
                                efficiency.getDeprecatedUnderUtilizedCommoditiesCount(),

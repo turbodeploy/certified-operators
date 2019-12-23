@@ -639,9 +639,7 @@ public class ActionDTOUtil {
                     case CONGESTION:
                         return changeExp.getCongestion().getCongestedCommoditiesList().stream();
                     case EFFICIENCY:
-                        return Stream.concat(
-                            changeExp.getEfficiency().getCongestedCommoditiesList().stream(),
-                            changeExp.getEfficiency().getUnderUtilizedCommoditiesList().stream());
+                        return changeExp.getEfficiency().getUnderUtilizedCommoditiesList().stream();
                     case EVACUATION:
                     case INITIALPLACEMENT:
                     case PERFORMANCE:

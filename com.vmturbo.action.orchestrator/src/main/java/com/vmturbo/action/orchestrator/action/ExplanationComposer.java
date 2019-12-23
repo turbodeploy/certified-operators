@@ -27,6 +27,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.BuyRIExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.ChangeProviderExplanationTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Congestion;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Efficiency;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Evacuation;
@@ -58,6 +59,8 @@ public class ExplanationComposer {
         "Place an unplaced entity on a supplier";
     private static final String MOVE_PERFORMANCE_EXPLANATION =
         "Improve overall performance";
+    private static final String IMPROVE_OVERALL_EFFICIENCY =
+        "Improve overall efficiency";
     private static final String ACTIVATE_EXPLANATION_WITH_REASON_COMM = "Address high utilization of ";
     private static final String ACTIVATE_EXPLANATION_WITHOUT_REASON_COMM = "Add more resource to satisfy the increased demand";
     private static final String DEACTIVATE_EXPLANATION = "Improve infrastructure efficiency";
@@ -320,14 +323,11 @@ public class ExplanationComposer {
     private static String buildCongestionExplanation(Congestion congestion,
             final boolean keepItShort) {
         List<ReasonCommodity> congestedComms =  congestion.getCongestedCommoditiesList();
-        List<ReasonCommodity> underUtilizedComms =  congestion.getUnderUtilizedCommoditiesList();
         // For the cloud, we should have either congested commodities or increase RI utilization
         // A blank explanation should not occur.
         String congestionExplanation = "";
-        if (!congestedComms.isEmpty() || !underUtilizedComms.isEmpty()) {
-            congestionExplanation += buildCommodityUtilizationExplanation(congestedComms, underUtilizedComms, keepItShort);
-        } else if (congestion.getIsRiCoverageIncreased()) {
-            congestionExplanation += INCREASE_RI_UTILIZATION;
+        if (!congestedComms.isEmpty()) {
+            congestionExplanation += buildCommodityUtilizationExplanation(congestedComms, ChangeProviderExplanationTypeCase.CONGESTION, keepItShort);
         }
         return congestionExplanation;
     }
@@ -452,53 +452,47 @@ public class ExplanationComposer {
      * @return
      */
     public static String buildEfficiencyExplanation(Efficiency efficiency, final boolean keepItShort) {
-        List<ReasonCommodity> overUtilizedComms =  efficiency.getCongestedCommoditiesList();
-        List<ReasonCommodity> underUtilizedComms =  efficiency.getUnderUtilizedCommoditiesList();
-        boolean isUtilizationDrivenAction = !overUtilizedComms.isEmpty() || !underUtilizedComms.isEmpty();
         String efficiencyExplanation = "";
-        if (isUtilizationDrivenAction || efficiency.hasIsRiCoverageIncreased()) {
-            if (isUtilizationDrivenAction) {
-                efficiencyExplanation = buildCommodityUtilizationExplanation(
-                        overUtilizedComms, underUtilizedComms, keepItShort);
-            } else if (efficiency.getIsRiCoverageIncreased()) {
-                efficiencyExplanation = INCREASE_RI_UTILIZATION;
-            }
-        } else {
+        if (efficiency.getIsRiCoverageIncreased()) {
+            efficiencyExplanation = INCREASE_RI_UTILIZATION;
+        } else if (!efficiency.getUnderUtilizedCommoditiesList().isEmpty()) {
+            efficiencyExplanation = buildCommodityUtilizationExplanation(
+                efficiency.getUnderUtilizedCommoditiesList(), ChangeProviderExplanationTypeCase.EFFICIENCY, keepItShort);
+        } else if (efficiency.getIsWastedCost()) {
             efficiencyExplanation = WASTED_COST;
+        } else {
+
+            efficiencyExplanation = IMPROVE_OVERALL_EFFICIENCY;
         }
         return efficiencyExplanation;
     }
 
     /**
-     * Returnd a string of the form:
-     * "{comma-delimited congested commodities list} congestion. Underutilized {comma-delimited underutilized commodities list}"
+     * Returns a string of the form:
+     * "{comma-delimited congested commodities list} congestion"
+     *  OR
+     *  "Underutilized {comma-delimited underutilized commodities list}"
      *
-     * @param congestedComms the congested commodities list
-     * @param underUtilizedComms the under-utilized commodities list
-     * @return
+     * @param reasonCommodities the reason commodities list
+     * @param explanationType the explanation type - congestion / efficiency
+     * @param keepItShort should the explanation be kept short
+     * @return the explanation
      */
-    public static String buildCommodityUtilizationExplanation(
-            @Nonnull List<ReasonCommodity> congestedComms,
-            @Nonnull List<ReasonCommodity> underUtilizedComms, final boolean keepItShort) {
-        boolean areCongestedCommoditiesPresent = !congestedComms.isEmpty();
-        boolean areUnderUtilizedCommoditiesPresent = !underUtilizedComms.isEmpty();
-        String commUtilizationExplanation = "";
-        if (areCongestedCommoditiesPresent) {
-            commUtilizationExplanation = congestedComms.stream()
-                            .map(ReasonCommodity::getCommodityType)
-                            .map(c -> commodityDisplayName(c, keepItShort))
-                            .collect(Collectors.joining(", ")) + " congestion";
-            if (areUnderUtilizedCommoditiesPresent) {
-                commUtilizationExplanation += ". ";
-            }
-        }
-        if (areUnderUtilizedCommoditiesPresent) {
-            commUtilizationExplanation += "Underutilized " + underUtilizedComms.stream()
+    private static String buildCommodityUtilizationExplanation(
+        @Nonnull List<ReasonCommodity> reasonCommodities,
+        @Nonnull ChangeProviderExplanationTypeCase explanationType,
+        final boolean keepItShort) {
+        String commaSeparatedReasonCommodities = reasonCommodities.stream()
                             .map(ReasonCommodity::getCommodityType)
                             .map(c -> commodityDisplayName(c, keepItShort))
                             .collect(Collectors.joining(", "));
+        if (explanationType == ChangeProviderExplanationTypeCase.EFFICIENCY) {
+            return "Underutilized " + commaSeparatedReasonCommodities;
+        } else if (explanationType == ChangeProviderExplanationTypeCase.CONGESTION) {
+            return commaSeparatedReasonCommodities + " congestion";
+        } else {
+            return ACTION_TYPE_ERROR;
         }
-        return commUtilizationExplanation;
     }
 
     /**
