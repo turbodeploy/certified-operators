@@ -90,7 +90,7 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_MOVE("{0} {1}{2} from {3} to {4}"),
         ACTION_DESCRIPTION_BUYRI("Buy {0} {1} RIs for {2} in {3}"),
         ACTION_DESCRIPTION_ALLOCATE("Increase RI coverage for {0} in {1}"),
-        SIMPLE_MHZ("{0} MHz"),
+        CONTAINER_VCPU_MHZ("{0,number,integer} MHz"),
         SIMPLE_GB("{0} GB"),
         SIMPLE("{0}");
 
@@ -547,7 +547,7 @@ public class ActionDescriptionBuilder {
             return ActionMessageFormat.SIMPLE_GB.format(
                 capacity / (Units.GBYTE / commodityTypeToDefaultUnits.get(commodityType)));
         } else if (entityType == EntityType.CONTAINER_VALUE) {
-            return ActionMessageFormat.SIMPLE_MHZ.format(capacity);
+            return ActionMessageFormat.CONTAINER_VCPU_MHZ.format(capacity);
         } else {
             return ActionMessageFormat.SIMPLE.format(capacity);
         }

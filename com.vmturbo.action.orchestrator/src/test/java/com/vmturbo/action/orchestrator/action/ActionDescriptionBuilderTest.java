@@ -125,12 +125,12 @@ public class ActionDescriptionBuilderTest {
         resizeMemRecommendation = makeRec(makeResizeMemInfo(VM1_ID), SupportLevel.SUPPORTED).build();
         resizeMemReservationRecommendation =
                 makeRec(makeResizeReservationMemInfo(VM1_ID), SupportLevel.SUPPORTED).build();
-        resizeVcpuRecommendationForVM = makeRec(makeResizeVcpuInfo(VM1_ID), SupportLevel.SUPPORTED).build();
+        resizeVcpuRecommendationForVM = makeRec(makeResizeVcpuInfo(VM1_ID, 16, 8), SupportLevel.SUPPORTED).build();
         resizeVcpuReservationRecommendationForVM =
-            makeRec(makeResizeReservationVcpuInfo(CONTAINER1_ID), SupportLevel.SUPPORTED).build();
-        resizeVcpuRecommendationForContainer = makeRec(makeResizeVcpuInfo(VM1_ID), SupportLevel.SUPPORTED).build();
+            makeRec(makeResizeReservationVcpuInfo(VM1_ID, 16, 8), SupportLevel.SUPPORTED).build();
+        resizeVcpuRecommendationForContainer = makeRec(makeResizeVcpuInfo(CONTAINER1_ID, 16.111f, 8.111f), SupportLevel.SUPPORTED).build();
         resizeVcpuReservationRecommendationForContainer =
-            makeRec(makeResizeReservationVcpuInfo(CONTAINER1_ID), SupportLevel.SUPPORTED).build();
+            makeRec(makeResizeReservationVcpuInfo(CONTAINER1_ID, 16.111f, 8.111f), SupportLevel.SUPPORTED).build();
 
         deactivateRecommendation =
                 makeRec(makeDeactivateInfo(VM1_ID), SupportLevel.SUPPORTED).build();
@@ -254,23 +254,27 @@ public class ActionDescriptionBuilderTest {
     }
 
     /**
-     * Create a resize action for mem commodity.
+     * Create a resize action for vcpu commodity.
      *
      * @param targetId the target entity id
+     * @param oldCapacity the capacity before resize
+     * @param newCapacity the capacity after resize
      * @return {@link ActionInfo.Builder}
      */
-    private ActionInfo.Builder makeResizeVcpuInfo(long targetId) {
-        return makeResizeInfo(targetId, CommodityDTO.CommodityType.VCPU_VALUE, 16, 8);
+    private ActionInfo.Builder makeResizeVcpuInfo(long targetId, float oldCapacity, float newCapacity) {
+        return makeResizeInfo(targetId, CommodityDTO.CommodityType.VCPU_VALUE, oldCapacity, newCapacity);
     }
 
     /**
-     * Create a resize action for mem commodity and on reserved attribute.
+     * Create a resize action for vcpu commodity and on reserved attribute.
      *
      * @param targetId the target entity id
+     * @param oldCapacity the capacity before resize
+     * @param newCapacity the capacity after resize
      * @return {@link ActionInfo.Builder}
      */
-    private ActionInfo.Builder makeResizeReservationVcpuInfo(long targetId) {
-        ActionInfo.Builder builder = makeResizeInfo(targetId, CommodityDTO.CommodityType.VCPU_VALUE, 16, 8);
+    private ActionInfo.Builder makeResizeReservationVcpuInfo(long targetId, float oldCapacity, float newCapacity) {
+        ActionInfo.Builder builder = makeResizeInfo(targetId, CommodityDTO.CommodityType.VCPU_VALUE, oldCapacity, newCapacity);
         builder.getResizeBuilder().setCommodityAttribute(CommodityAttribute.RESERVED);
         return builder;
     }
