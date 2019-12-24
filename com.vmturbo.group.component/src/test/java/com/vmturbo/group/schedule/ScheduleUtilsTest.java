@@ -6,6 +6,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.text.ParseException;
 import java.time.Instant;
+import java.time.ZoneId;
 
 import org.junit.Rule;
 import org.junit.Test;
@@ -30,6 +31,7 @@ public class ScheduleUtilsTest {
         .setId(SCHEDULE_ID)
         .setStartTime(START_TIME)
         .setEndTime(END_TIME)
+        .setTimezoneId(ZoneId.systemDefault().getId())
         .build();
 
     /** Expected exceptions to test against. */
@@ -693,6 +695,7 @@ public class ScheduleUtilsTest {
     public void testParseException() throws Exception {
         final Schedule schedule = Schedule.newBuilder()
             .setPerpetual(Perpetual.newBuilder().build())
+            .setTimezoneId(ZoneId.systemDefault().getId())
             .setRecurRule("FREQ=DAILY;INTERVAL=2;UNTIL=INVALID").build();
         thrown.expect(ParseException.class);
         ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(schedule.toBuilder(),

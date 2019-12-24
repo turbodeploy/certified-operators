@@ -51,6 +51,17 @@ public class ScheduleMapper {
         .put(DayOfWeek.Sun, WeekDay.SU)
         .build();
 
+    private static final ImmutableBiMap<java.time.DayOfWeek, WeekDay> localWeekDays = ImmutableBiMap
+        .<java.time.DayOfWeek, WeekDay>builder()
+        .put(java.time.DayOfWeek.MONDAY, WeekDay.MO)
+        .put(java.time.DayOfWeek.TUESDAY, WeekDay.TU)
+        .put(java.time.DayOfWeek.WEDNESDAY, WeekDay.WE)
+        .put(java.time.DayOfWeek.THURSDAY, WeekDay.TH)
+        .put(java.time.DayOfWeek.FRIDAY, WeekDay.FR)
+        .put(java.time.DayOfWeek.SATURDAY, WeekDay.SA)
+        .put(java.time.DayOfWeek.SUNDAY, WeekDay.SU)
+        .build();
+
     private final Logger logger = LogManager.getLogger();
 
     /**
@@ -88,7 +99,7 @@ public class ScheduleMapper {
         }
         // Recurrence uses the iCal library: http://www.kanzaki.com/docs/ical/rrule.html
         if (scheduleApiDTO.getRecurrence() != null) {
-            schedule.setRecurRule(getRecurrenceFromInput(scheduleApiDTO.getRecurrence()));
+            schedule.setRecurRule(getRecurrenceFromInput(scheduleApiDTO));
         } else {
             schedule.setOneTime(OneTime.getDefaultInstance());
         }
@@ -154,8 +165,9 @@ public class ScheduleMapper {
     }
 
     @Nonnull
-    private String getRecurrenceFromInput(@Nonnull final RecurrenceApiDTO recurrenceDto)
+    private String getRecurrenceFromInput(@Nonnull final ScheduleApiDTO scheduleApiDto)
         throws OperationFailedException {
+        final RecurrenceApiDTO recurrenceDto = scheduleApiDto.getRecurrence();
         final StringBuilder recurrenceQuery = new StringBuilder("FREQ=");
         switch (recurrenceDto.getType()) {
             case DAILY:
@@ -163,12 +175,17 @@ public class ScheduleMapper {
                 break;
             case WEEKLY:
                 recurrenceQuery.append(Frequency.WEEKLY);
+                recurrenceQuery.append(";BYDAY=");
                 if (recurrenceDto.getDaysOfWeek() != null && !recurrenceDto.getDaysOfWeek().isEmpty()) {
-                    recurrenceQuery.append(";BYDAY=");
                     recurrenceQuery.append(recurrenceDto.getDaysOfWeek().stream()
                         .map(d -> weekdays.get(d).getDay()).filter(d -> d != null)
                         .map(Enum::name)
                         .collect(Collectors.joining(",")));
+                } else {
+                    // if day of week is unspecified, set it based on start time
+                    final java.time.DayOfWeek dayOfWeek = scheduleApiDto.getStartTime().toLocalDate()
+                        .getDayOfWeek();
+                    recurrenceQuery.append(localWeekDays.get(dayOfWeek).getDay().name());
                 }
                 break;
             case MONTHLY:
@@ -190,6 +207,10 @@ public class ScheduleMapper {
                     recurrenceQuery.append(recurrenceDto.getWeekOfTheMonth().stream()
                         .map(String::valueOf).collect(Collectors.joining(",")));
 
+                } else {
+                    // if neither day nor week of month is specified, set it based on start time
+                    final int dayOfMonth = scheduleApiDto.getStartTime().toLocalDate().getDayOfMonth();
+                    recurrenceQuery.append(";BYMONTHDAY=").append(dayOfMonth);
                 }
                 break;
             default:

@@ -1,10 +1,5 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -19,7 +14,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TimeZone;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -31,6 +25,7 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import io.grpc.Channel;
@@ -49,17 +44,14 @@ import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingOptionApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
-import com.vmturbo.api.dto.settingspolicy.RecurrenceApiDTO;
 import com.vmturbo.api.dto.settingspolicy.ScheduleApiDTO;
 import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.enums.DayOfWeek;
 import com.vmturbo.api.enums.InputValueType;
-import com.vmturbo.api.enums.RecurrenceType;
 import com.vmturbo.api.enums.SettingScope;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
-import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -68,6 +60,10 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.GetSchedulesRequest;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule;
+import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc;
+import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc.ScheduleServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
@@ -79,7 +75,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
-import com.vmturbo.common.protobuf.setting.SettingProto.Schedule;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
 import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -199,6 +194,10 @@ public class SettingsMapper {
 
     private final SettingPolicyServiceBlockingStub settingPolicyService;
 
+    private final ScheduleServiceBlockingStub schedulesService;
+
+    private final ScheduleMapper scheduleMapper;
+
     /**
      * (April 10 2017) In the UI, all settings - including global settings - are organized by
      * entity type. This map contains the "global setting name" -> "entity type" mappings to use
@@ -224,9 +223,13 @@ public class SettingsMapper {
                           @Nonnull final GroupServiceBlockingStub groupService,
                           @Nonnull final SettingPolicyServiceBlockingStub settingPolicyService,
                           @Nonnull final SettingsManagerMapping settingsManagerMapping,
-                          @Nonnull final SettingSpecStyleMapping settingSpecStyleMapping) {
+                          @Nonnull final SettingSpecStyleMapping settingSpecStyleMapping,
+                          @Nonnull final ScheduleServiceBlockingStub schedulesService,
+                          @Nonnull final ScheduleMapper scheduleMapper) {
         this.managerMapping = settingsManagerMapping;
         this.settingSpecStyleMapping = settingSpecStyleMapping;
+        this.schedulesService = schedulesService;
+        this.scheduleMapper = scheduleMapper;
         this.settingSpecMapper = new DefaultSettingSpecMapper();
         this.groupService = groupService;
         this.settingService = settingService;
@@ -247,6 +250,8 @@ public class SettingsMapper {
         this.groupService = GroupServiceGrpc.newBlockingStub(groupComponentChannel);
         this.settingService = SettingServiceGrpc.newBlockingStub(groupComponentChannel);
         this.settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(groupComponentChannel);
+        this.schedulesService = ScheduleServiceGrpc.newBlockingStub(groupComponentChannel);
+        this.scheduleMapper = new ScheduleMapper();
     }
 
     /**
@@ -491,7 +496,7 @@ public class SettingsMapper {
         infoBuilder.setEnabled(apiInputPolicy.getDisabled() == null || !apiInputPolicy.getDisabled());
 
         if (apiInputPolicy.getSchedule() != null) {
-            infoBuilder.setSchedule(convertScheduleApiDTO(apiInputPolicy.getSchedule()));
+            infoBuilder.setScheduleId(Long.valueOf(apiInputPolicy.getSchedule().getUuid()));
         }
         involvedSettings.values()
             .stream()
@@ -506,77 +511,6 @@ public class SettingsMapper {
             }).forEach(infoBuilder::addSettings);
 
         return infoBuilder.build();
-    }
-
-    /**
-     * Convert a Schedule DTO from the classic API to one that can be used by an XL SettingPolicyInfo.
-     * A schedule may contain a recurrence DTO that in XL may indicate a one-time, daily, weekly, or
-     * monthly policy. However in classic the recurrence DTO can only be of type daily, weekly, or
-     * monthly, with its complete absence denoting a one-time policy.
-     *
-     * @param apiSchedule The classic API schedule to convert
-     * @return the equivalent XL Schedule object
-     */
-    private Schedule convertScheduleApiDTO(ScheduleApiDTO apiSchedule) {
-        final Schedule.Builder scheduleBuilder = Schedule.newBuilder();
-
-        final long startTimestamp = apiSchedule.getStartTime().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
-        final long endTimeStamp = apiSchedule.getEndTime().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
-        scheduleBuilder.setStartTime(startTimestamp)
-                .setEndTime(endTimeStamp);
-
-        if (apiSchedule.getRecurrence() == null || apiSchedule.getRecurrence().getType() == null) {
-            scheduleBuilder.setOneTime(Schedule.OneTime.newBuilder().build());
-        } else {
-            if (apiSchedule.getEndDate() != null) {
-                scheduleBuilder.setLastDate(apiSchedule.getEndDate().atTime(LocalTime.MAX).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli());
-            } else {
-                scheduleBuilder.setPerpetual(Schedule.Perpetual.newBuilder().build());
-            }
-            switch (apiSchedule.getRecurrence().getType()) {
-                case DAILY:
-                    scheduleBuilder.setDaily(Schedule.Daily.newBuilder().build());
-                    break;
-                case WEEKLY:
-                    final Schedule.Weekly.Builder weeklyBuilder = Schedule.Weekly.newBuilder();
-                    final List<DayOfWeek> apiDays = apiSchedule.getRecurrence().getDaysOfWeek();
-                    if (apiDays == null || apiDays.isEmpty()) {
-                        final int weekdayNumber = apiSchedule.getStartTime().getDayOfWeek().getValue();
-                        weeklyBuilder.addDaysOfWeek(Schedule.DayOfWeek.forNumber(weekdayNumber));
-                    } else {
-                        weeklyBuilder.addAllDaysOfWeek(apiDays.stream()
-                                .map(this::translateDayOfWeekFromDTO)
-                                .collect(Collectors.toList()));
-                    }
-                    scheduleBuilder.setWeekly(weeklyBuilder.build());
-                    break;
-                case MONTHLY:
-                    final Schedule.Monthly.Builder monthlyBuilder = Schedule.Monthly.newBuilder();
-                    final List<Integer> daysMonth = apiSchedule.getRecurrence().getDaysOfMonth();
-                    if (daysMonth == null || daysMonth.isEmpty()) {
-                        monthlyBuilder.addDaysOfMonth(apiSchedule.getStartTime().getDayOfMonth());
-                    } else {
-                        monthlyBuilder.addAllDaysOfMonth(daysMonth);
-                    }
-                    scheduleBuilder.setMonthly(monthlyBuilder.build());
-                    break;
-            }
-        }
-        return scheduleBuilder.build();
-    }
-
-    /**
-     * Translate the day of the week from the classic API enum to the XL recurrence enum.
-     *
-     * @param day the classic API day of the week
-     * @return the equivalent XL day of the week
-     */
-    @VisibleForTesting
-    Schedule.DayOfWeek translateDayOfWeekFromDTO(DayOfWeek day) {
-        //legacy week starts with Sunday but international/XL week starts with Monday
-        final int internationalDayNumber = (day == DayOfWeek.Sun) ? Schedule.DayOfWeek.SUNDAY_VALUE
-                : day.getValue() - 1;
-        return Schedule.DayOfWeek.forNumber(internationalDayNumber);
     }
 
     /**
@@ -616,9 +550,12 @@ public class SettingsMapper {
 
         Map<String, Setting> globalSettingNameToSettingMap = getRelevantGlobalSettings(settingPolicies);
 
+        // Get upfront all schedules used by the settings policies
+        final Map<Long, ScheduleApiDTO> scheduleMap = getSchedules(settingPolicies);
+
         return settingPolicies.stream()
                 .map(policy -> settingPolicyMapper.convertSettingPolicy(policy, groupNames,
-                        globalSettingNameToSettingMap, managersToInclude))
+                        globalSettingNameToSettingMap, managersToInclude, scheduleMap))
                 .collect(Collectors.toList());
     }
 
@@ -687,6 +624,42 @@ public class SettingsMapper {
         return mgrApiDto;
     }
 
+    /** Get all schedules used by the settings policies.
+     *
+     * @param settingPolicies The setting policies retrieved from the group component
+     * @return Map of {@link Schedule}
+     */
+    @Nonnull
+    private Map<Long, ScheduleApiDTO> getSchedules(@Nonnull final List<SettingPolicy> settingPolicies) {
+        List<Long> scheduleIds = settingPolicies.stream().filter(settingPolicy -> settingPolicy
+            .getInfo().hasScheduleId()).map(settingPolicy -> settingPolicy.getInfo().getScheduleId())
+            .collect(Collectors.toList());
+        final Map<Long, ScheduleApiDTO> scheduleMap = Maps.newHashMap();
+        if (!scheduleIds.isEmpty()) {
+            schedulesService.getSchedules(GetSchedulesRequest.newBuilder()
+                .addAllOid(scheduleIds).build())
+                .forEachRemaining(schedule -> {
+                    final ScheduleApiDTO scheduleApiDTO = convertSchedule(schedule);
+                    if (scheduleApiDTO != null) {
+                        scheduleMap.put(schedule.getId(), scheduleApiDTO);
+                    }
+                });
+        }
+        return scheduleMap;
+    }
+
+    @Nullable
+    private ScheduleApiDTO convertSchedule(@Nonnull final Schedule schedule) {
+        ScheduleApiDTO scheduleApiDTO = null;
+        try {
+            scheduleApiDTO = scheduleMapper.convertSchedule(schedule);
+        } catch (OperationFailedException e) {
+            logger.error("Failed to convert schedule with id: {}, name: {}",
+                schedule.getId(), schedule.getDisplayName(), e);
+        }
+        return scheduleApiDTO;
+    }
+
     /**
      * A functional interface to allow separate testing for the actual conversion, and the
      * code preceding the conversion (e.g. getting the involved groups).
@@ -707,12 +680,14 @@ public class SettingsMapper {
          *                                      injected to shown in UI with entity settings.
          * @param managersToInclude the set of managers to include in the response, if
          *                          managersToInclude is empty, return all managers
+         * @param schedules Schedules used by settings policies
          * @return The resulting {@link SettingsPolicyApiDTO}.
          */
         SettingsPolicyApiDTO convertSettingPolicy(@Nonnull final SettingPolicy settingPolicy,
                                                   @Nonnull final Map<Long, String> groupNames,
                                                   @Nonnull final Map<String, Setting> globalSettingNameToSettingMap,
-                                                  @Nonnull final Set<String> managersToInclude);
+                                                  @Nonnull final Set<String> managersToInclude,
+                                                  @Nonnull final Map<Long, ScheduleApiDTO> schedules);
     }
 
     /**
@@ -734,7 +709,8 @@ public class SettingsMapper {
         public SettingsPolicyApiDTO convertSettingPolicy(@Nonnull final SettingPolicy settingPolicy,
                                                          @Nonnull final Map<Long, String> groupNames,
                                                          @Nonnull final Map<String, Setting> globalSettingNameToSettingMap,
-                                                         @Nonnull final Set<String> managersToInclude) {
+                                                         @Nonnull final Set<String> managersToInclude,
+                                                         @Nonnull final Map<Long, ScheduleApiDTO> schedules) {
             final SettingsPolicyApiDTO apiDto = new SettingsPolicyApiDTO();
             apiDto.setUuid(Long.toString(settingPolicy.getId()));
             final SettingPolicyInfo info = settingPolicy.getInfo();
@@ -767,9 +743,8 @@ public class SettingsMapper {
                         .map(Optional::get)
                         .collect(Collectors.toList()));
             }
-
-            if (info.hasSchedule()) {
-                apiDto.setSchedule(convertScheduleToApiDTO(info.getSchedule()));
+            if (info.hasScheduleId() && schedules.containsKey(info.getScheduleId())) {
+                apiDto.setSchedule(schedules.get(info.getScheduleId()));
             }
 
             final SettingsManagerMapping managerMapping = mapper.getManagerMapping();
@@ -836,82 +811,6 @@ public class SettingsMapper {
                 logger.error("No global setting {} found! This should not happen.",
                                 settingSpecs.getSettingName());
            }
-        }
-
-        /**
-         * Convert an XL Schedule object to the Schedule DTO used by the classic API.
-         *
-         * @param schedule the XL Schedule object
-         * @return an equivalent ScheduleApiDTO
-         */
-        private ScheduleApiDTO convertScheduleToApiDTO(Schedule schedule) {
-            final ScheduleApiDTO scheduleApiDTO = new ScheduleApiDTO();
-
-            final long startTimestamp = schedule.getStartTime();
-            final Date startDateTime = new Date(startTimestamp);
-            LocalDateTime startTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(schedule.getStartTime()), OffsetDateTime.now().getOffset());
-
-            scheduleApiDTO.setStartDate(startTime);
-            scheduleApiDTO.setStartTime(startTime);
-            scheduleApiDTO.setTimeZone(TimeZone.getDefault().getID());
-
-            switch (schedule.getDurationCase()) {
-                case MINUTES:
-                    final LocalDateTime endDateTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(startDateTime.getTime()), OffsetDateTime.now().getOffset()).plusMinutes(schedule.getMinutes());
-
-                    scheduleApiDTO.setEndTime(endDateTime);
-                    break;
-                case END_TIME:
-                    scheduleApiDTO.setEndTime(LocalDateTime.ofInstant(Instant.ofEpochMilli(schedule.getEndTime()), OffsetDateTime.now().getOffset()));
-                    break;
-            }
-
-            if (schedule.hasLastDate()) {
-                scheduleApiDTO.setEndDate(LocalDateTime.ofInstant(Instant.ofEpochMilli(schedule.getLastDate()), OffsetDateTime.now().getOffset()).toLocalDate());
-            }
-
-            final RecurrenceApiDTO recurrenceApiDTO = new RecurrenceApiDTO();
-            switch (schedule.getRecurrenceCase()) {
-                case DAILY:
-                    recurrenceApiDTO.setType(RecurrenceType.DAILY);
-                    scheduleApiDTO.setRecurrence(recurrenceApiDTO);
-                    break;
-                case WEEKLY:
-                    recurrenceApiDTO.setType(RecurrenceType.WEEKLY);
-                    if (schedule.getWeekly().getDaysOfWeekList().isEmpty()) {
-                        recurrenceApiDTO.setDaysOfWeek(Collections.singletonList(
-                                getLegacyDayOfWeekForDatestamp(startDateTime)));
-                    } else {
-                        recurrenceApiDTO.setDaysOfWeek(schedule.getWeekly().getDaysOfWeekList()
-                                .stream().map(this::translateDayOfWeekToDTO)
-                                .collect(Collectors.toList()));
-                    }
-                    scheduleApiDTO.setRecurrence(recurrenceApiDTO);
-                    break;
-                case MONTHLY:
-                    recurrenceApiDTO.setType(RecurrenceType.MONTHLY);
-                    if (schedule.getMonthly().getDaysOfMonthList().isEmpty()) {
-                        final int dayOfTheMonth = startDateTime.toInstant()
-                                        .atZone(ZoneId.systemDefault()).toLocalDate().getDayOfMonth();
-                        recurrenceApiDTO.setDaysOfMonth(Collections.singletonList(
-                                        dayOfTheMonth));
-                    } else {
-                        recurrenceApiDTO.setDaysOfMonth(schedule.getMonthly().getDaysOfMonthList());
-                    }
-                    scheduleApiDTO.setRecurrence(recurrenceApiDTO);
-                    break;
-            }
-            return scheduleApiDTO;
-        }
-
-        /**
-         * Translate an XL DayOfWeek enum to the DayOfWeek enum used by the classic API.
-         *
-         * @param day the XL DayOfWeek
-         * @return the corresponding classic DayOfWeek
-         */
-        private DayOfWeek translateDayOfWeekToDTO(Schedule.DayOfWeek day) {
-            return DayOfWeek.get(day.name().substring(0, 3));
         }
 
         /**

@@ -14,15 +14,15 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.CancelQueuedActionsRequest;
@@ -44,6 +44,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRespons
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesForGroupRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesForGroupResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesForGroupResponse.GroupSettingPolicies;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesUsingScheduleRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
@@ -339,6 +340,22 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void getSettingPoliciesUsingSchedule(final GetSettingPoliciesUsingScheduleRequest request,
+                                                final StreamObserver<SettingPolicy> responseObserver) {
+        if (!request.hasScheduleId()) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                .withDescription("Request must have a schedule ID!").asException());
+            return;
+        }
+        Stream<SettingPolicy> settingPolicies = settingStore.getSettingPoliciesUsingSchedule(
+            request.getScheduleId());
+        settingPolicies.forEach(responseObserver::onNext);
+        responseObserver.onCompleted();
+    }
 
     /**
      * Handles receiving and storing the entity settings.

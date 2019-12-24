@@ -355,9 +355,14 @@ message SettingPolicyInfo {
     // Default setting policies are always enabled.
     optional bool enabled = 4 [default = true];
 
-    // The period for which the setting policy may apply.
+    // OBSOLETE: use Schedule.proto and set schedule_id here instead.
+    // Keeping the field so that migration code can build
+    optional Schedule __deprecated__schedule = 5 [deprecated = true];
+
+    // The id of the assigned schedule, which specifies the period for which the setting policy may
+    // apply.
     // If not specified, the setting policy may apply all the time.
-    optional Schedule schedule = 5;
+    optional int64 schedule_id = 6;
 
     // The scope of a setting policy is the groups of entities the policy applies to.
     // Default setting policies do not have a scope (see detailed comments above).
@@ -557,6 +562,12 @@ message ListSettingPoliciesRequest {
     // The ids of the setting policies to fetch. If not set, all setting policies are fetched.
     // It is used in conjunction with other filters here like the type filter.
     repeated int64 id_filter = 3;
+}
+
+message GetSettingPoliciesUsingScheduleRequest {
+    // The ID of the schedule setting policies are using.
+    // This should be set.
+    optional int64 schedule_id = 1;
 }
 
 // Settings associated with an entity
@@ -824,6 +835,11 @@ service SettingPolicyService {
 
     // List setting policies.
     rpc ListSettingPolicies (ListSettingPoliciesRequest) returns (stream SettingPolicy);
+
+    // Get setting policies using the schedule.
+    // Currently used by schedules API.
+    rpc GetSettingPoliciesUsingSchedule (GetSettingPoliciesUsingScheduleRequest)
+    returns (stream SettingPolicy);
 
     // Store the Entities and their associated Settings
     // karthikt : Should we stream this from the client instead of sending in

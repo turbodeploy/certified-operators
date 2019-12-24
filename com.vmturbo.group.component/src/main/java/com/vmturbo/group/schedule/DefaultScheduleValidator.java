@@ -22,20 +22,33 @@ public class DefaultScheduleValidator implements ScheduleValidator {
     public void validateSchedule(@Nonnull final Schedule schedule) throws InvalidItemException {
         final List<String> errors = new LinkedList<>();
         if (Strings.isBlank(schedule.getDisplayName())) {
-            errors.add("Schedule must have a name");
+            errors.add("Schedule must have a name.");
         }
-        if (schedule.getStartTime() == 0) {
-            errors.add("Schedule must have valid start time");
+        if (!schedule.hasStartTime()) {
+            errors.add("Schedule must have a valid start time.");
         }
-        if (schedule.getEndTime() == 0) {
-            errors.add("Schedule must have valid end time");
+        if (!schedule.hasEndTime()) {
+            errors.add("Schedule must have a valid end time.");
+        }
+        if (schedule.hasEndTime() && (schedule.getStartTime() >= schedule.getEndTime())) {
+            errors.add("Schedule end time must be after start time.");
         }
         if (Strings.isBlank(schedule.getTimezoneId())) {
-            errors.add("Schedule must have a timezone ID");
+            errors.add("Schedule must have a timezone ID.");
         }
-        if (schedule.getLastDate() == 0 && !schedule.hasPerpetual()) {
-            errors.add("Schedule must have either valid last date or be perpetual");
+        if (schedule.hasOneTime() && schedule.hasLastDate()) {
+            errors.add("One time schedule can not have end date.");
         }
+        if (!schedule.hasOneTime() && !schedule.hasRecurRule()) {
+            errors.add("Schedule must be either one time or recurring.");
+        }
+        if (!schedule.hasOneTime() && !(schedule.hasLastDate() || schedule.hasPerpetual())) {
+            errors.add("Recurring schedule must have either a valid last date or be perpetual.");
+        }
+        if (schedule.hasLastDate() && schedule.getStartTime() > schedule.getLastDate()) {
+            errors.add("Last date of recurring schedule must be after start time.");
+        }
+
         if (!errors.isEmpty()) {
             throw new InvalidItemException(
                 "Invalid schedule: " + schedule.getDisplayName() +

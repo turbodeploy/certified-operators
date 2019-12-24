@@ -30,10 +30,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
-import com.vmturbo.common.protobuf.setting.SettingProto.Schedule;
-import com.vmturbo.common.protobuf.setting.SettingProto.Schedule.DurationCase;
-import com.vmturbo.common.protobuf.setting.SettingProto.Schedule.EndingCase;
-import com.vmturbo.common.protobuf.setting.SettingProto.Schedule.RecurrenceCase;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting.ValueCase;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
@@ -92,14 +88,10 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
 
         settingPolicyInfo.getSettingsList().forEach((setting) -> {
             final String specName = setting.getSettingSpecName();
-            if (StringUtils.isBlank(specName)) {
-                errors.add("Null/empty key in setting spec map!");
-            } else if (!setting.hasSettingSpecName()) {
+            if (!setting.hasSettingSpecName()) {
                 errors.add("Setting for spec " + specName + " has unset name field.");
-            } else if (!specName.equals(setting.getSettingSpecName())) {
-                errors.add("Spec name " + specName +
-                        " mapped to setting with inconsistent name: " +
-                        setting.getSettingSpecName());
+            } else if (StringUtils.isBlank(specName)) {
+                errors.add("Null/empty key in setting spec map!");
             }
         });
 
@@ -109,16 +101,13 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
             if (settingPolicyInfo.hasScope()) {
                 errors.add("Default setting policy should not have a scope!");
             }
-            if (settingPolicyInfo.hasSchedule()) {
+            if (settingPolicyInfo.hasScheduleId()) {
                 errors.add("Default setting policy should not have a schedule.");
             }
             if (settingPolicyInfo.hasTargetId()) {
                 errors.add("Default setting policy must not have a targetId.");
             }
         } else if (type.equals(Type.USER)) {
-            if (settingPolicyInfo.hasSchedule()) {
-                errors.addAll(validateSchedule(settingPolicyInfo.getSchedule()));
-            }
             if (settingPolicyInfo.hasTargetId()) {
                 errors.add("User setting policy must not have a targetId.");
             }
@@ -169,57 +158,6 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
                             System.lineSeparator() +
                             StringUtils.join(errors, System.lineSeparator()));
         }
-    }
-
-    private List<String> validateSchedule(@Nonnull final Schedule schedule) {
-        List<String> errors = new LinkedList<>();
-
-        if (!schedule.hasStartTime()) {
-            errors.add("Setting policy schedule must have start datetime.");
-        }
-        if (schedule.getDurationCase().equals(DurationCase.DURATION_NOT_SET)) {
-            errors.add("Setting policy schedule must have a duration consisting of " +
-                    "either an end time or a number of minutes.");
-        }
-        if (schedule.hasEndTime() && (schedule.getStartTime() >= schedule.getEndTime())) {
-            errors.add("Setting policy schedule end time must be after start time.");
-        }
-        if (schedule.hasMinutes() && (schedule.getMinutes() < 1)) {
-            errors.add("Setting policy schedule duration must be one minute or greater.");
-        }
-        if (schedule.getRecurrenceCase().equals(RecurrenceCase.RECURRENCE_NOT_SET)) {
-            errors.add("Setting policy schedule recurrence must be one of OneTime, " +
-                    "Daily, Weekly, or Monthly.");
-        }
-        if (schedule.hasOneTime() &&
-                !schedule.getEndingCase().equals(EndingCase.ENDING_NOT_SET)) {
-            errors.add("OneTime setting policy schedule cannot have end date or " +
-                    "be perpetual.");
-        }
-        if (!schedule.hasOneTime() &&
-                schedule.getEndingCase().equals(EndingCase.ENDING_NOT_SET)) {
-            errors.add("Recurring setting policy schedule must have end date or " +
-                    "be perpetual.");
-        }
-        if (schedule.hasLastDate() && schedule.getStartTime() > schedule.getLastDate()) {
-            errors.add("Last date of recurring setting policy must be after first date.");
-        }
-        if (schedule.hasWeekly() && schedule.getWeekly().getDaysOfWeekList().isEmpty()) {
-            errors.add("Weekly setting policy schedule must have at least one active day.");
-        }
-        if (schedule.hasMonthly()){
-            if (schedule.getMonthly().getDaysOfMonthList().isEmpty()) {
-                errors.add("Monthly setting policy schedule must have at least one active day.");
-            }
-            schedule.getMonthly().getDaysOfMonthList().forEach(day -> {
-                if ((day < 1)  || (day > 31)) {
-                    errors.add("Monthly setting policy schedule can only have " +
-                            "active day(s) 1-31. " + day + " is invalid.");
-                }
-            });
-        }
-
-        return errors;
     }
 
     @Nonnull

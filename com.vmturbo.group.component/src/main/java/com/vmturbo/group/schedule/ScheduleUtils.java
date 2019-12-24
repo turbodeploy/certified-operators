@@ -11,6 +11,9 @@ import net.fortuna.ical4j.model.Date;
 import net.fortuna.ical4j.model.DateList;
 import net.fortuna.ical4j.model.DateTime;
 import net.fortuna.ical4j.model.Recur;
+import net.fortuna.ical4j.model.TimeZone;
+import net.fortuna.ical4j.model.TimeZoneRegistry;
+import net.fortuna.ical4j.model.TimeZoneRegistryFactory;
 import net.fortuna.ical4j.model.parameter.Value;
 
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule;
@@ -26,6 +29,7 @@ public class ScheduleUtils {
         new GregorianCalendar(2099, Calendar.DECEMBER, 31)
             .getTimeInMillis();
     private static final DateTime MAX_END_DATE_TIME = new DateTime(MAX_END_DATE);
+    private static final TimeZoneRegistry TZ_REGISTRY = TimeZoneRegistryFactory.getInstance().createRegistry();
 
     private ScheduleUtils() {}
 
@@ -111,12 +115,14 @@ public class ScheduleUtils {
             final long recurStartTime = schedule.hasRecurrenceStart() ?
                 Math.max(schedule.getStartTime(), schedule.getRecurrenceStart().getRecurrenceStartTime())
                 : schedule.getStartTime();
-            final DateTime recurStartDateTime = new DateTime(Math.max(recurStartTime, startTime));
+            final TimeZone timeZone = TZ_REGISTRY.getTimeZone(schedule.getTimezoneId());
+            final DateTime recurStartDateTime = new DateTime(
+                new java.util.Date(Math.max(recurStartTime, startTime)), timeZone);
             final DateTime recurEndDateTime = schedule.hasPerpetual() ? MAX_END_DATE_TIME :
-                new DateTime(schedule.getLastDate());
+                new DateTime(new java.util.Date(schedule.getLastDate()), timeZone);
             final Recur recur = new Recur(schedule.getRecurRule());
-            final DateList dates = recur.getDates(new DateTime(schedule.getStartTime()),
-                recurStartDateTime, recurEndDateTime, Value.DATE_TIME, 1);
+            final DateList dates = recur.getDates(new DateTime(new java.util.Date(schedule.getStartTime()),
+                    timeZone), recurStartDateTime, recurEndDateTime, Value.DATE_TIME, 1);
             return dates.isEmpty() ? null : dates.get(0);
         }
 

@@ -95,6 +95,14 @@ public class ScheduleStoreTest {
     private SettingsUpdatesSender settingsUpdatesSender = mock(SettingsUpdatesSender.class);
     private IGroupStore groupStore = mock(IGroupStore.class);
 
+    private final Schedule oneTimeSchedule = Schedule.newBuilder()
+        .setDisplayName(DISPLAY_NAME)
+        .setStartTime(START_TIME)
+        .setEndTime(END_TIME)
+        .setTimezoneId(TIME_ZONE_ID)
+        .setOneTime(OneTime.getDefaultInstance())
+        .build();
+
     private final Schedule testScheduleWithLastDate = Schedule.newBuilder()
         .setDisplayName(DISPLAY_NAME)
         .setStartTime(START_TIME)
@@ -108,7 +116,8 @@ public class ScheduleStoreTest {
         .setDisplayName(DISPLAY_NAME_PERPETUAL)
         .setStartTime(START_TIME)
         .setEndTime(END_TIME)
-        .setPerpetual(Perpetual.newBuilder().build())
+        .setRecurRule(RECUR_RULE)
+        .setPerpetual(Perpetual.getDefaultInstance())
         .setTimezoneId(TIME_ZONE_ID)
         .build();
 
@@ -159,6 +168,31 @@ public class ScheduleStoreTest {
     }
 
     /**
+     * Test get schedules by IDs.
+     *
+     * @throws Exception If test throws any exceptions
+     */
+    @Test
+    public void testGetAllSchedulesByIds() throws Exception {
+        Schedule testSchedule2 = testScheduleWithLastDate.toBuilder()
+            .setDisplayName("Test Schedule 2")
+            .build();
+        final Schedule schedule1 = scheduleStore.createSchedule(testSchedulePerpetual);
+        assertTrue(schedule1.hasId());
+        final Schedule schedule2 = scheduleStore.createSchedule(testScheduleWithLastDate);
+        assertTrue(schedule2.hasId());
+        scheduleStore.createSchedule(testSchedule2);
+
+        Collection<Schedule> fetchedSchedules = scheduleStore.getSchedules()
+            .collect(Collectors.toList());
+        assertEquals(3, fetchedSchedules.size());
+
+       fetchedSchedules = scheduleStore.getSchedules(Sets.newLinkedHashSet(schedule1.getId(),
+           schedule2.getId())).collect(Collectors.toList());
+        assertEquals(2, fetchedSchedules.size());
+    }
+
+    /**
      * Test get schedule with invalid ID.
      * @throws Exception If test throws any exceptions
      */
@@ -173,8 +207,17 @@ public class ScheduleStoreTest {
      * @throws Exception If test throws any exceptions
      */
     @Test
+    public void testCreateOneTimeScheduleThenGetById() throws Exception {
+        testCreateSchedule(oneTimeSchedule, false);
+    }
+
+    /**
+     * Test create schedule with last dat and get it by id.
+     * @throws Exception If test throws any exceptions
+     */
+    @Test
     public void testCreateScheduleWithLastDateThenGetById() throws Exception {
-        testCreateSchedule(testScheduleWithLastDate);
+        testCreateSchedule(testScheduleWithLastDate, true);
     }
 
     /**
@@ -183,18 +226,18 @@ public class ScheduleStoreTest {
      */
     @Test
     public void testCreateSchedulePerpetualThenGetById() throws Exception {
-        testCreateSchedule(testSchedulePerpetual);
+        testCreateSchedule(testSchedulePerpetual, true);
     }
 
-    private void testCreateSchedule(final Schedule scheduleTotest) throws Exception {
+    private void testCreateSchedule(final Schedule scheduleTotest, boolean isPerpetual) throws Exception {
         Schedule schedule = scheduleStore.createSchedule(scheduleTotest);
 
         assertTrue(schedule.hasId());
-        verifySchedule(scheduleTotest, schedule);
+        verifySchedule(scheduleTotest, schedule, isPerpetual);
 
         Optional<Schedule> fetchedSchedule = scheduleStore.getSchedule(schedule.getId());
         assertTrue(fetchedSchedule.isPresent());
-        verifySchedule(scheduleTotest, fetchedSchedule.get());
+        verifySchedule(scheduleTotest, fetchedSchedule.get(), isPerpetual);
     }
 
     /**
@@ -222,7 +265,7 @@ public class ScheduleStoreTest {
         Schedule retUpdatedSchedule = scheduleStore.updateSchedule(origSchedule.getId(),
             updatedSchedule);
         assertEquals(origSchedule.getId(), retUpdatedSchedule.getId());
-        verifySchedule(updatedSchedule, retUpdatedSchedule);
+        verifySchedule(updatedSchedule, retUpdatedSchedule, true);
     }
 
     /**
@@ -231,12 +274,20 @@ public class ScheduleStoreTest {
      * @throws Exception If test throws any exceptions
      */
     @Test
-    public void testUpdateScheduleChangeRecurrrence() throws Exception {
+    public void testUpdateScheduleChangeRecurrence() throws Exception {
         Schedule schedule = scheduleStore.createSchedule(testScheduleWithLastDate);
         assertEquals(RECUR_RULE, schedule.getRecurRule());
         assertFalse(schedule.hasOneTime());
         Schedule updatedSchedule = testScheduleWithLastDate.toBuilder().clearRecurRule()
-            .setOneTime(OneTime.getDefaultInstance()).build();
+            .setOneTime(OneTime.getDefaultInstance())
+            .build();
+        thrown.expect(InvalidItemException.class);
+        scheduleStore.updateSchedule(schedule.getId(),
+            updatedSchedule);
+        updatedSchedule = testScheduleWithLastDate.toBuilder().clearRecurRule()
+            .setOneTime(OneTime.getDefaultInstance())
+            .clearLastDate()
+            .build();
         Schedule retUpdatedSchedule = scheduleStore.updateSchedule(schedule.getId(),
             updatedSchedule);
         assertTrue((retUpdatedSchedule.hasOneTime()));
@@ -253,7 +304,8 @@ public class ScheduleStoreTest {
         assertEquals(LAST_DATE, schedule.getLastDate());
         assertFalse(schedule.hasPerpetual());
         Schedule updatesSchedule = scheduleStore.updateSchedule(schedule.getId(),
-            testSchedulePerpetual);
+            testScheduleWithLastDate.toBuilder().clearLastDate().setPerpetual(
+                Perpetual.getDefaultInstance()).build());
         assertTrue(updatesSchedule.hasPerpetual());
     }
 
@@ -315,7 +367,7 @@ public class ScheduleStoreTest {
         assertTrue(fetchedSchedule.isPresent());
         Schedule deletedSchedule = scheduleStore.deleteSchedule(schedule.getId());
         assertNotNull(deletedSchedule);
-        verifySchedule(deletedSchedule, schedule);
+        verifySchedule(deletedSchedule, schedule, true);
         fetchedSchedule = scheduleStore.getSchedule(schedule.getId());
         assertFalse(fetchedSchedule.isPresent());
     }
@@ -519,12 +571,16 @@ public class ScheduleStoreTest {
         scheduleStore.restoreDiags(diags);
     }
 
-    private void verifySchedule(final Schedule expected, final Schedule actual) {
+    private void verifySchedule(final Schedule expected, final Schedule actual, boolean isPerpetual) {
         assertEquals(expected.getDisplayName(), actual.getDisplayName());
         assertEquals(expected.getStartTime(), actual.getStartTime());
         assertEquals(expected.getEndTime(), actual.getEndTime());
         assertEquals(expected.getLastDate(), actual.getLastDate());
-        assertEquals(expected.hasPerpetual(), actual.hasPerpetual());
+        if (isPerpetual) {
+            assertEquals(expected.hasPerpetual(), actual.hasPerpetual());
+        } else {
+            assertEquals(expected.hasOneTime(), actual.hasOneTime());
+        }
         assertEquals(expected.getRecurRule(), actual.getRecurRule());
         assertEquals(expected.getTimezoneId(), actual.getTimezoneId());
     }

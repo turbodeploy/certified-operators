@@ -1,7 +1,5 @@
 package com.vmturbo.group.setting;
 
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -30,13 +28,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
-import com.vmturbo.common.protobuf.setting.SettingProto.Schedule;
-import com.vmturbo.common.protobuf.setting.SettingProto.Schedule.Daily;
-import com.vmturbo.common.protobuf.setting.SettingProto.Schedule.DayOfWeek;
-import com.vmturbo.common.protobuf.setting.SettingProto.Schedule.Monthly;
-import com.vmturbo.common.protobuf.setting.SettingProto.Schedule.OneTime;
-import com.vmturbo.common.protobuf.setting.SettingProto.Schedule.Perpetual;
-import com.vmturbo.common.protobuf.setting.SettingProto.Schedule.Weekly;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
@@ -315,6 +306,46 @@ public class SettingPolicyValidatorTest {
     }
 
     @Test(expected = InvalidItemException.class)
+    public void testDefaultSettingPolicyWithNoSpecName() throws InvalidItemException {
+        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+            .setStringSettingValueType(StringSettingValueType.getDefaultInstance())
+            .build()));
+        validator.validateSettingPolicy(newInfo()
+            .addSettings(newSetting()
+                .clearSettingSpecName()
+                .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
+                .build())
+            .build(), Type.USER);
+    }
+
+    @Test(expected = InvalidItemException.class)
+    public void testDefaultSettingPolicyWithBlankSpecName() throws InvalidItemException {
+        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+            .setStringSettingValueType(StringSettingValueType.getDefaultInstance())
+            .build()));
+        validator.validateSettingPolicy(newInfo()
+            .addSettings(newSetting()
+                .setSettingSpecName("  ")
+                .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
+                .build())
+            .build(), Type.USER);
+    }
+
+    @Test(expected = InvalidItemException.class)
+    public void testDefaultSettingPolicyWithSchedule() throws InvalidItemException {
+        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
+            .setStringSettingValueType(StringSettingValueType.getDefaultInstance())
+            .build()));
+        validator.validateSettingPolicy(newInfo()
+            .addSettings(newSetting()
+                .clearSettingSpecName()
+                .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
+                .build())
+            .setScheduleId(1L)
+            .build(), Type.DEFAULT);
+    }
+
+    @Test(expected = InvalidItemException.class)
     public void testSettingPolicyNumericMismatchedTypes() throws InvalidItemException {
         when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setEnumSettingValueType(EnumSettingValueType.getDefaultInstance())
@@ -499,264 +530,6 @@ public class SettingPolicyValidatorTest {
                     .setValue("2"))
                 .build())
             .build(), Type.DISCOVERED);
-    }
-
-    @Test
-    public void testDefaultSettingPolicyWithSchedule() {
-        try {
-            final SettingPolicyInfo info = SettingPolicyInfo.newBuilder()
-                    .setSchedule(Schedule.getDefaultInstance())
-                    .build();
-            validator.validateSettingPolicy(info, Type.DEFAULT);
-            fail();
-        } catch (InvalidItemException e) {
-            final String expectedMessage = "Default setting policy should not have a schedule.";
-            assertTrue(e.getMessage().contains(expectedMessage));
-        }
-    }
-
-    @Test
-    public void testSettingPolicyScheduleNoStartTime() {
-        try {
-            final SettingPolicyInfo info = SettingPolicyInfo.newBuilder()
-                    .setSchedule(Schedule.getDefaultInstance())
-                    .build();
-            validator.validateSettingPolicy(info, Type.USER);
-            fail();
-        } catch (InvalidItemException e) {
-            final String expectedMessage = "Setting policy schedule must have start datetime.";
-            assertTrue(e.getMessage().contains(expectedMessage));
-        }
-    }
-
-    @Test
-    public void testSettingPolicyScheduleNoDuration() {
-        try {
-            validator.validateSettingPolicy(SettingPolicyInfo.newBuilder()
-                    .setSchedule(Schedule.getDefaultInstance())
-                    .build(), Type.USER);
-            fail();
-        } catch (InvalidItemException e) {
-            final String expectedMessage = "Setting policy schedule must have a duration " +
-                    "consisting of either an end time or a number of minutes.";
-            assertTrue(e.getMessage().contains(expectedMessage));
-        }
-    }
-
-    @Test
-    public void testSettingPolicyScheduleEndBeforeStart() {
-        try {
-            final SettingPolicyInfo info = SettingPolicyInfo.newBuilder()
-                    .setSchedule(Schedule.newBuilder()
-                            .setStartTime(123456789L)
-                            .setEndTime(112358132))
-                    .build();
-            validator.validateSettingPolicy(info, Type.USER);
-            fail();
-        } catch (InvalidItemException e) {
-            final String expectedMessage = "Setting policy schedule end time must be after " +
-                    "start time.";
-            assertTrue(e.getMessage().contains(expectedMessage));
-        }
-    }
-
-    @Test
-    public void testSettingPolicyScheduleInvalidMinutes() {
-        try {
-            final SettingPolicyInfo info = SettingPolicyInfo.newBuilder()
-                    .setSchedule(Schedule.newBuilder().setMinutes(0))
-                    .build();
-            validator.validateSettingPolicy(info, Type.USER);
-            fail();
-        } catch (InvalidItemException e) {
-            final String expectedMessage = "Setting policy schedule duration must be one " +
-                    "minute or greater.";
-            assertTrue(e.getMessage().contains(expectedMessage));
-        }
-    }
-
-    @Test
-    public void testSettingPolicyScheduleNoRecurrence() {
-        try {
-            final SettingPolicyInfo info = SettingPolicyInfo.newBuilder()
-                    .setSchedule(Schedule.getDefaultInstance())
-                    .build();
-            validator.validateSettingPolicy(info, Type.USER);
-            fail();
-        } catch (InvalidItemException e) {
-            final String expectedMessage = "Setting policy schedule recurrence must be one " +
-                    "of OneTime, Daily, Weekly, or Monthly.";
-            assertTrue(e.getMessage().contains(expectedMessage));
-        }
-    }
-
-    @Test
-    public void testSettingPolicyScheduleOneTimeWithEnding() {
-        try {
-            final SettingPolicyInfo info = SettingPolicyInfo.newBuilder()
-                    .setSchedule(Schedule.newBuilder()
-                            .setOneTime(OneTime.getDefaultInstance())
-                            .setPerpetual(Perpetual.getDefaultInstance()))
-                    .build();
-            validator.validateSettingPolicy(info, Type.USER);
-            fail();
-        } catch (InvalidItemException e) {
-            final String expectedMessage = "OneTime setting policy schedule cannot have end " +
-                    "date or be perpetual.";
-            assertTrue(e.getMessage().contains(expectedMessage));
-        }
-    }
-
-    @Test
-    public void testSettingPolicyScheduleRecurringNoEnding() {
-        try {
-            final SettingPolicyInfo info = SettingPolicyInfo.newBuilder()
-                    .setSchedule(Schedule.newBuilder().setDaily(Daily.getDefaultInstance()))
-                    .build();
-            validator.validateSettingPolicy(info, Type.USER);
-            fail();
-        } catch (InvalidItemException e) {
-            final String expectedMessage = "Recurring setting policy schedule must have end " +
-                    "date or be perpetual.";
-            assertTrue(e.getMessage().contains(expectedMessage));
-        }
-    }
-
-    @Test
-    public void testSettingPolicyScheduleEndingBeforeStart() {
-        try {
-            final SettingPolicyInfo info = SettingPolicyInfo.newBuilder()
-                    .setSchedule(Schedule.newBuilder()
-                            .setStartTime(123456789L)
-                            .setLastDate(112358132L))
-                    .build();
-            validator.validateSettingPolicy(info, Type.USER);
-            fail();
-        } catch (InvalidItemException e) {
-            final String expectedMessage = "Last date of recurring setting policy must be after " +
-                    "first date.";
-            assertTrue(e.getMessage().contains(expectedMessage));
-        }
-    }
-
-    @Test
-    public void testSettingPolicyScheduleWeeklyNoDays() {
-        try {
-            final SettingPolicyInfo info = SettingPolicyInfo.newBuilder()
-                    .setSchedule(Schedule.newBuilder().setWeekly(Weekly.getDefaultInstance()))
-                    .build();
-            validator.validateSettingPolicy(info, Type.USER);
-            fail();
-        } catch (InvalidItemException e) {
-            final String expectedMessage = "Weekly setting policy schedule must have at least " +
-                    "one active day.";
-            assertTrue(e.getMessage().contains(expectedMessage));
-        }
-    }
-
-    @Test
-    public void testSettingPolicyScheduleMonthlyNoDays() {
-        try {
-            final SettingPolicyInfo info = SettingPolicyInfo.newBuilder()
-                    .setSchedule(Schedule.newBuilder().setMonthly(Monthly.getDefaultInstance()))
-                    .build();
-            validator.validateSettingPolicy(info, Type.USER);
-            fail();
-        } catch (InvalidItemException e) {
-            final String expectedMessage = "Monthly setting policy schedule must have at least " +
-                    "one active day.";
-            assertTrue(e.getMessage().contains(expectedMessage));
-        }
-    }
-
-    @Test
-    public void testSettingPolicyScheduleMonthlyBadDays() {
-        try {
-            final SettingPolicyInfo info = SettingPolicyInfo.newBuilder()
-                    .setSchedule(Schedule.newBuilder().setMonthly(Monthly.newBuilder()
-                            .addDaysOfMonth(-5)
-                            .addDaysOfMonth(400)
-                            .addDaysOfMonth(0)
-                            .addDaysOfMonth(1)
-                            .addDaysOfMonth(31)
-                            .addDaysOfMonth(32)))
-                    .build();
-            validator.validateSettingPolicy(info, Type.USER);
-            fail();
-        } catch (InvalidItemException e) {
-            final String expectedMessage1 = "Monthly setting policy schedule can only have " +
-                    "active day(s) 1-31. 400 is invalid.";
-            final String expectedMessage2 = "Monthly setting policy schedule can only have " +
-                    "active day(s) 1-31. -5 is invalid.";
-            final String expectedMessage3 = "Monthly setting policy schedule can only have " +
-                    "active day(s) 1-31. 32 is invalid.";
-            final String expectedMessage4 = "Monthly setting policy schedule can only have " +
-                    "active day(s) 1-31. 0 is invalid.";
-            assertTrue(e.getMessage().contains(expectedMessage1));
-            assertTrue(e.getMessage().contains(expectedMessage2));
-            assertTrue(e.getMessage().contains(expectedMessage3));
-            assertTrue(e.getMessage().contains(expectedMessage4));
-        }
-    }
-
-    @Test
-    public void testSettingPolicyScheduleMonthlyValid() throws InvalidItemException {
-        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
-                .setNumericSettingValueType(NumericSettingValueType.getDefaultInstance())
-                .build()));
-        final SettingPolicyInfo info = newInfo()
-                .setSchedule(Schedule.newBuilder()
-                        .setStartTime(123456789L)
-                        .setMinutes(30)
-                        .setPerpetual(Perpetual.getDefaultInstance())
-                        .setMonthly(Monthly.newBuilder().addDaysOfMonth(6)))
-                .build();
-        validator.validateSettingPolicy(info, Type.USER);
-    }
-
-    @Test
-    public void testSettingPolicyScheduleWeeklyValid() throws InvalidItemException {
-        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
-                .setNumericSettingValueType(NumericSettingValueType.getDefaultInstance())
-                .build()));
-        final SettingPolicyInfo info = newInfo()
-                .setSchedule(Schedule.newBuilder()
-                        .setStartTime(123456789L)
-                        .setMinutes(30)
-                        .setPerpetual(Perpetual.getDefaultInstance())
-                        .setWeekly(Weekly.newBuilder().addDaysOfWeek(DayOfWeek.THURSDAY).build()))
-                .build();
-        validator.validateSettingPolicy(info, Type.USER);
-    }
-
-    @Test
-    public void testSettingPolicyScheduleDailyValid() throws InvalidItemException {
-        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
-                .setNumericSettingValueType(NumericSettingValueType.getDefaultInstance())
-                .build()));
-        final SettingPolicyInfo info = newInfo()
-                .setSchedule(Schedule.newBuilder()
-                        .setStartTime(123456789L)
-                        .setMinutes(30)
-                        .setPerpetual(Perpetual.getDefaultInstance())
-                        .setDaily(Daily.getDefaultInstance()))
-                .build();
-        validator.validateSettingPolicy(info, Type.USER);
-    }
-
-    @Test
-    public void testSettingPolicyScheduleOneTimeValid() throws InvalidItemException {
-        when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
-                .setNumericSettingValueType(NumericSettingValueType.getDefaultInstance())
-                .build()));
-        final SettingPolicyInfo info = newInfo()
-                .setSchedule(Schedule.newBuilder()
-                        .setStartTime(123456789L)
-                        .setMinutes(30)
-                        .setEndTime(987654321L)
-                        .setOneTime(OneTime.getDefaultInstance()))
-                .build();
-        validator.validateSettingPolicy(info, Type.USER);
     }
 
     private SettingPolicyInfo.Builder newInfo() {

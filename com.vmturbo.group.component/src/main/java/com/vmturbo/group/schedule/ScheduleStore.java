@@ -3,6 +3,7 @@ package com.vmturbo.group.schedule;
 import static com.vmturbo.group.db.Tables.SCHEDULE;
 import static com.vmturbo.group.db.Tables.SETTING_POLICY_SCHEDULE;
 import static org.jooq.impl.DSL.deleteFrom;
+import static org.jooq.impl.DSL.trueCondition;
 
 import java.io.IOException;
 import java.sql.Timestamp;
@@ -24,6 +25,7 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Record1;
 import org.jooq.exception.DataAccessException;
@@ -141,9 +143,27 @@ public class ScheduleStore implements Diagnosable {
      */
     @Nonnull
     public Stream<ScheduleProto.Schedule> getSchedules() {
+        return getSchedules(Sets.newHashSet());
+    }
+
+    /**
+     * Get schedules from the database.
+     *
+     * @param ids of schedules to fetch.
+     *
+     * @return Schedules for specified ids or all schedules stored in the database if
+     * no ids have been provided
+     */
+    @Nonnull
+    public Stream<ScheduleProto.Schedule> getSchedules(@Nonnull final Set<Long> ids) {
         return dslContext.transactionResult(configuration -> {
             final DSLContext context = DSL.using(configuration);
+            Condition whereCondition = trueCondition();
+            if (!ids.isEmpty()) {
+                whereCondition = SCHEDULE.ID.in(ids);
+            }
             return context.selectFrom(SCHEDULE)
+                .where(whereCondition)
                 .fetch()
                 .into(Schedule.class)
                 .stream()
@@ -576,7 +596,7 @@ public class ScheduleStore implements Diagnosable {
             scheduleMessage.getDisplayName(),
             new Timestamp(scheduleMessage.getStartTime()),
             new Timestamp(scheduleMessage.getEndTime()),
-            scheduleMessage.hasPerpetual() ?
+            scheduleMessage.hasOneTime() || scheduleMessage.hasPerpetual() ?
                 null : new Timestamp(scheduleMessage.getLastDate()),
             scheduleMessage.hasOneTime() ?
                 null : scheduleMessage.getRecurRule(),
@@ -597,7 +617,7 @@ public class ScheduleStore implements Diagnosable {
         recordToUpdate.setDisplayName(scheduleMessage.getDisplayName());
         recordToUpdate.setStartTime(new Timestamp(scheduleMessage.getStartTime()));
         recordToUpdate.setEndTime(new Timestamp(scheduleMessage.getEndTime()));
-        recordToUpdate.setLastDate(scheduleMessage.hasPerpetual() ?
+        recordToUpdate.setLastDate(scheduleMessage.hasOneTime() || scheduleMessage.hasPerpetual() ?
             null : new Timestamp(scheduleMessage.getLastDate()));
         recordToUpdate.setRecurRule(scheduleMessage.hasOneTime() ?
             null : scheduleMessage.getRecurRule());

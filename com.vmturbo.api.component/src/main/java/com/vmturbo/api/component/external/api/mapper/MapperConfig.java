@@ -234,9 +234,12 @@ public class MapperConfig {
                 communicationConfig.groupRpcService(),
                 communicationConfig.settingPolicyRpcService(),
                 settingManagerMappingLoader().getMapping(),
-                settingSpecStyleMappingLoader().getMapping());
+                settingSpecStyleMappingLoader().getMapping(),
+                communicationConfig.scheduleRpcService(),
+                scheduleMapper());
     }
 
+    @Bean
     public ScheduleMapper scheduleMapper() {
         return new ScheduleMapper();
     }

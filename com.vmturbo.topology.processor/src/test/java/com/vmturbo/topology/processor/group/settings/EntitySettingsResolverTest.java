@@ -28,6 +28,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
+import io.grpc.stub.StreamObserver;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -36,13 +43,6 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameter;
 import org.junit.runners.Parameterized.Parameters;
 import org.mockito.ArgumentCaptor;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-
-import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -919,6 +919,6 @@ public class EntitySettingsResolverTest {
     }
 
     private SettingPolicy addSchedule(SettingPolicy policy, Schedule schedule) {
-        return policy.toBuilder().setInfo(policy.getInfo().toBuilder().setSchedule(schedule)).build();
+        return policy.toBuilder().setInfo(policy.getInfo().toBuilder().setDeprecatedSchedule(schedule)).build();
     }
 }

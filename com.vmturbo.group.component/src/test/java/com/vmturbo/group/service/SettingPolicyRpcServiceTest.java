@@ -23,16 +23,16 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.mockito.ArgumentCaptor;
-
 import com.google.common.collect.ImmutableMap;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
+
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
@@ -52,6 +52,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingTo
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesUsingScheduleRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
@@ -1073,6 +1074,45 @@ public class SettingPolicyRpcServiceTest {
         verify(responseObserver).onError(exceptionCaptor.capture());
         assertThat(exceptionCaptor.getValue(),
             GrpcExceptionMatcher.hasCode(Code.NOT_FOUND).anyDescription());
+    }
+
+    /**
+     * Test get setting policies using schedule rpc.
+     */
+    @Test
+    public void testGetPoliciesUsingSchedule() {
+        final StreamObserver<SettingPolicy> responseObserver =
+            (StreamObserver<SettingPolicy>)mock(StreamObserver.class);
+        final long scheduleId = 11L;
+        when(settingStore.getSettingPoliciesUsingSchedule(scheduleId))
+            .thenReturn(Stream.of(settingPolicy, settingPolicy));
+        settingPolicyService.getSettingPoliciesUsingSchedule(
+            GetSettingPoliciesUsingScheduleRequest.newBuilder()
+                .setScheduleId(scheduleId)
+                .build(),
+            responseObserver);
+
+        verify(responseObserver, times(2)).onNext(eq(settingPolicy));
+        verify(responseObserver).onCompleted();
+    }
+
+    /**
+     * Test get setting policies using schedule rpc with missing schedule id in request
+     * generates error.
+     */
+    @Test
+    public void testGetPoliciesUsingScheduleMissingScheduleId() {
+        final StreamObserver<SettingPolicy> responseObserver =
+            (StreamObserver<SettingPolicy>)mock(StreamObserver.class);
+        settingPolicyService.getSettingPoliciesUsingSchedule(
+            GetSettingPoliciesUsingScheduleRequest.getDefaultInstance(),
+            responseObserver);
+
+        final ArgumentCaptor<StatusException> exceptionCaptor =
+            ArgumentCaptor.forClass(StatusException.class);
+        verify(responseObserver).onError(exceptionCaptor.capture());
+        assertThat(exceptionCaptor.getValue(),
+            GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT).anyDescription());
     }
 
 }

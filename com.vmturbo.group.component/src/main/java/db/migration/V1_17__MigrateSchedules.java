@@ -104,8 +104,8 @@ public class V1_17__MigrateSchedules implements JdbcMigration {
         throws InvalidProtocolBufferException, SQLException {
         final SettingProto.SettingPolicyInfo settingPolicyInfo = SettingProto.SettingPolicyInfo
             .parseFrom(settingPolicydata);
-        if (settingPolicyInfo.hasSchedule()) {
-            final Schedule scheduleInfo = settingPolicyInfo.getSchedule();
+        if (settingPolicyInfo.hasDeprecatedSchedule()) {
+            final Schedule scheduleInfo = settingPolicyInfo.getDeprecatedSchedule();
             final long nextScheduleId = identityProvider.next();
             //id
             schedulePrepStmt.setLong(1, nextScheduleId);

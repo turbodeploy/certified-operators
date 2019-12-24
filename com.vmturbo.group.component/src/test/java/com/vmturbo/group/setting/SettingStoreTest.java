@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -34,6 +35,8 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.Perpetual;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
@@ -60,6 +63,8 @@ import com.vmturbo.group.db.GroupComponent;
 import com.vmturbo.group.group.DbCleanupRule;
 import com.vmturbo.group.group.DbConfigurationRule;
 import com.vmturbo.group.identity.IdentityProvider;
+import com.vmturbo.group.schedule.ScheduleStore;
+import com.vmturbo.group.schedule.ScheduleValidator;
 
 /**
  * Unit test for {@link SettingStore}.
@@ -81,6 +86,8 @@ public class SettingStoreTest {
 
     private SettingStore settingStore;
     private SettingSpecStore settingSpecStore;
+    private ScheduleStore scheduleStore;
+    private final ScheduleValidator scheduleValidator = mock(ScheduleValidator.class);
 
     private final SettingPolicyInfo info = SettingPolicyInfo.newBuilder()
             .setName("test")
@@ -102,6 +109,8 @@ public class SettingStoreTest {
         settingStore =
                 new SettingStore(settingSpecStore, dbConfig.getDslContext(), identityProviderSpy,
                         settingPolicyValidator, settingsUpdatesSender);
+        scheduleStore = new ScheduleStore(dbConfig.getDslContext(), scheduleValidator,
+            identityProviderSpy, settingStore);
     }
 
     @Test(expected = DuplicateNameException.class)
@@ -127,6 +136,37 @@ public class SettingStoreTest {
         Optional<SettingPolicy> gotPolicy = settingStore.getSettingPolicy(policy.getId());
         assertTrue(gotPolicy.isPresent());
         assertEquals(policy, gotPolicy.get());
+    }
+
+    /**
+     * Test create user setting policy with schedule.
+     *
+     * @throws Exception If any exceptions
+     */
+    @Test
+    public void testCreateUserWithScheduleThenGetById() throws Exception {
+        Schedule schedule1 = Schedule.newBuilder()
+            .setDisplayName("Test schedule1")
+            .setStartTime(1446760800000L)
+            .setEndTime(1446766200000L)
+            .setPerpetual(Perpetual.newBuilder().build())
+            .setTimezoneId("Test timezone")
+            .build();
+        final Schedule savedSchedule = scheduleStore.createSchedule(schedule1);
+        assertTrue(savedSchedule.hasId());
+
+        long scheduleId = savedSchedule.getId();
+        SettingPolicyInfo infoWithSchedule = info.toBuilder().setScheduleId(scheduleId).build();
+        SettingPolicy policy = settingStore.createUserSettingPolicy(infoWithSchedule);
+
+        assertEquals(infoWithSchedule, policy.getInfo());
+        assertTrue(policy.hasId());
+
+        Optional<SettingPolicy> savedPolicy = settingStore.getSettingPolicy(policy.getId());
+        assertTrue(savedPolicy.isPresent());
+        assertEquals(policy, savedPolicy.get());
+        assertTrue(savedPolicy.get().getInfo().hasScheduleId());
+        assertEquals(scheduleId, savedPolicy.get().getInfo().getScheduleId());
     }
 
     @Test
@@ -168,6 +208,47 @@ public class SettingStoreTest {
         Optional<SettingPolicy> gotPolicy = settingStore.getSettingPolicy(policy.getId());
         assertTrue(gotPolicy.isPresent());
         assertEquals(updatedPolicy, gotPolicy.get());
+    }
+
+    /**
+     * Test update settings policy with schedule.
+     *
+     * @throws Exception If any exceptions.
+     */
+    @Test
+    public void testUpdateSettingPolicyUpdateSchedule() throws Exception {
+        Schedule schedule1 = Schedule.newBuilder()
+            .setDisplayName("Test schedule1")
+            .setStartTime(1446760800000L)
+            .setEndTime(1446766200000L)
+            .setPerpetual(Perpetual.newBuilder().build())
+            .setTimezoneId("Test timezone")
+            .build();
+        final Schedule savedSchedule1 = scheduleStore.createSchedule(schedule1);
+        assertTrue(savedSchedule1.hasId());
+
+        Schedule schedule2 = schedule1.toBuilder().setDisplayName("Test schedule2").build();
+        final Schedule savedSchedule2 = scheduleStore.createSchedule(schedule2);
+        assertTrue(savedSchedule2.hasId());
+
+        long scheduleId1 = savedSchedule1.getId();
+        SettingPolicyInfo infoWithSchedule = info.toBuilder().setScheduleId(scheduleId1).build();
+        SettingPolicy policy = settingStore.createUserSettingPolicy(infoWithSchedule);
+
+        Optional<SettingPolicy> savedPolicy = settingStore.getSettingPolicy(policy.getId());
+        assertTrue(savedPolicy.isPresent());
+        assertEquals(policy, savedPolicy.get());
+        assertTrue(savedPolicy.get().getInfo().hasScheduleId());
+        assertEquals(scheduleId1, savedPolicy.get().getInfo().getScheduleId());
+
+        long scheduleId2 = savedSchedule2.getId();
+        SettingPolicyInfo updatedInfoWithSchedule = savedPolicy.get().getInfo().toBuilder()
+            .setScheduleId(scheduleId2).build();
+        SettingPolicy updatedPolicy = policy.toBuilder().setInfo(updatedInfoWithSchedule).build();
+        SettingPolicy updatedSavedPolicy = settingStore.updateSettingPolicy(savedPolicy.get().getId(),
+            updatedInfoWithSchedule);
+        assertEquals(updatedPolicy, updatedSavedPolicy);
+        assertEquals(scheduleId2, updatedSavedPolicy.getInfo().getScheduleId());
     }
 
     @Test(expected = SettingPolicyNotFoundException.class)
@@ -584,5 +665,61 @@ public class SettingStoreTest {
         // verify that policy12 should still have one group in scope
         final SettingPolicy policy12AfterUpdate = settingStore.getSettingPolicy("policy12").get();
         assertEquals(1, policy12AfterUpdate.getInfo().getScope().getGroupsList().size());
+    }
+
+    /**
+     * Test get setting policies using schedule.
+     *
+     * @throws Exception If any exceptions thrown during test execution.
+     */
+    @Test
+    public void testGetSettingPoliciesUsingSchedule() throws Exception {
+        Schedule schedule1 = Schedule.newBuilder()
+            .setDisplayName("Test schedule1")
+            .setStartTime(1446760800000L)
+            .setEndTime(1446766200000L)
+            .setPerpetual(Perpetual.newBuilder().build())
+            .setTimezoneId("Test timezone")
+            .build();
+        final Schedule savedSchedule = scheduleStore.createSchedule(schedule1);
+        assertTrue(savedSchedule.hasId());
+
+        // No policies using this schedule yet
+        List<SettingPolicy> settingPolicies = settingStore.getSettingPoliciesUsingSchedule(
+            savedSchedule.getId()).collect(Collectors.toList());
+        assertTrue(settingPolicies.isEmpty());
+
+        final SettingPolicy policy1 = settingStore.createUserSettingPolicy(info);
+        assertTrue(policy1.hasId());
+        scheduleStore.assignScheduleToSettingPolicy(policy1.getId(), savedSchedule.getId());
+
+        final SettingPolicyInfo info2 = info.toBuilder().setName("test2").build();
+        final SettingPolicy policy2 = settingStore.createUserSettingPolicy(info2);
+        assertTrue(policy2.hasId());
+        assertNotEquals(policy1.getId(), policy2.getId());
+        scheduleStore.assignScheduleToSettingPolicy(policy2.getId(), savedSchedule.getId());
+
+        // Now 2 policies should be using this schedule
+        settingPolicies = settingStore.getSettingPoliciesUsingSchedule(
+            savedSchedule.getId()).collect(Collectors.toList());
+        assertEquals(2, settingPolicies.size());
+        settingPolicies.forEach(sPolicy -> assertTrue(sPolicy.getInfo().hasScheduleId()));
+
+        // Add 1 more policy without schedule
+        final SettingPolicyInfo info3 = info.toBuilder().setName("test3").build();
+        final SettingPolicy policy3 = settingStore.createUserSettingPolicy(info3);
+        assertTrue(policy3.hasId());
+
+        List<SettingPolicy> allPolicies =
+            settingStore.getSettingPolicies(SettingPolicyFilter.newBuilder().build())
+                .collect(Collectors.toList());
+        assertEquals(3, allPolicies.size());
+
+        // Still 2 policies should be using this schedule
+        settingPolicies = settingStore.getSettingPoliciesUsingSchedule(
+            savedSchedule.getId()).collect(Collectors.toList());
+        assertEquals(2, settingPolicies.size());
+        settingPolicies.forEach(sPolicy -> assertTrue(sPolicy.getInfo().hasScheduleId()));
+
     }
 }

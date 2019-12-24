@@ -4,6 +4,7 @@ import java.text.ParseException;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -65,7 +66,11 @@ public class ScheduleRpcService extends ScheduleServiceImplBase {
                              final StreamObserver<Schedule> responseObserver) {
         final long periodStartTime = request.hasRefTime() ? request.getRefTime() :
             Instant.now().toEpochMilli();
-        scheduleStore.getSchedules().forEach(schedule -> {
+        final Set<Long> scheduleIds = Sets.newHashSet();
+        if (!request.getOidList().isEmpty()) {
+            scheduleIds.addAll(request.getOidList());
+        }
+        scheduleStore.getSchedules(scheduleIds).forEach(schedule -> {
             try {
                 responseObserver.onNext(ScheduleUtils.calculateNextOccurrenceAndRemainingTimeActive(
                     schedule.toBuilder(), periodStartTime));

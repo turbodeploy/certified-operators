@@ -11,6 +11,7 @@ import static org.mockito.Mockito.spy;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -25,8 +26,10 @@ import org.junit.rules.ExpectedException;
 import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.api.component.external.api.mapper.ScheduleMapper;
+import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.dto.settingspolicy.RecurrenceApiDTO;
 import com.vmturbo.api.dto.settingspolicy.ScheduleApiDTO;
+import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.enums.DayOfWeek;
 import com.vmturbo.api.enums.RecurrenceType;
 import com.vmturbo.api.exceptions.OperationFailedException;
@@ -43,6 +46,11 @@ import com.vmturbo.common.protobuf.schedule.ScheduleProto.UpdateScheduleResponse
 import com.vmturbo.common.protobuf.schedule.ScheduleProtoMoles.ScheduleServiceMole;
 import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc;
 import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc.ScheduleServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesUsingScheduleRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
 /**
@@ -87,18 +95,24 @@ public class SchedulesServiceTest {
 
     private static final long ID = 11L;
     private static final Schedule SCHEDULE = Schedule.getDefaultInstance();
+    private static final SettingPolicy SETTING_POLICY = SettingPolicy.getDefaultInstance();
     private static final ScheduleApiDTO SCHEDULE_API_DTO = new ScheduleApiDTO();
+    private static final SettingsPolicyApiDTO SETTINGS_POLICY_API_DTO = new SettingsPolicyApiDTO();
     private final ScheduleMapper scheduleMapper = mock(ScheduleMapper.class);
+    private final SettingsMapper settingsMapper = mock(SettingsMapper.class);
     /** Expected exceptions to test against. */
     @Rule
     public ExpectedException thrown = ExpectedException.none();
     private ScheduleServiceMole grpcScheduleService = spy(new ScheduleServiceMole());
+    private SettingPolicyServiceMole grpcSettingPolicyService = spy(new SettingPolicyServiceMole());
     /**
      * Grpc server mock.
      */
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(grpcScheduleService);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(grpcScheduleService,
+        grpcSettingPolicyService);
     private ScheduleServiceBlockingStub scheduleServiceStub;
+    private SettingPolicyServiceBlockingStub settingPolicyServiceStub;
     private SchedulesService schedulesService;
 
     /**
@@ -108,7 +122,9 @@ public class SchedulesServiceTest {
     public void setup() {
         MockitoAnnotations.initMocks(this);
         scheduleServiceStub = ScheduleServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        schedulesService = spy(new SchedulesService(scheduleServiceStub, scheduleMapper));
+        settingPolicyServiceStub = SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        schedulesService = spy(new SchedulesService(scheduleServiceStub, settingPolicyServiceStub,
+            scheduleMapper, settingsMapper));
     }
 
     private ScheduleApiDTO createNonRecurringScheduleDTO() {
@@ -364,6 +380,27 @@ public class SchedulesServiceTest {
 
         thrown.expect(OperationFailedException.class);
         schedulesService.deleteSchedule(String.valueOf(ID));
+    }
+
+    /**
+     * Test get setting polciies using the schedule.
+     *
+     * @throws Exception If any unexpected exception
+     */
+    @Test
+    public void testGetPoliciesUsingTheSchedule() throws Exception {
+        List<SettingPolicy> settingPolicies = Arrays.asList(SETTING_POLICY, SETTING_POLICY);
+        doReturn(settingPolicies)
+            .when(grpcSettingPolicyService).getSettingPoliciesUsingSchedule(
+                GetSettingPoliciesUsingScheduleRequest.newBuilder()
+            .setScheduleId(ID)
+            .build());
+        doReturn(Arrays.asList(SETTINGS_POLICY_API_DTO, SETTINGS_POLICY_API_DTO))
+            .when(settingsMapper).convertSettingPolicies(settingPolicies);
+
+        List<SettingsPolicyApiDTO> retList = schedulesService.getPoliciesUsingTheSchedule(
+            String.valueOf(ID));
+        assertEquals(2, retList.size());
     }
 
     // Validation tests

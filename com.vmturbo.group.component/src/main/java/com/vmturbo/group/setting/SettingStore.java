@@ -2,11 +2,11 @@ package com.vmturbo.group.setting;
 
 import static com.vmturbo.group.db.Tables.GLOBAL_SETTINGS;
 import static com.vmturbo.group.db.Tables.SETTING_POLICY;
+import static com.vmturbo.group.db.Tables.SETTING_POLICY_SCHEDULE;
 
 import java.sql.SQLException;
 import java.sql.SQLTransientException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -32,6 +32,7 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.BatchBindStep;
 import org.jooq.DSLContext;
 import org.jooq.Record1;
+import org.jooq.Result;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 import org.springframework.retry.annotation.Backoff;
@@ -56,7 +57,9 @@ import com.vmturbo.group.common.TargetCollectionUpdate.TargetPolicyUpdate;
 import com.vmturbo.group.common.TargetCollectionUpdate.TargetSettingPolicyUpdate;
 import com.vmturbo.group.db.enums.SettingPolicyPolicyType;
 import com.vmturbo.group.db.tables.pojos.SettingPolicy;
+import com.vmturbo.group.db.tables.pojos.SettingPolicySchedule;
 import com.vmturbo.group.db.tables.records.SettingPolicyRecord;
+import com.vmturbo.group.db.tables.records.SettingPolicyScheduleRecord;
 import com.vmturbo.group.identity.IdentityProvider;
 
 /**
@@ -146,14 +149,20 @@ public class SettingStore implements Diagnosable {
                             settingPolicyInfo.getName());
                 }
 
+                final long settingPolicyId = identityProvider.next();
                 final SettingPolicy jooqSettingPolicy = new SettingPolicy(
-                    identityProvider.next(),
+                    settingPolicyId,
                     settingPolicyInfo.getName(),
                     settingPolicyInfo.getEntityType(),
                     settingPolicyInfo,
                     SettingPolicyTypeConverter.typeToDb(type),
                     settingPolicyInfo.getTargetId());
                 context.newRecord(SETTING_POLICY, jooqSettingPolicy).store();
+                if (settingPolicyInfo.hasScheduleId()) {
+                    // OM-52825 will deal with SettingPolicyInfo refactoring
+                    assignSchedule(context, settingPolicyId,
+                        settingPolicyInfo.getScheduleId());
+                }
                 SettingProto.SettingPolicy newSettingPolicy = toSettingPolicy(jooqSettingPolicy);
                 groupToSettingPolicyIndex.add(newSettingPolicy);
                 return newSettingPolicy;
@@ -469,6 +478,11 @@ public class SettingStore implements Diagnosable {
             throw new IllegalStateException("Failed to delete record.");
         }
 
+        // also delete any schedule mapping
+        context.delete(SETTING_POLICY_SCHEDULE)
+            .where(SETTING_POLICY_SCHEDULE.SETTING_POLICY_ID.eq(settingPolicyId))
+            .execute();
+
         SettingProto.SettingPolicy deletedPolicy = toSettingPolicy(record);
         groupToSettingPolicyIndex.remove(deletedPolicy);
         return deletedPolicy;
@@ -477,12 +491,38 @@ public class SettingStore implements Diagnosable {
     private Stream<SettingProto.SettingPolicy> getSettingPolicies(
             @Nonnull final DSLContext context,
             @Nonnull final SettingPolicyFilter filter) throws DataAccessException {
-        return context.selectFrom(SETTING_POLICY)
-                .where(filter.getConditions())
+        final Stream<SettingProto.SettingPolicy> settingPolicies =  context.selectFrom(SETTING_POLICY)
+            .where(filter.getConditions())
+            .fetch()
+            .into(SettingPolicy.class)
+            .stream()
+            .map(this::toSettingPolicy);
+        return addScheduleToSettingPolicy(context, settingPolicies);
+    }
+
+    /**
+     * Fetch all settings policies that use specified schedule.
+     *
+     * @param scheduleId ID of the {@link com.vmturbo.group.db.tables.pojos.Schedule} setting
+     * policies are being fetched for
+     * @return A stream of {@link SettingPolicy} objects that use the schedule.
+     * @throws DataAccessException If there is an exception executing the query.
+     */
+    @Nonnull
+    public Stream<SettingProto.SettingPolicy> getSettingPoliciesUsingSchedule(final long scheduleId)
+        throws DataAccessException {
+        return dslContext.transactionResult(configuration -> {
+            final DSLContext context = DSL.using(configuration);
+            return context.select(SETTING_POLICY.fields())
+                .from(SETTING_POLICY
+                    .join(SETTING_POLICY_SCHEDULE)
+                    .on(SETTING_POLICY_SCHEDULE.SETTING_POLICY_ID.eq(SETTING_POLICY.ID)))
+                .where(SETTING_POLICY_SCHEDULE.SCHEDULE_ID.eq(scheduleId))
                 .fetch()
                 .into(SettingPolicy.class)
                 .stream()
-                .map(this::toSettingPolicy);
+                .map(sPolicyRecord -> toSettingPolicyWithSchedule(sPolicyRecord, scheduleId));
+        });
     }
 
     /**
@@ -583,6 +623,15 @@ public class SettingStore implements Diagnosable {
             // and update() should always execute an UPDATE statement if some fields
             // got overwritten.
             throw new IllegalStateException("Failed to update record.");
+        }
+        if (policy.getInfo().hasScheduleId()) {
+            // OM-52825 will deal with SettingPolicyInfo refactoring
+            assignSchedule(context, policy.getId(), policy.getInfo().getScheduleId());
+        } else {
+            // delete assigned schedule if any
+            context.delete(SETTING_POLICY_SCHEDULE)
+                .where(SETTING_POLICY_SCHEDULE.SETTING_POLICY_ID.eq(policy.getId()))
+                .execute();
         }
         SettingProto.SettingPolicy updatedPolicy = toSettingPolicy(record);
         groupToSettingPolicyIndex.update(updatedPolicy);
@@ -1002,6 +1051,74 @@ public class SettingStore implements Diagnosable {
     }
 
     /**
+     * Assign the specified schedule to the setting policy.
+     *
+     * @param context Jooq context to use for transactional purposes
+     * @param settingPolicyId {@link SettingPolicy} id
+     * @param scheduleId {@link com.vmturbo.group.db.tables.pojos.Schedule} id
+     * @return Number of modifies records
+     */
+    private int assignSchedule(@Nonnull final DSLContext context,
+                               final long settingPolicyId, final long scheduleId) {
+        Result<SettingPolicyScheduleRecord> settingPolicySchedules =
+            context.selectFrom(SETTING_POLICY_SCHEDULE)
+            .where(SETTING_POLICY_SCHEDULE.SETTING_POLICY_ID.eq(settingPolicyId))
+            .fetch();
+        // For now we support at most one schedule per setting policy
+        if (settingPolicySchedules.size() > 1) {
+            logger.error("Found {} schedules for setting policy id {}, expected at most one schedule",
+            () -> settingPolicySchedules.size(), () -> settingPolicyId);
+            throw new IllegalStateException("More than one schedule found for setting policy");
+        }
+        if (settingPolicySchedules.isEmpty()) {
+            final SettingPolicySchedule settingPolicySchedule = new SettingPolicySchedule(
+                settingPolicyId, scheduleId);
+            return context.newRecord(SETTING_POLICY_SCHEDULE, settingPolicySchedule).store();
+        } else {
+            SettingPolicyScheduleRecord existingRecord = settingPolicySchedules.get(0);
+            if (scheduleId != existingRecord.getScheduleId()) {
+                existingRecord.setScheduleId(scheduleId);
+                return existingRecord.update();
+            }
+        }
+        return 0;
+    }
+
+    /**
+     * If setting policy has schedule assigned to it, add the schedule to the {@link SettingPolicyInfo}.
+     * @param context Jooq context to use for transactional purposes
+     * @param settingPolicies {@link com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy}
+     * to which the schedule is added.
+     * @return Stream with updated {@link com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy}
+     * objects.
+     */
+    private Stream<SettingProto.SettingPolicy> addScheduleToSettingPolicy(@Nonnull final DSLContext context,
+                    @Nonnull Stream<SettingProto.SettingPolicy> settingPolicies) {
+        final Map<Long, SettingProto.SettingPolicy> sPolicyMap = settingPolicies.collect(
+            Collectors.toMap(SettingProto.SettingPolicy::getId, Function.identity()));
+        final Map<Long, List<Long>> settingPolicySchedules = context.selectFrom(SETTING_POLICY_SCHEDULE)
+            .where(SETTING_POLICY_SCHEDULE.SETTING_POLICY_ID.in(sPolicyMap.keySet()))
+            .fetchGroups(SETTING_POLICY_SCHEDULE.SETTING_POLICY_ID, SETTING_POLICY_SCHEDULE.SCHEDULE_ID);
+        // For now we support at most one schedule per setting policy
+        settingPolicySchedules.forEach((settingPolicyId, scheduleIds) -> {
+            if (scheduleIds.size() > 1) {
+                logger.error("Found {} schedules for setting policy id {}, expected at most one schedule",
+                    () -> scheduleIds.size(), () -> settingPolicyId);
+                throw new IllegalStateException("More than one schedule found for setting policy " +
+                    settingPolicyId);
+            }
+            if (scheduleIds.size() > 0) {
+                final long scheduleId = scheduleIds.get(0);
+                sPolicyMap.compute(settingPolicyId, (sPolicyId, sPolicy) -> sPolicy.toBuilder()
+                    .setInfo(sPolicy.getInfo().toBuilder().setScheduleId(scheduleId).build())
+                    .build());
+            }
+        });
+
+        return sPolicyMap.values().stream();
+    }
+
+    /**
      * Convert a {@link SettingPolicyRecord} retrieved from the database into a
      * {@link SettingPolicy}.
      *
@@ -1017,5 +1134,28 @@ public class SettingStore implements Diagnosable {
                         SettingPolicyTypeConverter.typeFromDb(jooqRecord.getPolicyType()))
                 .setInfo(jooqRecord.getSettingPolicyData())
                 .build();
+    }
+
+
+    /**
+     * Convert a {@link SettingPolicy} retrieved from the database into a {@link SettingPolicy}.
+     *
+     * @param jooqSettingPolicy The setting policy retrieved from the database via jooq.
+     * @param scheduleId The ID of the schedule used by the policy.
+     * @return An equivalent {@link SettingPolicy}.
+     */
+    @Nonnull
+    private SettingProto.SettingPolicy toSettingPolicyWithSchedule(
+        @Nonnull final SettingPolicy jooqSettingPolicy, final long scheduleId) {
+        final SettingPolicyInfo settingPolicyInfo = jooqSettingPolicy.getSettingPolicyData()
+            .toBuilder()
+            .setScheduleId(scheduleId)
+            .build();
+        return SettingProto.SettingPolicy.newBuilder()
+            .setId(jooqSettingPolicy.getId())
+            .setSettingPolicyType(
+                SettingPolicyTypeConverter.typeFromDb(jooqSettingPolicy.getPolicyType()))
+            .setInfo(settingPolicyInfo)
+            .build();
     }
 }

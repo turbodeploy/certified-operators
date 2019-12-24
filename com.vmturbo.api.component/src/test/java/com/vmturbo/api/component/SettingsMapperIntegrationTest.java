@@ -14,6 +14,7 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.api.component.external.api.mapper.ScheduleMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingSpecStyleMappingLoader;
 import com.vmturbo.api.component.external.api.mapper.SettingSpecStyleMappingLoader.SettingSpecStyleMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader;
@@ -24,6 +25,7 @@ import com.vmturbo.api.component.external.api.service.SettingsService;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
@@ -67,7 +69,8 @@ public class SettingsMapperIntegrationTest {
                 new SettingsMapper(SettingServiceGrpc.newBlockingStub(channel),
                     GroupServiceGrpc.newBlockingStub(channel),
                     SettingPolicyServiceGrpc.newBlockingStub(channel),
-                    settingsManagerMapping, settingSpecStyleMapping);
+                    settingsManagerMapping, settingSpecStyleMapping,
+                    ScheduleServiceGrpc.newBlockingStub(channel), new ScheduleMapper());
         final SettingsService settingService =
                 new SettingsService(SettingServiceGrpc.newBlockingStub(channel),
                         StatsHistoryServiceGrpc.newBlockingStub(channel),

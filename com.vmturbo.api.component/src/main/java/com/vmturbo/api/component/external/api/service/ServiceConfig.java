@@ -427,7 +427,9 @@ public class ServiceConfig {
     @Bean
     public SchedulesService schedulesService() {
         return new SchedulesService(communicationConfig.scheduleRpcService(),
-            mapperConfig.scheduleMapper());
+            communicationConfig.settingPolicyRpcService(),
+            mapperConfig.scheduleMapper(),
+            mapperConfig.settingsMapper());
     }
 
     @Bean

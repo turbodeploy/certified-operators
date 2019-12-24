@@ -7,10 +7,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
+import java.time.ZoneId;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Optional;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import io.grpc.StatusException;
@@ -54,6 +57,7 @@ public class ScheduleRpcServiceTest {
         .setStartTime(START_TIME)
         .setEndTime(END_TIME)
         .setOneTime(OneTime.newBuilder().build())
+        .setTimezoneId(ZoneId.systemDefault().getId())
         .build();
 
     /** Expected exceptions to test against. */
@@ -176,7 +180,7 @@ public class ScheduleRpcServiceTest {
      */
     @Test
     public void testGetAllSchedules() {
-        when(scheduleStore.getSchedules()).thenReturn(Stream.of(SCHEDULE, SCHEDULE));
+        when(scheduleStore.getSchedules(Collections.emptySet())).thenReturn(Stream.of(SCHEDULE, SCHEDULE));
         final StreamObserver<Schedule> responseObserver =
             (StreamObserver<Schedule>)mock(StreamObserver.class);
 
@@ -191,11 +195,33 @@ public class ScheduleRpcServiceTest {
     }
 
     /**
+     * Test get schedules by IDs.
+     */
+    @Test
+    public void testGetSchedulesByIds() {
+        final ImmutableSet<Long> idSet = ImmutableSet.of(11L, 22L);
+        when(scheduleStore.getSchedules(idSet)).thenReturn(Stream.of(SCHEDULE, SCHEDULE));
+        final StreamObserver<Schedule> responseObserver =
+            (StreamObserver<Schedule>)mock(StreamObserver.class);
+
+        scheduleRpcService.getSchedules(GetSchedulesRequest.newBuilder()
+            .addAllOid(idSet)
+            .build(),
+            responseObserver);
+
+        final ArgumentCaptor<Schedule> responseCaptor =
+            ArgumentCaptor.forClass(Schedule.class);
+        verify(responseObserver, times(2)).onNext(responseCaptor.capture());
+        verify(responseObserver).onCompleted();
+        verifyResults(SCHEDULE, responseCaptor.getValue());
+    }
+
+    /**
      * Test get all schedules.
      */
     @Test
     public void testGetAllSchedulesWithRefTime() {
-        when(scheduleStore.getSchedules()).thenReturn(Stream.of(SCHEDULE, SCHEDULE));
+        when(scheduleStore.getSchedules(Collections.emptySet())).thenReturn(Stream.of(SCHEDULE, SCHEDULE));
         final StreamObserver<Schedule> responseObserver =
             (StreamObserver<Schedule>)mock(StreamObserver.class);
 
@@ -219,7 +245,7 @@ public class ScheduleRpcServiceTest {
         Schedule testSchedule = SCHEDULE.toBuilder()
             .clearOneTime()
             .setRecurRule("FREQ=DAILY;INTERVAL=2;UNTIL=INVALID").build();
-        when(scheduleStore.getSchedules()).thenReturn(Stream.of(testSchedule));
+        when(scheduleStore.getSchedules(Collections.emptySet())).thenReturn(Stream.of(testSchedule));
         final StreamObserver<Schedule> responseObserver =
             (StreamObserver<Schedule>)mock(StreamObserver.class);
 

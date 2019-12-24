@@ -30,12 +30,14 @@ message Schedule {
     // Recurrence start time
     optional RecurrenceStart recurrenceStart = 9;
 
-    // Whether the schedule applies daily, weekly, monthly, or only once.
+    // Whether the schedule is recurring or applies only once.
     oneof recurrence {
         OneTime one_time = 10;
-        Daily daily = 11;
-        Weekly weekly = 12;
-        Monthly monthly = 13;
+
+        // Recurrence rule as defined here: https://tools.ietf.org/html/rfc2445#section-4.3.10
+        // Eg. for schedule recurring monthly on the first Monday of every month it will look as follows
+        // FREQ=MONTHLY;BYDAY=MO;BYSETPOS=1;INTERVAL=1;
+        string recur_rule = 14;
     }
 
     // The last date (milliseconds since Unix epoch) the schedule is active, if any
@@ -44,48 +46,11 @@ message Schedule {
         Perpetual perpetual = 7;
     }
 
-    // Recurrence rule, if any
-    optional string recur_rule = 14;
-
     // Timezone id
     optional string timezone_id = 15;
 
     // A policy active only once
     message OneTime {}
-
-    // A schedule active daily
-    message Daily {
-        // Schedule should be active every specified number of days
-        optional int32 interval = 1;
-    }
-
-    // A schedule active weekly
-    message Weekly {
-
-        // The day(s) of the week on which the schedule should be active
-        // If not set, this defaults to the day of the start_date
-        repeated DayOfWeek days_of_week = 4;
-    }
-
-    // A schedule active monthly
-    message Monthly {
-
-        // The day(s) of the month on which the schedule should be active.
-        repeated int32 days_of_month = 4;
-        // Alternatively, if schedule is active on certain day each week, the weeks of the month
-        // the schedule should be active
-        repeated int32 weeks_of_month = 5;
-    }
-
-    enum DayOfWeek {
-        MONDAY = 1;
-        TUESDAY = 2;
-        WEDNESDAY = 3;
-        THURSDAY = 4;
-        FRIDAY = 5;
-        SATURDAY = 6;
-        SUNDAY = 7;
-    }
 
     // To mark that a schedule will continue indefinitely without an end date
     message Perpetual {}
@@ -108,9 +73,13 @@ message Schedule {
 
 // Request to retrieve all schedules
 message GetSchedulesRequest {
+    // Optionally provide ids of schedules to fetch
+    // If not provided, all schedules will be returned
+    repeated int64 oid = 1;
+
     // Optional UTC reference time timestamp against which next schedule occurrence will be calculated.
     // If not provided, current system time will be used.
-    optional int64 ref_time = 1;
+    optional int64 ref_time = 2;
 }
 
 // Request to retrieve specific schedule by id

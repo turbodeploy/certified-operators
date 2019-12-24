@@ -21,9 +21,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
@@ -32,6 +29,9 @@ import com.google.common.collect.Sets;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
@@ -252,7 +252,7 @@ public class EntitySettingsResolver {
                     sp.getInfo().getSettingsList().forEach(nextSetting -> {
                         final String specName = nextSetting.getSettingSpecName();
                         final long nextSettingPolicyId = sp.getId();
-                        final boolean hasSchedule = sp.getInfo().hasSchedule();
+                        final boolean hasSchedule = sp.getInfo().hasDeprecatedSchedule();
                         if (!settingsByName.containsKey(specName)) {
                             settingsByName.put(specName, new SettingAndPolicyIdRecord(
                                 nextSetting, nextSettingPolicyId, nextType, hasSchedule));
@@ -279,8 +279,8 @@ public class EntitySettingsResolver {
      * @return whether the policy is in effect
      */
     private static boolean inEffectNow(SettingPolicy sp, ScheduleResolver scheduleResolver) {
-        return !sp.getInfo().hasSchedule()
-                || scheduleResolver.appliesAtResolutionInstant(sp.getInfo().getSchedule());
+        return !sp.getInfo().hasDeprecatedSchedule()
+                || scheduleResolver.appliesAtResolutionInstant(sp.getInfo().getDeprecatedSchedule());
     }
 
     /**

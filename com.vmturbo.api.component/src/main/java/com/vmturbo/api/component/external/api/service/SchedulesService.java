@@ -23,6 +23,7 @@ import org.springframework.validation.Errors;
 
 import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
 import com.vmturbo.api.component.external.api.mapper.ScheduleMapper;
+import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.settingspolicy.RecurrenceApiDTO;
@@ -42,6 +43,9 @@ import com.vmturbo.common.protobuf.schedule.ScheduleProto.UpdateScheduleRequest;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.UpdateScheduleResponse;
 import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc;
 import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc.ScheduleServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesUsingScheduleRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 
 /**
  * This class provides services for managing schedules. A schedule represents a number periods in time.
@@ -52,19 +56,27 @@ public class SchedulesService implements ISchedulesService {
     private final Logger logger = LogManager.getLogger();
 
     private final ScheduleServiceGrpc.ScheduleServiceBlockingStub scheduleService;
+    private final SettingPolicyServiceBlockingStub settingPolicyService;
     private final ScheduleMapper scheduleMapper;
+    private final SettingsMapper settingsMapper;
 
     /**
      * {@link SchedulesService} constructor.
-     *
      * @param scheduleService RPC Schedule Service
+     * @param settingPolicyService RPC Setting Policy Service
      * @param scheduleMapper Schedule Mapper for conversions between XL objects to their API counterparts
+     * @param settingsMapper Setting Mapper for conversions between XL setting policy objects to
+     *                       their API counterparts
      */
     public SchedulesService(
         @Nonnull final ScheduleServiceBlockingStub scheduleService,
-        @Nonnull final ScheduleMapper scheduleMapper) {
+        @Nonnull final SettingPolicyServiceBlockingStub settingPolicyService,
+        @Nonnull final ScheduleMapper scheduleMapper,
+        @Nonnull final SettingsMapper settingsMapper) {
         this.scheduleService = Objects.requireNonNull(scheduleService);
+        this.settingPolicyService = Objects.requireNonNull(settingPolicyService);
         this.scheduleMapper = Objects.requireNonNull(scheduleMapper);
+        this.settingsMapper = Objects.requireNonNull(settingsMapper);
     }
 
     /**
@@ -194,8 +206,15 @@ public class SchedulesService implements ISchedulesService {
      * @throws Exception in case of error during retrieving the policies of the input schedule.
      */
     @Override
-    public List<SettingsPolicyApiDTO> getPoliciesUsingTheSchedule(String uuid) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+    public List<SettingsPolicyApiDTO> getPoliciesUsingTheSchedule(String uuid) {
+        final List<SettingPolicy> settingPolicies = new LinkedList<>();
+        settingPolicyService.getSettingPoliciesUsingSchedule(
+            GetSettingPoliciesUsingScheduleRequest.newBuilder()
+                .setScheduleId(Long.valueOf(uuid))
+                .build())
+            .forEachRemaining(settingPolicies::add);
+
+        return settingsMapper.convertSettingPolicies(settingPolicies);
     }
 
     /**
