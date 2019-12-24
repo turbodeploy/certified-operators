@@ -46,6 +46,8 @@ public class HistoryAggregationConfig {
     private boolean percentileEnabled = true;
     @Value("${historyAggregation.percentileMaintenanceWindowHours}")
     private int percentileMaintenanceWindowHours = PercentileHistoricalEditorConfig.defaultMaintenanceWindowHours;
+    @Value("${historyAggregation.corruptedDataPeriodInMins:60}")
+    private int corruptedDataPeriodInMins = 60;
     @Value("${historyAggregation.percentileBuckets.VCPU:}")
     private String percentileBucketsVcpu;
     @Value("${historyAggregation.percentileBuckets.VMEM:}")
@@ -124,7 +126,7 @@ public class HistoryAggregationConfig {
     @Bean
     public PercentileHistoricalEditorConfig percentileEditorConfig() {
         return new PercentileHistoricalEditorConfig(historyAggregationCalculationChunkSize,
-                percentileMaintenanceWindowHours,
+                        corruptedDataPeriodInMins, percentileMaintenanceWindowHours,
                 grpcStreamTimeoutSec,
                 blobReadWriteChunkSizeKb,
                 ImmutableMap.of(CommodityType.VCPU, percentileBucketsVcpu,
@@ -132,7 +134,7 @@ public class HistoryAggregationConfig {
                         CommodityType.IMAGE_CPU, percentileBucketsImageCpu,
                         CommodityType.IMAGE_MEM, percentileBucketsImageMem,
                         CommodityType.IMAGE_STORAGE, percentileBucketsImageStorage),
-                kvConfig);
+                kvConfig, clockConfig.clock());
     }
 
     /**

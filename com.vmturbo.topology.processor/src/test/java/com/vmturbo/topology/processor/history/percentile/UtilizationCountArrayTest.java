@@ -34,6 +34,7 @@ public class UtilizationCountArrayTest {
      */
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
+    private long timestamp = System.currentTimeMillis();
 
     /**
      * Test the rank retrieval for the empty data.
@@ -68,7 +69,7 @@ public class UtilizationCountArrayTest {
     public void testRankZero() throws HistoryCalculationException {
         UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
         for (int i = 0; i < 100; ++i) {
-            counts.addPoint(i, 100, "", true);
+            counts.addPoint(i, 100, "", true, timestamp);
         }
         Assert.assertEquals(0, counts.getPercentile(0));
     }
@@ -115,10 +116,10 @@ public class UtilizationCountArrayTest {
         addCount(counts, 1, 5);
         addCount(counts, 2, 5);
         Assert.assertEquals(2, counts.getPercentile(80));
-        counts.addPoint(2, 100, "", false);
+        counts.addPoint(2, 100, "", false, timestamp);
         Assert.assertEquals(2, counts.getPercentile(80));
-        counts.addPoint(2, 100, "", false);
-        counts.addPoint(2, 100, "", false);
+        counts.addPoint(2, 100, "", false, timestamp);
+        counts.addPoint(2, 100, "", false, timestamp);
         Assert.assertEquals(1, counts.getPercentile(80));
     }
 
@@ -130,13 +131,13 @@ public class UtilizationCountArrayTest {
     @Test
     public void testSubtractPointsChangeCapacity() throws HistoryCalculationException {
         UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
-        counts.addPoint(10, 200, "", true);
-        counts.addPoint(20, 100, "", true);
+        counts.addPoint(10, 200, "", true, timestamp);
+        counts.addPoint(20, 100, "", true, timestamp);
         // now after rescaling we should have a point at 10 and a point at 20
         Assert.assertEquals(10, counts.getPercentile(50));
         Assert.assertEquals(20, counts.getPercentile(100));
         // removing 1st point
-        counts.addPoint(10, 200, "", false);
+        counts.addPoint(10, 200, "", false, timestamp);
         // now only one point at 20 should remain
         Assert.assertEquals(0, counts.getPercentile(80));
         Assert.assertEquals(20, counts.getPercentile(100));
@@ -154,7 +155,7 @@ public class UtilizationCountArrayTest {
         addCount(counts, 20, 5);
         Assert.assertEquals(10, counts.getPercentile(40));
         Assert.assertEquals(20, counts.getPercentile(80));
-        counts.addPoint(10, 200, "", true);
+        counts.addPoint(10, 200, "", true, timestamp);
         Assert.assertEquals(5, counts.getPercentile(40));
         Assert.assertEquals(10, counts.getPercentile(80));
     }
@@ -168,7 +169,7 @@ public class UtilizationCountArrayTest {
     public void testSerialize() throws HistoryCalculationException {
         UtilizationCountArray counts = new UtilizationCountArray(new PercentileBuckets());
         float capacity = 72631;
-        counts.addPoint(2, capacity, "", true);
+        counts.addPoint(2, capacity, "", true, timestamp);
         PercentileRecord.Builder builder = counts.serialize(REF);
         Assert.assertNotNull(builder);
         PercentileRecord record = builder.setPeriod(30).build();
@@ -325,10 +326,10 @@ public class UtilizationCountArrayTest {
         final UtilizationCountArray utilizationCountArray = new UtilizationCountArray(new PercentileBuckets());
         checkToString(utilizationCountArray::toDebugString, UtilizationCountArray.EMPTY);
         checkToString(utilizationCountArray::toString, UtilizationCountArray.EMPTY);
-        utilizationCountArray.addPoint(35, 100, null, true);
-        utilizationCountArray.addPoint(40, 100, null, true);
-        utilizationCountArray.addPoint(40, 100, null, true);
-        utilizationCountArray.addPoint(40, 100, null, true);
+        utilizationCountArray.addPoint(35, 100, null, true, timestamp);
+        utilizationCountArray.addPoint(40, 100, null, true, timestamp);
+        utilizationCountArray.addPoint(40, 100, null, true, timestamp);
+        utilizationCountArray.addPoint(40, 100, null, true, timestamp);
         checkToString(utilizationCountArray::toString, "{capacity=100.0}");
         checkToString(utilizationCountArray::toDebugString,
                         "{capacity=100.0; counts=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}");
@@ -344,15 +345,14 @@ public class UtilizationCountArrayTest {
                                         expectedFieldsToString)));
     }
 
-    private static void addCount(UtilizationCountArray counts, int count, int quantity)
+    private void addCount(UtilizationCountArray counts, int count, int quantity)
                     throws HistoryCalculationException {
         for (int i = 0; i < quantity; ++i) {
-            counts.addPoint(count, 100, "", true);
+            counts.addPoint(count, 100, "", true, timestamp);
         }
     }
 
-    private static void addCount(PercentileRecord.Builder builder, int count, int quantity)
-                    throws HistoryCalculationException {
+    private static void addCount(PercentileRecord.Builder builder, int count, int quantity) {
         if (builder.getUtilizationCount() == 0) {
             for (int i = 0; i <= 100; ++i) {
                 builder.addUtilization(0);

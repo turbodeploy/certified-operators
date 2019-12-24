@@ -67,7 +67,8 @@ public class HistoryAggregatorTest extends BaseGraphRelatedTest {
         ExecutorService executor = Mockito.mock(ExecutorService.class);
         int entityType1 = 1;
         int entityType2 = 2;
-        TopologyEntity entity = mockEntity(entityType2, 1L, CT1, 1, 0D, null, null, null, null);
+        TopologyEntity entity = mockEntity(entityType2, 1L, CT1, 1, 0D, null, null, null, null,
+                        true);
         TopologyGraph<TopologyEntity> graph = mockGraph(ImmutableSet.of(entity));
         HistoryAggregator stage = new HistoryAggregator(executor, Collections
                         .singleton(new TestHistoricalEditor(graph, true, Collections.singleton(entityType1),
@@ -87,7 +88,7 @@ public class HistoryAggregatorTest extends BaseGraphRelatedTest {
     public void testCommodityTypeNotApplicable() throws PipelineStageException {
         ExecutorService executor = Mockito.mock(ExecutorService.class);
         int entityType1 = 1;
-        TopologyEntity entity = mockEntity(entityType1, 1L, CT1, 1D, 0D, 2L, CT3, 0D, null);
+        TopologyEntity entity = mockEntity(entityType1, 1L, CT1, 1D, 0D, 2L, CT3, 0D, null, true);
         TopologyGraph<TopologyEntity> graph = mockGraph(ImmutableSet.of(entity));
         HistoryAggregator stage = new HistoryAggregator(executor, Collections
                         .singleton(new TestHistoricalEditor(graph, true, Collections.singleton(entityType1),
@@ -108,7 +109,8 @@ public class HistoryAggregatorTest extends BaseGraphRelatedTest {
         ExecutorService executor = Mockito.spy(Executors.newCachedThreadPool());
         try {
             int entityType1 = 1;
-            TopologyEntity entity = mockEntity(entityType1, 1L, CT1, 1D, 0D, 2L, CT3, 0D, null);
+            TopologyEntity entity = mockEntity(entityType1, 1L, CT1, 1D, 0D, 2L, CT3, 0D, null,
+                            true);
             TopologyGraph<TopologyEntity> graph = mockGraph(ImmutableSet.of(entity));
             HistoryAggregator stage = new HistoryAggregator(executor, Collections
                             .singleton(new TestHistoricalEditor(graph, true, Collections.singleton(entityType1),
@@ -138,8 +140,10 @@ public class HistoryAggregatorTest extends BaseGraphRelatedTest {
             double usedSold1 = 10D;
             double usedSold2 = 22D;
             double usedBought = 20D;
-            TopologyEntity entity1 = mockEntity(entityType1, oid1, CT1, 100D, usedSold1, null, null, null, null);
-            TopologyEntity entity2 = mockEntity(entityType2, oid2, CT3, 100D, usedSold2, oid1, CT2, usedBought, null);
+            TopologyEntity entity1 = mockEntity(entityType1, oid1, CT1, 100D, usedSold1, null, null, null, null,
+                            true);
+            TopologyEntity entity2 = mockEntity(entityType2, oid2, CT3, 100D, usedSold2, oid1, CT2, usedBought, null,
+                            true);
             TopologyGraph<TopologyEntity> graph = mockGraph(ImmutableSet.of(entity1, entity2));
             HistoryAggregator stage = new HistoryAggregator(executor, Collections
                             .singleton(new TestHistoricalEditor(graph, true,

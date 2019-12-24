@@ -1,6 +1,10 @@
 package com.vmturbo.topology.processor.history.percentile;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Arrays;
+
+import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,6 +31,8 @@ public class UtilizationCountArray {
     private final PercentileBuckets buckets;
     private float capacity = 0f;
     private int[] counts;
+    private long startTimestamp;
+    private long endTimestamp;
 
     /**
      * Construct the counts array.
@@ -46,9 +52,69 @@ public class UtilizationCountArray {
      */
     @SuppressWarnings("IncompleteCopyConstructor")
     public UtilizationCountArray(UtilizationCountArray other) {
+        endTimestamp = other.endTimestamp;
+        startTimestamp = other.startTimestamp;
         buckets = other.buckets;
         capacity = other.capacity;
         counts = Arrays.copyOf(other.counts, other.counts.length);
+    }
+
+    /**
+     * Returns information about latest timestamp stored in database.
+     *
+     * @return timestamp of the latest point stored in database.
+     */
+    public long getEndTimestamp() {
+        return endTimestamp;
+    }
+
+    /**
+     * Checks whether current {@link EntityCommodityFieldReference} has enough historical data or
+     * not.
+     *
+     * @param currentTimestamp current timestamp
+     * @param fieldReference reference to the field for which count array is
+     *                 stored.
+     * @param minObservationPeriodDays minimum amount of days for which entity
+     *                 should have percentile data.
+     * @param unavailableDataPeriodInMins maximum amount of minutes between two data
+     *                 points.
+     * @return {@code true} in case minimum observation period is disabled, i.e. it's value
+     *                 equal to 0, or in case there are enough data point collected for specified
+     *                 minimum observation period in days, otherwise return {@code false}.
+     */
+    public boolean isMinHistoryDataAvailable(long currentTimestamp,
+                    @Nonnull String fieldReference,
+                    int minObservationPeriodDays, int unavailableDataPeriodInMins) {
+        if (minObservationPeriodDays <= 0) {
+            return true;
+        }
+
+        final Instant now = Instant.ofEpochMilli(currentTimestamp);
+        final long minTimestampSinceWhichHistory =
+                        now.minus(Duration.ofDays(minObservationPeriodDays)).toEpochMilli();
+        if (startTimestamp <= 0) {
+            return false;
+        }
+        final boolean historyDataAvailable =
+                        minTimestampSinceWhichHistory > startTimestamp;
+        logger.debug("Percentile data available for '{}' since '{}'. Minimum required timestamp for history data '{}'.",
+                        () -> fieldReference, () -> Instant.ofEpochMilli(startTimestamp),
+                        () -> Instant.ofEpochMilli(minTimestampSinceWhichHistory));
+        if (!historyDataAvailable) {
+            return false;
+        }
+        final long unavailableDataTimestamp =
+                        now.minus(Duration.ofMinutes(unavailableDataPeriodInMins)).toEpochMilli();
+        final boolean historyDataComprehensive =
+                        endTimestamp > unavailableDataTimestamp;
+        logger.debug("Last successful discovery was '{}', minimum timestamp, after which data treated as unavailable: {}",
+                        () -> Instant.ofEpochMilli(endTimestamp),
+                        () -> Instant.ofEpochMilli(unavailableDataTimestamp));
+        if (!historyDataComprehensive) {
+            startTimestamp = currentTimestamp;
+        }
+        return historyDataComprehensive;
     }
 
     /**
@@ -59,10 +125,12 @@ public class UtilizationCountArray {
      *                    the counts will be proportionally rescaled
      * @param key array identifier for logging
      * @param add whether the count should be added or subtracted
+     * @param timestamp of the point which is currently processing
      * @throws HistoryCalculationException when capacity is non-positive
      */
-    public void addPoint(float usage, float newCapacity, String key, boolean add) throws HistoryCalculationException {
-        if (capacity <= 0d && !add) {
+    public void addPoint(float usage, float newCapacity, String key, boolean add, long timestamp) throws HistoryCalculationException {
+        final boolean remove = !add;
+        if (capacity <= 0d && remove) {
             logger.trace("No percentile counts defined to subtract yet for {}", key);
             return;
         }
@@ -73,15 +141,18 @@ public class UtilizationCountArray {
             logger.warn("Skipping negative percentile usage point {} for {}", usage, key);
             return;
         }
+        if (endTimestamp == 0 || remove && timestamp > startTimestamp) {
+            startTimestamp = timestamp;
+        }
         if (usage > newCapacity) {
             logger.warn("Percentile usage point {} exceeds capacity {} for {}", usage, capacity, key);
             usage = newCapacity;
         }
-
         int percent = (int)Math.ceil(Math.abs(usage) * 100 / newCapacity);
         if (add) {
             rescaleCountsIfNecessary(newCapacity, key);
             capacity = newCapacity;
+            endTimestamp = timestamp;
         } else if (capacity != 0d && Math.abs(capacity - newCapacity) > EPSILON) {
             // reverse-rescale the value being subtracted
             percent = Math.min(100, (int)Math.ceil(buckets.average(percent) * newCapacity / capacity));
@@ -139,6 +210,8 @@ public class UtilizationCountArray {
             counts[i++] += count;
         }
         capacity = record.getCapacity();
+        endTimestamp = record.getEndTimestamp();
+        startTimestamp = record.getStartTimestamp();
     }
 
     /**
@@ -151,7 +224,9 @@ public class UtilizationCountArray {
         PercentileRecord.Builder builder = PercentileRecord.newBuilder()
                         .setEntityOid(fieldRef.getEntityOid())
                         .setCommodityType(fieldRef.getCommodityType().getType())
-                        .setCapacity(capacity);
+                        .setCapacity(capacity)
+                        .setEndTimestamp(endTimestamp)
+                        .setStartTimestamp(startTimestamp);
         if (fieldRef.getProviderOid() != null) {
             builder.setProviderOid(fieldRef.getProviderOid());
         }

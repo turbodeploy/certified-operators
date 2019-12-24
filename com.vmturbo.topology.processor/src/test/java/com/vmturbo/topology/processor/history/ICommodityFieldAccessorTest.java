@@ -42,11 +42,11 @@ public class ICommodityFieldAccessorTest extends BaseGraphRelatedTest {
      */
     @Before
     public void setUp() {
-        entity1 = mockEntity(ENTITY_TYPE, OID1, CT1, CAPACITY1, USED1, null, null, null, null);
-        entity2 = mockEntity(ENTITY_TYPE, OID2, CT2, CAPACITY2, USED2, OID1, CT1, USED1, null);
+        entity1 = mockEntity(ENTITY_TYPE, OID1, CT1, CAPACITY1, USED1, null, null, null, null, true);
+        entity2 = mockEntity(ENTITY_TYPE, OID2, CT2, CAPACITY2, USED2, OID1, CT1, USED1, null, true);
         entity3 = mockEntity(ENTITY_TYPE, OID3, CT3, CAPACITY3, USED3, OID2, CT2, USED2,
                              UtilizationData.newBuilder().setLastPointTimestampMs(0)
-                                             .setIntervalMs(1).addPoint(USED3).build());
+                                             .setIntervalMs(1).addPoint(USED3).build(), true);
         graph = mockGraph(ImmutableSet.of(entity1, entity2, entity3));
     }
 

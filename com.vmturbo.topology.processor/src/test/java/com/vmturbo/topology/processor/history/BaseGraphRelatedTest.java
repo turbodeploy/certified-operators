@@ -49,23 +49,24 @@ public abstract class BaseGraphRelatedTest {
      * @param ctBought bought commodity type
      * @param usedBought bought usage
      * @param utilizationData sold commodity utilization data
+     * @param resizable whether sold commodity is resizable
      * @return mocked entity
      */
     @Nonnull
     protected static TopologyEntity mockEntity(int type, long oid, @Nonnull CommodityType ctSold,
-                                               double capacitySold,
-                                               double usedSold,
-                                               @Nullable Long provider, @Nullable CommodityType ctBought,
-                                               @Nullable Double usedBought,
-                                               @Nullable UtilizationData utilizationData) {
+                    double capacitySold, double usedSold, @Nullable Long provider, @Nullable CommodityType ctBought,
+                    @Nullable Double usedBought, @Nullable UtilizationData utilizationData,
+                    boolean resizable) {
         TopologyEntity e = Mockito.mock(TopologyEntity.class);
         Mockito.when(e.getEntityType()).thenReturn(type);
         Mockito.when(e.getOid()).thenReturn(oid);
         TopologyEntityDTO.Builder entityBuilder = TopologyEntityDTO.newBuilder();
         entityBuilder.setOid(oid).setEntityType(type);
         if (ctSold != null) {
-            CommoditySoldDTO.Builder commSold = entityBuilder.addCommoditySoldListBuilder()
-                            .setCommodityType(ctSold).setUsed(usedSold).setCapacity(capacitySold);
+            CommoditySoldDTO.Builder commSold =
+                            entityBuilder.addCommoditySoldListBuilder().setCommodityType(ctSold)
+                                            .setUsed(usedSold).setCapacity(capacitySold)
+                                            .setIsResizeable(resizable);
             if (utilizationData != null) {
                 commSold.setUtilizationData(utilizationData);
             }

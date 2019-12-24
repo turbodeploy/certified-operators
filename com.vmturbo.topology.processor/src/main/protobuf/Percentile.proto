@@ -25,5 +25,9 @@ message PercentileCounts {
         repeated int32 utilization = 6 [packed = true];
         // Period setting in days for which these counts were calculated.
         required int32 period = 7;
+        // Timestamp of the first points addition
+        optional int64 start_timestamp = 8;
+        // Timestamp of the last addition of points
+        optional int64 end_timestamp = 9;
     }
 }

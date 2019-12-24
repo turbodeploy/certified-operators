@@ -116,8 +116,8 @@ public class PercentileEditor extends
      * @param statsHistoryClient persistence component access handler
      * @param clock the {@link Clock}
      */
-    public PercentileEditor(PercentileHistoricalEditorConfig config,
-                            StatsHistoryServiceStub statsHistoryClient, Clock clock) {
+    public PercentileEditor(@Nonnull PercentileHistoricalEditorConfig config,
+                    @Nonnull StatsHistoryServiceStub statsHistoryClient, @Nonnull Clock clock) {
         this(config, statsHistoryClient, clock, PercentilePersistenceTask::new);
     }
 
@@ -129,10 +129,9 @@ public class PercentileEditor extends
      * @param clock the {@link Clock}
      * @param historyLoadingTaskCreator creator of task to load or save data
      */
-    public PercentileEditor(PercentileHistoricalEditorConfig config,
-                            StatsHistoryServiceStub statsHistoryClient,
-                            Clock clock,
-                            Function<StatsHistoryServiceStub, PercentilePersistenceTask> historyLoadingTaskCreator) {
+    public PercentileEditor(@Nonnull PercentileHistoricalEditorConfig config,
+                    @Nonnull StatsHistoryServiceStub statsHistoryClient, @Nonnull Clock clock,
+                    @Nonnull Function<StatsHistoryServiceStub, PercentilePersistenceTask> historyLoadingTaskCreator) {
         super(config, statsHistoryClient, historyLoadingTaskCreator, PercentileCommodityData::new);
         this.clock = clock;
     }

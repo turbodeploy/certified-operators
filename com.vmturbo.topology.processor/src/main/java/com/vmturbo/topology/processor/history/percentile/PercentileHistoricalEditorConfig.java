@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.history.percentile;
 
+import java.time.Clock;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -39,34 +40,41 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
                         EntitySettingSpecs.PercentileAggressivenessBusinessUser,
                         EntityType.VIRTUAL_MACHINE,
                         EntitySettingSpecs.PercentileAggressivenessVirtualMachine);
-    private static final Map<EntityType, EntitySettingSpecs> TYPE_OBSERVATION_PERIOD = ImmutableMap
+    private static final Map<EntityType, EntitySettingSpecs> TYPE_MAX_OBSERVATION_PERIOD = ImmutableMap
                     .of(EntityType.BUSINESS_USER,
                         EntitySettingSpecs.MaxObservationPeriodBusinessUser,
                         EntityType.VIRTUAL_MACHINE,
                         EntitySettingSpecs.MaxObservationPeriodVirtualMachine);
-
+    private static final Map<EntityType, EntitySettingSpecs> TYPE_MIN_OBSERVATION_PERIOD =
+            ImmutableMap.of(EntityType.VIRTUAL_MACHINE,
+                    EntitySettingSpecs.MinObservationPeriodVirtualMachine);
     private final Map<CommodityType, PercentileBuckets> buckets = new HashMap<>();
+    private final int unavailableDataPeriodInMins;
     private final int maintenanceWindowHours;
     private final int grpcStreamTimeoutSec;
     private final int blobReadWriteChunkSizeKb;
     private final KVConfig kvConfig;
+    private final Clock clock;
 
 
     /**
      * Initialize the percentile configuration values.
-     *
      * @param calculationChunkSize chunk size for percentile calculation
+     * @param allowableDataGapInMins maximum amount of time between two data points.
      * @param maintenanceWindowHours how often to checkpoint cache to persistent store
      * @param grpcStreamTimeoutSec the timeout for history access streaming operations
      * @param blobReadWriteChunkSizeKb the size of chunks for reading and writing from persistent store
      * @param commType2Buckets map of commodity type to percentile buckets specification
      * @param kvConfig the config to access the topology processor key value store.
+     * @param clock provides information about current time.
      */
-    public PercentileHistoricalEditorConfig(int calculationChunkSize, int maintenanceWindowHours,
-                                            int grpcStreamTimeoutSec, int blobReadWriteChunkSizeKb,
-                                            @Nonnull Map<CommodityType, String> commType2Buckets,
-                                            @Nullable KVConfig kvConfig) {
+    public PercentileHistoricalEditorConfig(int calculationChunkSize, int allowableDataGapInMins,
+                    int maintenanceWindowHours, int grpcStreamTimeoutSec, int blobReadWriteChunkSizeKb,
+                    @Nonnull Map<CommodityType, String> commType2Buckets,
+                    @Nullable KVConfig kvConfig, @Nonnull Clock clock) {
         super(0, calculationChunkSize);
+        this.unavailableDataPeriodInMins = allowableDataGapInMins;
+        this.clock = clock;
         // maintenance window cannot exceed minimum observation window
         final int minMaxObservationPeriod = (int)EntitySettingSpecs.MaxObservationPeriodVirtualMachine
                         .getSettingSpec().getNumericSettingValueType().getMin();
@@ -79,6 +87,25 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
         commType2Buckets.forEach((commType, bucketsSpec) -> buckets
                         .put(commType, new PercentileBuckets(bucketsSpec)));
         this.kvConfig = kvConfig;
+    }
+
+    /**
+     * Returns {@link Clock} instance used across system to get current time.
+     *
+     * @return {@link Clock} instance used across system to get current time.
+     */
+    @Nonnull
+    public Clock getClock() {
+        return clock;
+    }
+
+    /**
+     * Returns maximum amount of time between two data points in minutes.
+     *
+     * @return maximum amount of time between two data points in minutes
+     */
+    public int getUnavailableDataPeriodInMins() {
+        return unavailableDataPeriodInMins;
     }
 
     /**
@@ -120,8 +147,19 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
      * @return observation period
      */
     public int getObservationPeriod(long oid) {
-        return getIntSetting(oid, TYPE_OBSERVATION_PERIOD, "observation period",
+        return getIntSetting(oid, TYPE_MAX_OBSERVATION_PERIOD, "observation period",
                              getDefaultObservationPeriod());
+    }
+
+    /**
+     * Get min the percentile observation period for a given entity.
+     *
+     * @param oid entity oid
+     * @return observation period
+     */
+    public int getMinObservationPeriod(long oid) {
+        return getIntSetting(oid, TYPE_MIN_OBSERVATION_PERIOD, "min observation period",
+                getDefaultMinObservationPeriod());
     }
 
     /**
@@ -162,6 +200,11 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
     private static int getDefaultObservationPeriod() {
         return (int)EntitySettingSpecs.MaxObservationPeriodVirtualMachine.getSettingSpec()
                         .getNumericSettingValueType().getDefault();
+    }
+
+    private static int getDefaultMinObservationPeriod() {
+        return (int)EntitySettingSpecs.MinObservationPeriodVirtualMachine.getSettingSpec()
+                .getNumericSettingValueType().getDefault();
     }
 
     private int getIntSetting(long oid,

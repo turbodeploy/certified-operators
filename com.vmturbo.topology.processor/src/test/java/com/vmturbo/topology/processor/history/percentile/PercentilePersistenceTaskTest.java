@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.history.percentile;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.util.Collections;
 import java.util.Map;
 
@@ -48,11 +49,8 @@ public class PercentilePersistenceTaskTest {
 
     private static final int chunkSizeKb = 102;
     private static final PercentileHistoricalEditorConfig config =
-                 new PercentileHistoricalEditorConfig(10,
-                                                      18,
-                                                      10,
-                                                      chunkSizeKb,
-                                                      Collections.emptyMap(), null);
+                    new PercentileHistoricalEditorConfig(10, 30, 18, 10, chunkSizeKb,
+                                    Collections.emptyMap(), null, Clock.systemUTC());
     private static final long oid1 = 1;
     private static final long oid2 = 2;
     private static final long oid3 = 3;

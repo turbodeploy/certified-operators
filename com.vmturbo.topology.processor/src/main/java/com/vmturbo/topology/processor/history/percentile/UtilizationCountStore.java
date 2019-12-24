@@ -1,7 +1,10 @@
 package com.vmturbo.topology.processor.history.percentile;
 
+import java.time.Clock;
 import java.util.Collection;
 import java.util.List;
+
+import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -25,7 +28,7 @@ public class UtilizationCountStore {
     private final UtilizationCountArray latest;
     private final UtilizationCountArray full;
     private final PercentileBuckets buckets;
-    private long latestStoredTimestamp;
+    private final int unavailableDataPeriodInMins;
     private int periodDays;
 
     /**
@@ -33,11 +36,14 @@ public class UtilizationCountStore {
      *
      * @param buckets specification of percent buckets
      * @param fieldReference commodity field for which the history is retained
+     * @param unavailableDataPeriodInMins maximum amount of time between two data points.
      * @throws HistoryCalculationException when construction fails
      */
-    public UtilizationCountStore(PercentileBuckets buckets,
-                                 EntityCommodityFieldReference fieldReference)
+    public UtilizationCountStore(@Nonnull PercentileBuckets buckets,
+                    @Nonnull EntityCommodityFieldReference fieldReference,
+                    int unavailableDataPeriodInMins)
                     throws HistoryCalculationException {
+        this.unavailableDataPeriodInMins = unavailableDataPeriodInMins;
         if (buckets == null || buckets.size() == 0) {
             throw new HistoryCalculationException("Invalid percentile buckets provided for " + fieldReference);
         }
@@ -59,8 +65,8 @@ public class UtilizationCountStore {
         fieldReference = other.fieldReference;
         full = new UtilizationCountArray(other.full);
         latest = new UtilizationCountArray(other.latest);
-        latestStoredTimestamp = other.latestStoredTimestamp;
         this.periodDays = other.periodDays;
+        this.unavailableDataPeriodInMins = other.unavailableDataPeriodInMins;
     }
 
     /**
@@ -75,6 +81,29 @@ public class UtilizationCountStore {
     }
 
     /**
+     * Checks whether current {@link EntityCommodityFieldReference} has enough historical data or
+     * not.
+     *
+     * @param config percentile configuration.
+     * @param clock provides information about current time.
+     * @return {@code true} in case minimum observation period is disabled, i.e. it's value
+     *                 equal to 0, or in case there are enough data point collected for specified
+     *                 minimum observation period in days, otherwise return {@code false}.
+     */
+    public boolean isMinHistoryDataAvailable(@Nonnull PercentileHistoricalEditorConfig config,
+                    @Nonnull Clock clock) {
+        /*
+         Latest is taken because its database representation updated every discovery,
+         i.e. its database representation will contain information about
+         correct last point timestamp. On the other hand if we would use full it database
+         representation would have timestamp for the last point before maintenance.
+         */
+        return latest.isMinHistoryDataAvailable(clock.millis(), fieldReference.toString(),
+                        config.getMinObservationPeriod(fieldReference.getEntityOid()),
+                        config.getUnavailableDataPeriodInMins());
+    }
+
+    /**
      * Add the discovered usage points.
      *
      * @param samples percents (not usages or utilizations) - as sent from mediation
@@ -84,20 +113,21 @@ public class UtilizationCountStore {
      */
     public void addPoints(List<Double> samples, double capacity, long timestamp) throws HistoryCalculationException {
         // prevent double-storing upon broadcast if mediation hasn't changed the value
-        if (timestamp <= latestStoredTimestamp) {
+        if (timestamp <= latest.getEndTimestamp()) {
             logger.trace("Skipping storing the percentile samples for {} - already present", fieldReference::toString);
             return;
         }
-        latestStoredTimestamp = timestamp;
         String key = fieldReference.toString();
         for (Double percent : samples) {
             if (percent == null) {
-                logger.trace("Skipping the null percentile utilization for {}", fieldReference::toString);
+                logger.trace("Skipping the null percentile utilization for {}",
+                                fieldReference::toString);
+                continue;
             }
             float usage = (float)(percent * capacity / 100);
             // in both full observation window and latest between-checkpoints window
-            full.addPoint(usage, (float)capacity, key, true);
-            latest.addPoint(usage, (float)capacity, key, true);
+            full.addPoint(usage, (float)capacity, key, true, timestamp);
+            latest.addPoint(usage, (float)capacity, key, true, timestamp);
         }
     }
 
@@ -170,7 +200,8 @@ public class UtilizationCountStore {
                 float average = buckets.average(i);
                 for (int j = 0; j < count; ++j) {
                     full.addPoint(average * oldest.getCapacity() / 100, oldest.getCapacity(),
-                                  fieldReference.toString(), false);
+                                    fieldReference.toString(), false,
+                                    oldest.getStartTimestamp());
                 }
             }
         }
@@ -199,8 +230,8 @@ public class UtilizationCountStore {
     @Override
     public String toString() {
         return UtilizationCountStore.class.getSimpleName() + "{fieldReference=" + fieldReference +
-                ", full=" + full + ", latestStoredTimestamp=" + latestStoredTimestamp +
-                ", periodDays=" + periodDays + '}';
+                        ", full=" + full + ", latestStoredTimestamp=" + latest.getEndTimestamp() +
+                        ", periodDays=" + periodDays + '}';
     }
 
     /**
@@ -209,9 +240,9 @@ public class UtilizationCountStore {
      */
     public String toDebugString() {
         return UtilizationCountStore.class.getSimpleName() + "{fieldReference=" + fieldReference +
-                ", full=" + full.toDebugString() +
-                ", latest=" + latest.toDebugString() +
-                ", latestStoredTimestamp=" + latestStoredTimestamp +
-                ", periodDays=" + periodDays + '}';
+                        ", full=" + full.toDebugString() +
+                        ", latest=" + latest.toDebugString() +
+                        ", latestStoredTimestamp=" + latest.getEndTimestamp() +
+                        ", periodDays=" + periodDays + '}';
     }
 }

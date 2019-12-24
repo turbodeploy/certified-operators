@@ -36,10 +36,8 @@ public class PercentileCommodityData
      * Construct a copy of <code>other</code>.
      *
      * @param other object to copy from
-     * @throws HistoryCalculationException when coping of utilizationCounts fails
      */
-    public PercentileCommodityData(PercentileCommodityData other)
-                    throws HistoryCalculationException {
+    public PercentileCommodityData(@Nonnull PercentileCommodityData other) {
         this.utilizationCounts = new UtilizationCountStore(other.utilizationCounts);
     }
 
@@ -50,8 +48,9 @@ public class PercentileCommodityData
                      @Nonnull ICommodityFieldAccessor commodityFieldsAccessor) {
         try {
             if (utilizationCounts == null) {
-                utilizationCounts = new UtilizationCountStore(config
-                                .getPercentileBuckets(field.getCommodityType().getType()), field);
+                utilizationCounts = new UtilizationCountStore(
+                                config.getPercentileBuckets(field.getCommodityType().getType()),
+                                field, config.getUnavailableDataPeriodInMins());
                 utilizationCounts.setPeriodDays(config.getObservationPeriod(field.getEntityOid()));
             }
             if (dbValue != null) {
@@ -66,6 +65,13 @@ public class PercentileCommodityData
     public void aggregate(@Nonnull EntityCommodityFieldReference field,
                           @Nonnull PercentileHistoricalEditorConfig config,
                           @Nonnull ICommodityFieldAccessor commodityFieldsAccessor) {
+        final boolean hasEnoughData = utilizationCounts.isMinHistoryDataAvailable(config, config.getClock());
+        if (!hasEnoughData) {
+            logger.debug("Minimum amount of history data(for '{}' day(s)) is not available for '{}', so restriction policy will be applied",
+                            () -> config.getMinObservationPeriod(field.getEntityOid()),
+                            () -> field);
+            commodityFieldsAccessor.applyInsufficientHistoricalDataPolicy(field);
+        }
         Double capacity = commodityFieldsAccessor.getCapacity(field);
         if (capacity == null || capacity <= 0d) {
             logger.error("Cannot find capacity for commodity " + field
@@ -90,17 +96,18 @@ public class PercentileCommodityData
                     }
                 }
             }
-
-            // calculate and store the utilization into commodity's history value
-            int aggressiveness = config.getAggressiveness(field.getEntityOid());
-            int percentile = utilizationCounts.getPercentile(aggressiveness);
-            if (logger.isTraceEnabled()) {
-                logger.trace("Calculated percentile score for {} for rank {}: {}",
-                        utilizationCounts, aggressiveness, percentile);
+            if (hasEnoughData) {
+                // calculate and store the utilization into commodity's history value
+                int aggressiveness = config.getAggressiveness(field.getEntityOid());
+                int percentile = utilizationCounts.getPercentile(aggressiveness);
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Calculated percentile score for {} for rank {}: {}",
+                                    utilizationCounts, aggressiveness, percentile);
+                }
+                commodityFieldsAccessor.updateHistoryValue(field,
+                                hv -> hv.setPercentile(percentile / 100d),
+                                PercentileEditor.class.getSimpleName());
             }
-            commodityFieldsAccessor.updateHistoryValue(field,
-                                                       hv -> hv.setPercentile(percentile / 100d),
-                                                       PercentileEditor.class.getSimpleName());
             commodityFieldsAccessor.clearUtilizationData(field);
         } catch (HistoryCalculationException e) {
             logger.error("Failed to aggregate percentile utilization for " + field, e);

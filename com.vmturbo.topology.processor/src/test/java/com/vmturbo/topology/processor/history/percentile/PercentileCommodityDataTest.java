@@ -1,15 +1,28 @@
 package com.vmturbo.topology.processor.history.percentile;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Collections;
 
+import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
+import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.graph.TopologyGraphCreator;
+import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.history.BaseGraphRelatedTest;
 import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.CommodityFieldAccessor;
@@ -25,13 +38,22 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
     private static final double DELTA = 0.001;
     private static final CommodityType commType = CommodityType.newBuilder().setType(1).build();
     private static final EntityCommodityFieldReference field =
-                     new EntityCommodityFieldReference(1, commType, CommodityField.USED);
-    private static final PercentileHistoricalEditorConfig config =
-                     new PercentileHistoricalEditorConfig(1,
-                                                          24,
-                                                          10,
-                                                          100,
-                                                          Collections.emptyMap(), null);
+                    new EntityCommodityFieldReference(1, commType, CommodityField.USED);
+    private static final int UNAVAILABLE_DATA_PERIOD = 30;
+    private PercentileHistoricalEditorConfig config;
+
+    private Clock clock;
+
+    /**
+     * Initializes all resources required by tests.
+     */
+    @Before
+    public void before() {
+        clock = Mockito.mock(Clock.class);
+        Mockito.when(clock.instant()).thenReturn(Instant.ofEpochMilli(0L));
+        config = new PercentileHistoricalEditorConfig(1, UNAVAILABLE_DATA_PERIOD, 24, 10, 100,
+                        Collections.emptyMap(), null, clock);
+    }
 
     /**
      * Test that init method stores passed db values.
@@ -42,12 +64,14 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
     public void testInit() throws HistoryCalculationException {
         float cap = 100f;
         int used = 70;
-        TopologyEntity entity = mockEntity(1, 1, commType, cap, used, null, null, null, null);
-        ICommodityFieldAccessor accessor = Mockito
-                        .spy(new CommodityFieldAccessor(mockGraph(Collections.singleton(entity))));
+        TopologyEntity entity = mockEntity(1, 1, commType, cap, used, null, null, null, null, true);
+        ICommodityFieldAccessor accessor = Mockito.spy(new CommodityFieldAccessor(
+                        mockGraph(Collections.singleton(entity))));
         Mockito.doReturn((double)cap).when(accessor).getCapacity(field);
-        PercentileRecord.Builder dbValue = PercentileRecord.newBuilder().setCapacity(cap)
-                        .setEntityOid(entity.getOid()).setCommodityType(commType.getType()).setPeriod(30);
+        PercentileRecord.Builder dbValue =
+                        PercentileRecord.newBuilder().setCapacity(cap).setEntityOid(entity.getOid())
+                                        .setCommodityType(commType.getType())
+                                        .setPeriod(UNAVAILABLE_DATA_PERIOD);
         for (int i = 0; i <= 100; ++i) {
             dbValue.addUtilization(i == used ? 1 : 0);
         }
@@ -72,22 +96,86 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
         double used2 = 99d;
         double used3 = 12d;
         double realTime = 80d;
-        TopologyEntity entity = mockEntity(1, 1, commType, cap, used1, null, null, null, null);
-        ICommodityFieldAccessor accessor = Mockito
-                        .spy(new CommodityFieldAccessor(mockGraph(Collections.singleton(entity))));
-        Mockito.doReturn((double)cap).when(accessor).getCapacity(field);
-        Mockito.doReturn(realTime).when(accessor).getRealTimeValue(field);
-        UtilizationData data = UtilizationData.newBuilder().setLastPointTimestampMs(1000)
-                        .setIntervalMs(10).addPoint(used2 / cap * 100).addPoint(used3 / cap * 100)
-                        .build();
-        Mockito.doReturn(data).when(accessor).getUtilizationData(Mockito.any());
+        TopologyEntity entity =
+                        mockEntity(1, 1, commType, cap, used1, null, null, null, null, true);
+        ICommodityFieldAccessor accessor =
+                        createAccessor(cap, used2, used3, realTime, entity, 1000);
 
         PercentileCommodityData pcd = new PercentileCommodityData();
         pcd.init(field, null, config, accessor);
         pcd.aggregate(field, config, accessor);
-        CommoditySoldDTO.Builder commSold = entity.getTopologyEntityDtoBuilder()
-                        .getCommoditySoldListBuilderList().get(0);
+        CommoditySoldDTO.Builder commSold =
+                        entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()
+                                        .get(0);
         Assert.assertTrue(commSold.hasHistoricalUsed());
         Assert.assertEquals(used3 / cap, commSold.getHistoricalUsed().getPercentile(), DELTA);
+    }
+
+    /**
+     * Checks that min observation period setting is working as expected.
+     */
+    @Test
+    public void testMinObservationPeriod() {
+        final long currentTime = Duration.ofMinutes(31).toMillis();
+        Mockito.when(clock.instant()).thenReturn(Instant.ofEpochMilli(currentTime));
+        final PercentileCommodityData pcd = new PercentileCommodityData();
+        final ICommodityFieldAccessor accessor = createAccessor(currentTime);
+        pcd.init(field, null, config, accessor);
+        // First time until startTimestamp initialized
+        aggregate(false, currentTime, pcd, 1);
+        // Start timestamp initialized, but there is no enough history data
+        aggregate(false, currentTime, pcd, 1);
+        // Start timestamp initialized, setting changed, data enough
+        aggregate(true, currentTime, pcd, 0);
+        // Start timestamp initialized, data enough, but we did not get data from probe for more than 30 minutes
+        final long nextCollectAfterMissing = Duration.ofMinutes(93).toMillis();
+        Mockito.when(clock.instant()).thenReturn(Instant.ofEpochMilli(nextCollectAfterMissing));
+        aggregate(false, nextCollectAfterMissing, pcd, 1);
+    }
+
+    private void aggregate(boolean expectedResizable, long currentTime, PercentileCommodityData pcd,
+                    int minObservationPeriodValue) {
+        final TopologyEntity entity =
+                        mockEntity(EntityType.VIRTUAL_MACHINE_VALUE, 1, commType, 100f, 76d, null,
+                                        null, null, null, true);
+        final Setting minObservationPeriodSetting = Setting.newBuilder().setSettingSpecName(
+                        EntitySettingSpecs.MinObservationPeriodVirtualMachine.getSettingName())
+                        .setNumericSettingValue(NumericSettingValue.newBuilder()
+                                        .setValue(minObservationPeriodValue).build()).build();
+        final EntitySettings settings =
+                        EntitySettings.newBuilder().setEntityOid(1).setDefaultSettingPolicyId(3)
+                                        .addUserSettings(SettingToPolicyId.newBuilder()
+                                                        .setSetting(minObservationPeriodSetting)
+                                                        .build()).build();
+        config.initSettings(new GraphWithSettings(new TopologyGraphCreator<>(
+                        Collections.singletonMap(1L, TopologyEntity.newBuilder(
+                                        entity.getTopologyEntityDtoBuilder()))).build(),
+                        Collections.singletonMap(1L, settings), Collections.emptyMap()), false);
+        pcd.aggregate(field, config, createAccessor(100f, 99d, 12d, 80d, entity, currentTime));
+        final CommoditySoldDTO.Builder commSold =
+                        entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()
+                                        .get(0);
+        Assert.assertThat(commSold.getIsResizeable(), CoreMatchers.is(expectedResizable));
+    }
+
+    private ICommodityFieldAccessor createAccessor(long currentTime) {
+        final TopologyEntity entity =
+                        mockEntity(EntityType.VIRTUAL_MACHINE_VALUE, 1, commType, 100f, 76d, null,
+                                        null, null, null, true);
+        return createAccessor(100f, 99d, 12d, 80d, entity, currentTime);
+    }
+
+    private ICommodityFieldAccessor createAccessor(float cap, double used2, double used3,
+                    double realTime, TopologyEntity entity, long lastPointTimestamp) {
+        ICommodityFieldAccessor accessor = Mockito.spy(new CommodityFieldAccessor(
+                        mockGraph(Collections.singleton(entity))));
+        Mockito.doReturn((double)cap).when(accessor).getCapacity(field);
+        Mockito.doReturn(realTime).when(accessor).getRealTimeValue(field);
+        UtilizationData data =
+                        UtilizationData.newBuilder().setLastPointTimestampMs(lastPointTimestamp)
+                                        .setIntervalMs(10).addPoint(used2 / cap * 100)
+                                        .addPoint(used3 / cap * 100).build();
+        Mockito.doReturn(data).when(accessor).getUtilizationData(Mockito.any());
+        return accessor;
     }
 }

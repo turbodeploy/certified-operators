@@ -195,4 +195,12 @@ public class CommodityFieldAccessor implements ICommodityFieldAccessor {
         return Optional.of(builder);
     }
 
+    @Override
+    public void applyInsufficientHistoricalDataPolicy(@Nonnull EntityCommodityReference field) {
+        if (field.getProviderOid() == null) {
+            getCommodityBuilder(soldBuilders, field, SOLD_BUILDER_EXTRACTOR)
+                            .ifPresent(builder -> builder.setIsResizeable(false));
+        }
+        //TODO:implementation for BusinessUser use-case.
+    }
 }
