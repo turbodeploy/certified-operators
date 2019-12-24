@@ -38,6 +38,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.processor.group.settings.applicators.ComputeTierInstanceStorePolicyApplicator;
+import com.vmturbo.topology.processor.group.settings.applicators.VmInstanceStorePolicyApplicator;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline;
 
 /**
@@ -141,7 +143,9 @@ public class EntitySettingsApplicator {
                 new ResizeTargetUtilizationCommoditySoldApplicator(
                         EntitySettingSpecs.ResizeTargetUtilizationVcpu, CommodityType.VCPU),
                 new ResizeTargetUtilizationCommoditySoldApplicator(
-                        EntitySettingSpecs.ResizeTargetUtilizationVmem, CommodityType.VMEM));
+                        EntitySettingSpecs.ResizeTargetUtilizationVmem, CommodityType.VMEM),
+                new ComputeTierInstanceStorePolicyApplicator(),
+                new VmInstanceStorePolicyApplicator(graphWithSettings.getTopologyGraph()));
     }
 
     private static Collection<CommoditySoldDTO.Builder> getCommoditySoldBuilders(
@@ -156,11 +160,11 @@ public class EntitySettingsApplicator {
     /**
      * The applicator of a single {@link Setting} to a single {@link TopologyEntityDTO.Builder}.
      */
-    private static abstract class SingleSettingApplicator implements SettingApplicator {
+    public abstract static class SingleSettingApplicator implements SettingApplicator {
 
         private final EntitySettingSpecs setting;
 
-        private SingleSettingApplicator(@Nonnull EntitySettingSpecs setting) {
+        protected SingleSettingApplicator(@Nonnull EntitySettingSpecs setting) {
             this.setting = Objects.requireNonNull(setting);
         }
 

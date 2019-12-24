@@ -7,21 +7,29 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+
+import org.hamcrest.CoreMatchers;
+import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
+import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
@@ -34,14 +42,18 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.InstanceDiskType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
@@ -55,6 +67,8 @@ public class EntitySettingsApplicatorTest {
     private static final long PARENT_ID = 23345;
     private static final long DEFAULT_SETTING_ID = 23346;
 
+    private static final Setting INSTANCE_STORE_AWARE_SCALING_SETTING =
+                    createInstanceStoreAwareScalingSetting(true);
     private static final Setting MOVE_DISABLED_SETTING = Setting.newBuilder()
             .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
             .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
@@ -157,6 +171,8 @@ public class EntitySettingsApplicatorTest {
     private static final TopologyEntityDTO PARENT_OBJECT =
             TopologyEntityDTO.newBuilder().setOid(PARENT_ID).setEntityType(100001).build();
     private static final double DELTA = 0.001;
+    private static final int INSTANCE_DISK_SIZE_GB = 10;
+    private static final double NUM_DISKS = 3D;
 
     private EntitySettingsApplicator applicator;
 
@@ -498,6 +514,217 @@ public class EntitySettingsApplicatorTest {
 
         applySettings(TOPOLOGY_INFO, entity, PROVISION_DISABLED_SETTING);
         assertFalse(entity.getAnalysisSettings().getCloneable());
+    }
+
+    /**
+     * Checks that when instance store aware scaling setting is enabled than compute tier instance
+     * which has instance store disks, will have 3 additional commodities after setting
+     * application.
+     */
+    @Test
+    public void checkSettingHasNoEffect() {
+        final Builder entity = createComputeTier(0L);
+        final Setting inactiveSetting = Setting.newBuilder()
+                        .setSettingSpecName(
+                                        EntitySettingSpecs.InstanceStoreAwareScaling.getSettingName())
+                        .build();
+        verifySettingHasNoEffect(entity, inactiveSetting);
+        final Setting disabledSetting = createInstanceStoreAwareScalingSetting(false);
+        verifySettingHasNoEffect(entity, disabledSetting);
+        verifySettingHasNoEffect(TopologyEntityDTO.newBuilder().setOid(0L)
+                                        .setEntityType(EntityType.COMPUTE_TIER_VALUE),
+                        INSTANCE_STORE_AWARE_SCALING_SETTING);
+        verifySettingHasNoEffect(TopologyEntityDTO.newBuilder().setOid(0L)
+                                        .setEntityType(EntityType.COMPUTE_TIER_VALUE)
+                                        .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().build()),
+                        INSTANCE_STORE_AWARE_SCALING_SETTING);
+    }
+
+    private static Setting createInstanceStoreAwareScalingSetting(final boolean value) {
+        return Setting.newBuilder().setSettingSpecName(
+                        EntitySettingSpecs.InstanceStoreAwareScaling.getSettingName())
+                        .setBooleanSettingValue(
+                                        BooleanSettingValue.newBuilder().setValue(value).build())
+                        .build();
+    }
+
+    private static Builder createComputeTier(long oid) {
+        return TopologyEntityDTO.newBuilder().setOid(oid)
+                        .setEntityType(EntityType.COMPUTE_TIER_VALUE).setTypeSpecificInfo(
+                                        TypeSpecificInfo.newBuilder()
+                                                        .setComputeTier(ComputeTierInfo.newBuilder()
+                                                                        .setInstanceDiskSizeGb(
+                                                                                        INSTANCE_DISK_SIZE_GB)
+                                                                        .setInstanceDiskType(
+                                                                                        InstanceDiskType.HDD)
+                                                                        .setNumInstanceDisks(3)
+                                                                        .build()).build());
+    }
+
+    private void verifySettingHasNoEffect(Builder entity, Setting disabledSetting) {
+        applySettings(TOPOLOGY_INFO, entity, disabledSetting);
+        final List<CommoditySoldDTO> soldCommodities = entity.getCommoditySoldListList();
+        Assert.assertThat(soldCommodities.size(), CoreMatchers.is(0));
+    }
+
+    /**
+     * Checks that when instance store aware scaling setting is enabled than compute tier instance
+     * which has instance store disks, will have 3 additional commodities after setting
+     * application.
+     */
+    @Test
+    public void checkComputeTierInstanceStoreSettings() {
+        final Builder entity = createComputeTier(0L);
+        applySettings(TOPOLOGY_INFO, entity, INSTANCE_STORE_AWARE_SCALING_SETTING);
+        final List<CommoditySoldDTO> soldCommodities = entity.getCommoditySoldListList();
+        final Set<CommodityType> commodityTypes =
+                        soldCommodities.stream().map(CommoditySoldDTO::getCommodityType)
+                                        .map(TopologyDTO.CommodityType::getType)
+                                        .map(CommodityType::forNumber).collect(Collectors.toSet());
+        Assert.assertThat(soldCommodities.size(), CoreMatchers.is(3));
+        Assert.assertThat(commodityTypes, Matchers.containsInAnyOrder(CommodityType.NUM_DISK,
+                        CommodityType.INSTANCE_DISK_TYPE, CommodityType.INSTANCE_DISK_SIZE));
+        Assert.assertThat(soldCommodities.stream().map(CommoditySoldDTO::getIsResizeable)
+                                        .collect(Collectors.toSet()),
+                        CoreMatchers.is(Collections.singleton(false)));
+        Assert.assertThat(soldCommodities.stream().map(CommoditySoldDTO::getActive)
+                                        .collect(Collectors.toSet()),
+                        CoreMatchers.is(Collections.singleton(true)));
+        Assert.assertThat(getCommodityCapacity(soldCommodities, CommodityType.INSTANCE_DISK_SIZE),
+                        CoreMatchers.is(INSTANCE_DISK_SIZE_GB * 1024D));
+        Assert.assertThat(getCommodityCapacity(soldCommodities, CommodityType.NUM_DISK),
+                        CoreMatchers.is(NUM_DISKS));
+        final String instanceTypeKey = findCommodity(soldCommodities,
+                        c -> c.getCommodityType().getType()
+                                        == CommodityType.INSTANCE_DISK_TYPE_VALUE)
+                        .getCommodityType().getKey();
+        Assert.assertThat(instanceTypeKey, CoreMatchers.is(InstanceDiskType.HDD.name()));
+    }
+
+    /**
+     * Checks the case when there is no {@link EntityType#COMPUTE_TIER} provider for a VM, than
+     * despite that setting is active and enabled we will not add instance store commodities.
+     */
+    @Test
+    public void checkSettingHasNoEffectForVm() {
+        final long providerOid = 777_777L;
+        final int providerEntityType = EntityType.PHYSICAL_MACHINE_VALUE;
+        final Builder provider = TopologyEntityDTO.newBuilder().setOid(providerOid)
+                        .setEntityType(providerEntityType);
+        final CommoditiesBoughtFromProvider computeTierBoughtProvider =
+                        CommoditiesBoughtFromProvider.newBuilder().setProviderId(providerOid)
+                                        .setProviderEntityType(providerEntityType)
+                                        .build();
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .addCommoditiesBoughtFromProviders(computeTierBoughtProvider);
+        applySettings(TOPOLOGY_INFO, entity, provider, applicator,
+                        INSTANCE_STORE_AWARE_SCALING_SETTING);
+        final CommoditiesBoughtFromProvider computeTierUpdatedProvider =
+                        entity.getCommoditiesBoughtFromProvidersList().stream()
+                                        .filter(p -> p.getProviderId() == providerOid)
+                                        .findFirst().get();
+        final List<CommodityBoughtDTO> boughtCommodities =
+                        computeTierUpdatedProvider.getCommodityBoughtList();
+        Assert.assertThat(boughtCommodities.size(), CoreMatchers.is(0));
+    }
+
+    /**
+     * Checks that in case VM has at least one Instance Store commodity type bought from compute
+     * tier provider, then instance store settings applicators will not add more commodities.
+     */
+    @Test
+    public void checkVmAlreadyHasInstanceStoreCommodities() {
+        final long providerOid = 777_777L;
+        final Builder provider = createComputeTier(providerOid);
+        final CommoditiesBoughtFromProvider computeTierBoughtProvider =
+                        CommoditiesBoughtFromProvider.newBuilder().setProviderId(providerOid)
+                                        .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE)
+                                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                                        .setCommodityType(TopologyDTO.CommodityType
+                                                                        .newBuilder()
+                                                                        .setType(CommodityType.INSTANCE_DISK_SIZE_VALUE)
+                                                                        .build())
+                                                        .setUsed(INSTANCE_DISK_SIZE_GB).build())
+                                        .build();
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .addCommoditiesBoughtFromProviders(computeTierBoughtProvider);
+        applySettings(TOPOLOGY_INFO, entity, provider, applicator,
+                        INSTANCE_STORE_AWARE_SCALING_SETTING);
+        final CommoditiesBoughtFromProvider computeTierUpdatedProvider =
+                        entity.getCommoditiesBoughtFromProvidersList().stream()
+                                        .filter(p -> p.getProviderId() == providerOid)
+                                        .findFirst().get();
+        final List<CommodityBoughtDTO> boughtCommodities =
+                        computeTierUpdatedProvider.getCommodityBoughtList();
+        Assert.assertThat(boughtCommodities.size(), CoreMatchers.is(1));
+    }
+
+    /**
+     * Checks that when instance store aware scaling setting is enabled than VM instance which has
+     * instance store disks, will have 3 additional commodities after setting application.
+     */
+    @Test
+    public void checkVmInstanceStoreSettings() {
+        final long computeTierOid = 777_777L;
+        final long secondTierOid = 777_778L;
+        final Builder computeTierFirst = createComputeTier(computeTierOid);
+        final Builder computeTierSecond = createComputeTier(secondTierOid);
+        final CommoditiesBoughtFromProvider computeTierBoughtProvider =
+                        CommoditiesBoughtFromProvider.newBuilder().setProviderId(computeTierOid)
+                                        .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE)
+                                        .build();
+        final CommoditiesBoughtFromProvider computeTierBoughtProviderSecond =
+                        CommoditiesBoughtFromProvider.newBuilder().setProviderId(secondTierOid)
+                                        .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE)
+                                        .build();
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .addCommoditiesBoughtFromProviders(computeTierBoughtProvider)
+                        .addCommoditiesBoughtFromProviders(computeTierBoughtProviderSecond);
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(ImmutableMap.of(
+                        entity.getOid(), topologyEntityBuilder(entity),
+                        computeTierOid, topologyEntityBuilder(computeTierFirst),
+                        secondTierOid, topologyEntityBuilder(computeTierSecond)));
+        applySettings(TOPOLOGY_INFO, applicator, graph, entity.getOid(),
+                        INSTANCE_STORE_AWARE_SCALING_SETTING);
+        final CommoditiesBoughtFromProvider computeTierUpdatedProvider =
+                        entity.getCommoditiesBoughtFromProvidersList().stream()
+                                        .filter(p -> p.getProviderId() == computeTierOid)
+                                        .findFirst().get();
+        final List<CommodityBoughtDTO> boughtCommodities =
+                        computeTierUpdatedProvider.getCommodityBoughtList();
+        Assert.assertThat(boughtCommodities.size(), CoreMatchers.is(3));
+        Assert.assertThat(getCommodityUsage(boughtCommodities, CommodityType.INSTANCE_DISK_SIZE),
+                        CoreMatchers.is(INSTANCE_DISK_SIZE_GB * 1024D));
+        Assert.assertThat(getCommodityUsage(boughtCommodities, CommodityType.NUM_DISK),
+                        CoreMatchers.is(NUM_DISKS));
+        final String instanceTypeKey = findCommodity(boughtCommodities,
+                        c -> c.getCommodityType().getType()
+                                        == CommodityType.INSTANCE_DISK_TYPE_VALUE)
+                        .getCommodityType().getKey();
+        Assert.assertThat(instanceTypeKey, CoreMatchers.is(InstanceDiskType.HDD.name()));
+    }
+
+    private static double getCommodityCapacity(Collection<CommoditySoldDTO> commodities,
+                    CommodityType commodityType) {
+        return findCommodity(commodities,
+                        c -> c.getCommodityType().getType() == commodityType.getNumber())
+                        .getCapacity();
+
+    }
+
+    @Nullable
+    private static <T> T findCommodity(@Nonnull Collection<T> commodities,
+                    @Nonnull Predicate<T> filter) {
+        return commodities.stream().filter(filter).findFirst().orElse(null);
+    }
+
+    private static double getCommodityUsage(Collection<CommodityBoughtDTO> commodities,
+                    CommodityType commodityType) {
+        return findCommodity(commodities,
+                        c -> c.getCommodityType().getType() == commodityType.getNumber()).getUsed();
     }
 
     @Test
@@ -894,20 +1121,7 @@ public class EntitySettingsApplicatorTest {
         final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(ImmutableMap.of(
             entityId, topologyEntityBuilder(entity),
             PARENT_ID, topologyEntityBuilder(PARENT_OBJECT.toBuilder())));
-        final EntitySettings.Builder settingsBuilder = EntitySettings.newBuilder()
-                .setEntityOid(entityId)
-                .setDefaultSettingPolicyId(DEFAULT_SETTING_ID);
-        for (Setting setting : settings) {
-            settingsBuilder.addUserSettings(SettingToPolicyId.newBuilder()
-                    .setSetting(setting)
-                    .addSettingPolicyId(1L)
-                    .build());
-        }
-        final SettingPolicy policy = SettingPolicy.newBuilder().setId(DEFAULT_SETTING_ID).build();
-        final GraphWithSettings graphWithSettings = new GraphWithSettings(graph,
-                Collections.singletonMap(entityId, settingsBuilder.build()),
-                Collections.singletonMap(DEFAULT_SETTING_ID, policy));
-        applicator.applySettings(topologyInfo, graphWithSettings);
+        applySettings(topologyInfo, applicator, graph, entityId, settings);
     }
 
     /**
@@ -930,19 +1144,36 @@ public class EntitySettingsApplicatorTest {
             entityId, topologyEntityBuilder(entity),
             PARENT_ID, topologyEntityBuilder(PARENT_OBJECT.toBuilder()),
             otherEntity.getOid(), topologyEntityBuilder(otherEntity)));
+        applySettings(topologyInfo, applicator, graph, entityId, settings);
+    }
+
+    /**
+     * Applies the specified settings to the specified topology builder. Add additional entity
+     * to construct topology graph.
+     *
+     * @param topologyInfo {@link TopologyInfo}
+     * @param entityId identifier of the entity to apply the setting
+     * @param graph with other entities that will be processed.
+     * @param applicator the applicator to apply the setting
+     * @param settings setting to be applied
+     */
+    private static void applySettings(@Nonnull final TopologyInfo topologyInfo,
+                    @Nonnull EntitySettingsApplicator applicator,
+                    @Nonnull TopologyGraph<TopologyEntity> graph, long entityId,
+                    @Nonnull Setting... settings) {
         final EntitySettings.Builder settingsBuilder = EntitySettings.newBuilder()
-            .setEntityOid(entityId)
-            .setDefaultSettingPolicyId(DEFAULT_SETTING_ID);
+                        .setEntityOid(entityId)
+                        .setDefaultSettingPolicyId(DEFAULT_SETTING_ID);
         for (Setting setting : settings) {
             settingsBuilder.addUserSettings(SettingToPolicyId.newBuilder()
-                .setSetting(setting)
-                .addSettingPolicyId(1L)
-                .build());
+                            .setSetting(setting)
+                            .addSettingPolicyId(1L)
+                            .build());
         }
         final SettingPolicy policy = SettingPolicy.newBuilder().setId(DEFAULT_SETTING_ID).build();
         final GraphWithSettings graphWithSettings = new GraphWithSettings(graph,
-            Collections.singletonMap(entityId, settingsBuilder.build()),
-            Collections.singletonMap(DEFAULT_SETTING_ID, policy));
+                        Collections.singletonMap(entityId, settingsBuilder.build()),
+                        Collections.singletonMap(DEFAULT_SETTING_ID, policy));
         applicator.applySettings(topologyInfo, graphWithSettings);
     }
 }
