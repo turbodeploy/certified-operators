@@ -13,6 +13,8 @@
             {"inputType": "*", "elements": "DataCenter:displayName:PRODUCES", "filterCategory": "entity", "filterType": "vmsByDC"},
             {"inputType": "s", "elements": "state", "filterCategory": "property", "filterType": "vmsByState", "loadOptions": true},
             {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "vmsByTag", "loadOptions": true},
+            {"inputType": "s", "elements": "ephemeral", "filterCategory": "property", "filterType": "vmsConnectedToEphemeralStorage"},
+            {"inputType": "s", "elements": "encrypted", "filterCategory": "property", "filterType": "vmsConnectedToEncryptedVolume"},
             {"inputType": "*", "elements": "virtualMachineInfoRepoDTO.guestOsType", "filterCategory": "property", "filterType": "vmsByGuestName"},
             {"inputType": "#", "elements": "virtualMachineInfoRepoDTO.numCpus", "filterCategory": "property", "filterType": "vmsByNumCPUs"},
             {"inputType": "s", "elements": "BusinessAccount:oid:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "vmsByBusinessAccountUuid", "loadOptions": true},

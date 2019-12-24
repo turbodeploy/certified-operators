@@ -28,11 +28,14 @@ import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.common.protobuf.topology.UIEnvironmentType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.graph.TopologyGraphEntity;
 import com.vmturbo.topology.graph.search.filter.TraversalFilter.TraversalToDepthFilter;
 import com.vmturbo.topology.graph.search.filter.TraversalFilter.TraversalToPropertyFilter;
@@ -296,10 +299,39 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                     ));
                 }
             }
+            case SearchableProperties.ENCRYPTED: {
+                if (stringCriteria.getOptionsCount() == 1) {
+                    return new PropertyFilter<>(
+                                    stringOptionsPredicate(stringCriteria.getOptionsList(),
+                                                    vmToVolumeInfoPropertyLookup(
+                                                                    v -> v.hasEncryption() && v
+                                                                                    .getEncryption()),
+                                                    false, false));
+                }
+            }
+            case SearchableProperties.EPHEMERAL: {
+                if (stringCriteria.getOptionsCount() == 1) {
+                    return new PropertyFilter<>(
+                                    stringOptionsPredicate(stringCriteria.getOptionsList(),
+                                                    vmToVolumeInfoPropertyLookup(
+                                                                    v -> v.hasIsEphemeral() && v
+                                                                                    .getIsEphemeral()),
+                                                    false, false));
+                }
+            }
             default:
                 throw new IllegalArgumentException("Unknown string property: " + propertyName
                         + " with criteria: " + stringCriteria);
         }
+    }
+
+    private Function<E, String> vmToVolumeInfoPropertyLookup(
+                    Predicate<VirtualVolumeInfo> volumeInfoPredicate) {
+        return entity -> Boolean.toString(entity.getAllConnectedEntities().stream()
+                        .filter(e -> e.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
+                        .map(TopologyGraphEntity::getTypeSpecificInfo)
+                        .filter(TypeSpecificInfo::hasVirtualVolume)
+                        .map(TypeSpecificInfo::getVirtualVolume).anyMatch(volumeInfoPredicate));
     }
 
     @Nonnull

@@ -42,6 +42,9 @@ public class VirtualVolumeInfoMapper extends TypeSpecificInfoMapper {
         if (vvData.hasEncrypted()) {
             vvInfo.setEncryption(vvData.getEncrypted());
         }
+        if (vvData.hasIsEphemeral()) {
+            vvInfo.setIsEphemeral(vvData.getIsEphemeral());
+        }
         vvInfo.addAllFiles(vvData.getFileList());
         retBuilder.setVirtualVolume(vvInfo.build());
         return retBuilder.build();

@@ -81,6 +81,14 @@ public class SearchableProperties {
     public static final String BUSINESS_ACCOUNT_INFO_ACCOUNT_ID = "accountId";
 
     public static final String VM_CONNECTED_NETWORKS = "connectedNetworks";
+    /**
+     * Encrypted field from virtual volume information.
+     */
+    public static final String ENCRYPTED = "encrypted";
+    /**
+     * Ephemeral field from virtual volume information.
+     */
+    public static final String EPHEMERAL = "ephemeral";
 
     /**
      * Status of a target.

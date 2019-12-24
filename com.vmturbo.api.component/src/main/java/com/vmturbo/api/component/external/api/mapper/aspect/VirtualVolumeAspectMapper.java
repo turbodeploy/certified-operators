@@ -699,6 +699,9 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                 }
                  virtualDiskApiDTO.setEncryption(ENCRYPTION_STATE);
             }
+            if (volumeInfo.hasIsEphemeral()) {
+                virtualDiskApiDTO.setEphemeral(Boolean.toString(volumeInfo.getIsEphemeral()));
+            }
         }
 
         // set following stats:
