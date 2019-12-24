@@ -73,7 +73,7 @@ BEGIN
         avg(amount) as amount,
         count(*) as samples
     FROM account_expenses
-    WHERE expense_date < \'', @aggregation_date ,'\' AND aggregated = 0
+    WHERE expense_date < \'', DATE_ADD(@aggregation_date, INTERVAL -1 DAY) ,'\' AND aggregated = 0
     GROUP BY last_day(expense_date), associated_account_id, associated_entity_id');
 
     PREPARE stmt from @sql;
@@ -94,7 +94,7 @@ BEGIN
         (account_expenses_by_month.amount * account_expenses_by_month.samples + a.amount * a.samples)/(account_expenses_by_month.samples + a.samples),
         account_expenses_by_month.samples = account_expenses_by_month.samples + a.samples;
 
-    SET @sql=concat('UPDATE account_expenses SET aggregated = 1 WHERE expense_date < \'', @aggregation_date,'\' AND aggregated = 0');
+    SET @sql=concat('UPDATE account_expenses SET aggregated = 1 WHERE expense_date < \'', DATE_ADD(@aggregation_date, INTERVAL -1 DAY),'\' AND aggregated = 0');
 
     PREPARE stmt from @sql;
     EXECUTE stmt;
